@@ -15,23 +15,69 @@
 
 model:
   task: classification
-  base:
-    output_layer: true
-    output_dim: 100  # CIFAR100 for more complexity
   
-  network:
+  # Encoder network for preprocessing
+  encoder_network:
+    type: identity  # No preprocessing for direct FSDP training
+    parameters:
+      input_shape: [3, 32, 32]  # CIFAR100 input
+
+  # Core EI network - large for FSDP demonstration
+  core_network:
     type: EINet
-    params:
-      input_dim: 3072  # CIFAR100: 32x32x3
-      hidden_dims: [2048, 1024, 512, 256]  # Large architecture
-      
-      ei_params:
-        ei_balance: 0.8
-        branches_per_neuron: 8    # More branches for complexity
-        synapses_per_branch: 128  # More synapses per branch
-        topk_value: 64           # Higher connectivity
+    parameters:
+      # Transfer function parameters
+      transfer_params:
         input_mode: 1
         independent_pathways: true
+        output_activation: none
+        
+      # Large morphological architecture for FSDP
+      excitatory_layer_sizes: [100, 80, 60, 40]    # Large layers for multi-GPU
+      inhibitory_layer_sizes: [25, 20, 15, 10]     # Corresponding inhibitory layers
+      excitatory_branch_factors: [8, 8, 6, 4]      # More branches for complexity
+      inhibitory_branch_factors: [4, 4, 3, 2]      # Inhibitory branches
+      
+      # Rich connectivity for large model
+      ee_synapses_per_branch_per_layer: [16]       # More synapses per branch
+      ei_synapses_per_branch_per_layer: [8]        # E-to-I connections
+      ie_synapses_per_branch_per_layer: [4]        # I-to-E connections
+      ii_synapses_per_branch_per_layer: [2]        # I-to-I connections
+      
+      # Morphological features
+      somatic_synapses: true
+      use_shunting: true
+      
+      # TopK parameters
+      topk_type: standard
+      topk_init_method: xavier_normal
+      topk_noise_level: 0.0
+      
+      # Reactivation
+      reactivate: true
+      reactivation_type: param_tanh
+      reactivation_init_m: 1.5
+      reactivation_init_b: 0.5
+      
+      # Gradient scaling
+      reactivation_strategy: inverse
+      topk_strategy: conductance_dynamic
+      blocklinear_strategy: conductance_dynamic
+      
+      # Implementation optimizations
+      efficient_blocklinear: true
+      adaptive_initialization: true
+      print_hooks: false
+
+  # Decoder network
+  decoder_network:
+    type: MLP
+    parameters:
+      hidden_dims: [64, 32]  # Decoder layers
+      activation: relu
+      output_dim: 100        # CIFAR100 classes
+      use_batch_norm: false
+      dropout_rate: 0.0
 
 train:
   run_name: "fsdp_large_ei_cifar100"
@@ -55,29 +101,47 @@ train:
   enable_hooks: true          # Keep analysis capability
   performance_mode: false     # Keep analysis for research insights
   
+  # Encoder training (skip for identity encoder)
+  encoder:
+    load_save_root: saved_models/encoder
+    lr: 0.001
+    trainer:
+      loss_function: mse
+      epochs: 0               # Skip encoder training for identity encoder
+      batch_size: 128
+      shuffle: true
+      grad_clip_value: 5.0
+      load_best_state_dict: true
+      plot_losses: true
+      suppress_prints: false
+      print_every: 10
+  
   # Training parameters optimized for large models
   main:
+    learning_strategy: standard  # Learning strategy for EI network
+    weight_decay_rate: 0.1
+    
+    # Parameter groups with different learning rates
+    param_groups:
+      lr: 0.0005              # Default learning rate
+      split_params: true      # Split parameters into groups (EINet)
+      topk_lr: 0.0001         # Lower LR for TopK layers in large models
+      blocklinear_lr: 0.0002  # Lower LR for BlockLinear layers
+      reactivation_lr: 0.0003 # Learning rate for reactivation layers
+      decoder_lr: 0.0005      # Learning rate for decoder network
+    
     trainer:
+      loss_function: cat_nll  # Loss function for classification
       epochs: 50              # Fewer epochs for large model experimentation
       batch_size: 64          # Per-GPU batch size (effective = 64 * num_gpus)
-      learning_rate: 0.0005   # Lower LR for large models
       early_stopping: true
       patience: 10
       grad_clip_value: 1.0    # More conservative gradient clipping
-    
-    optimizer:
-      type: "adamw"           # AdamW often better for large models
-      params:
-        lr: 0.0005
-        weight_decay: 0.01    # Higher weight decay for regularization
-        betas: [0.9, 0.95]    # Beta2 often tuned lower for large models
-        eps: 1e-8
-    
-    scheduler:
-      type: "cosine"
-      params:
-        T_max: 50
-        eta_min: 0.00001
+      shuffle: true
+      load_best_state_dict: true
+      plot_losses: true
+      suppress_prints: false
+      print_every: 5          # More frequent logging for monitoring
   
   # Checkpointing is crucial for long FSDP runs
   checkpointing:

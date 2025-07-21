@@ -6,21 +6,69 @@
 
 model:
   task: classification
-  base:
-    output_layer: true
-    output_dim: 10
-  network:
+  
+  # Simple encoder for performance testing
+  encoder_network:
+    type: identity
+    parameters:
+      input_shape: [1, 28, 28]  # MNIST input
+  
+  # Core EI network
+  core_network:
     type: EINet
-    params:
-      input_dim: 784
-      hidden_dims: [512, 256, 128]
-      ei_params:
-        ei_balance: 0.8
-        branches_per_neuron: 4
-        synapses_per_branch: 64
-        topk_value: 32
+    parameters:
+      # Transfer function parameters
+      transfer_params:
         input_mode: 1
         independent_pathways: true
+        output_activation: none
+        
+      # EI architecture
+      excitatory_layer_sizes: [30, 20, 15]        # Medium-sized for performance
+      inhibitory_layer_sizes: [8, 6, 4]           # Corresponding inhibitory layers
+      excitatory_branch_factors: [4, 4, 4]        # Branches per excitatory neuron
+      inhibitory_branch_factors: [2, 2, 2]        # Inhibitory branches
+      
+      # Connection patterns
+      ee_synapses_per_branch_per_layer: [8]       # E-to-E connections
+      ei_synapses_per_branch_per_layer: [4]       # E-to-I connections
+      ie_synapses_per_branch_per_layer: [2]       # I-to-E connections
+      ii_synapses_per_branch_per_layer: [1]       # I-to-I connections
+      
+      # Morphological features
+      somatic_synapses: true
+      use_shunting: true
+      
+      # TopK parameters
+      topk_type: standard
+      topk_init_method: xavier_normal
+      topk_noise_level: 0.0
+      
+      # Reactivation
+      reactivate: true
+      reactivation_type: param_tanh
+      reactivation_init_m: 1.5
+      reactivation_init_b: 0.5
+      
+      # Gradient scaling
+      reactivation_strategy: inverse
+      topk_strategy: conductance_dynamic
+      blocklinear_strategy: conductance_dynamic
+      
+      # Implementation optimizations
+      efficient_blocklinear: true
+      adaptive_initialization: true
+      print_hooks: false
+
+  # Decoder network:
+  decoder_network:
+    type: MLP
+    parameters:
+      hidden_dims: [32]         # Simple decoder
+      activation: relu
+      output_dim: 10           # MNIST classes
+      use_batch_norm: false
+      dropout_rate: 0.0
 
 train:
   run_name: "performance_optimized_example"
@@ -43,24 +91,49 @@ train:
   # FSDP for multi-GPU large models
   use_fsdp: false            # Enable for very large models
   
+  # Encoder training (skip for identity encoder)
+  encoder:
+    load_save_root: saved_models/encoder
+    lr: 0.001
+    trainer:
+      loss_function: mse
+      epochs: 0                 # Skip encoder training for identity encoder
+      batch_size: 128
+      shuffle: true
+      grad_clip_value: 5.0
+      load_best_state_dict: true
+      plot_losses: true
+      suppress_prints: false
+      print_every: 10
+  
   # ==========================================
   # TRAINING SETTINGS
   # ==========================================
-  
   main:
+    learning_strategy: standard  # Learning strategy for EI network
+    weight_decay_rate: 0.1
+    
+    # Parameter groups with different learning rates
+    param_groups:
+      lr: 0.001                 # Default learning rate
+      split_params: true        # Split parameters into groups (EINet)
+      topk_lr: 0.001           # Learning rate for TopK layers
+      blocklinear_lr: 0.001    # Learning rate for BlockLinear layers
+      reactivation_lr: 0.001   # Learning rate for reactivation layers
+      decoder_lr: 0.001        # Learning rate for decoder network
+    
     trainer:
+      loss_function: cat_nll    # Loss function for classification
       epochs: 50
-      batch_size: 256         # Auto-optimized DataLoader
-      learning_rate: 0.001
+      batch_size: 256
       early_stopping: true
       patience: 10
       grad_clip_value: 5.0
-    
-    optimizer:
-      type: "adam"
-      params:
-        lr: 0.001
-        weight_decay: 0.0001
+      shuffle: true
+      load_best_state_dict: true
+      plot_losses: true
+      suppress_prints: false
+      print_every: 10
 
 task:
   dataset: mnist

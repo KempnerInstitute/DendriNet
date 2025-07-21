@@ -7,6 +7,7 @@ correctness and comprehensive coverage of the sweep functionality.
 
 import pytest
 from omegaconf import OmegaConf, DictConfig
+# Adjusted imports for unified sweeps
 from scripts.sweeps.unified.sweep_types.ei_sweep import EISweepGenerator
 from scripts.sweeps.unified.sweep_types.branch_sweep import BranchSweepGenerator
 from scripts.sweeps.unified.sweep_types.noise_sweep import NoiseSweepGenerator
