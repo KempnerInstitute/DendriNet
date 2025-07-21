@@ -139,7 +139,7 @@ class SweepManager:
         Returns:
             Dictionary with sweep information
         """
-        print(f"🚀 Generating {self.sweep_type} sweep from {config_path}")
+        print(f"Generating {self.sweep_type} sweep from {config_path}")
         
         # Load configuration
         config = OmegaConf.load(config_path)
@@ -154,22 +154,22 @@ class SweepManager:
         print(f"📁 Created output directory: {sweep_output_dir}")
         
         # Generate configurations
-        print("⚙️  Generating sweep configurations...")
+        print("Generating sweep configurations...")
         sweep_configs = self.generator.generate_configs(config)
-        print(f"✅ Generated {len(sweep_configs)} configurations")
+        print(f"Generated {len(sweep_configs)} configurations")
         
         # Save configurations
         config_paths = self.generator.save_configs(sweep_configs, sweep_output_dir)
         print(f"💾 Saved configurations to: {os.path.join(sweep_output_dir, 'configs')}")
         
         # Create job scripts
-        print("📝 Creating job scripts...")
+        print("Creating job scripts...")
         slurm_config = config.get("slurm_config", {})
         job_manager = SweepJobManager(slurm_config)
         job_scripts = job_manager.create_job_scripts(
             config_paths, sweep_output_dir, split_jobs
         )
-        print(f"✅ Created {len(job_scripts)} job scripts")
+        print(f"Created {len(job_scripts)} job scripts")
         
         # Save original config for reference
         original_config_path = os.path.join(sweep_output_dir, "original_config.yaml")
@@ -184,7 +184,7 @@ class SweepManager:
             "original_config": config_path
         }
         
-        print(f"🎯 Sweep generation complete!")
+        print(f"Sweep generation complete!")
         print(f"   Output directory: {sweep_output_dir}")
         print(f"   Configurations: {len(sweep_configs)}")
         print(f"   Job scripts: {len(job_scripts)}")
@@ -206,13 +206,13 @@ class SweepManager:
         output_dir = sweep_info["output_dir"]
         
         if dry_run:
-            print("🔍 DRY RUN - Would submit the following jobs:")
+            print("DRY RUN - Would submit the following jobs:")
             for script in job_scripts:
                 if not script.endswith("submit_all_jobs.sh"):
                     print(f"   sbatch {script}")
             return True
         
-        print(f"🚀 Submitting {len(job_scripts)} jobs...")
+        print(f"Submitting {len(job_scripts)} jobs...")
         
         # Find the main submission script
         main_script = None
@@ -222,17 +222,17 @@ class SweepManager:
                 break
         
         if main_script:
-            print(f"📤 Running main submission script: {main_script}")
+            print(f"Running main submission script: {main_script}")
             os.system(f"bash {main_script}")
         else:
-            print("⚠️  No main submission script found, submitting individual jobs...")
+            print("No main submission script found, submitting individual jobs...")
             for script in job_scripts:
                 if script.endswith(".sh") and not script.endswith("submit_all_jobs.sh"):
-                    print(f"📤 Submitting {script}")
+                    print(f"Submitting {script}")
                     os.system(f"sbatch {script}")
         
-        print("✅ Jobs submitted successfully!")
-        print("💡 Monitor job progress with: squeue -u $USER")
+        print("Jobs submitted successfully!")
+        print("Monitor job progress with: squeue -u $USER")
         
         return True
     
@@ -247,37 +247,37 @@ class SweepManager:
         Returns:
             Dictionary with analysis results
         """
-        print(f"📊 Analyzing {self.sweep_type} sweep results from {results_dir}")
+        print(f"Analyzing {self.sweep_type} sweep results from {results_dir}")
         
         if not os.path.exists(results_dir):
             raise FileNotFoundError(f"Results directory not found: {results_dir}")
         
         # Collect results
-        print("🔍 Collecting results...")
+        print("Collecting results...")
         results = self.analyzer.collect_results(results_dir)
-        print(f"✅ Collected results from {len(results.get('configs', []))} configurations")
+        print(f"Collected results from {len(results.get('configs', []))} configurations")
         
         # Generate plots
         plot_output_dir = output_dir or results_dir
-        print("📈 Generating plots...")
+        print("Generating plots...")
         plot_paths = self.analyzer.generate_plots(results, plot_output_dir)
-        print(f"✅ Generated {len(plot_paths)} plots")
+        print(f"Generated {len(plot_paths)} plots")
         
         # Generate summary report
-        print("📝 Generating summary report...")
+        print("Generating summary report...")
         report_path = self.analyzer.generate_summary_report(results, plot_output_dir)
-        print(f"✅ Summary report saved to: {report_path}")
+        print(f"Summary report saved to: {report_path}")
         
         # Find best configurations
         try:
             best_configs = self.analyzer.find_best_configs(results)
             if best_configs:
-                print(f"🏆 Top 3 configurations:")
+                print(f"Top 3 configurations:")
                 for i, config_info in enumerate(best_configs[:3]):
                     print(f"   {i+1}. Score: {config_info['score']:.4f} "
                          f"(Config ID: {config_info['config_id']})")
         except Exception as e:
-            print(f"⚠️  Could not determine best configurations: {e}")
+            print(f"Could not determine best configurations: {e}")
         
         analysis_info = {
             "sweep_type": self.sweep_type,
@@ -288,7 +288,7 @@ class SweepManager:
             "results": results
         }
         
-        print("🎯 Analysis complete!")
+        print("Analysis complete!")
         return analysis_info
     
     def run_full_sweep(self, config_path: str, split_jobs: Optional[int] = None,
@@ -304,7 +304,7 @@ class SweepManager:
         Returns:
             Dictionary with sweep information
         """
-        print(f"🎯 Running full {self.sweep_type} sweep")
+        print(f"Running full {self.sweep_type} sweep")
         
         # Generate sweep
         sweep_info = self.generate_sweep(config_path, split_jobs=split_jobs)
@@ -313,7 +313,7 @@ class SweepManager:
         if not dry_run:
             self.submit_jobs(sweep_info, dry_run=dry_run)
         else:
-            print("🔍 DRY RUN - Skipping job submission")
+            print("DRY RUN - Skipping job submission")
             self.submit_jobs(sweep_info, dry_run=True)
         
         return sweep_info
@@ -435,7 +435,7 @@ def main():
                 )
                 
                 if not args.generate_only:
-                    print("\n💡 To submit jobs, run:")
+                    print("\nTo submit jobs, run:")
                     print(f"   bash {sweep_info['output_dir']}/submit_all_jobs.sh")
                     print("   OR use --run flag to auto-submit")
     

@@ -32,13 +32,13 @@ colors = {
 
 # Set matplotlib parameters for publication quality
 plt.rcParams.update({
-    'font.size': 12,
-    'axes.labelsize': 14,
-    'axes.titlesize': 16,
-    'xtick.labelsize': 12,
-    'ytick.labelsize': 12,
-    'legend.fontsize': 12,
-    'figure.titlesize': 18,
+    'font.size': 14,
+    'axes.labelsize': 16,
+    'axes.titlesize': 18,
+    'xtick.labelsize': 14,
+    'ytick.labelsize': 14,
+    'legend.fontsize': 14,
+    'figure.titlesize': 20,
     'font.family': 'sans-serif',
     'font.sans-serif': ['Arial', 'Helvetica', 'DejaVu Sans'],
     'savefig.dpi': 600,
@@ -280,7 +280,7 @@ def create_improved_dendritic_neuron():
     inh_patch = mpatches.Patch(color=colors['sky_blue'], label='Inhibitory Synapse')
     ax.legend(handles=[exc_patch, inh_patch],
               loc='upper right', frameon=True, fancybox=True,
-              shadow=True, fontsize=10)
+              framealpha=0.9, shadow=True, borderpad=0.5, fontsize=12)
 
     # Style
     ax.set_xlim(-4.5, 4.5)
@@ -537,8 +537,8 @@ def create_network_architecture():
         ax.text(10, layer['y'], layer['name'], fontsize=14, va='center', fontweight='bold')
 
     # Add legend
-    exc_patch = mpatches.Patch(color=colors['vermillion'], label='Excitatory', alpha=0.8)
-    inh_patch = mpatches.Patch(color=colors['sky_blue'], label='Inhibitory', alpha=0.8)
+    exc_patch = mpatches.Patch(color=colors['vermillion'], label='Excitatory', alpha=1.0)
+    inh_patch = mpatches.Patch(color=colors['sky_blue'], label='Inhibitory', alpha=1.0)
     ax.legend(handles=[exc_patch, inh_patch], loc='upper left',
               frameon=True, fancybox=True, shadow=True)
 
@@ -620,12 +620,13 @@ def create_shunting_inhibition():
     ax2.annotate('Reduced amplitude', xy=(30, -60), xytext=(50, -55),
                 arrowprops=dict(arrowstyle='->', color='black', alpha=0.5))
 
-    ax2.set_xlabel('Time (ms)', fontsize=12)
-    ax2.set_ylabel('Membrane Potential (mV)', fontsize=12)
+    ax2.set_xlabel('Time (ms)', fontsize=14)
+    ax2.set_ylabel('Membrane Potential (mV)', fontsize=14)
     ax2.set_xlim(0, 100)
     ax2.set_ylim(-75, -45)
-    ax2.legend(loc='upper right', frameon=True, fancybox=True, shadow=True)
-    ax2.grid(True, alpha=0.3)
+    ax2.legend(loc='upper right', frameon=True, fancybox=True,
+           framealpha=0.9, shadow=True, fontsize=12)
+    ax2.grid(True, alpha=0.4, linestyle='--')
 
     plt.tight_layout()
     save_figure(fig, 'shunting_inhibition')

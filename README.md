@@ -22,7 +22,7 @@
 
 The Dendritic Modeling Framework provides a complete toolkit for building and analyzing neural networks that emulate the complex computational properties of biological dendrites. This framework enables researchers to explore how dendritic branching structures, excitation-inhibition dynamics, and synaptic plasticity contribute to neural computation.
 
-### 🧠 **Core Capabilities**
+### **Core Capabilities**
 
 - **Advanced Network Architectures**: EINet, DendriNet, and hybrid models with configurable dendritic morphologies
 - **Sophisticated Synaptic Mechanisms**: TopK selection, stochastic connectivity, dynamic sparse training (DeepST)
@@ -936,3 +936,62 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ---
 
 *For additional examples and advanced usage patterns, see the `configs/` directory and the comprehensive configuration documentation.*
+
+## Comprehensive Usage Guide
+
+### 1. Basic Usage
+Run experiments using:
+```bash
+python src/dendritic_modeling/scripts/train_experiments.py configs/config_exp.yaml
+```
+
+### 2. Custom Configurations
+Example: Simple EINet on MNIST
+```yaml
+model:
+  task: classification
+  core_network:
+    type: EINet
+    parameters:
+      excitatory_layer_sizes: [64]
+      inhibitory_layer_sizes: [32]
+      use_shunting: true
+train:
+  learning_strategy: standard
+  trainer:
+    epochs: 50
+task:
+  dataset: mnist
+```
+
+Run with overrides:
+```bash
+python src/dendritic_modeling/scripts/train_experiments.py configs/config.yaml --learning_strategy two_step
+```
+
+### 3. Using FSDP for Large Models
+Enable FSDP with:
+```bash
+torchrun --nproc_per_node=4 src/dendritic_modeling/scripts/train_experiments.py configs/config.yaml --use_fsdp
+```
+
+Without FSDP (single GPU):
+Just run the script without --use_fsdp.
+
+For troubleshooting FSDP issues like NCCL timeouts, see [FSDP_TROUBLESHOOTING.md](docs/FSDP_TROUBLESHOOTING.md).
+
+### 4. Running Sweeps
+Use the unified sweep manager:
+```bash
+python scripts/sweeps/unified/sweep_manager.py ei --config configs/ei_sweep.yaml --run
+```
+
+Without sweeps: Use the standard train script.
+
+With FSDP in sweeps: Add use_fsdp: true in sweep config.
+
+For more on sweeps, see [sweeps/unified/README.md](scripts/sweeps/unified/README.md).
+
+### 5. Examples
+- Without FSDP, no sweeps: Basic train script.
+- With FSDP, with sweeps: Unified manager with fsdp enabled in config.

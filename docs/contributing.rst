@@ -358,4 +358,4 @@ Thank You!
 
 Your contributions make this project better for everyone. Whether you're fixing a typo, adding a feature, or sharing your research, every contribution matters.
 
-Welcome to the Dendritic Modeling community! 🧠🌳 
+Welcome to the Dendritic Modeling community! 

@@ -93,7 +93,7 @@ class UnifiedResultAnalyzer:
             sweep_type = self.detect_sweep_type(results_dir)
             if sweep_type is None:
                 raise ValueError(f"Could not detect sweep type for {results_dir}")
-            print(f"🔍 Auto-detected sweep type: {sweep_type}")
+            print(f"Auto-detected sweep type: {sweep_type}")
         
         # Create sweep manager for the detected type
         manager = SweepManager(sweep_type)
@@ -118,14 +118,14 @@ class UnifiedResultAnalyzer:
         
         for results_dir in results_dirs:
             if not os.path.exists(results_dir):
-                print(f"⚠️  Warning: Directory does not exist: {results_dir}")
+                print(f"Warning: Directory does not exist: {results_dir}")
                 continue
             
             try:
-                print(f"\n📊 Analyzing: {results_dir}")
+                print(f"\nAnalyzing: {results_dir}")
                 analysis_info = self.analyze_single_sweep(results_dir, sweep_type)
                 analysis_results.append(analysis_info)
-                print(f"✅ Analysis complete for {results_dir}")
+                print(f"Analysis complete for {results_dir}")
                 
             except Exception as e:
                 print(f"❌ Error analyzing {results_dir}: {e}")
@@ -159,7 +159,7 @@ class UnifiedResultAnalyzer:
                 
                 f.write("\n")
         
-        print(f"📝 Comparison report saved to: {output_file}")
+        print(f"Comparison report saved to: {output_file}")
 
 
 def parse_args():
@@ -266,7 +266,7 @@ def main():
                 print("❌ Error: No matching directories found")
                 sys.exit(1)
             
-            print(f"🔍 Found {len(results_dirs)} directories to analyze:")
+            print(f"Found {len(results_dirs)} directories to analyze:")
             for dir_path in results_dirs:
                 print(f"   {dir_path}")
             
@@ -277,11 +277,11 @@ def main():
         if args.comparison_report and len(analysis_results) > 1:
             analyzer.generate_comparison_report(analysis_results, args.comparison_report)
         
-        print(f"\n🎯 Analysis complete! Processed {len(analysis_results)} sweep(s)")
+        print(f"\nAnalysis complete! Processed {len(analysis_results)} sweep(s)")
         
         # Summary
         for analysis in analysis_results:
-            print(f"📊 {analysis['sweep_type']} sweep: {len(analysis['plot_paths'])} plots generated")
+            print(f"{analysis['sweep_type']} sweep: {len(analysis['plot_paths'])} plots generated")
     
     except Exception as e:
         print(f"❌ Error: {e}")

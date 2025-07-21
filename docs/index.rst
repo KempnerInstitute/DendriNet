@@ -1,86 +1,162 @@
-Dendritic Modeling Framework
-============================
+Dendritic Modeling Framework Documentation
+==========================================
 
 .. image:: _static/dendritic_diagram.png
    :alt: Dendritic neuron architecture
    :align: center
    :width: 600px
 
-A PyTorch-based framework for biologically-inspired neural networks with dendritic computation.
+**A comprehensive PyTorch-based framework for biologically-inspired neural networks with dendritic computation, excitation-inhibition dynamics, and advanced analysis tools.**
 
-Key Features
-------------
+Welcome to the Dendritic Modeling Framework - your complete toolkit for building, training, and analyzing neural networks that capture the sophisticated computational properties of biological dendrites. Whether you're a neuroscience researcher exploring dendritic mechanisms or an ML practitioner seeking bio-inspired architectures, this framework provides the tools you need.
 
-* **Dendritic Computation**: Implements shunting inhibition and multi-branch dendritic processing
-* **E/I Networks**: Separate excitatory and inhibitory pathways with biologically-plausible connectivity
-* **Sparse Connectivity**: TopK and DEEPST algorithms for dynamic sparse connections
-* **Vision Models**: Pre-built units for Gabor filters, center-surround, and motion detection
-* **Analysis Tools**: Comprehensive suite for ablation, information theory, and synaptic dynamics
+**Quick Start**
+----------------
 
-Quick Start
------------
+Get up and running in minutes:
 
-.. code-block:: python
+.. code-block:: bash
 
-   from dendritic_modeling.networks import ExcitationInhibitionNetwork
-   from dendritic_modeling.models import Classifier
+   # Installation
+   git clone https://github.com/KempnerInstitute/dendritic-modeling.git
+   cd dendritic-modeling
+   conda env create -f environment.yml
+   conda activate dendritic_env
+   pip install -e .
    
-   # Create E/I network with dendritic branches
-   network = ExcitationInhibitionNetwork(
-       input_dim=784,
-       excitatory_layer_sizes=[100],
-       inhibitory_layer_sizes=[50],
-       excitatory_branch_factors=[2, 2],
-       use_shunting=True
-   )
-   
-   # Wrap in classifier
-   model = Classifier(
-       encoder_network=None,
-       core_network=network,
-       decoder_network=None
-   )
+   # Run your first experiment
+   python src/dendritic_modeling/scripts/train_experiments.py configs/config_exp.yaml
 
-Documentation
--------------
+**Key Features**
+----------------
+
+* **Advanced Architectures**: EINet, DendriNet, and hybrid models with configurable dendritic morphologies
+* **Biological Realism**: Shunting inhibition, Dale's principle, sparse connectivity patterns
+* **Scalability**: From single GPU experiments to large-scale FSDP training on clusters
+* **Analysis Suite**: Information theory, ablation studies, visualization tools
+* **Performance Optimization**: Mixed precision, gradient checkpointing, dynamic sparse training
+* **Extensive Datasets**: Vision, synthetic, and biological task datasets
+
+**Documentation Structure**
+---------------------------
 
 .. toctree::
    :maxdepth: 2
-   :caption: Contents:
+   :caption: Getting Started
 
+   introduction
    installation
-   tutorials
-   api_reference
-   theory
-   examples
+   quickstart
+   core_concepts
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Architecture & Design
+
+   architectures/index
+   configuration/index
+   training/index
+   datasets/index
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Analysis & Visualization
+
+   analysis/index
+   visualization/index
+   performance/index
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Advanced Topics
+
+   sweeps/index
+   scaling/index
+   tutorials/index
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Reference
+
+   api/index
+   troubleshooting
    contributing
+   appendix
 
-Core Components
----------------
+**Navigation Guide**
+---------------------
 
-**Networks**
-   - :class:`~dendritic_modeling.networks.ExcitationInhibitionNetwork`: Main E/I network architecture
-   - :class:`~dendritic_modeling.networks.DendriticBranchLayer`: Individual dendritic branch processing
-   - :class:`~dendritic_modeling.networks.DendriNet`: Multi-layer dendritic network
-   - :class:`~dendritic_modeling.networks.layers.DendriteConv2d`: Convolutional dendritic layer
+**New to dendritic modeling?**
+   Start with :doc:`introduction` → :doc:`installation` → :doc:`quickstart`
 
-**Models**
-   - :class:`~dendritic_modeling.models.Classifier`: Classification wrapper
-   - :class:`~dendritic_modeling.models.Regressor`: Regression wrapper
+**Want to understand the science?**
+   Read :doc:`core_concepts` → :doc:`architectures/index` → :doc:`analysis/index`
 
-**Training**
-   - :class:`~dendritic_modeling.training.Trainer`: Standard training
-   - :class:`~dendritic_modeling.training.LayerWiseTrainer`: Layer-by-layer training
-   - :class:`~dendritic_modeling.training.LocalCreditAssignment`: Local learning rules
+**Building custom models?**
+   Check :doc:`configuration/index` → :doc:`architectures/custom_design` → :doc:`api/index`
 
-**Analysis**
-   - :class:`~dendritic_modeling.analysis.AblationAnalyzer`: Systematic ablation studies
-   - :class:`~dendritic_modeling.analysis.InformationAnalyzer`: Information-theoretic analysis
-   - :class:`~dendritic_modeling.analysis.SynapticTurnoverAnalyzer`: Synaptic dynamics tracking
+**Scaling to large datasets?**
+   See :doc:`performance/index` → :doc:`scaling/index` → :doc:`troubleshooting`
 
-Indices and tables
+**Running experiments?**
+   Follow :doc:`training/index` → :doc:`sweeps/index` → :doc:`tutorials/index`
+
+**Research Applications**
+-------------------------
+
+The framework facilitates research in several important areas:
+
+* **Dendritic Computation**: Understanding how dendrites process information
+* **E/I Balance**: Exploring excitation-inhibition dynamics in networks  
+* **Sparse Connectivity**: Developing efficient bio-inspired architectures
+* **Learning Mechanisms**: Testing biologically-plausible training strategies
+* **Information Processing**: Analyzing neural information flow and capacity
+
+**Performance & Scalability**
+-----------------------------
+
+.. list-table:: Framework Capabilities
+   :header-rows: 1
+   :widths: 30 35 35
+
+   * - Scale
+     - Model Size
+     - Recommended Setup
+   * - Small Experiments
+     - < 1M parameters
+     - Single GPU, Standard training
+   * - Medium Models
+     - 1M - 100M parameters  
+     - Multi-GPU, Mixed precision
+   * - Large Models
+     - 100M - 1B+ parameters
+     - FSDP, Gradient checkpointing
+   * - Research Clusters
+     - Multi-billion parameters
+     - Multi-node FSDP, CPU offload
+
+**What's New**
+--------------
+
+* **FSDP Support**: Scale to billion-parameter dendritic models
+* **Unified Sweeps**: Comprehensive parameter exploration framework
+* **Enhanced Analysis**: Information-theoretic tools with multiple estimators
+* **Performance Optimization**: Mixed precision, profiling, memory management
+* **Rich Visualizations**: Professional figures and interactive plots
+
+**Community & Support**
+-----------------------
+
+* **GitHub Issues**: Report bugs and request features
+* **Documentation**: Comprehensive guides and API reference
+* **Examples**: Jupyter notebooks and complete workflows
+* **Contributing**: Guidelines for extending the framework
+
+**Citation**: If you use this framework in your research, please cite our paper (see :doc:`appendix` for details).
+
+Indices and Tables
 ==================
 
 * :ref:`genindex`
-* :ref:`modindex`
+* :ref:`modindex`  
 * :ref:`search`
