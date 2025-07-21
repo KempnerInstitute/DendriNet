@@ -194,3 +194,9 @@ outputs/*
 trained_encoder_networks/*
 .trained_encoder_networks/*
 encoder_networks/*
+
+# Backup directories
+*_backup/
+notebooks_backup/
+docs_notebooks_backup/
+scripts_backup/

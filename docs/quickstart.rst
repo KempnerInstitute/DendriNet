@@ -314,10 +314,10 @@ For hands-on learning, explore our Jupyter notebooks:
 .. code-block:: bash
 
    # Start Jupyter (if installed)
-   jupyter notebook docs/notebooks/
+   jupyter notebook ../notebooks/
    
    # Or use Jupyter Lab
-   jupyter lab docs/notebooks/
+   jupyter lab ../notebooks/
 
 Available notebooks:
 - ``quickstart_interactive.ipynb`` - This guide as an interactive notebook with runnable code

@@ -431,4 +431,9 @@ Running experiments with YAML configurations:
    config = load_config("experiment_config.yaml")
    results = main(config)
 
+Interactive Examples
+--------------------
+
+- `Basic Training <../notebooks/basic_training.ipynb>`_
+
 These examples demonstrate the key capabilities of the Dendritic Modeling Framework. For more details, see the :doc:`api_reference`. 

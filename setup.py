@@ -115,8 +115,8 @@ setup(
     entry_points={
         "console_scripts": [
             "dendritic-train=dendritic_modeling.scripts.train_experiments:main",
-            "dendritic-sweep=scripts.sweeps.unified.sweep_manager:main",
-            "dendritic-analyze=scripts.sweeps.unified.result_analyzer:main",
+            "dendritic-sweep=dendritic_modeling.sweeps.unified.sweep_manager:main",
+            "dendritic-analyze=dendritic_modeling.sweeps.unified.result_analyzer:main",
         ],
     },
     

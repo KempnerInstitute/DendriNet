@@ -564,6 +564,8 @@ Efficiency Best Practices
 .. note::
    The framework automatically detects available hardware and suggests optimal settings. See :doc:`performance/index` for detailed optimization guides.
 
+Experiments and sweeps are in the `experiments/` folder.
+
 Next Steps
 ----------
 
