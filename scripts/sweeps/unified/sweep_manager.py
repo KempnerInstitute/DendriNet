@@ -24,8 +24,9 @@ Usage:
 import argparse
 import sys
 import os
+import importlib
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Dict, Type
 
 # Add the project root to the path
 project_root = Path(__file__).parent.parent.parent.parent
@@ -40,53 +41,90 @@ class SweepManager:
     Main orchestrator for all sweep operations.
     
     Coordinates config generation, job submission, and result analysis
-    for different sweep types.
+    for different sweep types. Automatically discovers available sweep types
+    from the sweep_types directory.
     """
     
-    SWEEP_TYPES = ["ei", "branch", "noise", "general"]
-    
     def __init__(self, sweep_type: str):
-        if sweep_type not in self.SWEEP_TYPES:
+        # Auto-discover available sweep types
+        self.sweep_types = self._discover_sweep_types()
+        
+        if sweep_type not in self.sweep_types:
+            available_types = list(self.sweep_types.keys())
             raise ValueError(f"Unknown sweep type '{sweep_type}'. "
-                           f"Available types: {self.SWEEP_TYPES}")
+                           f"Available types: {available_types}")
         
         self.sweep_type = sweep_type
         self.generator = self._get_generator()
         self.analyzer = self._get_analyzer()
     
+    def _discover_sweep_types(self) -> Dict[str, Dict[str, Type]]:
+        """
+        Auto-discover sweep types from the sweep_types directory.
+        
+        Returns:
+            Dict mapping sweep type names to their generator and analyzer classes.
+        """
+        sweep_types = {}
+        sweep_types_dir = Path(__file__).parent / 'sweep_types'
+        
+        for filename in os.listdir(sweep_types_dir):
+            if filename.endswith('.py') and not filename.startswith('_'):
+                module_name = filename[:-3]  # Remove .py extension
+                
+                try:
+                    # Import the module using relative import when possible, fallback to absolute
+                    try:
+                        module = importlib.import_module(f'.sweep_types.{module_name}', 
+                                                       package='scripts.sweeps.unified')
+                    except (ImportError, ValueError):
+                        # Fallback: try adding to sys.path and importing directly
+                        sweep_types_path = str(Path(__file__).parent / 'sweep_types')
+                        if sweep_types_path not in sys.path:
+                            sys.path.insert(0, sweep_types_path)
+                        module = importlib.import_module(module_name)
+                    
+                    # Find generator and analyzer classes
+                    generator_class = None
+                    analyzer_class = None
+                    
+                    for attr_name in dir(module):
+                        attr = getattr(module, attr_name)
+                        if isinstance(attr, type):
+                            if (issubclass(attr, BaseSweepGenerator) and 
+                                attr != BaseSweepGenerator):
+                                generator_class = attr
+                            elif (issubclass(attr, BaseSweepAnalyzer) and 
+                                  attr != BaseSweepAnalyzer):
+                                analyzer_class = attr
+                    
+                    if generator_class:
+                        # Extract sweep type name (e.g., 'ei_sweep' -> 'ei')
+                        sweep_name = module_name.lower().replace('_sweep', '')
+                        sweep_types[sweep_name] = {
+                            'generator': generator_class,
+                            'analyzer': analyzer_class
+                        }
+                        
+                except ImportError as e:
+                    print(f"Warning: Failed to import sweep module {module_name}: {e}")
+                    continue
+        
+        return sweep_types
+    
     def _get_generator(self) -> BaseSweepGenerator:
         """Get the appropriate generator for the sweep type."""
-        if self.sweep_type == "ei":
-            from sweep_types.ei_sweep import EISweepGenerator
-            return EISweepGenerator()
-        elif self.sweep_type == "branch":
-            from sweep_types.branch_sweep import BranchSweepGenerator
-            return BranchSweepGenerator()
-        elif self.sweep_type == "noise":
-            from sweep_types.noise_sweep import NoiseSweepGenerator
-            return NoiseSweepGenerator()
-        elif self.sweep_type == "general":
-            from sweep_types.general_sweep import GeneralSweepGenerator
-            return GeneralSweepGenerator()
-        else:
-            raise ValueError(f"No generator available for sweep type: {self.sweep_type}")
+        generator_class = self.sweep_types[self.sweep_type]['generator']
+        return generator_class()
     
     def _get_analyzer(self) -> BaseSweepAnalyzer:
         """Get the appropriate analyzer for the sweep type."""
-        if self.sweep_type == "ei":
-            from sweep_types.ei_sweep import EISweepAnalyzer
-            return EISweepAnalyzer()
-        elif self.sweep_type == "branch":
-            from sweep_types.branch_sweep import BranchSweepAnalyzer
-            return BranchSweepAnalyzer()
-        elif self.sweep_type == "noise":
-            from sweep_types.noise_sweep import NoiseSweepAnalyzer
-            return NoiseSweepAnalyzer()
-        elif self.sweep_type == "general":
-            from sweep_types.general_sweep import GeneralSweepAnalyzer
-            return GeneralSweepAnalyzer()
+        analyzer_class = self.sweep_types[self.sweep_type]['analyzer']
+        if analyzer_class:
+            return analyzer_class()
         else:
-            raise ValueError(f"No analyzer available for sweep type: {self.sweep_type}")
+            # Fallback to base analyzer if specific one not found
+            return BaseSweepAnalyzer()
     
     def generate_sweep(self, config_path: str, output_dir: Optional[str] = None,
                       split_jobs: Optional[int] = None) -> dict:

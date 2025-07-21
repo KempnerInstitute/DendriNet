@@ -1,0 +1,209 @@
+# ============================================================================
+# PERFORMANCE-OPTIMIZED CONFIGURATION EXAMPLE
+# ============================================================================
+# This config demonstrates the new performance features for different use cases
+# ============================================================================
+
+model:
+  task: classification
+  
+  # Simple encoder for performance testing
+  encoder_network:
+    type: identity
+    parameters:
+      input_shape: [1, 28, 28]  # MNIST input
+  
+  # Core EI network
+  core_network:
+    type: EINet
+    parameters:
+      # Transfer function parameters
+      transfer_params:
+        input_mode: 1
+        independent_pathways: true
+        output_activation: none
+        
+      # EI architecture
+      excitatory_layer_sizes: [30, 20, 15]        # Medium-sized for performance
+      inhibitory_layer_sizes: [8, 6, 4]           # Corresponding inhibitory layers
+      excitatory_branch_factors: [4, 4, 4]        # Branches per excitatory neuron
+      inhibitory_branch_factors: [2, 2, 2]        # Inhibitory branches
+      
+      # Connection patterns
+      ee_synapses_per_branch_per_layer: [8]       # E-to-E connections
+      ei_synapses_per_branch_per_layer: [4]       # E-to-I connections
+      ie_synapses_per_branch_per_layer: [2]       # I-to-E connections
+      ii_synapses_per_branch_per_layer: [1]       # I-to-I connections
+      
+      # Morphological features
+      somatic_synapses: true
+      use_shunting: true
+      
+      # TopK parameters
+      topk_type: standard
+      topk_init_method: xavier_normal
+      topk_noise_level: 0.0
+      
+      # Reactivation
+      reactivate: true
+      reactivation_type: param_tanh
+      reactivation_init_m: 1.5
+      reactivation_init_b: 0.5
+      
+      # Gradient scaling
+      reactivation_strategy: inverse
+      topk_strategy: conductance_dynamic
+      blocklinear_strategy: conductance_dynamic
+      
+      # Implementation optimizations
+      efficient_blocklinear: true
+      adaptive_initialization: true
+      print_hooks: false
+
+  # Decoder network:
+  decoder_network:
+    type: MLP
+    parameters:
+      hidden_dims: [32]         # Simple decoder
+      activation: relu
+      output_dim: 10           # MNIST classes
+      use_batch_norm: false
+      dropout_rate: 0.0
+
+train:
+  run_name: "performance_optimized_example"
+  
+  # ==========================================
+  # KEY NEW PERFORMANCE FEATURES
+  # ==========================================
+  
+  # Mixed Precision - 2x speed, 50% memory reduction
+  enable_amp: true
+  
+  # Hook Management - disable for benchmarking, enable for research
+  enable_hooks: true          # Set to false for pure speed
+  performance_mode: false     # Set to true to disable ALL analysis
+  
+  # Profiling - enable only when needed
+  enable_profiling: false     # Enable for performance analysis
+  profiling_output_dir: "outputs/profiling/"
+  
+  # FSDP for multi-GPU large models
+  use_fsdp: false            # Enable for very large models
+  
+  # Encoder training (skip for identity encoder)
+  encoder:
+    load_save_root: saved_models/encoder
+    lr: 0.001
+    trainer:
+      loss_function: mse
+      epochs: 0                 # Skip encoder training for identity encoder
+      batch_size: 128
+      shuffle: true
+      grad_clip_value: 5.0
+      load_best_state_dict: true
+      plot_losses: true
+      suppress_prints: false
+      print_every: 10
+  
+  # ==========================================
+  # TRAINING SETTINGS
+  # ==========================================
+  main:
+    learning_strategy: standard  # Learning strategy for EI network
+    weight_decay_rate: 0.1
+    
+    # Parameter groups with different learning rates
+    param_groups:
+      lr: 0.001                 # Default learning rate
+      split_params: true        # Split parameters into groups (EINet)
+      topk_lr: 0.001           # Learning rate for TopK layers
+      blocklinear_lr: 0.001    # Learning rate for BlockLinear layers
+      reactivation_lr: 0.001   # Learning rate for reactivation layers
+      decoder_lr: 0.001        # Learning rate for decoder network
+    
+    trainer:
+      loss_function: cat_nll    # Loss function for classification
+      epochs: 50
+      batch_size: 256
+      early_stopping: true
+      patience: 10
+      grad_clip_value: 5.0
+      shuffle: true
+      load_best_state_dict: true
+      plot_losses: true
+      suppress_prints: false
+      print_every: 10
+
+task:
+  dataset: mnist
+  preprocessing:
+    normalize: true
+    augmentation: false
+  data_loader:
+    auto_optimize: true       # Automatic DataLoader optimization
+  validation_split: 0.2
+
+wandb:
+  enabled: true
+  project: "dendritic-performance-test"
+  tags: ["performance", "amp", "optimized"]
+
+analysis:
+  enabled: true
+  respect_hook_settings: true  # Skip analysis if hooks disabled
+  
+  performance_analysis:
+    enabled: true
+    training: false
+    params:
+      memory_usage: true
+      throughput: true
+      gpu_utilization: true
+      profiling_integration: true
+  
+  information_analysis:
+    enabled: true
+    training: false
+    params:
+      mutual_information: true
+      entropy: true
+      save_plots: true
+      samples: 1000
+
+outputs:
+  dir: "./outputs/"
+  cleanup:
+    enabled: true
+    old_runs_days: 30
+    wandb_cleanup: true
+
+compute:
+  device: "auto"
+  memory:
+    gradient_checkpointing: false
+    empty_cache_freq: 100
+    max_memory_fraction: 0.9
+
+# ============================================================================
+# USAGE SCENARIOS
+# ============================================================================
+#
+# FOR RESEARCH (full analysis):
+# - enable_hooks: true
+# - performance_mode: false
+# - analysis.enabled: true
+# - enable_profiling: true (optional)
+#
+# FOR BENCHMARKING (maximum speed):
+# - enable_hooks: false  OR  performance_mode: true
+# - analysis.enabled: false
+# - enable_profiling: false
+# - enable_amp: true (for large models)
+#
+# FOR LARGE MODELS (memory efficient):
+# - enable_amp: true
+# - use_fsdp: true (if multi-GPU)
+# - batch_size: larger values
+# - compute.memory.gradient_checkpointing: true (if needed)
+# ============================================================================ 

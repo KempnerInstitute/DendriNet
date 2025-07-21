@@ -21,11 +21,17 @@ from dendritic_modeling.config.training import TrainConfig
 
 @dataclass
 class WandbConfig(BaseConfig):
-    entity: str = ""
-    project: str = ""
-    group: str = ""
-    tags: list[str] = field(default_factory=list)
+    entity: Optional[str] = None
+    project: str = "dendritic-modeling"
+    group: str = "debug"
+    tags: List[str] = field(default_factory=lambda: ["debug"])
     use_wandb: bool = False
+    # Enhanced logging options
+    enabled: bool = True
+    log_freq: int = 100
+    log_gradients: bool = False
+    log_parameters: bool = False
+    log_activations: bool = False
 
 
 @dataclass

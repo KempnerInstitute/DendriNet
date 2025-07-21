@@ -1,0 +1,280 @@
+# ============================================================================
+# UNIFIED SWEEP EXAMPLE CONFIGURATION
+# ============================================================================
+# This configuration demonstrates parameter sweeps using the unified sweep framework.
+# This example sweeps over EI balance parameters to study their effect on performance.
+#
+# Usage:
+#   python scripts/sweeps/unified/sweep_manager.py ei --config configs/examples/sweep_example.yaml --run
+#
+# Available sweep types: ei, branch, noise, general
+# ============================================================================
+
+# ============================================================================
+# BASE EXPERIMENT CONFIGURATION
+# ============================================================================
+# This serves as the base config that will be modified by the sweep
+base_config:
+  model:
+    task: classification
+    base:
+      output_layer: true
+      output_dim: 10
+    
+    network:
+      type: EINet
+      params:
+        input_dim: 784
+        hidden_dims: [512, 256, 128]
+        
+        ei_params:
+          ei_balance: 0.8        # This will be swept
+          branches_per_neuron: 4
+          synapses_per_branch: 64
+          topk_value: 32
+          input_mode: 1
+          independent_pathways: true
+  
+  train:
+    run_name: "ei_balance_sweep_{{ei_balance}}"  # Template with sweep parameter
+    
+    # Performance settings optimized for sweeps
+    enable_amp: true           # Speed up individual runs
+    enable_profiling: false    # Disable profiling for sweep runs
+    enable_hooks: true         # Keep analysis for research insights
+    performance_mode: false    # Keep analysis enabled
+    use_fsdp: false           # Single GPU for sweep experiments
+    
+    main:
+      trainer:
+        epochs: 50             # Shorter runs for sweep exploration
+        batch_size: 256
+        learning_rate: 0.001
+        early_stopping: true
+        patience: 8            # Less patience for faster sweep
+        grad_clip_value: 5.0
+      
+      optimizer:
+        type: "adam"
+        params:
+          lr: 0.001
+          weight_decay: 0.0001
+      
+      scheduler:
+        type: "cosine"
+        params:
+          T_max: 50
+          eta_min: 0.00001
+    
+    # Minimal checkpointing for sweeps
+    checkpointing:
+      enabled: false           # Disable to save space during sweeps
+    
+    save_model: false          # Don't save models for sweep runs
+    save_results: true         # Save results for analysis
+    
+    suppress_prints: true      # Reduce output during sweeps
+    print_every: 20
+    plot_losses: false         # Disable plotting during sweeps
+  
+  task:
+    dataset: mnist
+    
+    preprocessing:
+      normalize: true
+      augmentation: false
+    
+    data_loader:
+      auto_optimize: true
+    
+    validation_split: 0.2
+  
+  wandb:
+    enabled: true
+    project: "dendritic-ei-balance-sweep"
+    entity: "your-wandb-entity"
+    tags: ["sweep", "ei-balance", "mnist"]
+    notes: "Sweeping EI balance parameters"
+    
+    log_freq: 200             # Less frequent logging for sweeps
+    log_gradients: false
+    log_parameters: false
+    log_activations: false
+  
+  analysis:
+    enabled: true
+    respect_hook_settings: true
+    
+    # Focus on key metrics for sweep comparison
+    performance_analysis:
+      enabled: true
+      training: false
+      params:
+        memory_usage: false    # Skip memory analysis for sweeps
+        throughput: true
+        gpu_utilization: false
+    
+    information_analysis:
+      enabled: true
+      training: false
+      params:
+        mutual_information: true
+        entropy: true
+        information_flow: false  # Disable expensive analysis
+        save_plots: false       # Don't save plots during sweeps
+        samples: 500           # Fewer samples for speed
+    
+    # Disable expensive analysis during sweeps
+    ablation_analysis:
+      enabled: false
+    
+    connectivity_analysis:
+      enabled: true
+      training: false
+      params:
+        sparsity_patterns: true
+        connection_strength: false
+        topk_analysis: true
+  
+  outputs:
+    dir: "./outputs/sweeps/"
+    
+    cleanup:
+      enabled: true
+      old_runs_days: 7         # Shorter retention for sweep results
+      wandb_cleanup: true
+
+# ============================================================================
+# SWEEP CONFIGURATION
+# ============================================================================
+sweep_config:
+  # Sweep type - matches the sweep generator to use
+  type: "ei"
+  
+  # Sweep parameters
+  parameters:
+    # EI balance sweep - test different excitation/inhibition ratios
+    ei_balance:
+      values: [0.5, 0.6, 0.7, 0.8, 0.9]  # Different E/I ratios
+    
+    # Optional: sweep learning rate as well
+    learning_rate:
+      values: [0.0005, 0.001, 0.002]
+    
+    # Optional: sweep batch size
+    batch_size:
+      values: [128, 256, 512]
+  
+  # Sweep execution settings
+  execution:
+    method: "grid"             # "grid", "random", "bayes"
+    max_runs: 45              # 5 * 3 * 3 = 45 total combinations
+    parallel_runs: 2          # Number of parallel experiments
+    
+    # Resource management
+    gpu_per_run: 1            # GPUs per individual run
+    cpu_per_run: 4            # CPU cores per run
+    memory_per_run: "8GB"     # Memory per run
+    
+    # Job management
+    retry_failed: true        # Retry failed runs
+    max_retries: 2
+    timeout_hours: 4          # Timeout per individual run
+  
+  # Results collection
+  metrics:
+    primary: "validation_accuracy"    # Main metric to optimize
+    secondary: ["train_loss", "validation_loss", "mutual_information"]
+    
+    # Early stopping for individual runs
+    early_stopping:
+      enabled: true
+      metric: "validation_accuracy"
+      patience: 5
+      min_delta: 0.001
+
+# ============================================================================
+# SWEEP ANALYSIS CONFIGURATION
+# ============================================================================
+analysis_config:
+  # Post-sweep analysis settings
+  enabled: true
+  
+  # Visualization
+  plots:
+    enabled: true
+    types: ["heatmap", "parallel_coordinates", "scatter", "box"]
+    save_formats: ["png", "pdf"]
+    
+  # Statistical analysis
+  statistics:
+    enabled: true
+    significance_tests: true
+    correlation_analysis: true
+    
+  # Best configuration identification
+  optimization:
+    enabled: true
+    metric: "validation_accuracy"
+    direction: "maximize"     # "maximize" or "minimize"
+    top_k: 5                 # Report top 5 configurations
+  
+  # Results export
+  export:
+    enabled: true
+    formats: ["csv", "json"]
+    include_configs: true     # Include full configs in export
+
+# ============================================================================
+# SLURM INTEGRATION (Optional)
+# ============================================================================
+slurm_config:
+  enabled: false             # Set to true for SLURM clusters
+  
+  partition: "gpu"
+  account: "your_account"
+  time_limit: "04:00:00"    # 4 hours per job
+  
+  # SLURM job template
+  template: |
+    #!/bin/bash
+    #SBATCH --job-name=ei_sweep_{{job_id}}
+    #SBATCH --partition={{partition}}
+    #SBATCH --account={{account}}
+    #SBATCH --time={{time_limit}}
+    #SBATCH --nodes=1
+    #SBATCH --ntasks-per-node=1
+    #SBATCH --cpus-per-task={{cpu_per_run}}
+    #SBATCH --gres=gpu:{{gpu_per_run}}
+    #SBATCH --mem={{memory_per_run}}
+    #SBATCH --output=logs/sweep_{{job_id}}.out
+    #SBATCH --error=logs/sweep_{{job_id}}.err
+    
+    module load python/3.9
+    source activate dendritic_env
+    
+    python src/dendritic_modeling/scripts/train_experiments.py {{config_path}}
+
+# ============================================================================
+# USAGE EXAMPLES
+# ============================================================================
+#
+# BASIC SWEEP:
+# python scripts/sweeps/unified/sweep_manager.py ei --config configs/examples/sweep_example.yaml --generate-only
+# python scripts/sweeps/unified/sweep_manager.py ei --config configs/examples/sweep_example.yaml --run
+#
+# ANALYZE RESULTS:
+# python scripts/sweeps/unified/sweep_manager.py ei --config configs/examples/sweep_example.yaml --analyze --results-dir outputs/sweeps/
+#
+# CUSTOM SWEEP TYPES:
+# - EI sweep: Focuses on excitation-inhibition parameters
+# - Branch sweep: Sweeps dendritic branch architecture parameters  
+# - Noise sweep: Tests robustness with different noise levels
+# - General sweep: Flexible sweep over any parameters
+#
+# MODIFY FOR YOUR NEEDS:
+# 1. Change sweep_config.parameters to sweep different variables
+# 2. Adjust base_config for your specific experiment setup
+# 3. Set execution.parallel_runs based on available resources
+# 4. Enable slurm_config if running on a cluster
+# ============================================================================ 
