@@ -104,7 +104,7 @@ base_config:
     # ... other training settings
 ```
 
-## 🔬 Sweep Types
+## Sweep Types
 
 ### 1. EI (Excitation-Inhibition) Sweeps
 
@@ -170,7 +170,7 @@ filter_config:
 - Parameter heatmaps
 - Performance distributions
 
-## 📊 Analysis Pipeline
+## Analysis Pipeline
 
 The unified analysis pipeline provides:
 
@@ -212,7 +212,7 @@ Legacy scripts still work but show deprecation warnings:
    python scripts/sweeps/unified/sweep_manager.py ei --config config.yaml --run
 ```
 
-## 📈 Performance Improvements
+## Performance Improvements
 
 The unified framework provides significant improvements:
 
@@ -223,7 +223,7 @@ The unified framework provides significant improvements:
 | Configuration Formats | 3 different | 1 unified | 100% consolidation |
 | Error Handling | Inconsistent | Unified | Comprehensive |
 
-## 🛠️ Development
+## Development
 
 ### Adding New Sweep Types
 
@@ -267,7 +267,7 @@ python scripts/sweeps/unified/sweep_manager.py my_sweep \
     --config configs/my_sweep.yaml --run --dry-run
 ```
 
-## 🔍 Troubleshooting
+## Troubleshooting
 
 ### Common Issues
 

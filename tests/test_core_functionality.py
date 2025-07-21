@@ -27,7 +27,7 @@ def test_torch_profiler_available():
         )
         
         assert profiler is not None
-        print("✅ torch.profiler is available and working")
+        print("torch.profiler is available and working")
         
     except ImportError:
         pytest.fail("torch.profiler is not available")
@@ -51,7 +51,7 @@ def test_omegaconf_available():
         assert config.train.learning_rate == 0.001
         assert config.model.hidden_dim == 64
         
-        print("✅ OmegaConf is available and working")
+        print("OmegaConf is available and working")
         
     except ImportError:
         pytest.fail("OmegaConf is not available")
@@ -78,7 +78,7 @@ def test_profiling_config_structure():
     epochs = config.train.main.trainer.epochs
     assert epochs == 10
     
-    print("✅ Configuration structure is correct")
+    print("Configuration structure is correct")
 
 
 def test_trainer_config_dict_structure():
@@ -99,7 +99,7 @@ def test_trainer_config_dict_structure():
     assert main_trainer_config_dict["enable_profiling"] == True
     assert "profiling_output_dir" in main_trainer_config_dict
     
-    print("✅ Trainer config structure is correct")
+    print("Trainer config structure is correct")
 
 
 def test_requirements_structure():
@@ -116,7 +116,7 @@ def test_requirements_structure():
         assert "pytest>=" in content
         assert "tensorboard>=" in content
         
-        print("✅ requirements.txt exists with correct dependencies")
+        print("requirements.txt exists with correct dependencies")
     else:
         pytest.fail("requirements.txt file not found")
 
@@ -135,7 +135,7 @@ def test_setup_py_structure():
         assert "install_requires" in content
         assert "extras_require" in content
         
-        print("✅ setup.py exists with correct structure")
+        print("setup.py exists with correct structure")
     else:
         pytest.fail("setup.py file not found")
 
@@ -171,7 +171,7 @@ def test_training_speed_benchmark():
     
     # Should complete very quickly for small mock data
     assert elapsed < 5.0, f"Training benchmark too slow: {elapsed:.2f}s"
-    print(f"✅ Training speed benchmark passed: {elapsed:.2f}s")
+    print(f"Training speed benchmark passed: {elapsed:.2f}s")
 
 
 def test_amp_functionality():
@@ -192,7 +192,7 @@ def test_amp_functionality():
     trainer = Trainer(**trainer_config)
     assert trainer.enable_amp == True
     assert hasattr(trainer, 'scaler')
-    print("✅ AMP functionality test passed")
+    print("AMP functionality test passed")
 
 
 def test_dataloader_optimization():
@@ -220,7 +220,7 @@ def test_dataloader_optimization():
     # Large dataset should use parallel settings
     assert large_train_loader.num_workers > 0
     
-    print("✅ DataLoader optimization test passed")
+    print("DataLoader optimization test passed")
 
 
 if __name__ == "__main__":
@@ -236,5 +236,5 @@ if __name__ == "__main__":
     try:
         test_amp_functionality()
     except Exception as e:
-        print(f"⚠️  AMP test skipped: {e}")
-    print("\n🎉 All core functionality tests passed!") 
+        print(f"AMP test skipped: {e}")
+    print("\nAll core functionality tests passed!") 

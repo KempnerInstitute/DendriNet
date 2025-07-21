@@ -666,6 +666,20 @@ wandb:
   tags: [dendritic, ei_network] # Run tags
 ```
 
+## FSDP Configuration
+
+For large models, enable FSDP in train section:
+```yaml
+train:
+  use_fsdp: true
+  fsdp_config:
+    mixed_precision: true
+    cpu_offload: false
+    sharding_strategy: full
+```
+
+Run with torchrun for multi-GPU.
+
 ## Complete Examples
 
 ### Simple EINet Classification
@@ -913,6 +927,32 @@ analysis:
 
 outputs:
   dir: ./results/regression/
+```
+
+### FSDP Large Model Example
+
+```yaml
+# configs/fsdp_large_model.yaml
+model:
+  task: classification
+  core_network:
+    type: EINet
+    parameters:
+      excitatory_layer_sizes: [1024, 512]
+train:
+  use_fsdp: true
+  trainer:
+    batch_size: 64
+```
+
+### Sweep Configuration Example
+
+```yaml
+# configs/sweep_config.yaml
+sweep_config:
+  model.network.parameters.excitatory_layer_sizes: [[10], [20]]
+train:
+  use_fsdp: true  # FSDP in sweeps
 ```
 
 ---

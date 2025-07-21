@@ -259,7 +259,7 @@ class Trainer:
         # Stop profiler if enabled
         if self.profiler is not None:
             self.profiler.stop()
-            logger.info("✅ Profiling complete. View in TensorBoard: tensorboard --logdir=outputs/profiling/")
+            logger.info("Profiling complete. View in TensorBoard: tensorboard --logdir=outputs/profiling/")
 
         if self.best_state_dict:
             model.load_state_dict(self.best_state_dict)

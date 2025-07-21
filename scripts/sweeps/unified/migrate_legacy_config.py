@@ -196,8 +196,8 @@ Examples:
     success = migrate_config(args.legacy_config, args.output_config, args.type)
     
     if success:
-        print("\n🎯 Migration complete!")
-        print("\n💡 Next steps:")
+        print("\nMigration complete!")
+        print("\nNext steps:")
         print(f"   1. Review the migrated configuration: {args.output_config}")
         print(f"   2. Test with: python scripts/sweeps/unified/sweep_manager.py {args.type} --config {args.output_config} --generate-only")
         print(f"   3. Run with: python scripts/sweeps/unified/sweep_manager.py {args.type} --config {args.output_config} --run")
