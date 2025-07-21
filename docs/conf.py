@@ -41,10 +41,15 @@ extensions = [
     'sphinx.ext.graphviz',    # For drawing graphs
     'sphinx_copybutton',      # Copy button for code blocks
     'sphinx_design',          # Enhanced design elements
-    'sphinx_search.extension', # Enhanced search
     'myst_parser',            # Markdown support
     'nbsphinx',              # Jupyter notebook support
 ]
+
+# Source file parsers
+source_suffix = {
+    '.rst': None,
+    '.md': 'myst_parser',
+}
 
 # Autodoc settings
 autodoc_default_options = {
