@@ -1,19 +1,32 @@
 #!/usr/bin/env python3
 """
-Estimate GPU memory requirements for dendritic models.
+GPU Memory Requirements Estimator for Dendritic Models
+======================================================
 
-This script analyzes a configuration file and provides GPU recommendations
-without actually starting training.
+This script estimates GPU memory requirements for different dendritic model configurations
+to help with resource planning and batch size optimization.
 
 Usage:
-    python scripts/estimate_gpu_requirements.py <config_file> [--batch-size N]
+    python estimate_gpu_requirements.py --config config.yaml [--output results.json]
 """
 
 import argparse
+import json
 import sys
-import os
+import traceback
+from pathlib import Path
+from typing import Dict, Any, Optional
 
-from dendritic_modeling.utils.gpu_estimation import estimate_from_config
+import torch
+from omegaconf import OmegaConf
+
+# Add src to path for imports
+sys.path.append(str(Path(__file__).parent.parent.parent))
+
+from dendritic_modeling.config import load_config
+from dendritic_modeling.models import Classifier, Regressor
+from dendritic_modeling.networks.architectures.factory import get_architecture
+from dendritic_modeling.utils.gpu_estimation import GPUMemoryEstimator
 
 
 def main():

@@ -1,7 +1,7 @@
 """
-Plotting utility functions.
+Plotting utilities and helper functions.
 
-This module contains utility functions for visualization including CSV export and tree visualization.
+This module provides common plotting utilities used across different visualization modules.
 """
 
 import csv
@@ -12,18 +12,15 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
+# Optional networkx import for network utilities
 try:
     import networkx as nx
-
     NETWORKX_AVAILABLE = True
 except ImportError:
     NETWORKX_AVAILABLE = False
-    logging.warning(
-        "NetworkX is not available. Some plotting functions will be disabled. "
-        "To fix this, try: pip install networkx or conda install networkx"
-    )
     nx = None
 
+from dendritic_modeling import logger
 from dendritic_modeling.plotting.analysis import einet_activations_todict
 
 
