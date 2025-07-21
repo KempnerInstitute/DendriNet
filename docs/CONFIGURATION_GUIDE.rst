@@ -289,12 +289,64 @@ Input Processing
 `````
 
 **Available input transform types:**
-* ``IndexInputTransform``: Random index splitting
-* ``MLPInputTransform``: MLP-based transformation
-* ``CNNInputTransform``: CNN-based transformation
-* ``AlexNetTransform``: Pre-trained AlexNet features
-* ``FeatureExtractorMLP``: Feature extraction MLP
-* ``SigmoidInputNetTransform``: MLP with sigmoid output
+* ``IdentityInputTransform``: Passes input unchanged to both E/I pathways
+* ``IndexInputTransform``: Random index-based splitting of input dimensions
+* **Note**: The following are referenced in documentation but not fully implemented:
+  * ``MLPInputTransform``: MLP-based transformation (placeholder)
+  * ``CNNInputTransform``: CNN-based transformation (placeholder)  
+  * ``AlexNetTransform``: Pre-trained AlexNet features (placeholder)
+  * ``FeatureExtractorMLP``: Feature extraction MLP (placeholder)
+  * ``SigmoidInputNetTransform``: MLP with sigmoid output (placeholder)
+
+Network Configuration Details
+----------------------------
+
+**TopK Selection Types** (``topk_type``):
+   - ``standard``: Basic TopK selection by weight magnitude (default)
+   - ``stochastic``: Probabilistic selection with temperature control
+   - ``variance``: Selection based on input variance and weight magnitude
+   - ``deepst``: Dynamic sparse training with rewiring
+
+**Rewiring Modes** (``rewiring_mode`` for DeepST):
+   - ``global``: Connections can be rewired anywhere in the network (default)
+   - ``local``: Connections rewired only within the same neuron
+   - ``constant_branch``: Maintain constant number of synapses per branch
+
+**Gradient Scaling Strategies**:
+   - ``reactivation_strategy``: 'none', 'inverse' (default: 'inverse')
+   - ``topk_strategy``: 'none', 'conductance_dynamic' (default: 'conductance_dynamic')
+   - ``blocklinear_strategy``: 'none', 'conductance_dynamic' (default: 'conductance_dynamic')
+
+**Reactivation Functions** (``reactivation_type``):
+   - ``none``: Identity function
+   - ``param_tanh``: Parametric tanh with learnable parameters (default)
+   - ``param_tanh_only_m``: Parametric tanh with learnable slope only
+   - ``relu``: Standard ReLU
+   - ``sigmoid``: Standard sigmoid  
+   - ``tanh``: Standard tanh
+   - ``param_linear_sigmoid``: Trainable linear-sigmoid interpolation
+   - ``linear_sigmoid``: Non-trainable linear-sigmoid interpolation
+   - ``param_linear_tanh``: Trainable linear-tanh interpolation
+   - ``linear_tanh``: Non-trainable linear-tanh interpolation
+   - ``param_linear_tanh_transition``: Trainable linear-tanh transition
+   - ``linear_tanh_transition``: Non-trainable linear-tanh transition
+
+**Initialization Methods** (``topk_init_method``, ``init_method``):
+   - ``xavier_normal``: Xavier normal initialization (default)
+   - ``xavier_uniform``: Xavier uniform initialization
+   - ``kaiming_normal``: Kaiming normal initialization
+   - ``kaiming_uniform``: Kaiming uniform initialization
+   - ``orthogonal``: Orthogonal initialization
+   - ``normal``: Standard normal initialization
+   - ``uniform``: Uniform initialization
+   - ``eye``: Identity matrix initialization
+
+**Transfer Function Options** (``transfer_params``):
+   - ``input_mode``: 0 (raw→E, None→I), 1 (same→E,I), 2 (network transform)
+   - ``independent_pathways``: Bool - Use separate input streams for E/I
+   - ``excitatory_dim``: Int - Output dim for E pathway (independent mode)
+   - ``inhibitory_dim``: Int - Output dim for I pathway (independent mode)  
+   - ``output_activation``: 'sigmoid', 'relu', 'tanh', 'softplus', 'none'
 
 Other Network Types
 ~~~~~~~~~~~~~~~~~~~~

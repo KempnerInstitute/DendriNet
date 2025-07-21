@@ -594,9 +594,11 @@ The framework provides flexible network components with various options:
      - ``use_shunting``: Bool - Enable shunting inhibition (default: True). Implemented in ``DendriticLayer.forward()``.
      - ``reactivation_strategy``: String - 'inverse' for shunting reactivation, 'none' for linear (default: 'inverse' if shunting).
      - ``epsilon``: Float - Small constant for numerical stability in shunting (default: 1e-6).
-     - ``connectivity``: String - 'dense' or 'sparse' (uses TopKLinear for sparsity).
-     - ``sparsity``: Float - Fraction of connections to keep if sparse (0-1).
-   - **Example**: To create a 3-layer network with shunting and 0.5 sparsity: ``ExcitationInhibitionNetwork(input_dim=784, excitatory_layer_sizes=[512, 256, 10], inhibitory_layer_sizes=[128, 64, 0], use_shunting=True, connectivity='sparse', sparsity=0.5)``.
+     - ``topk_type``: String - Type of synaptic selection: 'standard', 'stochastic', 'variance', 'deepst' (default: 'standard').
+     - ``rewiring_mode``: String - For DeepST: 'global', 'local', 'constant_branch' (default: 'global').
+     - ``blocklinear_strategy``: String - Gradient scaling strategy: 'none', 'conductance_dynamic' (default: 'conductance_dynamic').
+     - ``topk_strategy``: String - TopK gradient strategy: 'none', 'conductance_dynamic' (default: 'conductance_dynamic').
+   - **Example**: To create a 3-layer network with stochastic TopK and global rewiring: ``ExcitationInhibitionNetwork(input_dim=784, excitatory_layer_sizes=[512, 256, 10], inhibitory_layer_sizes=[128, 64, 0], use_shunting=True, topk_type='stochastic', rewiring_mode='global')``.
 
 2. **DendriticBranchLayer** (per-layer component):
    - **Implementation**: Computes branch-wise outputs with E/I integration. Supports multiple branches per neuron.
@@ -604,17 +606,22 @@ The framework provides flexible network components with various options:
      - ``num_branches``: Int - Number of dendritic branches per layer.
      - ``ee_synapses_per_branch``: Int - Excitatory synapses per branch.
      - ``ie_synapses_per_branch``: Int - Inhibitory synapses per branch.
-     - ``transfer_function``: Callable - Custom activation (default: ReLU).
+     - ``reactivation_type``: String - Activation function type (see Transfer Functions below).
 
-3. **Sparse Connectivity**:
-   - **Implementation**: Uses ``TopKLinear`` or ``StochasticTopKLinear`` for sparse weights.
+3. **Synaptic Selection Types**:
+   - **Implementation**: Different algorithms for selecting active synaptic connections.
    - **Options**:
-     - ``K``: Int - Number of top connections to keep.
-     - ``temperature``: Float - For stochastic selection (default: 1.0).
+     - ``standard``: Basic TopK selection by weight magnitude.
+     - ``stochastic``: Probabilistic selection based on weight ranking with temperature control.
+     - ``variance``: Selection based on input variance and weight magnitude combination.
+     - ``deepst``: Dynamic sparse training with Brownian motion rewiring.
 
 4. **Input Transforms**:
-   - **Implementation**: Preprocessing layers before core network (e.g., VAE, AlexNet, etc).
-   - **Options**: ``identity``.
+   - **Implementation**: Preprocessing layers that split/duplicate inputs for E/I pathways.
+   - **Available Options**:
+     - ``IdentityInputTransform``: Passes input unchanged to both E and I pathways.
+     - ``IndexInputTransform``: Splits input dimensions by index between E and I pathways.
+   - **Note**: Other transforms (``MLPInputTransform``, ``CNNInputTransform``, ``AlexNetTransform``) are referenced in configs but not fully implemented in the current codebase.
 
 **Implementation Details**: All options are passed via config YAML to factory functions in ``networks/architectures/factory.py``. For example, shunting is implemented as ``output = exc / (exc + inh + epsilon)`` in ``DendriticLayer.forward()``.
 
@@ -623,11 +630,42 @@ Transfer Function Parameters
 
 The ``TransferFunctionParams`` class controls dendritic computation behavior:
 
-- ``input_mode``: Int - Input processing mode (0: standard, 1: normalized).
-- ``multiplicative``: Bool - Use multiplicative interactions between branches.
-- ``shunting_inhibition``: Bool - Enable shunting inhibition mechanism.
-- ``use_shunting``: Bool - Overall shunting control flag.
-- ``epsilon``: Float - Numerical stability constant for division.
-- ``reactivation_strategy``: String - How to handle reactivation ('inverse', 'none').
+- ``input_mode``: Int - Input processing mode (0: raw→E, None→I; 1: same→E,I; 2: network transform).
+- ``independent_pathways``: Bool - Use separate input streams for E and I pathways.
+- ``excitatory_dim``: Int - Output dimension for excitatory pathway (when using independent pathways).
+- ``inhibitory_dim``: Int - Output dimension for inhibitory pathway (when using independent pathways).
+- ``output_activation``: String - Activation applied to transfer outputs: 'sigmoid', 'relu', 'tanh', 'softplus', 'none' (default: None).
+
+Available Reactivation Functions
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The framework supports multiple reactivation/activation functions:
+
+- ``none``: Identity function (no reactivation).
+- ``param_tanh``: Parametric tanh with learnable slope and bias parameters.
+- ``param_tanh_only_m``: Parametric tanh with learnable slope, fixed bias.
+- ``relu``: Standard ReLU activation.
+- ``sigmoid``: Standard sigmoid activation.
+- ``tanh``: Standard tanh activation.
+- ``param_linear_sigmoid``: Trainable linear-sigmoid interpolation.
+- ``linear_sigmoid``: Non-trainable linear-sigmoid interpolation.
+- ``param_linear_tanh``: Trainable linear-tanh interpolation.
+- ``linear_tanh``: Non-trainable linear-tanh interpolation.
+- ``param_linear_tanh_transition``: Trainable linear-tanh transition.
+- ``linear_tanh_transition``: Non-trainable linear-tanh transition.
+
+Initialization Methods
+~~~~~~~~~~~~~~~~~~~
+
+Available weight initialization methods (``topk_init_method``, ``init_method``):
+
+- ``xavier_normal``: Xavier normal initialization.
+- ``xavier_uniform``: Xavier uniform initialization.
+- ``kaiming_normal``: Kaiming normal initialization.
+- ``kaiming_uniform``: Kaiming uniform initialization.
+- ``orthogonal``: Orthogonal initialization.
+- ``normal``: Standard normal initialization.
+- ``uniform``: Uniform initialization.
+- ``eye``: Identity matrix initialization.
 
 These parameters are loaded from YAML configs and applied during network initialization. 
