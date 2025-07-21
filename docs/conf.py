@@ -38,10 +38,12 @@ extensions = [
     'sphinx.ext.todo',
     'sphinx.ext.coverage',
     'sphinx.ext.doctest',
-    'sphinx_copybutton',  # Copy button for code blocks
-    'sphinx_design',      # Enhanced design elements
-    'myst_parser',        # Markdown support
-    'nbsphinx',          # Jupyter notebook support
+    'sphinx.ext.graphviz',    # For drawing graphs
+    'sphinx_copybutton',      # Copy button for code blocks
+    'sphinx_design',          # Enhanced design elements
+    'sphinx_search.extension', # Enhanced search
+    'myst_parser',            # Markdown support
+    'nbsphinx',              # Jupyter notebook support
 ]
 
 # Autodoc settings
@@ -122,6 +124,13 @@ copybutton_remove_prompts = True
 templates_path = ['_templates']
 exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store', '**.ipynb_checkpoints']
 
+# Notebook execution settings
+nbsphinx_execute = 'never'  # Don't execute notebooks during build
+nbsphinx_allow_errors = True
+
+# Cross-reference configuration
+nitpicky = True  # Warn about broken cross-references
+
 # Language and locale
 language = 'en'
 
@@ -136,6 +145,11 @@ html_static_path = ['_static']
 html_theme_options = {
     "github_url": "https://github.com/KempnerInstitute/dendritic-modeling",
     "twitter_url": "https://twitter.com/KempnerInstitute",
+    "search_bar_text": "Search framework docs...",
+    "navbar_end": ["search-field", "navbar-icon-links"],
+    "show_toc_level": 2,
+    "collapse_navigation": False,
+    "navigation_depth": 3,
     "use_edit_page_button": True,
     "show_toc_level": 2,
     "navbar_align": "left",

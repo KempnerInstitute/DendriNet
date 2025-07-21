@@ -2,7 +2,7 @@
 
 This guide provides detailed information about all network architectures available in the Dendritic Modeling Framework, their biological motivation, mathematical formulations, and practical usage guidelines.
 
-![Network Architecture Overview](figures/architecture/network_architecture_enhanced.png)
+![Network Architecture Overview](figures/architecture/network_architecture.png)
 
 ## Table of Contents
 
@@ -16,7 +16,7 @@ This guide provides detailed information about all network architectures availab
 
 ## EINet (Excitation-Inhibition Networks)
 
-![EINet Architecture](figures/architecture/network_architecture_enhanced.png)
+![EINet Architecture](figures/architecture/network_architecture.png)
 
 ### Biological Motivation
 

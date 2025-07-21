@@ -220,7 +220,7 @@ for condition in experimental_conditions:
 
 ## Integration with Existing Code
 
-The new framework maintains backward compatibility with existing analyzers:
+The framework maintains backward compatibility with existing analyzers:
 
 ```python
 # Legacy code still works
@@ -231,7 +231,7 @@ from dendritic_modeling.analysis.information import (
     compute_mi_cd
 )
 
-# But you can now use the framework instead
+# Using the framework instead
 from dendritic_modeling.analysis.information import (
     InformationAnalyzer,
     KraskovEstimator,
@@ -243,7 +243,7 @@ from dendritic_modeling.analysis.information import (
 
 ### Custom Estimators
 
-You can add new estimation methods:
+Adding custom estimation methods:
 
 ```python
 from dendritic_modeling.analysis.information import (

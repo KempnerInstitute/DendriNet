@@ -389,11 +389,11 @@ weight_threshold: 1e-6             # Pruning threshold
 **Rewiring Modes:**
 - **Global**: Can rewire to any neuron in layer
 - **Local**: Rewire only within same branch
-- **Constant Branch**: Maintain fixed synapses per branch
+- **Constant Branch**: Maintains constant synapses per branch
 
 **Rewiring Algorithm:**
 1. **Prune**: Remove connections below threshold
-2. **Grow**: Add new random connections
+2. **Grow**: Adds new random connections
 3. **Noise**: Add Gaussian noise for exploration
 4. **Normalize**: Maintain target density
 
@@ -544,13 +544,13 @@ decoder_network: Identity
 
 #### Computational Speed
 - **Standard TopK**: Fastest synaptic selection
-- **Stochastic TopK**: Moderate speed, better exploration
+- **Stochastic TopK**: Moderate speed, enhanced exploration
 - **DeepST**: Slower due to rewiring overhead
 
 #### Training Stability
 - **Shunting inhibition**: More stable (bounded output)
 - **Gradient scaling**: Essential for deep dendritic networks
-- **Parametric activations**: Better gradient flow
+- **Parametric activations**: Enhanced gradient flow
 
 ### Best Practices
 
@@ -573,7 +573,7 @@ decoder_network: Identity
 2. Design novel synaptic selection mechanisms
 3. Explore different E-I balance ratios
 4. Investigate biological constraints
-5. Develop new gradient scaling approaches
+5. Implement custom gradient scaling approaches
 
 ---
 
