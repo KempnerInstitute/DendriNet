@@ -1,0 +1,254 @@
+# ============================================================================
+# PURE BENCHMARKING CONFIGURATION
+# ============================================================================
+# This configuration is optimized for maximum performance benchmarking.
+# All analysis and monitoring features are disabled for pure speed testing.
+#
+# Use this to:
+# - Test maximum training throughput
+# - Benchmark different hardware configurations  
+# - Compare performance across model sizes
+# - Validate scaling behavior
+# ============================================================================
+
+model:
+  task: classification
+  
+  # No encoder for pure benchmarking
+  encoder_network:
+    type: identity
+    parameters:
+      input_shape: [1, 28, 28]  # MNIST input
+  
+  # Core EI network optimized for benchmarking
+  core_network:
+    type: EINet
+    parameters:
+      # Transfer function parameters
+      transfer_params:
+        input_mode: 1
+        independent_pathways: true
+        output_activation: none
+        
+      # Larger architecture for meaningful benchmark
+      excitatory_layer_sizes: [50, 40, 30]        # Large layers for benchmark
+      inhibitory_layer_sizes: [15, 12, 8]         # Corresponding inhibitory layers
+      excitatory_branch_factors: [6, 6, 4]        # More branches for complexity
+      inhibitory_branch_factors: [3, 3, 2]        # Inhibitory branches
+      
+      # Rich connectivity for benchmarking
+      ee_synapses_per_branch_per_layer: [12]      # More synapses per branch
+      ei_synapses_per_branch_per_layer: [6]       # E-to-I connections
+      ie_synapses_per_branch_per_layer: [3]       # I-to-E connections
+      ii_synapses_per_branch_per_layer: [2]       # I-to-I connections
+      
+      # Morphological features
+      somatic_synapses: true
+      use_shunting: true
+      
+      # TopK parameters
+      topk_type: standard
+      topk_init_method: xavier_normal
+      topk_noise_level: 0.0
+      
+      # Reactivation
+      reactivate: true
+      reactivation_type: param_tanh
+      reactivation_init_m: 1.5
+      reactivation_init_b: 0.5
+      
+      # Gradient scaling
+      reactivation_strategy: inverse
+      topk_strategy: conductance_dynamic
+      blocklinear_strategy: conductance_dynamic
+      
+      # Implementation optimizations
+      efficient_blocklinear: true
+      adaptive_initialization: true
+      print_hooks: false
+
+  # Simple decoder for benchmark
+  decoder_network:
+    type: MLP
+    parameters:
+      hidden_dims: [16]         # Minimal decoder
+      activation: relu
+      output_dim: 10           # MNIST classes
+      use_batch_norm: false
+      dropout_rate: 0.0
+
+train:
+  run_name: "benchmark_performance_test"
+  
+  # ==========================================
+  # MAXIMUM PERFORMANCE SETTINGS
+  # ==========================================
+  
+  # All performance optimizations enabled
+  enable_amp: true              # Mixed precision for speed
+  enable_profiling: false       # Disabled - adds overhead
+  enable_hooks: false           # Disabled - analysis overhead removed
+  performance_mode: true        # Maximum performance mode
+  use_fsdp: false              # Single GPU benchmark
+  
+  # Skip encoder training for benchmarking
+  encoder:
+    load_save_root: saved_models/encoder
+    lr: 0.001
+    trainer:
+      loss_function: mse
+      epochs: 0                 # Skip encoder training for identity encoder
+      batch_size: 128
+      shuffle: true
+      grad_clip_value: 5.0
+      load_best_state_dict: true
+      plot_losses: false
+      suppress_prints: true
+      print_every: 50
+  
+  # Optimized training parameters
+  main:
+    learning_strategy: standard  # Standard strategy for benchmarking
+    weight_decay_rate: 0.1
+    
+    # Parameter groups optimized for speed
+    param_groups:
+      lr: 0.001                 # Default learning rate
+      split_params: true        # Split parameters into groups (EINet)
+      topk_lr: 0.001           # Learning rate for TopK layers
+      blocklinear_lr: 0.001    # Learning rate for BlockLinear layers
+      reactivation_lr: 0.001   # Learning rate for reactivation layers
+      decoder_lr: 0.001        # Learning rate for decoder network
+    
+    trainer:
+      loss_function: cat_nll    # Loss function for classification
+      epochs: 20                # Fewer epochs for throughput testing
+      batch_size: 512           # Large batch for max throughput
+      early_stopping: false     # Disabled for consistent benchmarking
+      patience: 10
+      grad_clip_value: 5.0
+      shuffle: true
+      load_best_state_dict: true
+      plot_losses: false        # Disabled for performance
+      suppress_prints: true
+      print_every: 50           # Very infrequent printing
+  
+  # No checkpointing to avoid I/O overhead
+  checkpointing:
+    enabled: false
+  
+  # No model saving during benchmark
+  save_model: false
+  save_results: false
+  
+  # Minimal logging for performance
+  suppress_prints: true
+  print_every: 50               # Very infrequent printing
+  plot_losses: false
+
+task:
+  dataset: mnist
+  
+  preprocessing:
+    normalize: true
+    augmentation: false         # No augmentation for consistent timing
+  
+  data_loader:
+    auto_optimize: true         # Will optimize for large dataset
+  
+  validation_split: 0.1         # Minimal validation for speed
+
+# Minimal W&B logging (or disable completely)
+wandb:
+  enabled: false                # Disabled for pure benchmarking
+  # If you need logging, uncomment and configure:
+  # enabled: true
+  # project: "dendritic-benchmarks"
+  # entity: "your-wandb-entity"
+  # tags: ["benchmark", "performance"]
+  # log_freq: 1000              # Very infrequent logging
+  # log_gradients: false
+  # log_parameters: false
+  # log_activations: false
+
+# All analysis disabled for maximum performance
+analysis:
+  enabled: false                # Completely disabled
+  
+  # If you need minimal analysis, enable specific modules:
+  # enabled: true
+  # respect_hook_settings: true  # Will be skipped due to performance_mode
+  # 
+  # performance_analysis:
+  #   enabled: true
+  #   training: false
+  #   params:
+  #     memory_usage: true
+  #     throughput: true
+  #     gpu_utilization: true
+
+outputs:
+  dir: "./outputs/benchmarks/"
+  
+  # No cleanup during benchmarking
+  cleanup:
+    enabled: false
+
+compute:
+  device: "auto"
+  
+  memory:
+    gradient_checkpointing: false  # Disabled for speed
+    empty_cache_freq: 1000        # Very infrequent cache clearing
+    max_memory_fraction: 0.95     # Use maximum available memory
+  
+  # No distributed settings for single GPU benchmark
+  distributed: null
+
+# ============================================================================
+# BENCHMARKING NOTES
+# ============================================================================
+#
+# PERFORMANCE METRICS TO MONITOR:
+# - Samples per second
+# - GPU utilization (should be >95%)
+# - Memory usage
+# - Time per epoch
+# - Total training time
+#
+# SCALING BENCHMARKS:
+# 1. Model Size Scaling:
+#    - Increase hidden_dims: [512, 256, 128] → [2048, 1024, 512]
+#    - Increase branches_per_neuron: 4 → 8 → 16
+#    - Increase synapses_per_branch: 64 → 128 → 256
+#
+# 2. Batch Size Scaling:
+#    - Test batch_size: 128, 256, 512, 1024, 2048
+#    - Find optimal batch size for your hardware
+#
+# 3. Dataset Scaling:
+#    - MNIST (small): Current config
+#    - CIFAR10 (medium): input_dim=3072, output_dim=10
+#    - CIFAR100 (larger): input_dim=3072, output_dim=100
+#
+# 4. Hardware Comparisons:
+#    - Different GPU models
+#    - Different CPU core counts
+#    - Memory bandwidth effects
+#
+# EXPECTED THROUGHPUT (approximate):
+# - Single GPU V100: ~5000-8000 samples/sec
+# - Single GPU A100: ~8000-12000 samples/sec
+# - CPU only: ~500-1000 samples/sec
+#
+# OPTIMIZATION CHECKLIST:
+# ✓ Mixed precision enabled (enable_amp: true)
+# ✓ Large batch size for GPU utilization
+# ✓ All analysis disabled (analysis.enabled: false)
+# ✓ All hooks disabled (performance_mode: true)
+# ✓ No checkpointing I/O overhead
+# ✓ No W&B logging overhead
+# ✓ No plotting overhead
+# ✓ No gradient checkpointing (trades speed for memory)
+# ✓ Maximum memory utilization
+# ============================================================================ 

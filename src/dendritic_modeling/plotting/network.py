@@ -1,27 +1,23 @@
 """
-Network visualization and plotting functions.
-"""
+Network visualization utilities.
 
-import logging
-import os
+This module provides functions for visualizing network structures and connectivity patterns
+in dendritic models.
+"""
 
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-from matplotlib.colors import TwoSlopeNorm
-from matplotlib.gridspec import GridSpec
 
+# Optional networkx import for network visualization
 try:
     import networkx as nx
-
     NETWORKX_AVAILABLE = True
 except ImportError:
     NETWORKX_AVAILABLE = False
-    logging.warning(
-        "NetworkX is not available. Some plotting functions will be disabled. "
-        "To fix this, try: pip install networkx or conda install networkx"
-    )
     nx = None
+
+from dendritic_modeling import logger
 
 
 def plot_with_color(

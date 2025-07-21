@@ -1,0 +1,302 @@
+# ============================================================================
+# EXPERIMENT TEMPLATE - COPY AND MODIFY FOR NEW EXPERIMENTS
+# ============================================================================
+# Use this as a base for running multiple experiments. Change parameters as needed.
+# 
+# Usage:
+#   1. Copy this file: cp configs/templates/experiment_template.yaml configs/my_experiment.yaml
+#   2. Replace placeholders: {{task}}, {{network_type}}, {{dataset}}, {{run_name}}
+#   3. Adjust parameters for your specific experiment
+#   4. Run: python src/dendritic_modeling/scripts/train_experiments.py configs/my_experiment.yaml
+# ============================================================================
+
+# ============================================================================
+# MODEL CONFIGURATION - 3-STAGE ARCHITECTURE
+# ============================================================================
+model:
+  # Task type - classification or regression
+  task: "{{task}}"  # Replace with: classification, regression
+  
+  # ==========================================
+  # ENCODER NETWORK (Input Processing Stage)
+  # ==========================================
+  encoder_network:
+    # Network type - rich set of encoder options
+    type: "{{encoder_type}}"  # Replace with: identity, MLPAutoencoder, CNNAutoencoder, MLPVariationalAutoencoder, CNNVariationalAutoencoder, none
+    parameters:
+      input_shape: [3, 32, 32]  # Adjust for your data: [1, 28, 28] for MNIST, [3, 32, 32] for CIFAR
+      latent_shape: [16, 8, 8]  # Latent representation shape
+      encoder_hidden_dims: [64] # Hidden dimensions for MLP encoders
+      decoder_hidden_dims: [64] # Hidden dimensions for autoencoder decoders
+      activation: relu           # Activation function
+
+  # ==========================================
+  # CORE NETWORK (Main Processing Stage)
+  # ==========================================
+  core_network:
+    type: "{{network_type}}"  # Replace with: EINet, MLP, MatchedParamMLP
+    parameters:
+      # For EINet - sophisticated dendritic architecture
+      # ==========================================
+      # TRANSFER FUNCTION PARAMETERS
+      # ==========================================
+      transfer_params:
+        input_mode: 1             # 0=shared pathway, 1=independent pathways
+        independent_pathways: true # Must match input_mode
+        excitatory_dim: []        # Dimensions for excitatory pathways
+        inhibitory_dim: []        # Dimensions for inhibitory pathways
+        output_activation: none   # Options: sigmoid, relu, tanh, softplus, none
+        
+      # ==========================================
+      # MORPHOLOGICAL ARCHITECTURE
+      # ==========================================
+      # Multi-layer excitatory-inhibitory structure
+      excitatory_layer_sizes: [20, 15, 10]      # Neurons per excitatory layer - ADJUST AS NEEDED
+      inhibitory_layer_sizes: [5, 5, 5]         # Neurons per inhibitory layer - ADJUST AS NEEDED
+      excitatory_branch_factors: [4, 4, 4]      # Branches per excitatory neuron - ADJUST AS NEEDED
+      inhibitory_branch_factors: [2, 2, 2]      # Branches per inhibitory neuron - ADJUST AS NEEDED
+      
+      # Synaptic connectivity patterns - all connection types
+      ee_synapses_per_branch_per_layer: [8]     # Excitatory-to-excitatory synapses - ADJUST AS NEEDED
+      ei_synapses_per_branch_per_layer: [4]     # Excitatory-to-inhibitory synapses - ADJUST AS NEEDED
+      ie_synapses_per_branch_per_layer: [2]     # Inhibitory-to-excitatory synapses - ADJUST AS NEEDED
+      ii_synapses_per_branch_per_layer: [1]     # Inhibitory-to-inhibitory synapses - ADJUST AS NEEDED
+      
+      # Morphological features
+      somatic_synapses: true    # Include somatic (non-dendritic) synapses
+      use_shunting: true        # Use shunting inhibition
+      
+      # ==========================================
+      # TOPK SPARSITY PARAMETERS
+      # ==========================================
+      topk_init_method: xavier_normal            # Weight initialization
+      topk_noise_level: 0.0                     # Noise level for stochastic TopK
+      topk_type: standard # Options: "standard", "stochastic", "variance", "deepst"
+      topk_temperature: 0.5                     # Stochastic selection sharpness (0.1-1.0)
+      topk_ultrafast: true                      # Enable faster stochastic TopK implementation
+      
+      # ==========================================
+      # REACTIVATION PARAMETERS
+      # ==========================================
+      reactivate: true          # Enable reactivation functions
+      reactivation_type: param_tanh # Options: "none", "param_tanh", "param_tanh_only_m", "relu", "sigmoid", "tanh", "param_linear_sigmoid"
+      reactivation_init_m: 1.5 # Reactivation parameter m
+      reactivation_init_b: 0.5 # Reactivation parameter b
+      
+      # ==========================================
+      # GRADIENT SCALING STRATEGIES
+      # ==========================================
+      reactivation_strategy: inverse            # Options: "none", "inverse"
+      topk_strategy: conductance_dynamic        # TopK gradient scaling strategy
+      blocklinear_strategy: conductance_dynamic # Options: "none", "distal_upweight_by_idx", "conductance_dynamic"
+      
+      # ==========================================
+      # IMPLEMENTATION OPTIMIZATIONS
+      # ==========================================
+      efficient_blocklinear: true               # Use efficient blocklinear implementation
+      adaptive_initialization: true            # Network-aware weight scaling to prevent NaN
+      print_hooks: false                       # Print gradient statistics in hooks
+
+  # ==========================================
+  # DECODER NETWORK (Output Processing Stage)
+  # ==========================================
+  decoder_network:
+    type: MLP # Options: "MLP", "CNN", "none"
+    parameters:
+      hidden_dims: [32, 16]     # Hidden layer dimensions - ADJUST AS NEEDED
+      activation: relu          # Activation function
+      output_dim: "{{output_dim}}"  # Replace with: 10 (MNIST/CIFAR10), 100 (CIFAR100), etc.
+      use_batch_norm: false    # Batch normalization
+      dropout_rate: 0.0        # Dropout rate
+
+# ============================================================================
+# TRAINING CONFIGURATION
+# ============================================================================
+train:
+  run_name: "{{run_name}}"  # Replace with descriptive name
+  seed: 0
+  train_valid_split: 0.8
+  
+  # ==========================================
+  # NEW: PERFORMANCE OPTIMIZATION SETTINGS
+  # ==========================================
+  # Mixed Precision Training (AMP) - NEW FEATURE
+  enable_amp: true              # Enable automatic mixed precision
+  
+  # Profiling Configuration - NEW FEATURE  
+  enable_profiling: false       # Enable PyTorch profiler
+  profiling_output_dir: "outputs/profiling/"
+  
+  # Hook Management - NEW FEATURE
+  enable_hooks: true            # Enable hooks for analysis
+  performance_mode: false       # If true, disables ALL hooks for maximum speed
+  
+  # FSDP Support - NEW FEATURE
+  use_fsdp: false              # Enable for very large models
+
+  # ==========================================
+  # ENCODER TRAINING CONFIGURATION
+  # ==========================================
+  encoder:
+    load_save_root: saved_models/encoder
+    lr: 0.001
+    trainer:
+      loss_function: mse        # Loss function for encoder training
+      epochs: 50               # Encoder pre-training epochs (set to 0 for identity encoder)
+      early_stopping: false    # Early stopping for encoder
+      patience: 10             # Patience for early stopping
+      batch_size: 128          # Batch size for encoder training
+      shuffle: true            # Shuffle training data
+      grad_clip_value: 5.0     # Gradient clipping
+      load_best_state_dict: true
+      plot_losses: true
+      suppress_prints: false
+      print_every: 10
+
+  # ==========================================
+  # MAIN NETWORK TRAINING
+  # ==========================================
+  main:
+    # Multiple learning strategies available
+    learning_strategy: standard  # Options: "standard", "freeze_layers", "freeze_branches", "voltage_stabilization", "two_step", "two_step_kl"
+    weight_decay_rate: 0.1
+
+    # Parameter groups with different learning rates (for EINet)
+    param_groups:
+      lr: 0.01                  # Default learning rate
+      split_params: true        # Split parameters into groups (EINet only)
+      topk_lr: 0.001           # Learning rate for TopK layers
+      blocklinear_lr: 0.001    # Learning rate for BlockLinear layers
+      reactivation_lr: 0.001   # Learning rate for reactivation layers
+      decoder_lr: 0.001        # Learning rate for decoder network
+
+    trainer:
+      # Core training parameters
+      loss_function: cat_nll    # Loss function for main training
+      epochs: 100              # Main training epochs
+      early_stopping: true     # Early stopping
+      patience: 10             # Patience for early stopping
+      batch_size: 256          # Batch size for main training
+      shuffle: true            # Shuffle training data
+      grad_clip_value: 5.0     # Gradient clipping
+      load_best_state_dict: true
+      plot_losses: true
+      suppress_prints: false
+      print_every: 10
+      
+      # Advanced training strategy parameters (for complex strategies)
+      pretrain_epochs: 10      # Pre-training epochs for complex strategies
+      target_voltage: 0.5      # Target voltage for voltage stabilization
+      kl_weight: 0.1          # KL divergence weight for two_step_kl
+      reverse_training: false  # Reverse training direction
+      epochs_per_layer: 10     # Epochs per layer for layer-wise training
+      epochs_per_branch: 10    # Epochs per branch for branch-wise training
+      final_tune_epochs: 10    # Final tuning epochs
+
+    # NEW: Checkpointing support
+    checkpointing:
+      enabled: true
+      save_every_n_epochs: 10
+      checkpoint_dir: "outputs/checkpoints/"
+
+# ============================================================================
+# DATASET CONFIGURATION
+# ============================================================================
+task:
+  dataset: "{{dataset}}"  # Replace with: mnist, cifar10, cifar100, imagenet, synthetic datasets
+  data_path: null         # Custom data path if needed
+  parameters: 
+    flatten: true         # Flatten input images (set false for CNN encoders)
+    normalize: true       # Normalize input data
+    
+  # NEW: Enhanced data loading
+  data_loader:
+    auto_optimize: true   # Automatic DataLoader optimization
+  
+  validation_split: 0.2
+
+# ============================================================================
+# WANDB LOGGING
+# ============================================================================
+wandb:
+  enabled: true
+  project: "dendritic-experiments"
+  entity: "your-wandb-entity"  # Replace with your W&B entity
+  tags: ["template", "{{network_type}}", "{{dataset}}"]  # Adjust tags
+  notes: "Experiment based on template"
+  
+  log_freq: 100
+  log_gradients: false
+  log_parameters: false
+  log_activations: false
+
+# ============================================================================
+# ANALYSIS CONFIGURATION
+# ============================================================================
+analysis:
+  enabled: true
+  respect_hook_settings: true  # Skip analysis if hooks disabled
+  
+  performance_analysis:
+    enabled: true
+    training: false
+    params:
+      accuracy: true
+      categorical_loglikelihood: true
+      memory_usage: true
+      throughput: true
+      gpu_utilization: true
+  
+  # Disable expensive analysis by default - enable as needed
+  ablation_analysis:
+    enabled: false
+    training: false
+  
+  information_analysis:
+    enabled: false
+    training: false
+
+# ============================================================================
+# OUTPUT CONFIGURATION
+# ============================================================================
+outputs:
+  run_name: "{{run_name}}"
+  dir: "./outputs/"
+  
+  cleanup:
+    enabled: true
+    old_runs_days: 30
+    wandb_cleanup: true
+
+# ============================================================================
+# COMPUTATIONAL RESOURCES
+# ============================================================================
+compute:
+  device: "auto"
+  
+  memory:
+    gradient_checkpointing: false
+    empty_cache_freq: 100
+    max_memory_fraction: 0.9
+
+# ============================================================================
+# TEMPLATE USAGE EXAMPLES
+# ============================================================================
+# 
+# EXAMPLE 1 - Simple EI Network on MNIST:
+# Replace: {{task}}="classification", {{network_type}}="EINet", {{encoder_type}}="identity"
+#          {{dataset}}="mnist", {{output_dim}}=10, {{run_name}}="mnist_ei_baseline"
+# Adjust: excitatory_layer_sizes: [10, 8], inhibitory_layer_sizes: [3, 3]
+#
+# EXAMPLE 2 - EI Network with CNN Encoder on CIFAR10:
+# Replace: {{task}}="classification", {{network_type}}="EINet", {{encoder_type}}="CNNAutoencoder"
+#          {{dataset}}="cifar10", {{output_dim}}=10, {{run_name}}="cifar10_ei_cnn"
+# Adjust: Set flatten: false, increase layer sizes for complexity
+#
+# EXAMPLE 3 - Large Scale EI Network:
+# Same as above but set: use_fsdp=true, batch_size=512, enable_amp=true
+# Increase: excitatory_layer_sizes: [50, 40, 30], inhibitory_layer_sizes: [15, 15, 15]
+#
+# EXAMPLE 4 - Pure Performance Benchmarking:
+# Same as above but set: performance_mode=true, analysis.enabled=false
+# ============================================================================ 

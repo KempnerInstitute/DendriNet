@@ -1,0 +1,406 @@
+# ============================================================================
+# ENHANCED DENDRITIC MODELING EXPERIMENT CONFIGURATION
+# ============================================================================
+# This configuration file controls all aspects of dendritic network experiments
+# including model architecture, training parameters, datasets, analysis, and
+# the new performance optimization features.
+# 
+# NEW FEATURES ADDED:
+# - Mixed Precision Training (AMP) for memory efficiency and speed
+# - Conditional Profiling for performance analysis
+# - Hook Management for research vs. benchmarking modes
+# - Adaptive DataLoader optimization
+# - FSDP integration for large-scale training
+# - Cleanup and maintenance utilities
+# ============================================================================
+
+# ============================================================================
+# MODEL CONFIGURATION
+# ============================================================================
+model:
+  # Task type - determines the model wrapper and loss function
+  # Options:
+  #   - "classification": For categorical prediction tasks (uses cross-entropy loss)
+  #   - "regression": For continuous value prediction (uses MSE loss)
+  task: classification
+  
+  base:
+    output_layer: true
+    output_dim: 10
+  
+  # Network architecture configuration
+  network:
+    # Network type
+    # Options:
+    #   - "EINet": Excitation-Inhibition Network with dendritic branches
+    #   - "MLP": Standard Multi-Layer Perceptron
+    #   - "MatchedParamMLP": MLP with parameter count matched to EINet
+    #   - "SimpleMLPNet": Simple MLP implementation
+    type: EINet
+    
+    # Architecture parameters
+    params:
+      # Input dimension (will be set automatically based on dataset)
+      input_dim: 784
+      
+      # Network structure
+      hidden_dims: [512, 256, 128]  # Hidden layer dimensions
+      
+      # EI-specific parameters (only used when type=EINet)
+      ei_params:
+        # Excitation-Inhibition balance
+        ei_balance: 0.8          # 0.8 = 80% excitatory, 20% inhibitory
+        
+        # Dendritic structure
+        branches_per_neuron: 4   # Number of dendritic branches per neuron
+        synapses_per_branch: 64  # Synapses per dendritic branch
+        
+        # TopK sparsity (controls connectivity)
+        topk_value: 32           # Number of active connections per branch
+        
+        # Input modes
+        # 0 = Shared pathway (simple, single inhibitory population)
+        # 1 = Independent pathways (complex, layer-specific inhibition)
+        input_mode: 1
+        independent_pathways: true  # Must match input_mode (1=true, 0=false)
+
+# ============================================================================
+# TRAINING CONFIGURATION
+# ============================================================================
+train:
+  # Run identification
+  run_name: "enhanced_ei_experiment"
+  
+  # ==============================================
+  # NEW: PERFORMANCE OPTIMIZATION SETTINGS
+  # ==============================================
+  
+  # Mixed Precision Training (AMP) - NEW FEATURE
+  # Reduces memory usage by ~50% and increases speed by ~2x for large models
+  enable_amp: true              # Enable automatic mixed precision
+  # Note: Auto-enabled on CUDA systems, auto-disabled on CPU
+  
+  # Profiling Configuration - ENHANCED FEATURE
+  enable_profiling: false       # Enable PyTorch profiler for performance analysis
+  profiling_output_dir: "outputs/profiling/"  # Directory for profiling results
+  # Note: Auto-disabled for small batches (<32) and CPU runs for better performance
+  
+  # Hook Management - NEW FEATURE
+  # Controls whether analysis hooks are enabled during training
+  enable_hooks: true            # Enable hooks for analysis (default: true)
+  performance_mode: false       # If true, disables ALL hooks for maximum speed
+  # Use performance_mode=true for pure benchmarking of large models
+  
+  # FSDP (Fully Sharded Data Parallel) - ENHANCED FEATURE
+  use_fsdp: false              # Enable FSDP for very large models
+  fsdp_config:                 # FSDP-specific settings
+    mixed_precision: true      # Use mixed precision with FSDP
+    gradient_checkpointing: false  # Trade memory for compute
+    cpu_offload: false         # Offload parameters to CPU
+  
+  # ==============================================
+  # STANDARD TRAINING SETTINGS
+  # ==============================================
+  
+  # Core training parameters
+  main:
+    trainer:
+      epochs: 100
+      batch_size: 256           # Adaptive DataLoader optimization applies here
+      learning_rate: 0.001
+      early_stopping: true
+      patience: 10
+      grad_clip_value: 5.0
+      
+    # Optimizer configuration
+    optimizer:
+      type: "adam"
+      params:
+        lr: 0.001
+        weight_decay: 0.0001
+        betas: [0.9, 0.999]
+        eps: 1e-8
+    
+    # Learning rate scheduling
+    scheduler:
+      type: "cosine"
+      params:
+        T_max: 100
+        eta_min: 0.00001
+  
+  # Checkpointing
+  checkpointing:
+    enabled: true
+    save_every_n_epochs: 10
+    checkpoint_dir: "outputs/checkpoints/"
+    keep_last_n: 5             # Keep only last 5 checkpoints
+  
+  # Model saving
+  save_model: true
+  save_results: true
+  
+  # Logging
+  suppress_prints: false
+  print_every: 10
+  plot_losses: true
+
+# ============================================================================
+# DATASET CONFIGURATION
+# ============================================================================
+task:
+  # Dataset selection
+  # Options: "mnist", "cifar10", "cifar100", "imagenet", "synthetic"
+  dataset: mnist
+  
+  # Data preprocessing
+  preprocessing:
+    normalize: true
+    augmentation: false        # Data augmentation for training
+    
+  # Data loading optimization - ENHANCED FEATURE
+  # These settings are now automatically optimized based on dataset size:
+  # - Small datasets (<10k): num_workers=0, no memory pinning
+  # - Large datasets: num_workers=4, memory pinning enabled
+  data_loader:
+    auto_optimize: true        # Enable automatic optimization (default: true)
+    # Manual settings (only used if auto_optimize=false):
+    num_workers: 4
+    pin_memory: true
+    persistent_workers: true
+  
+  # Validation split
+  validation_split: 0.2
+
+# ============================================================================
+# WANDB LOGGING CONFIGURATION
+# ============================================================================
+wandb:
+  enabled: true
+  project: "dendritic-modeling-enhanced"
+  entity: "your-wandb-entity"
+  tags: ["ei-network", "enhanced", "amp"]
+  notes: "Enhanced configuration with AMP, hook management, and adaptive optimizations"
+  
+  # Logging frequency
+  log_freq: 100              # Log every N batches
+  
+  # What to log
+  log_gradients: false       # Warning: Can slow training significantly
+  log_parameters: false      # Log parameter histograms
+  log_activations: false     # Log activation patterns
+
+# ============================================================================
+# ANALYSIS CONFIGURATION
+# ============================================================================
+analysis:
+  # ==============================================
+  # NEW: PERFORMANCE-AWARE ANALYSIS
+  # ==============================================
+  
+  # Analysis can be disabled entirely for pure benchmarking
+  enabled: true
+  
+  # Conditional analysis - only run if hooks are enabled
+  # (automatically skipped in performance_mode)
+  respect_hook_settings: true
+  
+  # ==============================================
+  # ANALYSIS MODULES
+  # ==============================================
+  
+  # Performance analysis
+  performance_analysis:
+    enabled: true
+    training: false           # Run during training (can slow down training)
+    params:
+      memory_usage: true
+      throughput: true
+      gpu_utilization: true
+      profiling_integration: true  # Integrate with profiler if enabled
+  
+  # Information theory analysis
+  information_analysis:
+    enabled: true
+    training: false
+    params:
+      mutual_information: true
+      entropy: true
+      information_flow: true
+      save_plots: true
+      samples: 1000
+  
+  # Ablation studies
+  ablation_analysis:
+    enabled: false            # Disabled by default (computationally expensive)
+    training: false
+    params:
+      layer_ablation: true
+      branch_ablation: true
+      synapse_ablation: true
+      save_plots: true
+  
+  # Network connectivity analysis
+  connectivity_analysis:
+    enabled: true
+    training: false
+    params:
+      sparsity_patterns: true
+      connection_strength: true
+      topk_analysis: true
+  
+  # Weight and activation analysis
+  weight_analysis:
+    enabled: false
+    training: false
+    params:
+      weight_distributions: true
+      gradient_analysis: true
+      parameter_evolution: true
+
+# ============================================================================
+# OUTPUT CONFIGURATION
+# ============================================================================
+outputs:
+  # Main output directory
+  dir: "./outputs/"
+  
+  # ==============================================
+  # NEW: CLEANUP AND MAINTENANCE
+  # ==============================================
+  
+  # Automatic cleanup settings
+  cleanup:
+    enabled: true
+    old_runs_days: 30         # Remove runs older than 30 days
+    wandb_cleanup: true       # Clean old wandb directories
+    auto_cleanup_on_start: false  # Clean before starting new experiments
+  
+  # ==============================================
+  # OUTPUT ORGANIZATION
+  # ==============================================
+  
+  # Subdirectory structure
+  subdirs:
+    models: "models/"
+    logs: "logs/"
+    analysis: "analysis/"
+    visualizations: "plots/"
+    profiling: "profiling/"     # NEW: Profiling outputs
+    checkpoints: "checkpoints/" # NEW: Training checkpoints
+  
+  # File formats
+  formats:
+    plots: "png"              # or "pdf", "svg"
+    data: "csv"               # or "json", "pickle"
+    models: "pt"              # PyTorch format
+
+# ============================================================================
+# COMPUTATIONAL RESOURCES
+# ============================================================================
+compute:
+  # Device configuration
+  device: "auto"              # "auto", "cuda", "cpu", or specific device "cuda:0"
+  
+  # Memory management
+  memory:
+    # Mixed precision automatically reduces memory by ~50%
+    # These are additional memory optimizations:
+    gradient_checkpointing: false  # Trade compute for memory
+    empty_cache_freq: 100         # Clear GPU cache every N batches
+    max_memory_fraction: 0.9      # Use up to 90% of GPU memory
+  
+  # Multi-GPU settings (for FSDP)
+  distributed:
+    backend: "nccl"           # "nccl" for NVIDIA GPUs, "gloo" for CPU
+    timeout_minutes: 30       # Communication timeout
+    find_unused_parameters: false
+  
+  # CPU settings
+  cpu:
+    num_threads: -1           # -1 for auto-detection
+    numa_aware: true          # NUMA-aware memory allocation
+
+# ============================================================================
+# EXPERIMENTAL FEATURES
+# ============================================================================
+experimental:
+  # ==============================================
+  # NEW EXPERIMENTAL FEATURES
+  # ==============================================
+  
+  # Dynamic batch sizing
+  dynamic_batch_size:
+    enabled: false
+    start_size: 64
+    max_size: 512
+    increase_factor: 1.2
+    increase_every_n_epochs: 10
+  
+  # Gradient accumulation for large effective batch sizes
+  gradient_accumulation:
+    enabled: false
+    accumulation_steps: 4     # Effective batch size = batch_size * accumulation_steps
+  
+  # Advanced mixed precision settings
+  advanced_amp:
+    enabled: false
+    loss_scale: "dynamic"     # "dynamic" or fixed number
+    growth_factor: 2.0
+    backoff_factor: 0.5
+    growth_interval: 2000
+  
+  # Model parallelism (for extremely large models)
+  model_parallel:
+    enabled: false
+    pipeline_stages: 1        # Number of pipeline stages
+    tensor_parallel_size: 1   # Tensor parallelism degree
+
+# ============================================================================
+# MONITORING AND DEBUGGING
+# ============================================================================
+monitoring:
+  # Performance monitoring
+  performance:
+    enabled: true
+    log_memory: true
+    log_timing: true
+    log_throughput: true
+    alert_on_slowdown: true   # Alert if training slows down significantly
+  
+  # Health checks
+  health_checks:
+    enabled: true
+    check_gradients: true     # Check for NaN/inf gradients
+    check_weights: true       # Check for NaN/inf weights
+    check_memory_leaks: true  # Monitor for memory leaks
+  
+  # Debugging
+  debug:
+    enabled: false            # Enable debug mode (very verbose)
+    save_debug_info: false    # Save detailed debug information
+    profile_every_n_epochs: 10  # Profile every N epochs if profiling enabled
+
+# ============================================================================
+# USAGE EXAMPLES
+# ============================================================================
+# 
+# SMALL-SCALE RAPID ITERATION:
+# - Set batch_size: 64, enable_amp: false, performance_mode: false
+# - Good for quick experiments and debugging
+#
+# LARGE-SCALE TRAINING:
+# - Set batch_size: 512+, enable_amp: true, use_fsdp: true (if multi-GPU)
+# - Enables maximum throughput for production training
+#
+# PURE BENCHMARKING:
+# - Set performance_mode: true, enable_profiling: false, analysis.enabled: false
+# - Disables all hooks and analysis for maximum speed
+#
+# RESEARCH WITH ANALYSIS:
+# - Set enable_hooks: true, analysis.enabled: true, enable_profiling: true
+# - Full analysis capabilities with some performance trade-off
+#
+# MEMORY-CONSTRAINED ENVIRONMENTS:
+# - Set enable_amp: true, gradient_checkpointing: true, batch_size: smaller
+# - Maximizes memory efficiency
+# ============================================================================ 

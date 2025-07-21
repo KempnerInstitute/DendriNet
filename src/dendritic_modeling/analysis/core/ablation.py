@@ -14,6 +14,7 @@ from torch.utils.data import TensorDataset, DataLoader
 from dendritic_modeling.analysis.core.base import AbstractAnalyzer
 from dendritic_modeling.config.analysis import AblationAnalysisParams
 from dendritic_modeling.models import BaseModel
+from dendritic_modeling.models import Regressor
 from dendritic_modeling.networks import ExcitationInhibitionNetwork
 from dendritic_modeling.networks.architectures import DendriticBranchLayer
 from dendritic_modeling.training.utils.evaluation import (
@@ -234,8 +235,6 @@ class AblationAnalyzer(AbstractAnalyzer):
             )[-1]
         if self.mse:
             # Check if model is a regressor before using MSE
-            from dendritic_modeling.models import Regressor
-
             if isinstance(model, Regressor):
                 baselines["mse"] = evaluate_mse(
                     regressor=model, test_loader=test_loader, device=device
@@ -248,8 +247,6 @@ class AblationAnalyzer(AbstractAnalyzer):
                 self.mse = False
         if self.cosine_similarity:
             # Check if model is a regressor before using cosine similarity
-            from dendritic_modeling.models import Regressor
-
             if isinstance(model, Regressor):
                 baselines["cosine similarity"] = evaluate_cosine_similarity(
                     regressor=model, test_loader=test_loader, device=device
