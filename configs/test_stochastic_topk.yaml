@@ -1,0 +1,106 @@
+# ============================================================================
+# TEST 4: STOCHASTIC TOPK SELECTION
+# ============================================================================
+model:
+  task: classification
+
+  encoder_network:
+    type: identity
+    parameters:
+      input_shape: [1, 28, 28]
+
+  core_network:
+    type: EINet
+    parameters:
+      input_dim: 784
+      transfer_params:
+        input_mode: 0
+        independent_pathways: false
+        output_activation: none
+        
+      excitatory_layer_sizes: [128, 10]
+      inhibitory_layer_sizes: [32, 10]
+      excitatory_branch_factors: [4, 2]
+      inhibitory_branch_factors: [2, 2]
+      
+      ee_synapses_per_branch_per_layer: [20, 5]
+      ei_synapses_per_branch_per_layer: [10, 5]
+      ie_synapses_per_branch_per_layer: [8, 5]
+      ii_synapses_per_branch_per_layer: [5, 5]
+      
+      somatic_synapses: true
+      use_shunting: true
+      reactivate: true
+      reactivation_type: param_tanh
+      topk_type: stochastic  # KEY DIFFERENCE: Stochastic selection
+      topk_temperature: 0.5  # Selection sharpness
+      topk_ultrafast: true   # Enable faster computation
+      efficient_blocklinear: false
+      adaptive_initialization: true
+
+  decoder_network:
+    type: MLP
+    parameters:
+      hidden_dims: [32, 16]
+      activation: relu
+      output_dim: 10
+
+train:
+  run_name: "stochastic_topk_test"
+  seed: 0
+  train_valid_split: 0.8
+  enable_amp: false
+  enable_profiling: false
+  enable_hooks: true
+  performance_mode: false
+  use_fsdp: false
+
+  encoder:
+    trainer:
+      epochs: 0
+      batch_size: 64
+
+  main:
+    learning_strategy: standard
+    weight_decay_rate: 0.01
+    
+    param_groups:
+      lr: 0.001
+      split_params: true
+      topk_lr: 0.001
+      blocklinear_lr: 0.001
+      reactivation_lr: 0.001
+      decoder_lr: 0.001
+    
+    trainer:
+      loss_function: cat_nll
+      epochs: 5
+      batch_size: 64
+      early_stopping: false
+      shuffle: true
+      grad_clip_value: 5.0
+      load_best_state_dict: true
+      plot_losses: false
+      suppress_prints: false
+      print_every: 1
+
+task:
+  dataset: mnist
+  parameters:
+    flatten: true
+    normalize: true
+
+wandb:
+  enabled: false
+
+analysis:
+  performance_analysis:
+    enabled: true
+    training: false
+    params:
+      accuracy: true
+      categorical_loglikelihood: true
+
+outputs:
+  run_name: stochastic_topk_test
+  dir: outputs/ 
