@@ -72,7 +72,7 @@ train:
     
     trainer:
       loss_function: cat_nll
-      epochs: 5
+      epochs: 3  # Reduced for faster testing
       batch_size: 64
       early_stopping: false
       shuffle: true
@@ -81,6 +81,7 @@ train:
       plot_losses: false
       suppress_prints: false
       print_every: 1
+      use_amp: false  # Explicitly disable AMP
 
 task:
   dataset: mnist
