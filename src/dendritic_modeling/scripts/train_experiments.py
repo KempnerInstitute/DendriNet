@@ -72,9 +72,14 @@ from dendritic_modeling.scripts.train_encoder_network import load_train_encoder_
 from dendritic_modeling.training import CustomWeightDecayOptimizer, get_trainer
 from dendritic_modeling.utils import save_dict, validate_config, set_seed
 from dendritic_modeling.plotting.analysis import plot_information_analysis
+from dendritic_modeling.config.validation import (
+    validate_optimization_combinations,
+    suggest_optimal_config_for_model_size,
+    apply_automatic_safeguards
+)
 
 # Import the extracted utilities
-from .utils.setup_utils import setup_environment, save_model, load_model, initialize_model
+from dendritic_modeling.scripts.utils.setup_utils import setup_environment, save_model, load_model, initialize_model
 
 # FSDP import (conditional)
 try:
@@ -177,6 +182,17 @@ def main(config_path: str, args=None):
         raise ValueError("Invalid configuration")
 
     logger.info("Configuration validation passed")
+
+    # Apply configuration safeguards and warnings
+    logger.info("Applying configuration safeguards...")
+    validation_passed = validate_optimization_combinations(config)
+    if not validation_passed:
+        logger.error("Configuration validation failed. Please address the errors above.")
+        raise ValueError("Invalid configuration - critical errors detected")
+    
+    # Apply automatic safeguards
+    apply_automatic_safeguards(config)
+    logger.info("Configuration safeguards applied")
 
     if args:
         if args.learning_strategy:
@@ -337,6 +353,16 @@ def main(config_path: str, args=None):
     if wandb.run is not None:
         wandb.log({"nparams": nparams})
     save_dict({"nparams": nparams}, run_save_path, "nparams")
+    
+    # Provide configuration suggestions based on model size
+    suggestions = suggest_optimal_config_for_model_size(nparams)
+    if suggestions:
+        logger.info(f"=== MODEL SIZE RECOMMENDATIONS (Model has {nparams:,} parameters) ===")
+        for key, value in suggestions.items():
+            current_value = getattr(config.train, key, "Not set") if hasattr(config.train, key) else "Not available"
+            if current_value != value:
+                logger.info(f"  Consider: {key} = {value} (current: {current_value})")
+        logger.info("=" * 50)
 
     # Only run analysis if any analysis is enabled (excluding training-only analysis)
     any_analysis_enabled = any([

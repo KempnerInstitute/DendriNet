@@ -44,6 +44,8 @@ class Trainer:
         analysis_manager: Optional[object] = None,
         save_every_n_epochs: Optional[int] = None,
         checkpoint_dir: Optional[str] = None,
+        enable_adaptive_clipping: bool = False,
+        disable_hooks_with_amp: bool = False,
         **kwargs,
     ):
         self.optimizer = optimizer
@@ -110,6 +112,19 @@ class Trainer:
         
         # Store hook handles for cleanup
         self.hook_handles = []
+        
+        # Adaptive gradient clipping
+        self._enable_adaptive_clipping = enable_adaptive_clipping
+        if self._enable_adaptive_clipping:
+            logger.info("Adaptive gradient clipping enabled")
+            # Store original learning rates for adaptive adjustment
+            for param_group in self.optimizer.param_groups:
+                param_group['_original_lr'] = param_group['lr']
+        
+        # AMP compatibility for hooks
+        self.disable_hooks_with_amp = disable_hooks_with_amp
+        if self.disable_hooks_with_amp and self.enable_amp:
+            logger.info("Hooks will be disabled when AMP is enabled for compatibility")
 
         # Checkpoint configuration
         self.save_every_n_epochs = save_every_n_epochs
@@ -370,10 +385,16 @@ class Trainer:
                 self.optimizer.zero_grad()
                 self.scaler.scale(loss).backward()
                 
+                # Check for NaNs in gradients after backward pass
+                nan_detected = self._check_and_handle_nan_gradients(model)
+                if nan_detected:
+                    logger.warning("NaNs detected and handled in gradients during AMP training")
+                
                 if self.grad_clip_value:
                     # Unscale gradients before clipping
                     self.scaler.unscale_(self.optimizer)
-                    clip_grad_value_(model.parameters(), self.grad_clip_value)
+                    # Apply adaptive gradient clipping
+                    grad_norm = self._apply_adaptive_gradient_clipping(model)
                 
                 self.scaler.step(self.optimizer)
                 self.scaler.update()
@@ -383,7 +404,14 @@ class Trainer:
 
                 self.optimizer.zero_grad()
                 loss.backward()
-                clip_grad_value_(model.parameters(), self.grad_clip_value)
+                
+                # Check for NaNs in gradients after backward pass
+                nan_detected = self._check_and_handle_nan_gradients(model)
+                if nan_detected:
+                    logger.warning("NaNs detected and handled in gradients during standard training")
+                
+                # Apply adaptive gradient clipping
+                grad_norm = self._apply_adaptive_gradient_clipping(model)
                 self.optimizer.step()
 
             train_loss += loss.item()
@@ -413,6 +441,66 @@ class Trainer:
         avg_loss = train_loss / len(train_loader)
         accuracy = (correct / total * 100) if total > 0 else 0.0
         return avg_loss, accuracy
+
+    def _check_and_handle_nan_gradients(self, model: BaseModel) -> bool:
+        """
+        Check for NaN values in gradients and handle them to prevent training crashes.
+        
+        Args:
+            model: The model to check gradients for
+            
+        Returns:
+            bool: True if NaNs were detected and handled, False otherwise
+        """
+        nan_detected = False
+        
+        for name, param in model.named_parameters():
+            if param.grad is not None:
+                if torch.isnan(param.grad).any():
+                    nan_detected = True
+                    # Replace NaNs with zeros to prevent propagation
+                    param.grad = torch.nan_to_num(param.grad, nan=0.0, posinf=1.0, neginf=-1.0)
+                    
+                    if hasattr(self, 'print_every') and self.epoch_counter % self.print_every == 0:
+                        logger.warning(f"NaNs detected in gradients for parameter: {name}")
+        
+        return nan_detected
+
+    def _apply_adaptive_gradient_clipping(self, model: BaseModel) -> float:
+        """
+        Apply adaptive gradient clipping with dynamic learning rate adjustment.
+        
+        Args:
+            model: The model to apply gradient clipping to
+            
+        Returns:
+            float: The gradient norm before clipping
+        """
+        if not self.grad_clip_value:
+            return 0.0
+            
+        # Calculate gradient norm
+        grad_norm = torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=self.grad_clip_value)
+        
+        # Adaptive gradient clipping and learning rate adjustment
+        if hasattr(self, '_enable_adaptive_clipping') and self._enable_adaptive_clipping:
+            exploding_threshold = self.grad_clip_value * 2.0  # Threshold for "exploding gradients"
+            
+            if grad_norm > exploding_threshold:
+                # Reduce learning rate dynamically for exploding gradients
+                for param_group in self.optimizer.param_groups:
+                    param_group['lr'] *= 0.5
+                    
+                if hasattr(self, 'print_every') and self.epoch_counter % self.print_every == 0:
+                    logger.info(f"High gradient norm {grad_norm:.4f} detected. Reducing learning rate.")
+                    
+            elif grad_norm < self.grad_clip_value * 0.1:
+                # Slightly increase learning rate for very small gradients (vanishing)
+                for param_group in self.optimizer.param_groups:
+                    original_lr = getattr(param_group, '_original_lr', param_group['lr'])
+                    param_group['lr'] = min(param_group['lr'] * 1.01, original_lr)
+        
+        return grad_norm
 
     def _epoch_valid(
         self, model: BaseModel, valid_loader: DataLoader

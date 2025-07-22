@@ -57,6 +57,7 @@ def get_fsdp_config(
     mixed_precision: bool = True,
     cpu_offload: bool = False,
     sharding_strategy: str = "FULL_SHARD",
+    reduce_communication_overhead: bool = True,
 ) -> Dict[str, Any]:
     """
     Get FSDP configuration based on model size and requirements.
@@ -66,6 +67,7 @@ def get_fsdp_config(
         mixed_precision: Whether to use mixed precision training
         cpu_offload: Whether to offload parameters to CPU
         sharding_strategy: FSDP sharding strategy
+        reduce_communication_overhead: Whether to enable communication optimizations
 
     Returns:
         FSDP configuration dictionary
@@ -75,8 +77,18 @@ def get_fsdp_config(
         "FULL_SHARD": ShardingStrategy.FULL_SHARD,
         "SHARD_GRAD_OP": ShardingStrategy.SHARD_GRAD_OP,
         "NO_SHARD": ShardingStrategy.NO_SHARD,
-        "HYBRID_SHARD": ShardingStrategy.HYBRID_SHARD,
+        "HYBRID_SHARD": ShardingStrategy.HYBRID_SHARD,  # Reduces communication overhead
     }
+    
+    # Use HYBRID_SHARD by default for better communication efficiency if available
+    if reduce_communication_overhead and sharding_strategy == "FULL_SHARD":
+        try:
+            # Check if HYBRID_SHARD is available (PyTorch 2.0+)
+            if hasattr(ShardingStrategy, 'HYBRID_SHARD'):
+                sharding_strategy = "HYBRID_SHARD"
+                logger.info("Using HYBRID_SHARD strategy for reduced communication overhead")
+        except AttributeError:
+            logger.info("HYBRID_SHARD not available, using FULL_SHARD")
 
     # Mixed precision configuration
     mp_config = None
@@ -102,7 +114,8 @@ def get_fsdp_config(
 
     auto_wrap_policy = create_fsdp_wrap_policy(min_params)
 
-    return {
+    # Communication optimization settings
+    config = {
         "sharding_strategy": strategy_map[sharding_strategy],
         "mixed_precision": mp_config,
         "cpu_offload": cpu_offload_config,
@@ -111,9 +124,26 @@ def get_fsdp_config(
         "device_id": torch.cuda.current_device(),
         "sync_module_states": True,
         "use_orig_params": True,  # Important for dendritic models
-        "limit_all_gathers": True,  # Reduce memory pressure during communication
-        "forward_prefetch": True,  # Prefetch parameters for forward pass
     }
+    
+    # Add communication optimizations if enabled
+    if reduce_communication_overhead:
+        config.update({
+        "limit_all_gathers": True,  # Reduce memory pressure during communication
+            "forward_prefetch": True,   # Prefetch parameters for forward pass
+        })
+        
+        # Additional optimizations for newer PyTorch versions
+        try:
+            # These may not be available in older versions
+            config.update({
+                "ignored_modules": [],  # Can specify modules to not shard
+                "param_init_fn": None,  # Custom parameter initialization
+            })
+        except Exception:
+            pass  # Ignore if not available
+
+    return config
 
 
 def wrap_model_with_fsdp(
