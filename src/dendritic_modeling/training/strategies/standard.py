@@ -105,11 +105,7 @@ class Trainer:
 
         # Hook Management for Performance
         self.enable_hooks = kwargs.get('enable_hooks', True)
-        self.performance_mode = kwargs.get('performance_mode', False)
-        if self.performance_mode:
-            self.enable_hooks = False
-            logger.info("Performance mode enabled - hooks disabled for maximum speed")
-        elif not self.enable_hooks:
+        if not self.enable_hooks:
             logger.info("Hooks manually disabled")
         
         # Store hook handles for cleanup
@@ -476,9 +472,25 @@ class Trainer:
             from dendritic_modeling.analysis import AnalysisManager
 
             if isinstance(self.analysis_manager, AnalysisManager):
-                self.analysis_manager.run_analysis(
-                    filename=f"epoch{self.epoch_counter}", training=True
-                )
+                # Check if any analysis is enabled for training
+                config = self.analysis_manager.config
+                training_analysis_enabled = any([
+                    config.performance_analysis.enabled and config.performance_analysis.training,
+                    config.information_analysis.enabled and config.information_analysis.training,
+                    config.synapse_turnover_analysis.enabled and config.synapse_turnover_analysis.training,
+                    config.noise_perturbation_analysis.enabled and config.noise_perturbation_analysis.training,
+                    config.single_layer_contribution.enabled and config.single_layer_contribution.training,
+                    config.ablation_analysis.enabled and config.ablation_analysis.training,
+                    config.weight_analysis.enabled and config.weight_analysis.training,
+                    config.synaptic_activation_analysis.enabled and config.synaptic_activation_analysis.training,
+                    config.branch_activation_analysis.enabled and config.branch_activation_analysis.training,
+                    hasattr(config, 'correlation_analysis') and config.correlation_analysis.enabled and config.correlation_analysis.training,
+                ])
+                
+                if training_analysis_enabled:
+                    self.analysis_manager.run_analysis(
+                        filename=f"epoch{self.epoch_counter}", training=True
+                    )
 
     def _save_checkpoint(self, model: BaseModel) -> None:
         """Save checkpoint if configured to do so."""

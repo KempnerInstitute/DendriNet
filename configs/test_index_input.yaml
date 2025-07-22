@@ -20,15 +20,15 @@ model:
         inhibitory_dim: 392
         output_activation: none
         
-      excitatory_layer_sizes: [128, 10]
-      inhibitory_layer_sizes: [32, 10]
-      excitatory_branch_factors: [4, 2]
-      inhibitory_branch_factors: [2, 2]
+      excitatory_layer_sizes: [32, 10]  # SMALLER FOR SPEED & COMPATIBILITY
+      inhibitory_layer_sizes: [32, 10]  # MUST MATCH EXCITATORY FOR PROPER DIMENSION FLOW
+      excitatory_branch_factors: [1, 1]  # MINIMAL BRANCHES FOR DEBUG
+      inhibitory_branch_factors: [1, 1]  # MINIMAL BRANCHES FOR DEBUG
       
-      ee_synapses_per_branch_per_layer: [20, 5]
-      ei_synapses_per_branch_per_layer: [10, 5]
-      ie_synapses_per_branch_per_layer: [8, 5]
-      ii_synapses_per_branch_per_layer: [5, 5]
+      ee_synapses_per_branch_per_layer: [50, 10]   # REASONABLE VALUES FOR FAST TEST
+      ei_synapses_per_branch_per_layer: [10, 10]   # MUST BE <= OUTPUT LAYER SIZE
+      ie_synapses_per_branch_per_layer: [50, 10]   # REASONABLE VALUES
+      ii_synapses_per_branch_per_layer: [10, 10]   # MATCH LAYER OUTPUTS
       
       somatic_synapses: true
       use_shunting: true
@@ -51,8 +51,8 @@ train:
   train_valid_split: 0.8
   enable_amp: false
   enable_profiling: false
-  enable_hooks: true
-  performance_mode: false
+  enable_hooks: false  # DISABLED FOR SPEED
+  # ENABLED FOR SPEED
   use_fsdp: false
 
   encoder:
@@ -74,8 +74,8 @@ train:
     
     trainer:
       loss_function: cat_nll
-      epochs: 5
-      batch_size: 64
+      epochs: 2  # REDUCED FOR SPEED
+      batch_size: 128  # LARGER FOR SPEED
       early_stopping: false
       shuffle: true
       grad_clip_value: 5.0
@@ -93,13 +93,28 @@ task:
 wandb:
   enabled: false
 
+# ANALYSIS DISABLED FOR SPEED
 analysis:
   performance_analysis:
-    enabled: true
-    training: false
-    params:
-      accuracy: true
-      categorical_loglikelihood: true
+    enabled: false
+  information_analysis:
+    enabled: false
+  synapse_turnover_analysis:
+    enabled: false
+  noise_perturbation_analysis:
+    enabled: false
+  single_layer_contribution:
+    enabled: false
+  ablation_analysis:
+    enabled: false
+  weight_analysis:
+    enabled: false
+  synaptic_activation_analysis:
+    enabled: false
+  branch_activation_analysis:
+    enabled: false
+  correlation_analysis:
+    enabled: false
 
 outputs:
   run_name: index_input_test
