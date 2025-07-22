@@ -312,6 +312,43 @@ Distributed Training with FSDP
 
 For large-scale models requiring multiple GPUs or nodes.
 
+Intelligent FSDP Training
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The framework provides intelligent FSDP delegation through the main training script:
+
+.. code-block:: bash
+
+   # Single-node FSDP (recommended approach)
+   torchrun --nproc_per_node=4 \
+     src/dendritic_modeling/scripts/train_experiments.py config.yaml --use_fsdp
+
+   # Standard single-GPU training (no FSDP)
+   python src/dendritic_modeling/scripts/train_experiments.py config.yaml
+
+   # Direct FSDP script (advanced users)
+   torchrun --nproc_per_node=4 \
+     src/dendritic_modeling/scripts/train_experiments_fsdp.py config.yaml
+
+**How Intelligent Delegation Works:**
+
+1. **Environment Detection**: Automatically detects torchrun/SLURM environments
+2. **Error Prevention**: Provides clear guidance when used incorrectly
+3. **Seamless Handoff**: Delegates to full FSDP implementation when appropriate
+4. **Same Configuration**: Uses identical config files across all approaches
+
+**Error Handling Example:**
+
+.. code-block:: bash
+
+   # ❌ Wrong usage (no torchrun)
+   python train_experiments.py config.yaml --use_fsdp
+   # Error: "FSDP requires distributed environment! Use torchrun..."
+
+   # ✅ Correct usage
+   torchrun --nproc_per_node=4 train_experiments.py config.yaml --use_fsdp
+   # Success: Delegates to train_experiments_fsdp.py automatically
+
 Basic FSDP Configuration
 ~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -352,12 +389,30 @@ Advanced FSDP Settings
 Multi-node Training
 ~~~~~~~~~~~~~~~~~~
 
+For multi-node training, use the SLURM job generation system:
+
 .. code-block:: bash
 
-   # Launch distributed training across nodes
-   torchrun --nnodes=4 --nproc_per_node=8 \
-            --master_addr=node0 --master_port=29500 \
-            train_experiments_fsdp.py config.yaml
+   # Generate SLURM script automatically
+   python src/dendritic_modeling/scripts/generate_slurm_job.py config.yaml
+   
+   # Submit generated job
+   sbatch generated_script.sbatch
+
+The job generator automatically:
+- Selects appropriate training script based on resource requirements
+- Configures distributed environment variables
+- Sets up proper torchrun commands for single/multi-node
+
+**Manual Multi-node Setup:**
+
+.. code-block:: bash
+
+   # Multi-node SLURM command
+   srun --nodes=2 --ntasks-per-node=1 --gres=gpu:4 \
+     torchrun --nnodes=2 --nproc_per_node=4 \
+              --master_addr=$MASTER_ADDR --master_port=$MASTER_PORT \
+     src/dendritic_modeling/scripts/train_experiments_fsdp.py config.yaml
 
 FSDP Performance Optimization
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -377,6 +432,44 @@ FSDP Performance Optimization
        mixed_precision: true
        cpu_offload: true
        gradient_checkpointing: true
+
+When to Use FSDP
+~~~~~~~~~~~~~~~~
+
+**Use FSDP when:**
+- Model size > 1B parameters
+- Model doesn't fit on single GPU (>20-40GB)
+- Multiple GPUs available
+- Training very large datasets
+
+**Use standard training when:**
+- Model fits comfortably on single GPU
+- Development and debugging
+- Small to medium experiments
+- Quick prototyping
+
+**Performance Comparison:**
+
+.. list-table:: Training Approach Selection
+   :header-rows: 1
+   :widths: 25 25 25 25
+
+   * - Model Size
+     - Single GPU
+     - Multi-GPU FSDP
+     - Multi-Node FSDP
+   * - **< 100M params**
+     - ✅ Recommended
+     - ⚠️ Unnecessary
+     - ❌ Overkill
+   * - **100M - 1B**
+     - ⚠️ May fit
+     - ✅ Recommended
+     - ⚠️ If needed
+   * - **> 1B params**
+     - ❌ Won't fit
+     - ✅ Required
+     - ✅ For very large
 
 Memory Management Strategies
 ---------------------------

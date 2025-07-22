@@ -970,13 +970,35 @@ python src/dendritic_modeling/scripts/train_experiments.py configs/config.yaml -
 ```
 
 ### 3. Using FSDP for Large Models
-Enable FSDP with:
+The framework provides intelligent FSDP (Fully Sharded Data Parallel) support for large models:
+
 ```bash
+# Single-node multi-GPU (recommended)
 torchrun --nproc_per_node=4 src/dendritic_modeling/scripts/train_experiments.py configs/config.yaml --use_fsdp
+
+# Standard single-GPU training
+python src/dendritic_modeling/scripts/train_experiments.py configs/config.yaml
+
+# Multi-node training (use SLURM job generation)
+python src/dendritic_modeling/scripts/generate_slurm_job.py configs/config.yaml
+sbatch generated_script.sbatch
 ```
 
-Without FSDP (single GPU):
-Just run the script without --use_fsdp.
+**Intelligent Delegation Features:**
+- **Environment Detection**: Automatically detects torchrun/SLURM environments
+- **Error Prevention**: Clear guidance when used incorrectly  
+- **Seamless Switching**: Same config file works for single/multi-GPU
+- **Automatic Script Selection**: Chooses optimal training script based on resources
+
+**When to Use FSDP:**
+- Model size > 1B parameters or doesn't fit on single GPU
+- Multiple GPUs available  
+- Training very large datasets
+
+**When to Use Standard Training:**
+- Model fits comfortably on single GPU
+- Development and debugging
+- Quick prototyping
 
 For troubleshooting FSDP issues like NCCL timeouts, see [FSDP_TROUBLESHOOTING.md](docs/FSDP_TROUBLESHOOTING.md).
 

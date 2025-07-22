@@ -3,6 +3,35 @@ FSDP Troubleshooting Guide
 
 This guide addresses common issues with FSDP (Fully Sharded Data Parallel) training in the dendritic modeling framework.
 
+Overview
+------------------------------
+
+The framework provides **intelligent FSDP delegation** through the main training script. This eliminates many common setup issues while providing clear guidance when problems occur.
+
+**Recommended Usage:**
+
+.. code-block:: bash
+
+   # ✅ Recommended: Intelligent delegation
+   torchrun --nproc_per_node=4 \
+     src/dendritic_modeling/scripts/train_experiments.py config.yaml --use_fsdp
+   
+   # ✅ Alternative: Direct FSDP script
+   torchrun --nproc_per_node=4 \
+     src/dendritic_modeling/scripts/train_experiments_fsdp.py config.yaml
+
+**Common Setup Errors:**
+
+.. code-block:: bash
+
+   # ❌ Missing torchrun
+   python train_experiments.py config.yaml --use_fsdp
+   # Error: "FSDP requires distributed environment! Use torchrun..."
+   
+   # ❌ Wrong script
+   python train_experiments_fsdp.py config.yaml
+   # Error: Distributed environment not initialized
+
 Common Error: NCCL Communication Timeout
 ------------------------------
 
@@ -239,10 +268,38 @@ Monitor these metrics during training:
 When to Use Single GPU Training
 ------------------------------
 
-Consider using ``train_experiments.py`` instead if:
-* Model fits on single GPU (< 24GB for RTX 4090, < 80GB for A100)
+The intelligent delegation system makes this decision easier:
+
+**Use Single GPU (Standard Training):**
+
+.. code-block:: bash
+
+   # No --use_fsdp flag needed
+   python src/dendritic_modeling/scripts/train_experiments.py config.yaml
+
+**When to choose single GPU:**
+* Model fits on single GPU (< 20-40GB depending on your hardware)
+* Development and debugging (faster iteration)
 * Network issues persist despite troubleshooting
-* Training is for experimentation rather than production
+* Prototyping and experimentation
+
+**Use FSDP (Multi-GPU Training):**
+
+.. code-block:: bash
+
+   # Add --use_fsdp flag with torchrun
+   torchrun --nproc_per_node=4 \
+     src/dendritic_modeling/scripts/train_experiments.py config.yaml --use_fsdp
+
+**When to choose FSDP:**
+* Model doesn't fit on single GPU
+* Multiple GPUs available
+* Training very large datasets
+* Production training runs
+
+**Seamless Switching:**
+
+The same configuration file works for both approaches - just add/remove the `--use_fsdp` flag and torchrun as needed.
 
 Additional Resources
 ------------------------------

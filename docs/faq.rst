@@ -170,10 +170,38 @@ Advanced Topics
 
 A: Large-scale training requires:
 
-1. **FSDP**: Enable fully sharded data parallel training
+1. **FSDP with intelligent delegation**: Use ``torchrun --nproc_per_node=4 train_experiments.py config.yaml --use_fsdp``
 2. **Multiple GPUs**: Use appropriate cluster configurations
 3. **Memory optimization**: Gradient checkpointing, CPU offload
 4. **Monitoring**: Comprehensive logging and profiling
+
+The framework provides automatic script selection and environment detection to simplify distributed training.
+
+**Q: What's the difference between the training scripts?**
+
+A: The framework provides intelligent script selection:
+
+- **train_experiments.py**: Main script with intelligent FSDP delegation
+  - Single GPU: ``python train_experiments.py config.yaml``
+  - Multi-GPU: ``torchrun --nproc_per_node=4 train_experiments.py config.yaml --use_fsdp``
+- **train_experiments_fsdp.py**: Direct FSDP script for advanced users
+- **generate_slurm_job.py**: Automatic job generation for clusters
+
+The main script automatically chooses the right approach based on your environment and flags.
+
+**Q: I'm getting "FSDP requires distributed environment" error. What's wrong?**
+
+A: This error occurs when using ``--use_fsdp`` without torchrun:
+
+.. code-block:: bash
+
+   # ❌ Wrong: Missing torchrun
+   python train_experiments.py config.yaml --use_fsdp
+   
+   # ✅ Correct: With torchrun
+   torchrun --nproc_per_node=4 train_experiments.py config.yaml --use_fsdp
+
+The framework detects your environment and provides clear guidance on proper usage.
 
 **Q: Can I use this framework with other deep learning libraries?**
 

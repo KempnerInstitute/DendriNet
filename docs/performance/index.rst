@@ -111,6 +111,14 @@ FSDP Configuration
 
 **Enable Fully Sharded Data Parallel:**
 
+.. code-block:: bash
+
+   # Recommended: Intelligent FSDP delegation
+   torchrun --nproc_per_node=4 \
+     src/dendritic_modeling/scripts/train_experiments.py config.yaml --use_fsdp
+
+**Configuration:**
+
 .. code-block:: yaml
 
    train:
@@ -131,6 +139,24 @@ FSDP Configuration
        cpu_offload: true           # Offload parameters to CPU
        mixed_precision: true
        gradient_checkpointing: true
+
+**Environment Detection:**
+
+The framework automatically detects your environment:
+- **torchrun**: Single-node multi-GPU training
+- **SLURM**: Multi-node distributed training
+- **Standard**: Single-GPU training (no FSDP needed)
+
+**Error Prevention:**
+
+.. code-block:: bash
+
+   # ❌ Wrong: Missing torchrun
+   python train_experiments.py config.yaml --use_fsdp
+   # Error with helpful guidance
+
+   # ✅ Correct: With torchrun
+   torchrun --nproc_per_node=4 train_experiments.py config.yaml --use_fsdp
 
 Advanced Memory Management
 ~~~~~~~~~~~~~~~~~~~~~~~~~
