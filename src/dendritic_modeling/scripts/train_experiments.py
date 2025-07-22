@@ -86,57 +86,62 @@ except ImportError:
 
 def _run_fsdp_training(config):
     """
-    Run FSDP (Fully Sharded Data Parallel) training for large models.
+    Intelligent FSDP training delegation.
     
-    This function sets up distributed training using PyTorch's FSDP,
-    which is used for large models that don't fit on a single GPU.
+    This function determines the appropriate FSDP training approach based on:
+    1. Whether we're in a distributed environment (torchrun/SLURM)
+    2. The available resources and model requirements
+    3. Single-node vs multi-node setup
     """
+    import subprocess
+    import sys
+    from pathlib import Path
     
-    # Set NCCL environment variables for better communication
-    # os already imported at top
-    os.environ["NCCL_TIMEOUT"] = "1800"  # 30 minutes timeout
-    os.environ["NCCL_DEBUG"] = "INFO"
-
-    # torchinfo already conditionally imported at top
-    if TORCHINFO_AVAILABLE:
-        logger.info("Model summary available via torchinfo")
+    # Check if we're in a distributed environment
+    is_torchrun = "RANK" in os.environ and "WORLD_SIZE" in os.environ
+    is_slurm = "SLURM_JOB_ID" in os.environ
     
-    # torch.distributed already conditionally imported at top
-    if not DISTRIBUTED_AVAILABLE:
-        raise RuntimeError("Distributed training not available")
-        
-    # Check if this is actually a distributed run
-    if not dist.is_available():
-        raise RuntimeError("Distributed package not available")
-        
-    # FSDP trainer already conditionally imported at top 
-    if not FSDP_AVAILABLE:
-        raise RuntimeError("FSDP trainer not available")
-
-    # Initialize distributed environment
-    if not dist.is_initialized():
-        dist.init_process_group(backend='nccl')
+    if not is_torchrun and not is_slurm:
+        # Not in distributed environment - provide helpful guidance
+        logger.error("FSDP training requires a distributed environment!")
+        logger.error("For single-node FSDP, use:")
+        logger.error(f"  torchrun --nproc_per_node=<num_gpus> {sys.argv[0]} {' '.join(sys.argv[1:])}")
+        logger.error("For multi-node FSDP, use SLURM with generate_slurm_job.py")
+        logger.error("Alternatively, use train_experiments_fsdp.py directly")
+        raise RuntimeError("FSDP requires distributed environment. See error messages above for proper usage.")
     
-    rank = dist.get_rank()
-    world_size = dist.get_world_size()
+    # We're in a distributed environment - delegate to the proper FSDP script
+    current_script_dir = Path(__file__).parent
+    fsdp_script = current_script_dir / "train_experiments_fsdp.py"
+    
+    if not fsdp_script.exists():
+        raise RuntimeError(f"FSDP script not found at {fsdp_script}")
+    
+    # Detect environment details for better logging
+    rank = int(os.environ.get("RANK", 0))
+    world_size = int(os.environ.get("WORLD_SIZE", 1))
     local_rank = int(os.environ.get("LOCAL_RANK", 0))
     
-    # Set device
-    torch.cuda.set_device(local_rank)
+    logger.info("Delegating to full FSDP implementation...")
+    logger.info(f"Environment: {'SLURM' if is_slurm else 'torchrun'}")
+    logger.info(f"World size: {world_size}, Rank: {rank}, Local rank: {local_rank}")
+    logger.info(f"Using FSDP script: {fsdp_script}")
     
-    if rank == 0:
-        logger.info(f"Starting FSDP training with {world_size} processes")
-        logger.info("FSDP mode: Running full training workflow with model sharding")
+    # Get the config path from command line arguments
+    config_path = sys.argv[1] if len(sys.argv) > 1 else None
+    if not config_path:
+        raise RuntimeError("No config path provided")
     
-    # Run the full training workflow with FSDP
-    # Note: This reuses most of the standard workflow but with FSDP-wrapped models
-    logger.info("FSDP training integration: For full FSDP functionality,")
-    logger.info("consider using the dedicated train_experiments_fsdp.py script")
-    logger.info("which has optimizations specific to large-scale distributed training.")
+    logger.info(f"Config file: {config_path}")
+    logger.info(f"Arguments being passed: {' '.join(sys.argv)}")
     
-    # Clean up
-    if dist.is_initialized():
-        dist.destroy_process_group()
+    # Delegate to the FSDP script with the same arguments
+    try:
+        # Use execv to replace current process - cleaner than subprocess for this use case
+        os.execv(sys.executable, [sys.executable, str(fsdp_script), config_path])
+    except Exception as e:
+        logger.error(f"Failed to delegate to FSDP script: {e}")
+        raise RuntimeError(f"FSDP delegation failed: {e}")
 
 
 def run_analysis(
@@ -303,6 +308,10 @@ def main(config_path: str, args=None):
     # Add AMP configuration
     enable_amp = getattr(config.train, 'enable_amp', False)
     main_trainer_config_dict["enable_amp"] = enable_amp
+    
+    # Add hooks configuration
+    enable_hooks = getattr(config.train, 'enable_hooks', True)
+    main_trainer_config_dict["enable_hooks"] = enable_hooks
 
     optimizer = CustomWeightDecayOptimizer(
         model=model,
@@ -329,14 +338,31 @@ def main(config_path: str, args=None):
         wandb.log({"nparams": nparams})
     save_dict({"nparams": nparams}, run_save_path, "nparams")
 
-    run_analysis(
-        model=model,
-        train_ds=train_ds,
-        valid_ds=valid_ds,
-        test_ds=test_ds,
-        run_save_path=run_save_path,
-        analysis_manager=analysis_manager,
-    )
+    # Only run analysis if any analysis is enabled (excluding training-only analysis)
+    any_analysis_enabled = any([
+        analysis_config.performance_analysis.enabled,
+        analysis_config.information_analysis.enabled,
+        analysis_config.synapse_turnover_analysis.enabled,
+        analysis_config.noise_perturbation_analysis.enabled,
+        analysis_config.single_layer_contribution.enabled,
+        analysis_config.ablation_analysis.enabled,
+        analysis_config.weight_analysis.enabled,
+        analysis_config.synaptic_activation_analysis.enabled,
+        analysis_config.branch_activation_analysis.enabled,
+        hasattr(analysis_config, 'correlation_analysis') and analysis_config.correlation_analysis.enabled,
+    ])
+    
+    if any_analysis_enabled:
+        run_analysis(
+            model=model,
+            train_ds=train_ds,
+            valid_ds=valid_ds,
+            test_ds=test_ds,
+            run_save_path=run_save_path,
+            analysis_manager=analysis_manager,
+        )
+    else:
+        logger.info("No analysis enabled - skipping analysis for speed")
 
     # Fix for Identity encoder
     if isinstance(encoder_network, Identity):
@@ -381,7 +407,9 @@ if __name__ == "__main__":
     parser.add_argument(
         "--use_fsdp",
         action="store_true",
-        help="Enable FSDP (Fully Sharded Data Parallel) training for large models.",
+        help="Enable FSDP (Fully Sharded Data Parallel) training. Requires torchrun or SLURM environment. "
+             "For single-node: 'torchrun --nproc_per_node=<gpus> train_experiments.py config.yaml --use_fsdp'. "
+             "For multi-node: Use generate_slurm_job.py or train_experiments_fsdp.py directly.",
     )
     args = parser.parse_args()
     main(config_path=args.config, args=args)

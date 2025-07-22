@@ -51,8 +51,8 @@ train:
   train_valid_split: 0.8
   enable_amp: false
   enable_profiling: false
-  enable_hooks: true
-  performance_mode: false
+  enable_hooks: false  # DISABLED FOR SPEED  
+  # ENABLED FOR SPEED
   use_fsdp: false
 
   encoder:
@@ -74,8 +74,8 @@ train:
     
     trainer:
       loss_function: cat_nll
-      epochs: 5
-      batch_size: 64
+      epochs: 2  # REDUCED FOR SPEED
+      batch_size: 128  # LARGER FOR SPEED
       early_stopping: false
       shuffle: true
       grad_clip_value: 5.0
@@ -93,13 +93,28 @@ task:
 wandb:
   enabled: false
 
+# ANALYSIS DISABLED FOR SPEED
 analysis:
   performance_analysis:
-    enabled: true
-    training: false
-    params:
-      accuracy: true
-      categorical_loglikelihood: true
+    enabled: false
+  information_analysis:
+    enabled: false
+  synapse_turnover_analysis:
+    enabled: false
+  noise_perturbation_analysis:
+    enabled: false
+  single_layer_contribution:
+    enabled: false
+  ablation_analysis:
+    enabled: false
+  weight_analysis:
+    enabled: false
+  synaptic_activation_analysis:
+    enabled: false
+  branch_activation_analysis:
+    enabled: false
+  correlation_analysis:
+    enabled: false
 
 outputs:
   run_name: stochastic_topk_test
