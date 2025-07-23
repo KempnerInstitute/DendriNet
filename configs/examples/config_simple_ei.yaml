@@ -62,7 +62,6 @@ train:
   # Performance features
   enable_amp: true
   enable_hooks: true
-  performance_mode: false
   use_fsdp: false
   
   # Simple encoder training (skip if encoder is identity)

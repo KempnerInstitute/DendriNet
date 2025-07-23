@@ -67,7 +67,6 @@ class TrainConfig(BaseConfig):
     enable_profiling: bool = False
     profiling_output_dir: str = 'outputs/profiling/'
     enable_hooks: bool = True
-    performance_mode: bool = False
     use_fsdp: bool = False
     fsdp_config: Optional[Dict[str, Any]] = None
     checkpointing: Dict[str, Any] = field(default_factory=lambda: {'enabled': True, 'save_every_n_epochs': 10, 'checkpoint_dir': 'outputs/checkpoints/'})

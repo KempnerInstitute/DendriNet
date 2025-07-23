@@ -98,8 +98,7 @@ train:
   # Performance optimizations for large scale
   enable_amp: true            # Mixed precision (works with FSDP)
   enable_profiling: false     # Disable profiling for max performance
-  enable_hooks: true          # Keep analysis capability
-  performance_mode: false     # Keep analysis for research insights
+  enable_hooks: true          # Keep analysis capability for research insights
   
   # Encoder training (skip for identity encoder)
   encoder:

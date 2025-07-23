@@ -316,13 +316,21 @@ def main(config_path):
     # Setup data loaders
     train_loader, valid_loader, test_ds = setup_data_loaders(config, rank, world_size)
     
-    # Create FSDP config
+    # Create FSDP config from config file or defaults
     trainer_config = config.train.main.trainer
-    fsdp_config = get_fsdp_config(
-        mixed_precision=getattr(trainer_config, 'use_mixed_precision', True),
-        cpu_offload=getattr(trainer_config, 'cpu_offload', False),
-        sharding_strategy="FULL_SHARD"
-    )
+    
+    # Use FSDP config from config file if available
+    if hasattr(config.train, 'fsdp_config') and config.train.fsdp_config is not None:
+        logger.info("Using FSDP configuration from config file")
+        fsdp_config = get_fsdp_config(fsdp_config_dict=config.train.fsdp_config)
+    else:
+        # Fall back to legacy method
+        logger.info("Using default FSDP configuration")
+        fsdp_config = get_fsdp_config(
+            mixed_precision=getattr(trainer_config, 'use_mixed_precision', True),
+            cpu_offload=getattr(trainer_config, 'cpu_offload', False),
+            sharding_strategy="FULL_SHARD"
+        )
     
     # Create optimizer config
     optimizer_config = {
