@@ -179,7 +179,7 @@ Input Network Types
 
 The framework supports several types of input transformation networks:
 
-1. **MLPInputTransform**: Multi-layer perceptron with configurable hidden layers
+1. **IndexInputTransform**: Multi-layer perceptron with configurable hidden layers
    - Simple but effective for many tasks
    - Fully connected architecture
 
@@ -187,7 +187,7 @@ The framework supports several types of input transformation networks:
    - Better suited for spatial data like images
    - Preserves spatial relationships
 
-3. **AlexNetTransform**: Based on AlexNet architecture (for transfer learning)
+3. **FeatureExtractorMLP**: Based on AlexNet architecture (for transfer learning)
 
 4. **ResNetTransform**: Based on ResNet architecture (for complex feature extraction)
 
@@ -203,7 +203,7 @@ When using input mode 2, you can configure the input network through the ``input
         parameters:
           input_mode: 2
           input_net_dict:
-            type: "MLPInputTransform"
+            type: "IndexInputTransform"
             hidden_dims: [512, 256]
             output_dim: 128
             activation: "relu"
@@ -287,7 +287,7 @@ Here are some example configurations for different network types:
         parameters:
           input_mode: 2
           input_net_dict:
-            type: "MLPInputTransform"
+            type: "IndexInputTransform"
             hidden_dims: [512, 256]
             output_dim: 128
           excitatory_layer_sizes: [256, 128]

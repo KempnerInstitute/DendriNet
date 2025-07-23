@@ -280,36 +280,21 @@ Specialized networks for preprocessing inputs before dendritic processing:
 
 .. code-block:: python
 
-   from dendritic_modeling.networks.input_transform import (
-       MLPInputTransform, 
-       ConvInputTransform, 
-       AttentionInputTransform
+   from dendritic_modeling.networks.input.base import InputNetTransform
+   
+   # Index-based input transformation
+   index_input_net = InputNetTransform(
+       network_type="IndexInputTransform",
+       excitatory_dim=400,
+       inhibitory_dim=384
    )
    
-   # MLP-based input transformation
-   mlp_input_net = MLPInputTransform(
+   # Feature extraction input transformation
+   feature_input_net = InputNetTransform(
+       network_type="FeatureExtractorMLP",
        input_dim=784,
        hidden_dims=[512, 256],
-       output_dim=128,
-       excitatory_ratio=0.8
-   )
-   
-   # Convolutional input transformation
-   conv_input_net = ConvInputTransform(
-       input_channels=3,
-       conv_layers=[
-           {'out_channels': 64, 'kernel_size': 7, 'stride': 2},
-           {'out_channels': 128, 'kernel_size': 3, 'stride': 1}
-       ],
        output_dim=256
-   )
-   
-   # Attention-based input transformation
-   attention_input_net = AttentionInputTransform(
-       input_dim=512,
-       attention_heads=8,
-       output_dim=256,
-       use_dendritic_attention=True
    )
 
 Model Types
@@ -536,7 +521,7 @@ YAML Configuration
          somatic_synapses: true
      
      encoder_network:
-       type: MLPInputTransform
+       type: IndexInputTransform
        parameters:
          input_dim: 784
          hidden_dims: [512, 256]

@@ -128,11 +128,50 @@ train:
   profiling_output_dir: "outputs/profiling/"
   
   # Hook Management - NEW FEATURE
-  enable_hooks: true            # Enable hooks for analysis
-  performance_mode: false       # If true, disables ALL hooks for maximum speed
+  enable_hooks: true            # Enable hooks for analysis (set false for maximum speed)
   
-  # FSDP Support - NEW FEATURE
-  use_fsdp: false              # Enable for very large models
+  # FSDP (Fully Sharded Data Parallel) Configuration - NEW FEATURE
+  use_fsdp: false             # Enable FSDP for large models (>100M parameters)
+  fsdp_config:                # FSDP configuration (null to disable)
+    # Sharding Strategy - Controls how parameters are distributed
+    sharding_strategy: "FULL_SHARD"     # Options: "FULL_SHARD", "SHARD_GRAD_OP", "NO_SHARD", "HYBRID_SHARD"
+                                         # "FULL_SHARD": Maximum memory savings, most communication
+                                         # "SHARD_GRAD_OP": Only shard gradients/optimizer states
+                                         # "NO_SHARD": No sharding (like DDP)
+                                         # "HYBRID_SHARD": Balanced approach, reduces communication
+    
+    # Mixed Precision Training
+    mixed_precision: true       # Use FP16 for parameters, gradients, and buffers
+    
+    # CPU Offloading (use only if GPU memory is insufficient)
+    cpu_offload: false          # Offload parameters to CPU (slower but saves GPU memory)
+    
+    # Auto-wrap Policy (determines which layers get wrapped)
+    min_num_params: 1000000     # Wrap layers with more than this many parameters
+                                # Smaller values = more wrapping = more memory savings
+                                # Larger values = less wrapping = less communication overhead
+                                # Recommended: 100K-10M depending on model size
+    
+    # Communication Optimizations
+    reduce_communication_overhead: true   # Enable communication optimizations
+    limit_all_gathers: true              # Reduce memory pressure during communication
+    forward_prefetch: true               # Prefetch parameters for forward pass
+    
+    # Advanced Options
+    sync_module_states: true             # Synchronize module states across ranks
+    use_orig_params: true               # Important for dendritic models - preserves parameter structure
+    backward_prefetch: "BACKWARD_PRE"   # Options: "BACKWARD_PRE", "BACKWARD_POST", null
+    
+    # Memory Management
+    gradient_checkpointing: false       # Trade compute for memory (slower but uses less memory)
+    
+    # Model Size Guidelines:
+    # < 10M parameters:    use_fsdp: false
+    # 10M - 100M params:   use_fsdp: false (single GPU sufficient)
+    # > 100M parameters:   use_fsdp: true with these settings:
+    #   - Large models (100M-1B):     min_num_params: 1000000, HYBRID_SHARD
+    #   - Very large (1B+):           min_num_params: 100000, FULL_SHARD
+    #   - Memory constrained:         cpu_offload: true, FULL_SHARD
 
   # ==========================================
   # ENCODER TRAINING CONFIGURATION
@@ -298,5 +337,5 @@ compute:
 # Increase: excitatory_layer_sizes: [50, 40, 30], inhibitory_layer_sizes: [15, 15, 15]
 #
 # EXAMPLE 4 - Pure Performance Benchmarking:
-# Same as above but set: performance_mode=true, analysis.enabled=false
+# Same as above but set: enable_hooks=false, analysis.enabled=false
 # ============================================================================ 

@@ -377,12 +377,9 @@ model:
       # Input processing
       input_mode: 2
       input_net_dict:
-        type: CNNInputTransform
-        input_shape: [3, 32, 32]
-        excitatory_hidden_dims: [64, 128]
-        inhibitory_hidden_dims: [32, 64]
-        excitatory_kernel_sizes: [5, 3]
-        inhibitory_kernel_sizes: [7, 5]
+        type: IndexInputTransform
+        excitatory_dim: 500
+        inhibitory_dim: 284
       
       # Dendritic processing  
       excitatory_layer_sizes: [256, 128]
@@ -409,7 +406,7 @@ model:
       # Multi-scale input
       input_mode: 2
       input_net_dict:
-        type: MLPInputTransform
+        type: IndexInputTransform
         hidden_dims: [512, 256]
         excitatory_dim: 400                       # Large-scale features
         inhibitory_dim: 100                       # Fine-scale features
@@ -425,7 +422,7 @@ Task-Based Selection
 
 | Task Type | Recommended Architecture | Rationale |
 |-----------|-------------------------|-----------|
-| **Image Classification** | EINet + CNNInputTransform | Spatial processing + dendritic classification |
+| **Image Classification** | EINet + FeatureExtractorMLP | Feature extraction + dendritic classification |
 | **Sequential Data** | DendriNet with hierarchical branches | Natural temporal hierarchy |
 | **Small Datasets** | MLP or simple EINet | Avoid overfitting |
 | **Transfer Learning** | AlexNet + EINet head | Leverage pre-trained features |
@@ -476,7 +473,7 @@ excitatory_layer_sizes: [512, 256, 128, 64]
 inhibitory_layer_sizes: [256, 128, 64, 32]
 excitatory_branch_factors: [4, 2, 2]
 topk_type: deepst
-input_mode: 2  # With CNNInputTransform
+input_mode: 2  # With input transform
 `````
 
 Debugging and Development
@@ -540,49 +537,6 @@ parameters:
     inhibitory_dim: 200  # Remaining 200 → I
 `````
 
-MLP Transform
-^^^^^^^^^^^^^^^
-Learned transformation with separate E/I heads:
-`````yaml
-parameters:
-  input_mode: 2
-  input_net_dict:
-    type: MLPInputTransform
-    input_dim: 784
-    hidden_dims: [512, 256]
-    excitatory_dim: 400
-    inhibitory_dim: 200
-`````
-
-CNN Transform
-^^^^^^^^^^^^^^^
-Convolutional preprocessing for images:
-`````yaml
-parameters:
-  input_mode: 2
-  input_net_dict:
-    type: CNNInputTransform
-    input_shape: [3, 32, 32]
-    excitatory_hidden_dims: [32, 64]
-    inhibitory_hidden_dims: [16, 32]
-    excitatory_kernel_sizes: [5, 3]
-    inhibitory_kernel_sizes: [7, 5]
-    excitatory_strides: [1, 1]
-    inhibitory_strides: [1, 1]
-`````
-
-AlexNet Transform
-^^^^^^^^^^^^^^^
-Pre-trained features for transfer learning:
-`````yaml
-parameters:
-  input_mode: 2
-  input_net_dict:
-    type: AlexNetTransform
-    excitatory_dim: 4096
-    inhibitory_dim: 2048
-`````
-
 Feature Extractor MLP
 ^^^^^^^^^^^^^^^
 Pre-trained MLP features (frozen):
@@ -594,20 +548,6 @@ parameters:
     input_dim: 784
     hidden_dims: [1024, 512]
     output_dim: 256
-`````
-
-Sigmoid Transform
-^^^^^^^^^^^^^^^
-MLP with sigmoid output for bounded values:
-`````yaml
-parameters:
-  input_mode: 2
-  input_net_dict:
-    type: SigmoidInputNetTransform
-    input_dim: 784
-    hidden_dims: [512, 256]
-    excitatory_dim: 200
-    inhibitory_dim: 100
 `````
 
 Input Mode Configuration
@@ -642,8 +582,8 @@ train:
 Best Practices for Input Transforms
 ~~~~~~~~~~~~~~~~~~~~
 
-#. **Image Data**: Use CNNInputTransform or AlexNetTransform
-#. **Tabular Data**: Use MLPInputTransform or IndexInputTransform  
+#. **Image Data**: Use FeatureExtractorMLP for pre-trained features
+#. **Tabular Data**: Use IndexInputTransform for dimension splitting  
 #. **Small Datasets**: Use simpler transforms to avoid overfitting
 #. **Transfer Learning**: Use pre-trained AlexNet or FeatureExtractorMLP
 #. **Biological Realism**: Use separate pathways with specialized processing

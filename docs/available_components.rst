@@ -1,123 +1,59 @@
-Available Components in Dendritic Modeling Framework
-==================================================
+Available Components
+====================
 
-This document lists all the actual components available in the codebase.
+This document lists all components that are implemented in the dendritic modeling framework.
 
-Networks
+Network Architectures
 ------------------------------
 
-Core Architecture
-~~~~~~~~~~~~~~~~~~~~
-* ``ExcitationInhibitionNetwork`` - Main E/I network with dendritic branches
-* ``ExcitationInhibitionLayer`` - Single E/I layer
-* ``DendriticBranchLayer`` - Individual dendritic branch processing
-* ``DendriNet`` - Multi-layer dendritic network
+* **EINet** - Main excitation-inhibition network architecture  
+* **MLP** - Standard multi-layer perceptron
+* **MatchedParamMLP** - Parameter-matched baseline for EINet
+* **CNNDownsample** - Convolutional encoder with downsampling
+* **CNNUpsample** - Convolutional decoder with upsampling  
+* **AlexNet** - Pre-trained AlexNet feature extractor
+* **Identity** - Pass-through network
 
-Sparse Connectivity
-~~~~~~~~~~~~~~~~~~~~
-* ``TopKLinear`` - Standard top-K sparse connections
-* ``StochasticTopKLinear`` - Probabilistic top-K selection
-* ``VarianceTopKLinear`` - Variance-based selection
-* ``DeepstLinear`` - DEEPST dynamic sparse connectivity
-* ``BlockLinear`` - Block-structured sparse connections
-
-Convolutional
-~~~~~~~~~~~~~~~~~~~~
-* ``DendriteConv2d`` - Convolutional layer with E/I computation
-* ``DendriteAttention`` - Attention mechanism with dendrites
-
-Classical Networks (for comparison)
-~~~~~~~~~~~~~~~~~~~~
-* ``MLP`` - Standard multi-layer perceptron
-* ``MatchedParamMLP`` - MLP with matched parameters
-* ``AlexNet`` - AlexNet architecture
-* ``CNNDownsample`` - Downsampling CNN
-* ``CNNUpsample`` - Upsampling CNN
-
-Vision Units
-~~~~~~~~~~~~~~~~~~~~
-* ``create_gabor_unit()`` - Gabor filter units
-* ``create_center_surround_unit()`` - Center-surround receptive fields
-* ``create_motion_unit()`` - Motion detection units
-* ``create_end_stopped_unit()`` - End-stopped cells
-
-Models
+Encoder/Decoder Networks
 ------------------------------
 
-* ``Classifier`` - Classification wrapper
-* ``Regressor`` - Regression wrapper
-* ``BaseModel`` - Base class for custom models
+* **Identity** - No transformation applied
+* **CNNDownsample** - Convolutional downsampling for images
+* **CNNUpsample** - Convolutional upsampling for generation
+* **AlexNet** - Pre-trained feature extraction
+* **MLPAutoencoder** - MLP-based autoencoder
+* **CNNAutoencoder** - CNN-based autoencoder  
+* **MLPVariationalAutoencoder** - Variational MLP autoencoder
+* **CNNVariationalAutoencoder** - Variational CNN autoencoder
 
-Training Strategies
+Input Transform Networks
 ------------------------------
 
-* ``Trainer`` - Standard backpropagation training
-* ``LayerWiseTrainer`` - Train layers sequentially
-* ``LocalCreditAssignment`` - Local learning rules
-* ``VoltageStabilizationTrainer`` - Stabilize dendritic voltages
-* ``TwoStepTrainer`` - Two-phase training with local supervision
-* ``TwoStepTrainerWithKL`` - Two-step with KL divergence
+* **IndexInputTransform** - Random index-based input splitting
+* **FeatureExtractorMLP** - Pre-trained MLP for feature extraction
 
-Analysis Tools
+Synaptic Mechanisms
 ------------------------------
 
-Core Analysis
-~~~~~~~~~~~~~~~~~~~~
-* ``AblationAnalyzer`` - Systematic ablation studies
-* ``BranchActivationAnalyzer`` - Analyze branch activations
-* ``InformationAnalyzer`` - Information-theoretic analysis
+* **TopK Selection**: Standard, stochastic, variance-based, DeepST
+* **Weight Initialization**: Xavier, Kaiming, orthogonal, normal, uniform
+* **Dynamic Sparse Training (DeepST)**: Connectivity evolution with rewiring
 
-Metrics
-~~~~~~~~~~~~~~~~~~~~
-* ``PerformanceAnalyzer`` - Accuracy, AUC, MSE, etc.
-* ``SingleLayerContributionAnalyzer`` - Layer-wise contributions
-* ``NoisePerturbationAnalyzer`` - Robustness to noise
-
-Tools
-~~~~~~~~~~~~~~~~~~~~
-* ``CorrelationAnalyzer`` - Synaptic correlation analysis
-* ``WeightAnalyzer`` - Weight distribution analysis
-* ``SynapticActivationAnalyzer`` - Synaptic activity patterns
-* ``SynapticTurnoverAnalyzer`` - Track synaptic changes
-
-Utilities
-~~~~~~~~~~~~~~~~~~~~
-* ``AnalysisManager`` - Coordinate all analyses
-
-Datasets
+Activation Functions
 ------------------------------
 
-Synthetic
-~~~~~~~~~~~~~~~~~~~~
-* ``LineDataset`` - Line detection
-* ``CenterSurroundDataset`` - Center-surround discrimination
-* ``OrientationBarsDataset`` - Orientation selectivity
-* ``MultiXORDataset`` - Complex XOR tasks
-* ``InfoShuntingDataset`` - Shunting inhibition tasks
-* ``NoisyLineDataset`` - Noisy line detection
-* ``SparseMNISTDataset`` - Sparse MNIST variants
-* ``SyntheticCorrelatedDataset`` - Correlated features
-
-Data Loading
-~~~~~~~~~~~~~~~~~~~~
-* ``load_mnist_as_datasets()`` - Load MNIST
-* ``load_cifar10_as_datasets()`` - Load CIFAR-10
-* ``get_unified_datasets()`` - Unified interface
-
-Configuration
-------------------------------
-
-* ``Config`` - Main configuration class
-* ``ModelConfig`` - Model architecture config
-* ``TrainConfig`` - Training parameters
-* ``AnalysisConfig`` - Analysis settings
-* ``load_config()`` - Load from YAML
-
-Activations
-------------------------------
-
-* ``ParametricTanh`` - Learnable tanh activation
-* ``ParametricLinearSigmoid`` - Learnable linear-sigmoid
+* ``none`` - Identity function
+* ``relu`` - Standard ReLU
+* ``sigmoid`` - Standard sigmoid  
+* ``tanh`` - Standard tanh
+* ``param_tanh`` - Learnable tanh with slope and bias
+* ``param_tanh_only_m`` - Learnable tanh with slope only
+* ``param_linear_sigmoid`` - Trainable linear-sigmoid interpolation
+* ``linear_sigmoid`` - Fixed linear-sigmoid interpolation
+* ``param_linear_tanh`` - Trainable linear-tanh interpolation
+* ``linear_tanh`` - Fixed linear-tanh interpolation
+* ``param_linear_tanh_transition`` - Smooth transition linear to tanh
+* ``linear_tanh_transition`` - Fixed transition function
 * ``ParametricLinearTanh`` - Learnable linear-tanh
 
 Loss Functions
@@ -128,23 +64,29 @@ Loss Functions
 * Voltage stabilization loss
 * Custom loss functions
 
+Training Strategies
+------------------------------
+
+* **standard** - Standard backpropagation
+* **freeze_layers** - Layer-wise sequential training
+* **freeze_branches** - Branch-wise sequential training  
+* **two_step** - Local pre-training + global fine-tuning
+* **two_step_kl** - Two-step with KL divergence regularization
+* **voltage_stabilization** - Biologically-motivated stabilization
+
+Analysis Components
+------------------------------
+
+* **Performance Analysis**: Accuracy, log-likelihood, MSE
+* **Information Analysis**: Mutual information with multiple estimators
+* **Ablation Analysis**: Layer, compartment, and synapse ablation
+* **Noise Perturbation**: Gaussian and uniform noise robustness
+* **Weight Analysis**: Synaptic weight distributions
+* **Correlation Analysis**: Tuning curves and correlations
+
 Scripts
 ------------------------------
 
 Main training scripts are in ``src/dendritic_modeling/scripts/``:
 * ``train_experiments.py`` - Main experiment runner
-* ``train_encoder_network.py`` - Encoder pre-training
-
-NOT Implemented
-------------------------------
-
-The following components mentioned in some documentation do NOT exist:
-* DendriticRNN / DendriticLSTM
-* DendriticTransformer
-* DendriticResNet / DendriticUNet
-* DendriticActorCritic
-* CorticalMicrocircuit
-* Medical imaging specific components
-* NLP-specific components
-
-These would need to be implemented if required for your use case. 
+* ``train_encoder_network.py`` - Encoder pre-training 

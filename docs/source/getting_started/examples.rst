@@ -238,7 +238,7 @@ Using an input transformation network for better feature extraction:
         blocklinear_strategy="block_conductance_dynamic",
         input_mode=2,  # Use input transformation network
         input_net_dict={
-            "type": "MLPInputTransform",
+            "type": "IndexInputTransform",
             "hidden_dims": [512, 256],
             "output_dim": 128
         },
@@ -269,7 +269,7 @@ Using an input transformation network for better feature extraction:
           # ... other parameters
           input_mode: 2
           input_net_dict:
-            type: "MLPInputTransform"
+            type: "IndexInputTransform"
             hidden_dims: [512, 256]
             output_dim: 128
 

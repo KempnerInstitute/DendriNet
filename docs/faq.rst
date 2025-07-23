@@ -51,7 +51,7 @@ A: Several optimization strategies can help:
 A: Memory issues have several solutions:
 
 1. **Reduce batch size**: Lower ``batch_size`` in your config
-2. **Enable gradient accumulation**: Use ``gradient_accumulation_steps: 4``
+2. **Reduce batch size**: Use ``batch_size: 32``
 3. **Use gradient checkpointing**: Set ``gradient_checkpointing: true``
 4. **Reduce model size**: Decrease layer sizes or number of branches
 5. **For large models**: Enable FSDP with ``use_fsdp: true``
@@ -195,10 +195,10 @@ A: This error occurs when using ``--use_fsdp`` without torchrun:
 
 .. code-block:: bash
 
-   # ❌ Wrong: Missing torchrun
+   #  Wrong: Missing torchrun
    python train_experiments.py config.yaml --use_fsdp
    
-   # ✅ Correct: With torchrun
+   #  Correct: With torchrun
    torchrun --nproc_per_node=4 train_experiments.py config.yaml --use_fsdp
 
 The framework detects your environment and provides clear guidance on proper usage.
@@ -237,7 +237,7 @@ A: GPU memory issues:
    --train.batch_size 16
    
    # Enable gradient accumulation
-   --train.gradient_accumulation_steps 4
+   --train.batch_size 16
    
    # Use CPU for large models
    --device cpu

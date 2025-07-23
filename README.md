@@ -259,11 +259,7 @@ parameters:
 | Transform Type | Description | Parameters |
 |---------------|-------------|------------|
 | **IndexInputTransform** | Random index splitting | `excitatory_dim`, `inhibitory_dim` |
-| **MLPInputTransform** | MLP-based transformation | `hidden_dims`, output dimensions |
-| **CNNInputTransform** | CNN-based transformation | Conv parameters, kernel sizes |
-| **AlexNetTransform** | Pre-trained AlexNet features | Output dimensions |
 | **FeatureExtractorMLP** | Feature extraction MLP | Hidden layers, output dim |
-| **SigmoidInputNetTransform** | MLP with sigmoid output | Network parameters |
 
 ### Input Network Training
 

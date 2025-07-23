@@ -121,38 +121,10 @@ Input transformation modules are available for preprocessing data before feeding
 Specialized Architectures
 -------------------------
 
-DendriticCNN
-~~~~~~~~~~~~
+Available Specialized Architectures
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. autoclass:: dendritic_modeling.networks.architectures.dendritic.DendriticCNN
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-   CNN architecture with dendritic layers replacing standard convolutions.
-
-   **Example:**
-
-   .. code-block:: python
-
-      cnn = DendriticCNN(
-          input_channels=3,
-          num_classes=10,
-          channels=[32, 64, 128],
-          n_branches=[10, 8, 6],
-          kernel_size=3,
-          use_batch_norm=True
-      )
-
-ViT_Dendrite
-~~~~~~~~~~~~
-
-.. autoclass:: dendritic_modeling.networks.architectures.dendritic.ViT_Dendrite
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-   Vision Transformer with dendritic attention mechanism.
+The framework currently provides basic dendritic architectures. Additional specialized architectures can be implemented by extending the base classes.
 
 Factory Functions
 -----------------

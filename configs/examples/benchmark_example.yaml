@@ -87,8 +87,7 @@ train:
   # All performance optimizations enabled
   enable_amp: true              # Mixed precision for speed
   enable_profiling: false       # Disabled - adds overhead
-  enable_hooks: false           # Disabled to reduce analysis overhead
-  performance_mode: true        # Maximum performance mode
+  enable_hooks: false           # Disabled for maximum speed
   use_fsdp: false              # Single GPU benchmark
   
   # Skip encoder training for benchmarking
@@ -177,7 +176,7 @@ analysis:
   
   # If you need minimal analysis, enable specific modules:
   # enabled: true
-  # respect_hook_settings: true  # Will be skipped due to performance_mode
+  # respect_hook_settings: true  # Will be skipped since hooks are disabled
   # 
   # performance_analysis:
   #   enabled: true
@@ -245,7 +244,7 @@ compute:
 # ✓ Mixed precision enabled (enable_amp: true)
 # ✓ Large batch size for GPU utilization
 # ✓ All analysis disabled (analysis.enabled: false)
-# ✓ All hooks disabled (performance_mode: true)
+# ✓ All hooks disabled (enable_hooks: false)
 # ✓ No checkpointing I/O overhead
 # ✓ No W&B logging overhead
 # ✓ No plotting overhead

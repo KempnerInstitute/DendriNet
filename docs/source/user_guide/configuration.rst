@@ -70,7 +70,7 @@ The `model` section defines the network architecture and parameters:
           # Input mode (0=original, 1=exc=x+inh=x, 2=input_net)
           input_mode: 2
           input_net_dict:
-            type: "MLPInputTransform"
+            type: "IndexInputTransform"
             hidden_dims: [512, 256]
             output_dim: 128
 

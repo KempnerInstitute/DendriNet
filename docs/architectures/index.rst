@@ -191,9 +191,9 @@ Advanced EINet Features
      # Mode 2: Transform networks
      input_mode: 2
      input_net_dict:
-       type: "MLPInputTransform"
-       excitatory_hidden_dims: [32, 64]
-       inhibitory_hidden_dims: [16, 32]
+       type: "IndexInputTransform"
+       excitatory_dim: 400
+       inhibitory_dim: 384
 
 **Gradient Scaling Strategies**:
 

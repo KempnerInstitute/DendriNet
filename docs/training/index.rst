@@ -341,11 +341,11 @@ The framework provides intelligent FSDP delegation through the main training scr
 
 .. code-block:: bash
 
-   # ❌ Wrong usage (no torchrun)
+   #  Wrong usage (no torchrun)
    python train_experiments.py config.yaml --use_fsdp
    # Error: "FSDP requires distributed environment! Use torchrun..."
 
-   # ✅ Correct usage
+   #  Correct usage
    torchrun --nproc_per_node=4 train_experiments.py config.yaml --use_fsdp
    # Success: Delegates to train_experiments_fsdp.py automatically
 
@@ -459,17 +459,17 @@ When to Use FSDP
      - Multi-GPU FSDP
      - Multi-Node FSDP
    * - **< 100M params**
-     - ✅ Recommended
-     - ⚠️ Unnecessary
-     - ❌ Overkill
+     -  Recommended
+     -  Unnecessary
+     -  Overkill
    * - **100M - 1B**
-     - ⚠️ May fit
-     - ✅ Recommended
-     - ⚠️ If needed
+     -  May fit
+     -  Recommended
+     -  If needed
    * - **> 1B params**
-     - ❌ Won't fit
-     - ✅ Required
-     - ✅ For very large
+     -  Won't fit
+     -  Required
+     -  For very large
 
 Memory Management Strategies
 ---------------------------

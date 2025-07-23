@@ -151,11 +151,11 @@ The framework automatically detects your environment:
 
 .. code-block:: bash
 
-   # ❌ Wrong: Missing torchrun
+   #  Wrong: Missing torchrun
    python train_experiments.py config.yaml --use_fsdp
    # Error with helpful guidance
 
-   # ✅ Correct: With torchrun
+   #  Correct: With torchrun
    torchrun --nproc_per_node=4 train_experiments.py config.yaml --use_fsdp
 
 Advanced Memory Management

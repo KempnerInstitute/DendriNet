@@ -130,7 +130,7 @@ Mode 2: Transformed Input
 `````yaml
 input_mode: 2
 input_net_dict:
-  type: CNNInputTransform
+  type: IndexInputTransform
   # Separate transformation networks for E and I pathways
 `````
 
@@ -349,29 +349,20 @@ Input Transform Networks
 
 For complex input preprocessing in EINet:
 
-CNN Input Transform
+Index Input Transform
 ^^^^^^^^^^^^^^^
 `````yaml
 input_net_dict:
-  type: CNNInputTransform
-  input_shape: [3, 32, 32]
-  
-  # Excitatory pathway CNN
-  excitatory_hidden_dims: [32, 64]
-  excitatory_kernel_sizes: [5, 3]
-  excitatory_strides: [1, 2]
-  
-  # Inhibitory pathway CNN  
-  inhibitory_hidden_dims: [16, 32]
-  inhibitory_kernel_sizes: [7, 5]
-  inhibitory_strides: [1, 2]
+  type: IndexInputTransform
+  excitatory_dim: 400      # First 400 dimensions to E pathway
+  inhibitory_dim: 384      # Remaining 384 to I pathway
 `````
 
-MLP Input Transform
+Feature Extractor Transform
 ^^^^^^^^^^^^^^^
 `````yaml
 input_net_dict:
-  type: MLPInputTransform
+  type: IndexInputTransform
   hidden_dims: [512, 256]          # Shared hidden layers
   excitatory_dim: 256              # E pathway output
   inhibitory_dim: 128              # I pathway output

@@ -431,14 +431,14 @@ Mode 2: Input Network Transform
 
    input_mode: 2
    input_net_dict:
-     type: "CNNInputTransform"
-     excitatory_hidden_dims: [32, 64]
-     inhibitory_hidden_dims: [16, 32]
+     type: "IndexInputTransform"
+     excitatory_dim: 400
+     inhibitory_dim: 384
 
-- Sophisticated input preprocessing
-- Separate transformation networks for E and I
-- Learnable feature extraction
-- **Use case**: Complex data requiring preprocessing
+- Input preprocessing before dendritic networks
+- Split input dimensions between E and I pathways
+- Pre-trained feature extraction options
+- **Use case**: Custom input distribution to pathways
 
 Transform Network Types
 ~~~~~~~~~~~~~~~~~~~~~~
@@ -451,12 +451,8 @@ Transform Network Types
      - Description
    * - **IndexInputTransform**
      - Random index-based splitting
-   * - **MLPInputTransform**  
-     - Multi-layer perceptron transformation
-   * - **CNNInputTransform**
-     - Convolutional feature extraction
-   * - **AlexNetTransform**
-     - Pre-trained AlexNet features
+   * - **FeatureExtractorMLP**
+     - Pre-trained feature extraction
 
 Scalability Considerations
 -------------------------
@@ -623,7 +619,7 @@ The framework provides flexible network components with various options:
    - **Available Options**:
      - ``IdentityInputTransform``: Passes input unchanged to both E and I pathways.
      - ``IndexInputTransform``: Splits input dimensions by index between E and I pathways.
-   - **Note**: Other transforms (``MLPInputTransform``, ``CNNInputTransform``, ``AlexNetTransform``) are referenced in configs but not fully implemented in the current codebase.
+
 
 **Implementation Details**: All options are passed via config YAML to factory functions in ``networks/architectures/factory.py``. For example, shunting is implemented as ``output = exc / (exc + inh + epsilon)`` in ``DendriticLayer.forward()``.
 

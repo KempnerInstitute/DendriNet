@@ -65,7 +65,7 @@ Here's an example sweep parameters file:
             blocklinear_strategy: block_conductance_dynamic
             input_mode: 2
             input_net_dict:
-              type: "MLPInputTransform"
+              type: "IndexInputTransform"
               hidden_dims: []
               output_dim: 128
 

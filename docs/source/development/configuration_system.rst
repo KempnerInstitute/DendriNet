@@ -66,7 +66,7 @@ Here's an example of a complete configuration (simplified):
           blocklinear_strategy: block_conductance_dynamic
           input_mode: 2
           input_net_dict:
-            type: "MLPInputTransform"
+            type: "IndexInputTransform"
             hidden_dims: []
             output_dim: 128
 
@@ -149,7 +149,7 @@ The ``model`` section defines the neural network architecture and its parameters
           # Input processing
           input_mode: 2  # 0=original, 1=exc=x+inh=x, 2=input_net
           input_net_dict:  # Configuration for input network (used when input_mode=2)
-            type: "MLPInputTransform"  # Type of input transform
+            type: "IndexInputTransform"  # Type of input transform
             hidden_dims: []  # Hidden dimensions for input network
             output_dim: 128  # Output dimension for input network
 
@@ -170,7 +170,7 @@ When ``input_mode=2``, the ``input_net_dict`` specifies the architecture of the 
 .. code-block:: yaml
 
     input_net_dict:
-      type: "MLPInputTransform"  # Type of input network
+      type: "IndexInputTransform"  # Type of input network
       hidden_dims: [512, 256]    # Hidden layer dimensions
       output_dim: 128           # Output dimension
 

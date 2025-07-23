@@ -12,11 +12,11 @@ The framework provides **intelligent FSDP delegation** through the main training
 
 .. code-block:: bash
 
-   # ✅ Recommended: Intelligent delegation
+   #  Recommended: Intelligent delegation
    torchrun --nproc_per_node=4 \
      src/dendritic_modeling/scripts/train_experiments.py config.yaml --use_fsdp
    
-   # ✅ Alternative: Direct FSDP script
+   #  Alternative: Direct FSDP script
    torchrun --nproc_per_node=4 \
      src/dendritic_modeling/scripts/train_experiments_fsdp.py config.yaml
 
@@ -24,11 +24,11 @@ The framework provides **intelligent FSDP delegation** through the main training
 
 .. code-block:: bash
 
-   # ❌ Missing torchrun
+   #  Missing torchrun
    python train_experiments.py config.yaml --use_fsdp
    # Error: "FSDP requires distributed environment! Use torchrun..."
    
-   # ❌ Wrong script
+   #  Wrong script
    python train_experiments_fsdp.py config.yaml
    # Error: Distributed environment not initialized
 

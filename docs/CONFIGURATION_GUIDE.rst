@@ -271,32 +271,21 @@ Input Processing
       
       # Input network (for input_mode=2)
       input_net_dict:
-        type: CNNInputTransform     # Transform network type
+        type: IndexInputTransform   # Transform network type
         
-        # CNN parameters
-        input_shape: [3, 32, 32]    # Input dimensions [C, H, W]
-        excitatory_hidden_dims: [16, 32]      # E pathway conv channels
-        inhibitory_hidden_dims: [8, 16]       # I pathway conv channels
-        excitatory_kernel_sizes: [5, 3]       # E pathway kernel sizes
-        inhibitory_kernel_sizes: [7, 5]       # I pathway kernel sizes
-        excitatory_strides: [1, 1]            # E pathway strides
-        inhibitory_strides: [1, 1]            # I pathway strides
+        # IndexInputTransform parameters
+        excitatory_dim: 400         # First N dimensions to excitatory
+        inhibitory_dim: 384         # Remaining dimensions to inhibitory
         
-        # MLP parameters (for MLPInputTransform)
-        hidden_dims: [512, 256]     # Hidden layer sizes
-        excitatory_dim: 256          # E pathway output dimension
-        inhibitory_dim: 64           # I pathway output dimension
+        # FeatureExtractorMLP parameters (alternative)
+        # input_dim: 784            # Input dimension
+        # hidden_dims: [512, 256]   # Hidden layer sizes  
+        # output_dim: 256           # Output dimension
 `````
 
 **Available input transform types:**
-* ``IdentityInputTransform``: Passes input unchanged to both E/I pathways
 * ``IndexInputTransform``: Random index-based splitting of input dimensions
-* **Note**: The following are referenced in documentation but not fully implemented:
-  * ``MLPInputTransform``: MLP-based transformation (placeholder)
-  * ``CNNInputTransform``: CNN-based transformation (placeholder)  
-  * ``AlexNetTransform``: Pre-trained AlexNet features (placeholder)
-  * ``FeatureExtractorMLP``: Feature extraction MLP (placeholder)
-  * ``SigmoidInputNetTransform``: MLP with sigmoid output (placeholder)
+* ``FeatureExtractorMLP``: Feature extraction MLP (pre-trained, frozen)
 
 Network Configuration Details
 ----------------------------

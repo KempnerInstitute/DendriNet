@@ -138,9 +138,7 @@ Problem: Memory Issues
 
    train:
      batch_size: 32              # Reduce from 128
-     gradient_accumulation_steps: 4  # Maintain effective batch size
      enable_amp: true            # Mixed precision
-     gradient_checkpointing: true # Trade compute for memory
 
 **Long-term Solutions**:
 

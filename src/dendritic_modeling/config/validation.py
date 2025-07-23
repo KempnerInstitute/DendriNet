@@ -25,7 +25,6 @@ def validate_optimization_combinations(config) -> bool:
     # Extract configuration values safely
     enable_amp = getattr(config.train, 'enable_amp', False) if hasattr(config, 'train') else False
     enable_hooks = getattr(config.train, 'enable_hooks', True) if hasattr(config, 'train') else True
-    performance_mode = getattr(config.train, 'performance_mode', False) if hasattr(config, 'train') else False
     
     # Model configuration
     model_params = {}
@@ -73,14 +72,7 @@ def validate_optimization_combinations(config) -> bool:
             "Consider: (1) Lower learning rate, (2) Enable adaptive gradient clipping, (3) Add NaN detection."
         )
     
-    # 3. Performance Mode Conflicts
-    if performance_mode and print_hooks:
-        warnings.append(
-            "Performance Conflict: 'performance_mode: true' disables hooks but 'print_hooks: true' is set. "
-            "Hook printing will be disabled in performance mode."
-        )
-    
-    # 4. FSDP Configuration Recommendations
+    # 3. FSDP Configuration Recommendations
     use_fsdp = getattr(config.train, 'use_fsdp', False) if hasattr(config, 'train') else False
     if use_fsdp:
         fsdp_config = getattr(config.train, 'fsdp_config', {}) if hasattr(config, 'train') else {}
@@ -139,21 +131,21 @@ def suggest_optimal_config_for_model_size(total_params: int) -> dict:
         suggestions.update({
             "enable_amp": False,  # Not needed for small models
             "use_fsdp": False,
-            "performance_mode": False,
+            "enable_hooks": True,  # Good for development and analysis
             "enable_profiling": True,  # Good for development
         })
     elif total_params < 100_000_000:  # 10M - 100M parameters
         suggestions.update({
             "enable_amp": True,
             "use_fsdp": False,  # Single GPU should handle this
-            "performance_mode": False,
+            "enable_hooks": True,  # Keep analysis capability
             "enable_profiling": False,  # Better performance
         })
     else:  # > 100M parameters
         suggestions.update({
             "enable_amp": True,
             "use_fsdp": True,
-            "performance_mode": True,  # Maximum performance
+            "enable_hooks": False,  # Disable for maximum performance
             "enable_profiling": False,
             "fsdp_config": {
                 "mixed_precision": True,
