@@ -1096,6 +1096,115 @@ def plot_information_analysis(results: dict[str, Any], **kwargs):
     return plotter.plot_information_metrics(results, **kwargs)
 
 
+def plot_synapse_turnover(turnover_results: dict, save_path: str = None, filename: str = "synapse_turnover"):
+    """
+    Generate plots for synaptic turnover analysis results.
+    
+    Args:
+        turnover_results: Dictionary containing turnover analysis results with structure:
+                         {"exc": {"active": [], "stable": [], "transient": []},
+                          "inh": {"active": [], "stable": [], "transient": []},
+                          "both": {"active": [], "stable": [], "transient": []}}
+        save_path: Directory to save the plot
+        filename: Filename for the saved plot (without extension)
+    
+    Returns:
+        matplotlib Figure object
+    """
+    import matplotlib.pyplot as plt
+    import os
+    from dendritic_modeling import logger
+    
+    fig, axes = plt.subplots(2, 2, figsize=(15, 10))
+    fig.suptitle("Synaptic Turnover Analysis", fontsize=16)
+    
+    # Expected data structure from SynapticTurnoverAnalyzer
+    expected_keys = ["exc", "inh", "both"]
+    metric_keys = ["active", "stable", "transient"]
+    
+    if all(key in turnover_results for key in expected_keys):
+        # Plot excitatory turnover
+        ax = axes[0, 0]
+        exc_data = turnover_results["exc"]
+        epochs = range(len(exc_data["active"]))
+        
+        ax.plot(epochs, exc_data["active"], label="Active", marker='o', linestyle='-')
+        ax.plot(epochs, exc_data["stable"], label="Stable", marker='s', linestyle='--')
+        ax.plot(epochs, exc_data["transient"], label="Transient", marker='^', linestyle=':')
+        ax.set_title("Excitatory Synapses")
+        ax.set_xlabel("Epoch")
+        ax.set_ylabel("Number of Synapses")
+        ax.legend()
+        ax.grid(True, alpha=0.3)
+        
+        # Plot inhibitory turnover
+        ax = axes[0, 1]
+        inh_data = turnover_results["inh"]
+        
+        ax.plot(epochs, inh_data["active"], label="Active", marker='o', linestyle='-')
+        ax.plot(epochs, inh_data["stable"], label="Stable", marker='s', linestyle='--')
+        ax.plot(epochs, inh_data["transient"], label="Transient", marker='^', linestyle=':')
+        ax.set_title("Inhibitory Synapses")
+        ax.set_xlabel("Epoch")
+        ax.set_ylabel("Number of Synapses")
+        ax.legend()
+        ax.grid(True, alpha=0.3)
+        
+        # Plot combined turnover
+        ax = axes[1, 0]
+        both_data = turnover_results["both"]
+        
+        ax.plot(epochs, both_data["active"], label="Active", marker='o', linestyle='-')
+        ax.plot(epochs, both_data["stable"], label="Stable", marker='s', linestyle='--')
+        ax.plot(epochs, both_data["transient"], label="Transient", marker='^', linestyle=':')
+        ax.set_title("Combined (Excitatory + Inhibitory)")
+        ax.set_xlabel("Epoch")
+        ax.set_ylabel("Number of Synapses")
+        ax.legend()
+        ax.grid(True, alpha=0.3)
+        
+        # Plot turnover rates (transient/active ratio)
+        ax = axes[1, 1]
+        exc_rate = [t/a if a > 0 else 0 for t, a in zip(exc_data["transient"], exc_data["active"])]
+        inh_rate = [t/a if a > 0 else 0 for t, a in zip(inh_data["transient"], inh_data["active"])]
+        both_rate = [t/a if a > 0 else 0 for t, a in zip(both_data["transient"], both_data["active"])]
+        
+        ax.plot(epochs, exc_rate, label="Excitatory Rate", marker='o', linestyle='-')
+        ax.plot(epochs, inh_rate, label="Inhibitory Rate", marker='s', linestyle='--')
+        ax.plot(epochs, both_rate, label="Combined Rate", marker='^', linestyle=':')
+        ax.set_title("Turnover Rates (Transient/Active)")
+        ax.set_xlabel("Epoch")
+        ax.set_ylabel("Turnover Rate")
+        ax.legend()
+        ax.grid(True, alpha=0.3)
+        
+    else:
+        # Fallback for unknown data structure
+        ax = axes[0, 0]
+        ax.text(0.5, 0.5, f"Unexpected data structure\nAvailable keys: {list(turnover_results.keys())}", 
+                ha='center', va='center', transform=ax.transAxes, fontsize=12)
+        ax.set_title("Synapse Turnover Analysis")
+        
+        # Hide other subplots
+        for i in range(2):
+            for j in range(2):
+                if i != 0 or j != 0:
+                    axes[i, j].set_visible(False)
+        
+        logger.warning(f"Unknown data structure for synapse turnover. Available keys: {list(turnover_results.keys())}")
+    
+    plt.tight_layout()
+    
+    if save_path:
+        os.makedirs(save_path, exist_ok=True)
+        full_path = os.path.join(save_path, f"{filename}.png")
+        fig.savefig(full_path, dpi=300, bbox_inches='tight')
+        logger.info(f"Synapse turnover plot saved to {full_path}")
+    
+    plt.close(fig)
+    return fig
+
+
 def plot_dendrinet_activations(dendrinet, exc_input_list, inh_input_list, **kwargs):
     """Convenience function for DendriNet activation plotting."""
     plotter = ActivationPlotter()

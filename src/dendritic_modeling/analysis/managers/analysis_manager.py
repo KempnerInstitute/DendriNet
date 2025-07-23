@@ -29,6 +29,7 @@ from dendritic_modeling.analysis.tools.weight import WeightAnalyzer
 from dendritic_modeling.plotting.analysis import (
     plot_performance_metrics,
     plot_information_analysis,
+    plot_synapse_turnover,
     plot_weight_distributions,
     # Add others as needed
 )
@@ -149,12 +150,36 @@ class AnalysisManager:
             (self.config.synapse_turnover_analysis.training and training)
             or not training
         ):
-            self.syn_turnover_analyzer.analyze(
-                model=self.model,
-                training=training,
-                save_path=os.path.join(self.save_root, "synapse_turnover_analysis"),
-                filename=filename,
-            )
+            if not training:
+                # Get results for plotting (don't save to file yet)
+                turnover_results = self.syn_turnover_analyzer.analyze(
+                    model=self.model,
+                    training=training,
+                    save_path=None,  # Don't save to file, get results
+                    filename=filename,
+                )
+                # Now save the results
+                self.syn_turnover_analyzer.analyze(
+                    model=self.model,
+                    training=training,
+                    save_path=os.path.join(self.save_root, "synapse_turnover_analysis"),
+                    filename=filename,
+                )
+                # Generate plots if results exist
+                if turnover_results is not None:
+                    plot_synapse_turnover(
+                        turnover_results,
+                        save_path=os.path.join(self.save_root, "synapse_turnover_analysis"),
+                        filename="synapse_turnover"
+                    )
+            else:
+                # Training mode: just collect snapshot
+                self.syn_turnover_analyzer.analyze(
+                    model=self.model,
+                    training=training,
+                    save_path=os.path.join(self.save_root, "synapse_turnover_analysis"),
+                    filename=filename,
+                )
 
         # Noise Perturbation Analysis
         if self.config.noise_perturbation_analysis.enabled and (

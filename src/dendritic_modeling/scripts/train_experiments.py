@@ -72,6 +72,7 @@ from dendritic_modeling.scripts.train_encoder_network import load_train_encoder_
 from dendritic_modeling.training import CustomWeightDecayOptimizer, get_trainer
 from dendritic_modeling.utils import save_dict, validate_config, set_seed
 from dendritic_modeling.plotting.analysis import plot_information_analysis
+from dendritic_modeling.plotting.analysis import plot_synapse_turnover
 from dendritic_modeling.config.validation import (
     validate_optimization_combinations,
     suggest_optimal_config_for_model_size,
@@ -161,10 +162,8 @@ def run_analysis(
     """Run analysis using the AnalysisManager."""
     logger.info("Running analyses...")
     if analysis_manager is not None:
-        results = analysis_manager.run_analysis()
-        if not training:
-            # Call plotting functions on results
-            pass # Placeholder for plotting functions
+        analysis_manager.run_analysis(filename="final", training=training)
+        logger.info("Analysis completed")
 
 
 def main(config_path: str, args=None):

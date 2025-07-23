@@ -30,8 +30,8 @@ model:
 
       # Transfer function parameters
       transfer_params:
-        input_mode: 0               # 0=shared pathway, 1=independent pathways
-        independent_pathways: false # Must match input_mode (0=false, 1=true)
+        input_mode: 1               
+        independent_pathways: true  
         excitatory_dim: null        # Dimensions for excitatory pathways (input_mode 1)
         inhibitory_dim: null        # Dimensions for inhibitory pathways (input_mode 1)
         output_activation: null     # Options: "sigmoid", "relu", "tanh", "softplus", null
@@ -40,15 +40,15 @@ model:
       # MORPHOLOGICAL ARCHITECTURE
       # ==========================================
       excitatory_layer_sizes: [10]         # Neurons per excitatory layer
-      inhibitory_layer_sizes: [20]         # Neurons per inhibitory layer
-      excitatory_branch_factors: [2, 2]    # Branches per excitatory neuron
-      inhibitory_branch_factors: []        # Branches per inhibitory neuron
+      inhibitory_layer_sizes: []         # Neurons per inhibitory layer
+      excitatory_branch_factors: [2,2]       # Branches per excitatory neuron (fixed: should match layer count)
+      inhibitory_branch_factors: []       # Branches per inhibitory neuron (fixed: was empty)
 
       # Synaptic connectivity patterns
-      ee_synapses_per_branch_per_layer: [24]   # Excitatory-to-excitatory synapses
-      ei_synapses_per_branch_per_layer: [200] # Excitatory-to-inhibitory synapses
-      ie_synapses_per_branch_per_layer: [1]   # Inhibitory-to-excitatory synapses
-      ii_synapses_per_branch_per_layer: []    # Inhibitory-to-inhibitory synapses
+      ee_synapses_per_branch_per_layer: [50]   # Excitatory-to-excitatory synapses
+      ei_synapses_per_branch_per_layer: []  # Fixed: Reduced from 200 to 15 (≤ 20 inhibitory neurons)
+      ie_synapses_per_branch_per_layer: [10]   # Fixed: Set to 1 (minimum required by DendriNet, though no inhibitory input available)
+      ii_synapses_per_branch_per_layer: []   # Fixed: Set to 1 (minimum required by DendriNet)
 
       # Morphological features
       somatic_synapses: true      # Include somatic (non-dendritic) synapses
@@ -109,8 +109,8 @@ model:
       input_dim: null           # Will be set automatically
       hidden_dims: [32, 16]     # Hidden layer dimensions
       activation: relu          # Activation function
-      output_dim: null          # Will be set automatically
-
+      output_dim: 10          # Will be set automatically
+      
 # ============================================================================
 # TRAINING CONFIGURATION - VALIDATED PARAMETERS ONLY
 # ============================================================================
@@ -148,7 +148,7 @@ train:
   # CHECKPOINTING
   # ==========================================
   checkpointing:
-    enabled: true
+    enabled: false
     save_every_n_epochs: 10
     checkpoint_dir: "outputs/checkpoints/"
 
@@ -197,7 +197,7 @@ train:
       decoder_lr: 0.0001       # Learning rate for decoder network
 
     trainer:
-      loss_function: mse        # Loss function
+      loss_function: ce        # Loss function
       epochs: 50               # Main training epochs
       early_stopping: false    # Early stopping
       patience: 10             # Patience
@@ -205,7 +205,7 @@ train:
       shuffle: true            # Shuffle data
       grad_clip_value: 5.0     # Gradient clipping
       load_best_state_dict: true
-      plot_losses: false
+      plot_losses: true
       save_path: null
       suppress_prints: false
       print_every: 10
@@ -223,7 +223,7 @@ train:
 # ============================================================================
 task:
   # Validated dataset options (from datasets/__init__.py and synthetic_datasets.py)
-  dataset: mnist
+  dataset: cifar10
   # Options: 
   # - Standard: "mnist", "cifar10", "imagenet"
   # - Modified MNIST: "mnist_modulo10", "random_flip_mnist"
@@ -237,35 +237,35 @@ task:
   # Dataset-specific parameters
   parameters:
     # Common parameters
-    train_size: 8000
-    valid_size: 1000
-    test_size: 1000
+    # train_size: 8000
+    # valid_size: 1000
+    # test_size: 1000
     flatten: true
     normalize: false
 
-    # Synthetic dataset parameters
-    image_size: 16           # For image-based synthetic datasets
-    n_orient_classes: 8      # For orientation_bars
-    n_bits: 8               # For multi_xor
+    # # Synthetic dataset parameters
+    # image_size: 16           # For image-based synthetic datasets
+    # n_orient_classes: 8      # For orientation_bars
+    # n_bits: 8               # For multi_xor
     
-    # Generated dataset parameters
-    base_dataset: mnist      # For poisson_generator
-    rate_multiplier: 1       # For poisson_generator
-    input_dim: 10           # For orthonet
-    n_layers: 5             # For orthonet
-    nonlinearity: sigmoid   # For orthonet: "sigmoid", "tanh", None
-    repeat_layers: false    # For orthonet
-    noise_std: 0.1          # For orthonet
+    # # Generated dataset parameters
+    # base_dataset: mnist      # For poisson_generator
+    # rate_multiplier: 1       # For poisson_generator
+    # input_dim: 10           # For orthonet
+    # n_layers: 5             # For orthonet
+    # nonlinearity: sigmoid   # For orthonet: "sigmoid", "tanh", None
+    # repeat_layers: false    # For orthonet
+    # noise_std: 0.1          # For orthonet
 
 # ============================================================================
 # WANDB LOGGING - VALIDATED PARAMETERS ONLY
 # ============================================================================
 wandb:
-  entity: ""
-  project: "dendritic_modeling"
+  entity: houman_safaai-harvard-university
+  project: "dendritic_refactor"
   group: "experiments"
   tags: []
-  use_wandb: false
+  use_wandb: true
 
 # ============================================================================
 # ANALYSIS CONFIGURATION - VALIDATED MODULES ONLY
@@ -282,7 +282,7 @@ analysis:
       cosine_similarity: false
 
   information_analysis:
-    enabled: false
+    enabled: true
     training: false
     params:
       method: kraskov           # Options: "kraskov", "sklearn", "copula", "auto"
@@ -304,7 +304,7 @@ analysis:
       branch_aggregation: mean  # Options: "mean", "max", "sum", "first", "none"
 
   synapse_turnover_analysis:
-    enabled: false
+    enabled: true
     training: false
 
   noise_perturbation_analysis:
@@ -399,24 +399,5 @@ outputs:
   run_name: exp_run
   dir: results/
 
-# ============================================================================
-# SLURM CONFIGURATION (Optional)
-# ============================================================================
-slurm_config:
-  output_dir: "/path/to/logs"
-  conda_env: "env_name"
-  conda_env_path: "/path/to/conda/env"
-  modules_to_load:
-    - "python/3.12.5-fasrc01"
-    - "cuda/12.4.1-fasrc01"
-  training_script: "scripts/train_experiment.py"
-  account: "account_name"
-  partition: "partition_name"
-  run_name: "job_name"
-  nodes: 1
-  ntasks_per_node: 1
-  gpus_per_node: 1
-  cpus_per_task: 10
-  mem: 200GB
-  time: "01:00:00"
-  max_concurrent_jobs: 8 
+# Note: SLURM configuration has been moved to separate files
+# Use the slurm job generator script for SLURM job creation 

@@ -12,12 +12,25 @@
 # Minimal model configuration
 model:
   task: classification
-  base:
-    output_layer: true
-    output_dim: 10
-  network:
+  
+  encoder_network:
+    type: identity
+    parameters:
+      input_shape: [1, 28, 28]
+  
+  core_network:
     type: EINet
     parameters:
+      input_dim: 784
+      
+      # Transfer function parameters
+      transfer_params:
+        input_mode: 0
+        independent_pathways: false
+        excitatory_dim: null
+        inhibitory_dim: null
+        output_activation: null
+      
       # Small network for quick training
       excitatory_layer_sizes: [20, 10]
       inhibitory_layer_sizes: [10, 5]
@@ -35,26 +48,93 @@ model:
       use_shunting: true      # V = E/(E+I+1)
       reactivate: true
       reactivation_type: param_tanh
+      reactivation_init_m: 1.5
+      reactivation_init_b: 0.5
       topk_init_method: xavier_normal
       topk_type: standard
-      input_mode: 0           # Clear E/I separation
+      topk_noise_level: 0.0
+      topk_temperature: 0.5
+      topk_ultrafast: false
+      
+      # Gradient scaling strategies
+      reactivation_strategy: inverse
+      topk_strategy: conductance_dynamic
+      blocklinear_strategy: conductance_dynamic
+      
+      # Implementation optimizations
+      efficient_blocklinear: true
+      adaptive_initialization: true
+      print_hooks: false
+      
+      # DEEPST parameters (defaults)
+      excitatory_target_density: 0.1
+      inhibitory_target_density: 0.1
+      use_noise: true
+      sigma: 0.05
+      rewiring_mode: global
+      rewire_frequency: 1
+      synapses_per_branch: null
+      freeze_excitatory_connectivity: false
+      freeze_inhibitory_connectivity: false
+      init_method: xavier_normal
+      weight_threshold: 1e-6
+
+  decoder_network:
+    type: MLP
+    parameters:
+      hidden_dims: [16]
+      activation: relu
+      output_dim: 10
+      use_batch_norm: false
+      dropout_rate: 0.0
 
 # Quick training settings
 train:
   run_name: ei_info_quickstart
-  learning_strategy: standard
   seed: 42
   train_valid_split: 0.8
   
-  optim_dict:
-    split_params: true
-    topk_lr: 0.001
-    blocklinear_lr: 0.001
-    reactivation_lr: 0.001
+  # Performance optimization settings
+  enable_amp: false
+  enable_profiling: false
+  profiling_output_dir: "outputs/profiling/"
+  enable_hooks: true
+  use_fsdp: false
+  fsdp_config: null
+  checkpointing:
+    enabled: true
+    save_every_n_epochs: 10
+    checkpoint_dir: "outputs/checkpoints/"
   
-  trainer:
-    # for all learning strategies:
-    loss_function: categorical_nll
+  encoder:
+    load_save_root: saved_models/encoder
+    lr: 0.001
+    trainer:
+      loss_function: mse
+      epochs: 0  # Skip encoder training for identity encoder
+      batch_size: 128
+      shuffle: true
+      grad_clip_value: 5.0
+      load_best_state_dict: true
+      plot_losses: true
+      suppress_prints: false
+      print_every: 10
+  
+  main:
+    learning_strategy: standard
+    weight_decay_rate: 0.01
+    
+    param_groups:
+      lr: 0.001
+      split_params: true
+      topk_lr: 0.001
+      blocklinear_lr: 0.001
+      reactivation_lr: 0.001
+      decoder_lr: 0.001
+    
+    trainer:
+      # for all learning strategies:
+      loss_function: cat_nll
     epochs: 50
     early_stopping: false
     patience: 10
@@ -95,6 +175,77 @@ analysis:
     params:
       accuracy: true
       categorical_loglikelihood: true
+      auc: true
+      mse: false
+      cosine_similarity: false
+  
+  synapse_turnover_analysis:
+    enabled: false
+    training: false
+  
+  noise_perturbation_analysis:
+    enabled: false
+    training: false
+    params:
+      uniform_noise: true
+      uniform_magnitudes: [0.1, 0.2]
+      gaussian_noise: true
+      gaussian_sdevs: [0.1, 0.2]
+      n_samples: 10
+      accuracy: true
+      auc: true
+      categorical_loglikelihood: true
+      mse: true
+      cosine_similarity: true
+  
+  ablation_analysis:
+    enabled: false
+    training: false
+    params:
+      layer_ablation: true
+      compartment_ablation: true
+      ablate_all_synapses: true
+      ablate_excitation: true
+      ablate_inhibition: true
+      ablate_upstream: true
+      accuracy: true
+      auc: true
+      categorical_loglikelihood: true
+      mse: true
+      cosine_similarity: true
+  
+  weight_analysis:
+    enabled: false
+    training: false
+    params:
+      synapse_weights: true
+      branch_weights: true
+  
+  synaptic_activation_analysis:
+    enabled: false
+    training: false
+    params:
+      network_summary: true
+      layer_summary: true
+      branch_summary: true
+      raw_summary: true
+      logspace: false
+      downsample: true
+      samples: 5
+  
+  branch_activation_analysis:
+    enabled: false
+    training: false
+    params:
+      synapse_activations: true
+      branch_activations: true
+      network_summary: true
+      layer_summary: true
+      branch_summary: true
+      raw_summary: true
+      logspace: false
+      downsample: true
+      samples: 5
   
   # INFORMATION-THEORETIC ANALYSIS
   information_analysis:
@@ -103,7 +254,10 @@ analysis:
     params:
       # Use Kraskov estimator (accurate for continuous data)
       method: kraskov
+      max_samples: null
       n_neighbors: 10
+      n_bins: 20
+      copula_type: gaussian
       
       # Compute all basic measures
       compute_basic_mi: true       # I(E;C), I(I;C), I(Vout;C), etc.
@@ -111,32 +265,43 @@ analysis:
       compute_conditional_mi: true # I(E;I|C), etc.
       compute_pid: false           # Skip PID (requires external package)
       
+      pid_binarize: true
+      pid_binarize_method: median
+      pid_binarize_threshold: 0.5
+      
       # Include soma activation
       include_vinf: true
+      normalize_mi: false
       verbose: true               # Show progress
+      compute_per_branch: true
+      branch_aggregation: mean
   
-  # Disable other analyses for speed
-  synapse_turnover_analysis:
-    enabled: false
-  noise_perturbation_analysis:
-    enabled: false
-  ablation_analysis:
-    enabled: false
-  weight_analysis:
-    enabled: false
-  synaptic_activation_analysis:
-    enabled: false
-  branch_activation_analysis:
-    enabled: false
   single_layer_contribution:
     enabled: false
+    training: false
+    params:
+      excitation_contribution: true
+      inhibition_contribution: true
+      both_contribution: true
+      accuracy: true
+      auc: true
+      categorical_loglikelihood: true
+      mse: true
+      cosine_similarity: true
+  
+  correlation_analysis:
+    enabled: false
+    training: false
+    params:
+      compute_synaptic_correlations: true
+      compute_tuning_curves: true
+      save_plots: true
 
 # No W&B or visualization
 wandb:
   use_wandb: false
 
-visualization:
-  enabled: false
+# Note: visualization is not part of the main Config class
 
 # Output directory
 outputs:
