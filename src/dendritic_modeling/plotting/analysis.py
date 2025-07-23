@@ -192,23 +192,23 @@ class LayerAnalysisPlotter:
             )
             if reverse_layers:
                 accuracies = accuracies[::-1]
-            plot_data["Accuracy"] = (layer_indices, accuracies)
+            plot_data["Accuracy"] = accuracies
 
         if "loss" in metrics:
             losses = list(results.get("losses", results.get("loss", {})).values())
             if reverse_layers:
                 losses = losses[::-1]
-            plot_data["Loss"] = (layer_indices, losses)
+            plot_data["Loss"] = losses
 
         # Create figure with dual y-axes
         fig, ax1 = plt.subplots(figsize=self.config.figsize)
 
         # Plot accuracy on primary axis
         if "Accuracy" in plot_data:
-            x, y = plot_data["Accuracy"]
+            y = plot_data["Accuracy"]
             color = self.config.colors.get("primary", "blue")
             ax1.plot(
-                x, y, "o-", color=color, linewidth=2, markersize=8, label="Accuracy"
+                layer_indices, y, "o-", color=color, linewidth=2, markersize=8, label="Accuracy"
             )
             ax1.set_xlabel(
                 "Layer (Soma → Distal)" if reverse_layers else "Layer Index",
@@ -223,9 +223,9 @@ class LayerAnalysisPlotter:
         # Plot loss on secondary axis
         if "Loss" in plot_data and len(plot_data) > 1:
             ax2 = ax1.twinx()
-            x, y = plot_data["Loss"]
+            y = plot_data["Loss"]
             color = self.config.colors.get("secondary", "red")
-            ax2.plot(x, y, "s-", color=color, linewidth=2, markersize=8, label="Loss")
+            ax2.plot(layer_indices, y, "s-", color=color, linewidth=2, markersize=8, label="Loss")
             ax2.set_ylabel("Loss", color=color, fontsize=self.config.fontsize["label"])
             ax2.tick_params(axis="y", labelcolor=color)
 
@@ -492,11 +492,12 @@ class NoiseAnalysisPlotter:
         # Prepare data for line plotter
         plot_data = {}
         for label, values in results.items():
-            plot_data[label] = (noise_levels, values)
+            plot_data[label] = values
 
         # Create plot
         result = self.line_plotter.plot(
             data=plot_data,
+            x_values=noise_levels,
             title="Noise Robustness Analysis",
             xlabel="Noise Level",
             ylabel="Accuracy",
@@ -847,14 +848,28 @@ class InformationAnalysisPlotter:
         plot_data = {}
 
         if "I_E_C" in results:
-            plot_data["I(E;C)"] = (layer_indices, results["I_E_C"])
+            plot_data["I(E;C)"] = results["I_E_C"]
         if "I_I_C" in results:
-            plot_data["I(I;C)"] = (layer_indices, results["I_I_C"])
+            plot_data["I(I;C)"] = results["I_I_C"]
         if "I_V_C" in results:
-            plot_data["I(V;C)"] = (layer_indices, results["I_V_C"])
+            plot_data["I(V;C)"] = results["I_V_C"]
+
+        # Debug: Print shapes to understand the dimension mismatch
+        print(f"DEBUG: layer_indices shape: {len(layer_indices)}")
+        for key, values in plot_data.items():
+            print(f"DEBUG: {key} shape: {len(values) if hasattr(values, '__len__') else 'scalar'}, type: {type(values)}, value: {values}")
+
+        # Adjust layer_indices to match data length
+        if plot_data:
+            first_key = next(iter(plot_data.keys()))
+            data_length = len(plot_data[first_key]) if hasattr(plot_data[first_key], '__len__') else 1
+            if data_length != len(layer_indices):
+                print(f"DEBUG: Adjusting layer_indices from {len(layer_indices)} to {data_length}")
+                layer_indices = list(range(data_length))
 
         fig = self.line_plotter.plot(
             data=plot_data,
+            x_values=layer_indices,
             title="Information Content Across Layers",
             xlabel="Layer (Soma → Distal)",
             ylabel="Mutual Information (bits)",
@@ -876,26 +891,22 @@ class InformationAnalysisPlotter:
     ) -> tuple[plt.Figure, plt.Axes]:
         """Plot normalized information metrics."""
         plot_data = {}
-        h_c = results.get("H_C", 1.0)  # Avoid division by zero
+        h_c_raw = results.get("H_C", 1.0)
+        # Handle H_C being a list or scalar
+        h_c = h_c_raw[0] if isinstance(h_c_raw, (list, np.ndarray)) and len(h_c_raw) > 0 else h_c_raw
+        if h_c <= 0:
+            h_c = 1.0  # Avoid division by zero
 
         if "I_E_C" in results and h_c > 0:
-            plot_data["I(E;C)/H(C)"] = (
-                layer_indices,
-                [x / h_c for x in results["I_E_C"]],
-            )
+            plot_data["I(E;C)/H(C)"] = [x / h_c for x in results["I_E_C"]]
         if "I_I_C" in results and h_c > 0:
-            plot_data["I(I;C)/H(C)"] = (
-                layer_indices,
-                [x / h_c for x in results["I_I_C"]],
-            )
+            plot_data["I(I;C)/H(C)"] = [x / h_c for x in results["I_I_C"]]
         if "I_V_C" in results and h_c > 0:
-            plot_data["I(V;C)/H(C)"] = (
-                layer_indices,
-                [x / h_c for x in results["I_V_C"]],
-            )
+            plot_data["I(V;C)/H(C)"] = [x / h_c for x in results["I_V_C"]]
 
         result = self.line_plotter.plot(
             data=plot_data,
+            x_values=layer_indices,
             title="Normalized Information Content",
             xlabel="Layer (Soma → Distal)",
             ylabel="Normalized Mutual Information",
@@ -918,14 +929,15 @@ class InformationAnalysisPlotter:
         plot_data = {}
 
         if "I_E_C_given_I" in results:
-            plot_data["I(E;C|I)"] = (layer_indices, results["I_E_C_given_I"])
+            plot_data["I(E;C|I)"] = results["I_E_C_given_I"]
         if "I_I_C_given_E" in results:
-            plot_data["I(I;C|E)"] = (layer_indices, results["I_I_C_given_E"])
+            plot_data["I(I;C|E)"] = results["I_I_C_given_E"]
         if "I_E_I" in results:
-            plot_data["I(E;I)"] = (layer_indices, results["I_E_I"])
+            plot_data["I(E;I)"] = results["I_E_I"]
 
         result = self.line_plotter.plot(
             data=plot_data,
+            x_values=layer_indices,
             title="Information Decomposition",
             xlabel="Layer (Soma → Distal)",
             ylabel="Information (bits)",
@@ -947,16 +959,17 @@ class InformationAnalysisPlotter:
         plot_data = {}
 
         if "synergy" in results:
-            plot_data["Synergy"] = (layer_indices, results["synergy"])
+            plot_data["Synergy"] = results["synergy"]
         if "redundancy" in results:
-            plot_data["Redundancy"] = (layer_indices, results["redundancy"])
+            plot_data["Redundancy"] = results["redundancy"]
         if "unique_E" in results:
-            plot_data["Unique(E)"] = (layer_indices, results["unique_E"])
+            plot_data["Unique(E)"] = results["unique_E"]
         if "unique_I" in results:
-            plot_data["Unique(I_var)"] = (layer_indices, results["unique_I"])
+            plot_data["Unique(I_var)"] = results["unique_I"]
 
         result = self.line_plotter.plot(
             data=plot_data,
+            x_values=layer_indices,
             title="Partial Information Decomposition",
             xlabel="Layer (Soma → Distal)",
             ylabel="Information (bits)",

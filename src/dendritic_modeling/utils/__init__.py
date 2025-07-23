@@ -13,9 +13,7 @@ from .data import (
     Shaper,
     convert_to_serializable,
     set_seed,
-    save_dict,
-    Data,
-    load_MNIST
+    save_dict
 )
 from .logging_config import get_logger, setup_logging
 from dendritic_modeling.utils.config_validator import ConfigValidator, validate_config
@@ -33,9 +31,10 @@ from .clean_outputs import *
 from .math import roc_auc_score
 
 # Import from other modules for backward compatibility
-from dendritic_modeling.training.utils.evaluation import accuracy_score
-from dendritic_modeling.plotting.utils import split_MNIST_inputs
-from dendritic_modeling.datasets import load_MNIST_modulo10
+# Note: Commented out due to circular import issues - import these directly when needed
+# from dendritic_modeling.training.utils.evaluation import accuracy_score
+# from dendritic_modeling.plotting.utils import split_MNIST_inputs
+# from dendritic_modeling.datasets import load_MNIST_modulo10
 
 __all__ = [
     "convert_to_serializable",
@@ -49,8 +48,8 @@ __all__ = [
     "validate_config",
     # Math utilities
     "roc_auc_score",
-    # Backward compatibility imports
-    "accuracy_score",
-    "split_MNIST_inputs",
-    "load_MNIST_modulo10"
+    # Note: Backward compatibility imports commented out due to circular imports
+    # "accuracy_score",
+    # "split_MNIST_inputs",
+    # "load_MNIST_modulo10"
 ]
