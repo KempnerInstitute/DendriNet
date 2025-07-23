@@ -229,6 +229,13 @@ train_config:
         downsample: true
         samples: 5
 
+    correlation_analysis:
+      enabled: false
+      training: false
+      params:
+        compute_synaptic_correlations: true
+        compute_tuning_curves: true
+        save_plots: true
 
   outputs:
     dir:

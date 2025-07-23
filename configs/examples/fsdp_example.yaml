@@ -149,32 +149,27 @@ train:
     checkpoint_dir: "outputs/fsdp_checkpoints/"
     keep_last_n: 3           # Keep fewer checkpoints to save space
   
-  save_model: true
-  save_results: true
+  # save_model: true     # Not a valid TrainConfig parameter
+  # save_results: true   # Not a valid TrainConfig parameter
   
-  # Logging
-  suppress_prints: false
-  print_every: 5             # More frequent logging for monitoring
-  plot_losses: true
+  # Note: suppress_prints is not a valid TrainConfig parameter
+  # Logging configuration is handled in trainer configs above
 
 task:
   dataset: cifar100          # More complex dataset for large model
-  
-  preprocessing:
+  data_path: ""
+  parameters:
     normalize: true
     augmentation: true       # Data augmentation for better generalization
-  
-  data_loader:
     auto_optimize: true      # Will use more workers for large datasets
-  
-  validation_split: 0.1      # Smaller validation split for more training data
+    validation_split: 0.1    # Smaller validation split for more training data
 
 wandb:
   enabled: true
   project: "dendritic-fsdp-experiments"
   entity: "your-wandb-entity"
   tags: ["fsdp", "large-model", "ei-network", "cifar100"]
-  notes: "Large EI network trained with FSDP on multiple GPUs"
+  # notes: "Large EI network trained with FSDP on multiple GPUs"  # Not a valid WandbConfig parameter
   
   log_freq: 50               # Less frequent logging to reduce overhead
   log_gradients: false       # Disable gradient logging for performance
@@ -182,69 +177,137 @@ wandb:
   log_activations: false
 
 analysis:
-  enabled: true
-  respect_hook_settings: true
-  
   # Focus on essential analysis for large models
   performance_analysis:
     enabled: true
     training: false          # Run post-training to avoid slowdown
     params:
-      memory_usage: true
-      throughput: true
-      gpu_utilization: true
-      distributed_metrics: true  # FSDP-specific metrics
+      accuracy: true
+      auc: true
+      categorical_loglikelihood: true
+      mse: false
+      cosine_similarity: false
   
   information_analysis:
     enabled: true
     training: false
     params:
-      mutual_information: true
-      entropy: true
-      information_flow: true
-      save_plots: true
-      samples: 500           # Fewer samples for faster analysis
+      method: kraskov
+      max_samples: 500
+      n_neighbors: 10
+      n_bins: 20
+      copula_type: gaussian
+      compute_basic_mi: true
+      compute_pairwise_mi: true
+      compute_conditional_mi: false
+      compute_pid: false
+      pid_binarize: true
+      pid_binarize_method: median
+      pid_binarize_threshold: 0.5
+      include_vinf: true
+      normalize_mi: false
+      verbose: false
+      compute_per_branch: true
+      branch_aggregation: mean
+  
+  synapse_turnover_analysis:
+    enabled: false
+    training: false
+    
+  noise_perturbation_analysis:
+    enabled: false
+    training: false
+    params:
+      uniform_noise: true
+      uniform_magnitudes: [0.1, 0.2]
+      gaussian_noise: true
+      gaussian_sdevs: [0.1, 0.2]
+      n_samples: 10
+      accuracy: true
+      auc: true
+      categorical_loglikelihood: true
+      mse: true
+      cosine_similarity: true
   
   # Disable expensive analysis for large models
   ablation_analysis:
     enabled: false
-  
-  connectivity_analysis:
-    enabled: true
     training: false
     params:
-      sparsity_patterns: true
-      connection_strength: true
-      topk_analysis: true
+      layer_ablation: true
+      compartment_ablation: true
+      ablate_all_synapses: true
+      ablate_excitation: true
+      ablate_inhibition: true
+      ablate_upstream: true
+      accuracy: true
+      auc: true
+      categorical_loglikelihood: true
+      mse: true
+      cosine_similarity: true
+  
+  weight_analysis:
+    enabled: false
+    training: false
+    params:
+      synapse_weights: true
+      branch_weights: true
+      
+  synaptic_activation_analysis:
+    enabled: false
+    training: false
+    params:
+      network_summary: true
+      layer_summary: true
+      branch_summary: true
+      raw_summary: true
+      logspace: false
+      downsample: true
+      samples: 5
+      
+  branch_activation_analysis:
+    enabled: false
+    training: false
+    params:
+      synapse_activations: true
+      branch_activations: true
+      network_summary: true
+      layer_summary: true
+      branch_summary: true
+      raw_summary: true
+      logspace: false
+      downsample: true
+      samples: 5
+      
+  single_layer_contribution:
+    enabled: false
+    training: false
+    params:
+      excitation_contribution: true
+      inhibition_contribution: true
+      both_contribution: true
+      accuracy: true
+      auc: true
+      categorical_loglikelihood: true
+      mse: true
+      cosine_similarity: true
+      
+  correlation_analysis:
+    enabled: false
+    training: false
+    params:
+      compute_synaptic_correlations: true
+      compute_tuning_curves: true
+      save_plots: true
 
 outputs:
+  run_name: "fsdp_large_ei_cifar100"
   dir: "./outputs/fsdp_runs/"  # Separate directory for FSDP runs
   
-  cleanup:
-    enabled: true
-    old_runs_days: 14        # Shorter retention for large files
-    wandb_cleanup: true
-  
-  subdirs:
-    models: "models/"
-    logs: "logs/"
-    analysis: "analysis/"
-    visualizations: "plots/"
-    profiling: "profiling/"
-    checkpoints: "checkpoints/"
+  # Note: cleanup and subdirs are not valid OutputsConfig parameters
 
-compute:
-  device: "auto"             # Will use all available GPUs
-  
-  memory:
-    gradient_checkpointing: true   # Essential for large models
-    empty_cache_freq: 50          # More frequent cache clearing
-    max_memory_fraction: 0.85     # Leave some memory for FSDP overhead
-  
-  distributed:
-    backend: "nccl"               # Best for multi-GPU training
-    timeout_minutes: 60           # Longer timeout for large model communication
-    find_unused_parameters: false # FSDP handles this automatically
+# Note: compute configuration is not part of the main Config class
+# These settings would be handled by the training scripts directly
 
 # ============================================================================
 # FSDP USAGE NOTES

@@ -136,26 +136,21 @@ train:
   checkpointing:
     enabled: false
   
-  # No model saving during benchmark
-  save_model: false
-  save_results: false
+  # No model saving during benchmark (these are not valid TrainConfig parameters)
+  # save_model: false
+  # save_results: false
   
-  # Minimal logging for performance
-  suppress_prints: true
-  print_every: 50               # Very infrequent printing
-  plot_losses: false
+  # Note: suppress_prints is not a valid TrainConfig parameter
+  # Minimal logging configured in trainer configs above
 
 task:
   dataset: mnist
-  
-  preprocessing:
+  data_path: ""
+  parameters:
     normalize: true
     augmentation: false         # No augmentation for consistent timing
-  
-  data_loader:
     auto_optimize: true         # Will optimize for large dataset
-  
-  validation_split: 0.1         # Minimal validation for speed
+    validation_split: 0.1       # Minimal validation for speed
 
 # Minimal W&B logging (or disable completely)
 wandb:
@@ -172,37 +167,136 @@ wandb:
 
 # All analysis disabled for maximum performance
 analysis:
-  enabled: false                # Completely disabled
+  # All analyses disabled for maximum benchmarking performance
+  performance_analysis:
+    enabled: false
+    training: false
+    params:
+      accuracy: true
+      auc: true
+      categorical_loglikelihood: true
+      mse: false
+      cosine_similarity: false
   
-  # If you need minimal analysis, enable specific modules:
-  # enabled: true
-  # respect_hook_settings: true  # Will be skipped since hooks are disabled
-  # 
-  # performance_analysis:
-  #   enabled: true
-  #   training: false
-  #   params:
-  #     memory_usage: true
-  #     throughput: true
-  #     gpu_utilization: true
+  information_analysis:
+    enabled: false
+    training: false
+    params:
+      method: kraskov
+      max_samples: null
+      n_neighbors: 10
+      n_bins: 20
+      copula_type: gaussian
+      compute_basic_mi: true
+      compute_pairwise_mi: true
+      compute_conditional_mi: true
+      compute_pid: false
+      pid_binarize: true
+      pid_binarize_method: median
+      pid_binarize_threshold: 0.5
+      include_vinf: true
+      normalize_mi: false
+      verbose: false
+      compute_per_branch: true
+      branch_aggregation: mean
+  
+  synapse_turnover_analysis:
+    enabled: false
+    training: false
+    
+  noise_perturbation_analysis:
+    enabled: false
+    training: false
+    params:
+      uniform_noise: true
+      uniform_magnitudes: [0.1, 0.2]
+      gaussian_noise: true
+      gaussian_sdevs: [0.1, 0.2]
+      n_samples: 10
+      accuracy: true
+      auc: true
+      categorical_loglikelihood: true
+      mse: true
+      cosine_similarity: true
+  
+  ablation_analysis:
+    enabled: false
+    training: false
+    params:
+      layer_ablation: true
+      compartment_ablation: true
+      ablate_all_synapses: true
+      ablate_excitation: true
+      ablate_inhibition: true
+      ablate_upstream: true
+      accuracy: true
+      auc: true
+      categorical_loglikelihood: true
+      mse: true
+      cosine_similarity: true
+  
+  weight_analysis:
+    enabled: false
+    training: false
+    params:
+      synapse_weights: true
+      branch_weights: true
+      
+  synaptic_activation_analysis:
+    enabled: false
+    training: false
+    params:
+      network_summary: true
+      layer_summary: true
+      branch_summary: true
+      raw_summary: true
+      logspace: false
+      downsample: true
+      samples: 5
+      
+  branch_activation_analysis:
+    enabled: false
+    training: false
+    params:
+      synapse_activations: true
+      branch_activations: true
+      network_summary: true
+      layer_summary: true
+      branch_summary: true
+      raw_summary: true
+      logspace: false
+      downsample: true
+      samples: 5
+      
+  single_layer_contribution:
+    enabled: false
+    training: false
+    params:
+      excitation_contribution: true
+      inhibition_contribution: true
+      both_contribution: true
+      accuracy: true
+      auc: true
+      categorical_loglikelihood: true
+      mse: true
+      cosine_similarity: true
+      
+  correlation_analysis:
+    enabled: false
+    training: false
+    params:
+      compute_synaptic_correlations: true
+      compute_tuning_curves: true
+      save_plots: true
 
 outputs:
+  run_name: "benchmark_performance_test"
   dir: "./outputs/benchmarks/"
   
-  # No cleanup during benchmarking
-  cleanup:
-    enabled: false
+  # Note: cleanup is not a valid OutputsConfig parameter
 
-compute:
-  device: "auto"
-  
-  memory:
-    gradient_checkpointing: false  # Disabled for speed
-    empty_cache_freq: 1000        # Very infrequent cache clearing
-    max_memory_fraction: 0.95     # Use maximum available memory
-  
-  # No distributed settings for single GPU benchmark
-  distributed: null
+# Note: compute configuration is not part of the main Config class
+# These settings would be handled by the training scripts directly
 
 # ============================================================================
 # BENCHMARKING NOTES

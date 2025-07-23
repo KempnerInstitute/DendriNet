@@ -14,15 +14,26 @@ model:
   # Task type - use classification for information analysis
   task: classification
   
-  base:
-    output_layer: true
-    output_dim: 10
+  encoder_network:
+    type: identity
+    parameters:
+      input_shape: [1, 28, 28]
   
-  network:
+  core_network:
     # Network type - EINet has the E/I structure needed for info analysis
     type: EINet
     
     parameters:
+      input_dim: 784
+      
+      # Transfer function parameters
+      transfer_params:
+        input_mode: 0
+        independent_pathways: false
+        excitatory_dim: null
+        inhibitory_dim: null
+        output_activation: null
+      
       # Simple 2-layer network for demonstration
       excitatory_layer_sizes: [20, 10]
       inhibitory_layer_sizes: [10, 5]
@@ -40,31 +51,97 @@ model:
       use_shunting: true
       reactivate: true
       reactivation_type: param_tanh
+      reactivation_init_m: 1.5
+      reactivation_init_b: 0.5
       
       # Standard settings
       topk_init_method: xavier_normal
       topk_type: standard
-      input_mode: 0  # Original mode for clear E/I separation
+      topk_noise_level: 0.0
+      topk_temperature: 0.5
+      topk_ultrafast: false
+      
+      # Gradient scaling strategies
+      reactivation_strategy: inverse
+      topk_strategy: conductance_dynamic
+      blocklinear_strategy: conductance_dynamic
+      
+      # Implementation optimizations
+      efficient_blocklinear: true
+      adaptive_initialization: true
+      print_hooks: false
+      
+      # DEEPST parameters (defaults)
+      excitatory_target_density: 0.1
+      inhibitory_target_density: 0.1
+      use_noise: true
+      sigma: 0.05
+      rewiring_mode: global
+      rewire_frequency: 1
+      synapses_per_branch: null
+      freeze_excitatory_connectivity: false
+      freeze_inhibitory_connectivity: false
+      init_method: xavier_normal
+      weight_threshold: 1e-6
+
+  decoder_network:
+    type: MLP
+    parameters:
+      hidden_dims: [16]
+      activation: relu
+      output_dim: 10
+      use_batch_norm: false
+      dropout_rate: 0.0
 
 # ============================================================================
 # TRAINING CONFIGURATION (Minimal)
 # ============================================================================
 train:
   run_name: info_analysis_example
-  learning_strategy: standard
   seed: 42
   train_valid_split: 0.8
   
-  optim_dict:
-    lr: 0.001
-    split_params: true
-    topk_lr: 0.001
-    blocklinear_lr: 0.001
-    reactivation_lr: 0.001
+  # Performance optimization settings
+  enable_amp: false
+  enable_profiling: false
+  profiling_output_dir: "outputs/profiling/"
+  enable_hooks: true
+  use_fsdp: false
+  fsdp_config: null
+  checkpointing:
+    enabled: true
+    save_every_n_epochs: 10
+    checkpoint_dir: "outputs/checkpoints/"
   
-  trainer:
-    # for all learning strategies:
-    loss_function: categorical_nll
+  encoder:
+    load_save_root: saved_models/encoder
+    lr: 0.001
+    trainer:
+      loss_function: mse
+      epochs: 0  # Skip encoder training for identity encoder
+      batch_size: 128
+      shuffle: true
+      grad_clip_value: 5.0
+      load_best_state_dict: true
+      plot_losses: true
+      suppress_prints: false
+      print_every: 10
+  
+  main:
+    learning_strategy: standard
+    weight_decay_rate: 0.01
+    
+    param_groups:
+      lr: 0.001
+      split_params: true
+      topk_lr: 0.001
+      blocklinear_lr: 0.001
+      reactivation_lr: 0.001
+      decoder_lr: 0.001
+    
+    trainer:
+      # for all learning strategies:
+      loss_function: cat_nll
     epochs: 50
     early_stopping: false
     patience: 10
@@ -320,8 +397,7 @@ analysis:
 wandb:
   use_wandb: false
 
-visualization:
-  enabled: false
+# Note: visualization is not part of the main Config class
 
 outputs:
   dir: ./outputs/information_analysis_example/ 

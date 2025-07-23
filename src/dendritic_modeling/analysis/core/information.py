@@ -796,15 +796,13 @@ class InformationAnalyzer(AbstractAnalyzer):
                 results["aggregation_method"] = self.branch_aggregation
                 results["num_branches_aggregated"] = len(excitation_list)
 
-            # Add class MI and conditional MI for branches
-            branch_results = {}
-            for branch_idx, branch_data in enumerate(self.data_dict.values()):
-                acts = branch_data['output'].cpu().numpy()  # Example
-                mi_class = self.compute_class_mi(acts, C)
-                # Assume condition from inputs or other
-                cond_mi = self.compute_conditional_mi(acts, C, some_condition) if 'condition' in branch_data else 0
-                branch_results[f'branch_{branch_idx}'] = {'mi_class': mi_class, 'cond_mi': cond_mi}
-            results['branches'] = branch_results
+            # TODO: Fix this code - undefined variables causing crashes
+            # if some_condition:
+            #     # Compute conditional MI for specific branch types or layers
+            #     conditional_results = self.compute_conditional_mi(
+            #         excitation_dict, inhibition_dict, output_dict
+            #     )
+            #     results.update(conditional_results)
 
             # Save results
             if save_path is not None:

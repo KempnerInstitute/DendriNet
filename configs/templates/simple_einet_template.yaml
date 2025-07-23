@@ -94,9 +94,124 @@ wandb:
 analysis:
   performance_analysis:
     enabled: true
+    training: false
     params:
       accuracy: true
       categorical_loglikelihood: true
+      auc: true
+      mse: false
+      cosine_similarity: false
+
+  synapse_turnover_analysis:
+    enabled: false
+    training: false
+
+  noise_perturbation_analysis:
+    enabled: false
+    training: false
+    params:
+      uniform_noise: true
+      uniform_magnitudes: [0.1, 0.2]
+      gaussian_noise: true
+      gaussian_sdevs: [0.1, 0.2]
+      n_samples: 10
+      accuracy: true
+      auc: true
+      categorical_loglikelihood: true
+      mse: true
+      cosine_similarity: true
+
+  ablation_analysis:
+    enabled: false
+    training: false
+    params:
+      layer_ablation: true
+      compartment_ablation: true
+      ablate_all_synapses: true
+      ablate_excitation: true
+      ablate_inhibition: true
+      ablate_upstream: true
+      accuracy: true
+      auc: true
+      categorical_loglikelihood: true
+      mse: true
+      cosine_similarity: true
+
+  weight_analysis:
+    enabled: false
+    training: false
+    params:
+      synapse_weights: true
+      branch_weights: true
+
+  synaptic_activation_analysis:
+    enabled: false
+    training: false
+    params:
+      network_summary: true
+      layer_summary: true
+      branch_summary: true
+      raw_summary: true
+      logspace: false
+      downsample: true
+      samples: 5
+
+  branch_activation_analysis:
+    enabled: false
+    training: false
+    params:
+      synapse_activations: true
+      branch_activations: true
+      network_summary: true
+      layer_summary: true
+      branch_summary: true
+      raw_summary: true
+      logspace: false
+      downsample: true
+      samples: 5
+
+  information_analysis:
+    enabled: false
+    training: false
+    params:
+      method: kraskov
+      max_samples: null
+      n_neighbors: 10
+      n_bins: 20
+      copula_type: gaussian
+      compute_basic_mi: true
+      compute_pairwise_mi: true
+      compute_conditional_mi: true
+      compute_pid: false
+      pid_binarize: true
+      pid_binarize_method: median
+      pid_binarize_threshold: 0.5
+      include_vinf: true
+      normalize_mi: false
+      verbose: false
+      compute_per_branch: true
+      branch_aggregation: mean
+
+  single_layer_contribution:
+    enabled: false
+    training: false
+    params:
+      excitation_contribution: true
+      inhibition_contribution: true
+      both_contribution: true
+      accuracy: true
+      auc: true
+      categorical_loglikelihood: true
+      mse: true
+      cosine_similarity: true
+
+  correlation_analysis:
+    enabled: false
+    training: false
+    params:
+      compute_synaptic_correlations: true
+      compute_tuning_curves: true
+      save_plots: true
 
 outputs:
   run_name: "{{experiment_name}}"

@@ -55,32 +55,60 @@ model:
       output_dim: 2  # Binary classification
 
 train:
-  learning_strategy: standard
+  run_name: "synthetic_correlated_exp"
   seed: 42
   train_valid_split: 0.8
-  optim_dict:
-    lr: 0.001
-    split_params: true
-    encoder_net_lr: 0.001
-    transfer_fn_lr: 0.001
-    topk_lr: 0.001
-    blocklinear_lr: 0.001
-    reactivation_lr: 0.001
-    decoder_lr: 0.001
-  weight_decay_rate: 0.01
   
-  main_trainer:
-    loss_function: ce  # Cross entropy for classification
-    epochs: 50
-    early_stopping: true
-    patience: 10
-    batch_size: 128
-    shuffle: true
-    grad_clip_value: 5.0
-    load_best_state_dict: true
-    plot_losses: true
-    suppress_prints: false
-    print_every: 10
+  # Performance optimization settings
+  enable_amp: false
+  enable_profiling: false
+  profiling_output_dir: "outputs/profiling/"
+  enable_hooks: true
+  use_fsdp: false
+  fsdp_config: null
+  checkpointing:
+    enabled: true
+    save_every_n_epochs: 10
+    checkpoint_dir: "outputs/checkpoints/"
+  
+  encoder:
+    load_save_root: saved_models/encoder
+    lr: 0.001
+    trainer:
+      loss_function: mse
+      epochs: 0  # Skip encoder training for identity encoder
+      batch_size: 128
+      shuffle: true
+      grad_clip_value: 5.0
+      load_best_state_dict: true
+      plot_losses: true
+      suppress_prints: false
+      print_every: 10
+  
+  main:
+    learning_strategy: standard
+    weight_decay_rate: 0.01
+    
+    param_groups:
+      lr: 0.001
+      split_params: true
+      topk_lr: 0.001
+      blocklinear_lr: 0.001
+      reactivation_lr: 0.001
+      decoder_lr: 0.001
+    
+    trainer:
+      loss_function: cat_nll  # Cross entropy for classification
+      epochs: 50
+      early_stopping: true
+      patience: 10
+      batch_size: 128
+      shuffle: true
+      grad_clip_value: 5.0
+      load_best_state_dict: true
+      plot_losses: true
+      suppress_prints: false
+      print_every: 10
 
 task:
   dataset: synthetic_correlated
@@ -101,13 +129,7 @@ wandb:
   tags: [synthetic, correlation, ei_network]
   use_wandb: false
 
-visualization:
-  enabled: false
-  visualize_epochs: [10, 25, 50]
-  plots:
-    - weights
-    - activations
-    - gradients
+# Note: visualization is not part of the main Config class
     
 analysis:
   performance_analysis:
@@ -117,17 +139,98 @@ analysis:
       accuracy: true
       categorical_loglikelihood: true
       mse: false
-      
-  # Custom correlation analysis (we'll implement this)
+      auc: true
+      cosine_similarity: false
+
+  synapse_turnover_analysis:
+    enabled: false
+    training: false
+
+  noise_perturbation_analysis:
+    enabled: false
+    training: false
+    params:
+      uniform_noise: true
+      uniform_magnitudes: [0.1, 0.2]
+      gaussian_noise: true
+      gaussian_sdevs: [0.1, 0.2]
+      n_samples: 10
+      accuracy: true
+      auc: true
+      categorical_loglikelihood: true
+      mse: true
+      cosine_similarity: true
+
+  ablation_analysis:
+    enabled: false
+    training: false
+    params:
+      layer_ablation: true
+      compartment_ablation: true
+      ablate_all_synapses: true
+      ablate_excitation: true
+      ablate_inhibition: true
+      ablate_upstream: true
+      accuracy: true
+      auc: true
+      categorical_loglikelihood: true
+      mse: true
+      cosine_similarity: true
+
+  weight_analysis:
+    enabled: false
+    training: false
+    params:
+      synapse_weights: true
+      branch_weights: true
+
+  synaptic_activation_analysis:
+    enabled: false
+    training: false
+    params:
+      network_summary: true
+      layer_summary: true
+      branch_summary: true
+      raw_summary: true
+      logspace: false
+      downsample: true
+      samples: 5
+
+  branch_activation_analysis:
+    enabled: false
+    training: false
+    params:
+      synapse_activations: true
+      branch_activations: true
+      network_summary: true
+      layer_summary: true
+      branch_summary: true
+      raw_summary: true
+      logspace: false
+      downsample: true
+      samples: 5
+
+  single_layer_contribution:
+    enabled: false
+    training: false
+    params:
+      excitation_contribution: true
+      inhibition_contribution: true
+      both_contribution: true
+      accuracy: true
+      auc: true
+      categorical_loglikelihood: true
+      mse: true
+      cosine_similarity: true
+
   correlation_analysis:
     enabled: true
     training: false
     params:
-      compute_synaptic_correlations: true  # E-E, E-I, I-I correlations
-      compute_tuning_curves: true  # Class selectivity
+      compute_synaptic_correlations: true
+      compute_tuning_curves: true
       save_plots: true
-      
-  # Information analysis to understand what the network learns
+
   information_analysis:
     enabled: true
     training: false

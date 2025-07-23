@@ -280,6 +280,14 @@ train_config:
         compute_per_branch: true
         branch_aggregation: none
 
+    correlation_analysis:
+      enabled: false
+      training: false
+      params:
+        compute_synaptic_correlations: true
+        compute_tuning_curves: true
+        save_plots: true
+
 sweep_config:
   # EE and IE synapse parameters - both sweep from 0 to 50 in steps of 5
   model.network.parameters.ee_synapses_per_branch_per_layer: [

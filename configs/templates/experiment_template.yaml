@@ -125,6 +125,7 @@ train:
   
   # Profiling Configuration - NEW FEATURE  
   enable_profiling: false       # Enable PyTorch profiler
+                                # Note: In FSDP mode, profiling is per-GPU; disable for max performance in large-scale training
   profiling_output_dir: "outputs/profiling/"
   
   # Hook Management - NEW FEATURE
@@ -247,12 +248,8 @@ task:
   parameters: 
     flatten: true         # Flatten input images (set false for CNN encoders)
     normalize: true       # Normalize input data
-    
-  # NEW: Enhanced data loading
-  data_loader:
     auto_optimize: true   # Automatic DataLoader optimization
-  
-  validation_split: 0.2
+    validation_split: 0.2
 
 # ============================================================================
 # WANDB LOGGING
@@ -262,7 +259,7 @@ wandb:
   project: "dendritic-experiments"
   entity: "your-wandb-entity"  # Replace with your W&B entity
   tags: ["template", "{{network_type}}", "{{dataset}}"]  # Adjust tags
-  notes: "Experiment based on template"
+  # notes: "Experiment based on template"  # Not a valid WandbConfig parameter
   
   log_freq: 100
   log_gradients: false
@@ -273,9 +270,6 @@ wandb:
 # ANALYSIS CONFIGURATION
 # ============================================================================
 analysis:
-  enabled: true
-  respect_hook_settings: true  # Skip analysis if hooks disabled
-  
   performance_analysis:
     enabled: true
     training: false
@@ -301,11 +295,7 @@ analysis:
 outputs:
   run_name: "{{run_name}}"
   dir: "./outputs/"
-  
-  cleanup:
-    enabled: true
-    old_runs_days: 30
-    wandb_cleanup: true
+  # Note: cleanup section removed as it's not part of OutputsConfig
 
 # ============================================================================
 # COMPUTATIONAL RESOURCES
