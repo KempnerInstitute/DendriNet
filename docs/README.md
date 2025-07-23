@@ -58,24 +58,3 @@ The documentation includes a comprehensive quickstart guide that demonstrates:
 3. Understanding the output and results
 4. Customizing configurations
 
-## Documentation Standards
-
-- All network components are documented with:
-  - Clear descriptions
-  - Parameter explanations
-  - Usage examples
-  - Relevant figures/diagrams
-  
-- Configuration options include:
-  - YAML examples
-  - Parameter descriptions
-  - Default values
-  - Common use cases
-
-## Continuous Integration
-
-Documentation is automatically built and checked on every pull request to ensure:
-- All links are valid
-- Code examples work
-- Figures are properly referenced
-- No build errors occur 
