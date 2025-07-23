@@ -9,7 +9,14 @@ This module contains core utility functions for:
 """
 
 # Core utilities
-from .data import Shaper, convert_to_serializable, save_dict, set_seed
+from .data import (
+    Shaper,
+    convert_to_serializable,
+    set_seed,
+    save_dict,
+    Data,
+    load_MNIST
+)
 from .logging_config import get_logger, setup_logging
 from dendritic_modeling.utils.config_validator import ConfigValidator, validate_config
 from .sparse_ops import (
@@ -25,10 +32,15 @@ from .clean_outputs import *
 # Math utilities
 from .math import roc_auc_score
 
+# Import from other modules for backward compatibility
+from dendritic_modeling.training.utils.evaluation import accuracy_score
+from dendritic_modeling.plotting.utils import split_MNIST_inputs
+from dendritic_modeling.datasets import load_MNIST_modulo10
+
 __all__ = [
     "convert_to_serializable",
     "get_logger",
-    "save_dict", 
+    "save_dict",
     "set_seed",
     "setup_logging",
     # Core utilities
@@ -37,4 +49,8 @@ __all__ = [
     "validate_config",
     # Math utilities
     "roc_auc_score",
+    # Backward compatibility imports
+    "accuracy_score",
+    "split_MNIST_inputs",
+    "load_MNIST_modulo10"
 ]
