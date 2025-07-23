@@ -26,12 +26,12 @@ model:
     type: EINet  # Options: "EINet", "MLP", "MatchedParamMLP", "EffectiveMatchedParamMLP"
     parameters:
       # Core network structure
-      input_dim: 784
+      #input_dim: 784
 
       # Transfer function parameters
       transfer_params:
         input_mode: 1               
-        independent_pathways: true  
+        independent_pathways: false  
         excitatory_dim: null        # Dimensions for excitatory pathways (input_mode 1)
         inhibitory_dim: null        # Dimensions for inhibitory pathways (input_mode 1)
         output_activation: null     # Options: "sigmoid", "relu", "tanh", "softplus", null
@@ -39,13 +39,13 @@ model:
       # ==========================================
       # MORPHOLOGICAL ARCHITECTURE
       # ==========================================
-      excitatory_layer_sizes: [10]         # Neurons per excitatory layer
+      excitatory_layer_sizes: [20]         # Neurons per excitatory layer
       inhibitory_layer_sizes: []         # Neurons per inhibitory layer
-      excitatory_branch_factors: [2,2]       # Branches per excitatory neuron (fixed: should match layer count)
+      excitatory_branch_factors: [3,3]       # Branches per excitatory neuron (fixed: should match layer count)
       inhibitory_branch_factors: []       # Branches per inhibitory neuron (fixed: was empty)
 
       # Synaptic connectivity patterns
-      ee_synapses_per_branch_per_layer: [50]   # Excitatory-to-excitatory synapses
+      ee_synapses_per_branch_per_layer: [40]   # Excitatory-to-excitatory synapses
       ei_synapses_per_branch_per_layer: []  # Fixed: Reduced from 200 to 15 (≤ 20 inhibitory neurons)
       ie_synapses_per_branch_per_layer: [10]   # Fixed: Set to 1 (minimum required by DendriNet, though no inhibitory input available)
       ii_synapses_per_branch_per_layer: []   # Fixed: Set to 1 (minimum required by DendriNet)
@@ -60,7 +60,7 @@ model:
       topk_init_method: xavier_normal    # Weight initialization method
       topk_noise_level: 0.0              # Noise level for stochastic TopK
       topk_type: standard                # Options: "standard", "stochastic", "variance", "deepst"
-      topk_temperature: 0.5              # Stochastic selection sharpness (0.1-1.0)
+      topk_temperature: 0.0              # Stochastic selection sharpness (0.1-1.0)
       topk_ultrafast: false              # Enable faster stochastic TopK implementation
       topk_strategy: conductance_dynamic # TopK gradient scaling strategy
 
@@ -78,7 +78,7 @@ model:
       # ==========================================
       blocklinear_strategy: conductance_dynamic # BlockLinear gradient scaling
       efficient_blocklinear: false       # Use memory-efficient implementation
-
+      
       # ==========================================
       # IMPLEMENTATION OPTIMIZATIONS
       # ==========================================
@@ -282,7 +282,7 @@ analysis:
       cosine_similarity: false
 
   information_analysis:
-    enabled: true
+    enabled: false
     training: false
     params:
       method: kraskov           # Options: "kraskov", "sklearn", "copula", "auto"
@@ -305,10 +305,10 @@ analysis:
 
   synapse_turnover_analysis:
     enabled: true
-    training: false
+    training: true
 
   noise_perturbation_analysis:
-    enabled: false
+    enabled: true 
     training: false
     params:
       uniform_noise: true
@@ -319,8 +319,8 @@ analysis:
       accuracy: true
       auc: true
       categorical_loglikelihood: true
-      mse: true
-      cosine_similarity: true
+      mse: false
+      cosine_similarity: false
 
   ablation_analysis:
     enabled: false
