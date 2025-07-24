@@ -31,6 +31,7 @@ from dendritic_modeling.plotting.analysis import (
     plot_noise_robustness,
     plot_weight_distributions,
     plot_performance_metrics,
+    plot_performance_evolution,
 )
 from dendritic_modeling.plotting.base import (
     BarPlotter,

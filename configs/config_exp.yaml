@@ -59,11 +59,10 @@ model:
       # ==========================================
       topk_init_method: xavier_normal    # Weight initialization method
       topk_noise_level: 0.0              # Noise level for stochastic TopK
-      topk_type: standard                # Options: "standard", "stochastic", "variance", "deepst"
+      topk_type: standard              # Options: "standard", "stochastic", "variance", "deepst"
       topk_temperature: 0.0              # Stochastic selection sharpness (0.1-1.0)
-      topk_ultrafast: false              # Enable faster stochastic TopK implementation
       topk_strategy: conductance_dynamic # TopK gradient scaling strategy
-
+      
       # ==========================================
       # REACTIVATION PARAMETERS
       # ==========================================
@@ -77,14 +76,14 @@ model:
       # BLOCK LINEAR PARAMETERS
       # ==========================================
       blocklinear_strategy: conductance_dynamic # BlockLinear gradient scaling
-      efficient_blocklinear: false       # Use memory-efficient implementation
+      efficient_blocklinear: false        # Use memory-efficient implementation
       
       # ==========================================
       # IMPLEMENTATION OPTIMIZATIONS
       # ==========================================
-      adaptive_initialization: true      # Network-aware weight scaling
+      adaptive_initialization: false      # Network-aware weight scaling
       print_hooks: false                 # Print gradient statistics in hooks
-
+      
       # ==========================================
       # DEEPST SPECIFIC PARAMETERS
       # ==========================================
@@ -266,23 +265,23 @@ wandb:
   group: "experiments"
   tags: []
   use_wandb: true
-
+  
 # ============================================================================
 # ANALYSIS CONFIGURATION - VALIDATED MODULES ONLY
 # ============================================================================
 analysis:
   performance_analysis:
     enabled: true
-    training: false
+    training: true
     params:
       accuracy: true
       auc: true
       categorical_loglikelihood: true
       mse: false
       cosine_similarity: false
-
+      
   information_analysis:
-    enabled: false
+    enabled: true
     training: false
     params:
       method: kraskov           # Options: "kraskov", "sklearn", "copula", "auto"

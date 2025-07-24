@@ -94,10 +94,16 @@ class NoisePerturbationAnalyzer:
             metric_key: str,
             noisy_test_ds: torch.utils.data.Dataset,
         ):
-            metric_tensor: torch.Tensor = metric_func(
+            metric_result = metric_func(
                 model, test_ds=noisy_test_ds, reduce_dim=1, move_device=False
             )[-1]
-            metric_list = metric_tensor.cpu().tolist()
+            
+            # Handle both tensor and scalar results
+            if isinstance(metric_result, torch.Tensor):
+                metric_list = metric_result.cpu().tolist()
+            else:
+                # Handle scalar (float) results
+                metric_list = float(metric_result)
             noise_results[noise_type][f"{noise_level}"][metric_key] = metric_list
 
         if self.uniform_noise:
