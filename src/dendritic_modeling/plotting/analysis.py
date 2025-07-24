@@ -613,35 +613,6 @@ class InformationAnalysisPlotter:
         self.line_plotter = LinePlotter(self.config)
         self.bar_plotter = BarPlotter(self.config)
 
-    def _get_fig_ax(self, result):
-        """Helper to get (fig, ax) from plotter result."""
-        if isinstance(result, plt.Figure):
-            return result, result.axes[0] if result.axes else None
-        else:
-            # It's an axes
-            return result.figure, result
-
-    def plot_dimensional_mi(self, mi_results: dict[str, float], dims: list[int], save_path=None, filename='dimensional_mi'):
-        fig, ax = plt.subplots(figsize=self.config.figsize)
-        ax.bar(dims, list(mi_results.values()))
-        ax.set_xlabel('Output Dimension')
-        ax.set_ylabel('MI with Class')
-        ax.set_title('Mutual Information per Dimension')
-        if save_path:
-            self._save_plot(fig, save_path, filename)
-        return fig, ax
-
-    def plot_pid_components(self, pid_results: dict[str, float], save_path=None, filename='pid_components'):
-        components = ['synergy', 'redundancy', 'unique_E', 'unique_I']
-        values = [pid_results.get(c, 0) for c in components]
-        fig, ax = plt.subplots(figsize=self.config.figsize)
-        ax.bar(components, values)
-        ax.set_title('PID Components')
-        ax.set_ylabel('Information (bits)')
-        if save_path:
-            self._save_plot(fig, save_path, filename)
-        return fig, ax
-
     def plot_information_metrics(
         self,
         results: dict[str, Any],
@@ -650,7 +621,8 @@ class InformationAnalysisPlotter:
     ) -> dict[str, tuple[plt.Figure, plt.Axes]]:
         """
         Create multiple plots for information analysis results.
-        Handles both flat and nested data structures.
+        
+        Handles both new format (nested dictionaries) and old format (flat dictionary).
 
         Args:
             results: Dictionary containing information analysis results
@@ -662,352 +634,429 @@ class InformationAnalysisPlotter:
         """
         plots = {}
 
-        # Handle nested data structure from current analyzer
-        if "basic_mi" in results and isinstance(results["basic_mi"], dict):
-            # Extract values from nested structure
-            flattened_results = self._flatten_nested_results(results)
-            results = flattened_results
+        # Check if this is the new format (nested) or old format (flat)
+        is_new_format = "basic_mi" in results or "pairwise_mi" in results
+        
+        if is_new_format:
+            # Handle new format with nested dictionaries
+            return self._plot_new_format(results, save_path, filename_prefix)
+        else:
+            # Handle old format (July 1st version) with flat structure
+            return self._plot_old_format(results, save_path, filename_prefix)
 
-        # Extract number of layers/branches
-        num_layers = results.get("num_layers", results.get("num_branches", 5))
+    def _plot_new_format(
+        self,
+        results: dict[str, Any],
+        save_path: Optional[str] = None,
+        filename_prefix: str = "information",
+    ) -> dict[str, tuple[plt.Figure, plt.Axes]]:
+        """Plot information metrics in the new nested format."""
+        plots = {}
+
+        # 1. Basic MI plot
+        if "basic_mi" in results:
+            fig, ax = self._plot_basic_mi_new(results["basic_mi"])
+            plots["basic_mi"] = (fig, ax)
+            if save_path:
+                self._save_plot(fig, save_path, f"{filename_prefix}_basic_mi")
+
+        # 2. Pairwise MI plot
+        if "pairwise_mi" in results:
+            fig, ax = self._plot_pairwise_mi_new(results["pairwise_mi"])
+            plots["pairwise_mi"] = (fig, ax)
+            if save_path:
+                self._save_plot(fig, save_path, f"{filename_prefix}_pairwise_mi")
+
+        # 3. Conditional MI plot
+        if "conditional_mi" in results:
+            fig, ax = self._plot_conditional_mi_new(results["conditional_mi"])
+            plots["conditional_mi"] = (fig, ax)
+            if save_path:
+                self._save_plot(fig, save_path, f"{filename_prefix}_conditional_mi")
+
+        # 4. PID plot
+        if "pid" in results:
+            fig, ax = self._plot_pid_new(results["pid"])
+            plots["pid"] = (fig, ax)
+            if save_path:
+                self._save_plot(fig, save_path, f"{filename_prefix}_pid")
+
+        # 5. Summary comparison plot
+        if "basic_mi" in results:
+            fig, ax = self._plot_summary_comparison_new(results)
+            plots["summary"] = (fig, ax)
+            if save_path:
+                self._save_plot(fig, save_path, f"{filename_prefix}_summary")
+
+        return plots
+
+    def _plot_old_format(
+        self,
+        results: dict[str, Any],
+        save_path: Optional[str] = None,
+        filename_prefix: str = "information",
+    ) -> dict[str, tuple[plt.Figure, plt.Axes]]:
+        """Plot information metrics in the old flat format (July 1st version)."""
+        plots = {}
+
+        # Extract number of layers
+        num_layers = results.get('num_layers', 5)
         layer_indices = list(range(num_layers))
 
         # 1. Main information metrics plot
-        if any(key in results for key in ["I_E_C", "I_I_C", "I_V_C"]):
+        if any(key in results for key in ['I_E_C', 'I_I_C', 'I_V_C']):
             fig, ax = self._plot_main_metrics(results, layer_indices)
-            plots["main_metrics"] = (fig, ax)
+            plots['main_metrics'] = (fig, ax)
             if save_path:
                 self._save_plot(fig, save_path, f"{filename_prefix}_main_metrics")
 
         # 2. Normalized information plot
-        if "H_C" in results:
+        if 'H_C' in results:
             fig, ax = self._plot_normalized_metrics(results, layer_indices)
-            plots["normalized_metrics"] = (fig, ax)
+            plots['normalized_metrics'] = (fig, ax)
             if save_path:
                 self._save_plot(fig, save_path, f"{filename_prefix}_normalized")
 
         # 3. Information decomposition plot
-        if any(key in results for key in ["I_E_C_given_I", "I_I_C_given_E"]):
+        if any(key in results for key in ['I_E_C_given_I', 'I_I_C_given_E']):
             fig, ax = self._plot_decomposition(results, layer_indices)
-            plots["decomposition"] = (fig, ax)
+            plots['decomposition'] = (fig, ax)
             if save_path:
                 self._save_plot(fig, save_path, f"{filename_prefix}_decomposition")
 
         # 4. Synergy/Redundancy plot (if PID analysis available)
-        if "synergy" in results or "redundancy" in results:
+        if 'synergy' in results or 'redundancy' in results:
             fig, ax = self._plot_synergy_redundancy(results, layer_indices)
-            plots["synergy_redundancy"] = (fig, ax)
+            plots['synergy_redundancy'] = (fig, ax)
             if save_path:
                 self._save_plot(fig, save_path, f"{filename_prefix}_synergy_redundancy")
 
         # 5. Layer comparison bar plot
-        if any(key in results for key in ["I_E_C", "I_I_C", "I_V_C"]):
+        if any(key in results for key in ['I_E_C', 'I_I_C', 'I_V_C']):
             fig, ax = self._plot_layer_comparison(results)
-            plots["layer_comparison"] = (fig, ax)
+            plots['layer_comparison'] = (fig, ax)
             if save_path:
                 self._save_plot(fig, save_path, f"{filename_prefix}_layer_comparison")
 
-        # 6. Branch information summary (from develop branch style)
-        if "branch_names" in results:
-            fig, ax = self._plot_branch_information_summary(results)
-            plots["branch_summary"] = (fig, ax)
-            if save_path:
-                self._save_plot(fig, save_path, f"{filename_prefix}_branch_summary")
-
-        if 'class_mi' in results:
-            plots['dimensional_mi'] = self.plot_dimensional_mi(results['class_mi'], results.get('dims', list(range(len(results['class_mi'])))))
-        if 'pid' in results:
-            plots['pid_components'] = self.plot_pid_components(results['pid'])
-
         return plots
 
-    def _flatten_nested_results(self, nested_results: dict) -> dict:
-        """
-        Convert nested information results to flat structure expected by plotting functions.
-        
-        Args:
-            nested_results: Results with structure like:
-                {"basic_mi": {"I(E;C)": value, ...}, "pairwise_mi": {...}, ...}
-        
-        Returns:
-            Flattened results with direct key access like {"I_E_C": value, ...}
-        """
-        flattened = {}
-        
-        # Copy non-nested fields
-        for key, value in nested_results.items():
-            if not isinstance(value, dict):
-                flattened[key] = value
-        
-        # Extract basic MI values
-        if "basic_mi" in nested_results:
-            basic_mi = nested_results["basic_mi"]
-            # Map from (E;C) style to E_C style
-            key_mapping = {
-                "I(E;C)": "I_E_C",
-                "I(I;C)": "I_I_C", 
-                "I(Vout;C)": "I_V_C",
-                "H(C)": "H_C"
-            }
-            for old_key, new_key in key_mapping.items():
-                if old_key in basic_mi:
-                    # If it's a list/array, use as is; if scalar, wrap in list
-                    value = basic_mi[old_key]
-                    if not isinstance(value, (list, np.ndarray)):
-                        value = [value]  # Convert scalar to single-element list
-                    flattened[new_key] = value
-        
-        # Extract pairwise MI values
-        if "pairwise_mi" in nested_results:
-            pairwise_mi = nested_results["pairwise_mi"]
-            key_mapping = {
-                "I(E;I)": "I_E_I",
-                "I(E;Vout)": "I_E_V",
-                "I(I;Vout)": "I_I_V"
-            }
-            for old_key, new_key in key_mapping.items():
-                if old_key in pairwise_mi:
-                    value = pairwise_mi[old_key]
-                    if not isinstance(value, (list, np.ndarray)):
-                        value = [value]
-                    flattened[new_key] = value
-        
-        # Extract conditional MI values  
-        if "conditional_mi" in nested_results:
-            conditional_mi = nested_results["conditional_mi"]
-            key_mapping = {
-                "I(E;I|C)": "I_E_I_given_C",
-                "I(E;Vout|C)": "I_E_V_given_C", 
-                "I(I;Vout|C)": "I_I_V_given_C",
-                "I(E;C|I)": "I_E_C_given_I",
-                "I(I;C|E)": "I_I_C_given_E"
-            }
-            for old_key, new_key in key_mapping.items():
-                if old_key in conditional_mi:
-                    value = conditional_mi[old_key]
-                    if not isinstance(value, (list, np.ndarray)):
-                        value = [value]
-                    flattened[new_key] = value
-        
-        return flattened
-
-    def _plot_branch_information_summary(self, results: dict) -> tuple[plt.Figure, plt.Axes]:
-        """
-        Create a summary plot showing information content across branches,
-        similar to the develop branch style.
-        """
+    def _plot_basic_mi_new(self, basic_mi: dict) -> tuple[plt.Figure, plt.Axes]:
+        """Plot basic MI metrics from new format."""
         fig, ax = plt.subplots(figsize=self.config.figsize)
+
+        # Extract metrics
+        metrics = {k: v for k, v in basic_mi.items() if not k.endswith('_normalized') and not k.endswith('_std')}
         
-        num_branches = results.get("num_branches", len(results.get("branch_names", [])))
+        # Create bar plot
+        labels = list(metrics.keys())
+        values = list(metrics.values())
         
-        # Create synthetic branch analysis if we have basic MI data
-        if "I_E_C" in results:
-            # Use the MI values as a proxy for information content per branch
-            branch_indices = list(range(num_branches))
-            
-            # Create varying information content based on the overall MI
-            base_info = results["I_E_C"][0] if isinstance(results["I_E_C"], list) else results["I_E_C"]
-            exc_info = [base_info * (0.8 + 0.2 * np.random.random()) for _ in range(num_branches)]
-            
-            if "I_I_C" in results:
-                base_inh = results["I_I_C"][0] if isinstance(results["I_I_C"], list) else results["I_I_C"]
-                inh_info = [base_inh * (0.6 + 0.3 * np.random.random()) for _ in range(num_branches)]
+        bars = ax.bar(labels, values, alpha=0.8)
+        
+        # Color code by type
+        colors = []
+        for label in labels:
+            if 'E' in label and 'I' not in label:
+                colors.append(self.config.colors.get('excitatory', '#e74c3c'))
+            elif 'I' in label and 'E' not in label:
+                colors.append(self.config.colors.get('inhibitory', '#3498db'))
             else:
-                inh_info = [info * 0.7 for info in exc_info]
-                
-            combined_info = [exc_info[i] + inh_info[i] for i in range(num_branches)]
-            
-            # Plot as bar chart
-            x = np.arange(num_branches)
-            width = 0.25
-            
-            ax.bar(x - width, exc_info, width, label="Excitatory", color=self.config.colors.get("excitatory", "#e74c3c"), alpha=0.8)
-            ax.bar(x, inh_info, width, label="Inhibitory", color=self.config.colors.get("inhibitory", "#3498db"), alpha=0.8)
-            ax.bar(x + width, combined_info, width, label="Combined", color=self.config.colors.get("combined", "#9b59b6"), alpha=0.8)
-            
-            ax.set_xlabel("Branch Index", fontsize=self.config.fontsize["label"])
-            ax.set_ylabel("Information Content (bits)", fontsize=self.config.fontsize["label"])
-            ax.set_title("Information Content Across Dendritic Branches", fontsize=self.config.fontsize["title"])
-            ax.set_xticks(x)
-            ax.set_xticklabels([f"B{i}" for i in range(num_branches)])
-            ax.legend()
-            ax.grid(True, alpha=0.3, axis="y")
-        else:
-            # Fallback: just show text summary
-            ax.text(0.5, 0.5, f"Branch Information Analysis\n{num_branches} branches analyzed\nSee detailed metrics in data files", 
-                   ha='center', va='center', transform=ax.transAxes, fontsize=12)
-            ax.set_title("Branch Information Summary", fontsize=self.config.fontsize["title"])
+                colors.append(self.config.colors.get('combined', '#9b59b6'))
         
+        for bar, color in zip(bars, colors):
+            bar.set_color(color)
+
+        ax.set_ylabel('Mutual Information (bits)', fontsize=self.config.fontsize["label"])
+        ax.set_title('Basic Mutual Information with Class Labels', fontsize=self.config.fontsize["title"])
+        ax.tick_params(axis='x', rotation=45)
+        ax.grid(True, alpha=0.3, axis='y')
+
         plt.tight_layout()
         return fig, ax
 
-    def _plot_main_metrics(
-        self, results: dict, layer_indices: list[int]
-    ) -> tuple[plt.Figure, plt.Axes]:
+    def _plot_pairwise_mi_new(self, pairwise_mi: dict) -> tuple[plt.Figure, plt.Axes]:
+        """Plot pairwise MI metrics from new format."""
+        fig, ax = plt.subplots(figsize=self.config.figsize)
+
+        # Extract metrics
+        metrics = {k: v for k, v in pairwise_mi.items() if not k.endswith('_std')}
+        
+        # Create bar plot
+        labels = list(metrics.keys())
+        values = list(metrics.values())
+        
+        ax.bar(labels, values, color=self.config.colors.get('primary', '#2c3e50'), alpha=0.8)
+
+        ax.set_ylabel('Mutual Information (bits)', fontsize=self.config.fontsize["label"])
+        ax.set_title('Pairwise Mutual Information', fontsize=self.config.fontsize["title"])
+        ax.tick_params(axis='x', rotation=45)
+        ax.grid(True, alpha=0.3, axis='y')
+
+        plt.tight_layout()
+        return fig, ax
+
+    def _plot_conditional_mi_new(self, conditional_mi: dict) -> tuple[plt.Figure, plt.Axes]:
+        """Plot conditional MI metrics from new format."""
+        fig, ax = plt.subplots(figsize=self.config.figsize)
+
+        # Extract metrics
+        metrics = {k: v for k, v in conditional_mi.items() if not k.endswith('_std')}
+        
+        # Create bar plot
+        labels = list(metrics.keys())
+        values = list(metrics.values())
+        
+        ax.bar(labels, values, color=self.config.colors.get('secondary', '#27ae60'), alpha=0.8)
+
+        ax.set_ylabel('Conditional MI (bits)', fontsize=self.config.fontsize["label"])
+        ax.set_title('Conditional Mutual Information given Class', fontsize=self.config.fontsize["title"])
+        ax.tick_params(axis='x', rotation=45)
+        ax.grid(True, alpha=0.3, axis='y')
+
+        plt.tight_layout()
+        return fig, ax
+
+    def _plot_pid_new(self, pid_results: dict) -> tuple[plt.Figure, plt.Axes]:
+        """Plot PID results from new format."""
+        fig, ax = plt.subplots(figsize=self.config.figsize)
+
+        # Process PID results
+        pid_names = []
+        synergy_values = []
+        redundancy_values = []
+        unique1_values = []
+        unique2_values = []
+
+        for pid_key, pid_data in pid_results.items():
+            pid_names.append(pid_key)
+            synergy_values.append(pid_data.get('synergy', 0))
+            redundancy_values.append(pid_data.get('redundancy', 0))
+            
+            # Find unique values
+            unique_keys = [k for k in pid_data.keys() if k.startswith('unique_')]
+            if len(unique_keys) >= 2:
+                unique1_values.append(pid_data[unique_keys[0]])
+                unique2_values.append(pid_data[unique_keys[1]])
+            else:
+                unique1_values.append(0)
+                unique2_values.append(0)
+
+        # Create grouped bar plot
+        x = np.arange(len(pid_names))
+        width = 0.2
+
+        ax.bar(x - 1.5*width, synergy_values, width, label='Synergy', color='#e74c3c')
+        ax.bar(x - 0.5*width, redundancy_values, width, label='Redundancy', color='#3498db')
+        ax.bar(x + 0.5*width, unique1_values, width, label='Unique 1', color='#2ecc71')
+        ax.bar(x + 1.5*width, unique2_values, width, label='Unique 2', color='#f39c12')
+
+        ax.set_xlabel('PID Decomposition', fontsize=self.config.fontsize["label"])
+        ax.set_ylabel('Information (bits)', fontsize=self.config.fontsize["label"])
+        ax.set_title('Partial Information Decomposition', fontsize=self.config.fontsize["title"])
+        ax.set_xticks(x)
+        ax.set_xticklabels(pid_names, rotation=45, ha='right')
+        ax.legend()
+        ax.grid(True, alpha=0.3, axis='y')
+
+        plt.tight_layout()
+        return fig, ax
+
+    def _plot_summary_comparison_new(self, results: dict) -> tuple[plt.Figure, plt.Axes]:
+        """Create summary comparison plot for new format."""
+        fig, ax = plt.subplots(figsize=self.config.figsize)
+
+        if "basic_mi" not in results:
+            return fig, ax
+
+        # Extract key metrics for comparison
+        basic_mi = results["basic_mi"]
+        
+        # Get normalized values if available
+        if any(k.endswith('_normalized') for k in basic_mi.keys()):
+            metrics = {
+                'I(E;C)/H(C)': basic_mi.get('I(E;C)_normalized', 0),
+                'I(I;C)/H(C)': basic_mi.get('I(I;C)_normalized', 0),
+                'I(Vout;C)/H(C)': basic_mi.get('I(Vout;C)_normalized', 0),
+            }
+            ylabel = 'Normalized Mutual Information'
+        else:
+            metrics = {
+                'I(E;C)': basic_mi.get('I(E;C)', 0),
+                'I(I;C)': basic_mi.get('I(I;C)', 0),
+                'I(Vout;C)': basic_mi.get('I(Vout;C)', 0),
+            }
+            ylabel = 'Mutual Information (bits)'
+
+        # Add joint MI if available
+        if 'I(E,I;C)' in basic_mi:
+            if any(k.endswith('_normalized') for k in basic_mi.keys()):
+                metrics['I(E,I;C)/H(C)'] = basic_mi.get('I(E,I;C)_normalized', 0)
+            else:
+                metrics['I(E,I;C)'] = basic_mi.get('I(E,I;C)', 0)
+
+        # Create bar plot
+        labels = list(metrics.keys())
+        values = list(metrics.values())
+        
+        bars = ax.bar(labels, values, alpha=0.8)
+        
+        # Color code
+        colors = []
+        for label in labels:
+            if 'E' in label and 'I' not in label:
+                colors.append(self.config.colors.get('excitatory', '#e74c3c'))
+            elif 'I' in label and 'E' not in label:
+                colors.append(self.config.colors.get('inhibitory', '#3498db'))
+            elif 'Vout' in label:
+                colors.append(self.config.colors.get('output', '#27ae60'))
+            else:
+                colors.append(self.config.colors.get('combined', '#9b59b6'))
+        
+        for bar, color in zip(bars, colors):
+            bar.set_color(color)
+
+        ax.set_ylabel(ylabel, fontsize=self.config.fontsize["label"])
+        ax.set_title('Information Content Summary', fontsize=self.config.fontsize["title"])
+        ax.tick_params(axis='x', rotation=45)
+        ax.grid(True, alpha=0.3, axis='y')
+        
+        # Add value labels on bars
+        for bar, value in zip(bars, values):
+            height = bar.get_height()
+            ax.text(bar.get_x() + bar.get_width()/2., height,
+                    f'{value:.3f}', ha='center', va='bottom', fontsize=8)
+
+        plt.tight_layout()
+        return fig, ax
+
+    # Keep the old format plotting methods for compatibility
+    def _plot_main_metrics(self, results: dict, layer_indices: list[int]) -> tuple[plt.Figure, plt.Axes]:
         """Plot main information metrics (I(E;C), I(I;C), I(V;C))."""
         plot_data = {}
 
-        if "I_E_C" in results:
-            plot_data["I(E;C)"] = results["I_E_C"]
-        if "I_I_C" in results:
-            plot_data["I(I;C)"] = results["I_I_C"]
-        if "I_V_C" in results:
-            plot_data["I(V;C)"] = results["I_V_C"]
+        if 'I_E_C' in results:
+            plot_data['I(E;C)'] = (layer_indices, results['I_E_C'])
+        if 'I_I_C' in results:
+            plot_data['I(I;C)'] = (layer_indices, results['I_I_C'])
+        if 'I_V_C' in results:
+            plot_data['I(V;C)'] = (layer_indices, results['I_V_C'])
 
-        # Adjust layer_indices to match data length
-        if plot_data:
-            first_key = next(iter(plot_data.keys()))
-            data_length = len(plot_data[first_key]) if hasattr(plot_data[first_key], '__len__') else 1
-            if data_length != len(layer_indices):
-                layer_indices = list(range(data_length))
-
-        fig = self.line_plotter.plot(
+        fig, ax = self.line_plotter.plot(
             data=plot_data,
-            x_values=layer_indices,
             title="Information Content Across Layers",
             xlabel="Layer (Soma → Distal)",
             ylabel="Mutual Information (bits)",
+            legend_title="Information Metric",
+            colors={
+                'I(E;C)': self.config.colors.get('excitatory', '#e74c3c'),
+                'I(I;C)': self.config.colors.get('inhibitory', '#3498db'),
+                'I(V;C)': self.config.colors.get('combined', '#9b59b6')
+            }
         )
 
-        # Get the axes from the figure
-        ax = fig.axes[0] if fig.axes else None
-
         # Customize x-axis
-        if ax:
-            ax.set_xticks(layer_indices)
-            ax.set_xticklabels([f"L{i}" if i > 0 else "Soma" for i in layer_indices])
-            ax.grid(True, alpha=0.3)
+        ax.set_xticks(layer_indices)
+        ax.set_xticklabels([f"L{i}" if i > 0 else "Soma" for i in layer_indices])
+        ax.grid(True, alpha=0.3)
 
         return fig, ax
 
-    def _plot_normalized_metrics(
-        self, results: dict, layer_indices: list[int]
-    ) -> tuple[plt.Figure, plt.Axes]:
+    def _plot_normalized_metrics(self, results: dict, layer_indices: list[int]) -> tuple[plt.Figure, plt.Axes]:
         """Plot normalized information metrics."""
+        H_C = results.get('H_C', 1.0)
         plot_data = {}
-        h_c_raw = results.get("H_C", 1.0)
-        # Handle H_C being a list or scalar
-        h_c = h_c_raw[0] if isinstance(h_c_raw, (list, np.ndarray)) and len(h_c_raw) > 0 else h_c_raw
-        if h_c <= 0:
-            h_c = 1.0  # Avoid division by zero
 
-        if "I_E_C" in results and h_c > 0:
-            plot_data["I(E;C)/H(C)"] = [x / h_c for x in results["I_E_C"]]
-        if "I_I_C" in results and h_c > 0:
-            plot_data["I(I;C)/H(C)"] = [x / h_c for x in results["I_I_C"]]
-        if "I_V_C" in results and h_c > 0:
-            plot_data["I(V;C)/H(C)"] = [x / h_c for x in results["I_V_C"]]
+        if 'I_E_C' in results:
+            plot_data['I(E;C)/H(C)'] = (layer_indices, [i/H_C for i in results['I_E_C']])
+        if 'I_I_C' in results:
+            plot_data['I(I;C)/H(C)'] = (layer_indices, [i/H_C for i in results['I_I_C']])
+        if 'I_V_C' in results:
+            plot_data['I(V;C)/H(C)'] = (layer_indices, [i/H_C for i in results['I_V_C']])
 
-        result = self.line_plotter.plot(
+        fig, ax = self.line_plotter.plot(
             data=plot_data,
-            x_values=layer_indices,
             title="Normalized Information Content",
             xlabel="Layer (Soma → Distal)",
             ylabel="Normalized Mutual Information",
+            legend_title="Normalized Metric",
+            colors={
+                'I(E;C)/H(C)': self.config.colors.get('excitatory', '#e74c3c'),
+                'I(I;C)/H(C)': self.config.colors.get('inhibitory', '#3498db'),
+                'I(V;C)/H(C)': self.config.colors.get('combined', '#9b59b6')
+            }
         )
 
-        fig, ax = self._get_fig_ax(result)
-
-        # Customize x-axis
-        if ax:
-            ax.set_xticks(layer_indices)
-            ax.set_xticklabels([f"L{i}" if i > 0 else "Soma" for i in layer_indices])
-            ax.grid(True, alpha=0.3)
+        ax.set_ylim(0, 1.05)
+        ax.set_xticks(layer_indices)
+        ax.set_xticklabels([f"L{i}" if i > 0 else "Soma" for i in layer_indices])
+        ax.grid(True, alpha=0.3)
 
         return fig, ax
 
-    def _plot_decomposition(
-        self, results: dict, layer_indices: list[int]
-    ) -> tuple[plt.Figure, plt.Axes]:
+    def _plot_decomposition(self, results: dict, layer_indices: list[int]) -> tuple[plt.Figure, plt.Axes]:
         """Plot information decomposition (conditional MI and interactions)."""
         plot_data = {}
 
-        if "I_E_C_given_I" in results:
-            plot_data["I(E;C|I)"] = results["I_E_C_given_I"]
-        if "I_I_C_given_E" in results:
-            plot_data["I(I;C|E)"] = results["I_I_C_given_E"]
-        if "I_E_I" in results:
-            plot_data["I(E;I)"] = results["I_E_I"]
+        if 'I_E_C_given_I' in results:
+            plot_data['I(E;C|I)'] = (layer_indices, results['I_E_C_given_I'])
+        if 'I_I_C_given_E' in results:
+            plot_data['I(I;C|E)'] = (layer_indices, results['I_I_C_given_E'])
+        if 'I_E_I' in results:
+            plot_data['I(E;I)'] = (layer_indices, results['I_E_I'])
 
-        result = self.line_plotter.plot(
+        fig, ax = self.line_plotter.plot(
             data=plot_data,
-            x_values=layer_indices,
             title="Information Decomposition",
             xlabel="Layer (Soma → Distal)",
             ylabel="Information (bits)",
+            legend_title="Information Component"
         )
 
-        fig, ax = self._get_fig_ax(result)
-
-        if ax:
-            ax.set_xticks(layer_indices)
-            ax.set_xticklabels([f"L{i}" if i > 0 else "Soma" for i in layer_indices])
-            ax.grid(True, alpha=0.3)
+        ax.set_xticks(layer_indices)
+        ax.set_xticklabels([f"L{i}" if i > 0 else "Soma" for i in layer_indices])
+        ax.grid(True, alpha=0.3)
 
         return fig, ax
 
-    def _plot_synergy_redundancy(
-        self, results: dict, layer_indices: list[int]
-    ) -> tuple[plt.Figure, plt.Axes]:
+    def _plot_synergy_redundancy(self, results: dict, layer_indices: list[int]) -> tuple[plt.Figure, plt.Axes]:
         """Plot synergy and redundancy from PID analysis."""
         plot_data = {}
 
-        if "synergy" in results:
-            plot_data["Synergy"] = results["synergy"]
-        if "redundancy" in results:
-            plot_data["Redundancy"] = results["redundancy"]
-        if "unique_E" in results:
-            plot_data["Unique(E)"] = results["unique_E"]
-        if "unique_I" in results:
-            plot_data["Unique(I_var)"] = results["unique_I"]
+        if 'synergy' in results:
+            plot_data['Synergy'] = (layer_indices, results['synergy'])
+        if 'redundancy' in results:
+            plot_data['Redundancy'] = (layer_indices, results['redundancy'])
+        if 'unique_E' in results:
+            plot_data['Unique(E)'] = (layer_indices, results['unique_E'])
+        if 'unique_I' in results:
+            plot_data['Unique(I)'] = (layer_indices, results['unique_I'])
 
-        result = self.line_plotter.plot(
+        fig, ax = self.line_plotter.plot(
             data=plot_data,
-            x_values=layer_indices,
             title="Partial Information Decomposition",
             xlabel="Layer (Soma → Distal)",
             ylabel="Information (bits)",
+            legend_title="PID Component"
         )
 
-        fig, ax = self._get_fig_ax(result)
-
-        if ax:
-            ax.set_xticks(layer_indices)
-            ax.set_xticklabels([f"L{i}" if i > 0 else "Soma" for i in layer_indices])
-            ax.grid(True, alpha=0.3)
+        ax.set_xticks(layer_indices)
+        ax.set_xticklabels([f"L{i}" if i > 0 else "Soma" for i in layer_indices])
+        ax.grid(True, alpha=0.3)
 
         return fig, ax
 
     def _plot_layer_comparison(self, results: dict) -> tuple[plt.Figure, plt.Axes]:
         """Create bar plot comparing information metrics across layers."""
-        num_layers = results.get("num_layers", 5)
+        num_layers = results.get('num_layers', 5)
 
         # Prepare data for grouped bar plot
         metrics = []
-        if "I_E_C" in results:
-            metrics.append(
-                (
-                    "I(E;C)",
-                    results["I_E_C"],
-                    self.config.colors.get("excitatory", "#e74c3c"),
-                )
-            )
-        if "I_I_C" in results:
-            metrics.append(
-                (
-                    "I(I;C)",
-                    results["I_I_C"],
-                    self.config.colors.get("inhibitory", "#3498db"),
-                )
-            )
-        if "I_V_C" in results:
-            metrics.append(
-                (
-                    "I(V;C)",
-                    results["I_V_C"],
-                    self.config.colors.get("combined", "#9b59b6"),
-                )
-            )
+        if 'I_E_C' in results:
+            metrics.append(('I(E;C)', results['I_E_C'], self.config.colors.get('excitatory', '#e74c3c')))
+        if 'I_I_C' in results:
+            metrics.append(('I(I;C)', results['I_I_C'], self.config.colors.get('inhibitory', '#3498db')))
+        if 'I_V_C' in results:
+            metrics.append(('I(V;C)', results['I_V_C'], self.config.colors.get('combined', '#9b59b6')))
 
         if not metrics:
             return None, None
@@ -1019,21 +1068,16 @@ class InformationAnalysisPlotter:
         width = 0.8 / len(metrics)
 
         for i, (label, values, color) in enumerate(metrics):
-            offset = (i - len(metrics) / 2 + 0.5) * width
+            offset = (i - len(metrics)/2 + 0.5) * width
             ax.bar(x + offset, values, width, label=label, color=color, alpha=0.8)
 
-        ax.set_xlabel("Layer (Soma → Distal)", fontsize=self.config.fontsize["label"])
-        ax.set_ylabel(
-            "Mutual Information (bits)", fontsize=self.config.fontsize["label"]
-        )
-        ax.set_title(
-            "Information Comparison Across Layers",
-            fontsize=self.config.fontsize["title"],
-        )
+        ax.set_xlabel('Layer (Soma → Distal)', fontsize=self.config.fontsize["label"])
+        ax.set_ylabel('Mutual Information (bits)', fontsize=self.config.fontsize["label"])
+        ax.set_title('Information Comparison Across Layers', fontsize=self.config.fontsize["title"])
         ax.set_xticks(x)
         ax.set_xticklabels([f"L{i}" if i > 0 else "Soma" for i in range(num_layers)])
         ax.legend()
-        ax.grid(True, alpha=0.3, axis="y")
+        ax.grid(True, alpha=0.3, axis='y')
 
         plt.tight_layout()
 
@@ -1046,7 +1090,7 @@ class InformationAnalysisPlotter:
             fig.savefig(
                 os.path.join(save_path, f"{filename}.{fmt}"),
                 dpi=self.config.dpi,
-                bbox_inches="tight",
+                bbox_inches='tight'
             )
 
 
