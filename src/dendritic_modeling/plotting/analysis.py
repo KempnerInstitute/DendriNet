@@ -854,17 +854,11 @@ class InformationAnalysisPlotter:
         if "I_V_C" in results:
             plot_data["I(V;C)"] = results["I_V_C"]
 
-        # Debug: Print shapes to understand the dimension mismatch
-        print(f"DEBUG: layer_indices shape: {len(layer_indices)}")
-        for key, values in plot_data.items():
-            print(f"DEBUG: {key} shape: {len(values) if hasattr(values, '__len__') else 'scalar'}, type: {type(values)}, value: {values}")
-
         # Adjust layer_indices to match data length
         if plot_data:
             first_key = next(iter(plot_data.keys()))
             data_length = len(plot_data[first_key]) if hasattr(plot_data[first_key], '__len__') else 1
             if data_length != len(layer_indices):
-                print(f"DEBUG: Adjusting layer_indices from {len(layer_indices)} to {data_length}")
                 layer_indices = list(range(data_length))
 
         fig = self.line_plotter.plot(
@@ -1397,4 +1391,138 @@ def plot_performance_metrics(
                 plt.savefig(plot_path, dpi=300, bbox_inches="tight")
                 plt.close()
             plots[metric_name] = (fig, ax)
+    return plots
+
+
+def plot_performance_evolution(
+    performance_dir: str,
+    save_path: Optional[str] = None,
+    filename: str = "performance_evolution",
+) -> dict[str, tuple[plt.Figure, plt.Axes]]:
+    """
+    Plot performance metrics evolution over epochs from per-epoch performance files.
+    
+    Args:
+        performance_dir: Directory containing per-epoch performance files (epoch1, epoch2, etc.)
+                        Can be either the main performance dir or the epochs subdirectory
+        save_path: Directory to save plots (optional)
+        filename: Base filename for saved plots
+        
+    Returns:
+        Dictionary mapping metric names to (figure, axes) tuples
+    """
+    import glob
+    import json
+    import re
+    
+    # Check if this is the epochs subdirectory or main directory
+    epochs_subdir = os.path.join(performance_dir, "epochs")
+    if os.path.exists(epochs_subdir) and performance_dir.endswith("performance"):
+        # If we're in the main performance directory and epochs subfolder exists, use that
+        search_dir = epochs_subdir
+        print(f"Found epochs subdirectory, using: {search_dir}")
+    else:
+        # Use the provided directory (could be epochs subdir or main dir for backward compatibility)
+        search_dir = performance_dir
+    
+    # Find all epoch files
+    epoch_files = glob.glob(os.path.join(search_dir, "epoch*"))
+    if not epoch_files:
+        print(f"No epoch files found in {search_dir}")
+        return {}
+    
+    # Extract epoch numbers and sort
+    epoch_data = []
+    for file_path in epoch_files:
+        match = re.search(r'epoch(\d+)$', file_path)
+        if match:
+            epoch_num = int(match.group(1))
+            try:
+                with open(file_path, 'r') as f:
+                    data = json.load(f)
+                epoch_data.append((epoch_num, data))
+            except (json.JSONDecodeError, FileNotFoundError) as e:
+                print(f"Warning: Could not load {file_path}: {e}")
+                continue
+    
+    if not epoch_data:
+        print("No valid epoch data found")
+        return {}
+    
+    # Sort by epoch number
+    epoch_data.sort(key=lambda x: x[0])
+    epochs = [x[0] for x in epoch_data]
+    
+    print(f"Found {len(epoch_data)} epoch files spanning epochs {min(epochs)} to {max(epochs)}")
+    
+    # Collect metrics data
+    metrics_over_time = {}
+    for epoch_num, data in epoch_data:
+        for metric_name, metric_values in data.items():
+            if isinstance(metric_values, dict):
+                if metric_name not in metrics_over_time:
+                    metrics_over_time[metric_name] = {
+                        'train': [], 'valid': [], 'test': []
+                    }
+                
+                # Extract values for each dataset
+                for dataset in ['train', 'valid', 'test']:
+                    value = metric_values.get(dataset, None)
+                    metrics_over_time[metric_name][dataset].append(value)
+    
+    if not metrics_over_time:
+        print("No metrics data found in epoch files")
+        return {}
+    
+    # Generate plots
+    plots = {}
+    for metric_name, dataset_data in metrics_over_time.items():
+        fig, ax = plt.subplots(figsize=(12, 8))
+        
+        # Plot each dataset
+        colors = {'train': '#1f77b4', 'valid': '#ff7f0e', 'test': '#2ca02c'}
+        lines_plotted = 0
+        
+        for dataset, values in dataset_data.items():
+            # Filter out None values
+            valid_epochs = []
+            valid_values = []
+            for i, value in enumerate(values):
+                if value is not None:
+                    valid_epochs.append(epochs[i])
+                    valid_values.append(value)
+            
+            if valid_values:
+                ax.plot(valid_epochs, valid_values, 'o-', 
+                       color=colors.get(dataset, '#d62728'), 
+                       label=dataset.capitalize(),
+                       linewidth=2, markersize=6)
+                lines_plotted += 1
+        
+        if lines_plotted == 0:
+            print(f"Warning: No valid data found for metric {metric_name}")
+            plt.close(fig)
+            continue
+        
+        ax.set_xlabel("Training Epoch", fontsize=12)
+        ax.set_ylabel(metric_name.replace("_", " ").title(), fontsize=12)
+        ax.set_title(f"{metric_name.replace('_', ' ').title()} Evolution During Training", fontsize=14)
+        ax.legend(fontsize=11)
+        ax.grid(True, alpha=0.3)
+        
+        # Set integer ticks for epochs if reasonable number
+        if len(epochs) <= 20:
+            ax.set_xticks(epochs)
+        
+        plt.tight_layout()
+        
+        if save_path:
+            os.makedirs(save_path, exist_ok=True)
+            plot_path = os.path.join(save_path, f"{filename}_{metric_name}.png")
+            plt.savefig(plot_path, dpi=300, bbox_inches="tight")
+            print(f"Saved epoch evolution plot: {plot_path}")
+            plt.close()
+        
+        plots[metric_name] = (fig, ax)
+    
     return plots

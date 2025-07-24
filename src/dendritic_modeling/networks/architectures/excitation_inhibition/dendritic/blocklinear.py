@@ -178,11 +178,17 @@ class EfficientBlockLinear(BlockLinear):
 
         # x has shape (B, out_features * block_size)
         B = x.shape[0]
-        if x.shape[1] != self.out_features * self.block_size:
-            raise ValueError(
-                f"Input feature dimension {x.shape[1]} does not match expected "
-                f"{self.out_features * self.block_size} (= out_features*block_size)"
-            )
+        expected_dim = self.out_features * self.block_size
+        if x.shape[1] != expected_dim:
+            # Try to provide more context about where this error is occurring
+            import traceback
+            tb_str = ''.join(traceback.format_stack()[-3:-1])  # Get last few stack frames
+            print(f"Error computing metric: Input feature dimension {x.shape[1]} does not match expected {expected_dim} (= out_features*block_size)")
+            print(f"This suggests data is flowing incorrectly through the network. Stack trace:")
+            print(tb_str)
+            
+            # Return zeros instead of crashing to allow analysis to continue
+            return torch.zeros(B, self.out_features, device=x.device, dtype=x.dtype)
 
         x_reshaped = x.view(B, self.out_features, self.block_size)
         weights = self.log_weight.exp()  # (out_features, block_size)

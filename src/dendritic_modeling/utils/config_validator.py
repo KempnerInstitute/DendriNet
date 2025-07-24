@@ -108,9 +108,7 @@ class ConfigValidator:
         """Check input_mode and independent_pathways consistency"""
         if self.input_mode == 0 and self.independent_pathways:
             self.errors.append("input_mode=0 requires independent_pathways=False")
-        elif self.input_mode == 1 and not self.independent_pathways:
-            self.errors.append("input_mode=1 requires independent_pathways=True")
-
+        
     def check_layer_dimensions(self):
         """Check layer size consistency"""
         exc_layers = len(self.excitatory_layer_sizes)

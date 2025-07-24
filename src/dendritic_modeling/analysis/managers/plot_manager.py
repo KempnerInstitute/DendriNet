@@ -12,6 +12,7 @@ from typing import Optional, Dict
 
 from dendritic_modeling.plotting.analysis import (
     plot_performance_metrics,
+    plot_performance_evolution,
     plot_information_analysis,
 )
 from dendritic_modeling.plotting.network import (
@@ -56,6 +57,16 @@ class PlotManager:
         """Generate performance metric plots."""
         save_path = save_path or self.default_save_path
         return plot_performance_metrics(results, save_path=save_path, filename=filename)
+
+    def plot_performance_evolution(
+        self,
+        performance_dir: str,
+        save_path: Optional[str] = None,
+        filename: str = "performance_evolution",
+    ):
+        """Generate performance evolution plots from per-epoch performance files."""
+        save_path = save_path or self.default_save_path
+        return plot_performance_evolution(performance_dir, save_path=save_path, filename=filename)
 
     def plot_information_analysis(
         self,

@@ -113,20 +113,42 @@ class AnalysisManager:
     def run_analysis(self, filename: str = "final", training: bool = False):
         """Run configured analyses and generate plots."""
         # Run analyses and get results
-        if self.config.performance_analysis.enabled:
+        if self.config.performance_analysis.enabled and (
+            (self.config.performance_analysis.training and training) or not training
+        ):
+            # Determine save path based on whether this is training or final analysis
+            if training:
+                # Save epoch results in a subfolder
+                epoch_save_path = os.path.join(self.save_root, "performance", "epochs")
+            else:
+                # Save final results in main performance folder
+                epoch_save_path = os.path.join(self.save_root, "performance")
+            
             perf_results = self.performance_analyzer.analyze(
                 model=self.model,
                 train_ds=self.data["train"],
                 valid_ds=self.data["valid"],
                 test_ds=self.data["test"],
                 device=self.device,
-                save_path=os.path.join(self.save_root, "performance"),
+                save_path=epoch_save_path,
                 filename=filename,
             )
+            
+            # Only generate plots when training is complete
             if not training:
-                plot_performance_metrics(
-                    perf_results, save_path=os.path.join(self.save_root, "performance")
-                )
+                # Generate bar plots only for final results (when training=false)
+                if not self.config.performance_analysis.training:
+                    plot_performance_metrics(
+                        perf_results, save_path=os.path.join(self.save_root, "performance")
+                    )
+                
+                # Generate epoch evolution plots if training analysis was enabled
+                if self.config.performance_analysis.training:
+                    from dendritic_modeling.plotting.analysis import plot_performance_evolution
+                    plot_performance_evolution(
+                        performance_dir=os.path.join(self.save_root, "performance", "epochs"),
+                        save_path=os.path.join(self.save_root, "performance"),
+                    )
 
         # Information Analysis
         if self.config.information_analysis.enabled and (
