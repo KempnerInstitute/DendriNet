@@ -470,6 +470,35 @@ class InformationAnalyzer(AbstractAnalyzer):
 
         return averaged_results
 
+    def _compute_layer_statistics(self, results_list: list[dict[str, Any]]) -> dict[str, float]:
+        """Compute mean and std of MI results across multiple branches for a given layer."""
+        layer_stats = {}
+        
+        # Handle nested structure
+        if "basic_mi" in results_list[0]:
+            # Process basic MI metrics
+            if "basic_mi" in results_list[0]:
+                for key in results_list[0]["basic_mi"].keys():
+                    values = [r["basic_mi"][key] for r in results_list]
+                    layer_stats[f"{key}_mean"] = np.mean(values)
+                    layer_stats[f"{key}_std"] = np.std(values)
+            
+            # Process pairwise MI metrics
+            if "pairwise_mi" in results_list[0]:
+                for key in results_list[0]["pairwise_mi"].keys():
+                    values = [r["pairwise_mi"][key] for r in results_list]
+                    layer_stats[f"{key}_mean"] = np.mean(values)
+                    layer_stats[f"{key}_std"] = np.std(values)
+            
+            # Process conditional MI metrics
+            if "conditional_mi" in results_list[0]:
+                for key in results_list[0]["conditional_mi"].keys():
+                    values = [r["conditional_mi"][key] for r in results_list]
+                    layer_stats[f"{key}_mean"] = np.mean(values)
+                    layer_stats[f"{key}_std"] = np.std(values)
+        
+        return layer_stats
+
     def attach_forward_hooks(self, model: BaseModel):
         """Attach forward hooks to the model."""
         # Initalize data_dict attribute
@@ -611,6 +640,7 @@ class InformationAnalyzer(AbstractAnalyzer):
 
                 all_results = []
                 branch_names = []
+                layer_results = {}  # Store results per layer
 
                 for layer_name, layer_data in self.data_dict.items():
                     if "excitation" not in layer_data:
@@ -624,6 +654,9 @@ class InformationAnalyzer(AbstractAnalyzer):
                     # E_all_branches shape: (n_samples, n_branches)
                     n_branches = E_all_branches.shape[1]
 
+                    # Store per-branch results for this layer
+                    layer_branch_results = []
+                    
                     # Process each branch individually
                     for branch_idx in range(n_branches):
                         # Extract data for this specific branch
@@ -638,13 +671,20 @@ class InformationAnalyzer(AbstractAnalyzer):
                             E_branch, I_branch, Vout_branch, C, None
                         )
                         all_results.append(branch_results)
+                        layer_branch_results.append(branch_results)
                         branch_names.append(f"{layer_name}_branch_{branch_idx}")
+                    
+                    # Compute layer statistics
+                    if layer_branch_results:
+                        layer_stats = self._compute_layer_statistics(layer_branch_results)
+                        layer_results[layer_name] = layer_stats
 
                 # Average the results across branches
                 if all_results:
                     results = self._average_mi_results(all_results)
                     results["branch_names"] = branch_names
                     results["num_branches"] = len(all_results)
+                    results["layer_statistics"] = layer_results  # Add per-layer statistics
                 else:
                     self.logger.warning("No branch results to average")
                     return

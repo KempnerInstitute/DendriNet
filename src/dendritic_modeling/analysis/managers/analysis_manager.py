@@ -166,6 +166,15 @@ class AnalysisManager:
                     info_results,
                     save_path=os.path.join(self.save_root, "information_analysis"),
                 )
+                
+                # Also plot per-layer information if available
+                if "layer_statistics" in info_results:
+                    from dendritic_modeling.plotting.analysis import plot_per_layer_information
+                    plot_per_layer_information(
+                        info_results["layer_statistics"],
+                        save_path=os.path.join(self.save_root, "information_analysis"),
+                        filename_prefix="layer_info",
+                    )
 
         # Synaptic Turnover Analysis
         if self.config.synapse_turnover_analysis.enabled and (
@@ -173,70 +182,53 @@ class AnalysisManager:
             or not training
         ):
             if not training:
-                # For demonstration purposes, create synthetic "before" and "after" snapshots
-                # to show how turnover analysis would work with actual training-time collection
+                # Final analysis mode: compute turnover from collected snapshots
+                # Check if we have collected snapshots during training
+                if len(self.syn_turnover_analyzer.data_dict_list) < 2:
+                    self.logger.warning(
+                        "Not enough snapshots collected during training for turnover analysis. "
+                        f"Found {len(self.syn_turnover_analyzer.data_dict_list)} snapshots."
+                    )
+                    # If no snapshots during training, collect a final snapshot
+                    if len(self.syn_turnover_analyzer.data_dict_list) == 0:
+                        self.syn_turnover_analyzer.analyze(
+                            model=self.model,
+                            training=True,  # Collect snapshot
+                            save_path=None,
+                            filename=filename,
+                        )
                 
-                # Collect current state (after training)
-                current_data_dict = {}
-                for _name, module in self.model.named_modules():
-                    if hasattr(module, 'branch_excitation') and hasattr(module, 'branch_inhibition'):
-                        current_data_dict[_name] = {}
-                        if module.branch_excitation is not None:
-                            current_data_dict[_name]["exc_mask"] = (
-                                module.branch_excitation.weight_mask().detach().cpu()
-                            )
-                        if module.branch_inhibition is not None:
-                            current_data_dict[_name]["inh_mask"] = (
-                                module.branch_inhibition.weight_mask().detach().cpu()
-                            )
-                
-                # Create a synthetic "initial" state by randomly flipping some mask values
-                # This simulates what turnover might look like if we had collected snapshots during training
-                import torch
-                initial_data_dict = {}
-                for name, module_data in current_data_dict.items():
-                    initial_data_dict[name] = {}
-                    for mask_type, mask in module_data.items():
-                        # Create initial mask by randomly flipping 10-30% of the current mask values
-                        flip_prob = 0.1 + 0.2 * torch.rand(1).item()  # 10-30% flip probability
-                        flip_mask = torch.rand_like(mask.float()) < flip_prob
-                        initial_mask = mask.clone()
-                        initial_mask[flip_mask] = 1 - initial_mask[flip_mask]  # Flip values
-                        initial_data_dict[name][mask_type] = initial_mask
-                
-                # Manually set up the analyzer with synthetic data
-                self.syn_turnover_analyzer.data_dict_list = [initial_data_dict, current_data_dict]
-                self.logger.info("Created synthetic turnover data (initial vs final masks)")
-                
-                # Now analyze the turnover between snapshots
+                # Now analyze the turnover between all collected snapshots
                 turnover_results = self.syn_turnover_analyzer.analyze(
                     model=self.model,
                     training=False,  # Analyze mode
-                    save_path=None,  # Don't save to file, get results
+                    save_path=None,  # Don't save to file yet, get results
                     filename=filename,
                 )
                 
                 # Save the results
-                self.syn_turnover_analyzer.analyze(
-                    model=self.model,
-                    training=False,  # Analyze mode
-                    save_path=os.path.join(self.save_root, "synapse_turnover_analysis"),
-                    filename=filename,
-                )
-                
-                # Generate plots if results exist
                 if turnover_results is not None:
+                    self.syn_turnover_analyzer.analyze(
+                        model=self.model,
+                        training=False,  # Analyze mode
+                        save_path=os.path.join(self.save_root, "synapse_turnover_analysis"),
+                        filename=filename,
+                    )
+                    
+                    # Generate plots
                     plot_synapse_turnover(
                         turnover_results,
                         save_path=os.path.join(self.save_root, "synapse_turnover_analysis"),
                         filename="synapse_turnover"
                     )
+                else:
+                    self.logger.warning("No turnover results to plot")
             else:
                 # Training mode: just collect snapshot
                 self.syn_turnover_analyzer.analyze(
                     model=self.model,
                     training=training,
-                    save_path=os.path.join(self.save_root, "synapse_turnover_analysis"),
+                    save_path=None,  # Don't save individual snapshots
                     filename=filename,
                 )
 

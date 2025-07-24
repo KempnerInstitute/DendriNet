@@ -32,6 +32,7 @@ from dendritic_modeling.plotting.analysis import (
     plot_weight_distributions,
     plot_performance_metrics,
     plot_performance_evolution,
+    plot_per_layer_information,
 )
 from dendritic_modeling.plotting.base import (
     BarPlotter,
@@ -133,4 +134,5 @@ __all__ = [
     "split_mnist_inputs",
     "visualize_dendritic_tree",
     "plot_performance_metrics",
+    "plot_per_layer_information",
 ]
