@@ -5,6 +5,7 @@ This module contains classes for analyzing synaptic plasticity and turnover duri
 tracking the dynamics of active, stable, and transient synapses over time.
 """
 
+import logging
 from copy import deepcopy
 from typing import Optional
 
@@ -16,6 +17,8 @@ from dendritic_modeling.networks import (
     ExcitationInhibitionNetwork,
 )
 from dendritic_modeling.utils import save_dict
+
+logger = logging.getLogger(__name__)
 
 
 class SynapticTurnoverAnalyzer:
@@ -89,8 +92,10 @@ class SynapticTurnoverAnalyzer:
                             .cpu()
                         )
             self.data_dict_list.append(data_dict)
+            logger.info(f"Collected synaptic snapshot #{len(self.data_dict_list)} for turnover analysis")
         else:
             # Analysis mode: compute turnover statistics from collected snapshots
+            logger.info(f"Analyzing synaptic turnover from {len(self.data_dict_list)} snapshots")
 
             def turnover_helper(
                 prev_mask: torch.Tensor,
@@ -121,83 +126,151 @@ class SynapticTurnoverAnalyzer:
                 total_transient += curr_transient
                 return total_active, total_stable, total_transient
 
-            # Initialize turnover statistics dictionary
-            turnover_dict = {
+            # Initialize turnover statistics dictionaries
+            # Incremental: comparing each timepoint with previous (t vs t-1)
+            incremental_turnover = {
+                "exc": {"active": [], "stable": [], "transient": []},
+                "inh": {"active": [], "stable": [], "transient": []},
+                "both": {"active": [], "stable": [], "transient": []},
+            }
+            
+            # Cumulative: comparing each timepoint with initial (t vs t=0)
+            cumulative_turnover = {
                 "exc": {"active": [], "stable": [], "transient": []},
                 "inh": {"active": [], "stable": [], "transient": []},
                 "both": {"active": [], "stable": [], "transient": []},
             }
 
-            # Compare consecutive snapshots to compute turnover
+            # Get initial snapshot for cumulative comparison
+            initial_data_dict = self.data_dict_list[0] if len(self.data_dict_list) > 0 else None
+
+            # Compare consecutive snapshots for incremental turnover
             for i in range(1, len(self.data_dict_list)):
                 prev_data_dict: dict = self.data_dict_list[i - 1]
                 curr_data_dict: dict = self.data_dict_list[i]
 
-                # Initialize counters for this time step
-                exc_total_active = 0
-                exc_total_stable = 0
-                exc_total_transient = 0
-
-                inh_total_active = 0
-                inh_total_stable = 0
-                inh_total_transient = 0
+                # Initialize counters for incremental comparison (t vs t-1)
+                inc_exc_active = inc_exc_stable = inc_exc_transient = 0
+                inc_inh_active = inc_inh_stable = inc_inh_transient = 0
+                
+                # Initialize counters for cumulative comparison (t vs t=0)
+                cum_exc_active = cum_exc_stable = cum_exc_transient = 0
+                cum_inh_active = cum_inh_stable = cum_inh_transient = 0
 
                 # Process each dendritic branch layer
                 for name in curr_data_dict.keys():
                     prev_module_dict: dict = prev_data_dict[name]
                     curr_module_dict: dict = curr_data_dict[name]
+                    initial_module_dict: dict = initial_data_dict[name] if initial_data_dict else prev_module_dict
 
                     # Process excitatory synapses
                     if "exc_mask" in curr_module_dict.keys():
-                        prev_exc_mask = prev_module_dict["exc_mask"]
                         curr_exc_mask = curr_module_dict["exc_mask"]
+                        
+                        # Incremental comparison (t vs t-1)
+                        prev_exc_mask = prev_module_dict["exc_mask"]
                         (
-                            exc_total_active,
-                            exc_total_stable,
-                            exc_total_transient,
+                            inc_exc_active,
+                            inc_exc_stable,
+                            inc_exc_transient,
                         ) = turnover_helper(
                             prev_exc_mask,
                             curr_exc_mask,
-                            exc_total_active,
-                            exc_total_stable,
-                            exc_total_transient,
+                            inc_exc_active,
+                            inc_exc_stable,
+                            inc_exc_transient,
+                        )
+                        
+                        # Cumulative comparison (t vs t=0)
+                        initial_exc_mask = initial_module_dict["exc_mask"]
+                        (
+                            cum_exc_active,
+                            cum_exc_stable,
+                            cum_exc_transient,
+                        ) = turnover_helper(
+                            initial_exc_mask,
+                            curr_exc_mask,
+                            cum_exc_active,
+                            cum_exc_stable,
+                            cum_exc_transient,
                         )
 
                     # Process inhibitory synapses
                     if "inh_mask" in curr_module_dict.keys():
-                        prev_inh_mask = prev_module_dict["inh_mask"]
                         curr_inh_mask = curr_module_dict["inh_mask"]
+                        
+                        # Incremental comparison (t vs t-1)
+                        prev_inh_mask = prev_module_dict["inh_mask"]
                         (
-                            inh_total_active,
-                            inh_total_stable,
-                            inh_total_transient,
+                            inc_inh_active,
+                            inc_inh_stable,
+                            inc_inh_transient,
                         ) = turnover_helper(
                             prev_inh_mask,
                             curr_inh_mask,
-                            inh_total_active,
-                            inh_total_stable,
-                            inh_total_transient,
+                            inc_inh_active,
+                            inc_inh_stable,
+                            inc_inh_transient,
+                        )
+                        
+                        # Cumulative comparison (t vs t=0)
+                        initial_inh_mask = initial_module_dict["inh_mask"]
+                        (
+                            cum_inh_active,
+                            cum_inh_stable,
+                            cum_inh_transient,
+                        ) = turnover_helper(
+                            initial_inh_mask,
+                            curr_inh_mask,
+                            cum_inh_active,
+                            cum_inh_stable,
+                            cum_inh_transient,
                         )
 
-                # Store turnover statistics for this time step
-                turnover_dict["exc"]["active"].append(exc_total_active)
-                turnover_dict["exc"]["stable"].append(exc_total_stable)
-                turnover_dict["exc"]["transient"].append(exc_total_transient)
+                # Store incremental turnover statistics
+                incremental_turnover["exc"]["active"].append(inc_exc_active)
+                incremental_turnover["exc"]["stable"].append(inc_exc_stable)
+                incremental_turnover["exc"]["transient"].append(inc_exc_transient)
 
-                turnover_dict["inh"]["active"].append(inh_total_active)
-                turnover_dict["inh"]["stable"].append(inh_total_stable)
-                turnover_dict["inh"]["transient"].append(inh_total_transient)
+                incremental_turnover["inh"]["active"].append(inc_inh_active)
+                incremental_turnover["inh"]["stable"].append(inc_inh_stable)
+                incremental_turnover["inh"]["transient"].append(inc_inh_transient)
 
-                # Combined statistics (excitatory + inhibitory)
-                turnover_dict["both"]["active"].append(
-                    exc_total_active + inh_total_active
+                incremental_turnover["both"]["active"].append(
+                    inc_exc_active + inc_inh_active
                 )
-                turnover_dict["both"]["stable"].append(
-                    exc_total_stable + inh_total_stable
+                incremental_turnover["both"]["stable"].append(
+                    inc_exc_stable + inc_inh_stable
                 )
-                turnover_dict["both"]["transient"].append(
-                    exc_total_transient + inh_total_transient
+                incremental_turnover["both"]["transient"].append(
+                    inc_exc_transient + inc_inh_transient
                 )
+                
+                # Store cumulative turnover statistics
+                cumulative_turnover["exc"]["active"].append(cum_exc_active)
+                cumulative_turnover["exc"]["stable"].append(cum_exc_stable)
+                cumulative_turnover["exc"]["transient"].append(cum_exc_transient)
+
+                cumulative_turnover["inh"]["active"].append(cum_inh_active)
+                cumulative_turnover["inh"]["stable"].append(cum_inh_stable)
+                cumulative_turnover["inh"]["transient"].append(cum_inh_transient)
+
+                cumulative_turnover["both"]["active"].append(
+                    cum_exc_active + cum_inh_active
+                )
+                cumulative_turnover["both"]["stable"].append(
+                    cum_exc_stable + cum_inh_stable
+                )
+                cumulative_turnover["both"]["transient"].append(
+                    cum_exc_transient + cum_inh_transient
+                )
+
+            # Return both types of turnover statistics
+            turnover_dict = {
+                "incremental": incremental_turnover,
+                "cumulative": cumulative_turnover,
+                "n_snapshots": len(self.data_dict_list)
+            }
 
             if save_path is not None:
                 save_dict(turnover_dict, save_path, filename)
