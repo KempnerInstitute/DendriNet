@@ -304,7 +304,7 @@ The framework provides a PlotManager class that can automate many of these visua
 
 .. code-block:: python
 
-    from dendritic_modeling.visualization_manager import PlotManager
+    from dendritic_modeling.plotting.managers import PlotManager
 
     # Create a plot manager
     plot_manager = PlotManager(
