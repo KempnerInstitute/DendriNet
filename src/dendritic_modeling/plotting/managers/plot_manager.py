@@ -29,6 +29,12 @@ from dendritic_modeling.plotting.visualizations.analysis import (
     plot_einet_activations,
     plot_layer_contributions,
     plot_per_layer_information,
+    # Training functions (now in analysis.py)
+    plot_loss_curves,
+    plot_branch_sweep_results,
+    plot_ei_sweep_results,
+    plot_noise_sweep_branch_results,
+    plot_noise_sweep_ei_results,
 )
 from dendritic_modeling.plotting.visualizations.network import (
     plot_dendrinet_gradients,
@@ -38,16 +44,9 @@ from dendritic_modeling.plotting.visualizations.network import (
     plot_branch_weights,
     plot_excitation_inhibition_gradients,
     plot_excitation_inhibition_weights,
-)
-from dendritic_modeling.plotting.visualizations.training import (
-    plot_loss_curves,
-    plot_branch_sweep_results,
-    plot_ei_sweep_results,
-    plot_noise_sweep_branch_results,
-    plot_noise_sweep_ei_results,
+    visualize_dendritic_tree,
 )
 from dendritic_modeling.plotting.core.utils import (
-    visualize_dendritic_tree,
     plot_activation_tuning,
     plot_depth_info,
     plot_voltage_before_activation,

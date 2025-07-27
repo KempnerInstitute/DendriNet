@@ -22,7 +22,7 @@ from dendritic_modeling import logger
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.plotting import plot_loss_curves
 from dendritic_modeling.training.loss.functions import LossFunction, get_loss_function
-from dendritic_modeling.plotting.visualizations.training import plot_loss_curves as plot_training_loss_curves
+from dendritic_modeling.plotting.visualizations.analysis import plot_loss_curves as plot_training_loss_curves
 
 
 class Trainer:

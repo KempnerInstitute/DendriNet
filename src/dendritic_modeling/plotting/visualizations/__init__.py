@@ -1,6 +1,6 @@
-"""Visualization plotting functions for analysis, networks, training, and correlations."""
+"""Visualization plotting functions for analysis, networks, and correlations."""
 
-# Analysis visualizations
+# Analysis visualizations (now includes training functions)
 from .analysis import (
     dendritic_activations_todict,
     einet_activations_todict,
@@ -12,6 +12,12 @@ from .analysis import (
     plot_performance_metrics,
     plot_performance_evolution,
     plot_per_layer_information,
+    # Training and sweep functions (merged from training.py)
+    plot_loss_curves,
+    plot_branch_sweep_results,
+    plot_ei_sweep_results,
+    plot_noise_sweep_branch_results,
+    plot_noise_sweep_ei_results,
 )
 
 # Network visualizations  
@@ -23,15 +29,7 @@ from .network import (
     plot_einet_params,
     plot_excitation_inhibition_gradients,
     plot_excitation_inhibition_weights,
-)
-
-# Training visualizations
-from .training import (
-    plot_branch_sweep_results,
-    plot_ei_sweep_results,
-    plot_loss_curves,
-    plot_noise_sweep_branch_results,
-    plot_noise_sweep_ei_results,
+    visualize_dendritic_tree,
 )
 
 # Correlation visualizations
@@ -42,7 +40,7 @@ from .correlation_plots import (
 )
 
 __all__ = [
-    # Analysis
+    # Analysis (includes former training functions)
     "dendritic_activations_todict",
     "einet_activations_todict",
     "plot_ablation_results",
@@ -54,6 +52,13 @@ __all__ = [
     "plot_performance_evolution",
     "plot_per_layer_information",
     
+    # Training/sweep functions (now in analysis.py)
+    "plot_loss_curves",
+    "plot_branch_sweep_results",
+    "plot_ei_sweep_results",
+    "plot_noise_sweep_branch_results",
+    "plot_noise_sweep_ei_results",
+    
     # Network
     "plot_branch_gradients",
     "plot_branch_weights",
@@ -62,13 +67,7 @@ __all__ = [
     "plot_einet_params",
     "plot_excitation_inhibition_gradients",
     "plot_excitation_inhibition_weights",
-    
-    # Training
-    "plot_branch_sweep_results",
-    "plot_ei_sweep_results",
-    "plot_loss_curves",
-    "plot_noise_sweep_branch_results",
-    "plot_noise_sweep_ei_results",
+    "visualize_dendritic_tree",
     
     # Correlation
     "plot_correlation_matrices",
