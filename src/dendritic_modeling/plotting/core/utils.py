@@ -21,191 +21,7 @@ except ImportError:
     nx = None
 
 from dendritic_modeling import logger
-from dendritic_modeling.plotting.analysis import einet_activations_todict
-
-
-def reverse_layer_indices(layer_indices: list[int]) -> list[int]:
-    """
-    Reverse layer indices for soma-to-distal visualization.
-
-    Args:
-        layer_indices: Original layer indices
-
-    Returns:
-        Reversed indices where last layer (soma) becomes 0
-    """
-    num_layers = len(layer_indices)
-    return [num_layers - 1 - idx for idx in layer_indices]
-
-
-def format_layer_labels(layer_indices: list[int]) -> list[str]:
-    """
-    Format layer indices as labels with special handling for soma.
-
-    Args:
-        layer_indices: Layer indices (0-based)
-
-    Returns:
-        List of formatted labels
-    """
-    return ["Soma" if idx == 0 else str(idx) for idx in layer_indices]
-
-
-def dendrinet_activations_to_csv(
-    dendrinet,
-    exc_input_list,
-    inh_input_list,
-    save_root,
-    filename="activation_components",
-):
-    """Export DendriNet activations to CSV files."""
-    layer_sizes = dendrinet.layer_sizes
-    n_soma = dendrinet.n_soma
-    n_branch_layers = dendrinet.n_branch_layers
-
-    output_list = [None] * len(exc_input_list)
-    for i in range(n_branch_layers + 1):
-        branches_per_soma = int(layer_sizes[i] / n_soma)
-
-        chunk_list = []
-
-        for j in range(len(exc_input_list)):
-            output_list[j] = dendrinet.branch_layers[i](
-                exc_input_list[j], inh_input_list[j], output_list[j]
-            )
-            chunk_list.append(output_list[j].chunk(n_soma, dim=-1))
-
-        level = (
-            "soma layer"
-            if (i == n_branch_layers)
-            else f"branch layer {n_branch_layers - i}"
-        )
-
-        for n in range(n_soma):
-            for b in range(branches_per_soma):
-                activation_list = []
-                for k in range(len(exc_input_list)):
-                    chunk = chunk_list[k][n][:, b]
-                    activation_list.append(chunk.detach().cpu().numpy())
-
-                soma_branch = f"soma{n}_branch{b}"
-
-                # Create directory
-                save_dir = os.path.join(save_root, level, soma_branch)
-                os.makedirs(save_dir, exist_ok=True)
-
-                # Export to CSV
-                csv_path = os.path.join(save_dir, f"{filename}.csv")
-
-                with open(csv_path, "w", newline="") as csvfile:
-                    writer = csv.writer(csvfile)
-
-                    # Write header
-                    writer.writerow([f"digit_{i}" for i in range(len(activation_list))])
-
-                    # Write data
-                    max_len = max(len(act) for act in activation_list)
-                    for i in range(max_len):
-                        row = []
-                        for act in activation_list:
-                            if i < len(act):
-                                row.append(act[i])
-                            else:
-                                row.append("")
-                        writer.writerow(row)
-
-
-def einet_activations_to_csv(
-    einet, input_list, save_root, filename="activation_components"
-):
-    """Export EINet activations to CSV files."""
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    einet = einet.to(device)
-
-    exc_input_list = [inputs.to(device) for inputs in input_list]
-    inh_input_list = [None] * len(input_list)
-
-    for i in range(len(einet.layers)):
-        inh_dendrinet = einet.layers[i].inhibitory_cells
-        exc_dendrinet = einet.layers[i].excitatory_cells
-
-        # Export inhibitory cell activations
-        dendrinet_activations_to_csv(
-            dendrinet=inh_dendrinet,
-            exc_input_list=exc_input_list,
-            inh_input_list=inh_input_list,
-            save_root=os.path.join(save_root, f"ei_layer{i+1}", "inhibitory_cells"),
-            filename=filename,
-        )
-
-        # Update inhibitory inputs
-        inh_temp = []
-        for j in range(len(input_list)):
-            inh_temp.append(inh_dendrinet(exc_input_list[j], inh_input_list[j]))
-        inh_input_list = inh_temp
-
-        # Export excitatory cell activations
-        dendrinet_activations_to_csv(
-            dendrinet=exc_dendrinet,
-            exc_input_list=exc_input_list,
-            inh_input_list=inh_input_list,
-            save_root=os.path.join(save_root, f"ei_layer{i+1}", "excitatory_cells"),
-            filename=filename,
-        )
-
-        # Update excitatory inputs
-        exc_temp = []
-        for j in range(len(input_list)):
-            exc_temp.append(exc_dendrinet(exc_input_list[j], inh_input_list[j]))
-        exc_input_list = exc_temp
-
-
-def build_dendritic_tree_graph(model, branch_info=None, ablation_info=None):
-    """
-    Build a NetworkX graph representing the dendritic tree structure.
-
-    Args:
-        model: Model with dendritic structure
-        branch_info: Information about branches (optional)
-        ablation_info: Information about ablations (optional)
-
-    Returns:
-        G: NetworkX graph object
-    """
-    if not NETWORKX_AVAILABLE:
-        logging.warning("NetworkX is not available. Cannot build dendritic tree graph.")
-        return None
-
-    G = nx.DiGraph()
-
-    # Add nodes based on model structure
-    if hasattr(model, "net") and hasattr(model.net, "layers"):
-        for layer_idx, layer in enumerate(model.net.layers):
-            # Add layer node
-            layer_name = f"layer_{layer_idx}"
-            G.add_node(layer_name, node_type="layer", layer=layer_idx)
-
-            # Add connections between layers
-            if layer_idx > 0:
-                prev_layer = f"layer_{layer_idx-1}"
-                G.add_edge(prev_layer, layer_name)
-
-            # Add branch nodes if available
-            if hasattr(layer, "excitatory_cells"):
-                exc_cell = layer.excitatory_cells
-                if hasattr(exc_cell, "branch_layers"):
-                    for branch_idx, _branch in enumerate(exc_cell.branch_layers):
-                        branch_name = f"layer_{layer_idx}_branch_{branch_idx}"
-                        G.add_node(
-                            branch_name,
-                            node_type="branch",
-                            layer=layer_idx,
-                            branch=branch_idx,
-                        )
-                        G.add_edge(layer_name, branch_name)
-
-    return G
-
+from dendritic_modeling.plotting.visualizations.analysis import einet_activations_todict
 
 def visualize_dendritic_tree(G, mode="info"):
     """
@@ -263,7 +79,6 @@ def visualize_dendritic_tree(G, mode="info"):
     plt.legend()
     plt.axis("off")
     plt.tight_layout()
-
 
 def plot_activation_tuning(einet, input_list, save_root):
     """
@@ -344,7 +159,6 @@ def plot_activation_tuning(einet, input_list, save_root):
                                 bbox_inches="tight",
                             )
                             plt.close()
-
 
 def plot_voltage_before_activation(einet, input_list, save_root=None):
     """
@@ -448,27 +262,6 @@ def plot_voltage_before_activation(einet, input_list, save_root=None):
                     plt.close()
                 else:
                     plt.show()
-
-
-def split_mnist_inputs(inputs, labels):
-    """
-    Split MNIST inputs by digit class.
-
-    Args:
-        inputs: Input tensor
-        labels: Label tensor
-
-    Returns:
-        List of input tensors, one for each digit class
-    """
-    input_list = []
-    for digit in range(10):
-        digit_mask = labels == digit
-        digit_inputs = inputs[digit_mask]
-        input_list.append(digit_inputs)
-
-    return input_list
-
 
 def plot_depth_info(branch_info):
     """

@@ -12,7 +12,6 @@ import numpy as np
 import seaborn as sns
 from matplotlib.gridspec import GridSpec
 
-
 def plot_correlation_matrices(
     correlation_results: dict[str, np.ndarray],
     save_path: Optional[str] = None,
@@ -62,7 +61,6 @@ def plot_correlation_matrices(
         plt.close()
 
     return fig
-
 
 def plot_tuning_curves(
     tuning_results: dict[str, dict[str, np.ndarray]],
@@ -128,7 +126,6 @@ def plot_tuning_curves(
         plt.close()
 
     return fig
-
 
 def plot_information_analysis(
     info_results: dict[str, Any],
@@ -270,7 +267,6 @@ def plot_information_analysis(
 
     return fig
 
-
 def plot_correlation_vs_information(
     correlation_data: dict[str, np.ndarray],
     information_data: dict[str, float],
@@ -355,73 +351,3 @@ def plot_correlation_vs_information(
 
     return fig
 
-
-def plot_correlation_summary(
-    results: dict[str, Any],
-    save_path: Optional[str] = None,
-    figsize: tuple[int, int] = (15, 12),
-) -> list[plt.Figure]:
-    """
-    Create comprehensive summary plots for correlation analysis.
-
-    Args:
-        results: Complete correlation analysis results
-        save_path: Base path to save figures
-        figsize: Figure size
-
-    Returns:
-        List of figure objects
-    """
-    figures = []
-
-    # 1. Correlation matrices
-    if "correlations" in results:
-        fig = plot_correlation_matrices(results["correlations"])
-        figures.append(fig)
-        if save_path:
-            fig.savefig(
-                os.path.join(save_path, "correlation_matrices.png"),
-                dpi=300,
-                bbox_inches="tight",
-            )
-            plt.close(fig)
-
-    # 2. Tuning curves
-    if "tuning_curves" in results:
-        fig = plot_tuning_curves(results["tuning_curves"])
-        figures.append(fig)
-        if save_path:
-            fig.savefig(
-                os.path.join(save_path, "tuning_curves.png"),
-                dpi=300,
-                bbox_inches="tight",
-            )
-            plt.close(fig)
-
-    # 3. Information analysis
-    if "information" in results:
-        fig = plot_information_analysis(results["information"])
-        figures.append(fig)
-        if save_path:
-            fig.savefig(
-                os.path.join(save_path, "information_analysis.png"),
-                dpi=300,
-                bbox_inches="tight",
-            )
-            plt.close(fig)
-
-    # 4. Correlation vs Information
-    if "correlations" in results and "information_by_layer" in results:
-        fig = plot_correlation_vs_information(
-            results["correlations"], results["information_by_layer"]
-        )
-        figures.append(fig)
-        if save_path:
-            fig.savefig(
-                os.path.join(save_path, "correlation_vs_information.png"),
-                dpi=300,
-                bbox_inches="tight",
-            )
-            plt.close(fig)
-
-    return figures
