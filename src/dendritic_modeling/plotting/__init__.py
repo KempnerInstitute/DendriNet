@@ -14,7 +14,6 @@ from .core import (
     plot_activation_tuning,
     plot_depth_info,
     plot_voltage_before_activation,
-    visualize_dendritic_tree,
 )
 
 # Import from visualizations
@@ -39,6 +38,7 @@ from .visualizations import (
     plot_einet_params,
     plot_excitation_inhibition_gradients,
     plot_excitation_inhibition_weights,
+    visualize_dendritic_tree,
     
     # Training functions
     plot_branch_sweep_results,
@@ -61,7 +61,6 @@ __all__ = [
     "plot_activation_tuning",
     "plot_depth_info",
     "plot_voltage_before_activation",
-    "visualize_dendritic_tree",
     
     # Analysis functions
     "dendritic_activations_todict",
@@ -83,6 +82,7 @@ __all__ = [
     "plot_einet_params",
     "plot_excitation_inhibition_gradients",
     "plot_excitation_inhibition_weights",
+    "visualize_dendritic_tree",
     
     # Training functions
     "plot_branch_sweep_results",
