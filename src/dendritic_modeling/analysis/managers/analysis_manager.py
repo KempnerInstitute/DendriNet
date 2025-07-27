@@ -64,7 +64,17 @@ class AnalysisManager:
 
         # Initialize Synaptic Turnover Analysis
         if self.config.synapse_turnover_analysis.enabled:
-            self.syn_turnover_analyzer = SynapticTurnoverAnalyzer(model=model)
+            # Get snapshot interval from config (default to every 5 epochs for efficiency)
+            snapshot_interval = getattr(
+                self.config.synapse_turnover_analysis, 'snapshot_interval', 5
+            )
+            self.syn_turnover_analyzer = SynapticTurnoverAnalyzer(
+                model=model, 
+                snapshot_interval=snapshot_interval
+            )
+            self.logger.info(
+                f"Synaptic turnover analyzer initialized with snapshot interval: {snapshot_interval} epochs"
+            )
 
         # Initialize Noise Perturbation Analysis
         if self.config.noise_perturbation_analysis.enabled:

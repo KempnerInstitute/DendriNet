@@ -305,7 +305,8 @@ analysis:
   synapse_turnover_analysis:
     enabled: true
     training: true
-
+    snapshot_interval: 5  # frequency of snapshots
+    
   noise_perturbation_analysis:
     enabled: true 
     training: false
