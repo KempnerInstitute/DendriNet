@@ -30,12 +30,13 @@ class SynapticTurnoverAnalyzer:
     excitatory and inhibitory connections.
     """
 
-    def __init__(self, model: BaseModel):
+    def __init__(self, model: BaseModel, snapshot_interval: int = 1):
         """
         Initialize the synaptic turnover analyzer.
 
         Args:
             model: The model to analyze (must have ExcitationInhibitionNetwork)
+            snapshot_interval: Collect snapshots every N epochs (default=1 for every epoch)
 
         Note:
             This automatically takes an initial snapshot of the model's synaptic masks.
@@ -46,6 +47,8 @@ class SynapticTurnoverAnalyzer:
         )
 
         self.data_dict_list = []
+        self.snapshot_interval = snapshot_interval
+        self.epoch_counter = 0
         self.analyze(model=model, training=True)
 
     def analyze(
@@ -75,24 +78,28 @@ class SynapticTurnoverAnalyzer:
 
         if training:
             # Training mode: collect a snapshot of current synaptic masks
+            self.epoch_counter += 1
+            
+            # Only collect snapshot at specified intervals
+            if (self.epoch_counter - 1) % self.snapshot_interval != 0:
+                return
+            
             data_dict = {}
-            for _name, module in model.named_modules():
-                if isinstance(module, DendriticBranchLayer):
-                    data_dict[_name] = {}
-                    if module.branch_excitation is not None:
-                        data_dict[_name]["exc_mask"] = (
-                            deepcopy(module.branch_excitation.weight_mask())
-                            .detach()
-                            .cpu()
-                        )
-                    if module.branch_inhibition is not None:
-                        data_dict[_name]["inh_mask"] = (
-                            deepcopy(module.branch_inhibition.weight_mask())
-                            .detach()
-                            .cpu()
-                        )
+            # Use torch.no_grad() to avoid storing gradients
+            with torch.no_grad():
+                for _name, module in model.named_modules():
+                    if isinstance(module, DendriticBranchLayer):
+                        data_dict[_name] = {}
+                        if module.branch_excitation is not None:
+                            # Get mask, convert to bool for memory efficiency (1 byte vs 4 bytes)
+                            # and move to CPU. No deep copy needed - just tensor operations
+                            mask = module.branch_excitation.weight_mask()
+                            data_dict[_name]["exc_mask"] = mask.bool().cpu()
+                        if module.branch_inhibition is not None:
+                            mask = module.branch_inhibition.weight_mask()
+                            data_dict[_name]["inh_mask"] = mask.bool().cpu()
+            
             self.data_dict_list.append(data_dict)
-            logger.info(f"Collected synaptic snapshot #{len(self.data_dict_list)} for turnover analysis")
         else:
             # Analysis mode: compute turnover statistics from collected snapshots
             logger.info(f"Analyzing synaptic turnover from {len(self.data_dict_list)} snapshots")
@@ -117,10 +124,18 @@ class SynapticTurnoverAnalyzer:
                 Returns:
                     Tuple of updated (total_active, total_stable, total_transient)
                 """
-                mask_diff = curr_mask - prev_mask
-                curr_active = torch.sum(curr_mask).item()
-                curr_transient = torch.sum(mask_diff > 1e-3).item()
+                # Convert to bool if not already (for older snapshots)
+                if prev_mask.dtype != torch.bool:
+                    prev_mask = prev_mask.bool()
+                if curr_mask.dtype != torch.bool:
+                    curr_mask = curr_mask.bool()
+                
+                # Use bitwise operations for efficiency
+                curr_active = curr_mask.sum().item()
+                # Transient = newly activated (curr & ~prev)
+                curr_transient = (curr_mask & ~prev_mask).sum().item()
                 curr_stable = curr_active - curr_transient
+                
                 total_active += curr_active
                 total_stable += curr_stable
                 total_transient += curr_transient

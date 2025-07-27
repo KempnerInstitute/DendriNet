@@ -22,6 +22,9 @@ notebooks/*
 None/*
 dendritic_env/*
 logs/*
+notebooks/RNN/*
+notebooks/covnets/*
+notebooks/vision/*
 #ndb/ Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
