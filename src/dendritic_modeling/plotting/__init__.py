@@ -8,6 +8,7 @@ This package contains visualization and plotting utilities organized into logica
 - basic: Basic plotting utilities
 - utils: Utility functions (CSV export, tree visualization, helper functions)
 - base: Base classes and configuration for the plotting system
+- managers: Centralized plotting orchestration and management
 
 Each module contains focused plotting functions for specific aspects of dendritic modeling.
 """
@@ -81,6 +82,9 @@ from dendritic_modeling.plotting.utils import (
     visualize_dendritic_tree,
 )
 
+# Import managers
+from dendritic_modeling.plotting.managers import PlotManager
+
 __all__ = [
     "AblationPlotter",
     "ActivationPlotter",
@@ -93,6 +97,7 @@ __all__ = [
     "LinePlotter",
     "NoiseAnalysisPlotter",
     "PlotConfig",
+    "PlotManager",
     "WeightDistributionPlotter",
     "add_colorbars",
     "build_dendritic_tree_graph",
