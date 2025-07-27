@@ -18,7 +18,7 @@ import matplotlib.pyplot as plt
 from typing import Optional, Dict, List, Any
 import os
 
-from dendritic_modeling.plotting.analysis import (
+from dendritic_modeling.plotting.visualizations.analysis import (
     plot_performance_metrics,
     plot_performance_evolution,
     plot_information_analysis,
@@ -30,7 +30,7 @@ from dendritic_modeling.plotting.analysis import (
     plot_layer_contributions,
     plot_per_layer_information,
 )
-from dendritic_modeling.plotting.network import (
+from dendritic_modeling.plotting.visualizations.network import (
     plot_dendrinet_gradients,
     plot_einet_params,
     plot_dendrinet_params,
@@ -39,14 +39,14 @@ from dendritic_modeling.plotting.network import (
     plot_excitation_inhibition_gradients,
     plot_excitation_inhibition_weights,
 )
-from dendritic_modeling.plotting.training import (
+from dendritic_modeling.plotting.visualizations.training import (
     plot_loss_curves,
     plot_branch_sweep_results,
     plot_ei_sweep_results,
     plot_noise_sweep_branch_results,
     plot_noise_sweep_ei_results,
 )
-from dendritic_modeling.plotting.utils import (
+from dendritic_modeling.plotting.core.utils import (
     visualize_dendritic_tree,
     plot_activation_tuning,
     plot_depth_info,

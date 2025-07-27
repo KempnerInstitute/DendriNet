@@ -33,7 +33,7 @@ from .math import roc_auc_score
 # Import from other modules for backward compatibility
 # Note: Commented out due to circular import issues - import these directly when needed
 # from dendritic_modeling.training.utils.evaluation import accuracy_score
-# from dendritic_modeling.plotting.utils import split_MNIST_inputs
+# from dendritic_modeling.plotting.core.utils import split_MNIST_inputs
 # from dendritic_modeling.datasets import load_MNIST_modulo10
 
 __all__ = [
