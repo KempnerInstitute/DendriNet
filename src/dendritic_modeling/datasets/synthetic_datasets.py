@@ -1313,9 +1313,23 @@ def get_unified_datasets(task_cfg, train_cfg, output_dir=None, outputs_cfg=None)
         )
         return random_split(full_ds, [train_size, valid_size, test_size])
     elif dataset_name == "synthetic_correlated":
-        from dendritic_modeling.datasets.synthetic_correlated import (
-            SyntheticCorrelatedDataset,
-        )
+        # Note: synthetic_correlated dataset moved to experiments/synaptic_correlation/
+        # Import locally if needed for correlation experiments
+        try:
+            # Try importing from local experiments directory first
+            from synthetic_correlated import SyntheticCorrelatedDataset
+        except ImportError:
+            try:
+                # Try importing from full path
+                from experiments.synaptic_correlation.synthetic_correlated import (
+                    SyntheticCorrelatedDataset,
+                )
+            except ImportError:
+                raise ImportError(
+                    "synthetic_correlated dataset is now located in experiments/synaptic_correlation/. "
+                    "This dataset is specialized for correlation analysis experiments. "
+                    "Run from experiments/synaptic_correlation/ directory or add it to PYTHONPATH."
+                )
 
         input_dim = p.get("input_dim", 300)
         correlation_range = (p.get("corr_min", -0.1), p.get("corr_max", 0.1))

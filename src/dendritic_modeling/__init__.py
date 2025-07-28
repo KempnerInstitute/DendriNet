@@ -36,7 +36,7 @@ from dendritic_modeling import (  # noqa: E402
     networks,
     plotting,
     scripts,
-    sweeps,
+
     training,
     utils,
 )
@@ -51,7 +51,7 @@ __all__ = [
     "networks"
     "plotting"
     "scripts"
-    "sweeps"
+
     "training"
     "utils"
 ]

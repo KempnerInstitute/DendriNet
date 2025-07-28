@@ -33,7 +33,7 @@ project_root = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(project_root / "src"))
 
 from omegaconf import OmegaConf
-from dendritic_modeling.sweeps.unified.base_sweep import BaseSweepGenerator, BaseSweepAnalyzer, SweepJobManager
+from .base_sweep import BaseSweepGenerator, BaseSweepAnalyzer, SweepJobManager
 
 
 class SweepManager:

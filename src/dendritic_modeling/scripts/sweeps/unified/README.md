@@ -14,7 +14,7 @@ This unified framework consolidates all parameter sweep functionality for the de
 ##  Framework Structure
 
 ```
-scripts/sweeps/unified/
+src/dendritic_modeling/scripts/sweeps/unified/
 ├── sweep_manager.py          # Main entry point for all operations
 ├── result_analyzer.py        # Unified result analysis
 ├── base_sweep.py            # Base classes and common utilities
