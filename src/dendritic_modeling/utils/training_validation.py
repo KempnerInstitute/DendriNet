@@ -6,7 +6,9 @@ This module provides validation functions and safeguards for configuration combi
 that may cause numerical instability or performance issues.
 """
 
-from dendritic_modeling import logger
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def validate_optimization_combinations(config) -> bool:
