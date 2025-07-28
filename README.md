@@ -9,6 +9,10 @@
   </a>
 </p>
 
+<p align="center">
+  <img src="dendritic_diagram.png" alt="Dendritic Neural Network Architecture" width="600">
+</p>
+
 A framework for modeling dendritic neural networks with biologically-inspired excitation-inhibition dynamics and sophisticated synaptic processing.
 
 ## Installation
