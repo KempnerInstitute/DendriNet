@@ -13,7 +13,7 @@ This folder contains executable scripts for running experiments and tools.
 - **tools/**: Utility tools for development and analysis
   - `estimate_gpu_requirements.py` - GPU approximation and requirement estimation tool
   - `generate_slurm_job.py` - Script to generate SLURM job files for cluster runs
-  - `check_ei_config_detailed.py` - Tool to check Excitation/Inhibition config details
+  - `calculate_ei_parameters.py` - Tool to calculate E/I network parameters and model size
   
 - **script_utils/**: Helper utilities specific to scripts
   - `setup_utils.py` - Setup utilities for training environment initialization

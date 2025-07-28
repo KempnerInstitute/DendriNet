@@ -223,9 +223,9 @@ def create_large_model(config):
 
 def main(config_path):
     config = load_config(config_path)
-    from .check_ei_config_detailed import check_ei_config
-    if not check_ei_config(config):
-        raise ValueError('EI config validation failed')
+    from dendritic_modeling.utils.config_validator import validate_config
+    if not validate_config(config):
+        raise ValueError('Config validation failed')
     # FSDP setup
     dist.init_process_group(backend='nccl')
     # Model setup with FSDP wrap
