@@ -1,4 +1,9 @@
 """
+Standard dataset loading utilities for dendritic modeling.
+
+This module contains functions for loading and preprocessing standard datasets
+like MNIST, CIFAR-10, and ImageNet.
+"""
 import os
 from typing import Optional
 
@@ -383,4 +388,119 @@ def load_imagenet_as_datasets(
         test_dataset = process_dataset(test_dataset)
 
     return train_dataset, valid_dataset, test_dataset
-""" 
+
+
+def get_unified_datasets(task_cfg, train_cfg, output_dir=None, outputs_cfg=None):
+    """
+    Get datasets based on configuration.
+
+    Args:
+        task_cfg: Task configuration
+        train_cfg: Training configuration
+        output_dir: Output directory from config to store datasets (legacy)
+        outputs_cfg: Outputs configuration containing dir
+
+    Returns:
+        tuple: (train_dataset, valid_dataset, test_dataset)
+    """
+    try:
+        dataset_name = task_cfg["dataset"]
+        task_data_path = task_cfg.get("data_path", None)
+        p = task_cfg.get("parameters", {})
+    except TypeError:
+        dataset_name = task_cfg.dataset
+        task_data_path = getattr(task_cfg, "data_path", None)
+        p = task_cfg.parameters
+
+    # Extract outputs directory from outputs config
+    try:
+        outputs_dir = outputs_cfg.get("dir", None) if outputs_cfg else None
+    except (TypeError, AttributeError):
+        outputs_dir = getattr(outputs_cfg, "dir", None) if outputs_cfg else None
+
+    # If task_data_path is empty string, set it to None
+    if task_data_path == "":
+        task_data_path = None
+
+    # If outputs_dir is empty string, set it to None
+    if outputs_dir == "":
+        outputs_dir = None
+
+    # Legacy fallback: If both task_data_path and outputs_dir are None, and output_dir is not provided,
+    # use the outputs directory in project root instead of current working directory
+    if task_data_path is None and outputs_dir is None and output_dir is None:
+        project_root = os.path.dirname(
+            os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        )
+        outputs_dir = os.path.join(project_root, "outputs")
+        os.makedirs(outputs_dir, exist_ok=True)
+
+    train_valid_split = getattr(train_cfg, "train_valid_split", 1.0)
+    flatten = p.get("flatten", True)
+    normalize = p.get("normalize", False)
+
+    # Handle standard datasets directly
+    if dataset_name == "mnist":
+        train_ds, valid_ds, test_ds = load_mnist_as_datasets(
+            train_valid_split=train_valid_split,
+            flatten=flatten,
+            normalize=normalize,
+            data_path=None,  # Legacy parameter
+            output_dir=output_dir,  # Legacy parameter
+            task_data_path=task_data_path,
+            outputs_dir=outputs_dir,
+        )
+        return train_ds, valid_ds, test_ds
+    elif dataset_name == "cifar10":
+        return load_cifar10_as_datasets(
+            train_valid_split=train_valid_split,
+            flatten=flatten,
+            normalize=normalize,
+            data_path=None,  # Legacy parameter
+            output_dir=output_dir,  # Legacy parameter
+            task_data_path=task_data_path,
+            outputs_dir=outputs_dir,
+        )
+    elif dataset_name == "imagenet":
+        return load_imagenet_as_datasets(
+            train_valid_split=train_valid_split,
+            flatten=flatten,
+            normalize=normalize,
+            data_path=None,  # Legacy parameter
+            output_dir=output_dir,  # Legacy parameter
+            task_data_path=task_data_path,
+            outputs_dir=outputs_dir,
+        )
+    elif dataset_name == "mnist_modulo10":
+        data = load_mnist_modulo10(
+            train_valid_split=train_valid_split,
+            flatten=flatten,
+            normalize=normalize,
+            cache_dir=None,  # Legacy parameter
+            output_dir=output_dir,  # Legacy parameter
+            task_data_path=task_data_path,
+            outputs_dir=outputs_dir,
+        )
+        train_ds = data["train"]
+        if "valid" in data:
+            valid_ds = data["valid"]
+        else:
+            valid_ds = data["test"]
+        test_ds = data["test"]
+        return train_ds, valid_ds, test_ds
+    else:
+        # For synthetic/experimental datasets, delegate to the experiments folder
+        try:
+            # Add experiments directory to path
+            experiments_path = os.path.join(
+                os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))),
+                "experiments"
+            )
+            import sys
+            if experiments_path not in sys.path:
+                sys.path.insert(0, experiments_path)
+            
+            from data_generation.synthetic_datasets import get_unified_datasets as get_synthetic_datasets
+            return get_synthetic_datasets(task_cfg, train_cfg, output_dir, outputs_cfg)
+        except ImportError as e:
+            raise ValueError(f"Unknown dataset name: {dataset_name}. Synthetic datasets not available: {e}") 
