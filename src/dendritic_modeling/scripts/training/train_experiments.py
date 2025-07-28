@@ -68,7 +68,8 @@ from dendritic_modeling.datasets import get_unified_datasets
 from dendritic_modeling.models import BaseModel, Classifier, Regressor
 from dendritic_modeling.networks import Identity
 from dendritic_modeling.networks.architectures.factory import get_architecture
-from dendritic_modeling.scripts.train_encoder_network import load_train_encoder_network
+from dendritic_modeling.scripts.training.train_encoder_network import load_train_encoder_network
+from dendritic_modeling.scripts.script_utils.setup_utils import setup_environment, save_model, load_model, initialize_model
 from dendritic_modeling.training import CustomWeightDecayOptimizer, get_trainer
 from dendritic_modeling.utils import save_dict, validate_config, set_seed
 from dendritic_modeling.plotting.visualizations.analysis import plot_information_analysis
@@ -78,9 +79,6 @@ from dendritic_modeling.config.validation import (
     suggest_optimal_config_for_model_size,
     apply_automatic_safeguards
 )
-
-# Import the extracted utilities
-from dendritic_modeling.scripts.utils.setup_utils import setup_environment, save_model, load_model, initialize_model
 
 # FSDP import (conditional)
 try:
