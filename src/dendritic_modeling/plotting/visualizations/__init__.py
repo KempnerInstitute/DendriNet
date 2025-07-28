@@ -32,13 +32,6 @@ from .network import (
     visualize_dendritic_tree,
 )
 
-# Correlation visualizations
-from .correlation_plots import (
-    plot_correlation_matrices,
-    plot_tuning_curves,
-    plot_correlation_vs_information,
-)
-
 __all__ = [
     # Analysis (includes former training functions)
     "dendritic_activations_todict",
@@ -68,9 +61,4 @@ __all__ = [
     "plot_excitation_inhibition_gradients",
     "plot_excitation_inhibition_weights",
     "visualize_dendritic_tree",
-    
-    # Correlation
-    "plot_correlation_matrices",
-    "plot_tuning_curves",
-    "plot_correlation_vs_information",
 ] 

@@ -46,11 +46,6 @@ from .visualizations import (
     plot_loss_curves,
     plot_noise_sweep_branch_results,
     plot_noise_sweep_ei_results,
-    
-    # Correlation functions
-    plot_correlation_matrices,
-    plot_tuning_curves,
-    plot_correlation_vs_information,
 )
 
 # Import managers
@@ -90,11 +85,6 @@ __all__ = [
     "plot_loss_curves",
     "plot_noise_sweep_branch_results",
     "plot_noise_sweep_ei_results",
-    
-    # Correlation functions
-    "plot_correlation_matrices",
-    "plot_tuning_curves",
-    "plot_correlation_vs_information",
     
     # Managers
     "PlotManager",

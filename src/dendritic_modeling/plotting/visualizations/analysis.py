@@ -13,31 +13,10 @@ neural network models, including:
 
 import os
 from typing import Any, Optional
-
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-
-# Removed base.py imports as they were unused
-
-# Import the data extraction functions from core
 from dendritic_modeling.plotting.core.utils import dendritic_activations_todict, einet_activations_todict
-
-# ============================================================================
-# Analysis Plotting Functions  
-# ============================================================================
-
-# ============================================================================
-# Analysis Plotters
-# ============================================================================
-
-# ============================================================================
-# Specialized Activation Plotters
-# ============================================================================
-
-# ============================================================================
-# Convenience Functions (for backward compatibility)
-# ============================================================================
 
 def plot_layer_contributions(results: dict[str, Any], **kwargs):
     """Convenience function for layer contribution plotting."""
