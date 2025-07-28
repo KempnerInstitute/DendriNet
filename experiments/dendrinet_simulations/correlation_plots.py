@@ -1,7 +1,9 @@
 """
-Correlation analysis plotting utilities.
+Correlation analysis plotting utilities for dendrinet simulations.
 
-This module contains plotting functions for visualizing correlation analysis results.
+This module contains plotting functions for visualizing correlation analysis results
+in dendritic network simulation experiments. Moved from the main plotting package
+to be colocated with dendrinet simulation experiments.
 """
 
 import os
