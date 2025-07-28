@@ -1,26 +1,15 @@
 """
-Scripts module for dendritic modeling.
+Scripts Package
 
 This module contains main training and experiment scripts.
 """
 
-from dendritic_modeling.scripts.train_experiments import (
-    initialize_model,
-    load_model,
-    main,
+from dendritic_modeling.scripts.training.train_experiments import (
     run_analysis,
-    save_model,
-    setup_environment,
+    main as train_experiments_main,
 )
-from .generate_slurm_job import SlurmJobGenerator
-from .estimate_gpu_requirements import main as estimate_gpu
-from .check_ei_config_detailed import estimate_ei_model_detailed
 
 __all__ = [
-    "initialize_model"
-    "load_model"
-    "main"
-    "run_analysis"
-    "save_model"
-    "setup_environment"
+    "run_analysis",
+    "train_experiments_main",
 ]
