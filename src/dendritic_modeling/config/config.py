@@ -71,10 +71,3 @@ def load_config(path: Optional[str] = None) -> Config:
             outputs=OutputsConfig(**raw_conf.get("outputs", {})),
         )
     return Config()
-
-
-class ConfigValidator:
-    def __init__(self, config: Dict):
-        self.config = config
-        self.errors: List[str] = []
-        self.warnings: List[str] = []

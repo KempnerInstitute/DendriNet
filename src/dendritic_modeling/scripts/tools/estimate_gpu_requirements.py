@@ -3,6 +3,9 @@
 GPU Memory Requirements Estimator for Dendritic Models
 ======================================================
 
+This script provides a command-line interface for the GPU memory estimation utilities.
+It wraps the core GPUMemoryEstimator class from utils/gpu_estimation.py for easy CLI usage.
+
 This script estimates GPU memory requirements for different dendritic model configurations
 to help with resource planning and batch size optimization.
 
