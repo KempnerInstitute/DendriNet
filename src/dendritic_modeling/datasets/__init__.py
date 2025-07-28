@@ -4,10 +4,7 @@ Datasets module for dendritic modeling.
 This module contains various synthetic and real dataset classes and utilities.
 """
 
-from dendritic_modeling.datasets.synthetic_correlated import (
-    SyntheticCorrelatedDataset,
-    load_synthetic_correlated,
-)
+
 from dendritic_modeling.datasets.synthetic_datasets import (
     CenterSurroundDataset,
     CompositionalMNIST,
@@ -61,5 +58,5 @@ __all__ = [
     "load_mnist_as_datasets",
     "load_mnist_modulo10",
     "load_poisson_generator_datasets",
-    "load_synthetic_correlated",
+
 ]

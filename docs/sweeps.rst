@@ -10,7 +10,7 @@ Located in ``src/dendritic_modeling/sweeps/unified/``, this framework provides:
 
 - **Types**: ``ei`` (E/I ratios), ``branch`` (branch factors), ``noise`` (noise levels), ``general`` (arbitrary parameters)
 - **Implementation**: ``BaseSweepGenerator`` creates configs, ``SweepJobManager`` submits SLURM jobs, ``BaseSweepAnalyzer`` plots results
-- **CLI Access**: Available via ``python -m dendritic_modeling.sweeps.unified.sweep_manager``
+- **CLI Access**: Available via ``python -m dendritic_modeling.scripts.sweeps.unified.sweep_manager``
 
 Sweep Types
 -----------
@@ -19,25 +19,25 @@ Sweep Types
    - **Purpose**: Systematically explore excitatory/inhibitory synapse combinations
    - **Parameters**: ``ee_synapses_per_branch_per_layer``, ``ie_synapses_per_branch_per_layer``, ``use_shunting``
    - **Analysis**: Generates heatmaps of performance vs. E/I parameters
-   - **Example**: ``python -m dendritic_modeling.sweeps.unified.sweep_manager ei --config configs/ei_sweep.yaml --run``
+   - **Example**: ``python -m dendritic_modeling.scripts.sweeps.unified.sweep_manager ei --config configs/ei_sweep.yaml --run``
 
 2. **Branch Sweep** (``branch``):
    - **Purpose**: Explore branch architecture variations
    - **Parameters**: ``num_branches_per_layer``, ``excitatory_branch_factors``
    - **Analysis**: Performance vs. branching complexity
-   - **Example**: ``python -m dendritic_modeling.sweeps.unified.sweep_manager branch --config configs/branch_sweep.yaml --generate-only``
+   - **Example**: ``python -m dendritic_modeling.scripts.sweeps.unified.sweep_manager branch --config configs/branch_sweep.yaml --generate-only``
 
 3. **Noise Sweep** (``noise``):
    - **Purpose**: Test network robustness to different noise types and levels
    - **Parameters**: ``noise_type`` (gaussian, poisson, uniform), ``noise_levels``
    - **Analysis**: Robustness curves and degradation analysis
-   - **Example**: ``python -m dendritic_modeling.sweeps.unified.sweep_manager noise --config configs/noise_sweep.yaml --run``
+   - **Example**: ``python -m dendritic_modeling.scripts.sweeps.unified.sweep_manager noise --config configs/noise_sweep.yaml --run``
 
 4. **General Sweep** (``general``):
    - **Purpose**: Arbitrary parameter sweeps for custom experiments
    - **Parameters**: Any model/training parameter
    - **Analysis**: Flexible visualization based on swept parameters
-   - **Example**: ``python -m dendritic_modeling.sweeps.unified.sweep_manager general --config configs/general_sweep.yaml --analyze --results-dir output/``
+   - **Example**: ``python -m dendritic_modeling.scripts.sweeps.unified.sweep_manager general --config configs/general_sweep.yaml --analyze --results-dir output/``
 
 Command Line Options
 -------------------
@@ -102,14 +102,14 @@ Workflow Examples
 .. code-block:: bash
 
    # 1. Generate and submit jobs
-   python -m dendritic_modeling.sweeps.unified.sweep_manager ei \
+   python -m dendritic_modeling.scripts.sweeps.unified.sweep_manager ei \
        --config configs/ei_sweep.yaml --run
 
    # 2. Monitor job progress (check SLURM queue)
    squeue -u $USER
 
    # 3. Analyze results when complete
-   python -m dendritic_modeling.sweeps.unified.sweep_manager ei \
+   python -m dendritic_modeling.scripts.sweeps.unified.sweep_manager ei \
        --analyze --results-dir output/ei_20240721_120000
 
 **Development/Testing Workflow**:
@@ -117,15 +117,15 @@ Workflow Examples
 .. code-block:: bash
 
    # 1. Generate configs only (no job submission)
-   python -m dendritic_modeling.sweeps.unified.sweep_manager branch \
+   python -m dendritic_modeling.scripts.sweeps.unified.sweep_manager branch \
        --config configs/branch_sweep.yaml --generate-only
 
    # 2. Dry run to see what would be submitted
-   python -m dendritic_modeling.sweeps.unified.sweep_manager branch \
+   python -m dendritic_modeling.scripts.sweeps.unified.sweep_manager branch \
        --config configs/branch_sweep.yaml --run --dry-run
 
    # 3. Split large sweep into smaller jobs
-   python -m dendritic_modeling.sweeps.unified.sweep_manager general \
+   python -m dendritic_modeling.scripts.sweeps.unified.sweep_manager general \
        --config configs/large_sweep.yaml --run --split-jobs 10
 
 Result Analysis

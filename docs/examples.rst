@@ -457,13 +457,13 @@ The framework supports various types of experiments with clear prompts for execu
 
 2. **Parameter Sweeps** (src/dendritic_modeling/sweeps/):
    - **EI Sweep**: Sweep E/I ratios systematically.
-     - **Prompt**: ``python -m dendritic_modeling.sweeps.unified.sweep_manager ei --config configs/ei_sweep.yaml --run``
+     - **Prompt**: ``python -m dendritic_modeling.scripts.sweeps.unified.sweep_manager ei --config configs/ei_sweep.yaml --run``
      - **Implementation**: Generates configs, submits SLURM jobs, analyzes results with heatmaps.
    - **Branch Sweep**: Sweep branch factors across layers.
-     - **Prompt**: ``python -m dendritic_modeling.sweeps.unified.sweep_manager branch --config configs/branch_sweep.yaml --generate-only``
+     - **Prompt**: ``python -m dendritic_modeling.scripts.sweeps.unified.sweep_manager branch --config configs/branch_sweep.yaml --generate-only``
      - **Implementation**: Layer-wise branch variation, performance analysis.
    - **Noise Sweep**: Test robustness to different noise types.
-     - **Prompt**: ``python -m dendritic_modeling.sweeps.unified.sweep_manager noise --config configs/noise_sweep.yaml --run``
+     - **Prompt**: ``python -m dendritic_modeling.scripts.sweeps.unified.sweep_manager noise --config configs/noise_sweep.yaml --run``
      - **Implementation**: Adds various noise types (Gaussian, Poisson) to inputs.
 
 3. **Synaptic Correlation** (experiments/synaptic_correlation/):
