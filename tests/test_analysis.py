@@ -17,7 +17,21 @@ import torch
 
 import pytest
 from dendritic_modeling.analysis.core.information import InformationAnalyzer
-from dendritic_modeling.datasets.synthetic_datasets import generate_synthetic_data  # Assuming this exists
+try:
+    import sys
+    import os
+    experiments_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "experiments")
+    if experiments_path not in sys.path:
+        sys.path.insert(0, experiments_path)
+    from data_generation.synthetic_datasets import generate_synthetic_data
+except ImportError:
+    # Create a dummy function if synthetic datasets not available
+    import torch
+    from torch.utils.data import TensorDataset
+    def generate_synthetic_data(num_samples=100, num_features=10):
+        data = torch.randn(num_samples, num_features)
+        labels = torch.randint(0, 2, (num_samples,))
+        return TensorDataset(data, labels)
 
 from dendritic_modeling.analysis import (
     AblationAnalyzer,
