@@ -32,6 +32,10 @@ from dendritic_modeling.datasets import (
     load_mnist_as_datasets,
     load_mnist_modulo10,
 )
+from dendritic_modeling.datasets.standard_datasets import (
+    MNIST,
+    CIFAR10,
+)
 from dendritic_modeling.plotting import split_mnist_inputs
 
 
@@ -155,7 +159,7 @@ class TestRealDatasets(unittest.TestCase):
 
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
-    @patch("dendritic_modeling.datasets.synthetic_datasets.datasets.MNIST")
+    @patch("dendritic_modeling.datasets.standard_datasets.MNIST")
     def test_load_mnist_as_datasets(self, mock_mnist):
         """Test MNIST dataset loading."""
         # Mock MNIST dataset
@@ -177,7 +181,7 @@ class TestRealDatasets(unittest.TestCase):
         # Check that the mock was called
         self.assertTrue(mock_mnist.called)
 
-    @patch("dendritic_modeling.datasets.synthetic_datasets.datasets.CIFAR10")
+    @patch("dendritic_modeling.datasets.standard_datasets.CIFAR10")
     def test_load_cifar10_as_datasets(self, mock_cifar):
         """Test CIFAR-10 dataset loading."""
         # Mock CIFAR-10 dataset
@@ -213,7 +217,7 @@ class TestRealDatasets(unittest.TestCase):
         )
 
         with patch(
-            "dendritic_modeling.datasets.synthetic_datasets.load_mnist_as_datasets"
+            "dendritic_modeling.datasets.standard_datasets.load_mnist_as_datasets"
         ) as mock_load:
             mock_load.return_value = (mock_train, mock_valid, mock_test)
 
@@ -342,7 +346,7 @@ class TestGetUnifiedDatasets(unittest.TestCase):
                 self.assertEqual(len(valid_ds), 10)
                 self.assertEqual(len(test_ds), 10)
 
-    @patch("dendritic_modeling.datasets.synthetic_datasets.load_mnist_as_datasets")
+    @patch("dendritic_modeling.datasets.standard_datasets.load_mnist_as_datasets")
     def test_mnist_dataset(self, mock_load_mnist):
         """Test MNIST dataset loading through unified interface."""
         # Setup mock
@@ -441,7 +445,7 @@ class TestSpecializedDatasets(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             # Mock the MNIST loading
             with patch(
-                "dendritic_modeling.datasets.synthetic_datasets.datasets.MNIST"
+                "dendritic_modeling.datasets.standard_datasets.MNIST"
             ) as mock_mnist:
                 mock_data = [(torch.randn(28, 28), i % 10) for i in range(100)]
                 mock_mnist.return_value = mock_data
