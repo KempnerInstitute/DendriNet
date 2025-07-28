@@ -304,34 +304,3 @@ outputs:
   run_name: "fsdp_large_ei_cifar100"
   dir: "./outputs/fsdp_runs/"  # Separate directory for FSDP runs
   
-  # Note: cleanup and subdirs are not valid OutputsConfig parameters
-
-# Note: compute configuration is not part of the main Config class
-# These settings would be handled by the training scripts directly
-
-# ============================================================================
-# FSDP USAGE NOTES
-# ============================================================================
-#
-# SYSTEM REQUIREMENTS:
-# - PyTorch >= 1.13 with FSDP support
-# - Multiple GPUs (minimum 2, recommended 4-8)
-# - Sufficient CPU memory for data loading
-# - Fast interconnect between GPUs (NVLink recommended)
-#
-# PERFORMANCE TIPS:
-# - Adjust batch_size based on GPU memory and model size
-# - Enable gradient_checkpointing if running out of memory
-# - Use cpu_offload only if absolutely necessary (slower)
-# - Monitor GPU utilization - should be >90% during training
-#
-# SCALING GUIDELINES:
-# - 2-4 GPUs: Use this config as-is
-# - 8+ GPUs: Increase batch_size to 128-256 per GPU
-# - Multiple nodes: Ensure high-speed interconnect between nodes
-#
-# TROUBLESHOOTING:
-# - Out of memory: Enable cpu_offload or reduce batch_size
-# - Slow training: Disable unnecessary analysis during training
-# - Communication issues: Check network configuration and timeouts
-# ============================================================================ 

@@ -72,8 +72,8 @@ from dendritic_modeling.scripts.training.train_encoder_network import load_train
 from dendritic_modeling.scripts.script_utils.setup_utils import setup_environment, save_model, load_model, initialize_model
 from dendritic_modeling.training import CustomWeightDecayOptimizer, get_trainer
 from dendritic_modeling.utils import save_dict, validate_config, set_seed
-from dendritic_modeling.plotting.visualizations.analysis import plot_information_analysis
-from dendritic_modeling.plotting.visualizations.analysis import plot_synapse_turnover
+from dendritic_modeling.plotting.visualizations.information_analysis import plot_information_analysis
+from dendritic_modeling.plotting.visualizations.general_analysis_plots import plot_synapse_turnover
 from dendritic_modeling.utils.training_validation import (
     validate_optimization_combinations,
     suggest_optimal_config_for_model_size,

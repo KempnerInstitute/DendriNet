@@ -30,7 +30,7 @@ from dendritic_modeling.training.fsdp_utils import (
     get_fsdp_config,
 )
 from dendritic_modeling.training.strategies.standard import Trainer
-from dendritic_modeling.plotting.visualizations.analysis import plot_loss_curves
+from dendritic_modeling.plotting.visualizations.general_analysis_plots import plot_loss_curves
 
 
 class FSDPTrainer(Trainer):

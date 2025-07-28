@@ -18,18 +18,19 @@ import matplotlib.pyplot as plt
 from typing import Optional, Dict, List, Any
 import os
 
-from dendritic_modeling.plotting.visualizations.analysis import (
+from dendritic_modeling.plotting.visualizations.information_analysis import (
+    plot_information_analysis,
+    plot_per_layer_information,
+)
+from dendritic_modeling.plotting.visualizations.general_analysis_plots import (
     plot_performance_metrics,
     plot_performance_evolution,
-    plot_information_analysis,
     plot_ablation_results,
     plot_noise_robustness,
     plot_weight_distributions,
     plot_dendrinet_activations,
     plot_einet_activations,
     plot_layer_contributions,
-    plot_per_layer_information,
-    # Training functions (now in analysis.py)
     plot_loss_curves,
     plot_branch_sweep_results,
     plot_ei_sweep_results,

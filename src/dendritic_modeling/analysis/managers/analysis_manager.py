@@ -26,12 +26,11 @@ from dendritic_modeling.analysis.tools.synaptic_activation import (
 )
 from dendritic_modeling.analysis.tools.synaptic_turnover import SynapticTurnoverAnalyzer
 from dendritic_modeling.analysis.tools.weight import WeightAnalyzer
-from dendritic_modeling.plotting.visualizations.analysis import (
+from dendritic_modeling.plotting.visualizations.information_analysis import plot_information_analysis
+from dendritic_modeling.plotting.visualizations.general_analysis_plots import (
     plot_performance_metrics,
-    plot_information_analysis,
     plot_synapse_turnover,
     plot_weight_distributions,
-    # Add others as needed
 )
 
 
@@ -154,7 +153,7 @@ class AnalysisManager:
                 
                 # Generate epoch evolution plots if training analysis was enabled
                 if self.config.performance_analysis.training:
-                    from dendritic_modeling.plotting.visualizations.analysis import plot_performance_evolution
+                    from dendritic_modeling.plotting.visualizations.general_analysis_plots import plot_performance_evolution
                     plot_performance_evolution(
                         performance_dir=os.path.join(self.save_root, "performance", "epochs"),
                         save_path=os.path.join(self.save_root, "performance"),
@@ -179,7 +178,7 @@ class AnalysisManager:
                 
                 # Also plot per-layer information if available
                 if "layer_statistics" in info_results:
-                    from dendritic_modeling.plotting.visualizations.analysis import plot_per_layer_information
+                    from dendritic_modeling.plotting.visualizations.information_analysis import plot_per_layer_information
                     plot_per_layer_information(
                         info_results["layer_statistics"],
                         save_path=os.path.join(self.save_root, "information_analysis"),
