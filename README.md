@@ -6,7 +6,7 @@
   </a>
   <a href="https://codecov.io/gh/KempnerInstitute/dendritic-modeling">
     <img src="https://codecov.io/gh/KempnerInstitute/dendritic-modeling/graph/badge.svg?token=HUJRFX92DF" alt="Coverage"/>
-  </a>
+ </a>
 </p>
 
 <p align="center">
