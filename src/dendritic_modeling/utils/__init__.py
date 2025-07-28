@@ -17,6 +17,11 @@ from .data import (
 )
 from .logging_config import get_logger, setup_logging
 from dendritic_modeling.utils.config_validator import ConfigValidator, validate_config
+from dendritic_modeling.utils.training_validation import (
+    validate_optimization_combinations,
+    suggest_optimal_config_for_model_size,
+    apply_automatic_safeguards,
+)
 from .sparse_ops import (
     get_sparse_layer,
     get_available_sparse_types,
@@ -25,7 +30,6 @@ from .sparse_ops import (
     estimate_memory_usage,
     parallel_topk_selection,
 )
-from .clean_outputs import *
 
 # Math utilities
 from .math import roc_auc_score
@@ -37,6 +41,7 @@ from .math import roc_auc_score
 # from dendritic_modeling.datasets import load_MNIST_modulo10
 
 __all__ = [
+    # Configuration and validation
     "convert_to_serializable",
     "get_logger",
     "save_dict",
@@ -46,6 +51,10 @@ __all__ = [
     "Shaper",
     "ConfigValidator",
     "validate_config",
+    # Training validation utilities
+    "validate_optimization_combinations",
+    "suggest_optimal_config_for_model_size", 
+    "apply_automatic_safeguards",
     # Math utilities
     "roc_auc_score",
     # Note: Backward compatibility imports commented out due to circular imports

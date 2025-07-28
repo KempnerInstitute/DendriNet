@@ -74,7 +74,7 @@ from dendritic_modeling.training import CustomWeightDecayOptimizer, get_trainer
 from dendritic_modeling.utils import save_dict, validate_config, set_seed
 from dendritic_modeling.plotting.visualizations.analysis import plot_information_analysis
 from dendritic_modeling.plotting.visualizations.analysis import plot_synapse_turnover
-from dendritic_modeling.config.validation import (
+from dendritic_modeling.utils.training_validation import (
     validate_optimization_combinations,
     suggest_optimal_config_for_model_size,
     apply_automatic_safeguards
