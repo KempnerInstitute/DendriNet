@@ -1,9 +1,0 @@
-<svg width="400" height="300" xmlns="http://www.w3.org/2000/svg">
-            <rect x="50" y="50" width="300" height="200" fill="none" stroke="black" stroke-width="2"/>
-            <text x="200" y="150" text-anchor="middle" font-family="Arial" font-size="16">
-                Analysis Workflow
-            </text>
-            <text x="200" y="180" text-anchor="middle" font-family="Arial" font-size="12">
-                Comprehensive analysis pipeline
-            </text>
-        </svg>

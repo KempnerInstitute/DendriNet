@@ -1,19 +1,10 @@
 Dendritic Modeling Framework Documentation
 ==========================================
 
-.. image:: _static/dendritic_diagram.png
-   :alt: Dendritic neuron architecture
-   :align: center
-   :width: 600px
+A PyTorch-based framework for biologically-inspired neural networks with dendritic computation and excitation-inhibition dynamics.
 
-**A comprehensive PyTorch-based framework for biologically-inspired neural networks with dendritic computation, excitation-inhibition dynamics, and advanced analysis tools.**
-
-Welcome to the Dendritic Modeling Framework - your complete toolkit for building, training, and analyzing neural networks that capture the sophisticated computational properties of biological dendrites. Whether you're a neuroscience researcher exploring dendritic mechanisms or an ML practitioner seeking bio-inspired architectures, this framework provides the tools you need.
-
-**Quick Start**
-----------------
-
-Get up and running in minutes:
+Quick Start
+-----------
 
 .. code-block:: bash
 
@@ -24,153 +15,149 @@ Get up and running in minutes:
    conda activate dendritic_env
    pip install -e .
    
-   # Run your first experiment
-   python src/dendritic_modeling/scripts/train_experiments.py configs/config_exp.yaml
+   # Simple run
+   python src/dendritic_modeling/scripts/training/train_experiments.py configs/config_exp.yaml
 
-**Key Features**
-----------------
+Core Components
+---------------
 
-* **Advanced Architectures**: EINet, DendriNet, and hybrid models with configurable dendritic morphologies
-* **Biological Realism**: Shunting inhibition, Dale's principle, sparse connectivity patterns
-* **Scalability**: From single GPU experiments to large-scale FSDP training on clusters
-* **Analysis Suite**: Information theory, ablation studies, visualization tools
-* **Performance Optimization**: Mixed precision, gradient checkpointing, dynamic sparse training
-* **Extensive Datasets**: Vision, synthetic, and biological task datasets
+**Models**
+   Classifier and Regressor with encoder-core-decoder architecture
 
-**Documentation Structure**
----------------------------
+**Networks**
+   - **EINet**: Excitation-inhibition networks with dendritic branching
+   - **DendriNet**: Pure dendritic networks with hierarchical processing
+   - **Classical**: MLP, CNN for baseline comparisons
 
-.. toctree::
-   :maxdepth: 2
-   :caption: Getting Started
+**Training**
+   - Standard training for single GPU
+   - FSDP training for large models
+   - Parameter sweeps for systematic exploration
 
-   introduction
-   installation
-   quickstart
-   core_concepts
+Examples
+--------
 
-.. toctree::
-   :maxdepth: 2
-   :caption: Architecture & Design
+Simple Training Example
+^^^^^^^^^^^^^^^^^^^^^^^
 
-   architectures/index
-   configuration/index
-   training/index
-   datasets/index
+Train an EINet model on MNIST:
 
-.. toctree::
-   :maxdepth: 2
-   :caption: Analysis & Visualization
+.. code-block:: bash
 
-   analysis/index
-   visualization/index
-   performance/index
+   python src/dendritic_modeling/scripts/training/train_experiments.py configs/config_exp.yaml
 
-.. toctree::
-   :maxdepth: 2
-   :caption: Advanced Topics
+FSDP Training Example
+^^^^^^^^^^^^^^^^^^^^^
 
-   sweeps/index
-   scaling/index
-   tutorials/index
+For large models that don't fit on single GPU:
 
-.. toctree::
-   :maxdepth: 2
-   :caption: Reference
+.. code-block:: bash
 
-   examples
-   sweeps
-   CONFIGURATION_GUIDE
-   api/index
-   faq
-   glossary
-   troubleshooting
-   contributing
-   appendix
+   # Multi-GPU training
+   torchrun --nproc_per_node=4 src/dendritic_modeling/scripts/training/train_experiments_fsdp.py configs/config_exp.yaml
 
-**Navigation Guide**
----------------------
+Sweeps Example
+^^^^^^^^^^^^^^
 
-**Getting started with dendritic modeling?**
-   Start with :doc:`introduction` → :doc:`installation` → :doc:`quickstart`
+Run parameter sweeps for systematic exploration:
 
-**Want to understand the science?**
-   Read :doc:`core_concepts` → :doc:`architectures/index` → :doc:`analysis/index`
+.. code-block:: bash
 
-**Building custom models?**
-   Check :doc:`configuration/index` → :doc:`architectures/custom_design` → :doc:`api/index`
+   # EI parameter sweep
+   python src/dendritic_modeling/scripts/sweeps/unified/sweep_manager.py ei --config configs/sweeps/ei_sweep.yaml --run
+   
+   # Branch architecture sweep
+   python src/dendritic_modeling/scripts/sweeps/unified/sweep_manager.py branch --config configs/sweeps/branch_sweep.yaml --run
 
-**Scaling to large datasets?**
-   See :doc:`performance/index` → :doc:`scaling/index` → :doc:`troubleshooting`
+Configuration Guide
+-------------------
 
-**Running experiments?**
-   Follow :doc:`training/index` → :doc:`sweeps/index` → :doc:`tutorials/index`
+Core Configuration Structure
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-**Research Applications**
--------------------------
+YAML configuration files control all aspects of training and analysis:
 
-The framework facilitates research in several important areas:
+.. code-block:: yaml
 
-* **Dendritic Computation**: Understanding how dendrites process information
-* **E/I Balance**: Exploring excitation-inhibition dynamics in networks  
-* **Sparse Connectivity**: Developing efficient bio-inspired architectures
-* **Learning Mechanisms**: Testing biologically-plausible training strategies
-* **Information Processing**: Analyzing neural information flow and capacity
+   model:
+     task: classification  # or regression
+     
+     core_network:
+       type: EINet
+       parameters:
+         excitatory_layer_sizes: [128, 64]
+         inhibitory_layer_sizes: [64, 32]
+         use_shunting: true
+   
+   train:
+     learning_strategy: standard  # or two_step, voltage_stabilization
+     trainer:
+       epochs: 100
+       batch_size: 32
+       
+   task:
+     dataset: mnist
+     parameters:
+       train_size: 8000
+       valid_size: 1000
 
-**Performance & Scalability**
------------------------------
+Key Configuration Sections
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-.. list-table:: Framework Capabilities
+.. list-table:: Configuration Parameters
    :header-rows: 1
-   :widths: 30 35 35
+   :widths: 20 30 50
 
-   * - Scale
-     - Model Size
-     - Recommended Setup
-   * - Small Experiments
-     - < 1M parameters
-     - Single GPU, Standard training
-   * - Medium Models
-     - 1M - 100M parameters  
-     - Multi-GPU, Mixed precision
-   * - Large Models
-     - 100M - 1B+ parameters
-     - FSDP, Gradient checkpointing
-   * - Research Clusters
-     - Multi-billion parameters
-     - Multi-node FSDP, CPU offload
+   * - Section
+     - Parameter
+     - Description
+   * - model.core_network
+     - type
+     - Network architecture ("EINet", "DendriNet", "MLP")
+   * - model.core_network.parameters
+     - excitatory_layer_sizes
+     - List of excitatory layer sizes [128, 64]
+   * - model.core_network.parameters
+     - inhibitory_layer_sizes
+     - List of inhibitory layer sizes [64, 32]
+   * - model.core_network.parameters
+     - use_shunting
+     - Enable shunting inhibition (true/false)
+   * - train
+     - learning_strategy
+     - Training approach ("standard", "two_step", "voltage_stabilization")
+   * - train.trainer
+     - epochs
+     - Number of training epochs
+   * - train.trainer
+     - batch_size
+     - Training batch size
+   * - task
+     - dataset
+     - Dataset name ("mnist", "cifar10", "line")
+   * - analysis.information_analysis
+     - enabled
+     - Enable information-theoretic analysis
+   * - wandb
+     - use_wandb
+     - Enable Weights & Biases logging
 
-**Current Features** (v0.1.0)
----------------------------
+Detailed Documentation
+----------------------
 
-* **FSDP Support**: Scale to billion-parameter dendritic models
-* **Unified Sweeps**: Comprehensive parameter exploration framework
-* **Advanced Analysis**: Information-theoretic tools with multiple estimators
-* **Performance Optimization**: Mixed precision, profiling, memory management
-* **Rich Visualizations**: Professional figures and interactive plots
+.. toctree::
+   :maxdepth: 1
 
-**Latest Updates**
+   installation
+   CONFIGURATION_GUIDE
+   sweeps
+   api_reference
+   faq
 
-* **v0.1.0**: Initial release with core dendritic modeling capabilities
-* **Documentation**: Comprehensive user guides, tutorials, and API reference
-* **Analysis Tools**: Information theory, ablation studies, visualization suite
-* **Training Strategies**: Multiple bio-inspired learning approaches
-
-**Community & Support**
------------------------
-
-* **GitHub Issues**: Report bugs and request features
-* **Documentation**: Comprehensive guides and API reference
-* **Examples**: Jupyter notebooks and complete workflows
-* **Contributing**: Guidelines for extending the framework
-
-**Citation**: If you use this framework in your research, please cite our paper (see :doc:`appendix` for details).
-
-**Need Help?** Check our :doc:`faq`, search the :doc:`glossary`, or open an issue on `GitHub <https://github.com/KempnerInstitute/dendritic-modeling/issues>`_.
+**Need Help?** Check the FAQ or open an issue on `GitHub <https://github.com/KempnerInstitute/dendritic-modeling/issues>`_.
 
 Indices and Tables
 ==================
 
 * :ref:`genindex`
-* :ref:`modindex`
 * :ref:`search`
