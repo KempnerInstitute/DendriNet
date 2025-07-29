@@ -129,7 +129,8 @@ class PerLayerPlotter(BasePlotter):
                 errors.append(layer_results[layer_name].get(std_key, 0))
             
             bars = ax.bar(x + i*width, values, width, yerr=errors, label=label, 
-                         color=color, alpha=0.8, capsize=4, elinewidth=1.5)
+                         color=color, alpha=0.8, capsize=4, 
+                         error_kw={'linewidth': 1.5, 'capthick': 1.5})
             
             for bar, val, err in zip(bars, values, errors):
                 if val > 0:
@@ -211,7 +212,7 @@ class InformationAnalysisPlotter(BasePlotter):
             return handle_plot_error("information analysis plotting", e)
 
     def plot_per_layer_information(self, layer_results: dict[str, dict[str, Any]], **kwargs):
-        """Plot detailed per-layer information."""
+        """Plot detailed per-layer information with comprehensive analysis."""
         try:
             save_path = kwargs.get('save_path')
             filename_prefix = kwargs.get('filename_prefix', 'per_layer_info')
@@ -225,24 +226,53 @@ class InformationAnalysisPlotter(BasePlotter):
                 converted_results = layer_results
             
             layer_names = list(converted_results.keys())
-            fig, axes = self.create_subplots(2, 2, figsize=(16, 12))
+            logger.info(f"Plotting per-layer information for layers: {layer_names}")
             
-            # Use specialized plotter methods
+            # Create comprehensive plots for all information types
+            plots = []
+            
+            # 1. Basic MI vs Layer Depth (Mean + Variance)
+            fig1 = self._plot_layer_depth_analysis(converted_results, layer_names, "basic_mi", 
+                                                  "Basic Mutual Information vs Layer Depth")
+            plots.append(fig1)
+            if save_path and fig1:
+                self.save(fig1, save_path, f"{filename_prefix}_basic_mi_depth")
+            
+            # 2. Pairwise MI vs Layer Depth
+            fig2 = self._plot_layer_depth_analysis(converted_results, layer_names, "pairwise_mi", 
+                                                  "Pairwise Mutual Information vs Layer Depth")
+            plots.append(fig2)
+            if save_path and fig2:
+                self.save(fig2, save_path, f"{filename_prefix}_pairwise_mi_depth")
+            
+            # 3. Conditional MI vs Layer Depth
+            fig3 = self._plot_layer_depth_analysis(converted_results, layer_names, "conditional_mi", 
+                                                  "Conditional Mutual Information vs Layer Depth")
+            plots.append(fig3)
+            if save_path and fig3:
+                self.save(fig3, save_path, f"{filename_prefix}_conditional_mi_depth")
+            
+            # 4. Branch Variance Analysis
+            fig4 = self._plot_branch_variance_analysis(converted_results, layer_names)
+            plots.append(fig4)
+            if save_path and fig4:
+                self.save(fig4, save_path, f"{filename_prefix}_branch_variance")
+            
+            # 5. Original detailed plot for compatibility
+            fig5, axes = self.create_subplots(2, 2, figsize=(16, 12))
             self.layer_plotter.plot_basic_mi_layers(converted_results, layer_names, axes[0, 0])
             self.layer_plotter.plot_info_flow_layers(converted_results, layer_names, axes[1, 0])
-            
-            # Heatmap
             self._plot_layer_heatmap(axes[1, 1], converted_results, layer_names)
-            
             plt.suptitle('Per-Layer Information Analysis (Soma → Distal)', fontsize=16)
             plt.tight_layout()
-            
+            plots.append(fig5)
             if save_path:
-                self.save(fig, save_path, f"{filename_prefix}_detailed")
+                self.save(fig5, save_path, f"{filename_prefix}_detailed")
             
-            return fig, axes
+            return plots
             
         except Exception as e:
+            logger.error(f"Error in per-layer information plotting: {e}")
             return handle_plot_error("per-layer information plotting", e)
 
     def _plot_comprehensive_summary(self, results: dict[str, Any]) -> Tuple[plt.Figure, np.ndarray]:
@@ -296,6 +326,139 @@ class InformationAnalysisPlotter(BasePlotter):
         data_matrix = np.array(data_matrix)
         create_heatmap(ax, data_matrix, layer_names, metric_labels, 
                       'Information Metrics Heatmap', annotate=True)
+
+    def _plot_layer_depth_analysis(self, layer_results: dict, layer_names: list, 
+                                  metric_type: str, title: str) -> plt.Figure:
+        """Plot information metrics vs layer depth with mean and variance."""
+        try:
+            fig, axes = self.create_subplots(2, 2, figsize=(15, 10))
+            
+            # Define metric patterns for each type
+            if metric_type == "basic_mi":
+                metric_patterns = ["I(E;C)", "I(I;C)", "I(Vout;C)", "I(E,I;C)"]
+            elif metric_type == "pairwise_mi":
+                metric_patterns = ["I(E;I)", "I(E;Vout)", "I(I;Vout)"]
+            elif metric_type == "conditional_mi":
+                metric_patterns = ["I(E;I|C)", "I(E;Vout|C)", "I(I;Vout|C)"]
+            else:
+                metric_patterns = []
+            
+            # Get all metrics of this type by checking for pattern matches
+            metrics = set()
+            for layer_data in layer_results.values():
+                for key in layer_data.keys():
+                    if "_mean" in key:
+                        # Extract base metric name by removing "_mean"
+                        base_metric = key.replace("_mean", "")
+                        # Check if this base metric matches any of our patterns
+                        if any(pattern == base_metric for pattern in metric_patterns):
+                            metrics.add(base_metric)
+            
+            metrics = sorted(list(metrics))
+            logger.info(f"Found {metric_type} metrics: {metrics}")
+            
+            # Plot each metric
+            for idx, metric in enumerate(metrics[:4]):  # Limit to 4 subplots
+                ax = axes.flat[idx]
+                
+                means = []
+                stds = []
+                valid_layers = []
+                
+                for layer_name in layer_names:
+                    if layer_name in layer_results:
+                        mean_key = f"{metric}_mean"
+                        std_key = f"{metric}_std"
+                        
+                        if mean_key in layer_results[layer_name]:
+                            means.append(layer_results[layer_name][mean_key])
+                            stds.append(layer_results[layer_name].get(std_key, 0))
+                            valid_layers.append(layer_name)
+                
+                if means:
+                    x_pos = range(len(valid_layers))
+                    
+                    # Plot means with error bars
+                    ax.errorbar(x_pos, means, yerr=stds, marker='o', capsize=5, 
+                               linewidth=2, markersize=6, label=f'{metric} (mean ± std)')
+                    
+                    # Plot variance as filled area
+                    ax.fill_between(x_pos, [m - s for m, s in zip(means, stds)], 
+                                   [m + s for m, s in zip(means, stds)], alpha=0.3)
+                    
+                    ax.set_xlabel('Layer (Soma → Distal)')
+                    ax.set_ylabel(f'{metric} (bits)')
+                    ax.set_title(f'{metric}')
+                    ax.set_xticks(x_pos)
+                    ax.set_xticklabels(valid_layers, rotation=45)
+                    ax.grid(True, alpha=0.3)
+                    ax.legend()
+                else:
+                    ax.text(0.5, 0.5, f'No data for {metric}', 
+                           ha='center', va='center', transform=ax.transAxes)
+            
+            plt.suptitle(title, fontsize=16)
+            plt.tight_layout()
+            return fig
+            
+        except Exception as e:
+            logger.error(f"Error plotting {metric_type} vs depth: {e}")
+            return None
+
+    def _plot_branch_variance_analysis(self, layer_results: dict, layer_names: list) -> plt.Figure:
+        """Plot analysis of variance between branches in each layer."""
+        try:
+            fig, axes = self.create_subplots(2, 2, figsize=(15, 10))
+            
+            # Get all std metrics (variance indicators)
+            std_metrics = []
+            for layer_data in layer_results.values():
+                for key in layer_data.keys():
+                    if "_std" in key and key not in std_metrics:
+                        std_metrics.append(key)
+            
+            logger.info(f"Found variance metrics: {std_metrics}")
+            
+            # Plot variance for different metric types
+            for idx, std_metric in enumerate(std_metrics[:4]):  # Limit to 4 subplots
+                ax = axes.flat[idx]
+                
+                variances = []
+                valid_layers = []
+                
+                for layer_name in layer_names:
+                    if layer_name in layer_results and std_metric in layer_results[layer_name]:
+                        variances.append(layer_results[layer_name][std_metric])
+                        valid_layers.append(layer_name)
+                
+                if variances:
+                    x_pos = range(len(valid_layers))
+                    bars = ax.bar(x_pos, variances, alpha=0.7, 
+                                 color=plt.cm.viridis(idx / max(1, len(std_metrics)-1)))
+                    
+                    # Add value labels on bars
+                    for bar, val in zip(bars, variances):
+                        height = bar.get_height()
+                        ax.text(bar.get_x() + bar.get_width()/2., height + height*0.01,
+                               f'{val:.3f}', ha='center', va='bottom', fontsize=8)
+                    
+                    ax.set_xlabel('Layer (Soma → Distal)')
+                    ax.set_ylabel('Standard Deviation (bits)')
+                    ax.set_title(f'Branch Variance: {std_metric.replace("_std", "")}')
+                    ax.set_xticks(x_pos)
+                    ax.set_xticklabels(valid_layers, rotation=45)
+                    ax.grid(True, alpha=0.3)
+                else:
+                    ax.text(0.5, 0.5, f'No variance data for {std_metric}', 
+                           ha='center', va='center', transform=ax.transAxes)
+            
+            plt.suptitle('Branch Variance Analysis (Variance Between Branches per Layer)', fontsize=16)
+            plt.tight_layout()
+            return fig
+            
+        except Exception as e:
+            logger.error(f"Error plotting branch variance: {e}")
+            return None
 
 # ============================================================================
 # Convenience Functions

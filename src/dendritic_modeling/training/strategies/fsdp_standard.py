@@ -381,7 +381,7 @@ class FSDPTrainer(Trainer):
         # Generate plots (only on rank 0)
         if self.rank == 0:
             self._loss_plotting(train_losses, valid_losses)
-            self._accuracy_plotting(train_accs, valid_accs)
+            # Removed redundant accuracy plotting - handled by performance option
 
         return {
             "train_losses": train_losses,
@@ -514,17 +514,4 @@ class FSDPTrainer(Trainer):
             rank=self.rank,
         )
 
-    def _accuracy_plotting(self, train_accs: list[float], valid_accs: list[float]):
-        """Plot accuracy curves similar to loss curves."""
-        # Reuse loss plotting util with accuracy label
-        if self.plot_losses and len(train_accs) > 1:
-            try:
-                plot_loss_curves(
-                    train_losses=train_accs,
-                    valid_losses=valid_accs,
-                    loss_name="Accuracy",
-                    save_dir=self.save_path,
-                    filename_prefix=self.filename_prefix + "accuracy_",
-                )
-            except Exception as e:
-                logger.warning(f"Could not plot accuracy curves: {e}")
+    # Removed _accuracy_plotting method - redundant with performance option plotting

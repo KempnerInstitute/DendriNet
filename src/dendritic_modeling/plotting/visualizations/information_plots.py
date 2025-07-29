@@ -434,7 +434,7 @@ class InformationAnalysisPlotter(BasePlotter):
             
             bars = ax.bar(x + i * width, values, width, yerr=errors,
                           label=label, color=color, alpha=self.config.alpha["main"],
-                          capsize=4, elinewidth=1.5)
+                          capsize=4, error_kw={'linewidth': 1.5, 'capthick': 1.5})
             
             # Add value labels
             for bar, val, err in zip(bars, values, errors):
@@ -479,7 +479,7 @@ class InformationAnalysisPlotter(BasePlotter):
             x_offset = x_pos + (layer_idx - len(layer_names)/2) * 0.1
             ax.errorbar(x_offset, values, yerr=errors, marker='o', 
                        label=layer_name, linewidth=2, markersize=6, 
-                       capsize=4, capthick=1.5)
+                       capsize=4, error_kw={'linewidth': 1.5, 'capthick': 1.5})
         
         self._apply_styling(
             ax,

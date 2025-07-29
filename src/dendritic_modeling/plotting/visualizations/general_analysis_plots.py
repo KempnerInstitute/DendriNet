@@ -150,10 +150,26 @@ def plot_einet_activations(einet, input_list, **kwargs):
 def plot_synapse_turnover(turnover_results: dict, save_path: str = None, filename: str = "synapse_turnover"):
     """Generate plots for synaptic turnover analysis results."""
     try:
+        # Validate input data
+        if not turnover_results:
+            logger.warning("Empty turnover results provided")
+            return None
+            
+        logger.info(f"Plotting turnover results with keys: {list(turnover_results.keys())}")
+        
         # Check if we have the new format with incremental and cumulative data
         if "incremental" in turnover_results and "cumulative" in turnover_results:
             # New format with both incremental and cumulative data
             figures = []
+            
+            # Log data availability
+            inc_data = turnover_results["incremental"]
+            cum_data = turnover_results["cumulative"]
+            n_snapshots = turnover_results.get("n_snapshots", 0)
+            
+            logger.info(f"Found {n_snapshots} snapshots for turnover analysis")
+            logger.info(f"Incremental data keys: {list(inc_data.keys()) if inc_data else 'None'}")
+            logger.info(f"Cumulative data keys: {list(cum_data.keys()) if cum_data else 'None'}")
             
             # Create incremental turnover plot (t vs t-1)
             fig1 = _plot_turnover_data(
@@ -182,9 +198,11 @@ def plot_synapse_turnover(turnover_results: dict, save_path: str = None, filenam
         
         else:
             # Original format - assume it's the old structure
+            logger.warning("Using original turnover format - may not display correctly")
             return _plot_turnover_original_format(turnover_results, save_path, filename)
             
     except Exception as e:
+        logger.error(f"Error in synapse turnover plotting: {e}")
         return handle_plot_error("synapse turnover plotting", e, create_placeholder=False)
 
 
@@ -219,19 +237,67 @@ def _plot_turnover_data(turnover_data: dict, title: str, plot_type: str) -> plt.
 def _plot_single_turnover(ax: plt.Axes, data: dict, title: str):
     """Plot turnover data for a single type."""
     try:
-        if "formation_rate" in data and "elimination_rate" in data:
-            snapshots = list(range(len(data["formation_rate"])))
-            ax.plot(snapshots, data["formation_rate"], 'g-', marker='o', label='Formation Rate')
-            ax.plot(snapshots, data["elimination_rate"], 'r-', marker='s', label='Elimination Rate')
-            
-            if "net_change" in data:
-                ax.plot(snapshots, data["net_change"], 'b-', marker='^', label='Net Change')
+        # Check if data has required keys and non-empty values
+        required_keys = ["active", "stable", "transient"]
+        if not all(key in data for key in required_keys):
+            ax.text(0.5, 0.5, f'Missing turnover data\nRequired: {required_keys}\nFound: {list(data.keys())}', 
+                    ha='center', va='center', transform=ax.transAxes)
+            return
         
-        setup_basic_plot(ax, title, 'Snapshot', 'Rate')
-        ax.legend()
+        # Check if data arrays are not empty
+        if not any(len(data[key]) > 0 for key in required_keys):
+            ax.text(0.5, 0.5, f'Empty turnover data\nNo snapshots to compare', 
+                    ha='center', va='center', transform=ax.transAxes)
+            return
+        
+        # Plot if we have data
+        max_len = max(len(data[key]) for key in required_keys if len(data[key]) > 0)
+        if max_len > 0:
+            snapshots = list(range(max_len))
+            
+            # Define colors and styles for better visibility
+            plot_styles = [
+                ("active", '#2E8B57', 'o', 'Active', '-'),      # Sea green, solid line
+                ("stable", '#4169E1', 's', 'Stable', '--'),     # Royal blue, dashed line
+                ("transient", '#DC143C', '^', 'Transient', ':') # Crimson, dotted line
+            ]
+            
+            plotted_any = False
+            for key, color, marker, label, linestyle in plot_styles:
+                if key in data and len(data[key]) > 0:
+                    values = data[key][:max_len]  # Ensure same length
+                    line = ax.plot(snapshots[:len(values)], values, 
+                                  color=color, marker=marker, label=label, 
+                                  linestyle=linestyle, linewidth=2, markersize=6, alpha=0.8)
+                    plotted_any = True
+                    
+                    # Add text annotation for flat lines
+                    if len(set(values)) == 1:  # All values are the same (flat line)
+                        mid_x = len(values) // 2
+                        ax.annotate(f'{label}: {values[0]}', 
+                                   xy=(mid_x, values[0]), 
+                                   xytext=(10, 10), textcoords='offset points',
+                                   fontsize=9, alpha=0.7,
+                                   bbox=dict(boxstyle="round,pad=0.3", 
+                                           facecolor=color, alpha=0.2))
+            
+            if plotted_any:
+                ax.set_xlabel('Snapshot Number')
+                ax.set_ylabel('Synapse Count')
+                ax.set_title(title, fontweight='bold')
+                ax.legend(loc='best', fontsize=9)
+                ax.grid(True, alpha=0.3)
+                
+                # Improve axis formatting
+                ax.tick_params(axis='both', which='major', labelsize=9)
+                
+                # Set y-axis to start from 0 if all values are positive
+                y_min = min(min(data[key]) for key in required_keys if len(data[key]) > 0)
+                if y_min >= 0:
+                    ax.set_ylim(bottom=0)
         
     except Exception as e:
-        ax.text(0.5, 0.5, f'Turnover data\n(Error: {str(e)[:30]})', 
+        ax.text(0.5, 0.5, f'Turnover data\n(Error: {str(e)[:50]})', 
                 ha='center', va='center', transform=ax.transAxes)
 
 
@@ -240,30 +306,51 @@ def _plot_turnover_summary(ax: plt.Axes, turnover_data: dict, plot_type: str):
     try:
         summary_metrics = []
         labels = []
+        colors = []
+        
+        color_map = {"exc": "green", "inh": "red", "both": "blue"}
         
         for conn_type in ["exc", "inh", "both"]:
             if conn_type in turnover_data:
                 data = turnover_data[conn_type]
-                if "formation_rate" in data:
-                    avg_formation = np.mean(data["formation_rate"])
-                    summary_metrics.append(avg_formation)
-                    labels.append(f"{conn_type.capitalize()} Formation")
                 
-                if "elimination_rate" in data:
-                    avg_elimination = np.mean(data["elimination_rate"])
-                    summary_metrics.append(avg_elimination)
-                    labels.append(f"{conn_type.capitalize()} Elimination")
+                # Use the actual data keys: active, stable, transient
+                for metric_name in ["active", "stable", "transient"]:
+                    if metric_name in data and len(data[metric_name]) > 0:
+                        # Calculate final value and change from start
+                        values = data[metric_name]
+                        if len(values) > 1:
+                            final_value = values[-1]
+                            initial_value = values[0]
+                            change = final_value - initial_value
+                            
+                            summary_metrics.append(change)
+                            labels.append(f"{conn_type.upper()}\n{metric_name.capitalize()}\nChange")
+                            colors.append(color_map[conn_type])
         
         if summary_metrics:
-            ax.bar(labels, summary_metrics)
-            setup_basic_plot(ax, f'{plot_type.capitalize()} Turnover Summary', 'Metric', 'Average Rate')
-            ax.tick_params(axis='x', rotation=45)
+            bars = ax.bar(range(len(labels)), summary_metrics, color=colors, alpha=0.7)
+            
+            # Add value labels on bars
+            for bar, value in zip(bars, summary_metrics):
+                height = bar.get_height()
+                ax.text(bar.get_x() + bar.get_width()/2., 
+                       height + (abs(height) * 0.02 if height >= 0 else -abs(height) * 0.02),
+                       f'{value:+.0f}', ha='center', 
+                       va='bottom' if height >= 0 else 'top', fontsize=9)
+            
+            ax.set_title(f'{plot_type.capitalize()} Net Change Summary')
+            ax.set_ylabel('Net Change (Final - Initial)')
+            ax.set_xticks(range(len(labels)))
+            ax.set_xticklabels(labels, fontsize=8)
+            ax.grid(True, alpha=0.3)
+            ax.axhline(y=0, color='black', linestyle='-', alpha=0.5)
         else:
-            ax.text(0.5, 0.5, 'No summary data available', 
+            ax.text(0.5, 0.5, 'No summary data available\n(No turnover data found)', 
                     ha='center', va='center', transform=ax.transAxes)
             
     except Exception as e:
-        ax.text(0.5, 0.5, f'Summary\n(Error: {str(e)[:30]})', 
+        ax.text(0.5, 0.5, f'Summary Error:\n{str(e)[:50]}', 
                 ha='center', va='center', transform=ax.transAxes)
 
 
