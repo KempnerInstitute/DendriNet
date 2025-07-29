@@ -199,7 +199,7 @@ class PerformancePlotter(TimeSeriesPlotter):
                 metric_groups[base_metric] = []
             metric_groups[base_metric].append(key)
         
-        # Create separate plots for each metric type
+                # Create separate plots for each metric type
         for metric_type, metric_keys in metric_groups.items():
             fig, ax = self._create_figure(figsize=(12, 8))
             
@@ -207,11 +207,11 @@ class PerformancePlotter(TimeSeriesPlotter):
             for idx, key in enumerate(metric_keys):
                 values = metrics_data[key]
                 color = colors[idx % len(colors)]
-                
+            
                 # Plot with markers and lines
                 ax.plot(epochs[:len(values)], values, 'o-', color=color, alpha=0.7,
                        label=key.replace('_', ' ').title(), linewidth=2, markersize=4)
-                
+            
                 # Add smoothed line if enough data
                 if len(values) > 5:
                     smooth_values = self._smooth_data(np.array(values), window_size=3)
@@ -227,7 +227,7 @@ class PerformancePlotter(TimeSeriesPlotter):
             )
             
             plots[metric_type] = (fig, ax)
-            
+        
             # Save individual plots
             if save_path:
                 individual_filename = f"{filename}_{metric_type}"

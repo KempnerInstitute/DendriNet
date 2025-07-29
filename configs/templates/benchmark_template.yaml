@@ -48,7 +48,6 @@ model:
       activation: relu
 
 train:
-  run_name: "benchmark_test"
   
   # Maximum performance settings
   enable_amp: true

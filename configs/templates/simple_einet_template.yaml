@@ -48,7 +48,6 @@ model:
       output_dim: null
 
 train:
-  run_name: "{{experiment_name}}"  # Replace with your experiment name
   seed: 42
   train_valid_split: 0.8
   

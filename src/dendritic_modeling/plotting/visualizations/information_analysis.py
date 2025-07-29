@@ -188,23 +188,17 @@ class InformationAnalysisPlotter(BasePlotter):
                 fig, ax = self.create_subplot()
                 self.basic_plotter.plot(results["basic_mi"], ax)
                 plots["basic_mi"] = (fig, ax)
-                if save_path:
-                    self.save(fig, save_path, f"{filename_prefix}_basic_mi")
 
             # Pairwise MI heatmap
             if "pairwise_mi" in results:
                 fig, ax = self.create_subplot()
                 self.pairwise_plotter.plot_heatmap(results["pairwise_mi"], ax)
                 plots["pairwise_mi"] = (fig, ax)
-                if save_path:
-                    self.save(fig, save_path, f"{filename_prefix}_pairwise_mi")
 
             # Comprehensive summary
             if any(key in results for key in ["basic_mi", "pairwise_mi"]):
                 fig, axes = self._plot_comprehensive_summary(results)
                 plots["summary"] = (fig, axes)
-                if save_path:
-                    self.save(fig, save_path, f"{filename_prefix}_summary")
 
             return plots
 
@@ -255,8 +249,6 @@ class InformationAnalysisPlotter(BasePlotter):
             # 4. Branch Variance Analysis
             fig4 = self._plot_branch_variance_analysis(converted_results, layer_names)
             plots.append(fig4)
-            if save_path and fig4:
-                self.save(fig4, save_path, f"{filename_prefix}_branch_variance")
             
             # 5. Original detailed plot for compatibility
             fig5, axes = self.create_subplots(2, 2, figsize=(16, 12))
@@ -266,8 +258,6 @@ class InformationAnalysisPlotter(BasePlotter):
             plt.suptitle('Per-Layer Information Analysis (Soma → Distal)', fontsize=16)
             plt.tight_layout()
             plots.append(fig5)
-            if save_path:
-                self.save(fig5, save_path, f"{filename_prefix}_detailed")
             
             return plots
             

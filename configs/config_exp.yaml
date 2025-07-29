@@ -114,7 +114,6 @@ model:
 # TRAINING CONFIGURATION - VALIDATED PARAMETERS ONLY
 # ============================================================================
 train:
-  run_name: "complete_validated_experiment"
   seed: 0
   train_valid_split: 0.8
 
@@ -226,11 +225,7 @@ task:
   # Options: 
   # - Standard: "mnist", "cifar10", "imagenet"
   # - Modified MNIST: "mnist_modulo10", "random_flip_mnist"
-  # - Synthetic: "line", "center_surround", "orientation_bars", "multi_xor"
-  # - Info tasks: "info_shunting", "noise_resilience", "feature_selectivity"
-  # - Complex: "context_gating", "learning_dynamics", "hierarchical_processing"
-  # - Generated: "poisson_generator", "orthonet", "synthetic_correlated"
-
+  
   data_path: ""  # Custom data path
 
   # Dataset-specific parameters

@@ -78,7 +78,6 @@ model:
       dropout_rate: 0.0
 
 train:
-  run_name: "benchmark_performance_test"
   
   # ==========================================
   # MAXIMUM PERFORMANCE SETTINGS
