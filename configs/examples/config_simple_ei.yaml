@@ -57,7 +57,6 @@ model:
       output_dim: 10
 
 train:
-  run_name: "simple_ei_experiment"
   
   # Performance features
   enable_amp: true

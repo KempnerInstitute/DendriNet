@@ -80,7 +80,6 @@ model:
       dropout_rate: 0.0
 
 train:
-  run_name: "fsdp_large_ei_cifar100"
   
   # ==========================================
   # FSDP-SPECIFIC SETTINGS
