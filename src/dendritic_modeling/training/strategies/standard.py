@@ -290,7 +290,6 @@ class Trainer:
         }
 
         self._loss_plotting(train_losses, valid_losses)
-        self._accuracy_plotting(train_accs, valid_accs)  # Add accuracy plotting
 
         return results
 
@@ -649,33 +648,17 @@ class Trainer:
     ) -> None:
         if self.plot_losses and len(train_losses) > 1:
             if self.save_path and os.path.exists(self.save_path):
-                plot_loss_curves(
-                    train_losses=train_losses,
-                    valid_losses=valid_losses,
-                    loss_name=self.loss_function._loss_name,
-                    save_dir=self.save_path,
-                    filename_prefix=self.filename_prefix,
-                )
-
-    def _accuracy_plotting(
-        self, train_accs: list[float], valid_accs: list[float]
-    ) -> None:
-        """Plot accuracy curves similar to loss curves."""
-        if self.plot_losses and len(train_accs) > 1:
-            if self.save_path and os.path.exists(self.save_path):
                 try:
                     # plot_training_loss_curves already imported at top
-
-                    # Reuse the loss plotting function but with accuracy label
                     plot_training_loss_curves(
-                        train_losses=train_accs,
-                        valid_losses=valid_accs,
-                        loss_name="Accuracy (%)",
+                        train_losses=train_losses,
+                        valid_losses=valid_losses,
+                        loss_name=self.loss_function._loss_name,
                         save_dir=self.save_path,
-                        filename_prefix=self.filename_prefix + "accuracy_",
+                        filename_prefix=self.filename_prefix,
                     )
                 except Exception as e:
-                    logger.warning(f"Could not plot accuracy curves: {e}")
+                    logger.warning(f"Could not plot loss curves: {e}")
 
 
 __all__ = ["Trainer"]

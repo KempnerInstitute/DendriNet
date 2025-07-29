@@ -140,8 +140,8 @@ class PerformancePlotter(TimeSeriesPlotter):
         perf_files = []
         if os.path.exists(performance_dir):
             for f in os.listdir(performance_dir):
-                if f.startswith("performance_epoch_") and f.endswith(".json"):
-                    epoch = int(f.split("_")[2].split(".")[0])
+                if f.startswith("epoch") and f.replace("epoch", "").isdigit():
+                    epoch = int(f.replace("epoch", ""))
                     perf_files.append((epoch, os.path.join(performance_dir, f)))
         
         if not perf_files:
@@ -165,11 +165,21 @@ class PerformancePlotter(TimeSeriesPlotter):
                     data = json.load(f)
                     epochs.append(epoch)
                     
-                    for key, value in data.items():
-                        if isinstance(value, (int, float)):
-                            if key not in metrics_data:
-                                metrics_data[key] = []
-                            metrics_data[key].append(value)
+                    # Handle nested structure (metric -> dataset -> value)
+                    for metric_name, metric_data in data.items():
+                        if isinstance(metric_data, dict):
+                            # For each dataset (train, valid, test)
+                            for dataset, value in metric_data.items():
+                                if isinstance(value, (int, float)):
+                                    key = f"{metric_name}_{dataset}"
+                                    if key not in metrics_data:
+                                        metrics_data[key] = []
+                                    metrics_data[key].append(value)
+                        elif isinstance(metric_data, (int, float)):
+                            # Direct value
+                            if metric_name not in metrics_data:
+                                metrics_data[metric_name] = []
+                            metrics_data[metric_name].append(metric_data)
             except Exception as e:
                 self.logger.warning(f"Error loading {filepath}: {e}")
         
@@ -181,51 +191,47 @@ class PerformancePlotter(TimeSeriesPlotter):
             plots["error"] = (fig, ax)
             return plots
         
-        # Create subplots for different metric types
-        n_metrics = len(metrics_data)
-        n_rows = (n_metrics + 1) // 2
-        fig, axes = self._create_figure(n_rows, 2, figsize=(15, 5 * n_rows))
-        if n_metrics == 1:
-            axes = [axes]
-        else:
-            axes = axes.flatten()
+        # Group metrics by type for separate plots
+        metric_groups = {}
+        for key in metrics_data.keys():
+            base_metric = key.split('_')[0]  # accuracy, auc, etc.
+            if base_metric not in metric_groups:
+                metric_groups[base_metric] = []
+            metric_groups[base_metric].append(key)
         
-        for idx, (metric_name, values) in enumerate(metrics_data.items()):
-            ax = axes[idx]
+        # Create separate plots for each metric type
+        for metric_type, metric_keys in metric_groups.items():
+            fig, ax = self._create_figure(figsize=(12, 8))
             
-            # Plot with smoothing
-            ax.plot(epochs[:len(values)], values, 'o-', alpha=0.6, 
-                   label=f'{metric_name} (raw)')
-            
-            if len(values) > 5:
-                smooth_values = self._smooth_data(np.array(values), window_size=3)
-                ax.plot(epochs[1:len(smooth_values)+1], smooth_values, '-', 
-                       linewidth=2, label=f'{metric_name} (smooth)')
-            
-            # Add trend line
-            if len(values) > 3:
-                self._add_trend_line(ax, np.array(epochs[:len(values)]), 
-                                   np.array(values), order=1)
+            colors = ['blue', 'red', 'green', 'orange', 'purple']
+            for idx, key in enumerate(metric_keys):
+                values = metrics_data[key]
+                color = colors[idx % len(colors)]
+                
+                # Plot with markers and lines
+                ax.plot(epochs[:len(values)], values, 'o-', color=color, alpha=0.7,
+                       label=key.replace('_', ' ').title(), linewidth=2, markersize=4)
+                
+                # Add smoothed line if enough data
+                if len(values) > 5:
+                    smooth_values = self._smooth_data(np.array(values), window_size=3)
+                    ax.plot(epochs[1:len(smooth_values)+1], smooth_values, '-', 
+                           color=color, linewidth=3, alpha=0.9)
             
             self._apply_styling(
                 ax,
-                title=f'{metric_name} Evolution',
+                title=f'{metric_type.replace("_", " ").title()} Evolution Over Training',
                 xlabel='Epoch',
-                ylabel=metric_name,
+                ylabel=metric_type.replace("_", " ").title(),
                 show_legend=True
             )
-        
-        # Hide unused subplots
-        for idx in range(len(metrics_data), len(axes)):
-            axes[idx].set_visible(False)
-        
-        plt.suptitle('Performance Evolution Over Training', fontsize=16)
-        plt.tight_layout()
-        
-        plots["evolution"] = (fig, axes)
-        
-        if save_path:
-            self._save_plot(fig, save_path, filename)
+            
+            plots[metric_type] = (fig, ax)
+            
+            # Save individual plots
+            if save_path:
+                individual_filename = f"{filename}_{metric_type}"
+                self._save_plot(fig, save_path, individual_filename)
         
         return plots
 

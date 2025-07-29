@@ -292,7 +292,7 @@ def main(config_path: str, args=None):
     else:
         model.encoder_network = Identity(encoder_network.encoder.output_dim)
 
-    main_net_save_path = os.path.join(run_save_path, "_main_network")
+    main_net_save_path = os.path.join(run_save_path, "main_network")
     os.makedirs(main_net_save_path, exist_ok=True)
 
     main_train_config = train_config.main
