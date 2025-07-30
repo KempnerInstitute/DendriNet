@@ -10,7 +10,6 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-
 def validate_optimization_combinations(config) -> bool:
     """
     Validate optimization combinations and warn about potential issues.

@@ -5,20 +5,23 @@ Unified Sweep Manager for Dendritic Modeling Framework
 
 This is the main entry point for all parameter sweeps. It coordinates
 the generation of configurations, job submission, and result analysis
-for different sweep types (EI, branch, noise, general).
+for ALL sweep types through YAML configuration alone.
+
+The sweep type (EI, branch, noise, general, mixed) is determined by
+the sweep_config and filter_config in the YAML file.
 
 Usage:
-    # Generate and run an EI sweep
-    python sweep_manager.py ei --config configs/ei_sweep.yaml --run
+    # Generate and run any sweep (determined by config content)
+    python sweep_manager.py --config configs/my_sweep.yaml --run
 
     # Generate configs only (no job submission)
-    python sweep_manager.py branch --config configs/branch_sweep.yaml --generate-only
+    python sweep_manager.py --config configs/my_sweep.yaml --generate-only
 
     # Analyze existing results
-    python sweep_manager.py ei --analyze --results-dir output/ei_20240101120000
+    python sweep_manager.py --analyze --results-dir output/sweep_20240101120000
 
     # Generate with job splitting
-    python sweep_manager.py general --config configs/general_sweep.yaml --split-jobs 10
+    python sweep_manager.py --config configs/my_sweep.yaml --split-jobs 10
 """
 
 import argparse
@@ -37,121 +40,27 @@ from omegaconf import OmegaConf
 # Use absolute imports to avoid relative import issues
 try:
     from dendritic_modeling.scripts.sweeps.unified.base_sweep import BaseSweepGenerator, BaseSweepAnalyzer, SweepJobManager
+    from dendritic_modeling.scripts.sweeps.unified.sweep_types.unified_sweep import UnifiedSweepGenerator, UnifiedSweepAnalyzer
 except ImportError:
     # Fallback for when run as script
     sys.path.insert(0, str(Path(__file__).parent))
     from unified.base_sweep import BaseSweepGenerator, BaseSweepAnalyzer, SweepJobManager
+    from unified.sweep_types.unified_sweep import UnifiedSweepGenerator, UnifiedSweepAnalyzer
 
 
 class SweepManager:
     """
     Main orchestrator for all sweep operations.
     
-    Coordinates config generation, job submission, and result analysis
-    for different sweep types. Automatically discovers available sweep types
-    from the sweep_types directory.
+    Uses a unified generator that handles all sweep types (EI, branch, noise, general, mixed)
+    through YAML configuration. No need to specify sweep type - it's determined by the config.
     """
     
-    def __init__(self, sweep_type: str):
-        # Auto-discover available sweep types
-        self.sweep_types = self._discover_sweep_types()
-        
-        if sweep_type not in self.sweep_types:
-            available_types = list(self.sweep_types.keys())
-            raise ValueError(f"Unknown sweep type '{sweep_type}'. "
-                           f"Available types: {available_types}")
-        
-        self.sweep_type = sweep_type
-        self.generator = self._get_generator()
-        self.analyzer = self._get_analyzer()
-    
-    def _discover_sweep_types(self) -> Dict[str, Dict[str, Type]]:
-        """
-        Auto-discover sweep types from the sweep_types directory.
-        
-        Returns:
-            Dict mapping sweep type names to their generator and analyzer classes.
-        """
-        sweep_types = {}
-        sweep_types_dir = Path(__file__).parent / 'unified' / 'sweep_types'
-        
-        for filename in os.listdir(sweep_types_dir):
-            if filename.endswith('.py') and not filename.startswith('_'):
-                module_name = filename[:-3]  # Remove .py extension
-                
-                try:
-                    # Try multiple import strategies
-                    module = None
-                    
-                    # Strategy 1: Try absolute import
-                    try:
-                        module = importlib.import_module(f'dendritic_modeling.scripts.sweeps.unified.sweep_types.{module_name}')
-                    except ImportError:
-                        pass
-                    
-                    # Strategy 2: Try relative import
-                    if module is None:
-                        try:
-                            module = importlib.import_module(f'.sweep_types.{module_name}', 
-                                                           package='dendritic_modeling.scripts.sweeps.unified')
-                        except (ImportError, ValueError):
-                            pass
-                    
-                    # Strategy 3: Try direct import after adding to path
-                    if module is None:
-                        sweep_types_path = str(Path(__file__).parent / 'sweep_types')
-                        if sweep_types_path not in sys.path:
-                            sys.path.insert(0, sweep_types_path)
-                        try:
-                            module = importlib.import_module(module_name)
-                        except ImportError:
-                            pass
-                    
-                    if module is None:
-                        print(f"Warning: Failed to import sweep module {module_name}")
-                        continue
-                    
-                    # Find generator and analyzer classes
-                    generator_class = None
-                    analyzer_class = None
-                    
-                    for attr_name in dir(module):
-                        attr = getattr(module, attr_name)
-                        if isinstance(attr, type):
-                            if (issubclass(attr, BaseSweepGenerator) and 
-                                attr != BaseSweepGenerator):
-                                generator_class = attr
-                            elif (issubclass(attr, BaseSweepAnalyzer) and 
-                                  attr != BaseSweepAnalyzer):
-                                analyzer_class = attr
-                    
-                    if generator_class:
-                        # Extract sweep type name (e.g., 'ei_sweep' -> 'ei')
-                        sweep_name = module_name.lower().replace('_sweep', '')
-                        sweep_types[sweep_name] = {
-                            'generator': generator_class,
-                            'analyzer': analyzer_class
-                        }
-                        
-                except ImportError as e:
-                    print(f"Warning: Failed to import sweep module {module_name}: {e}")
-                    continue
-        
-        return sweep_types
-    
-    def _get_generator(self) -> BaseSweepGenerator:
-        """Get the appropriate generator for the sweep type."""
-        generator_class = self.sweep_types[self.sweep_type]['generator']
-        return generator_class()
-    
-    def _get_analyzer(self) -> BaseSweepAnalyzer:
-        """Get the appropriate analyzer for the sweep type."""
-        analyzer_class = self.sweep_types[self.sweep_type]['analyzer']
-        if analyzer_class:
-            return analyzer_class()
-        else:
-            # Fallback to base analyzer if specific one not found
-            return BaseSweepAnalyzer()
+    def __init__(self):
+        # Use unified generator for all sweep types
+        self.generator = UnifiedSweepGenerator()
+        self.analyzer = None  # Use result_analyzer.py instead
+        self.sweep_type = "unified"  # For backward compatibility in output
     
     def generate_sweep(self, config_path: str, output_dir: Optional[str] = None,
                       split_jobs: Optional[int] = None, use_array_jobs: bool = True) -> dict:
@@ -166,7 +75,7 @@ class SweepManager:
         Returns:
             Dictionary with sweep information
         """
-        print(f"Generating {self.sweep_type} sweep from {config_path}")
+        print(f"Generating sweep from {config_path}")
         
         # Load configuration
         config = OmegaConf.load(config_path)
@@ -274,7 +183,7 @@ class SweepManager:
         Returns:
             Dictionary with analysis results
         """
-        print(f"Analyzing {self.sweep_type} sweep results from {results_dir}")
+        print(f"Analyzing sweep results from {results_dir}")
         
         if not os.path.exists(results_dir):
             raise FileNotFoundError(f"Results directory not found: {results_dir}")
@@ -331,7 +240,7 @@ class SweepManager:
         Returns:
             Dictionary with sweep information
         """
-        print(f"Running full {self.sweep_type} sweep")
+        print(f"Running full sweep")
         
         # Generate sweep
         sweep_info = self.generate_sweep(config_path, split_jobs=split_jobs)
@@ -353,28 +262,21 @@ def parse_args():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Generate and run an EI sweep
-  python sweep_manager.py ei --config configs/ei_sweep.yaml --run
+  # Generate and run any sweep (type determined by config content)
+  python sweep_manager.py --config configs/my_sweep.yaml --run
 
   # Generate configs only (no job submission)  
-  python sweep_manager.py branch --config configs/branch_sweep.yaml --generate-only
+  python sweep_manager.py --config configs/my_sweep.yaml --generate-only
 
   # Analyze existing results
-  python sweep_manager.py ei --analyze --results-dir output/ei_20240101120000
+  python sweep_manager.py --analyze --results-dir output/sweep_20240101120000
 
   # Generate with job splitting
-  python sweep_manager.py general --config configs/general_sweep.yaml --split-jobs 10
+  python sweep_manager.py --config configs/my_sweep.yaml --split-jobs 10
 
   # Dry run (show what would be submitted)
-  python sweep_manager.py ei --config configs/ei_sweep.yaml --run --dry-run
+  python sweep_manager.py --config configs/my_sweep.yaml --run --dry-run
 """
-    )
-    
-    # Sweep type (required)
-    parser.add_argument(
-        "sweep_type",
-        choices=["ei", "branch", "noise", "general"],
-        help="Type of sweep to perform"
     )
     
     # Action group - mutually exclusive
@@ -430,7 +332,7 @@ def main():
     
     try:
         # Create sweep manager
-        manager = SweepManager(args.sweep_type)
+        manager = SweepManager()
         
         if args.analyze:
             # Analysis mode
