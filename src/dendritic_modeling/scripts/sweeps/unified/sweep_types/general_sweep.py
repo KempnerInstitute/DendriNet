@@ -109,7 +109,8 @@ class GeneralSweepGenerator(BaseSweepGenerator):
                 
                 # Add metadata
                 config["_sweep_metadata"] = {
-                    "config_id": config_id,
+                    "sweep_type": self.sweep_type,
+                    "config_id": str(config_id),
                     "seed": seed,
                     "parameters": param_dict
                 }

@@ -151,7 +151,8 @@ class EISweepGenerator(BaseSweepGenerator):
                 
                 # Add metadata
                 config["_sweep_metadata"] = {
-                    "config_id": config_id,
+                    "sweep_type": self.sweep_type,
+                    "config_id": str(config_id),
                     "ee_synapses": ee,
                     "ie_synapses": ie,
                     "use_shunting": use_shunting,
