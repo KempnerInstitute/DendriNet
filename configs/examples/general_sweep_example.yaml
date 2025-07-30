@@ -241,40 +241,115 @@ analysis:
       cosine_similarity: false
       
   information_analysis:
-    enabled: false                    # Skip for speed in sweeps
+    enabled: false                    # Enable for MI analysis (expensive)
     training: false
-    
+    params:
+      method: kraskov                 # Options: "kraskov", "sklearn", "copula", "auto"
+      max_samples: null               # Limit samples for computation
+      n_neighbors: 10                 # For kraskov k-NN estimator
+      n_bins: 20                      # For sklearn histogram
+      copula_type: gaussian           # For copula method
+      compute_basic_mi: true          # I(E;C), I(I;C), I(Vout;C)
+      compute_pairwise_mi: true       # I(E;I), I(E;Vout), I(I;Vout)
+      compute_conditional_mi: true    # I(E;I|C), I(E;Vout|C), etc.
+      compute_pid: false              # Partial Information Decomposition
+      pid_binarize: true
+      pid_binarize_method: median     # Options: "median", "mean", "quantile"
+      pid_binarize_threshold: 0.5
+      include_vinf: true              # Include soma activation
+      normalize_mi: false             # Normalize by entropy
+      verbose: false
+      compute_per_branch: true
+      branch_aggregation: mean        # Options: "mean", "max", "sum", "first", "none"
+
   synapse_turnover_analysis:
-    enabled: false                    # Skip for speed in sweeps
+    enabled: false                    # Enable for synaptic plasticity analysis
     training: true
+    snapshot_interval: 5              # Frequency of snapshots
     
   noise_perturbation_analysis:
-    enabled: false                    # Skip for speed in sweeps
+    enabled: false                    # Enable for noise robustness testing
     training: false
+    params:
+      uniform_noise: true
+      uniform_magnitudes: [0.1, 0.2]
+      gaussian_noise: true
+      gaussian_sdevs: [0.1, 0.2]
+      n_samples: 10
+      accuracy: true
+      auc: true
+      categorical_loglikelihood: true
+      mse: false
+      cosine_similarity: false
     
   ablation_analysis:
-    enabled: false                    # Skip for speed in sweeps
+    enabled: false                    # Enable for component importance analysis
     training: false
+    params:
+      layer_ablation: true
+      compartment_ablation: false
+      ablate_all_synapses: true
+      ablate_excitation: true
+      ablate_inhibition: true
+      ablate_upstream: true
+      accuracy: true
+      auc: true
+      categorical_loglikelihood: true
+      mse: true
+      cosine_similarity: true
     
   weight_analysis:
-    enabled: false
+    enabled: false                    # Enable for weight distribution analysis
     training: false
+    params:
+      synapse_weights: true
+      branch_weights: true
     
   synaptic_activation_analysis:
-    enabled: false                    # Skip for speed in sweeps
+    enabled: false                    # Enable for synaptic activity analysis
     training: false
+    params:
+      network_summary: true
+      layer_summary: true
+      branch_summary: true
+      raw_summary: true
+      logspace: false
+      downsample: true
+      samples: 5
     
   branch_activation_analysis:
-    enabled: false                    # Skip for speed in sweeps
+    enabled: false                    # Enable for dendritic activity analysis
     training: false
+    params:
+      synapse_activations: true
+      branch_activations: true
+      network_summary: true
+      layer_summary: true
+      branch_summary: true
+      raw_summary: true
+      logspace: false
+      downsample: true
+      samples: 5
     
   single_layer_contribution:
-    enabled: false                    # Skip for speed in sweeps
+    enabled: false                    # Enable for layer importance analysis
     training: false
+    params:
+      excitation_contribution: true
+      inhibition_contribution: true
+      both_contribution: true
+      accuracy: true
+      auc: true
+      categorical_loglikelihood: true
+      mse: true
+      cosine_similarity: true
     
   correlation_analysis:
-    enabled: false
+    enabled: false                    # Enable for correlation studies
     training: false
+    params:
+      compute_synaptic_correlations: true
+      compute_tuning_curves: true
 
 # ============================================================================
 # OUTPUT CONFIGURATION
