@@ -1,0 +1,67 @@
+task:
+  dataset: multixor
+  num_classes: 2
+  input_dim: 4
+model:
+  network:
+    type: EINet
+    parameters:
+      input_dim: 4
+      excitatory_layer_sizes:
+      - 32
+      - 16
+      inhibitory_layer_sizes:
+      - 16
+      - 8
+      excitatory_branch_factors:
+      - 2
+      - 2
+      inhibitory_branch_factors:
+      - 1
+      - 1
+      ee_synapses_per_branch_per_layer: 15
+      ei_synapses_per_branch_per_layer:
+      - 5
+      ie_synapses_per_branch_per_layer: 2
+      ii_synapses_per_branch_per_layer:
+      - 2
+      use_shunting: true
+      somatic_synapses: true
+      reactivate: false
+      activation: relu
+train:
+  strategy: standard
+  epochs: 50
+  batch_size: 128
+  optimizer:
+    type: adam
+    lr: 0.001
+    weight_decay: 1.0e-05
+  loss_function: cross_entropy
+  early_stopping:
+    patience: 10
+    min_delta: 0.001
+  scheduler:
+    type: reduce_on_plateau
+    factor: 0.5
+    patience: 5
+  seed: 44
+analysis:
+  performance_metrics: true
+  information_analysis: false
+  save_activations: false
+  plot_results: true
+outputs:
+  save_model: false
+  save_predictions: false
+  save_config: true
+  save_metrics: true
+_sweep_metadata:
+  sweep_type: ei
+  config_id: '50'
+  ee_synapses: 15
+  ie_synapses: 2
+  use_shunting: true
+  seed: 44
+  ei_ratio: 7.5
+  ei_sum: 17
