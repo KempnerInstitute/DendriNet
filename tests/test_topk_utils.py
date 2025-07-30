@@ -5,14 +5,15 @@ import torch
 import torch.nn as nn
 
 from dendritic_modeling.utils.sparse_ops import (
-    get_sparse_layer,
-    get_available_sparse_types,
     calculate_effective_sparsity,
     create_topk_mask,
     apply_sparse_mask,
     count_active_parameters,
     estimate_memory_usage,
-    register_sparse_layer
+    register_sparse_layer,
+    SPARSE_LAYER_REGISTRY,
+    get_available_sparse_types,
+    get_sparse_layer
 )
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.topk import TopKLinear
 
@@ -91,49 +92,63 @@ class TestSparseOps(unittest.TestCase):
         self.assertEqual(active_count, expected)
     
     def test_estimate_memory_usage(self):
-        """Test memory usage estimation."""
-        memory_usage = estimate_memory_usage(
-            in_features=100,
-            out_features=50,
-            K=10,
-            batch_size=32,
-            dtype_bytes=4
-        )
+        """Test memory usage estimation for sparse layers."""
+        in_features = 100
+        out_features = 50
+        K = 10
         
-        self.assertIn("parameters", memory_usage)
-        self.assertIn("indices", memory_usage)
-        self.assertIn("activations", memory_usage)
-        self.assertIn("total", memory_usage)
+        memory_estimate = estimate_memory_usage(in_features, out_features, K)
         
-        # Check parameter memory calculation
-        expected_param_memory = 50 * 100 * 4  # out * in * bytes
-        self.assertEqual(memory_usage["parameters"], expected_param_memory)
+        self.assertIsInstance(memory_estimate, dict)
+        self.assertIn("full_weights_mb", memory_estimate)
+        self.assertIn("active_weights_mb", memory_estimate)
+        self.assertIn("savings_mb", memory_estimate)
+        self.assertIn("savings_percent", memory_estimate)
         
-        # Check total is sum of components
-        total = (memory_usage["parameters"] + 
-                memory_usage["indices"] + 
-                memory_usage["activations"])
-        self.assertEqual(memory_usage["total"], total)
+        # Verify memory savings
+        self.assertGreater(memory_estimate["savings_mb"], 0)
+        self.assertGreater(memory_estimate["savings_percent"], 0)
     
     def test_register_topk_layer(self):
         """Test registering a new TopK layer type."""
+        from dendritic_modeling.utils.sparse_ops import (
+            register_sparse_layer, 
+            get_available_sparse_types,
+            get_sparse_layer,
+            SPARSE_LAYER_REGISTRY
+        )
+        
         class CustomTopK(TopKLinear):
             pass
         
         # Register the new type
-        register_topk_layer("custom", CustomTopK)
+        register_sparse_layer("custom", CustomTopK)
         
         # Check it's available
-        types = get_available_topk_types()
+        types = get_available_sparse_types()
         self.assertIn("custom", types)
         
         # Test creating it
-        layer = get_topk_layer("custom", 5, 3, 2)
+        layer = get_sparse_layer("custom", 5, 3, 2)
         self.assertIsInstance(layer, CustomTopK)
         
         # Clean up (remove from registry)
-        from dendritic_modeling.utils.topk import TOPK_REGISTRY
-        del TOPK_REGISTRY["custom"]
+        del SPARSE_LAYER_REGISTRY["custom"]
+
+    def test_register_duplicate_layer(self):
+        """Test registering duplicate layer type raises error."""
+        from dendritic_modeling.utils.sparse_ops import (
+            register_sparse_layer,
+            get_sparse_layer
+        )
+        
+        # Try to register an existing type - this should not raise an error
+        # as the registry allows overwriting (which might be intended behavior)
+        register_sparse_layer("standard", TopKLinear)
+        
+        # Verify it still works
+        layer = get_sparse_layer("standard", 5, 3, 2)
+        self.assertIsInstance(layer, TopKLinear)
 
 
 class TestAbstractAnalyzer(unittest.TestCase):

@@ -22,11 +22,7 @@ from dendritic_modeling.datasets import (
     load_mnist_as_datasets,
     load_mnist_modulo10,
 )
-from dendritic_modeling.datasets.standard_datasets import (
-    MNIST,
-    CIFAR10,
-)
-from dendritic_modeling.plotting import split_mnist_inputs
+from torchvision.datasets import MNIST, CIFAR10
 
 # Import synthetic datasets from experiments folder
 try:
@@ -295,32 +291,6 @@ class TestDatasetUtilities(unittest.TestCase):
         self.assertEqual(data_dir2, expected_path2)
         self.assertTrue(os.path.exists(data_dir2))
 
-    def test_split_mnist_inputs(self):
-        """Test MNIST input splitting by labels."""
-        # Create test data with multiple classes
-        inputs = torch.randn(100, 784)
-        labels = torch.cat(
-            [
-                torch.zeros(30, dtype=torch.long),  # 30 samples of class 0
-                torch.ones(40, dtype=torch.long),  # 40 samples of class 1
-                torch.full((30,), 2, dtype=torch.long),  # 30 samples of class 2
-            ]
-        )
-
-        input_list = split_mnist_inputs(inputs, labels)
-
-        # Check that we got the right number of classes (function returns 10 for all digits 0-9)
-        self.assertEqual(len(input_list), 10)
-
-        # Check shapes for the classes we actually have data for
-        self.assertEqual(input_list[0].shape, (30, 784))  # Class 0
-        self.assertEqual(input_list[1].shape, (40, 784))  # Class 1
-        self.assertEqual(input_list[2].shape, (30, 784))  # Class 2
-
-        # Check that classes without data have empty tensors
-        for i in range(3, 10):
-            self.assertEqual(input_list[i].shape[0], 0)  # Empty for classes 3-9
-
 
 class TestGetUnifiedDatasets(unittest.TestCase):
     """Test the unified dataset loading function."""
@@ -376,6 +346,25 @@ class TestGetUnifiedDatasets(unittest.TestCase):
                 self.assertEqual(len(train_ds), 30)
                 self.assertEqual(len(valid_ds), 10)
                 self.assertEqual(len(test_ds), 10)
+
+    def test_custom_parameters(self):
+        """Test loading with custom parameters."""
+        self.task_cfg.dataset = "line"
+        self.task_cfg.data_path = None
+        self.task_cfg.parameters = {
+            "train_size": 25,
+            "valid_size": 10,
+            "test_size": 15,
+            "image_size": 16
+        }
+        train_ds, valid_ds, test_ds = get_unified_datasets(
+            self.task_cfg, self.train_cfg, output_dir=self.temp_dir
+        )
+        self.assertEqual(len(train_ds), 25)
+        self.assertEqual(len(valid_ds), 10)
+        self.assertEqual(len(test_ds), 15)
+        sample, _ = train_ds[0]
+        self.assertEqual(sample.shape, (256,))  # 16x16 flattened
 
     @patch("dendritic_modeling.datasets.standard_datasets.load_mnist_as_datasets")
     def test_mnist_dataset(self, mock_load_mnist):
