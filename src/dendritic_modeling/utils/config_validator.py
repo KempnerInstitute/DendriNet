@@ -238,26 +238,25 @@ class ConfigValidator:
                 )
 
                 # Determine the source of inhibitory input for IE constraint checking
-                if layer_idx == 0:
-                    # First layer gets inhibitory input from transfer function
-                    if self.input_mode == 1:
-                        # In input_mode=1, transfer function provides inhibitory input
-                        if self.independent_pathways:
-                            inhibitory_source_dim = (
-                                self.inhibitory_dim
-                                if self.inhibitory_dim
-                                else self.input_dim // 2
-                            )
-                        else:
-                            # When independent_pathways=false, input feeds both E and I synapses
-                            # So inhibitory input dimension equals excitatory input dimension
-                            inhibitory_source_dim = (
-                                self.excitatory_dim
-                                if self.excitatory_dim
-                                else self.input_dim
-                            )
+                if self.input_mode == 1:
+                    # In input_mode=1, ALL layers can receive inhibitory input from transfer function
+                    if self.independent_pathways:
+                        inhibitory_source_dim = (
+                            self.inhibitory_dim
+                            if self.inhibitory_dim
+                            else self.input_dim // 2
+                        )
                     else:
-                        inhibitory_source_dim = 0  # No inhibitory input in other modes
+                        # When independent_pathways=false, input feeds both E and I synapses
+                        # So inhibitory input dimension equals excitatory input dimension
+                        inhibitory_source_dim = (
+                            self.excitatory_dim
+                            if self.excitatory_dim
+                            else self.input_dim
+                        )
+                elif layer_idx == 0:
+                    # Other input modes: first layer has no inhibitory input
+                    inhibitory_source_dim = 0
                 else:
                     # Subsequent layers get inhibitory input from previous layer's inhibitory neurons
                     if layer_idx - 1 < len(self.inhibitory_layer_sizes):
