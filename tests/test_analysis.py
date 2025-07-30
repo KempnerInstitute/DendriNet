@@ -82,7 +82,7 @@ class TestPerformanceAnalyzer(unittest.TestCase):
                 ee_synapses_per_branch_per_layer=[1],
                 ei_synapses_per_branch_per_layer=[1],
                 ie_synapses_per_branch_per_layer=[1],
-                ii_synapses_per_branch_per_layer=[],
+                ii_synapses_per_branch_per_layer=[1],
             ),
             decoder_network=Identity(input_dim=4),
         )
@@ -127,6 +127,24 @@ class TestPerformanceAnalyzer(unittest.TestCase):
             # Check that results is a dictionary
             self.assertIsInstance(results, dict)
 
+    def test_empty_dataset(self):
+        """Test handling of empty dataset."""
+        params = PerformanceAnalysisParams()
+        analyzer = PerformanceAnalyzer(params)
+        empty_data = torch.utils.data.TensorDataset(torch.empty(0, 10), torch.empty(0, dtype=torch.long))
+        results = analyzer.analyze(model=self.model, test_ds=empty_data, device=self.device, save_path=None)
+        self.assertIsInstance(results, dict)
+        # Check that the analyzer handles empty data gracefully
+        # The exact behavior may vary, but it should not crash
+        self.assertIn('accuracy', results)
+        self.assertIsInstance(results['accuracy'], dict)
+        # For empty datasets, accuracy might be NaN which is expected
+        if 'test' in results['accuracy']:
+            # NaN is acceptable for empty datasets
+            import math
+            self.assertTrue(isinstance(results['accuracy']['test'], float) or math.isnan(results['accuracy']['test']))
+        # Main goal: ensure no crash occurs with empty data
+
 
 class TestAblationAnalyzer(unittest.TestCase):
     """Test the AblationAnalyzer class."""
@@ -150,7 +168,7 @@ class TestAblationAnalyzer(unittest.TestCase):
                 ee_synapses_per_branch_per_layer=[1, 1],
                 ei_synapses_per_branch_per_layer=[1, 1],
                 ie_synapses_per_branch_per_layer=[1, 1],
-                ii_synapses_per_branch_per_layer=[],
+                ii_synapses_per_branch_per_layer=[1],
             ),
             decoder_network=Identity(input_dim=4),
         )
@@ -213,7 +231,7 @@ class TestInformationAnalyzer(unittest.TestCase):
                 ee_synapses_per_branch_per_layer=[1],
                 ei_synapses_per_branch_per_layer=[1],
                 ie_synapses_per_branch_per_layer=[1],
-                ii_synapses_per_branch_per_layer=[],
+                ii_synapses_per_branch_per_layer=[1],
             ),
             decoder_network=Identity(input_dim=4),
         )
@@ -274,7 +292,7 @@ class TestActivationAnalyzers(unittest.TestCase):
                 ee_synapses_per_branch_per_layer=[1],
                 ei_synapses_per_branch_per_layer=[1],
                 ie_synapses_per_branch_per_layer=[1],
-                ii_synapses_per_branch_per_layer=[],
+                ii_synapses_per_branch_per_layer=[1],
             ),
             decoder_network=Identity(input_dim=4),
         )
@@ -330,7 +348,7 @@ class TestAnalysisManager(unittest.TestCase):
                 ee_synapses_per_branch_per_layer=[1],
                 ei_synapses_per_branch_per_layer=[1],
                 ie_synapses_per_branch_per_layer=[1],
-                ii_synapses_per_branch_per_layer=[],
+                ii_synapses_per_branch_per_layer=[1],
             ),
             decoder_network=Identity(input_dim=4),
         )

@@ -30,7 +30,7 @@ class TestEffectiveMatchedParamMLP(unittest.TestCase):
             "ee_synapses_per_branch_per_layer": [200, 100],
             "ei_synapses_per_branch_per_layer": [100, 50],
             "ie_synapses_per_branch_per_layer": [50, 25],
-            "ii_synapses_per_branch_per_layer": [],
+            "ii_synapses_per_branch_per_layer": [1],
             "reactivate": True,
             "somatic_synapses": True,
         }

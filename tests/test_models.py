@@ -178,3 +178,9 @@ def test_regressor_forward():
     x = torch.randn(2, 10)
     output = model(x)
     assert output.shape == (2, 3)
+
+def test_regressor_predict():
+    model = Regressor(Identity(10), get_architecture('MLP', {'input_dim': 10, 'hidden_dims': [20], 'output_dim': 3}), Identity(3))
+    x = torch.randn(2, 10)
+    preds = model.predict(x)
+    assert preds.shape == (2, 3)

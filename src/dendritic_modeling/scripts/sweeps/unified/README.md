@@ -1,6 +1,6 @@
 # Unified Sweep Framework for Dendritic Modeling
 
-This unified framework consolidates all parameter sweep functionality for the dendritic modeling project. It replaces the previous separate sweep systems with a single, cohesive interface.
+This unified framework consolidates all parameter sweep functionality for the dendritic modeling project.
 
 ##  Key Benefits
 

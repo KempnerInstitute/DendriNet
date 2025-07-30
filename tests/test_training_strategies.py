@@ -43,7 +43,7 @@ class TestTrainerFactory(unittest.TestCase):
                 ee_synapses_per_branch_per_layer=[1],
                 ei_synapses_per_branch_per_layer=[1],
                 ie_synapses_per_branch_per_layer=[1],
-                ii_synapses_per_branch_per_layer=[],
+                ii_synapses_per_branch_per_layer=[1],
             ),
             decoder_network=Identity(input_dim=4),
         )
@@ -119,7 +119,7 @@ class TestTrainer(unittest.TestCase):
                 ee_synapses_per_branch_per_layer=[1],
                 ei_synapses_per_branch_per_layer=[1],
                 ie_synapses_per_branch_per_layer=[1],
-                ii_synapses_per_branch_per_layer=[],
+                ii_synapses_per_branch_per_layer=[1],
             ),
             decoder_network=Identity(input_dim=4),
         )
