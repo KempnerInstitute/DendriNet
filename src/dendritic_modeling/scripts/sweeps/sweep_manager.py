@@ -29,11 +29,18 @@ from pathlib import Path
 from typing import Optional, Dict, Type
 
 # Add the project root to the path
-project_root = Path(__file__).parent.parent.parent.parent
+project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root / "src"))
 
 from omegaconf import OmegaConf
-from .base_sweep import BaseSweepGenerator, BaseSweepAnalyzer, SweepJobManager
+
+# Use absolute imports to avoid relative import issues
+try:
+    from dendritic_modeling.scripts.sweeps.unified.base_sweep import BaseSweepGenerator, BaseSweepAnalyzer, SweepJobManager
+except ImportError:
+    # Fallback for when run as script
+    sys.path.insert(0, str(Path(__file__).parent))
+    from unified.base_sweep import BaseSweepGenerator, BaseSweepAnalyzer, SweepJobManager
 
 
 class SweepManager:
@@ -73,16 +80,36 @@ class SweepManager:
                 module_name = filename[:-3]  # Remove .py extension
                 
                 try:
-                    # Import the module using relative import when possible, fallback to absolute
+                    # Try multiple import strategies
+                    module = None
+                    
+                    # Strategy 1: Try absolute import
                     try:
-                        module = importlib.import_module(f'.sweep_types.{module_name}', 
-                                                       package='scripts.sweeps.unified')
-                    except (ImportError, ValueError):
-                        # Fallback: try adding to sys.path and importing directly
+                        module = importlib.import_module(f'dendritic_modeling.scripts.sweeps.unified.sweep_types.{module_name}')
+                    except ImportError:
+                        pass
+                    
+                    # Strategy 2: Try relative import
+                    if module is None:
+                        try:
+                            module = importlib.import_module(f'.sweep_types.{module_name}', 
+                                                           package='dendritic_modeling.scripts.sweeps.unified')
+                        except (ImportError, ValueError):
+                            pass
+                    
+                    # Strategy 3: Try direct import after adding to path
+                    if module is None:
                         sweep_types_path = str(Path(__file__).parent / 'sweep_types')
                         if sweep_types_path not in sys.path:
                             sys.path.insert(0, sweep_types_path)
-                        module = importlib.import_module(module_name)
+                        try:
+                            module = importlib.import_module(module_name)
+                        except ImportError:
+                            pass
+                    
+                    if module is None:
+                        print(f"Warning: Failed to import sweep module {module_name}")
+                        continue
                     
                     # Find generator and analyzer classes
                     generator_class = None

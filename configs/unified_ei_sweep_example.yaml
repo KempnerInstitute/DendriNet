@@ -1,0 +1,261 @@
+# Unified EI (Excitation-Inhibition) Sweep Configuration
+# This configuration explores E/I parameter spaces in dendritic networks
+
+# Output and SLURM configuration
+output_dir: "output"
+slurm_config:
+  job_name: "ei_sweep_run"
+  account: "kempner_dev"
+  partition: "kempner"
+  time: "02:00:00"
+  nodes: 1
+  ntasks_per_node: 1
+  gpus_per_node: 1
+  cpus_per_task: 8
+  mem: 32GB
+  modules_to_load:
+    - python/3.12.5-fasrc01
+    - cuda/12.4.1-fasrc01
+    - cudnn/8.9.2.26_cuda12-fasrc01
+
+# Experiment settings
+experiment_settings:
+  seeds_per_condition: 3  # Run 3 seeds per parameter combination
+  base_seed: 42
+
+# EI parameters to sweep
+sweep_config:
+  # Excitatory synapses per branch per layer
+  model.core_network.parameters.ee_synapses_per_branch_per_layer: [1,2,3,4,5,6,7,8,9,10]
+  # Inhibitory synapses per branch per layer  
+  model.core_network.parameters.ie_synapses_per_branch_per_layer: [1,2,3,4,5,6,7,8,9,10]
+  # Whether to use shunting inhibition (can include "MLP" for comparison)
+  model.core_network.parameters.use_shunting: [True, False]
+
+# Optional: Filter parameter combinations
+filter_config:
+  mode: "ei-sum"  # Options: "all", "ei-sum", "e-const", "i-const", "ei-ratio"
+  value: 11  # Required for ei-ratio mode
+  # tolerance: 0.1  # Required for ei-ratio mode
+
+# Base training configuration
+base_config:
+  model:
+    task: classification
+    
+    # ==========================================
+    # ENCODER NETWORK (Input Processing Stage)
+    # ==========================================
+    encoder_network:
+      type: identity
+      parameters:
+        input_dim: null
+        input_shape: [3, 32, 32]
+        encoder_hidden_dims: [128, 64]
+        latent_dim: null
+        activation: relu
+    
+    # ==========================================
+    # CORE NETWORK (Main Processing Stage)
+    # ==========================================
+    core_network:
+      type: "EINet"
+      parameters:
+        # Transfer function parameters
+        transfer_params:
+          input_mode: 1
+          independent_pathways: false
+          excitatory_dim: null
+          inhibitory_dim: null
+          output_activation: null
+        
+        excitatory_layer_sizes: [32, 16]
+        inhibitory_layer_sizes: []
+        excitatory_branch_factors: [2, 2]
+        inhibitory_branch_factors: []
+        
+        # EI synapse parameters will be overridden by sweep
+        ee_synapses_per_branch_per_layer: [10]  # Will be overridden
+        ei_synapses_per_branch_per_layer: [0]   # Will be overridden  
+        ie_synapses_per_branch_per_layer: [3]
+        ii_synapses_per_branch_per_layer: [0]
+        
+        # Morphological features
+        somatic_synapses: True
+        use_shunting: True  # Will be overridden
+        
+        # TopK sparsity parameters
+        topk_init_method: xavier_normal
+        topk_noise_level: 0.0
+        topk_type: standard
+        topk_temperature: 0.0
+        topk_strategy: conductance_dynamic
+        
+        # Reactivation parameters
+        reactivate: true
+        reactivation_type: param_tanh
+        reactivation_init_m: 1.5
+        reactivation_init_b: 0.5
+        reactivation_strategy: inverse
+        
+        # Block linear parameters
+        blocklinear_strategy: conductance_dynamic
+        efficient_blocklinear: false
+        
+        # Implementation optimizations
+        adaptive_initialization: false
+        print_hooks: false
+    
+    # ==========================================
+    # DECODER NETWORK (Output Processing Stage)
+    # ==========================================
+    decoder_network:
+      type: MLP
+      parameters:
+        input_dim: null
+        hidden_dims: [32, 16]
+        activation: relu
+        output_dim: 10
+        
+# ============================================================================
+# TRAINING CONFIGURATION
+# ============================================================================
+train:
+  seed: 0
+  train_valid_split: 0.8
+  
+  # Performance optimization settings
+  enable_amp: false
+  enable_profiling: false
+  enable_hooks: true
+  
+  # Checkpointing
+  checkpointing:
+    enabled: false
+    save_every_n_epochs: 10
+    checkpoint_dir: "outputs/checkpoints/"
+  
+  # Encoder training configuration
+  encoder:
+    load_save_root: null
+    lr: 0.001
+    trainer:
+      loss_function: mse
+      epochs: 50
+      early_stopping: false
+      patience: 10
+      batch_size: 128
+      shuffle: true
+      grad_clip_value: 5.0
+      load_best_state_dict: true
+      plot_losses: false
+      save_path: null
+      suppress_prints: false
+      print_every: 10
+      use_amp: false
+  
+  # Main network training
+  main:
+    learning_strategy: standard
+    weight_decay_rate: 0.01
+    
+    # Parameter groups with different learning rates
+    param_groups:
+      lr: 0.001
+      split_params: true
+      topk_lr: 0.001
+      blocklinear_lr: 0.0001
+      reactivation_lr: 0.0001
+      decoder_lr: 0.0001
+    
+    trainer:
+      loss_function: ce
+      epochs: 50
+      early_stopping: false
+      patience: 10
+      batch_size: 128
+      shuffle: true
+      grad_clip_value: 5.0
+      load_best_state_dict: true
+      plot_losses: true
+      save_path: null
+      suppress_prints: false
+      print_every: 10
+      use_amp: false
+
+# ============================================================================
+# DATASET/TASK CONFIGURATION
+# ============================================================================
+task:
+  dataset: cifar10
+  data_path: ""
+  parameters:
+    flatten: true
+    normalize: false
+
+# ============================================================================
+# WANDB LOGGING
+# ============================================================================
+wandb:
+  entity: 
+  project: 
+  group: 
+  tags: []
+  use_wandb: false
+
+# ============================================================================
+# ANALYSIS CONFIGURATION
+# ============================================================================
+analysis:
+  performance_analysis:
+    enabled: true
+    training: true
+    params:
+      accuracy: true
+      auc: true
+      categorical_loglikelihood: true
+      mse: false
+      cosine_similarity: false
+      
+  information_analysis:
+    enabled: false                    # Disable for speed
+    training: false
+    
+  synapse_turnover_analysis:
+    enabled: false
+    training: true
+    
+  noise_perturbation_analysis:
+    enabled: false
+    training: false
+    
+  ablation_analysis:
+    enabled: false
+    training: false
+    
+  weight_analysis:
+    enabled: false
+    training: false
+    
+  synaptic_activation_analysis:
+    enabled: false
+    training: false
+    
+  branch_activation_analysis:
+    enabled: false
+    training: false
+    
+  single_layer_contribution:
+    enabled: false
+    training: false
+    
+  correlation_analysis:
+    enabled: false
+    training: false
+
+# ============================================================================
+# OUTPUT CONFIGURATION
+# ============================================================================
+outputs:
+  run_name: unified_ei_sweep
+  dir: results/ 

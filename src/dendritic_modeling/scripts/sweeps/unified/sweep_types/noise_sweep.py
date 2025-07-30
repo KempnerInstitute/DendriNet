@@ -35,7 +35,13 @@ import sys
 project_root = Path(__file__).parent.parent.parent.parent.parent
 sys.path.insert(0, str(project_root / "src"))
 
-from ..base_sweep import BaseSweepGenerator, BaseSweepAnalyzer
+# Use absolute imports to avoid relative import issues
+try:
+    from dendritic_modeling.scripts.sweeps.unified.base_sweep import BaseSweepGenerator, BaseSweepAnalyzer
+except ImportError:
+    # Fallback for when run as script
+    sys.path.insert(0, str(Path(__file__).parent.parent))
+    from base_sweep import BaseSweepGenerator, BaseSweepAnalyzer
 
 
 class NoiseSweepGenerator(BaseSweepGenerator):
