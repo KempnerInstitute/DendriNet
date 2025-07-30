@@ -68,8 +68,23 @@ class ConfigValidator:
             self.input_dim = 3072  # 32x32x3
         elif dataset_name == "imagenet":
             self.input_dim = 150528  # 224x224x3
+        elif dataset_name == "mnist":
+            self.input_dim = 784  # 28x28
+        elif dataset_name == "multixor":
+            # MultiXOR typically has small input dimensions (2-8 bits per input)
+            # Default to a reasonable size for XOR-like problems
+            task_params = self.config.get("task", {}).get("parameters", {})
+            n_bits = task_params.get("n_bits", 4)  # Default 4-bit XOR
+            self.input_dim = n_bits * 2  # Two inputs of n_bits each
         else:
-            self.input_dim = self.network_config.get("input_dim", 0)
+            # Try to get input_dim from various sources
+            task_params = self.config.get("task", {}).get("parameters", {})
+            self.input_dim = (
+                self.network_config.get("input_dim") or
+                task_params.get("input_dim") or
+                self.transfer_params.get("excitatory_dim") or
+                64  # Reasonable default for unknown datasets
+            )
 
         self.excitatory_layer_sizes = self.network_config.get(
             "excitatory_layer_sizes", []

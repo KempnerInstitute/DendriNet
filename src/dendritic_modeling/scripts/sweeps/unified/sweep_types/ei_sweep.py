@@ -77,8 +77,8 @@ class EISweepGenerator(BaseSweepGenerator):
         # Check for EI parameters
         sweep_config = config.sweep_config
         ei_params = [
-            "model.network.parameters.ee_synapses_per_branch_per_layer",
-            "model.network.parameters.ie_synapses_per_branch_per_layer"
+            "model.core_network.parameters.ee_synapses_per_branch_per_layer",
+            "model.core_network.parameters.ie_synapses_per_branch_per_layer"
         ]
         
         for param in ei_params:
@@ -102,12 +102,12 @@ class EISweepGenerator(BaseSweepGenerator):
         filter_config = base_config.get("filter_config", {})
         
         # Extract EI parameters
-        ee_values = sweep_params["model.network.parameters.ee_synapses_per_branch_per_layer"]
-        ie_values = sweep_params["model.network.parameters.ie_synapses_per_branch_per_layer"]
+        ee_values = sweep_params["model.core_network.parameters.ee_synapses_per_branch_per_layer"]
+        ie_values = sweep_params["model.core_network.parameters.ie_synapses_per_branch_per_layer"]
         
         # Handle use_shunting parameter (can include "MLP" for network comparison)
         use_shunting_values = sweep_params.get(
-            "model.network.parameters.use_shunting", [True]
+            "model.core_network.parameters.use_shunting", [True]
         )
         
         # Generate all parameter combinations
@@ -132,28 +132,39 @@ class EISweepGenerator(BaseSweepGenerator):
                 # Set EI parameters
                 if "model" not in config:
                     config["model"] = {}
-                if "network" not in config["model"]:
-                    config["model"]["network"] = {}
-                if "parameters" not in config["model"]["network"]:
-                    config["model"]["network"]["parameters"] = {}
+                if "core_network" not in config["model"]:
+                    config["model"]["core_network"] = {}
+                if "parameters" not in config["model"]["core_network"]:
+                    config["model"]["core_network"]["parameters"] = {}
                 
-                config["model"]["network"]["parameters"]["ee_synapses_per_branch_per_layer"] = ee
-                config["model"]["network"]["parameters"]["ie_synapses_per_branch_per_layer"] = ie
+                config["model"]["core_network"]["parameters"]["ee_synapses_per_branch_per_layer"] = [ee]
+                config["model"]["core_network"]["parameters"]["ie_synapses_per_branch_per_layer"] = [ie]
                 
                 # Handle network type
                 if use_shunting == "MLP":
                     # Use MLP network for comparison
-                    config["model"]["network"]["type"] = "MLP"
+                    config["model"]["core_network"]["type"] = "MLP"
                     # Remove EI-specific parameters for MLP
-                    if "use_shunting" in config["model"]["network"]["parameters"]:
-                        del config["model"]["network"]["parameters"]["use_shunting"]
+                    if "use_shunting" in config["model"]["core_network"]["parameters"]:
+                        del config["model"]["core_network"]["parameters"]["use_shunting"]
                 else:
-                    config["model"]["network"]["parameters"]["use_shunting"] = use_shunting
+                    config["model"]["core_network"]["parameters"]["use_shunting"] = use_shunting
                 
                 # Set seed
                 if "train" not in config:
                     config["train"] = {}
                 config["train"]["seed"] = seed
+                
+                # Ensure task configuration exists with reasonable defaults
+                if "task" not in config:
+                    config["task"] = {
+                        "dataset": "cifar10",  # Default to well-supported dataset
+                        "data_path": "",
+                        "parameters": {
+                            "flatten": True,
+                            "normalize": False
+                        }
+                    }
                 
                 # Add metadata
                 config["_sweep_metadata"] = {

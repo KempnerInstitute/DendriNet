@@ -1,0 +1,903 @@
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'
+/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py:48: UserWarning: torchinfo not available. Model summary will be skipped.
+  warnings.warn("torchinfo not available. Model summary will be skipped.")
+Traceback (most recent call last):
+  File "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/src/dendritic_modeling/scripts/training/train_experiments.py", line 57, in <module>
+    import torch
+ModuleNotFoundError: No module named 'torch'

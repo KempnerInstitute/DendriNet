@@ -1,0 +1,84 @@
+model:
+  task: classification
+  encoder_network:
+    type: identity
+    parameters:
+      input_dim: null
+      input_shape:
+      - 3
+      - 32
+      - 32
+      encoder_hidden_dims:
+      - 128
+      - 64
+      latent_dim: null
+      activation: relu
+  core_network:
+    type: EINet
+    parameters:
+      transfer_params:
+        input_mode: 1
+        independent_pathways: false
+        excitatory_dim: null
+        inhibitory_dim: null
+        output_activation: null
+      excitatory_layer_sizes:
+      - 64
+      - 32
+      - 16
+      inhibitory_layer_sizes:
+      - 32
+      - 16
+      - 8
+      excitatory_branch_factors:
+      - 2
+      - 2
+      - 1
+      inhibitory_branch_factors:
+      - 1
+      - 1
+      - 1
+      ee_synapses_per_branch_per_layer:
+      - 20
+      ei_synapses_per_branch_per_layer:
+      - 8
+      ie_synapses_per_branch_per_layer:
+      - 8
+      ii_synapses_per_branch_per_layer:
+      - 3
+      somatic_synapses: true
+      use_shunting: false
+      topk_init_method: xavier_normal
+      topk_noise_level: 0.0
+      topk_type: standard
+      topk_temperature: 0.0
+      topk_strategy: conductance_dynamic
+      reactivate: true
+      reactivation_type: param_tanh
+      reactivation_init_m: 1.5
+      reactivation_init_b: 0.5
+      reactivation_strategy: inverse
+      blocklinear_strategy: conductance_dynamic
+      efficient_blocklinear: false
+      adaptive_initialization: false
+      print_hooks: false
+  decoder_network:
+    type: MLP
+    parameters:
+      input_dim: null
+      hidden_dims:
+      - 32
+      - 16
+      activation: relu
+      output_dim: 10
+train:
+  seed: 42
+_sweep_metadata:
+  sweep_type: ei
+  config_id: '105'
+  ee_synapses: 20
+  ie_synapses: 8
+  use_shunting: false
+  seed: 42
+  ei_ratio: 2.5
+  ei_sum: 28

@@ -2,7 +2,7 @@
 # This configuration explores E/I parameter spaces in dendritic networks
 
 # Output and SLURM configuration
-output_dir: "output"
+output_dir: "results"
 slurm_config:
   job_name: "ei_sweep_run"
   account: "kempner_dev"
@@ -17,6 +17,8 @@ slurm_config:
     - python/3.12.5-fasrc01
     - cuda/12.4.1-fasrc01
     - cudnn/8.9.2.26_cuda12-fasrc01
+  conda_env_path: "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env"
+  training_script: "src/dendritic_modeling/scripts/training/train_experiments.py"
 
 # Experiment settings
 experiment_settings:

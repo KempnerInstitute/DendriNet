@@ -73,7 +73,7 @@ class SweepManager:
             Dict mapping sweep type names to their generator and analyzer classes.
         """
         sweep_types = {}
-        sweep_types_dir = Path(__file__).parent / 'sweep_types'
+        sweep_types_dir = Path(__file__).parent / 'unified' / 'sweep_types'
         
         for filename in os.listdir(sweep_types_dir):
             if filename.endswith('.py') and not filename.startswith('_'):

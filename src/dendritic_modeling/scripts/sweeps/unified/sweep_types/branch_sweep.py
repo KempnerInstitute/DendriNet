@@ -67,9 +67,9 @@ class BranchSweepGenerator(BaseSweepGenerator):
         # Check for branch-related parameters
         sweep_config = config.sweep_config
         branch_params = [
-            "model.network.parameters.num_branches_per_layer",
-            "model.network.parameters.excitatory_branch_factors",
-            "model.network.parameters.num_layers"
+            "model.core_network.parameters.excitatory_layer_sizes",
+            "model.core_network.parameters.excitatory_branch_factors",
+            "model.core_network.parameters.use_shunting"
         ]
         
         # At least one branch parameter should be present
