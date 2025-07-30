@@ -836,14 +836,6 @@ class InformationAnalyzer(AbstractAnalyzer):
                 results["aggregation_method"] = self.branch_aggregation
                 results["num_branches_aggregated"] = len(excitation_list)
 
-            # TODO: Fix this code - undefined variables causing crashes
-            # if some_condition:
-            #     # Compute conditional MI for specific branch types or layers
-            #     conditional_results = self.compute_conditional_mi(
-            #         excitation_dict, inhibition_dict, output_dict
-            #     )
-            #     results.update(conditional_results)
-
             # Save results
             if save_path is not None:
                 save_dict(results, save_path, filename)

@@ -8,6 +8,7 @@ from .information_analysis import (
 
 from .general_analysis_plots import (
     plot_ablation_results,
+    plot_per_layer_ablation,
     plot_layer_contributions,
     plot_noise_robustness,
     plot_weight_distributions,
@@ -49,6 +50,7 @@ __all__ = [
     
     # General analysis
     "plot_ablation_results",
+    "plot_per_layer_ablation",
     "plot_layer_contributions", 
     "plot_noise_robustness",
     "plot_weight_distributions",

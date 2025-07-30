@@ -193,7 +193,6 @@ class SingleLayerContributionAnalysisConfig(BaseConfig):
 class CorrelationAnalysisParams(BaseConfig):
     compute_synaptic_correlations: bool = True
     compute_tuning_curves: bool = True
-    save_plots: bool = True
 
 
 @dataclass

@@ -294,7 +294,7 @@ analysis:
     params:
       compute_synaptic_correlations: true
       compute_tuning_curves: true
-      save_plots: true
+
 
 # No W&B or visualization
 wandb:
@@ -305,22 +305,3 @@ wandb:
 # Output directory
 outputs:
   dir: ./outputs/ei_info_quickstart/
-
-# ============================================================================
-# EXPECTED OUTPUT
-# ============================================================================
-# After training, you'll find in outputs/ei_info_quickstart/analysis/:
-#
-# 1. information_analysis/
-#    - information_analysis_results.json  # Raw MI values
-#    - information_analysis_summary.txt   # Human-readable summary
-#
-# 2. performance_analysis/
-#    - test_metrics.json                  # Final accuracy
-#
-# The summary will show values like:
-# - I(E;C) = 1.23 nats    # Excitatory info about class
-# - I(I;C) = 0.89 nats    # Inhibitory info about class  
-# - I(E;I) = 0.45 nats    # E/I dependence
-# - I(Vout;C) = 1.56 nats # Branch output info
-# ============================================================================ 

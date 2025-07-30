@@ -94,8 +94,6 @@ def convert_layer_names(layer_results: Dict[str, Dict[str, Any]]) -> Dict[str, D
     for i, (original_idx, original_name) in enumerate(indexed_layers):
         if i == 0:
             new_name = "Soma"
-        elif i == len(indexed_layers) - 1:
-            new_name = "Distal"
         else:
             new_name = f"Layer {i}"
         

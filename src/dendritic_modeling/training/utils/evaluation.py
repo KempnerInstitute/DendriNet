@@ -41,6 +41,11 @@ def _compute_metric_score(
     Returns:
         Computed metric tensor
     """
+    # Early skip for inappropriate metrics on Classifier models
+    if isinstance(model, Classifier) and computation_func.__name__ in ['_compute_mse', '_compute_cosine_similarity']:
+        print(f"Skipping {computation_func.__name__} for Classifier model")
+        return torch.tensor(float('nan'))
+        
     if move_device:
         model = model.to(device)
         inputs = inputs.to(device)
@@ -49,7 +54,9 @@ def _compute_metric_score(
         with torch.no_grad():
             return computation_func(model, inputs, labels, reduce_dim)
     except Exception as e:
-        print(f"Error computing metric: {e}")
+        print(f"Error computing metric in {computation_func.__name__}: {e}")
+        print(f"  Input dtypes: inputs={inputs.dtype}, labels={labels.dtype}")
+        print(f"  Input shapes: inputs={inputs.shape}, labels={labels.shape}")
         nan_tensor = torch.tensor(torch.nan)
         nan_tensor = nan_tensor.to(inputs.device)
         return nan_tensor
@@ -145,7 +152,14 @@ def _compute_accuracy(
     reduce_dim: int = 0,
 ) -> torch.Tensor:
     yhat = classifier.predict(inputs)
-    return torch.mean((yhat == labels).float(), dim=reduce_dim)
+    # Ensure both yhat and labels are on the same device and have compatible dtypes
+    yhat = yhat.to(labels.device)
+    # Convert labels to Long if they aren't already (for proper comparison)
+    labels = labels.long()
+    yhat = yhat.long()
+    # Compute accuracy with proper dtype handling
+    correct = (yhat == labels).float()
+    return torch.mean(correct, dim=reduce_dim)
 
 
 def accuracy_score(
@@ -234,7 +248,10 @@ def _compute_auc(
     labels: torch.Tensor,
     reduce_dim: int = 0,
 ) -> torch.Tensor:
-    return roc_auc_score(labels, classifier(inputs), dim=reduce_dim)
+    # Ensure labels are Long dtype for AUC computation
+    labels = labels.long()
+    logits = classifier(inputs)
+    return roc_auc_score(labels, logits, dim=reduce_dim)
 
 
 def auc_score(
@@ -323,9 +340,11 @@ def _compute_loglikelihood(
     labels: torch.Tensor,
     reduce_dim: int = 0,
 ) -> torch.Tensor:
-    return torch.mean(
-        Categorical(logits=classifier(inputs)).log_prob(labels), dim=reduce_dim
-    )
+    # Ensure labels are Long dtype for categorical distribution
+    labels = labels.long()
+    logits = classifier(inputs)
+    log_probs = Categorical(logits=logits).log_prob(labels)
+    return torch.mean(log_probs, dim=reduce_dim)
 
 
 def categorical_loglikelihood_score(
@@ -414,6 +433,9 @@ def _compute_mse(
     labels: torch.Tensor,
     reduce_dim: int = 0,
 ) -> torch.Tensor:
+    # Early exit for Classifier models (safety check)
+    if hasattr(regressor, '__class__') and 'Classifier' in str(type(regressor)):
+        return torch.tensor(float('nan'))
     return torch.mean((regressor.predict(inputs) - labels) ** 2, dim=reduce_dim)
 
 
@@ -503,6 +525,9 @@ def _compute_cosine_similarity(
     labels: torch.Tensor,
     reduce_dim: int = 0,
 ) -> torch.Tensor:
+    # Early exit for Classifier models (safety check)
+    if hasattr(regressor, '__class__') and 'Classifier' in str(type(regressor)):
+        return torch.tensor(float('nan'))
     return torch.mean(
         functional.cosine_similarity(regressor.predict(inputs), labels, dim=-1),
         dim=reduce_dim,

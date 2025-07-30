@@ -306,25 +306,3 @@ compute:
     gradient_checkpointing: false
     empty_cache_freq: 100
     max_memory_fraction: 0.9
-
-# ============================================================================
-# TEMPLATE USAGE EXAMPLES
-# ============================================================================
-# 
-# EXAMPLE 1 - Simple EI Network on MNIST:
-# Replace: {{task}}="classification", {{network_type}}="EINet", {{encoder_type}}="identity"
-#          {{dataset}}="mnist", {{output_dim}}=10, {{run_name}}="mnist_ei_baseline"
-# Adjust: excitatory_layer_sizes: [10, 8], inhibitory_layer_sizes: [3, 3]
-#
-# EXAMPLE 2 - EI Network with CNN Encoder on CIFAR10:
-# Replace: {{task}}="classification", {{network_type}}="EINet", {{encoder_type}}="CNNAutoencoder"
-#          {{dataset}}="cifar10", {{output_dim}}=10, {{run_name}}="cifar10_ei_cnn"
-# Adjust: Set flatten: false, increase layer sizes for complexity
-#
-# EXAMPLE 3 - Large Scale EI Network:
-# Same as above but set: use_fsdp=true, batch_size=512, enable_amp=true
-# Increase: excitatory_layer_sizes: [50, 40, 30], inhibitory_layer_sizes: [15, 15, 15]
-#
-# EXAMPLE 4 - Pure Performance Benchmarking:
-# Same as above but set: enable_hooks=false, analysis.enabled=false
-# ============================================================================ 

@@ -19,6 +19,22 @@ model:
       decoder_hidden_dims: [64, 128]  # Hidden dimensions for autoencoder decoders
       activation: relu            # Activation function
 
+  # EXAMPLE: To use encoder_network_analysis with an MLP autoencoder, uncomment and modify:
+  # encoder_network:
+  #   type: mlpautoencoder        # This will trigger encoder_network_analysis()
+  #   parameters:
+  #     input_dim: 3072           # Flattened CIFAR-10 input (3*32*32)
+  #     encoder_hidden_dims: [512, 256]  # Encoder layers: 3072 -> 512 -> 256
+  #     latent_dim: 64            # Compressed representation dimension
+  #     decoder_hidden_dims: [256, 512]  # Decoder layers: 64 -> 256 -> 512 -> 3072
+  #     activation: relu          # Activation function
+  # 
+  # This configuration will:
+  # 1. Train an autoencoder to compress CIFAR-10 images from 3072 -> 64 dimensions
+  # 2. Run encoder_network_analysis() automatically after training
+  # 3. Log reconstruction error, latent statistics, and representation quality
+  # 4. Use the encoded representations as input to your dendritic network
+
   # ==========================================
   # CORE NETWORK (Main Processing Stage)
   # ==========================================
@@ -39,16 +55,16 @@ model:
       # ==========================================
       # MORPHOLOGICAL ARCHITECTURE
       # ==========================================
-      excitatory_layer_sizes: [20]         # Neurons per excitatory layer
+      excitatory_layer_sizes: [10]         # Neurons per excitatory layer
       inhibitory_layer_sizes: []         # Neurons per inhibitory layer
-      excitatory_branch_factors: [3,3]       # Branches per excitatory neuron (fixed: should match layer count)
+      excitatory_branch_factors: [2,2,2,2]       # Branches per excitatory neuron (fixed: should match layer count)
       inhibitory_branch_factors: []       # Branches per inhibitory neuron (fixed: was empty)
-
+      
       # Synaptic connectivity patterns
       ee_synapses_per_branch_per_layer: [40]   # Excitatory-to-excitatory synapses
-      ei_synapses_per_branch_per_layer: []  # Fixed: Reduced from 200 to 15 (≤ 20 inhibitory neurons)
-      ie_synapses_per_branch_per_layer: [10]   # Fixed: Set to 1 (minimum required by DendriNet, though no inhibitory input available)
-      ii_synapses_per_branch_per_layer: []   # Fixed: Set to 1 (minimum required by DendriNet)
+      ei_synapses_per_branch_per_layer: [0]   # No E→I connections since no inhibitory neurons exist
+      ie_synapses_per_branch_per_layer: [10]   # Input→E inhibitory synapses (input_mode=1 provides inhibitory signals)
+      ii_synapses_per_branch_per_layer: [0]   # No I→I connections since no inhibitory neurons exist
 
       # Morphological features
       somatic_synapses: true      # Include somatic (non-dendritic) synapses
@@ -255,12 +271,12 @@ task:
 # WANDB LOGGING - VALIDATED PARAMETERS ONLY
 # ============================================================================
 wandb:
-  entity: houman_safaai-harvard-university
-  project: "dendritic_refactor"
-  group: "experiments"
+  entity: 
+  project: 
+  group: 
   tags: []
-  use_wandb: true
-  
+  use_wandb: false
+
 # ============================================================================
 # ANALYSIS CONFIGURATION - VALIDATED MODULES ONLY
 # ============================================================================
@@ -317,12 +333,12 @@ analysis:
       mse: false
       cosine_similarity: false
 
-  ablation_analysis:
-    enabled: false
+  ablation_analysis:   ## needs test for the upstream values
+    enabled: true
     training: false
     params:
       layer_ablation: true
-      compartment_ablation: true
+      compartment_ablation: false
       ablate_all_synapses: true
       ablate_excitation: true
       ablate_inhibition: true
@@ -341,7 +357,7 @@ analysis:
       branch_weights: true
 
   synaptic_activation_analysis:
-    enabled: false
+    enabled: true
     training: false
     params:
       network_summary: true
@@ -353,7 +369,7 @@ analysis:
       samples: 5
 
   branch_activation_analysis:
-    enabled: false
+    enabled: true
     training: false
     params:
       synapse_activations: true
@@ -367,7 +383,7 @@ analysis:
       samples: 5
 
   single_layer_contribution:
-    enabled: false
+    enabled: true
     training: false
     params:
       excitation_contribution: true
@@ -378,15 +394,14 @@ analysis:
       categorical_loglikelihood: true
       mse: true
       cosine_similarity: true
-
-  correlation_analysis:
+      
+  correlation_analysis:    ## needs to be tested
     enabled: false
     training: false
     params:
       compute_synaptic_correlations: true
       compute_tuning_curves: true
-      save_plots: true
-
+      
 # ============================================================================
 # OUTPUT CONFIGURATION
 # ============================================================================
