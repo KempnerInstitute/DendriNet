@@ -279,4 +279,5 @@ analysis:
 outputs:
   run_name: "benchmark_performance_test"
   dir: "./outputs/benchmarks/"
+  dataset_dir: ""                         # Optional: separate directory for shared datasets
   

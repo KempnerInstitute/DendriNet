@@ -5,8 +5,8 @@
 output_dir: "results"
 slurm_config:
   job_name: "ei_sweep_run"
-  account: "kempner_dev"
-  partition: "kempner"
+  account:  # This is the account you want to use
+  partition: # This is the partition you want to use
   time: "02:00:00"
   nodes: 1
   ntasks_per_node: 1
@@ -18,7 +18,7 @@ slurm_config:
     - python/3.12.5-fasrc01
     - cuda/12.4.1-fasrc01
     - cudnn/8.9.2.26_cuda12-fasrc01
-  conda_env_path: "/n/netscratch/kempner_dev/hsafaai/conda_envs/dendritic_env"
+  conda_env_path:     # This is the path to the conda environment you want to use
   training_script: "src/dendritic_modeling/scripts/training/train_experiments.py"
 
 # Experiment settings
@@ -66,14 +66,14 @@ base_config:
       parameters:
         # Transfer function parameters
         transfer_params:
-          input_mode: 1
+          input_mode: 1              # Mode 1: All layers receive both E/I input from transfer function
           independent_pathways: false
           excitatory_dim: null
           inhibitory_dim: null
           output_activation: null
         
         excitatory_layer_sizes: [32, 16]
-        inhibitory_layer_sizes: []
+        inhibitory_layer_sizes: []       # Empty: input_mode=1 provides inhibitory input directly
         excitatory_branch_factors: [2, 2]
         inhibitory_branch_factors: []
         
@@ -330,10 +330,12 @@ analysis:
     params:
       compute_synaptic_correlations: true
       compute_tuning_curves: true
-
+      
 # ============================================================================
 # OUTPUT CONFIGURATION
 # ============================================================================
 outputs:
   run_name: unified_ei_sweep
-  dir: results/ 
+  dir: results/
+  dataset_dir: data/                        # Optional: separate directory for shared datasets
+                                          # If empty, datasets saved to outputs.dir/datasets/ 

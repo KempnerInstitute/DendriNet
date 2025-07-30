@@ -408,6 +408,7 @@ analysis:
 outputs:
   run_name: exp_run
   dir: results/
+  dataset_dir: ""                         # Optional: separate directory for shared datasets
 
 # Note: SLURM configuration has been moved to separate files
 # Use the slurm job generator script for SLURM job creation 

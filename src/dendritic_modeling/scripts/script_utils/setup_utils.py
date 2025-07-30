@@ -115,11 +115,22 @@ def setup_environment(
             logger.error("Continuing without W&B logging")
             wandb_config.use_wandb = False
 
-    # Get datasets using the correct output directory
+    # Get datasets using a shared dataset directory (not the individual run directory)
+    # This prevents each config from saving its own copy of the dataset
+    if hasattr(outputs_config, 'dataset_dir') and outputs_config.dataset_dir:
+        # Use explicitly configured dataset directory
+        shared_dataset_dir = outputs_config.dataset_dir
+    elif hasattr(outputs_config, 'dir') and outputs_config.dir:
+        # Use outputs directory as fallback
+        shared_dataset_dir = outputs_config.dir
+    else:
+        # Use parent of output_dir as final fallback
+        shared_dataset_dir = os.path.dirname(output_dir)
+    
     unified_datasets = get_unified_datasets(
         task_cfg=task_config,
         train_cfg=train_config,
-        output_dir=output_dir,
+        output_dir=shared_dataset_dir,  # Use shared directory for datasets
         outputs_cfg=None,  # No longer using outputs_cfg
     )
     train_ds, valid_ds, test_ds = unified_datasets

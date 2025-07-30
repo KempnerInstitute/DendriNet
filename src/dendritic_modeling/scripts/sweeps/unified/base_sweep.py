@@ -400,7 +400,7 @@ class SweepJobManager:
             f.write("RUN_NAME=\"sweep_${SLURM_ARRAY_JOB_ID}_${SLURM_ARRAY_TASK_ID}\"\n\n")
             
             f.write("# Path to the folder to save outputs for this specific run\n")
-            f.write("OUTPUT_FOLDER_PATH=\"${OUTPUT_DIR}/jobs/${SLURM_ARRAY_JOB_ID}_${SLURM_ARRAY_TASK_ID}\"\n\n")
+            f.write("OUTPUT_FOLDER_PATH=\"${OUTPUT_DIR}/results/config_${SLURM_ARRAY_TASK_ID}\"\n\n")
             
             f.write("# Create output directory\n")
             f.write("mkdir -p ${OUTPUT_FOLDER_PATH}\n\n")
@@ -419,9 +419,9 @@ class SweepJobManager:
             f.write("  --kill-on-bad-exit \\\n")
             
             if training_script.startswith("/"):
-                f.write(f"  $PYTHON -u {training_script} \"$CONFIG\"\n\n")
+                f.write(f"  $PYTHON -u {training_script} \"$CONFIG\" --output_dir \"$OUTPUT_FOLDER_PATH\"\n\n")
             else:
-                f.write(f"  $PYTHON -u $(pwd)/{training_script} \"$CONFIG\"\n\n")
+                f.write(f"  $PYTHON -u $(pwd)/{training_script} \"$CONFIG\" --output_dir \"$OUTPUT_FOLDER_PATH\"\n\n")
             
             f.write("end_time=$(date +%s)\n")
             f.write('echo "Done with training job at $(date)"\n')

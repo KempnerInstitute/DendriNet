@@ -45,6 +45,7 @@ class TaskConfig(BaseConfig):
 class OutputsConfig(BaseConfig):
     run_name: str = "exp_run"
     dir: str = "outputs"
+    dataset_dir: str = ""  # Optional separate directory for shared datasets
 
 
 @dataclass

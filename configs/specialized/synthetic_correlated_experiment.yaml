@@ -250,4 +250,5 @@ analysis:
 
 outputs:
   run_name: synthetic_correlated_exp
-  dir: ./results/synthetic_correlated 
+  dir: ./results/synthetic_correlated
+  dataset_dir: ""                         # Optional: separate directory for shared datasets 

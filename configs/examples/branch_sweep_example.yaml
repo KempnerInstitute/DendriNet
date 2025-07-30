@@ -353,3 +353,4 @@ analysis:
 outputs:
   run_name: branch_sweep_run
   dir: results/
+  dataset_dir: ""                         # Optional: separate directory for shared datasets

@@ -220,10 +220,10 @@ for condition in experimental_conditions:
 
 ## Integration with Existing Code
 
-The framework maintains backward compatibility with existing analyzers:
+The framework supports integration with existing analyzers:
 
 ```python
-# Legacy code still works
+# Standard imports
 from dendritic_modeling.analysis.information import (
     EIInformationAnalyzer,
     BranchInformationAnalyzer,
