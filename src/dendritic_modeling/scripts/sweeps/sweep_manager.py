@@ -154,7 +154,7 @@ class SweepManager:
             return BaseSweepAnalyzer()
     
     def generate_sweep(self, config_path: str, output_dir: Optional[str] = None,
-                      split_jobs: Optional[int] = None) -> dict:
+                      split_jobs: Optional[int] = None, use_array_jobs: bool = True) -> dict:
         """
         Generate sweep configurations and job scripts.
         
@@ -194,7 +194,7 @@ class SweepManager:
         slurm_config = config.get("slurm_config", {})
         job_manager = SweepJobManager(slurm_config)
         job_scripts = job_manager.create_job_scripts(
-            config_paths, sweep_output_dir, split_jobs
+            config_paths, sweep_output_dir, split_jobs, use_array_jobs
         )
         print(f"Created {len(job_scripts)} job scripts")
         

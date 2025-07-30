@@ -97,9 +97,24 @@ class EISweepGenerator(BaseSweepGenerator):
     def generate_configs(self, base_config: DictConfig) -> List[DictConfig]:
         """Generate EI sweep configurations."""
         sweep_params = base_config.sweep_config
-        base_train_config = base_config.base_config
+        base_model_config = base_config.base_config  # This contains only model config
         experiment_settings = base_config.get("experiment_settings", {})
         filter_config = base_config.get("filter_config", {})
+        
+        # Create complete base training config by copying the full structure
+        # The base_config only contains model info, we need to include train, task, etc.
+        base_train_config = {
+            "model": base_model_config.model,
+            "train": base_config.get("train", {"seed": 42}),
+            "task": base_config.get("task", {
+                "dataset": "cifar10",
+                "data_path": "",
+                "parameters": {"flatten": True, "normalize": False}
+            }),
+            "wandb": base_config.get("wandb", {"use_wandb": False}),
+            "analysis": base_config.get("analysis", {}),
+            "outputs": base_config.get("outputs", {})
+        }
         
         # Extract EI parameters
         ee_values = sweep_params["model.core_network.parameters.ee_synapses_per_branch_per_layer"]
@@ -150,21 +165,13 @@ class EISweepGenerator(BaseSweepGenerator):
                 else:
                     config["model"]["core_network"]["parameters"]["use_shunting"] = use_shunting
                 
-                # Set seed
+                # Set seed in the training config
                 if "train" not in config:
-                    config["train"] = {}
-                config["train"]["seed"] = seed
+                    config["train"] = {"seed": seed}
+                else:
+                    # Update seed while preserving other training config
+                    config["train"]["seed"] = seed
                 
-                # Ensure task configuration exists with reasonable defaults
-                if "task" not in config:
-                    config["task"] = {
-                        "dataset": "cifar10",  # Default to well-supported dataset
-                        "data_path": "",
-                        "parameters": {
-                            "flatten": True,
-                            "normalize": False
-                        }
-                    }
                 
                 # Add metadata
                 config["_sweep_metadata"] = {

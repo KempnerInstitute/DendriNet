@@ -13,6 +13,7 @@ slurm_config:
   gpus_per_node: 1
   cpus_per_task: 8
   mem: 32GB
+  max_concurrent_jobs: 15  # Maximum number of array jobs to run simultaneously
   modules_to_load:
     - python/3.12.5-fasrc01
     - cuda/12.4.1-fasrc01
@@ -135,7 +136,7 @@ train:
   checkpointing:
     enabled: false
     save_every_n_epochs: 10
-    checkpoint_dir: "outputs/checkpoints/"
+    checkpoint_dir: "results/checkpoints/"
   
   # Encoder training configuration
   encoder:
