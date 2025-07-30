@@ -6,7 +6,7 @@ disabling or ablating different network components to understand their contribut
 """
 
 from copy import deepcopy
-from typing import Optional
+from typing import Optional, Callable
 
 import torch
 from torch.utils.data import TensorDataset, DataLoader
@@ -192,6 +192,37 @@ class AblationAnalyzer(AbstractAnalyzer):
 
         return results_dict
 
+    def _plot_ablation_results(self, results: dict, save_path: str, filename: str):
+        """Generate comprehensive ablation plots similar to information analysis."""
+        try:
+            from dendritic_modeling.plotting.visualizations.general_analysis_plots import (
+                plot_ablation_results, plot_per_layer_ablation
+            )
+            
+            # Plot layer ablation results if available
+            if "layer" in results and results["layer"]:
+                # Create comprehensive per-layer plots
+                plot_per_layer_ablation(
+                    results["layer"],
+                    save_path=save_path,
+                    filename_prefix="ablation_per_layer"
+                )
+                
+
+            
+            # Plot compartment ablation results if available
+            if "compartment" in results and results["compartment"]:
+                plot_ablation_results(
+                    results["compartment"],
+                    save_path=save_path,
+                    filename=f"{filename}_compartment"
+                )
+                
+        except ImportError as e:
+            print(f"Warning: Ablation plotting functions not found: {e}")
+        except Exception as e:
+            print(f"Warning: Could not generate ablation plots: {e}")
+
     def analyze(
         self,
         model: BaseModel,
@@ -219,25 +250,25 @@ class AblationAnalyzer(AbstractAnalyzer):
         # Wrapping dataset in DataLoader for batched evaluation if large
         test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
-        # Modifying baseline calculations to use loader
+        # Calculate baseline performance using correct function signatures
         baselines = {}
         if self.accuracy:
             baselines["accuracy"] = evaluate_accuracy(
-                classifier=model, test_loader=test_loader, device=device
-            )[-1]  # assuming evaluate functions accept loader
+                classifier=model, test_ds=test_dataset, move_device=False
+            )[-1]
         if self.auc:
             baselines["auc"] = evaluate_auc(
-                classifier=model, test_loader=test_loader, device=device
+                classifier=model, test_ds=test_dataset, move_device=False
             )[-1]
         if self.categorical_ll:
             baselines["categorical_loglikelihood"] = evaluate_categorical_loglikelihood(
-                classifier=model, test_loader=test_loader, device=device
+                classifier=model, test_ds=test_dataset, move_device=False
             )[-1]
         if self.mse:
             # Check if model is a regressor before using MSE
             if isinstance(model, Regressor):
                 baselines["mse"] = evaluate_mse(
-                    regressor=model, test_loader=test_loader, device=device
+                    regressor=model, test_ds=test_dataset, move_device=False
                 )[-1]
             else:
                 # Skip MSE for non-regressor models
@@ -249,7 +280,7 @@ class AblationAnalyzer(AbstractAnalyzer):
             # Check if model is a regressor before using cosine similarity
             if isinstance(model, Regressor):
                 baselines["cosine similarity"] = evaluate_cosine_similarity(
-                    regressor=model, test_loader=test_loader, device=device
+                    regressor=model, test_ds=test_dataset, move_device=False
                 )[-1]
             else:
                 # Skip cosine similarity for non-regressor models
@@ -389,4 +420,8 @@ class AblationAnalyzer(AbstractAnalyzer):
 
         if save_path is not None:
             save_dict(results, save_path, filename)
+            
+            # Generate ablation plots
+            self._plot_ablation_results(results, save_path, filename)
+            
         return results

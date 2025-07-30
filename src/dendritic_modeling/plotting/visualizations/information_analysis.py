@@ -362,7 +362,8 @@ class InformationAnalysisPlotter(BasePlotter):
                         
                         if mean_key in layer_results[layer_name]:
                             means.append(layer_results[layer_name][mean_key])
-                            stds.append(layer_results[layer_name].get(std_key, 0))
+                            # Reduce error bar size by dividing by 5
+                            stds.append(layer_results[layer_name].get(std_key, 0) / 5.0)
                             valid_layers.append(layer_name)
                 
                 if means:
@@ -370,7 +371,7 @@ class InformationAnalysisPlotter(BasePlotter):
                     
                     # Plot means with error bars
                     ax.errorbar(x_pos, means, yerr=stds, marker='o', capsize=5, 
-                               linewidth=2, markersize=6, label=f'{metric} (mean ± std)')
+                               linewidth=2, markersize=6, label=f'{metric} (mean ± std/5)')
                     
                     # Plot variance as filled area
                     ax.fill_between(x_pos, [m - s for m, s in zip(means, stds)], 

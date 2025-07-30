@@ -297,7 +297,7 @@ analysis:
     params:
       compute_synaptic_correlations: true
       compute_tuning_curves: true
-      save_plots: true
+
 
 outputs:
   run_name: "fsdp_large_ei_cifar100"

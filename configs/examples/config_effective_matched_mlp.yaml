@@ -176,4 +176,4 @@ analysis:
     params:
       compute_synaptic_correlations: true
       compute_tuning_curves: true
-      save_plots: true 
+ 

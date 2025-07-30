@@ -11,6 +11,12 @@ from typing import Any, Optional
 import torch
 import torch.nn as nn
 
+# Import dynamo config for JIT compilation optimization
+try:
+    import torch._dynamo.config
+except ImportError:
+    torch._dynamo = None
+
 from dendritic_modeling.networks.architectures.excitation_inhibition.ei_layer import (
     ExcitationInhibitionLayer,
 )
@@ -224,16 +230,33 @@ class ExcitationInhibitionNetwork(nn.Module):
         ie_syn = list(self.ie_synapses_per_branch_per_layer)
         ii_syn = list(self.ii_synapses_per_branch_per_layer)
 
-        # Extend lists if needed
+        # Extend lists if needed - use exactly what's specified, no smart defaulting
         num_layers = len(excitatory_layer_sizes) - 1
+        
+        # Only extend lists if they have values to repeat, otherwise error
         while len(ee_syn) < num_layers:
-            ee_syn.append(ee_syn[-1] if ee_syn else 1)
+            if ee_syn:
+                ee_syn.append(ee_syn[-1])
+            else:
+                raise ValueError("ee_synapses_per_branch_per_layer cannot be empty")
+        
         while len(ei_syn) < num_layers:
-            ei_syn.append(ei_syn[-1] if ei_syn else 1)
+            if ei_syn:
+                ei_syn.append(ei_syn[-1])
+            else:
+                raise ValueError("ei_synapses_per_branch_per_layer cannot be empty")
+                
         while len(ie_syn) < num_layers:
-            ie_syn.append(ie_syn[-1] if ie_syn else 1)
+            if ie_syn:
+                ie_syn.append(ie_syn[-1])
+            else:
+                raise ValueError("ie_synapses_per_branch_per_layer cannot be empty")
+                
         while len(ii_syn) < num_layers:
-            ii_syn.append(ii_syn[-1] if ii_syn else 1)
+            if ii_syn:
+                ii_syn.append(ii_syn[-1])
+            else:
+                raise ValueError("ii_synapses_per_branch_per_layer cannot be empty")
 
         excitatory_input_dim = self.transfer_fn.excitatory_dim
         inhibitory_input_dim = self.transfer_fn.inhibitory_dim
@@ -337,8 +360,12 @@ class ExcitationInhibitionNetwork(nn.Module):
         
         # Enable JIT compilation for better performance (PyTorch 2.0+)
         try:
+            if torch._dynamo is not None:
+                # Increase recompile limit to reduce warnings
+                torch._dynamo.config.recompile_limit = 100
+                torch._dynamo.config.force_parameter_static_shapes = False  # Allow dynamic params
             self.forward = torch.compile(self.forward, dynamic=True)
-        except AttributeError:
+        except (AttributeError, ImportError):
             # torch.compile not available in older PyTorch versions
             pass
 

@@ -74,12 +74,18 @@ class InputNetTransform(nn.Module):
             self.input_transform.disable_grad()
 
         elif network_type == "AlexNetTransform":
-            # Placeholder - actual implementation would need the AlexNetInputTransform class
-            raise NotImplementedError("AlexNetInputTransform not implemented")
+            # AlexNet feature extraction requires implementation of AlexNetInputTransform class
+            raise NotImplementedError(
+                "AlexNetInputTransform not implemented. To use AlexNet features, "
+                "implement the AlexNetInputTransform class in networks.architectures.classical.cnn.alexnet"
+            )
 
         elif network_type == "CNNInputTransform":
-            # Placeholder - actual implementation would need the CNNInputTransform class
-            raise NotImplementedError("CNNInputTransform not implemented")
+            # CNN-based input transformation requires implementation of CNNInputTransform class  
+            raise NotImplementedError(
+                "CNNInputTransform not implemented. To use CNN-based input transformation, "
+                "implement the CNNInputTransform class in networks.architectures.classical.cnn.cnn"
+            )
 
         else:
             raise ValueError(f"Unknown network type: {network_type}")

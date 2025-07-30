@@ -1,15 +1,3 @@
-# ============================================================================
-# PURE BENCHMARKING CONFIGURATION
-# ============================================================================
-# This configuration is optimized for maximum performance benchmarking.
-# All analysis and monitoring features are disabled for pure speed testing.
-#
-# Use this to:
-# - Test maximum training throughput
-# - Benchmark different hardware configurations  
-# - Compare performance across model sizes
-# - Validate scaling behavior
-# ============================================================================
 
 model:
   task: classification
@@ -286,7 +274,7 @@ analysis:
     params:
       compute_synaptic_correlations: true
       compute_tuning_curves: true
-      save_plots: true
+
 
 outputs:
   run_name: "benchmark_performance_test"
