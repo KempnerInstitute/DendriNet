@@ -89,7 +89,12 @@ class FSDPTrainer(Trainer):
         dummy_optimizer = torch.optim.SGD([torch.zeros(1)], lr=0.01)
         if self.rank == 0:
             logger.info(f"Initializing FSDPTrainer with kwargs: {kwargs}")
+        
+        # Store checkpoint_dir before parent call (parent might override it)
+        checkpoint_dir_backup = self.checkpoint_dir
         super().__init__(optimizer=dummy_optimizer, **kwargs)
+        # Restore checkpoint_dir after parent call
+        self.checkpoint_dir = checkpoint_dir_backup
 
         # Create checkpoint directory
         if self.rank == 0:
@@ -98,6 +103,8 @@ class FSDPTrainer(Trainer):
         # Initialize loss function based on loss_function parameter
         loss_fn_name = kwargs.get("loss_function", "cat_nll")
         if loss_fn_name == "cat_nll":
+            self.loss_fn = torch.nn.CrossEntropyLoss()
+        elif loss_fn_name == "cross_entropy":
             self.loss_fn = torch.nn.CrossEntropyLoss()
         elif loss_fn_name == "mse":
             self.loss_fn = torch.nn.MSELoss()
