@@ -124,18 +124,28 @@ def test_requirements_structure():
 def test_setup_py_structure():
     """Test that our setup.py file exists and has expected structure."""
     setup_path = "setup.py"
+    pyproject_path = "pyproject.toml"
     
     if os.path.exists(setup_path):
         with open(setup_path, 'r') as f:
             content = f.read()
         
-        # Check for key elements of our setup.py
+        # Check for key elements of our modern setup.py (pyproject.toml-based)
         assert "dendritic-modeling" in content
         assert "setup(" in content
-        assert "install_requires" in content
-        assert "extras_require" in content
         
-        print("setup.py exists with correct structure")
+        print("setup.py exists with correct modern structure")
+        
+        # Also check that pyproject.toml exists for configuration
+        if os.path.exists(pyproject_path):
+            with open(pyproject_path, 'r') as f:
+                pyproject_content = f.read()
+            assert "dendritic-modeling" in pyproject_content
+            assert "dependencies" in pyproject_content
+            print("pyproject.toml exists with configuration")
+        else:
+            pytest.fail("pyproject.toml file not found (required for modern setup)")
+            
     else:
         pytest.fail("setup.py file not found")
 

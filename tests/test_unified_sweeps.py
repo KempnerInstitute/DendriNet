@@ -93,9 +93,24 @@ def test_ei_generate_configs_with_multiple_seeds(base_config):
     # Should have 2 * 1 * 1 * 3 = 6 configurations
     assert len(configs) == 6
     
-    # Check seeds are different
+    # Check seeds are generated correctly (same seeds used across parameter combinations)
     seeds = [cfg.train.seed for cfg in configs]
-    assert len(set(seeds)) == 6  # All seeds should be unique
+    unique_seeds = set(seeds)
+    assert len(unique_seeds) == 3  # Should have 3 unique seeds (42, 43, 44)
+    assert unique_seeds == {42, 43, 44}  # Base seed 42 + 0, 1, 2
+    
+    # Check that each parameter combination gets each seed
+    ee_10_configs = [cfg for cfg in configs if cfg.model.network.parameters.ee_synapses_per_branch_per_layer == 10]
+    ee_20_configs = [cfg for cfg in configs if cfg.model.network.parameters.ee_synapses_per_branch_per_layer == 20]
+    
+    assert len(ee_10_configs) == 3
+    assert len(ee_20_configs) == 3
+    
+    ee_10_seeds = [cfg.train.seed for cfg in ee_10_configs]
+    ee_20_seeds = [cfg.train.seed for cfg in ee_20_configs]
+    
+    assert set(ee_10_seeds) == {42, 43, 44}
+    assert set(ee_20_seeds) == {42, 43, 44}
 
 
 def test_branch_generate_configs(base_config):
@@ -142,7 +157,7 @@ def test_noise_generate_configs(base_config):
     base_config.sweep_config = {
         "noise.type": ["gaussian", "uniform"],
         "noise.level": [0.0, 0.1, 0.2],
-        "noise.apply_to": ["input", "hidden"]
+        "noise.application_mode": ["network_wide", "branch_wise"]
     }
     
     configs = generator.generate_configs(base_config)
@@ -153,7 +168,7 @@ def test_noise_generate_configs(base_config):
     # Check first config
     assert configs[0].noise.type == "gaussian"
     assert configs[0].noise.level == 0.0
-    assert configs[0].noise.apply_to == "input"
+    assert configs[0].noise.application_mode == "network_wide"
     
     # Check noise enabling logic
     # Configs with noise.level == 0.0 should have enabled=False
