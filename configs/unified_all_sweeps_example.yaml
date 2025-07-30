@@ -1,0 +1,263 @@
+# ============================================================================
+# UNIFIED SWEEP CONFIGURATION
+# ============================
+# Single YAML for all sweep types:
+# - EI sweeps: ee/ie synapse parameters
+# - Branch sweeps: dendritic architecture patterns
+# - General sweeps: any model/training parameters
+# - Mixed sweeps: combine multiple types
+#
+# See EXAMPLES section at end of file for complete configurations
+# Usage: python src/dendritic_modeling/scripts/sweeps/sweep_manager.py --config this_file.yaml --run
+# ============================================================================
+
+# Output and SLURM configuration
+output_dir: "results"
+slurm_config:
+  job_name: "unified_sweep"
+  account:  # Your SLURM account
+  partition: # Your SLURM partition  
+  time: "02:00:00"
+  nodes: 1
+  ntasks_per_node: 1
+  gpus_per_node: 1
+  cpus_per_task: 8
+  mem: 32GB
+  max_concurrent_jobs: 15  # Maximum number of array jobs to run simultaneously
+  modules_to_load:
+    - python/3.12.5-fasrc01
+    - cuda/12.4.1-fasrc01
+    - cudnn/8.9.2.26_cuda12-fasrc01
+  conda_env_path:     # Path to your conda environment
+  training_script: "src/dendritic_modeling/scripts/training/train_experiments.py"
+
+# Experiment settings
+experiment_settings:
+  seeds_per_condition: 2  # Number of seeds per parameter combination
+  base_seed: 42
+
+# ============================================================================
+# PARAMETER SWEEPS - Choose your parameters!
+# ============================================================================
+sweep_config:
+  # -------------------------
+  # -------------------------
+  model.core_network.parameters.ee_synapses_per_branch_per_layer: [[1],[2],[3],[5],[10]]
+  model.core_network.parameters.ie_synapses_per_branch_per_layer: [[1],[2],[3],[5],[10]]
+  model.core_network.parameters.use_shunting: [true, false]
+  
+
+  # model.core_network.parameters.layer_sizes: [[32, 16, 10], [64, 32, 10], [128, 64, 10]]
+  # model.encoder_network.parameters.hidden_sizes: [[32], [64], [128]]
+  
+  # Use [start, end, step] to generate ranges:
+  # some_parameter: [1, 10, 2]    # Creates [1, 3, 5, 7, 9]
+  # float_parameter: [0.1, 1.0, 0.1]  # Creates [0.1, 0.2, ..., 1.0]
+
+# ============================================================================
+# FILTER CONFIGURATION
+# ============================================================================
+filter_config:
+  # EI Filtering (optional)
+  mode: "ei-sum"  # Options: "all", "ei-sum", "e-const", "i-const", "ei-ratio"
+  value: 11       # ei-sum: E+I=11, e-const: E=11, i-const: I=11, ei-ratio: E/I=11
+  # tolerance: 0  # exact match (default: 1)
+  
+  # Branch Sweep (optional - can combine with EI filtering above)
+  # branch_sweep_mode: "uniform_sweep"         # Options: uniform_sweep, depth_sweep, width_sweep, pattern_sweep, custom_configs
+  # dendrite_tree_depth: [1, 4, 1]            # depths 1,2,3,4
+  # dendrite_branches_per_layer: [2, 8, 2]    # branches 2,4,6,8
+  
+  # See examples section at end of file for all options and combinations
+
+# ============================================================================
+# BASE TRAINING CONFIGURATION (Shared by all sweep variants)
+# ============================================================================
+base_config:
+  model:
+    task: classification
+    
+    # ==========================================
+    # ENCODER NETWORK (Input Processing Stage)
+    # ==========================================
+    encoder_network:
+      type: "mlp"
+      parameters:
+        hidden_sizes: [64, 32]          # Can be overridden by sweep_config
+        activation: "relu"
+        dropout: 0.1
+        batch_norm: true
+        output_activation: null
+        bias: true
+        layer_norm: false
+        adaptive_initialization: true
+
+    # ==========================================
+    # CORE DENDRITIC NETWORK (Main Processing)
+    # ==========================================
+    core_network:
+      type: EINet
+      parameters:
+        # Layer structure
+        layer_sizes: [64, 32, 10]       # Can be overridden by sweep_config
+        
+        # EI Synapse configuration (overridden by EI sweeps)
+        ee_synapses_per_branch_per_layer: [5]  # Default value
+        ie_synapses_per_branch_per_layer: [5]  # Default value
+        use_shunting: true               # Can be overridden by sweep_config
+        
+        # Branch structure (overridden by branch sweeps)  
+        dendrite_tree_depth: 2           # Default depth
+        dendrite_branches_per_layer: 4   # Default branch count
+        
+        # Inhibitory configuration
+        inhibitory_layer_sizes: []        # No inhibitory neurons (input_mode=1)
+        independent_pathways: false       # EI synapses from same source
+        input_mode: 1                     # All layers receive input from transfer
+        
+        # Transfer function (connects input to EI synapses)
+        transfer_function:
+          type: linear
+          parameters:
+            excitatory_dim: 64            
+            inhibitory_dim: 0             
+        
+        # Other network parameters
+        adaptive_initialization: true
+
+    # ==========================================
+    # DECODER NETWORK (Output Stage)
+    # ==========================================
+    decoder_network:
+      type: "identity"  
+      parameters:
+        output_dim: null  
+
+# ============================================================================
+# TRAINING CONFIGURATION
+# ============================================================================
+train:
+  seed: 42  # Overridden by experiment_settings
+  train_valid_split: 0.8
+
+  main:
+    param_groups:
+      lr: 0.001                       
+      weight_decay: 0.0                
+
+    trainer:
+      epochs: 5                        
+      batch_size: 64                  
+      shuffle: true
+      grad_clip_value: 1.0
+
+# ============================================================================
+# TASK CONFIGURATION
+# ============================================================================
+task:
+  dataset: cifar10                     
+  data_path: ""
+  parameters:
+    flatten: true                       
+    normalize: false                    
+
+# ============================================================================
+# WANDB LOGGING
+# ============================================================================
+wandb:
+  use_wandb: false                     # Set to true for W&B logging
+  entity: ""                           # Your W&B entity
+  project: "dendritic-sweeps"          # W&B project name
+  group: "unified_sweep"               # W&B group name
+
+# ============================================================================
+# ANALYSIS CONFIGURATION  
+# ============================================================================
+analysis:
+  enabled: false                      
+  
+  performance_analysis:
+    enabled: false                    
+    training: false
+    params:
+      compute_loss_curves: true
+      compute_accuracy_curves: true
+      compute_layer_wise_metrics: true
+      
+  information_analysis:
+    enabled: false
+    training: false
+    params:
+      compute_mutual_information: true
+      compute_entropy: true
+      
+  ablation_analysis:
+    enabled: false
+    training: false
+    params:
+      ablate_branches: true
+      ablate_layers: true
+      both_contribution: true
+      accuracy: true
+      auc: true
+      categorical_loglikelihood: true
+      
+  correlation_analysis:
+    enabled: false
+    training: false
+    params:
+      compute_synaptic_correlations: true
+      compute_tuning_curves: true
+
+# ============================================================================
+# EXAMPLES - Complete sweep configurations
+# ============================================================================
+
+# EI Filtering Only
+# filter_config:
+#   mode: "ei-sum"
+#   value: 10
+#   tolerance: 0
+# Result: Only EI combinations where E+I=10
+
+# Branch Sweep Only  
+# filter_config:
+#   branch_sweep_mode: "pattern_sweep"
+#   dendrite_tree_depth: [2, 4, 1]
+#   base_branches: 3
+#   branch_patterns: ["uniform", "decreasing"]
+# Result: 3 depths × 2 patterns = 6 configurations
+
+# EI Filtering + Branch Sweep (COMBINED!)
+# filter_config:
+#   mode: "ei-sum"                        # Filter EI: E+I=10
+#   value: 10
+#   tolerance: 0
+#   branch_sweep_mode: "pattern_sweep"    # Plus branch patterns
+#   dendrite_tree_depth: [2, 3, 1]
+#   base_branches: 3
+#   branch_patterns: ["uniform", "decreasing"]
+# Result: 9 EI combos × 4 branch patterns = 36 configurations
+
+# Full Mixed Sweep
+# sweep_config:
+#   model.core_network.parameters.ee_synapses_per_branch_per_layer: [[1],[2],[3],[4],[5]]
+#   model.core_network.parameters.ie_synapses_per_branch_per_layer: [[1],[2],[3],[4],[5]]
+#   train.main.param_groups.lr: [0.001, 0.01]
+# filter_config:
+#   mode: "ei-sum"
+#   value: 6
+#   tolerance: 0
+#   branch_sweep_mode: "depth_sweep"
+#   dendrite_tree_depth: [1, 3, 1]
+#   uniform_branches_per_layer: 4
+# Result: 5 EI combos × 2 LR × 3 depths = 30 configurations
+
+# ============================================================================
+# OUTPUT CONFIGURATION
+# ============================================================================
+outputs:
+  run_name: unified_sweep
+  dir: results/
+  dataset_dir: ""                    
+

@@ -1,15 +1,15 @@
 """
-Sweep types for different experiment categories.
+Unified sweep types for all experiment categories.
 """
 
-from .ei_sweep import EISweepGenerator
-from .branch_sweep import BranchSweepGenerator
-from .noise_sweep import NoiseSweepGenerator
-from .general_sweep import GeneralSweepGenerator
+from .unified_sweep import UnifiedSweepGenerator
+
+# Legacy sweep types (deprecated - use unified_sweep instead)
+# from .ei_sweep import EISweepGenerator  # DEPRECATED
+# from .branch_sweep import BranchSweepGenerator  # DEPRECATED  
+# from .noise_sweep import NoiseSweepGenerator  # DEPRECATED
+# from .general_sweep import GeneralSweepGenerator  # DEPRECATED
 
 __all__ = [
-    "EISweepGenerator",
-    "BranchSweepGenerator", 
-    "NoiseSweepGenerator",
-    "GeneralSweepGenerator"
+    "UnifiedSweepGenerator"
 ] 
