@@ -280,10 +280,20 @@ class SweepJobManager:
             for module in modules:
                 f.write(f"module load {module}\n")
             
-            # Activate conda environment
-            conda_env = self.slurm_config.get('conda_env_path')
-            if conda_env:
-                f.write(f"source activate {conda_env}\n")
+            # Set up Python environment
+            conda_env_path = self.slurm_config.get('conda_env_path')
+            if conda_env_path:
+                # Use direct path to Python interpreter in conda environment
+                python_path = f"{conda_env_path}/bin/python"
+                f.write(f"# Using conda environment at: {conda_env_path}\n")
+                f.write(f"PYTHON_BIN=\"{python_path}\"\n")
+                f.write(f"\n")
+                f.write(f"# Verify environment works\n")
+                f.write(f"$PYTHON_BIN -c \"import torch; print(f'PyTorch version: {{torch.__version__}}')\"\n")
+            else:
+                # Fallback to system python
+                f.write(f"# Using system python\n")
+                f.write(f"PYTHON_BIN=\"python\"\n")
             
             f.write("\n# Run experiments\n")
             
@@ -293,7 +303,7 @@ class SweepJobManager:
             
             for config_path in config_paths:
                 rel_config_path = os.path.relpath(config_path, os.getcwd())
-                f.write(f"python {training_script} {rel_config_path}\n")
+                f.write(f"$PYTHON_BIN {training_script} {rel_config_path}\n")
         
         # Make executable
         os.chmod(script_path, 0o755)
