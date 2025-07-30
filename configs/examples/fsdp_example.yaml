@@ -302,4 +302,5 @@ analysis:
 outputs:
   run_name: "fsdp_large_ei_cifar100"
   dir: "./outputs/fsdp_runs/"  # Separate directory for FSDP runs
+  dataset_dir: ""                         # Optional: separate directory for shared datasets
   

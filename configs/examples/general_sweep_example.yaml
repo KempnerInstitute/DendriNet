@@ -358,6 +358,7 @@ analysis:
 outputs:
   run_name: general_sweep_run
   dir: results/
+  dataset_dir: ""                         # Optional: separate directory for shared datasets
 
 # =============================================================================
 # EXAMPLE SUBSET CONFIGURATIONS

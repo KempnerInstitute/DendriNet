@@ -84,7 +84,7 @@ All sweep configs follow the same structure:
 
 ```yaml
 output_dir: "output"              # Results directory
-slurm_config: {...}              # Cluster job settings
+slurm_config: {...}              # Cluster job settings (includes max_concurrent_jobs)
 experiment_settings: {...}       # Seeds and experiment params
 sweep_config: {...}              # Parameters to sweep over
 filter_config: {...}             # Optional: filter combinations
@@ -95,7 +95,7 @@ base_config: {...}               # Base training configuration
 
 1. **Start Small**: Begin with a subset of parameters and few values
 2. **Test First**: Always use `--generate-only` or `--dry-run` before full submission
-3. **Monitor Resources**: Adjust `time`, `mem`, and `cpus_per_task` based on your experiments
+3. **Monitor Resources**: Adjust `time`, `mem`, `cpus_per_task`, and `max_concurrent_jobs` based on your experiments
 4. **Use Filtering**: For EI sweeps, use filter modes to focus on specific hypotheses
 5. **Multiple Seeds**: Use 3+ seeds for reliable statistics
 6. **Save Space**: Set `save_model: false` unless you need trained models
@@ -106,14 +106,29 @@ base_config: {...}               # Base training configuration
 - 2-4 values per parameter
 - 1-3 seeds per condition
 - ~10-50 total configurations
+- `max_concurrent_jobs: 5-10`
 
 ### Production Sweeps  
 - 5-10 values per parameter
 - 3-5 seeds per condition
 - ~100-1000 total configurations
-- Use job splitting (`--split-jobs`)
+- `max_concurrent_jobs: 15-25`
 
 ### Ablation Studies
 - Fix most parameters, vary 1-2 key ones
 - Many seeds for statistical power
 - Use appropriate filter modes for focused comparisons
+
+## Dataset Management
+
+The `outputs.dataset_dir` option allows you to specify a shared directory for datasets:
+
+```yaml
+outputs:
+  dir: results/
+  dataset_dir: /shared/datasets/  # Optional: shared dataset location
+```
+
+- **If empty**: Datasets saved to `outputs.dir/datasets/`
+- **If specified**: Datasets saved to the specified directory
+- **Benefits**: Prevents duplicate dataset downloads across sweep configurations

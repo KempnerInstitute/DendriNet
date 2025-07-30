@@ -1,15 +1,14 @@
 # Unified Sweep Framework for Dendritic Modeling
 
-This unified framework consolidates all parameter sweep functionality for the dendritic modeling project.
+This framework provides comprehensive parameter sweep functionality for the dendritic modeling project.
 
-##  Key Benefits
+##  Key Features
 
 - **Single Interface**: One command-line tool for all sweep types
 - **Consistent Configuration**: Standardized YAML format across all sweeps
+- **Parallel Execution**: SLURM array jobs for efficient resource utilization
 - **Unified Analysis**: Common analysis pipeline with type-specific visualizations
-- **Reduced Code Duplication**: ~60% reduction in codebase size
 - **Error Handling**: Comprehensive validation and recovery
-- **Backward Compatibility**: Legacy scripts still work with deprecation warnings
 
 ##  Framework Structure
 
@@ -47,7 +46,34 @@ python scripts/sweeps/unified/result_analyzer.py \
     --auto-detect
 ```
 
-### 2. Advanced Options
+### 2. SLURM Array Jobs
+
+The framework automatically uses SLURM array jobs for parallel execution:
+
+```bash
+# Generate sweep with 60 configurations
+python scripts/sweeps/unified/sweep_manager.py ei \
+    --config configs/unified_ei_sweep_example.yaml \
+    --run
+
+# Results in SLURM array job: --array=0-59%15
+# - 60 total configurations (array indices 0-59)
+# - Maximum 15 jobs running concurrently (limited by max_concurrent_jobs)
+# - Each configuration runs on its own GPU/node in parallel
+```
+
+**Features**:
+- **Parallel Execution**: Configurations run simultaneously across multiple nodes
+- **Resource Management**: Jobs queue automatically as resources become available
+- **Fault Tolerance**: Individual array tasks can fail without affecting others
+- **Easy Monitoring**: Single job ID covers all configurations
+
+**Configuration**:
+- `max_concurrent_jobs`: Controls how many configurations run simultaneously
+- Array jobs create individual output directories: `jobs/{ARRAY_JOB_ID}_{ARRAY_TASK_ID}/`
+- Each task processes exactly one configuration file
+
+### 3. Advanced Options
 
 ```bash
 # Split sweep into multiple jobs
@@ -80,7 +106,17 @@ slurm_config:
   account: "kempner_dev"
   partition: "kempner"
   time: "02:00:00"
-  # ... other SLURM options
+  nodes: 1
+  ntasks_per_node: 1
+  gpus_per_node: 1
+  cpus_per_task: 8
+  mem: "32GB"
+  max_concurrent_jobs: 15          # Maximum number of array jobs to run simultaneously
+  modules_to_load:
+    - "python/3.12.5-fasrc01"
+    - "cuda/12.4.1-fasrc01"
+  conda_env_path: "/path/to/your/conda_env"
+  training_script: "src/dendritic_modeling/scripts/training/train_experiments.py"
 
 # Experiment settings
 experiment_settings:
@@ -179,49 +215,6 @@ The unified analysis pipeline provides:
 3. **Summary Reports**: Creates comprehensive analysis summaries
 4. **Best Configuration Identification**: Automatically finds top-performing setups
 5. **Missing Data Detection**: Reports failed or incomplete experiments
-
-##  Migration from Legacy Scripts
-
-### Automatic Migration
-
-Most legacy configurations can be automatically converted:
-
-```bash
-# Legacy EI sweep
-python scripts/sweeps/ei_sweeps/generate_ei_sweep.py configs/sweep_params_seeds_ei.yaml
-
-# Becomes:
-python scripts/sweeps/unified/sweep_manager.py ei --config configs/sweep_params_seeds_ei.yaml --run
-```
-
-### Configuration Updates
-
-Legacy configurations may need minor updates:
-
-1. **Rename sections**: `run_config` → `slurm_config`
-2. **Add sweep type**: Add `sweep_config` section
-3. **Update paths**: Use dot notation for nested parameters
-
-### Backward Compatibility
-
-Legacy scripts still work but show deprecation warnings:
-
-```bash
- python scripts/sweeps/ei_sweeps/generate_ei_sweep.py config.yaml
-  WARNING: This script is deprecated. Use the unified framework:
-   python scripts/sweeps/unified/sweep_manager.py ei --config config.yaml --run
-```
-
-## Performance Improvements
-
-The unified framework provides significant improvements:
-
-| Metric | Before | After | Improvement |
-|--------|--------|-------|-------------|
-| Lines of Code | ~10,300 | ~4,000 | 60% reduction |
-| Number of Scripts | 10 | 2 main scripts | 80% reduction |
-| Configuration Formats | 3 different | 1 unified | 100% consolidation |
-| Error Handling | Inconsistent | Unified | Comprehensive |
 
 ## Development
 
