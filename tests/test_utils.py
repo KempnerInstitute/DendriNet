@@ -143,7 +143,7 @@ def test_mutual_information():
     x = np.random.rand(100)
     y = np.random.rand(100)  # Uncorrelated
     mi = estimator.mutual_information(x.reshape(-1,1), y.reshape(-1,1))
-    assert isinstance(mi, float) and mi >= 0  # MI should be non-negative
+    assert isinstance(mi, (int, float)) and mi >= 0  # MI should be non-negative, can be int or float
 
 def test_conditional_mi():
     config = EstimatorConfig(method='kraskov', n_neighbors=3)

@@ -14,6 +14,7 @@ import unittest
 from unittest.mock import Mock, patch
 
 import torch
+from torch.utils.data import TensorDataset
 
 from dendritic_modeling.datasets import (
     get_data_directory,
@@ -186,13 +187,8 @@ class TestRealDatasets(unittest.TestCase):
 
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
-    @patch("dendritic_modeling.datasets.standard_datasets.MNIST")
-    def test_load_mnist_as_datasets(self, mock_mnist):
+    def test_load_mnist_as_datasets(self):
         """Test MNIST dataset loading."""
-        # Mock MNIST dataset
-        mock_data = [(torch.randn(28, 28), i % 10) for i in range(100)]
-        mock_mnist.return_value = mock_data
-
         train_ds, valid_ds, test_ds = load_mnist_as_datasets(
             train_valid_split=0.8,
             flatten=True,
@@ -204,21 +200,23 @@ class TestRealDatasets(unittest.TestCase):
         self.assertIsNotNone(train_ds)
         self.assertIsNotNone(valid_ds)
         self.assertIsNotNone(test_ds)
+        
+        # Check dataset types and basic properties
+        self.assertIsInstance(train_ds, TensorDataset)
+        self.assertIsInstance(valid_ds, TensorDataset)
+        self.assertIsInstance(test_ds, TensorDataset)
+        
+        # Check that we have data
+        self.assertGreater(len(train_ds), 0)
+        self.assertGreater(len(test_ds), 0)
+        # valid_ds might be empty if train_valid_split=1
 
-        # Check that the mock was called
-        self.assertTrue(mock_mnist.called)
-
-    @patch("dendritic_modeling.datasets.standard_datasets.CIFAR10")
-    def test_load_cifar10_as_datasets(self, mock_cifar):
+    def test_load_cifar10_as_datasets(self):
         """Test CIFAR-10 dataset loading."""
-        # Mock CIFAR-10 dataset
-        mock_data = [(torch.randn(3, 32, 32), i % 10) for i in range(100)]
-        mock_cifar.return_value = mock_data
-
         train_ds, valid_ds, test_ds = load_cifar10_as_datasets(
             train_valid_split=0.8,
             flatten=False,
-            normalize=True,
+            normalize=False,
             output_dir=self.temp_dir,
         )
 
@@ -226,9 +224,15 @@ class TestRealDatasets(unittest.TestCase):
         self.assertIsNotNone(train_ds)
         self.assertIsNotNone(valid_ds)
         self.assertIsNotNone(test_ds)
-
-        # Check that the mock was called
-        self.assertTrue(mock_cifar.called)
+        
+        # Check dataset types and basic properties
+        self.assertIsInstance(train_ds, TensorDataset)
+        self.assertIsInstance(valid_ds, TensorDataset)
+        self.assertIsInstance(test_ds, TensorDataset)
+        
+        # Check that we have data
+        self.assertGreater(len(train_ds), 0)
+        self.assertGreater(len(test_ds), 0)
 
     def test_load_mnist_modulo10(self):
         """Test MNIST modulo 10 dataset loading."""

@@ -29,7 +29,7 @@ except AttributeError:
         matplotlib.cm.register_cmap = matplotlib.colormaps.register
         import seaborn as sns
 
-from omegaconf import OmegaConf, DictConfig
+from omegaconf import OmegaConf, DictConfig, ListConfig
 from pathlib import Path
 import sys
 
@@ -64,7 +64,7 @@ class GeneralSweepGenerator(BaseSweepGenerator):
         
         # Validate that all sweep parameters have lists of values
         for param_name, param_values in sweep_config.items():
-            if not isinstance(param_values, (list, tuple)):
+            if not isinstance(param_values, (list, tuple, ListConfig)):
                 raise ValueError(f"Sweep parameter '{param_name}' must be a list of values")
             if len(param_values) == 0:
                 raise ValueError(f"Sweep parameter '{param_name}' must have at least one value")

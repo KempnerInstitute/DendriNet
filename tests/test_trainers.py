@@ -31,9 +31,20 @@ def test_standard_trainer(simple_model, sample_data):
 def test_fsdp_trainer_init(simple_model):
     optimizer = torch.optim.Adam(simple_model.parameters())
     fsdp_config = {'sharding_strategy': 'FULL_SHARD'}
-    trainer = FSDPTrainer(0, 1, fsdp_config, 'checkpoints/', optimizer_config={'lr': 0.001}, epochs=1, loss_function='cross_entropy')
+    trainer = FSDPTrainer(
+        rank=0, 
+        world_size=1, 
+        fsdp_config=fsdp_config, 
+        checkpoint_dir='checkpoints',
+        save_every_n_epochs=5,  # Add this to satisfy parent constructor condition
+        optimizer_config={'lr': 0.001}, 
+        epochs=1, 
+        loss_function='cross_entropy'
+    )
     assert trainer is not None
     assert isinstance(trainer, FSDPTrainer)
+    # Check that checkpoint directory was created
+    assert trainer.checkpoint_dir is not None
 
 def test_two_step_trainer(simple_model, sample_data):
     optimizer = torch.optim.Adam(simple_model.parameters())
