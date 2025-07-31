@@ -85,8 +85,30 @@ def setup_environment(
         if run_config and hasattr(run_config, "dir")
         else outputs_config.dir
     )
-    run_id = f"{train_config.run_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-    run_save_path = os.path.join(output_dir, run_id)
+    
+    # Check if we're in a sweep context by looking for sweep-specific directory patterns
+    # Sweep directories typically end with config_X where X is a number
+    is_sweep_context = (
+        output_dir and
+        (
+            # Check if path ends with config_X pattern (sweep context)
+            (str(output_dir).split('/')[-1].startswith("config_") and 
+             str(output_dir).split('/')[-1].replace("config_", "").isdigit()) or
+            # Or if "sweep" or "unified_" is in the path
+            "sweep" in str(output_dir).lower() or
+            "unified_" in str(output_dir)
+        )
+    )
+    
+    if is_sweep_context:
+        # We're in a sweep - use the provided directory directly
+        run_save_path = output_dir
+        logger.info(f"Using sweep output directory directly: {run_save_path}")
+    else:
+        # Standard single experiment - create timestamped directory
+        run_id = f"{train_config.run_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        run_save_path = os.path.join(output_dir, run_id)
+        logger.info(f"Created timestamped experiment directory: {run_save_path}")
 
     # Set the logger manager to use the same directory for the main log file
     logger_manager.set_log_directory(run_save_path)
