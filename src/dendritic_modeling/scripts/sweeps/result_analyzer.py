@@ -478,6 +478,26 @@ class UnifiedResultAnalyzer:
                                 normalized_key = f"conditional_{mi_key}".replace("I(", "mi_").replace(";", "_").replace(")", "").replace("|", "_given_").replace("_std", "_std")
                                 data[normalized_key] = mi_value
                     
+                    # Extract layer-specific MI data
+                    if "layer_statistics" in content_dict and isinstance(content_dict["layer_statistics"], dict):
+                        for layer_name, layer_data in content_dict["layer_statistics"].items():
+                            if isinstance(layer_data, dict):
+                                # Extract layer depth from layer name (e.g., branch_layers.0 -> depth 0)
+                                try:
+                                    if "branch_layers." in layer_name:
+                                        depth = int(layer_name.split("branch_layers.")[-1])
+                                    else:
+                                        depth = 0  # Default depth
+                                except:
+                                    depth = 0
+                                
+                                # Extract layer-specific MI metrics
+                                for mi_key, mi_value in layer_data.items():
+                                    if isinstance(mi_value, (int, float)):
+                                        # Convert I(E;C) format to mi_E_C format with layer info
+                                        normalized_key = mi_key.replace("I(", "layer_mi_").replace(";", "_").replace(")", "").replace(",", "_").replace("|", "_given_").replace("_std", "_std")
+                                        data[f"{normalized_key}_depth{depth}"] = mi_value
+                    
                     # Store method and other metadata
                     for key in ["method", "n_samples"]:
                         if key in content_dict:
@@ -1315,17 +1335,26 @@ class UnifiedResultAnalyzer:
         info_plot_dir = os.path.join(plots_dir, "information_theory_plots")
         os.makedirs(info_plot_dir, exist_ok=True)
 
-        # Find MI columns - look for mutual information metrics
-        mi_metrics = []
+        # Find MI columns - separate global and layer-specific metrics
+        global_mi_metrics = []
+        layer_mi_metrics = []
+        
         for col in valid_data.columns:
             if any(mi_pattern in col.lower() for mi_pattern in ["mi_", "mutual_information"]):
                 # Extract the metric name
                 if "_mean" in col:
                     metric_name = col.replace("_mean", "")
-                    if metric_name not in mi_metrics:
-                        mi_metrics.append(metric_name)
+                    if "layer_mi_" in metric_name:
+                        # This is a layer-specific metric
+                        base_metric = metric_name.replace("layer_mi_", "").split("_depth")[0]
+                        if base_metric not in layer_mi_metrics:
+                            layer_mi_metrics.append(base_metric)
+                    else:
+                        # This is a global metric
+                        if metric_name not in global_mi_metrics:
+                            global_mi_metrics.append(metric_name)
 
-        if not mi_metrics:
+        if not global_mi_metrics and not layer_mi_metrics:
             print("No mutual information metrics found")
             return plot_paths
 
@@ -1333,8 +1362,8 @@ class UnifiedResultAnalyzer:
             print("No shunting/no_shunting data for information analysis")
             return plot_paths
 
-        # Generate information plots for each MI metric
-        for mi_metric in mi_metrics:
+        # Generate global information plots for each MI metric
+        for mi_metric in global_mi_metrics:
             mean_col = f"{mi_metric}_mean"
             std_col = f"{mi_metric}_std"
             
@@ -1410,7 +1439,138 @@ class UnifiedResultAnalyzer:
             except Exception as e:
                 print(f"Error generating information plot for {mi_metric}: {e}")
 
-        print(f"Created {len(plot_paths)} information theory plots")
+        # Generate layer-specific information plots (MI vs E/I ratio by layer)
+        layer_plot_dir = os.path.join(plots_dir, "layer_information_plots")
+        os.makedirs(layer_plot_dir, exist_ok=True)
+        
+        # Define proper mathematical notation mapping
+        mi_notation = {
+            "E_C": "I(E;C)",
+            "I_C": "I(I;C)", 
+            "Vout_C": "I(V_{out};C)",
+            "E_I": "I(E;I)",
+            "E_Vout": "I(E;V_{out})",
+            "I_Vout": "I(I;V_{out})",
+            "E_I_C": "I(E,I;C)",
+            "E_I_given_C": "I(E;I|C)",
+            "E_Vout_given_C": "I(E;V_{out}|C)",
+            "I_Vout_given_C": "I(I;V_{out}|C)",
+        }
+        
+        # Define distinct colors and styles for layers
+        layer_colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2']
+        layer_styles = ['-', '--', '-.', ':', '-', '--', '-.']
+        layer_markers = ['o', 's', '^', 'v', 'D', '<', '>']
+        
+        for base_metric in layer_mi_metrics:
+            try:
+                # Find all depth columns for this metric
+                depth_cols = [col for col in valid_data.columns 
+                             if f"layer_mi_{base_metric}_depth" in col and "_mean" in col]
+                
+                if not depth_cols:
+                    continue
+
+                # Extract depths and sort them
+                depths = []
+                for col in depth_cols:
+                    try:
+                        depth = int(col.split("_depth")[1].replace("_mean", ""))
+                        depths.append(depth)
+                    except:
+                        continue
+                depths = sorted(list(set(depths)))
+
+                if not depths:
+                    continue
+
+                # Create MI vs E/I ratio plot for each network category
+                categories = ["shunting", "no_shunting"]
+                fig, axes = plt.subplots(1, 2, figsize=(15, 6))
+                
+                # Get proper mathematical notation
+                display_metric = mi_notation.get(base_metric, f"I({base_metric.replace('_', ';')})")
+                
+                for idx, category in enumerate(categories):
+                    ax = axes[idx]
+                    category_data = valid_data[valid_data["network_category"] == category]
+                    
+                    if category_data.empty:
+                        ax.text(0.5, 0.5, f'No {category} data', ha='center', va='center', transform=ax.transAxes)
+                        ax.set_title(f"{category.replace('_', ' ').title()}")
+                        continue
+
+                    # Plot line for each layer depth
+                    for depth_idx, depth in enumerate(depths):
+                        mean_col = f"layer_mi_{base_metric}_depth{depth}_mean"
+                        std_col = f"layer_mi_{base_metric}_depth{depth}_std"
+                        
+                        if mean_col not in category_data.columns:
+                            continue
+
+                        # Sort by E/I ratio for proper line plotting
+                        sorted_data = category_data.sort_values("ei_ratio")
+                        
+                        # Filter out NaN values
+                        plot_data = sorted_data[[mean_col, std_col, "ei_ratio"]].dropna()
+                        if plot_data.empty:
+                            continue
+
+                        # Use distinct colors/styles for each layer
+                        color = layer_colors[depth_idx % len(layer_colors)]
+                        style = layer_styles[depth_idx % len(layer_styles)]
+                        marker = layer_markers[depth_idx % len(layer_markers)]
+                        
+                        ax.errorbar(
+                            plot_data["ei_ratio"],
+                            plot_data[mean_col],
+                            yerr=plot_data[std_col] if std_col in plot_data.columns else None,
+                            label=f'Layer {depth}',
+                            color=color,
+                            linestyle=style,
+                            marker=marker,
+                            markersize=6,
+                            linewidth=2,
+                            alpha=0.8,
+                            capsize=4
+                        )
+
+                    ax.set_xlabel("E/I Ratio", fontsize=14)
+                    ax.set_ylabel(f"{display_metric} (nats)", fontsize=14)
+                    ax.set_title(f"{category.replace('_', ' ').title()} Networks", fontsize=14)
+                    ax.set_xscale("log")
+                    ax.grid(True, alpha=0.3)
+                    ax.tick_params(axis='both', labelsize=12)
+                    ax.legend(fontsize=11, frameon=True, fancybox=True, shadow=True)
+                    
+                    # Format x-axis
+                    formatter = ScalarFormatter()
+                    formatter.set_scientific(False)
+                    ax.xaxis.set_major_formatter(formatter)
+                    
+                    # Set reasonable tick positions
+                    ei_ratios = valid_data["ei_ratio"].dropna()
+                    if not ei_ratios.empty:
+                        min_ratio = ei_ratios.min()
+                        max_ratio = ei_ratios.max()
+                        tick_positions = np.logspace(np.log10(min_ratio), np.log10(max_ratio), 6)
+                        ax.set_xticks(tick_positions)
+                        ax.set_xticklabels([f"{x:.1f}" for x in tick_positions])
+
+                # Overall figure title
+                fig.suptitle(f"{display_metric} vs E/I Ratio by Dendritic Layer", fontsize=16, y=1.02)
+                fig.tight_layout()
+                
+                safe_metric_name = base_metric.replace("/", "_").replace(":", "_")
+                plot_path = os.path.join(layer_plot_dir, f"{base_name}_layer_{safe_metric_name}_vs_ei_ratio.png")
+                fig.savefig(plot_path, dpi=300, bbox_inches='tight')
+                plt.close(fig)
+                plot_paths.append(plot_path)
+
+            except Exception as e:
+                print(f"Error generating layer information plot for {base_metric}: {e}")
+
+        print(f"Created {len(plot_paths)} information theory plots (global + layer-specific)")
         return plot_paths
     
     def analyze_multiple_sweeps(self, results_dirs: List[str], sweep_type: Optional[str] = None) -> List[dict]:
