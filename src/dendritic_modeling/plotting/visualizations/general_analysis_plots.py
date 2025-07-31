@@ -301,31 +301,6 @@ def plot_per_layer_ablation(layer_results: dict[str, dict[str, dict]], **kwargs)
         return handle_plot_error("per-layer ablation plotting", e)
 
 
-def plot_noise_robustness(results: dict[str, list[float]], noise_levels: list[float], **kwargs):
-    """Plot noise robustness analysis results showing performance vs noise levels."""
-    logger.info("Plotting noise robustness analysis")
-    try:
-        fig, ax = create_figure(figsize=(10, 6))
-        
-        if results and noise_levels:
-            for name, values in results.items():
-                ax.plot(noise_levels[:len(values)], values, marker='o', label=name)
-            setup_basic_plot(ax, 'Noise Robustness', 'Noise Level', 'Performance')
-            ax.legend()
-        else:
-            ax.text(0.5, 0.5, 'Noise Robustness\n(No data)', 
-                    ha='center', va='center', transform=ax.transAxes)
-            ax.set_title('Noise Robustness')
-        
-        save_path = kwargs.get('save_path')
-        filename = kwargs.get('filename', 'noise_robustness')
-        if save_path:
-            save_plot(fig, save_path, filename)
-        
-        return fig, ax
-    except Exception as e:
-        return handle_plot_error("noise robustness plotting", e)
-
 
 def plot_weight_distributions(weight_data: dict[str, list[np.ndarray]], **kwargs):
     """Plot weight distributions for different layer types."""
@@ -356,129 +331,6 @@ def plot_weight_distributions(weight_data: dict[str, list[np.ndarray]], **kwargs
         return handle_plot_error("weight distribution plotting", e)
 
 
-def plot_dendrinet_activations(dendrinet, exc_input_list, inh_input_list, **kwargs):
-    """Plot DendriNet activation patterns for excitatory and inhibitory branches."""
-    logger.info("Plotting DendriNet activations")
-    try:
-        fig, axes = plt.subplots(2, 2, figsize=(12, 8))
-        fig.suptitle('DendriNet Activation Patterns')
-        
-        # Convert inputs to numpy arrays if they're tensors
-        if hasattr(exc_input_list[0], 'detach'):
-            exc_activations = [x.detach().cpu().numpy() for x in exc_input_list]
-        else:
-            exc_activations = exc_input_list
-            
-        if hasattr(inh_input_list[0], 'detach'):
-            inh_activations = [x.detach().cpu().numpy() for x in inh_input_list]
-        else:
-            inh_activations = inh_input_list
-        
-        # Plot excitatory activations heatmap
-        if exc_activations:
-            exc_data = np.vstack(exc_activations)
-            im1 = axes[0, 0].imshow(exc_data.T, aspect='auto', cmap='viridis')
-            axes[0, 0].set_title('Excitatory Branch Activations')
-            axes[0, 0].set_xlabel('Branch Index')
-            axes[0, 0].set_ylabel('Neuron Index')
-            plt.colorbar(im1, ax=axes[0, 0])
-        
-        # Plot inhibitory activations heatmap
-        if inh_activations:
-            inh_data = np.vstack(inh_activations)
-            im2 = axes[0, 1].imshow(inh_data.T, aspect='auto', cmap='plasma')
-            axes[0, 1].set_title('Inhibitory Branch Activations')
-            axes[0, 1].set_xlabel('Branch Index')
-            axes[0, 1].set_ylabel('Neuron Index')
-            plt.colorbar(im2, ax=axes[0, 1])
-        
-        # Plot activation distributions
-        if exc_activations:
-            exc_flat = np.concatenate([act.flatten() for act in exc_activations])
-            axes[1, 0].hist(exc_flat, bins=50, alpha=0.7, color='blue', label='Excitatory')
-            axes[1, 0].set_title('Excitatory Activation Distribution')
-            axes[1, 0].set_xlabel('Activation Value')
-            axes[1, 0].set_ylabel('Frequency')
-        
-        if inh_activations:
-            inh_flat = np.concatenate([act.flatten() for act in inh_activations])
-            axes[1, 1].hist(inh_flat, bins=50, alpha=0.7, color='red', label='Inhibitory')
-            axes[1, 1].set_title('Inhibitory Activation Distribution')
-            axes[1, 1].set_xlabel('Activation Value')
-            axes[1, 1].set_ylabel('Frequency')
-        
-        plt.tight_layout()
-        
-        save_path = kwargs.get('save_path')
-        filename = kwargs.get('filename', 'dendrinet_activations')
-        if save_path:
-            save_plot(fig, save_path, filename)
-        
-        return fig, axes
-    except Exception as e:
-        return handle_plot_error("DendriNet activation plotting", e)
-
-
-def plot_einet_activations(einet, input_list, **kwargs):
-    """Plot EINet activation patterns for excitatory and inhibitory networks."""
-    logger.info("Plotting EINet activations")
-    try:
-        fig, axes = plt.subplots(2, 2, figsize=(12, 8))
-        fig.suptitle('EINet Activation Patterns')
-        
-        # Convert inputs to numpy arrays if they're tensors
-        if hasattr(input_list[0], 'detach'):
-            activations = [x.detach().cpu().numpy() for x in input_list]
-        else:
-            activations = input_list
-        
-        if activations:
-            # Combine all activations for analysis
-            combined_data = np.vstack(activations)
-            
-            # Plot activation heatmap
-            im1 = axes[0, 0].imshow(combined_data.T, aspect='auto', cmap='RdBu_r')
-            axes[0, 0].set_title('Network Activation Heatmap')
-            axes[0, 0].set_xlabel('Time/Sample')
-            axes[0, 0].set_ylabel('Neuron Index')
-            plt.colorbar(im1, ax=axes[0, 0])
-            
-            # Plot activation distribution
-            flat_activations = combined_data.flatten()
-            axes[0, 1].hist(flat_activations, bins=50, alpha=0.7, color='green')
-            axes[0, 1].set_title('Activation Value Distribution')
-            axes[0, 1].set_xlabel('Activation Value')
-            axes[0, 1].set_ylabel('Frequency')
-            
-            # Plot mean activation per neuron
-            mean_activations = np.mean(combined_data, axis=0)
-            axes[1, 0].bar(range(len(mean_activations)), mean_activations)
-            axes[1, 0].set_title('Mean Activation per Neuron')
-            axes[1, 0].set_xlabel('Neuron Index')
-            axes[1, 0].set_ylabel('Mean Activation')
-            
-            # Plot activation variance per neuron
-            var_activations = np.var(combined_data, axis=0)
-            axes[1, 1].bar(range(len(var_activations)), var_activations)
-            axes[1, 1].set_title('Activation Variance per Neuron')
-            axes[1, 1].set_xlabel('Neuron Index')
-            axes[1, 1].set_ylabel('Activation Variance')
-        else:
-            # No data case
-            for ax in axes.flat:
-                ax.text(0.5, 0.5, 'No activation data available',
-                       ha='center', va='center', transform=ax.transAxes)
-        
-        plt.tight_layout()
-        
-        save_path = kwargs.get('save_path')
-        filename = kwargs.get('filename', 'einet_activations')
-        if save_path:
-            save_plot(fig, save_path, filename)
-        
-        return fig, axes
-    except Exception as e:
-        return handle_plot_error("EINet activation plotting", e)
 
 
 def plot_synapse_turnover(turnover_results: dict, save_path: str = None, filename: str = "synapse_turnover"):
@@ -1069,4 +921,157 @@ def plot_noise_sweep_ei_results(results_csv_path, noise_type="gaussian"):
     save_plot(fig, os.path.dirname(results_csv_path), f"noise_sweep_ei_results_{noise_type}")
     
     print(f"Plot saved to: {save_path_final}")
-    return fig, axes 
+    return fig, axes
+
+
+def plot_active_synapses_per_branch(
+    connectivity_stats: dict, 
+    save_path: str = None, 
+    filename: str = "active_synapses_per_branch"
+) -> plt.Figure:
+    """
+    Plot active E and I synapses per branch per layer.
+    
+    Args:
+        connectivity_stats: Dictionary containing layer and branch statistics
+        save_path: Directory to save the plot
+        filename: Base filename for the plot
+        
+    Returns:
+        matplotlib Figure object
+    """
+    try:
+        import matplotlib.pyplot as plt
+        import numpy as np
+        from collections import defaultdict
+        
+        # Extract data from connectivity stats
+        layer_stats = connectivity_stats.get('layer_stats', {})
+        branch_stats = connectivity_stats.get('branch_stats', {})
+        
+        if not layer_stats or not branch_stats:
+            logger.warning("No layer or branch statistics found for plotting")
+            return None
+        
+        # Organize data by layer and branch
+        layers_data = defaultdict(list)
+        
+        # Parse branch names to extract layer and branch indices
+        for branch_name, stats in branch_stats.items():
+            # Expected format: "layer_X_branch_Y"
+            try:
+                parts = branch_name.split('_')
+                if len(parts) >= 4 and parts[0] == 'layer' and parts[2] == 'branch':
+                    layer_idx = int(parts[1])
+                    branch_idx = int(parts[3])
+                    
+                    exc_active = stats.get('excitatory', {}).get('active', 0)
+                    inh_active = stats.get('inhibitory', {}).get('active', 0)
+                    
+                    layers_data[layer_idx].append({
+                        'branch_idx': branch_idx,
+                        'excitatory': exc_active,
+                        'inhibitory': inh_active,
+                        'total': exc_active + inh_active
+                    })
+            except (ValueError, IndexError):
+                logger.warning(f"Could not parse branch name: {branch_name}")
+                continue
+        
+        # Sort data by layer and branch indices
+        sorted_layers = sorted(layers_data.keys())
+        for layer_idx in sorted_layers:
+            layers_data[layer_idx].sort(key=lambda x: x['branch_idx'])
+        
+        # Create the plot
+        n_layers = len(sorted_layers)
+        if n_layers == 0:
+            logger.warning("No valid layer data found for plotting")
+            return None
+        
+        # Calculate layout
+        n_cols = min(3, n_layers)
+        n_rows = (n_layers + n_cols - 1) // n_cols
+        
+        fig, axes = plt.subplots(n_rows, n_cols, figsize=(5 * n_cols, 4 * n_rows))
+        
+        # Handle different subplot configurations
+        if n_layers == 1:
+            axes = [axes]  # Single subplot
+        elif n_rows == 1 and n_cols > 1:
+            axes = list(axes)  # Single row, multiple columns
+        elif n_cols == 1 and n_rows > 1:
+            axes = list(axes)  # Single column, multiple rows
+        else:
+            axes = axes.flatten()  # Multiple rows and columns
+        
+        # Plot data for each layer
+        for plot_idx, layer_idx in enumerate(sorted_layers):
+            ax = axes[plot_idx] if plot_idx < len(axes) else None
+            if ax is None:
+                continue
+                
+            layer_data = layers_data[layer_idx]
+            
+            # Extract data for plotting
+            branch_indices = [d['branch_idx'] for d in layer_data]
+            exc_counts = [d['excitatory'] for d in layer_data]
+            inh_counts = [d['inhibitory'] for d in layer_data]
+            
+            # Create bar plot
+            x_pos = np.arange(len(branch_indices))
+            width = 0.35
+            
+            bars1 = ax.bar(x_pos - width/2, exc_counts, width, 
+                          label='Excitatory', color='red', alpha=0.7)
+            bars2 = ax.bar(x_pos + width/2, inh_counts, width,
+                          label='Inhibitory', color='blue', alpha=0.7)
+            
+            # Customize the plot
+            ax.set_xlabel('Branch Index')
+            ax.set_ylabel('Number of Active Synapses')
+            ax.set_title(f'Layer {layer_idx}: Active Synapses per Branch')
+            ax.set_xticks(x_pos)
+            ax.set_xticklabels(branch_indices)
+            ax.legend()
+            ax.grid(True, alpha=0.3)
+            
+            # Add value labels on bars
+            for bar in bars1:
+                height = bar.get_height()
+                if height > 0:
+                    ax.annotate(f'{int(height)}',
+                               xy=(bar.get_x() + bar.get_width() / 2, height),
+                               xytext=(0, 3),  # 3 points vertical offset
+                               textcoords="offset points",
+                               ha='center', va='bottom', fontsize=8)
+            
+            for bar in bars2:
+                height = bar.get_height()
+                if height > 0:
+                    ax.annotate(f'{int(height)}',
+                               xy=(bar.get_x() + bar.get_width() / 2, height),
+                               xytext=(0, 3),  # 3 points vertical offset
+                               textcoords="offset points",
+                               ha='center', va='bottom', fontsize=8)
+        
+        # Hide unused subplots
+        for plot_idx in range(n_layers, len(axes)):
+            axes[plot_idx].set_visible(False)
+        
+        plt.tight_layout()
+        
+        # Add overall title
+        fig.suptitle('Active Excitatory and Inhibitory Synapses per Branch per Layer', 
+                    fontsize=14, y=0.98)
+        
+        # Save the plot
+        if save_path:
+            save_plot(fig, save_path, filename)
+            logger.info(f"Active synapses per branch plot saved to {save_path}/{filename}")
+        
+        return fig
+        
+    except Exception as e:
+        logger.error(f"Error in plot_active_synapses_per_branch: {e}")
+        return handle_plot_error("active synapses per branch plotting", e) 

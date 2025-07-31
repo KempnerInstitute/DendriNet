@@ -116,7 +116,7 @@ train:
   
   # Training parameters optimized for large models
   main:
-    learning_strategy: standard  # Learning strategy for EI network
+    learning_strategy: standard  # Options: "standard", "enhanced" (enhanced may add memory overhead)
     weight_decay_rate: 0.1
     
     # Parameter groups with different learning rates
@@ -127,6 +127,25 @@ train:
       blocklinear_lr: 0.0002  # Lower LR for BlockLinear layers
       reactivation_lr: 0.0003 # Learning rate for reactivation layers
       decoder_lr: 0.0005      # Learning rate for decoder network
+
+    # Enhanced training features (use with caution for large models)
+    optimizer:
+      name: "adamw"           # AdamW recommended for large models
+      lr: 0.0005
+      weight_decay: 0.1
+    
+    regularization:
+      l1_weight: 0.0          # Use sparingly with large models
+      l2_weight: 0.0          # Prefer optimizer weight_decay
+    
+    pruning:
+      enabled: false          # Consider for model compression after training
+      threshold: 0.001
+    
+    reporting:
+      report_non_pruned: false      # Disabled to reduce memory overhead
+      save_pruning_stats: false
+      detailed_branch_report: false # Disabled for large models
     
     trainer:
       loss_function: cat_nll  # Loss function for classification

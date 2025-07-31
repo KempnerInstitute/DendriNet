@@ -81,7 +81,7 @@ outputs:
 
 ```bash
 # Analyze results
-python src/dendritic_modeling/scripts/sweeps/unified/result_analyzer.py \
+python src/dendritic_modeling/scripts/sweeps/result_analyzer.py \
     --results-dir results/my_sweep_20240101_120000
 ```
 

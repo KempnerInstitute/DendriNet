@@ -198,8 +198,9 @@ train:
   # MAIN NETWORK TRAINING
   # ==========================================
   main:
-    learning_strategy: standard # Learning strategy
-    weight_decay_rate: 0.01     
+    learning_strategy: standard # Options: "standard", "enhanced", "freeze_layers", "local_ca", etc.
+                               # To use enhanced training features, set to "enhanced" and configure options below
+    weight_decay_rate: 0.01     # Deprecated when using enhanced training (use optimizer.weight_decay below)
     
     # Parameter groups with different learning rates
     param_groups:
@@ -231,6 +232,47 @@ train:
       epochs_per_layer: 50
       epochs_per_branch: 50
       final_tune_epochs: 10
+
+    # ==========================================
+    # ENHANCED TRAINING FEATURES
+    # ==========================================
+    # Configure these when using learning_strategy: "enhanced"
+    
+    # Optimizer configuration (replaces param_groups when using enhanced training)
+    optimizer:
+      name: "adam"                    # Options: "adam", "sgd", "rmsprop", "adamw"
+      lr: 0.001                      # Learning rate
+      weight_decay: 0.0001           # Built-in L2 regularization (global)
+      momentum: 0.9                  # For SGD
+      betas: [0.9, 0.999]           # For Adam/AdamW
+      eps: 1e-8                      # For Adam/AdamW
+
+    # Regularization configuration
+    regularization:
+      l1_weight: 0.0                 # L1 regularization strength (0 to disable)
+      l2_weight: 0.0                 # L2 regularization strength (0 to disable, use optimizer.weight_decay instead)
+      selective:                     # Selective application
+        layers: []                   # List of layer indices (empty = all layers)
+        branches: []                 # List of branch names (empty = all branches)
+        weight_types: ["all"]        # Types of weights to regularize: "recurrent", "input", "output", "all"
+
+    # Pruning configuration
+    pruning:
+      enabled: false                 # Enable pruning
+      threshold: 0.001               # Prune weights with abs(value) < threshold
+      selective:                     # Selective application
+        layers: []                   # List of layer indices (empty = all layers)
+        branches: []                 # List of branch names (empty = all branches)
+        weight_types: ["all"]        # Types of weights to prune
+      re_evaluate_after: true        # Re-evaluate model after pruning
+      dynamic_pruning: false         # Whether to prune during training
+      pruning_frequency: 10          # Epochs between dynamic pruning (if enabled)
+
+    # Reporting configuration
+    reporting:
+      report_non_pruned: true        # Print detailed pruning report
+      save_pruning_stats: true       # Save pruning statistics to file
+      detailed_branch_report: true   # Include per-branch statistics
 
 # ============================================================================
 # DATASET/TASK CONFIGURATION - VALIDATED DATASETS ONLY
@@ -317,6 +359,8 @@ analysis:
     enabled: true
     training: true
     snapshot_interval: 5  # frequency of snapshots
+    synaptic_analysis: true        # Enable synaptic connectivity analysis
+    save_synaptic_report: true     # Save synaptic analysis to file
     
   noise_perturbation_analysis:
     enabled: true 
@@ -409,6 +453,3 @@ outputs:
   run_name: exp_run
   dir: results/
   dataset_dir: ""                         # Optional: separate directory for shared datasets
-
-# Note: SLURM configuration has been moved to separate files
-# Use the slurm job generator script for SLURM job creation 

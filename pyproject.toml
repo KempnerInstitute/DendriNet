@@ -57,7 +57,7 @@ dependencies = [
 [project.scripts]
 dendritic-train = "dendritic_modeling.scripts.training.train_experiments:main"
 dendritic-sweep = "dendritic_modeling.scripts.sweeps.unified.sweep_manager:main"
-dendritic-analyze = "dendritic_modeling.scripts.sweeps.unified.result_analyzer:main"
+dendritic-analyze = "dendritic_modeling.scripts.sweeps.result_analyzer:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}

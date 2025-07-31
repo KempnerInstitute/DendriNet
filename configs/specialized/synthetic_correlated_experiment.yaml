@@ -85,7 +85,7 @@ train:
       print_every: 10
   
   main:
-    learning_strategy: standard
+    learning_strategy: standard  # Options: "standard", "enhanced" for advanced features
     weight_decay_rate: 0.01
     
     param_groups:
@@ -95,6 +95,28 @@ train:
       blocklinear_lr: 0.001
       reactivation_lr: 0.001
       decoder_lr: 0.001
+
+    # Enhanced training features for experimental analysis
+    optimizer:
+      name: "adam"
+      lr: 0.001
+      weight_decay: 0.01
+    
+    regularization:
+      l1_weight: 0.0            # Useful for synthetic data experiments
+      l2_weight: 0.0
+      selective:
+        weight_types: ["all"]
+    
+    pruning:
+      enabled: false            # Can be useful for studying synthetic patterns
+      threshold: 0.001
+      re_evaluate_after: true
+    
+    reporting:
+      report_non_pruned: true
+      save_pruning_stats: true
+      detailed_branch_report: true
     
     trainer:
       loss_function: cat_nll  # Cross entropy for classification

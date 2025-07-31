@@ -191,7 +191,7 @@ class SweepManager:
         # For unified sweeps, we recommend using the separate result_analyzer.py
         # to avoid circular dependencies and provide full analysis capabilities
         print("Note: For comprehensive analysis, use:")
-        print(f"python -m src.dendritic_modeling.scripts.sweeps.unified.result_analyzer --results-dir {results_dir} --auto-detect")
+        print(f"python -m src.dendritic_modeling.scripts.sweeps.result_analyzer --results-dir {results_dir} --auto-detect")
         
         plot_output_dir = output_dir or results_dir
         
