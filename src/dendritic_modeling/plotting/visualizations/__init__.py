@@ -10,13 +10,11 @@ from .general_analysis_plots import (
     plot_ablation_results,
     plot_per_layer_ablation,
     plot_layer_contributions,
-    plot_noise_robustness,
     plot_weight_distributions,
-    plot_dendrinet_activations,
-    plot_einet_activations,
     plot_performance_metrics,
     plot_performance_evolution,
     plot_synapse_turnover,
+    plot_active_synapses_per_branch,
     # Training and sweep functions
     plot_loss_curves,
     plot_branch_sweep_results,
@@ -31,17 +29,7 @@ from ..core.utils import (
     einet_activations_todict,
 )
 
-# Network visualizations  
-from .network import (
-    plot_branch_gradients,
-    plot_branch_weights,
-    plot_dendrinet_gradients,
-    plot_dendrinet_params,
-    plot_einet_params,
-    plot_excitation_inhibition_gradients,
-    plot_excitation_inhibition_weights,
-    visualize_dendritic_tree,
-)
+# Network visualizations module exists but all functions have been removed as unused
 
 __all__ = [
     # Information analysis (now modular)
@@ -52,13 +40,11 @@ __all__ = [
     "plot_ablation_results",
     "plot_per_layer_ablation",
     "plot_layer_contributions", 
-    "plot_noise_robustness",
     "plot_weight_distributions",
-    "plot_dendrinet_activations",
-    "plot_einet_activations",
     "plot_performance_metrics",
     "plot_performance_evolution",
     "plot_synapse_turnover",
+    "plot_active_synapses_per_branch",
     
     # Training/sweep functions
     "plot_loss_curves",
@@ -70,14 +56,4 @@ __all__ = [
     # Legacy data utilities
     "dendritic_activations_todict",
     "einet_activations_todict",
-    
-    # Network
-    "plot_branch_gradients",
-    "plot_branch_weights",
-    "plot_dendrinet_gradients", 
-    "plot_dendrinet_params",
-    "plot_einet_params",
-    "plot_excitation_inhibition_gradients",
-    "plot_excitation_inhibition_weights",
-    "visualize_dendritic_tree",
 ] 

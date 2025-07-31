@@ -94,8 +94,23 @@ train:
   
   # Optimized training parameters
   main:
-    learning_strategy: standard  # Standard strategy for benchmarking
+    learning_strategy: standard  # Options: "standard", "enhanced" (enhanced adds analysis overhead)
     weight_decay_rate: 0.1
+    
+    # Enhanced training features (disabled by default for benchmarking)
+    optimizer:
+      name: "adam"
+      lr: 0.001
+      weight_decay: 0.1
+    regularization:
+      l1_weight: 0.0              # Disabled for benchmarking
+      l2_weight: 0.0
+    pruning:
+      enabled: false              # Disabled for benchmarking
+    reporting:
+      report_non_pruned: false    # Disabled for benchmarking
+      save_pruning_stats: false
+      detailed_branch_report: false
     
     # Parameter groups optimized for speed
     param_groups:

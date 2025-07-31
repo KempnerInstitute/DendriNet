@@ -62,6 +62,7 @@ def get_trainer(
         # Remove optimizer from config as it's handled internally
         enhanced_config = trainer_config_dict.copy()
         enhanced_config.pop("optimizer", None)
+        
         return create_enhanced_trainer_from_config(enhanced_config)
     elif strategy == "fsdp" or strategy == "fsdp_standard":
         # Note: FSDP requires additional setup (distributed init, special config)
