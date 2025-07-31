@@ -6,17 +6,28 @@ Single YAML interface for all parameter sweeps in dendritic modeling experiments
 
 ```bash
 # Run a sweep
-python -m src.dendritic_modeling.scripts.sweeps.unified.sweep_manager \
+python src/dendritic_modeling/scripts/sweeps/sweep_manager.py \
     --config configs/unified_all_sweeps_example.yaml --run
 
-# Generate configs only
-python -m src.dendritic_modeling.scripts.sweeps.unified.sweep_manager \
+# Generate configs only  
+python src/dendritic_modeling/scripts/sweeps/sweep_manager.py \
     --config configs/unified_all_sweeps_example.yaml --generate-only
 
-# Analyze results
-python -m src.dendritic_modeling.scripts.sweeps.unified.result_analyzer \
-    --results-dir output/unified_20240101120000 --auto-detect
+# Analyze results (65+ comprehensive plots)
+python src/dendritic_modeling/scripts/sweeps/result_analyzer.py \
+    --results-dir results/unified_20240101120000 --auto-detect
 ```
+
+## Sweep Types
+
+### Available Sweep Types
+- **`unified`** - General parameter sweeps with filtering (recommended)
+- **`ei`** - E/I balance focused sweeps  
+- **`branch`** - Dendritic architecture sweeps
+- **`noise`** - Noise robustness studies
+- **`general`** - Generic parameter exploration
+
+All sweep types use the same unified configuration format below.
 
 ## Sweep Options
 
@@ -226,22 +237,54 @@ Automatic SLURM array job submission:
 
 ## Analysis
 
+### Comprehensive Analysis (65+ plots)
 ```bash
-# Auto-analyze sweep results
-python -m src.dendritic_modeling.scripts.sweeps.unified.result_analyzer \
-    --results-dir output/unified_20240101120000 --auto-detect
+# Auto-analyze sweep results (generates all plot types)
+python src/dendritic_modeling/scripts/sweeps/result_analyzer.py \
+    --results-dir results/unified_20240101120000 --auto-detect
 
-# Compare multiple sweeps
-python -m src.dendritic_modeling.scripts.sweeps.unified.result_analyzer \
-    --results-dirs output/sweep1 output/sweep2 \
-    --comparison-report comparison.txt
+# Analyze specific sweep type
+python src/dendritic_modeling/scripts/sweeps/result_analyzer.py \
+    --results-dir results/unified_20240101120000 --sweep-type unified
+```
+
+### Generated Plot Types
+**Performance Analysis:**
+- Metric vs E/I ratio plots (shunting vs non-shunting)
+- Parameter scaling analysis 
+- Performance heatmaps (EE vs IE parameter space)
+
+**Robustness Analysis:**
+- Noise perturbation analysis (gaussian/uniform)
+- Ablation analysis (layer-wise component contributions)
+
+**Information Theory Analysis:**
+- Global mutual information trends: I(E;C), I(I;C), I(E;I|C), etc.
+- Layer-specific information flow: MI vs E/I ratio by dendritic layer
+- Information cascade patterns through dendritic tree
+
+**Output Structure:**
+```
+results/unified_20240101120000/plots/
+├── metric_vs_ei_ratio_plots/      # Performance trends
+├── metric_vs_parameter_plots/     # Scaling relationships  
+├── noise_vs_ei_ratio_plots/       # Robustness analysis
+├── performance_heatmaps/          # Parameter space visualization
+├── ablation_analysis_plots/       # Component contributions
+├── information_theory_plots/      # Global MI analysis
+└── layer_information_plots/       # Layer-specific MI analysis
 ```
 
 ## Help
 
 ```bash
-python -m src.dendritic_modeling.scripts.sweeps.unified.sweep_manager --help
-python -m src.dendritic_modeling.scripts.sweeps.unified.result_analyzer --help
+# Sweep management help
+python src/dendritic_modeling/scripts/sweeps/sweep_manager.py --help
+
+# Analysis help  
+python src/dendritic_modeling/scripts/sweeps/result_analyzer.py --help
 ```
 
-See `configs/unified_all_sweeps_example.yaml` for complete configuration examples.
+**Configuration Examples:**
+- `configs/unified_all_sweeps_example.yaml` - Complete configuration template
+- `.vscode/unified_all_sweeps_example.yaml` - Development configuration

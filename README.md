@@ -40,6 +40,28 @@ python src/dendritic_modeling/scripts/training/train_experiments.py configs/conf
 
 This trains an EINet model on MNIST and saves results in the `results/` directory.
 
+## Parameter Sweeps & Analysis
+
+Run comprehensive parameter sweeps with automatic analysis:
+
+```bash
+# 1. Run a sweep (E/I balance + architecture combinations)
+python src/dendritic_modeling/scripts/sweeps/sweep_manager.py \
+    --config configs/unified_all_sweeps_example.yaml --run
+
+# 2. Analyze results (generates 65+ plots)
+python src/dendritic_modeling/scripts/sweeps/result_analyzer.py \
+    --results-dir results/unified_20250101120000 --auto-detect
+```
+
+**Generates comprehensive analysis:**
+- Performance trends vs E/I ratios
+- Dendritic architecture comparisons  
+- Noise robustness analysis
+- Layer-specific information theory analysis (I(E;C), I(I;E|C), etc.)
+
+See [`src/dendritic_modeling/scripts/sweeps/README.md`](src/dendritic_modeling/scripts/sweeps/README.md) for details.
+
 ## Documentation
 
 For detailed usage, configuration options, and advanced features, see the [full documentation](docs/index.html).
