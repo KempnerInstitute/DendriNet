@@ -1388,7 +1388,7 @@ class UnifiedResultAnalyzer:
                 print(f"Analysis complete for {results_dir}")
                 
             except Exception as e:
-                print(f"❌ Error analyzing {results_dir}: {e}")
+                print(f"Error analyzing {results_dir}: {e}")
                 continue
         
         return analysis_results
@@ -1505,7 +1505,7 @@ def main():
         if args.results_dir:
             # Single directory analysis
             if not args.sweep_type and not args.auto_detect:
-                print("❌ Error: Must specify --sweep-type or --auto-detect for single directory")
+                print("Error: Must specify --sweep-type or --auto-detect for single directory")
                 sys.exit(1)
             
             sweep_type = args.sweep_type if not args.auto_detect else None
@@ -1516,14 +1516,14 @@ def main():
         else:
             # Multiple directories analysis
             if not args.sweep_type and not args.auto_detect:
-                print("❌ Error: Must specify --sweep-type or --auto-detect for multiple directories")
+                print("Error: Must specify --sweep-type or --auto-detect for multiple directories")
                 sys.exit(1)
             
             # Expand glob patterns
             results_dirs = expand_glob_patterns(args.results_dirs)
             
             if not results_dirs:
-                print("❌ Error: No matching directories found")
+                print("Error: No matching directories found")
                 sys.exit(1)
             
             print(f"Found {len(results_dirs)} directories to analyze:")
@@ -1544,7 +1544,7 @@ def main():
             print(f"{analysis['sweep_type']} sweep: {len(analysis['plot_paths'])} plots generated")
     
     except Exception as e:
-        print(f"❌ Error: {e}")
+        print(f"Error: {e}")
         sys.exit(1)
 
 

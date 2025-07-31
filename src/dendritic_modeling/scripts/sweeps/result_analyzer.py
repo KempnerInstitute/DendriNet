@@ -42,6 +42,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.ticker import ScalarFormatter
+from scipy.ndimage import gaussian_filter1d
 
 # Try importing seaborn with compatibility handling
 try:
@@ -107,16 +108,25 @@ class UnifiedResultAnalyzer:
         
         # Define network category colors and markers
         self.category_colors = {
-            "shunting": "blue",
-            "no_shunting": "red", 
+            "shunting": "#1f77b4",        # Blue
+            "no_shunting": "#ff7f0e",     # Orange
             "unknown": "gray",
             "default": "green",
         }
         self.category_markers = {
-            "shunting": "o",
-            "no_shunting": "s",
+            "shunting": "o",              # Circle
+            "no_shunting": "s",           # Square
             "unknown": "x", 
-            "default": "^",
+            "default": "^",               # Triangle
+        }
+        
+        # Information theory color scheme (matching old analysis)
+        self.info_colors = {
+            "excitatory": "#FF6B6B",      # Red for excitatory
+            "inhibitory": "#4ECDC4",      # Teal for inhibitory  
+            "combined": "#45B7D1",        # Blue for combined/output
+            "conditional": "#8B5A96",     # Purple for conditional
+            "cross": "#FFA726"            # Orange for cross-information
         }
     
     def detect_sweep_type(self, results_dir: str) -> Optional[str]:
@@ -461,21 +471,24 @@ class UnifiedResultAnalyzer:
                         for mi_key, mi_value in content_dict["basic_mi"].items():
                             if isinstance(mi_value, (int, float)):
                                 # Convert I(E;C) format to mi_E_C format for consistency
-                                normalized_key = mi_key.replace("I(", "mi_").replace(";", "_").replace(")", "").replace("_std", "_std")
+                                # Handle Vout -> V conversion
+                                normalized_key = mi_key.replace("I(", "mi_").replace(";", "_").replace(")", "").replace("Vout", "V").replace("_std", "_std")
                                 data[normalized_key] = mi_value
                     
-                    # Extract pairwise MI if available
+                    # Extract pairwise MI if available (remove pairwise_ prefix)
                     if "pairwise_mi" in content_dict and isinstance(content_dict["pairwise_mi"], dict):
                         for mi_key, mi_value in content_dict["pairwise_mi"].items():
                             if isinstance(mi_value, (int, float)):
-                                normalized_key = f"pairwise_{mi_key}".replace("I(", "mi_").replace(";", "_").replace(")", "").replace("_std", "_std")
+                                # Don't add pairwise_ prefix, just normalize the key
+                                normalized_key = mi_key.replace("I(", "mi_").replace(";", "_").replace(")", "").replace("Vout", "V").replace("_std", "_std")
                                 data[normalized_key] = mi_value
                     
-                    # Extract conditional MI if available  
+                    # Extract conditional MI if available (remove conditional_ prefix)
                     if "conditional_mi" in content_dict and isinstance(content_dict["conditional_mi"], dict):
                         for mi_key, mi_value in content_dict["conditional_mi"].items():
                             if isinstance(mi_value, (int, float)):
-                                normalized_key = f"conditional_{mi_key}".replace("I(", "mi_").replace(";", "_").replace(")", "").replace("|", "_given_").replace("_std", "_std")
+                                # Don't add conditional_ prefix, just normalize the key
+                                normalized_key = mi_key.replace("I(", "mi_").replace(";", "_").replace(")", "").replace("|", "_given_").replace("Vout", "V").replace("_std", "_std")
                                 data[normalized_key] = mi_value
                     
                     # Extract layer-specific MI data
@@ -494,9 +507,20 @@ class UnifiedResultAnalyzer:
                                 # Extract layer-specific MI metrics
                                 for mi_key, mi_value in layer_data.items():
                                     if isinstance(mi_value, (int, float)):
-                                        # Convert I(E;C) format to mi_E_C format with layer info
-                                        normalized_key = mi_key.replace("I(", "layer_mi_").replace(";", "_").replace(")", "").replace(",", "_").replace("|", "_given_").replace("_std", "_std")
-                                        data[f"{normalized_key}_depth{depth}"] = mi_value
+                                        # Convert I(E;C) format to layer_mi_E_C format with layer info
+                                        # Handle both mean and std values, and Vout -> V conversion
+                                        # Remove existing _mean or _std suffixes before adding depth
+                                        base_key = mi_key.replace("I(", "layer_mi_").replace(";", "_").replace(")", "").replace(",", "_").replace("|", "_given_").replace("Vout", "V")
+                                        # Remove _mean or _std suffix if present
+                                        if base_key.endswith("_mean"):
+                                            base_key = base_key[:-5]  # Remove "_mean"
+                                            suffix = "_mean"
+                                        elif base_key.endswith("_std"):
+                                            base_key = base_key[:-4]  # Remove "_std"
+                                            suffix = "_std"
+                                        else:
+                                            suffix = ""
+                                        data[f"{base_key}_depth{depth}{suffix}"] = mi_value
                     
                     # Store method and other metadata
                     for key in ["method", "n_samples"]:
@@ -1209,38 +1233,50 @@ class UnifiedResultAnalyzer:
         return plot_paths
     
     def _generate_ablation_plots(self, valid_data: pd.DataFrame, plots_dir: str, base_name: str) -> List[str]:
-        """Generate ablation analysis plots"""
+        """Generate ablation analysis plots matching old analysis format"""
         plot_paths = []
         
         ablation_plot_dir = os.path.join(plots_dir, "ablation_analysis_plots")
         os.makedirs(ablation_plot_dir, exist_ok=True)
 
-        # Find ablation columns
-        ablation_cols = [col for col in valid_data.columns if col.startswith("ablation_")]
+        # Find ablation columns (look for both column name patterns)
+        ablation_cols = [col for col in valid_data.columns if 
+                        col.startswith("ablation_") or 
+                        'ablation' in col.lower() or 
+                        'contribution' in col.lower()]
+        
         if not ablation_cols:
+            print("No ablation columns found")
             return plot_paths
 
-        # Extract ablation types and metrics
+        # Extract ablation types and metrics from column structure
         ablation_types = []
         metrics = []
         depths = []
+        layer_cols = []
+        
         for col in ablation_cols:
-            parts = col.split("_")
-            if len(parts) >= 4:  # ablation_type_metric_depthX
-                ablation_type = parts[1]
-                metric = parts[2]
-                depth_part = parts[3]
-                if depth_part.startswith("depth"):
-                    try:
-                        depth = int(depth_part.replace("depth", ""))
-                        if ablation_type not in ablation_types:
-                            ablation_types.append(ablation_type)
-                        if metric not in metrics:
-                            metrics.append(metric)
-                        if depth not in depths:
-                            depths.append(depth)
-                    except ValueError:
-                        continue
+            if "_depth" in col and "_mean" in col:
+                # Pattern: ablation_type_metric_depthX_mean
+                parts = col.replace("_mean", "").split("_")
+                if len(parts) >= 4:  
+                    ablation_type = parts[1]
+                    metric = parts[2]
+                    depth_part = parts[3]
+                    if depth_part.startswith("depth"):
+                        try:
+                            depth = int(depth_part.replace("depth", ""))
+                            if ablation_type not in ablation_types:
+                                ablation_types.append(ablation_type)
+                            if metric not in metrics:
+                                metrics.append(metric)
+                            if depth not in depths:
+                                depths.append(depth)
+                        except ValueError:
+                            continue
+            elif "_mean" in col:
+                # Check if this could be a layer-agnostic ablation column
+                layer_cols.append(col)
 
         depths.sort()
 
@@ -1248,87 +1284,657 @@ class UnifiedResultAnalyzer:
             print("No shunting/no_shunting data for ablation analysis")
             return plot_paths
 
-        # Generate ablation plots for each ablation type and metric
+        # Generate E/I ratio plots by depth (current approach)
         for ablation_type, metric in itertools.product(ablation_types, metrics):
             try:
-                # Find columns for this ablation type and metric
-                ablation_cols_filtered = [col for col in ablation_cols 
-                                        if f"ablation_{ablation_type}_{metric}_" in col]
-                
-                if not ablation_cols_filtered:
+                plot_paths.extend(self._create_ablation_ei_plots(
+                    valid_data, ablation_plot_dir, base_name, ablation_type, metric, depths))
+            except Exception as e:
+                print(f"Error generating E/I ablation plot for {ablation_type}_{metric}: {e}")
+
+        # Generate smoothed ablation per layer plots (matching old analysis)
+        if layer_cols:
+            try:
+                plot_paths.extend(self._create_smoothed_ablation_layer_plots(
+                    valid_data, ablation_plot_dir, base_name, layer_cols))
+            except Exception as e:
+                print(f"Error generating smoothed ablation layer plots: {e}")
+
+        print(f"Created {len(plot_paths)} ablation analysis plots")
+        return plot_paths
+    
+    def _create_ablation_ei_plots(self, valid_data: pd.DataFrame, output_dir: str, base_name: str,
+                                  ablation_type: str, metric: str, depths: List[int]) -> List[str]:
+        """Create ablation vs E/I ratio plots by depth"""
+        plot_paths = []
+        
+        # Find columns for this ablation type and metric
+        ablation_cols_filtered = [col for col in valid_data.columns 
+                                if f"ablation_{ablation_type}_{metric}_" in col and "_mean" in col]
+        
+        if not ablation_cols_filtered:
+            return plot_paths
+
+        # Create separate plots for each network category
+        categories = ["shunting", "no_shunting"]
+        
+        fig, axes = plt.subplots(1, 2, figsize=(15, 6))
+        fig.suptitle(f"{ablation_type.title()} Ablation: {metric.title()} vs E/I Ratio by Depth", fontsize=16)
+
+        for idx, category in enumerate(categories):
+            ax = axes[idx]
+            category_data = valid_data[valid_data["network_category"] == category]
+            
+            if category_data.empty:
+                ax.text(0.5, 0.5, f'No {category} data', ha='center', va='center', transform=ax.transAxes)
+                ax.set_title(f"{category.title()}")
+                continue
+
+            # Plot lines for each depth
+            for depth in depths:
+                depth_col = f"ablation_{ablation_type}_{metric}_depth{depth}_mean"
+                if depth_col not in category_data.columns:
                     continue
 
-                # Create separate plots for each network category
-                categories = ["shunting", "no_shunting"]
+                # Sort by E/I ratio for proper line plotting
+                sorted_data = category_data.sort_values("ei_ratio")
                 
-                fig, axes = plt.subplots(1, 2, figsize=(15, 6))
-                fig.suptitle(f"{ablation_type.title()} Ablation: {metric.title()} vs E/I Ratio by Depth", fontsize=16)
-
-                for idx, category in enumerate(categories):
-                    ax = axes[idx]
-                    category_data = valid_data[valid_data["network_category"] == category]
+                # Filter out non-numeric or missing values
+                plot_data = sorted_data[[depth_col, "ei_ratio"]].dropna()
+                if plot_data.empty:
+                    continue
                     
-                    if category_data.empty:
-                        ax.text(0.5, 0.5, f'No {category} data', ha='center', va='center', transform=ax.transAxes)
-                        ax.set_title(f"{category.title()}")
+                try:
+                    # Convert to numeric if needed
+                    y_vals = pd.to_numeric(plot_data[depth_col], errors='coerce').dropna()
+                    x_vals = plot_data.loc[y_vals.index, "ei_ratio"]
+                    
+                    if len(y_vals) > 0:
+                        ax.plot(x_vals, y_vals, 
+                               marker='o', label=f'Depth {depth}', 
+                               alpha=0.8, linewidth=2)
+                except Exception as e:
+                    print(f"Warning: Could not plot depth {depth} for {category}: {e}")
+                    continue
+
+            ax.set_xlabel("E/I Ratio", fontsize=12)
+            ax.set_ylabel(f"{metric.title()}", fontsize=12)
+            ax.set_title(f"{category.title()}", fontsize=14)
+            ax.set_xscale("log")
+            ax.grid(True, alpha=0.3)
+            ax.legend()
+            
+            # Format x-axis
+            formatter = ScalarFormatter()
+            formatter.set_scientific(False)
+            ax.xaxis.set_major_formatter(formatter)
+
+        fig.tight_layout()
+        plot_path = os.path.join(output_dir, f"{base_name}_{ablation_type}_{metric}_ablation.png")
+        fig.savefig(plot_path, dpi=300, bbox_inches='tight')
+        plt.close(fig)
+        plot_paths.append(plot_path)
+        
+        return plot_paths
+    
+    def _create_smoothed_ablation_layer_plots(self, valid_data: pd.DataFrame, output_dir: str, 
+                                            base_name: str, ablation_cols: List[str]) -> List[str]:
+        """Create smoothed ablation per layer plots (matching old analysis exactly)"""
+        plot_paths = []
+        
+        # Check if we have layer information 
+        if "layer" not in valid_data.columns:
+            print("No layer information available for smoothed ablation plots")
+            return plot_paths
+
+        # Look for depth-specific ablation columns with layer information
+        layer_ablation_cols = []
+        for col in ablation_cols:
+            if "_depth" in col and "_mean" in col:
+                layer_ablation_cols.append(col)
+        
+        if not layer_ablation_cols:
+            print("No layer-specific ablation columns found for smoothed ablation plots")
+            return plot_paths
+
+        # Create data structure with layer information
+        layer_data = []
+        for _, row in valid_data.iterrows():
+            for col in layer_ablation_cols:
+                if not pd.isna(row[col]):
+                    # Extract depth from column name
+                    try:
+                        depth_match = re.search(r'depth(\d+)', col)
+                        if depth_match:
+                            layer = int(depth_match.group(1))
+                            layer_data.append({
+                                "layer": layer,
+                                "use_shunting": row["network_category"] == "shunting",
+                                "ablation_value": row[col],
+                                "ablation_type": col,
+                                "ei_ratio": row.get("ei_ratio", 0)
+                            })
+                    except:
+                        continue
+        
+        if not layer_data:
+            print("No valid layer ablation data found")
+            return plot_paths
+            
+        layer_df = pd.DataFrame(layer_data)
+        
+        # Group by ablation type
+        ablation_types = layer_df["ablation_type"].unique()
+        
+        for ablation_type in ablation_types:
+            type_data = layer_df[layer_df["ablation_type"] == ablation_type]
+            layers = sorted(type_data["layer"].unique())
+            
+            if len(layers) < 3:  # Need at least 3 points for smoothing
+                continue
+                
+            try:
+                fig, ax = plt.subplots(figsize=(12, 6))
+                
+                for use_shunting in [True, False]:
+                    shunt_data = type_data[type_data["use_shunting"] == use_shunting]
+                    
+                    if shunt_data.empty:
+                        continue
+                    
+                    # Calculate mean values per layer
+                    layer_means = []
+                    for layer in layers:
+                        layer_subset = shunt_data[shunt_data["layer"] == layer]
+                        if not layer_subset.empty:
+                            layer_means.append(layer_subset["ablation_value"].mean())
+                        else:
+                            layer_means.append(np.nan)
+                    
+                    # Remove NaN values for smoothing
+                    valid_indices = ~np.isnan(layer_means)
+                    if np.sum(valid_indices) < 3:  # Need at least 3 points for smoothing
+                        continue
+                    
+                    valid_layers = np.array(layers)[valid_indices]
+                    valid_means = np.array(layer_means)[valid_indices]
+                    
+                    # Apply Gaussian smoothing (matching old analysis)
+                    smoothed_values = gaussian_filter1d(valid_means, sigma=1.0)
+                    
+                    # Plot style (matching old analysis colors)
+                    style = {'color': '#1f77b4', 'marker': 'o', 'label': 'Shunting'} if use_shunting else \
+                            {'color': '#ff7f0e', 'marker': 's', 'label': 'Non-Shunting'}
+                    
+                    # Plot raw data (faded)
+                    ax.plot(valid_layers, valid_means, alpha=0.3, color=style['color'], 
+                           marker=style['marker'], linestyle=':', markersize=4, 
+                           label=f"{style['label']} (Raw)")
+                    
+                    # Plot smoothed data (prominent)
+                    ax.plot(valid_layers, smoothed_values, color=style['color'], 
+                           marker=style['marker'], linewidth=2, markersize=6, 
+                           label=f"{style['label']} (Smoothed)")
+                
+                # Clean up ablation type name for display
+                display_name = ablation_type.replace("ablation_", "").replace("_mean", "").replace("_", " ").title()
+                
+                ax.set_xlabel("Layer Index", fontsize=12)
+                ax.set_ylabel(f"{display_name}", fontsize=12)
+                ax.set_title(f"Smoothed {display_name} per Layer", fontsize=14)
+                ax.legend(fontsize=10)
+                ax.grid(True, alpha=0.3)
+                
+                plt.tight_layout()
+                safe_name = ablation_type.replace("ablation_", "").replace("_mean", "")
+                plot_path = os.path.join(output_dir, f"{base_name}_smoothed_{safe_name}_per_layer.png")
+                plt.savefig(plot_path, dpi=300, bbox_inches='tight')
+                plt.close()
+                plot_paths.append(plot_path)
+                
+                print(f"Created smoothed ablation per layer plot for {display_name}")
+                
+            except Exception as e:
+                print(f"Error creating smoothed ablation plot for {ablation_type}: {e}")
+        
+        return plot_paths
+    
+    def _generate_information_plots(self, valid_data: pd.DataFrame, plots_dir: str, base_name: str) -> List[str]:
+        """Generate information theory plots matching old analysis format"""
+        plot_paths = []
+        
+        if "ei_ratio" not in valid_data.columns:
+            return plot_paths
+            
+        info_plot_dir = os.path.join(plots_dir, "information_theory_plots")
+        os.makedirs(info_plot_dir, exist_ok=True)
+
+        # Collect global and layer-specific MI metrics
+        global_mi_metrics = []
+        layer_mi_metrics = []
+        
+        for col in valid_data.columns:
+            if any(mi_pattern in col.lower() for mi_pattern in ["mi_", "mutual_information"]):
+                # Extract the metric name
+                if "_mean" in col:
+                    metric_name = col.replace("_mean", "")
+                    if "layer_mi_" in metric_name:
+                        # This is a layer-specific metric
+                        base_metric = metric_name.replace("layer_mi_", "").split("_depth")[0]
+                        if base_metric not in layer_mi_metrics:
+                            layer_mi_metrics.append(base_metric)
+                    else:
+                        # This is a global metric
+                        if metric_name not in global_mi_metrics:
+                            global_mi_metrics.append(metric_name)
+
+        if not global_mi_metrics and not layer_mi_metrics:
+            print("No mutual information metrics found")
+            return plot_paths
+
+        if not valid_data["network_category"].isin(["shunting", "no_shunting"]).any():
+            print("No shunting/no_shunting data for information analysis")
+            return plot_paths
+
+        # Define metric groups matching old analysis exactly
+        metric_groups = {
+            "class_information": {
+                "metrics": ["mi_E_C", "mi_I_C", "mi_V_C"],
+                "labels": ["I(E;C)", "I(I;C)", "I(V;C)"],
+                "colors": [self.info_colors["excitatory"], self.info_colors["inhibitory"], self.info_colors["combined"]],
+                "title": "Information with Class Labels",
+                "ylabel": "Mutual Information (bits)"
+            },
+            "component_information": {
+                "metrics": ["mi_E_I", "mi_E_V", "mi_I_V"],
+                "labels": ["I(E;I)", "I(E;V)", "I(I;V)"],
+                "colors": ["purple", "orange", "brown"],
+                "title": "Component Information",
+                "ylabel": "Mutual Information (bits)"
+            },
+            "conditional_information": {
+                "metrics": ["mi_E_I_given_C", "mi_E_V_given_C", "mi_I_V_given_C"],
+                "labels": ["I(E;I|C)", "I(E;V|C)", "I(I;V|C)"],
+                "colors": ["darkgreen", "forestgreen", "olive"],
+                "title": "Conditional Information",
+                "ylabel": "Mutual Information (bits)"
+            }
+        }
+
+        # Generate global information plots grouped by metric type (matching old format)
+        for group_name, group_info in metric_groups.items():
+            metrics = group_info["metrics"]
+            labels = group_info["labels"]
+            metric_colors = group_info["colors"]
+            group_title = group_info["title"]
+            ylabel = group_info["ylabel"]
+
+            # Check which metrics are available
+            available_metrics = []
+            available_labels = []
+            available_colors = []
+            
+            for metric, label, color in zip(metrics, labels, metric_colors):
+                mean_col = f"{metric}_mean"
+                if mean_col in valid_data.columns:
+                    available_metrics.append(metric)
+                    available_labels.append(label)
+                    available_colors.append(color)
+
+            if not available_metrics:
+                print(f"No {group_name} metrics found")
+                continue
+
+            try:
+                # Create separate plots for shunting vs no shunting (matching old analysis)
+                fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
+                
+                # First pass: collect all y-values to determine global y-axis range
+                all_y_values = []
+                plot_data = {}
+                
+                for use_shunting in [True, False]:
+                    category = "shunting" if use_shunting else "no_shunting"
+                    shunt_data = valid_data[valid_data["network_category"] == category]
+                    plot_data[use_shunting] = {}
+                    
+                    if not shunt_data.empty:
+                        for metric in available_metrics:
+                            mean_col = f"{metric}_mean"
+                            # Group by E/I ratio and calculate statistics
+                            grouped = shunt_data.groupby("ei_ratio")[mean_col].mean()
+                            plot_data[use_shunting][metric] = grouped
+                            all_y_values.extend(grouped.values)
+
+                # Calculate global y-axis range
+                if all_y_values:
+                    global_y_min = min(all_y_values)
+                    global_y_max = max(all_y_values)
+                    y_margin = (global_y_max - global_y_min) * 0.1
+                    final_y_min = global_y_min - y_margin
+                    final_y_max = global_y_max + y_margin
+                else:
+                    final_y_min, final_y_max = 0, 1
+
+                # Second pass: create the actual plots
+                for use_shunting, ax, title_suffix in [
+                    (True, ax1, "Shunting"),
+                    (False, ax2, "No Shunting"),
+                ]:
+                    if use_shunting not in plot_data or not plot_data[use_shunting]:
+                        ax.text(
+                            0.5, 0.5,
+                            f"No data for\\n{title_suffix}",
+                            transform=ax.transAxes,
+                            ha="center", va="center",
+                        )
+                        ax.set_title(f"{group_title}\\n{title_suffix} Networks")
+                        ax.set_ylim(final_y_min, final_y_max)
                         continue
 
-                    # Plot lines for each depth
-                    for depth in depths:
-                        depth_cols = [col for col in ablation_cols_filtered if f"depth{depth}" in col]
-                        if not depth_cols:
-                            continue
-                            
-                        depth_col = depth_cols[0]  # Take first match
-                        if depth_col not in category_data.columns:
-                            continue
-
-                        # Sort by E/I ratio for proper line plotting
-                        sorted_data = category_data.sort_values("ei_ratio")
-                        
-                        # Filter out non-numeric or missing values
-                        plot_data = sorted_data[[depth_col, "ei_ratio"]].dropna()
-                        if plot_data.empty:
-                            continue
-                            
-                        try:
-                            # Convert to numeric if needed
-                            y_vals = pd.to_numeric(plot_data[depth_col], errors='coerce').dropna()
-                            x_vals = plot_data.loc[y_vals.index, "ei_ratio"]
-                            
-                            if len(y_vals) > 0:
-                                ax.plot(x_vals, y_vals, 
-                                       marker='o', label=f'Depth {depth}', 
-                                       alpha=0.8, linewidth=2)
-                        except Exception as e:
-                            print(f"Warning: Could not plot depth {depth} for {category}: {e}")
-                            continue
+                    # Plot each metric
+                    for metric, label, color in zip(available_metrics, available_labels, available_colors):
+                        if metric in plot_data[use_shunting]:
+                            grouped = plot_data[use_shunting][metric]
+                            ax.plot(
+                                grouped.index,
+                                grouped.values,
+                                marker="o",
+                                color=color,
+                                label=label,
+                                linewidth=2,
+                                markersize=6,
+                            )
 
                     ax.set_xlabel("E/I Ratio", fontsize=12)
-                    ax.set_ylabel(f"{metric.title()}", fontsize=12)
-                    ax.set_title(f"{category.title()}", fontsize=14)
-                    ax.set_xscale("log")
+                    ax.set_ylabel(ylabel, fontsize=12)
+                    ax.set_title(f"{group_title}\\n{title_suffix} Networks", fontsize=14)
+                    ax.legend(fontsize=10)
                     ax.grid(True, alpha=0.3)
-                    ax.legend()
-                    
-                    # Format x-axis
-                    formatter = ScalarFormatter()
-                    formatter.set_scientific(False)
-                    ax.xaxis.set_major_formatter(formatter)
+                    ax.set_xscale("log")
+                    ax.set_ylim(final_y_min, final_y_max)
 
-                fig.tight_layout()
-                plot_path = os.path.join(ablation_plot_dir, f"{base_name}_{ablation_type}_{metric}_ablation.png")
+                plt.suptitle(f"Branch Information Analysis: {group_title}", fontsize=16)
+                plt.tight_layout()
+                plot_path = os.path.join(info_plot_dir, f"{base_name}_{group_name}_branch_info.png")
                 fig.savefig(plot_path, dpi=300, bbox_inches='tight')
                 plt.close(fig)
                 plot_paths.append(plot_path)
 
             except Exception as e:
-                print(f"Error generating ablation plot for {ablation_type}_{metric}: {e}")
+                print(f"Error generating {group_name} plot: {e}")
 
-        print(f"Created {len(plot_paths)} ablation analysis plots")
+        # Generate layer-specific information plots and heatmaps
+        layer_plot_dir = os.path.join(plots_dir, "layer_information_plots")
+        os.makedirs(layer_plot_dir, exist_ok=True)
+        
+        # Create I(V;C) heatmap by layer (matching old analysis)
+        plot_paths.extend(self._create_ivc_heatmap_by_layer(valid_data, layer_plot_dir, base_name))
+        
+        # Create first vs last layer comparison plots
+        plot_paths.extend(self._create_first_last_layer_plots(valid_data, layer_plot_dir, base_name))
+
+        print(f"Created {len(plot_paths)} information theory plots (global + layer-specific + heatmaps)")
         return plot_paths
     
-    def _generate_information_plots(self, valid_data: pd.DataFrame, plots_dir: str, base_name: str) -> List[str]:
+    def _create_ivc_heatmap_by_layer(self, valid_data: pd.DataFrame, output_dir: str, base_name: str) -> List[str]:
+        """Create I(V;C) heatmap by layer and E/I ratio (matching old analysis)"""
+        plot_paths = []
+        
+        try:
+            # Look for I(V;C) layer data (handle double _mean suffix from aggregation)
+            ivc_cols = [col for col in valid_data.columns if "layer_mi_V_C_depth" in col and col.endswith("_mean_mean")]
+            
+            if not ivc_cols:
+                print("No layer I(V;C) data found for heatmap")
+                return plot_paths
+
+            # Extract layer information
+            layer_data = []
+            for col in ivc_cols:
+                try:
+                    depth = int(col.split("_depth")[1].replace("_mean_mean", "").replace("_mean", ""))
+                    for _, row in valid_data.iterrows():
+                        if not pd.isna(row[col]):
+                            layer_data.append({
+                                "layer": depth,
+                                "ei_ratio": row["ei_ratio"],
+                                "use_shunting": row["network_category"] == "shunting",
+                                "ivc_value": row[col]
+                            })
+                except:
+                    continue
+            
+            if not layer_data:
+                return plot_paths
+                
+            layer_df = pd.DataFrame(layer_data)
+            
+            # Create separate heatmaps for shunting and non-shunting
+            fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 8))
+            
+            # Calculate global min/max for consistent color scaling
+            all_values = layer_df["ivc_value"].values
+            vmin = np.nanmin(all_values) if len(all_values) > 0 else 0
+            vmax = np.nanmax(all_values) if len(all_values) > 0 else 1
+            
+            for use_shunting, ax, title_suffix in [(True, ax1, "Shunting"), (False, ax2, "Non-Shunting")]:
+                shunt_data = layer_df[layer_df["use_shunting"] == use_shunting]
+                
+                if shunt_data.empty:
+                    ax.text(0.5, 0.5, f"No data for\\n{title_suffix}",
+                           transform=ax.transAxes, ha='center', va='center', fontsize=12)
+                    ax.set_title(f"I(V;C) Heatmap - {title_suffix}")
+                    continue
+                
+                try:
+                    # Create pivot table for heatmap
+                    pivot = shunt_data.pivot_table(
+                        values="ivc_value",
+                        index="layer",
+                        columns="ei_ratio",
+                        aggfunc="mean"
+                    )
+                    
+                    if not pivot.empty:
+                        # Create heatmap with consistent color scale
+                        sns.heatmap(
+                            pivot,
+                            cmap="viridis",
+                            annot=True,
+                            fmt=".3f",
+                            cbar_kws={"label": "I(V;C) (bits)"},
+                            ax=ax,
+                            vmin=vmin,
+                            vmax=vmax
+                        )
+                        
+                        ax.set_xlabel("E/I Ratio", fontsize=12)
+                        ax.set_ylabel("Layer Index", fontsize=12)
+                        ax.set_title(f"I(V;C) Heatmap - {title_suffix}", fontsize=14)
+                        
+                        # Improve x-axis labels
+                        x_labels = [f"{float(x):.1f}" for x in pivot.columns]
+                        ax.set_xticklabels(x_labels, rotation=45)
+                    
+                except Exception as e:
+                    print(f"Error creating I(V;C) heatmap for {title_suffix}: {e}")
+                    ax.text(0.5, 0.5, f"Error creating\\n{title_suffix} heatmap",
+                           transform=ax.transAxes, ha='center', va='center', fontsize=12)
+                    ax.set_title(f"I(V;C) Heatmap - {title_suffix}")
+            
+            plt.suptitle("I(V;C) Information by Layer and E/I Ratio", fontsize=16)
+            plt.tight_layout()
+            plot_path = os.path.join(output_dir, f"{base_name}_ivc_heatmap_by_layer.png")
+            plt.savefig(plot_path, dpi=300, bbox_inches='tight')
+            plt.close()
+            plot_paths.append(plot_path)
+            
+            print("Created I(V;C) heatmap by layer")
+            
+        except Exception as e:
+            print(f"Error creating I(V;C) heatmap: {e}")
+        
+        return plot_paths
+    
+    def _create_first_last_layer_plots(self, valid_data: pd.DataFrame, output_dir: str, base_name: str) -> List[str]:
+        """Create first vs last layer comparison plots (matching old analysis)"""
+        plot_paths = []
+        
+        try:
+            # Find all layer-specific MI columns (handle double _mean suffix from aggregation)
+            layer_cols = [col for col in valid_data.columns if "layer_mi_" in col and "_depth" in col and col.endswith("_mean_mean")]
+            
+            if not layer_cols:
+                print("No layer-specific MI data found for first/last layer analysis")
+                return plot_paths
+
+            # Extract available depths
+            depths = set()
+            for col in layer_cols:
+                try:
+                    depth = int(col.split("_depth")[1].replace("_mean_mean", "").replace("_mean", ""))
+                    depths.add(depth)
+                except:
+                    continue
+            
+            depths = sorted(list(depths))
+            if len(depths) < 2:
+                print(f"Not enough layers ({len(depths)}) for first/last comparison")
+                return plot_paths
+                
+            first_layer = depths[0]
+            last_layer = depths[-1]
+            
+            print(f"Creating first ({first_layer}) vs last ({last_layer}) layer comparison plots")
+            
+            # Define metric groups for first/last layer analysis
+            metric_groups = {
+                "class_information": {
+                    "metrics": ["E_C", "I_C", "V_C"],
+                    "labels": ["I(E;C)", "I(I;C)", "I(V;C)"],
+                    "colors": [self.info_colors["excitatory"], self.info_colors["inhibitory"], self.info_colors["combined"]],
+                    "title": "Information with Class Labels",
+                    "ylabel": "Mutual Information (bits)"
+                },
+                "component_information": {
+                    "metrics": ["E_I", "E_V", "I_V"],
+                    "labels": ["I(E;I)", "I(E;V)", "I(I;V)"],
+                    "colors": [self.info_colors["conditional"], self.info_colors["cross"], "purple"],
+                    "title": "Component Information",
+                    "ylabel": "Mutual Information (bits)"
+                },
+                "conditional_information": {
+                    "metrics": ["E_I_given_C", "E_V_given_C", "I_V_given_C"],
+                    "labels": ["I(E;I|C)", "I(E;V|C)", "I(I;V|C)"],
+                    "colors": ["darkgreen", "forestgreen", "olive"],
+                    "title": "Conditional Information",
+                    "ylabel": "Mutual Information (bits)"
+                }
+            }
+            
+            # Create plots for each metric group
+            for group_name, group_info in metric_groups.items():
+                metrics = group_info["metrics"]
+                labels = group_info["labels"]
+                metric_colors = group_info["colors"]
+                group_title = group_info["title"]
+                ylabel = group_info["ylabel"]
+                
+                # Check which metrics are available
+                available_metrics = []
+                available_labels = []
+                available_colors = []
+                
+                for metric, label, color in zip(metrics, labels, metric_colors):
+                    first_col = f"layer_mi_{metric}_depth{first_layer}_mean_mean"
+                    last_col = f"layer_mi_{metric}_depth{last_layer}_mean_mean"
+                    
+                    if first_col in valid_data.columns and last_col in valid_data.columns:
+                        available_metrics.append(metric)
+                        available_labels.append(label)
+                        available_colors.append(color)
+                
+                if not available_metrics:
+                    print(f"No {group_name} metrics found for first/last layer comparison")
+                    continue
+                
+                # Create the comparison plot: first layer vs last layer
+                fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
+                
+                for layer_idx, ax, title_suffix in [(first_layer, ax1, f"First Layer (Layer {first_layer})"),
+                                                     (last_layer, ax2, f"Last Layer (Layer {last_layer})")]:
+                    
+                    # Track y-axis range for this subplot
+                    y_values = []
+                    
+                    # Plot each metric for both shunting conditions
+                    for metric, label, color in zip(available_metrics, available_labels, available_colors):
+                        layer_col = f"layer_mi_{metric}_depth{layer_idx}_mean_mean"
+                        
+                        for use_shunting in [True, False]:
+                            category = "shunting" if use_shunting else "no_shunting"
+                            shunt_data = valid_data[valid_data["network_category"] == category]
+                            
+                            if shunt_data.empty:
+                                continue
+                            
+                            # Group by E/I ratio and calculate mean
+                            grouped = shunt_data.groupby("ei_ratio")[layer_col].mean()
+                            
+                            if grouped.empty:
+                                continue
+                            
+                            # Create line style based on shunting
+                            linestyle = '-' if use_shunting else '--'
+                            alpha = 0.8
+                            linewidth = 2 if use_shunting else 1.5
+                            
+                            # Create label that includes both metric and shunting info
+                            plot_label = f"{label} ({'Shunt' if use_shunting else 'No Shunt'})"
+                            
+                            ax.plot(
+                                grouped.index,
+                                grouped.values,
+                                color=color,
+                                linestyle=linestyle,
+                                label=plot_label,
+                                linewidth=linewidth,
+                                marker='o' if use_shunting else 's',
+                                markersize=6,
+                                alpha=alpha
+                            )
+                            
+                            y_values.extend(grouped.values)
+                    
+                    ax.set_xlabel("E/I Ratio", fontsize=12)
+                    ax.set_ylabel(ylabel, fontsize=12)
+                    ax.set_title(title_suffix, fontsize=14)
+                    ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left', fontsize=9)
+                    ax.grid(True, alpha=0.3)
+                    ax.set_xscale("log")
+                    
+                    # Set y-axis range
+                    if y_values:
+                        y_min, y_max = min(y_values), max(y_values)
+                        y_margin = (y_max - y_min) * 0.1
+                        ax.set_ylim(y_min - y_margin, y_max + y_margin)
+                
+                plt.suptitle(f"{group_title} - First vs Last Layer Comparison", fontsize=16)
+                plt.tight_layout()
+                plot_path = os.path.join(output_dir, f"{base_name}_{group_name}_first_last_layer.png")
+                plt.savefig(plot_path, dpi=300, bbox_inches='tight')
+                plt.close()
+                plot_paths.append(plot_path)
+                
+                print(f"Created {group_name} first/last layer comparison plot")
+            
+        except Exception as e:
+            print(f"Error creating first/last layer plots: {e}")
+        
+        return plot_paths
+    
+    def _generate_information_plots_OLD(self, valid_data: pd.DataFrame, plots_dir: str, base_name: str) -> List[str]:
         """Generate information theory analysis plots"""
         plot_paths = []
         
@@ -1598,7 +2204,7 @@ class UnifiedResultAnalyzer:
                 print(f"Analysis complete for {results_dir}")
                 
             except Exception as e:
-                print(f"❌ Error analyzing {results_dir}: {e}")
+                print(f"Error analyzing {results_dir}: {e}")
                 continue
         
         return analysis_results
@@ -1715,7 +2321,7 @@ def main():
         if args.results_dir:
             # Single directory analysis
             if not args.sweep_type and not args.auto_detect:
-                print("❌ Error: Must specify --sweep-type or --auto-detect for single directory")
+                print("Error: Must specify --sweep-type or --auto-detect for single directory")
                 sys.exit(1)
             
             sweep_type = args.sweep_type if not args.auto_detect else None
@@ -1726,14 +2332,14 @@ def main():
         else:
             # Multiple directories analysis
             if not args.sweep_type and not args.auto_detect:
-                print("❌ Error: Must specify --sweep-type or --auto-detect for multiple directories")
+                print("Error: Must specify --sweep-type or --auto-detect for multiple directories")
                 sys.exit(1)
             
             # Expand glob patterns
             results_dirs = expand_glob_patterns(args.results_dirs)
             
             if not results_dirs:
-                print("❌ Error: No matching directories found")
+                print("Error: No matching directories found")
                 sys.exit(1)
             
             print(f"Found {len(results_dirs)} directories to analyze:")
@@ -1754,7 +2360,7 @@ def main():
             print(f"{analysis['sweep_type']} sweep: {len(analysis['plot_paths'])} plots generated")
     
     except Exception as e:
-        print(f"❌ Error: {e}")
+        print(f" Error: {e}")
         sys.exit(1)
 
 

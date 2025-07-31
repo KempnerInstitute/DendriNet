@@ -318,7 +318,7 @@ def main():
         if args.analyze:
             # Analysis mode
             if not args.results_dir:
-                print("❌ Error: --results-dir required for analysis mode")
+                print("Error: --results-dir required for analysis mode")
                 sys.exit(1)
             
             manager.analyze_results(args.results_dir, args.output_dir)
@@ -326,7 +326,7 @@ def main():
         else:
             # Generation mode
             if not args.config:
-                print("❌ Error: --config required for generation mode")
+                print("Error: --config required for generation mode")
                 sys.exit(1)
             
             if args.run and not args.generate_only:
@@ -350,7 +350,7 @@ def main():
                     print("   OR use --run flag to auto-submit")
     
     except Exception as e:
-        print(f"❌ Error: {e}")
+        print(f"Error: {e}")
         sys.exit(1)
 
 
