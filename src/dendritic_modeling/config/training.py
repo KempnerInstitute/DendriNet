@@ -1,7 +1,53 @@
 from dataclasses import dataclass, field
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 
 from dendritic_modeling.config.base import BaseConfig
+
+
+@dataclass
+class OptimizerConfig(BaseConfig):
+    """Configuration for optimizer selection and parameters."""
+    name: str = "adam"  # Options: "adam", "sgd", "rmsprop", "adamw"
+    lr: float = 0.001
+    weight_decay: float = 0.0  # Built-in L2 regularization (global)
+    momentum: float = 0.9  # For SGD
+    betas: tuple = (0.9, 0.999)  # For Adam/AdamW
+    eps: float = 1e-8  # For Adam/AdamW
+
+
+@dataclass
+class SelectiveConfig(BaseConfig):
+    """Configuration for selective application of regularization/pruning."""
+    layers: List[int] = field(default_factory=list)  # List of layer indices (empty = all)
+    branches: List[str] = field(default_factory=list)  # List of branch names (empty = all)
+    weight_types: List[str] = field(default_factory=lambda: ["all"])  # Types of weights
+
+
+@dataclass
+class RegularizationConfig(BaseConfig):
+    """Configuration for L1/L2 regularization."""
+    l1_weight: float = 0.0  # Strength of L1 regularization (0 to disable)
+    l2_weight: float = 0.0  # Strength of L2 regularization (0 to disable)
+    selective: SelectiveConfig = field(default_factory=SelectiveConfig)
+
+
+@dataclass
+class PruningConfig(BaseConfig):
+    """Configuration for weight pruning."""
+    enabled: bool = False
+    threshold: float = 0.001  # Prune weights with abs(value) < threshold
+    selective: SelectiveConfig = field(default_factory=SelectiveConfig)
+    re_evaluate_after: bool = True  # Whether to re-evaluate after pruning
+    dynamic_pruning: bool = False  # Whether to prune during training
+    pruning_frequency: int = 10  # Epochs between dynamic pruning
+
+
+@dataclass
+class ReportingConfig(BaseConfig):
+    """Configuration for reporting metrics."""
+    report_non_pruned: bool = True  # Report number of non-pruned synapses
+    save_pruning_stats: bool = True  # Save pruning statistics to file
+    detailed_branch_report: bool = True  # Detailed per-branch reporting
 
 
 @dataclass
@@ -50,7 +96,11 @@ class EncoderTrainConfig(BaseConfig):
 @dataclass
 class MainTrainConfig(BaseConfig):
     learning_strategy: str = "standard"
-    weight_decay_rate: float = 0.01
+    weight_decay_rate: float = 0.01  # Deprecated, use optimizer.weight_decay instead
+    optimizer: OptimizerConfig = field(default_factory=OptimizerConfig)
+    regularization: RegularizationConfig = field(default_factory=RegularizationConfig)
+    pruning: PruningConfig = field(default_factory=PruningConfig)
+    reporting: ReportingConfig = field(default_factory=ReportingConfig)
     param_groups: ParamGroupsConfig = field(default_factory=ParamGroupsConfig)
     trainer: TrainerConfig = field(default_factory=TrainerConfig)
 
