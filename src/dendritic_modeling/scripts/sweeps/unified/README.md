@@ -1,305 +1,247 @@
-# Unified Sweep Framework for Dendritic Modeling
+# Unified Sweep Framework
 
-This framework provides comprehensive parameter sweep functionality for the dendritic modeling project.
+Single YAML interface for all parameter sweeps in dendritic modeling experiments.
 
-##  Key Features
-
-- **Single Interface**: One command-line tool for all sweep types
-- **Consistent Configuration**: Standardized YAML format across all sweeps
-- **Parallel Execution**: SLURM array jobs for efficient resource utilization
-- **Unified Analysis**: Common analysis pipeline with type-specific visualizations
-- **Error Handling**: Comprehensive validation and recovery
-
-##  Framework Structure
-
-```
-src/dendritic_modeling/scripts/sweeps/unified/
-├── sweep_manager.py          # Main entry point for all operations
-├── result_analyzer.py        # Unified result analysis
-├── base_sweep.py            # Base classes and common utilities
-├── sweep_types/             # Type-specific implementations
-│   ├── ei_sweep.py          # EI parameter sweeps
-│   ├── branch_sweep.py      # Branch architecture sweeps
-│   ├── noise_sweep.py       # Noise robustness sweeps
-│   └── general_sweep.py     # General parameter sweeps
-└── README.md               # This documentation
-```
-
-##  Quick Start
-
-### 1. Basic Usage
+## Quick Start
 
 ```bash
-# Generate and run an EI sweep
-python scripts/sweeps/unified/sweep_manager.py ei \
-    --config configs/examples/unified_ei_sweep_example.yaml \
-    --run
+# Run a sweep
+python -m src.dendritic_modeling.scripts.sweeps.unified.sweep_manager \
+    --config configs/unified_all_sweeps_example.yaml --run
 
-# Generate configs only (no job submission)
-python scripts/sweeps/unified/sweep_manager.py branch \
-    --config configs/branch_sweep.yaml \
-    --generate-only
+# Generate configs only
+python -m src.dendritic_modeling.scripts.sweeps.unified.sweep_manager \
+    --config configs/unified_all_sweeps_example.yaml --generate-only
 
-# Analyze existing results
-python scripts/sweeps/unified/result_analyzer.py \
-    --results-dir output/ei_20240101120000 \
-    --auto-detect
+# Analyze results
+python -m src.dendritic_modeling.scripts.sweeps.unified.result_analyzer \
+    --results-dir output/unified_20240101120000 --auto-detect
 ```
 
-### 2. SLURM Array Jobs
+## Sweep Options
 
-The framework automatically uses SLURM array jobs for parallel execution:
-
-```bash
-# Generate sweep with 60 configurations
-python scripts/sweeps/unified/sweep_manager.py ei \
-    --config configs/unified_ei_sweep_example.yaml \
-    --run
-
-# Results in SLURM array job: --array=0-59%15
-# - 60 total configurations (array indices 0-59)
-# - Maximum 15 jobs running concurrently (limited by max_concurrent_jobs)
-# - Each configuration runs on its own GPU/node in parallel
-```
-
-**Features**:
-- **Parallel Execution**: Configurations run simultaneously across multiple nodes
-- **Resource Management**: Jobs queue automatically as resources become available
-- **Fault Tolerance**: Individual array tasks can fail without affecting others
-- **Easy Monitoring**: Single job ID covers all configurations
-
-**Configuration**:
-- `max_concurrent_jobs`: Controls how many configurations run simultaneously
-- Array jobs create individual output directories: `jobs/{ARRAY_JOB_ID}_{ARRAY_TASK_ID}/`
-- Each task processes exactly one configuration file
-
-### 3. Advanced Options
-
-```bash
-# Split sweep into multiple jobs
-python scripts/sweeps/unified/sweep_manager.py general \
-    --config configs/general_sweep.yaml \
-    --split-jobs 10 \
-    --run
-
-# Dry run (show what would be submitted)
-python scripts/sweeps/unified/sweep_manager.py ei \
-    --config configs/ei_sweep.yaml \
-    --run --dry-run
-
-# Analyze multiple sweep results
-python scripts/sweeps/unified/result_analyzer.py \
-    --results-dirs output/ei_* output/branch_* \
-    --auto-detect \
-    --comparison-report comparison.txt
-```
-
-##  Configuration Format
-
-All sweep types use a standardized configuration format:
+### 1. Parameter Sweeps (`sweep_config`)
+Sweep any configuration parameter:
 
 ```yaml
-# Output and SLURM configuration
+sweep_config:
+  # EI Parameters
+  model.core_network.parameters.ee_synapses_per_branch_per_layer: [[1],[2],[3]]
+  model.core_network.parameters.ie_synapses_per_branch_per_layer: [[1],[2],[3]]  
+  model.core_network.parameters.use_shunting: [true, false]
+  
+  # Training Parameters
+  train.main.param_groups.lr: [0.001, 0.01, 0.1]
+  train.main.trainer.batch_size: [32, 64, 128]
+  
+  # Model Architecture
+  model.core_network.parameters.layer_sizes: [[32,10], [64,32,10], [128,64,32,10]]
+  model.encoder_network.parameters.hidden_sizes: [[32], [64], [128]]
+  
+  # Use ranges: [start, end, step]
+  some_parameter: [0.1, 1.0, 0.1]  # Creates [0.1, 0.2, ..., 1.0]
+```
+
+### 2. EI Filtering (`filter_config.mode`)
+Constrain excitatory/inhibitory combinations:
+
+```yaml
+filter_config:
+  mode: "ei-sum"      # E + I = value
+  mode: "e-const"     # E = value (fixed excitatory)
+  mode: "i-const"     # I = value (fixed inhibitory)  
+  mode: "ei-ratio"    # E/I = value (fixed ratio)
+  value: 10           # Target value
+  tolerance: 0        # Exact match (default: 1)
+```
+
+### 3. Branch Architecture Sweeps (`filter_config.branch_sweep_mode`)
+Systematic dendritic architecture exploration:
+
+#### `uniform_sweep` (Default)
+Vary both depth and branch count:
+```yaml
+filter_config:
+  branch_sweep_mode: "uniform_sweep"
+  dendrite_tree_depth: [1, 4, 1]            # Depths: 1,2,3,4
+  dendrite_branches_per_layer: [2, 6, 2]    # Branches: 2,4,6
+  # Result: 4×3 = 12 combinations
+```
+
+#### `depth_sweep`
+Vary depth, fixed branch count:
+```yaml
+filter_config:
+  branch_sweep_mode: "depth_sweep"
+  dendrite_tree_depth: [1, 5, 1]            # Depths: 1,2,3,4,5
+  uniform_branches_per_layer: 4             # Fixed 4 branches per layer
+  # Result: [4], [4,4], [4,4,4], [4,4,4,4], [4,4,4,4,4]
+```
+
+#### `width_sweep`
+Fixed depth, vary branch count:
+```yaml
+filter_config:
+  branch_sweep_mode: "width_sweep"
+  fixed_dendrite_tree_depth: 3              # Fixed depth=3
+  dendrite_branches_per_layer: [1, 8, 1]    # Branches: 1,2,3,4,5,6,7,8
+  # Result: [1,1,1], [2,2,2], [3,3,3], ..., [8,8,8]
+```
+
+#### `pattern_sweep`
+Specific architectural patterns:
+```yaml
+filter_config:
+  branch_sweep_mode: "pattern_sweep"
+  dendrite_tree_depth: [2, 4, 1]            # Depths: 2,3,4
+  base_branches: 4                          # Base branch count
+  branch_patterns: ["uniform", "decreasing", "increasing", "pyramid"]
+  # Result: 3 depths × 4 patterns = 12 configurations
+```
+
+**Available patterns:**
+- `uniform`: [4,4,4,4] - Same branches per layer
+- `decreasing`: [4,3,2,1] - Decreasing with depth  
+- `increasing`: [1,2,3,4] - Increasing with depth
+- `pyramid`: [1,2,2,1] - Pyramid shape
+
+#### `custom_configs`
+User-defined configurations:
+```yaml
+filter_config:
+  branch_sweep_mode: "custom_configs"
+  custom_branch_configs:
+    - {depth: 2, branches: [2, 4]}
+    - {depth: 3, branches: [1, 2, 1]}
+    - {depth: 4, branches: [2, 4, 4, 2]}
+```
+
+### 4. Combined Sweeps
+Mix EI filtering with branch sweeps:
+
+```yaml
+sweep_config:
+  model.core_network.parameters.ee_synapses_per_branch_per_layer: [[1],[2],[3]]
+  model.core_network.parameters.ie_synapses_per_branch_per_layer: [[1],[2],[3]]
+  train.main.param_groups.lr: [0.001, 0.01]
+
+filter_config:
+  # EI Filtering: Only E+I=4 combinations
+  mode: "ei-sum"
+  value: 4
+  tolerance: 0
+  
+  # Branch Patterns: 2 depths × 2 patterns
+  branch_sweep_mode: "pattern_sweep"
+  dendrite_tree_depth: [2, 3, 1]
+  base_branches: 3
+  branch_patterns: ["uniform", "decreasing"]
+  
+# Result: 3 EI combos × 2 LR × 2 depths × 2 patterns = 24 configurations
+```
+
+## Configuration Structure
+
+```yaml
+# Basic setup
 output_dir: "output"
 slurm_config:
+  max_concurrent_jobs: 15
   job_name: "my_sweep"
-  account: "kempner_dev"
-  partition: "kempner"
   time: "02:00:00"
-  nodes: 1
-  ntasks_per_node: 1
   gpus_per_node: 1
-  cpus_per_task: 8
-  mem: "32GB"
-  max_concurrent_jobs: 15          # Maximum number of array jobs to run simultaneously
-  modules_to_load:
-    - "python/3.12.5-fasrc01"
-    - "cuda/12.4.1-fasrc01"
-  conda_env_path: "/path/to/your/conda_env"
-  training_script: "src/dendritic_modeling/scripts/training/train_experiments.py"
 
 # Experiment settings
 experiment_settings:
   seeds_per_condition: 3
   base_seed: 42
 
-# Parameters to sweep (type-specific)
+# Parameter sweeps (required)
 sweep_config:
-  parameter.path.1: [value1, value2, value3]
-  parameter.path.2: [valueA, valueB]
+  model.core_network.parameters.ee_synapses_per_branch_per_layer: [[1],[2],[3]]
+  # ... any other parameters
 
-# Base training configuration
+# Filtering (optional)
+filter_config:
+  mode: "ei-sum"
+  value: 4
+  branch_sweep_mode: "pattern_sweep"
+  # ... filtering options
+
+# Base configuration (required)
 base_config:
-  task:
-    dataset: "multixor"
   model:
-    network:
+    core_network:
       type: "EINet"
+  task:
+    dataset: "cifar10"
   train:
-    optimizer: "adam"
-    # ... other training settings
+    main:
+      param_groups:
+        lr: 0.001
 ```
 
-## Sweep Types
+## Examples
 
-### 1. EI (Excitation-Inhibition) Sweeps
+**EI Sweep Only:**
+```yaml
+sweep_config:
+  model.core_network.parameters.ee_synapses_per_branch_per_layer: [[1],[2],[3]]
+  model.core_network.parameters.ie_synapses_per_branch_per_layer: [[1],[2],[3]]
+filter_config:
+  mode: "ei-sum"
+  value: 4
+# Result: 3 combinations where E+I=4
+```
 
-**Purpose**: Explore E/I parameter spaces in dendritic networks.
-
-**Key Parameters**:
-- `model.network.parameters.ee_synapses_per_branch_per_layer`
-- `model.network.parameters.ie_synapses_per_branch_per_layer`
-- `model.network.parameters.use_shunting`
-
-**Filtering Options**:
+**Branch Sweep Only:**
 ```yaml
 filter_config:
-  mode: "ei-ratio"  # "all", "ei-sum", "e-const", "i-const", "ei-ratio"
-  value: 2.0
-  tolerance: 0.1
+  branch_sweep_mode: "pattern_sweep"
+  dendrite_tree_depth: [2, 3, 1]
+  base_branches: 4
+  branch_patterns: ["uniform", "decreasing"]
+# Result: 2 depths × 2 patterns = 4 configurations
 ```
 
-**Analysis Features**:
-- Performance heatmaps vs E/I parameters
-- Network type comparison (EINet vs MLP)
-- E/I ratio analysis
-- Line plots for parameter exploration
-
-### 2. Branch Sweeps
-
-**Purpose**: Analyze branch architecture effects.
-
-**Key Parameters**:
-- `model.network.parameters.num_branches_per_layer`
-- `model.network.parameters.num_layers`
-- `model.network.parameters.excitatory_branch_factors`
-
-**Analysis Features**:
-- Branch count vs performance
-- Architectural complexity analysis
-- Shunting vs non-shunting comparison
-
-### 3. Noise Sweeps
-
-**Purpose**: Test robustness to different noise types.
-
-**Key Parameters**:
-- `noise.type`: ["gaussian", "uniform", "poisson", "frequency"]
-- `noise.level`: [0.0, 0.1, 0.2, 0.3]
-- `noise.application_mode`
-
-**Analysis Features**:
-- Robustness curves
-- Performance degradation analysis
-- Noise type comparison
-- Area Under Robustness Curve (AURC) metrics
-
-### 4. General Sweeps
-
-**Purpose**: Sweep arbitrary parameters.
-
-**Configuration**: Any parameter path with list of values.
-
-**Analysis Features**:
-- Parameter effect plots
-- Correlation analysis
-- Parameter heatmaps
-- Performance distributions
-
-## Analysis Pipeline
-
-The unified analysis pipeline provides:
-
-1. **Automatic Result Collection**: Finds and aggregates results across configurations
-2. **Type-Specific Visualizations**: Generates plots tailored to each sweep type
-3. **Summary Reports**: Creates comprehensive analysis summaries
-4. **Best Configuration Identification**: Automatically finds top-performing setups
-5. **Missing Data Detection**: Reports failed or incomplete experiments
-
-## Development
-
-### Creating Custom Sweep Types
-
-1. Create sweep implementation in `sweep_types/`:
-```python
-from base_sweep import BaseSweepGenerator, BaseSweepAnalyzer
-
-class MySweepGenerator(BaseSweepGenerator):
-    def __init__(self):
-        super().__init__("my_sweep")
-    
-    def validate_config(self, config):
-        # Validation logic
-        pass
-    
-    def generate_configs(self, base_config):
-        # Config generation logic
-        pass
-
-class MySweepAnalyzer(BaseSweepAnalyzer):
-    # Analysis implementation
-    pass
+**Mixed Parameters:**
+```yaml
+sweep_config:
+  model.core_network.parameters.ee_synapses_per_branch_per_layer: [[2],[3]]
+  model.core_network.parameters.ie_synapses_per_branch_per_layer: [[1],[2]]
+  train.main.param_groups.lr: [0.001, 0.01]
+  train.main.trainer.batch_size: [32, 64]
+# Result: 2×2×2×2 = 16 combinations
 ```
 
-2. Register in `sweep_manager.py`:
-```python
-elif self.sweep_type == "my_sweep":
-    from sweep_types.my_sweep import MySweepGenerator
-    return MySweepGenerator()
+## SLURM Integration
+
+Automatic SLURM array job submission:
+```bash
+# 24 configurations → sbatch --array=0-23%15
+# - 24 tasks total (indices 0-23)
+# - Maximum 15 running concurrently
+# - Each task gets dedicated GPU/resources
 ```
 
-### Testing
+## Analysis
 
 ```bash
-# Test configuration validation
-python scripts/sweeps/unified/sweep_manager.py my_sweep \
-    --config configs/my_sweep.yaml --generate-only
+# Auto-analyze sweep results
+python -m src.dendritic_modeling.scripts.sweeps.unified.result_analyzer \
+    --results-dir output/unified_20240101120000 --auto-detect
 
-# Test with dry run
-python scripts/sweeps/unified/sweep_manager.py my_sweep \
-    --config configs/my_sweep.yaml --run --dry-run
+# Compare multiple sweeps
+python -m src.dendritic_modeling.scripts.sweeps.unified.result_analyzer \
+    --results-dirs output/sweep1 output/sweep2 \
+    --comparison-report comparison.txt
 ```
 
-## Troubleshooting
-
-### Common Issues
-
-1. **Import Errors**: Check Python path and dependencies
-2. **Configuration Validation Failures**: Verify required sections exist
-3. **SLURM Job Failures**: Check account, partition, and resource limits
-4. **Missing Results**: Use `--auto-detect` for analysis
-5. **Path Issues**: Use absolute paths for configs when in doubt
-
-### Debug Mode
-
-Add verbose logging:
-```bash
-export PYTHONPATH="src:$PYTHONPATH"
-python -v scripts/sweeps/unified/sweep_manager.py ...
-```
-
-### Getting Help
+## Help
 
 ```bash
-# General help
-python scripts/sweeps/unified/sweep_manager.py --help
-
-# Sweep-specific help
-python scripts/sweeps/unified/sweep_manager.py ei --help
-
-# Analysis help
-python scripts/sweeps/unified/result_analyzer.py --help
+python -m src.dendritic_modeling.scripts.sweeps.unified.sweep_manager --help
+python -m src.dendritic_modeling.scripts.sweeps.unified.result_analyzer --help
 ```
 
-##  Examples
-
-See `configs/examples/` for complete configuration examples:
-
-- `unified_ei_sweep_example.yaml`: EI parameter sweep
-- `unified_branch_sweep_example.yaml`: Branch architecture sweep
-- `unified_noise_sweep_example.yaml`: Noise robustness sweep
-- `unified_general_sweep_example.yaml`: General parameter sweep
-
----
-
-*For questions or issues, please refer to the project documentation or create an issue in the repository.* 
+See `configs/unified_all_sweeps_example.yaml` for complete configuration examples.

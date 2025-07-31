@@ -40,12 +40,12 @@ from omegaconf import OmegaConf
 # Use absolute imports to avoid relative import issues
 try:
     from dendritic_modeling.scripts.sweeps.unified.base_sweep import BaseSweepGenerator, BaseSweepAnalyzer, SweepJobManager
-    from dendritic_modeling.scripts.sweeps.unified.sweep_types.unified_sweep import UnifiedSweepGenerator, UnifiedSweepAnalyzer
+    from dendritic_modeling.scripts.sweeps.unified.sweep_types.unified_sweep import UnifiedSweepGenerator
 except ImportError:
     # Fallback for when run as script
     sys.path.insert(0, str(Path(__file__).parent))
     from unified.base_sweep import BaseSweepGenerator, BaseSweepAnalyzer, SweepJobManager
-    from unified.sweep_types.unified_sweep import UnifiedSweepGenerator, UnifiedSweepAnalyzer
+    from unified.sweep_types.unified_sweep import UnifiedSweepGenerator
 
 
 class SweepManager:
@@ -59,7 +59,7 @@ class SweepManager:
     def __init__(self):
         # Use unified generator for all sweep types
         self.generator = UnifiedSweepGenerator()
-        self.analyzer = None  # Use result_analyzer.py instead
+        # Note: Analysis is handled by separate result_analyzer.py to avoid circular imports
         self.sweep_type = "unified"  # For backward compatibility in output
     
     def generate_sweep(self, config_path: str, output_dir: Optional[str] = None,
@@ -188,43 +188,24 @@ class SweepManager:
         if not os.path.exists(results_dir):
             raise FileNotFoundError(f"Results directory not found: {results_dir}")
         
-        # Collect results
-        print("Collecting results...")
-        results = self.analyzer.collect_results(results_dir)
-        print(f"Collected results from {len(results.get('configs', []))} configurations")
+        # For unified sweeps, we recommend using the separate result_analyzer.py
+        # to avoid circular dependencies and provide full analysis capabilities
+        print("Note: For comprehensive analysis, use:")
+        print(f"python -m src.dendritic_modeling.scripts.sweeps.unified.result_analyzer --results-dir {results_dir} --auto-detect")
         
-        # Generate plots
         plot_output_dir = output_dir or results_dir
-        print("Generating plots...")
-        plot_paths = self.analyzer.generate_plots(results, plot_output_dir)
-        print(f"Generated {len(plot_paths)} plots")
         
-        # Generate summary report
-        print("Generating summary report...")
-        report_path = self.analyzer.generate_summary_report(results, plot_output_dir)
-        print(f"Summary report saved to: {report_path}")
-        
-        # Find best configurations
-        try:
-            best_configs = self.analyzer.find_best_configs(results)
-            if best_configs:
-                print(f"Top 3 configurations:")
-                for i, config_info in enumerate(best_configs[:3]):
-                    print(f"   {i+1}. Score: {config_info['score']:.4f} "
-                         f"(Config ID: {config_info['config_id']})")
-        except Exception as e:
-            print(f"Could not determine best configurations: {e}")
-        
+        # Basic analysis info
         analysis_info = {
             "sweep_type": self.sweep_type,
             "results_dir": results_dir,
             "output_dir": plot_output_dir,
-            "plot_paths": plot_paths,
-            "report_path": report_path,
-            "results": results
+            "plot_paths": [],
+            "report_path": None,
+            "results": {}
         }
         
-        print("Analysis complete!")
+        print("Basic analysis complete! Use result_analyzer.py for detailed plots and reports.")
         return analysis_info
     
     def run_full_sweep(self, config_path: str, split_jobs: Optional[int] = None,

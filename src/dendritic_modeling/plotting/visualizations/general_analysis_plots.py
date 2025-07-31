@@ -712,17 +712,34 @@ def _plot_turnover_original_format(turnover_results: dict, save_path: str, filen
         return []
 
 
-def plot_performance_metrics(performance_data: dict[str, float], **kwargs):
+def plot_performance_metrics(performance_data: dict, **kwargs):
     """Plot performance metrics as a bar chart."""
     try:
         fig, ax = create_figure(figsize=(10, 6))
         
         if performance_data:
-            metrics = list(performance_data.keys())
-            values = list(performance_data.values())
-            ax.bar(metrics, values)
-            setup_basic_plot(ax, 'Performance Metrics', 'Metric', 'Value')
-            ax.tick_params(axis='x', rotation=45)
+            # Handle nested dictionary structure from PerformanceAnalyzer
+            flattened_metrics = {}
+            for metric_name, metric_data in performance_data.items():
+                if isinstance(metric_data, dict):
+                    # Handle nested structure (metric -> dataset -> value)
+                    for dataset, value in metric_data.items():
+                        if isinstance(value, (int, float)):
+                            flattened_metrics[f"{metric_name}_{dataset}"] = value
+                elif isinstance(metric_data, (int, float)):
+                    # Handle direct values
+                    flattened_metrics[metric_name] = metric_data
+            
+            if flattened_metrics:
+                metrics = list(flattened_metrics.keys())
+                values = list(flattened_metrics.values())
+                ax.bar(metrics, values)
+                setup_basic_plot(ax, 'Performance Metrics', 'Metric', 'Value')
+                ax.tick_params(axis='x', rotation=45)
+            else:
+                ax.text(0.5, 0.5, 'No valid performance data found', 
+                        ha='center', va='center', transform=ax.transAxes)
+                ax.set_title('Performance Metrics')
         else:
             ax.text(0.5, 0.5, 'No performance data available', 
                     ha='center', va='center', transform=ax.transAxes)
