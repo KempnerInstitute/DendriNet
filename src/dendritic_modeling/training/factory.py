@@ -18,6 +18,8 @@ from dendritic_modeling.training.strategies import (
     TwoStepTrainer,
     TwoStepTrainerWithKL,
     VoltageStabilizationTrainer,
+    EnhancedTrainer,
+    create_enhanced_trainer_from_config,
 )
 
 
@@ -55,6 +57,12 @@ def get_trainer(
         return TwoStepTrainerWithKL(**trainer_config_dict)
     elif strategy == "voltage_stablization":
         return VoltageStabilizationTrainer(**trainer_config_dict)
+    elif strategy == "enhanced":
+        # Enhanced trainer requires special handling for config
+        # Remove optimizer from config as it's handled internally
+        enhanced_config = trainer_config_dict.copy()
+        enhanced_config.pop("optimizer", None)
+        return create_enhanced_trainer_from_config(enhanced_config)
     elif strategy == "fsdp" or strategy == "fsdp_standard":
         # Note: FSDP requires additional setup (distributed init, special config)
         # This would need to be called from a distributed context

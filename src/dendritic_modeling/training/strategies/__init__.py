@@ -16,6 +16,10 @@ from dendritic_modeling.training.strategies.two_step import (
     TwoStepTrainer,
     TwoStepTrainerWithKL,
 )
+from dendritic_modeling.training.strategies.enhanced import (
+    EnhancedTrainer,
+    create_enhanced_trainer_from_config,
+)
 
 __all__ = [
     "LayerWiseTrainer",
@@ -25,4 +29,6 @@ __all__ = [
     "TwoStepTrainer",
     "TwoStepTrainerWithKL",
     "VoltageStabilizationTrainer",
+    "EnhancedTrainer",
+    "create_enhanced_trainer_from_config",
 ]

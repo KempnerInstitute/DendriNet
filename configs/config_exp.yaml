@@ -199,8 +199,8 @@ train:
   # ==========================================
   main:
     learning_strategy: standard # Learning strategy
-    weight_decay_rate: 0.01     # L2 regularization
-
+    weight_decay_rate: 0.01     
+    
     # Parameter groups with different learning rates
     param_groups:
       lr: 0.001                 # Default learning rate
