@@ -94,10 +94,10 @@ train:
   
   # Optimized training parameters
   main:
-    learning_strategy: standard  # Options: "standard", "enhanced" (enhanced adds analysis overhead)
+    learning_strategy: standard  # Supports regularization and pruning features
     weight_decay_rate: 0.1
     
-    # Enhanced training features (disabled by default for benchmarking)
+    # Advanced training features (disabled by default for benchmarking)
     optimizer:
       name: "adam"
       lr: 0.001

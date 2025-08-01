@@ -146,9 +146,9 @@ train:
   train_valid_split: 0.8
 
   main:
-    learning_strategy: standard # Options: "standard", "enhanced", "freeze_layers", "local_ca", etc.
-                               # To use enhanced training features, set to "enhanced" and configure options below
-    weight_decay_rate: 0.01     # Deprecated when using enhanced training (use optimizer.weight_decay below)
+    learning_strategy: standard # Supports regularization, pruning, and parameter group features
+                               # Options: "standard", "freeze_layers", "local_ca", etc.
+    weight_decay_rate: 0.01     # Use optimizer.weight_decay for internal optimizer creation
     
     param_groups:
       lr: 0.001
@@ -159,11 +159,11 @@ train:
       decoder_lr: 0.0001
 
     # ==========================================
-    # ENHANCED TRAINING FEATURES
+    # ADVANCED TRAINING FEATURES
     # ==========================================
-    # Configure these when using learning_strategy: "enhanced"
+    # Regularization, pruning, and flexible optimizer configuration
     
-    # Optimizer configuration (replaces param_groups when using enhanced training)
+    # Internal optimizer configuration (alternative to external optimizer creation)
     optimizer:
       name: "adam"                    # Options: "adam", "sgd", "rmsprop", "adamw"
       lr: 0.001                      # Learning rate
@@ -179,7 +179,7 @@ train:
       selective:                     # Selective application
         layers: []                   # List of layer indices (empty = all layers)
         branches: []                 # List of branch names (empty = all branches)
-        weight_types: ["all"]        # Types of weights to regularize: "recurrent", "input", "output", "all"
+        weight_types: ["all"]        # Options: "all", "recurrent", "input", "output", "linear"
 
     # Pruning configuration
     pruning:
@@ -188,7 +188,7 @@ train:
       selective:                     # Selective application
         layers: []                   # List of layer indices (empty = all layers)
         branches: []                 # List of branch names (empty = all branches)
-        weight_types: ["all"]        # Types of weights to prune
+        weight_types: ["all"]        # Options: "all", "excitatory", "inhibitory", "recurrent", "input", "output", "linear"
       re_evaluate_after: true        # Re-evaluate model after pruning
       dynamic_pruning: false         # Whether to prune during training
       pruning_frequency: 10          # Epochs between dynamic pruning (if enabled)

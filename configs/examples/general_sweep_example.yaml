@@ -180,8 +180,8 @@ train:
   
   # Main network training
   main:
-    learning_strategy: standard    # Options: "standard", "enhanced" - change to "enhanced" for new features
-    weight_decay_rate: 0.01        # Will be swept (deprecated when using enhanced training)
+    learning_strategy: standard    # Supports regularization, pruning, and parameter group features
+    weight_decay_rate: 0.01        # Will be swept (use optimizer.weight_decay for internal optimizer)
     
     # Parameter groups with different learning rates
     param_groups:
@@ -192,7 +192,7 @@ train:
       reactivation_lr: 0.0001
       decoder_lr: 0.0001
 
-    # Enhanced training features (configure when using learning_strategy: "enhanced")
+    # Advanced training features (regularization, pruning, flexible optimizers)
     optimizer:
       name: "adam"                 # Can be swept: ["adam", "sgd", "rmsprop", "adamw"]
       lr: 0.001                   # Will be swept
@@ -204,7 +204,7 @@ train:
       l2_weight: 0.0              # Can be swept: [0.0, 0.001, 0.01]
       selective:
         layers: []                # Can sweep different layer combinations
-        weight_types: ["all"]     # Can sweep: ["all", "recurrent", "input"]
+        weight_types: ["all"]     # Options: ["all", "recurrent", "input", "output", "linear"]
     
     pruning:
       enabled: false              # Can be swept: [true, false]

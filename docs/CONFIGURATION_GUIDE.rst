@@ -3,6 +3,14 @@ Configuration Guide
 
 This guide covers all configuration options for the Dendritic Modeling Framework. All configurations use YAML files passed to training scripts.
 
+Training Features
+-----------------
+
+- **Regularization**: L1/L2 regularization with global or parameter group specific weights
+- **Pruning**: Magnitude-based weight pruning with selective application
+- **Optimizers**: Adam, SGD, RMSprop, AdamW with parameter group support
+- **Learning Rates**: Different learning rates for different network components
+
 Model Architecture
 ------------------
 
@@ -201,88 +209,104 @@ Decoder Networks
 Training Configuration
 ----------------------
 
-.. code-block:: yaml
-
-train:
-     # Learning strategy
-     learning_strategy: standard  # Options: standard, two_step, voltage_stabilization,
-                                 # freeze_layers, freeze_branches, local_ca
-     
-     # Basic settings
-     run_name: my_experiment
-     seed: 42
-     train_valid_split: 0.8
-     
-     # Trainer configuration
-    trainer:
-       epochs: 100
-       batch_size: 64
-       optimizer: adam            # Options: adam, sgd
-       learning_rate: 0.001
-       weight_decay: 0.0001
-       scheduler: cosine          # Options: cosine, step, none
-       
-       # Advanced options
-       gradient_clip: 1.0
-       early_stopping_patience: 20
-       save_best_model: true
-
 **Learning Strategies:**
 
-- ``standard``: Standard backpropagation training
-- ``enhanced``: Advanced training with flexible optimization and regularization
+- ``standard``: Standard training with regularization and pruning support  
 - ``two_step``: Train branches then soma connections
 - ``voltage_stabilization``: Stabilize dendritic voltages during training
 - ``freeze_layers``: Layer-wise training from output to input
 - ``freeze_branches``: Branch-wise training
 - ``local_ca``: Local credit assignment
 
-Enhanced Training Features
-^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-When using ``learning_strategy: enhanced``, additional configuration options become available:
+**Configuration Example:**
 
 .. code-block:: yaml
 
    train:
      main:
-       learning_strategy: enhanced
+       learning_strategy: standard
        
-       # Optimizer configuration
-       optimizer:
-         name: adam               # Options: adam, sgd, rmsprop, adamw
-         lr: 0.001
-         weight_decay: 0.01
-         momentum: 0.9           # For SGD
-         betas: [0.9, 0.999]     # For Adam/AdamW
-         eps: 1e-8
+       # Parameter groups for differential learning rates
+       param_groups:
+         lr: 0.001                   # Default learning rate
+         split_params: true          # Enable parameter grouping
+         topk_lr: 0.001             # TopK layer learning rate
+         blocklinear_lr: 0.0001     # BlockLinear layer learning rate
+         reactivation_lr: 0.0001    # Reactivation layer learning rate
+         decoder_lr: 0.0001         # Decoder network learning rate
        
-       # Regularization options
+       # Regularization configuration
        regularization:
-         l1_weight: 0.0          # L1 penalty weight
-         l2_weight: 0.01         # L2 penalty weight
+         l1_weight: 0.001            # Global L1 penalty weight (used when split_params=false)
+         l2_weight: 0.01             # Global L2 penalty weight (used when split_params=false)
          selective:
-           layers: []            # Apply to specific layers (empty = all)
-           branches: []          # Apply to specific branches (empty = all)
-           weight_types: ["all"] # Options: "all", "excitatory", "inhibitory"
+           layers: []                # Apply to specific layers (empty = all)
+           branches: []              # Apply to specific branches (empty = all)
+           weight_types: ["all"]     # Options: "all", "recurrent", "input", "output", "linear"
+         
+         # Parameter group specific regularization
+         split_params: true          # Split parameters into groups for differential regularization
+         param_group_weights:
+           topk:                     # TopK layer parameters
+             l1_weight: 0.002        # Stronger L1 for sparsity
+             l2_weight: 0.005
+           blocklinear:              # BlockLinear parameters
+             l1_weight: 0.0          # No L1 to preserve structure
+             l2_weight: 0.001        # Light L2 only
+           reactivation:             # Reactivation parameters
+             l1_weight: 0.0005       # Light L1
+             l2_weight: 0.0          # No L2
+           decoder:                  # Decoder network parameters
+             l1_weight: 0.001
+             l2_weight: 0.005
        
        # Weight pruning
        pruning:
-         enabled: false          # Enable weight pruning
-         threshold: 0.001        # Magnitude threshold for pruning
-         dynamic_pruning: false  # Prune during training
-         pruning_frequency: 10   # Epochs between pruning (if dynamic)
-         re_evaluate_after: true # Re-evaluate after pruning
+         enabled: false              # Enable weight pruning
+         threshold: 0.001            # Magnitude threshold for pruning
+         dynamic_pruning: false      # Prune during training
+         pruning_frequency: 10       # Epochs between pruning (if dynamic)
+         re_evaluate_after: true     # Re-evaluate after pruning
          selective:
-           layers: []            # Prune specific layers (empty = all)
-           branches: []          # Prune specific branches (empty = all)
-           weight_types: ["all"] # Options: "all", "excitatory", "inhibitory"
+           layers: []                # Prune specific layers (empty = all)
+           branches: []              # Prune specific branches (empty = all)
+           weight_types: ["all"]     # Options: "all", "excitatory", "inhibitory", "recurrent", "input", "output", "linear"
        
        # Reporting options
        reporting:
-         report_non_pruned: true      # Report synapse counts after pruning
-         save_pruning_stats: true     # Save pruning statistics
-         detailed_branch_report: true # Enable detailed branch reporting
+         report_non_pruned: true          # Report synapse counts after pruning
+         save_pruning_stats: true         # Save pruning statistics
+         detailed_branch_report: true     # Enable detailed branch reporting
+
+**Regularization**
+
+``split_params: false`` - Uses global ``l1_weight`` and ``l2_weight`` for all parameters.
+
+``split_params: true`` - Uses ``param_group_weights`` for component-specific regularization:
+
+- ``topk``: TopK layer parameters
+- ``blocklinear``: BlockLinear layer parameters  
+- ``reactivation``: Reactivation layer parameters
+- ``decoder``: Decoder network parameters
+
+If no ``param_group_weights`` specified when ``split_params=true``, no regularization is applied.
+
+**Optimizer Configuration**
+
+.. code-block:: yaml
+
+   train:
+     main:
+       learning_strategy: standard
+       
+       # Internal optimizer creation (respects param_groups above)
+       optimizer:
+         name: adam                  # Options: adam, sgd, rmsprop, adamw
+         lr: 0.001                  # Base learning rate
+         weight_decay: 0.01         # Global L2 regularization
+         momentum: 0.9              # For SGD
+         betas: [0.9, 0.999]        # For Adam/AdamW
+         eps: 1e-8                  # For Adam/AdamW
 
 Task Configuration
 ------------------

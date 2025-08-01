@@ -5,3 +5,4 @@
     Clean codebase structure
     added slurm generation for fsdp and distributed training
     added new sweep workflow
+-- August 2025 --> added regularization and prunning 
