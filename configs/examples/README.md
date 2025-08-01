@@ -16,7 +16,7 @@ python src/dendritic_modeling/scripts/sweeps/sweep_manager.py \
 
 ## Main Configuration
 
-**`unified_all_sweeps_example.yaml`** - Complete example with all options:
+`unified_all_sweeps_example.yaml` - Complete example with all options:
 - EI filtering modes
 - Branch sweep patterns  
 - Mixed sweep combinations
@@ -57,7 +57,7 @@ base_config:
 
 ## Usage Patterns
 
-**Test first:**
+Test first:
 ```bash
 # Generate configs only
 python sweep_manager.py --config my_sweep.yaml --generate-only
@@ -66,12 +66,12 @@ python sweep_manager.py --config my_sweep.yaml --generate-only
 python sweep_manager.py --config my_sweep.yaml --run --dry-run
 ```
 
-**Scale appropriately:**
+Scale appropriately:
 - Small exploratory: 10-50 configs, `max_concurrent_jobs: 5-10`
 - Production runs: 100-500 configs, `max_concurrent_jobs: 15-25`
 - Use 3+ seeds for statistics
 
-**Dataset management:**
+Dataset management:
 ```yaml
 outputs:
   dataset_dir: "/shared/datasets/"  # Shared location prevents duplicates

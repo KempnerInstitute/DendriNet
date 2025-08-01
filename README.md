@@ -12,7 +12,7 @@
 </p>
 
 <p align="center">
-  <img src="dendritic_diagram.png" alt="Dendritic Neural Network Architecture" width="600">
+  <img src="docs/_static/dendritic_diagram.png" alt="Dendritic Neural Network Architecture" width="600">
 </p>
 
 A comprehensive framework for modeling dendritic neural networks with biologically-inspired excitation-inhibition dynamics, sophisticated synaptic processing, and advanced training capabilities including pruning, regularization, and synaptic turnover analysis.
@@ -52,12 +52,12 @@ Use advanced training with pruning, regularization, and synaptic analysis:
 python src/dendritic_modeling/scripts/training/train_experiments.py configs/config_exp.yaml
 ```
 
-**Enhanced features include:**
-- ✅ **Multiple optimizers** (Adam, SGD, RMSprop, AdamW)
-- ✅ **L1/L2 regularization** with selective application
-- ✅ **Weight pruning** with magnitude thresholds
-- ✅ **Synaptic turnover analysis** with active synapse tracking
-- ✅ **Advanced reporting** with branch-level statistics
+Enhanced features include:
+- Multiple optimizers (Adam, SGD, RMSprop, AdamW)
+- L1/L2 regularization with selective application
+- Weight pruning with magnitude thresholds
+- Synaptic turnover analysis with active synapse tracking
+- Advanced reporting with branch-level statistics
 
 See [ENHANCED_TRAINING_GUIDE.md](ENHANCED_TRAINING_GUIDE.md) for detailed usage.
 
@@ -75,7 +75,7 @@ python src/dendritic_modeling/scripts/sweeps/result_analyzer.py \
     --results-dir results/unified_20250101120000 --auto-detect
 ```
 
-**Generates comprehensive analysis:**
+Generates comprehensive analysis:
 - Performance trends vs E/I ratios
 - Dendritic architecture comparisons  
 - Noise robustness analysis
@@ -89,11 +89,11 @@ For detailed usage, configuration options, and advanced features, see the [full 
 
 ## Core Components
 
-- **Models**: Classifier and Regressor with encoder-core-decoder architecture
-- **Networks**: EINet (excitation-inhibition), DendriNet (dendritic branching), and classical networks  
-- **Training**: Standard & enhanced training, FSDP for large models, pruning, regularization
-- **Analysis**: Information theory, synaptic turnover, correlation studies, and 65+ visualization plots
-- **Sweeps**: Automated parameter exploration with intelligent result analysis
+- Models: Classifier and Regressor with encoder-core-decoder architecture
+- Networks: EINet (excitation-inhibition), DendriNet (dendritic branching), and classical networks
+- Training: Standard & enhanced training, FSDP for large models, pruning, regularization
+- Analysis: Information theory, synaptic turnover, correlation studies, and 65+ visualization plots
+- Sweeps: Automated parameter exploration with intelligent result analysis
 
 ## License
 

@@ -89,25 +89,25 @@ The HTML report will be generated in `htmlcov/index.html` and can be opened in a
 
 ### Unit Tests
 Test individual components in isolation:
-- **Models**: `test_models.py` - Test model classes and their methods
-- **Networks**: `test_networks.py` - Test network architectures and layers
-- **Datasets**: `test_datasets.py` - Test dataset loading and processing
-- **Analysis**: `test_analysis.py` - Test analysis modules and functions
-- **Training**: `test_training_strategies.py` - Test training strategies and optimizers
-- **Plotting**: `test_plotting.py` - Test visualization functions
-- **Config**: `test_config.py` - Test configuration handling
-- **Utils**: `test_utils.py` - Test utility functions
+- Models: `test_models.py` - Test model classes and their methods
+- Networks: `test_networks.py` - Test network architectures and layers
+- Datasets: `test_datasets.py` - Test dataset loading and processing
+- Analysis: `test_analysis.py` - Test analysis modules and functions
+- Training: `test_training_strategies.py` - Test training strategies and optimizers
+- Plotting: `test_plotting.py` - Test visualization functions
+- Config: `test_config.py` - Test configuration handling
+- Utils: `test_utils.py` - Test utility functions
 
 ### Integration Tests
 Test interactions between components:
-- **End-to-End**: Complete training workflows
-- **Cross-Module**: Interactions between different modules
+- End-to-End: Complete training workflows
+- Cross-Module: Interactions between different modules
 
 ### Performance Tests
 Test performance characteristics:
-- **Benchmarks**: Performance benchmarks for critical paths
-- **Memory**: Memory usage tests
-- **GPU**: GPU-specific functionality (when available)
+- Benchmarks: Performance benchmarks for critical paths
+- Memory: Memory usage tests
+- GPU: GPU-specific functionality (when available)
 
 ## Test Markers
 
@@ -141,13 +141,13 @@ Available markers:
 
 ### Writing New Tests
 
-1. **Choose the appropriate test file** based on the module you're testing
-2. **Follow naming conventions**: 
+1. Choose the appropriate test file based on the module you're testing
+2. Follow naming conventions: 
    - Test files: `test_<module_name>.py`
    - Test classes: `Test<ClassName>`
    - Test methods: `test_<functionality>`
 
-3. **Use proper test structure**:
+3. Use proper test structure:
 ```python
 class TestYourComponent(unittest.TestCase):
     def setUp(self):
@@ -166,7 +166,7 @@ class TestYourComponent(unittest.TestCase):
         pass
 ```
 
-4. **Add appropriate markers**:
+4. Add appropriate markers:
 ```python
 import pytest
 
@@ -283,19 +283,19 @@ python -m pytest tests/test_models.py --tb=long
 
 ### Common Issues and Solutions
 
-1. **Import Errors**:
+1. Import Errors:
    - Ensure you're running tests from the project root
    - Check that the package is properly installed: `pip install -e .`
 
-2. **Missing Dependencies**:
+2. Missing Dependencies:
    - Install test dependencies: `pip install pytest pytest-cov`
    - Check dependencies: `python tests/test_runner.py --check-deps`
 
-3. **Slow Tests**:
+3. Slow Tests:
    - Skip slow tests: `python -m pytest -m "not slow"`
    - Run specific modules: `python -m pytest tests/test_utils.py`
 
-4. **GPU Tests Failing**:
+4. GPU Tests Failing:
    - Skip GPU tests: `python -m pytest -m "not requires_gpu"`
    - Set CPU-only mode: `export CUDA_VISIBLE_DEVICES=""`
 
@@ -315,13 +315,13 @@ Before submitting code, ensure:
 
 When contributing tests:
 
-1. **Follow existing patterns** in the test files
-2. **Add comprehensive docstrings** explaining what each test does
-3. **Use descriptive test names** that clearly indicate what is being tested
-4. **Mock external dependencies** when appropriate
-5. **Test both success and failure cases**
-6. **Add markers** for test categorization
-7. **Keep tests independent** - no test should depend on another test's state
+1. Follow existing patterns in the test files
+2. Add comprehensive docstrings explaining what each test does
+3. Use descriptive test names that clearly indicate what is being tested
+4. Mock external dependencies when appropriate
+5. Test both success and failure cases
+6. Add markers for test categorization
+7. Keep tests independent - no test should depend on another test's state
 
 ## Additional Resources
 
