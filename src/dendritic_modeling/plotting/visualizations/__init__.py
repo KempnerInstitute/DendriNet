@@ -15,6 +15,8 @@ from .general_analysis_plots import (
     plot_performance_evolution,
     plot_synapse_turnover,
     plot_active_synapses_per_branch,
+    plot_active_synapses_summary_by_layer,
+    plot_pruning_performance_comparison,
     # Training and sweep functions
     plot_loss_curves,
     plot_branch_sweep_results,
@@ -45,6 +47,8 @@ __all__ = [
     "plot_performance_evolution",
     "plot_synapse_turnover",
     "plot_active_synapses_per_branch",
+    "plot_active_synapses_summary_by_layer",
+    "plot_pruning_performance_comparison",
     
     # Training/sweep functions
     "plot_loss_curves",

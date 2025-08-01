@@ -13,7 +13,9 @@ The Trainer class now supports optional enhanced features including:
 
 import os
 import time
+import traceback
 from copy import deepcopy
+from pathlib import Path
 from typing import Optional, Dict, Any
 
 import torch
@@ -25,6 +27,7 @@ from torch.utils.data import DataLoader
 from torch.cuda.amp import GradScaler, autocast
 
 from dendritic_modeling import logger
+
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.plotting import plot_loss_curves
 from dendritic_modeling.training.loss.functions import LossFunction, get_loss_function
@@ -286,6 +289,10 @@ class Trainer:
             self.best_loss = float("inf")
         if not hasattr(self, "best_epoch"):
             self.best_epoch = 1
+        if not hasattr(self, "best_performance"):
+            self.best_performance = {}
+        if not hasattr(self, "last_epoch_performance"):
+            self.last_epoch_performance = {}
         if not hasattr(self, "epoch_counter"):
             self.epoch_counter = 0
         if not hasattr(self, "start_time"):
@@ -315,29 +322,38 @@ class Trainer:
                 logger.info(f"Created optimizer from config: {self.optimizer_config.name}")
         
         # Initialize synaptic pruning analyzer if needed
+        logger.info(f"Checking synaptic pruning analyzer initialization...")
+        logger.info(f"  pruning_config.enabled: {self.pruning_config.enabled}")
+        logger.info(f"  analysis_manager exists: {self.analysis_manager is not None}")
+        
         if (self.pruning_config.enabled and 
             self.analysis_manager and 
-            hasattr(self.analysis_manager, 'synapse_turnover_analysis')):
-            turnover_config = getattr(self.analysis_manager, 'synapse_turnover_analysis', {})
-            synaptic_analysis_enabled = False
-            if isinstance(turnover_config, dict):
-                synaptic_analysis_enabled = (
-                    turnover_config.get('enabled', False) and 
-                    turnover_config.get('synaptic_analysis', False)
-                )
-            elif hasattr(turnover_config, 'enabled'):
-                synaptic_analysis_enabled = (
-                    getattr(turnover_config, 'enabled', False) and
-                    getattr(turnover_config, 'synaptic_analysis', False)
-                )
+            hasattr(self.analysis_manager, 'config') and
+            hasattr(self.analysis_manager.config, 'synapse_turnover_analysis')):
+            turnover_config = self.analysis_manager.config.synapse_turnover_analysis
+            synaptic_analysis_enabled = (
+                getattr(turnover_config, 'enabled', False) and
+                getattr(turnover_config, 'synaptic_analysis', False)
+            )
+            
+            logger.info(f"  turnover_config.enabled: {getattr(turnover_config, 'enabled', False)}")
+            logger.info(f"  turnover_config.synaptic_analysis: {getattr(turnover_config, 'synaptic_analysis', False)}")
+            logger.info(f"  detailed_branch_report: {self.reporting_config.detailed_branch_report}")
+            logger.info(f"  synaptic_analysis_enabled: {synaptic_analysis_enabled}")
             
             if synaptic_analysis_enabled and self.reporting_config.detailed_branch_report:
                 try:
                     self.synaptic_pruning_analyzer = SynapticPruningAnalyzer(model, snapshot_interval=1)
-                    logger.info("Initialized synaptic pruning analyzer")
+                    logger.info("✓ Successfully initialized synaptic pruning analyzer")
                 except Exception as e:
                     logger.warning(f"Could not initialize synaptic pruning analyzer: {e}")
                     self.synaptic_pruning_analyzer = None
+            else:
+                logger.info("  Synaptic pruning analyzer not initialized - conditions not met")
+                self.synaptic_pruning_analyzer = None
+        else:
+            logger.info("  Synaptic pruning analyzer not initialized - basic conditions not met")
+            self.synaptic_pruning_analyzer = None
 
         # Log enhanced configuration if features are enabled
         self._log_enhanced_config()
@@ -461,7 +477,7 @@ class Trainer:
         
         # Store pre-pruning performance
         train_loader, valid_loader = self._dataloaders(train_data, valid_data)
-        pre_pruning_loss, pre_pruning_acc = self._epoch_validate(model, valid_loader)
+        pre_pruning_loss, pre_pruning_acc = self._epoch_valid(model, valid_loader)
         self.pre_pruning_performance = {
             'loss': pre_pruning_loss,
             'accuracy': pre_pruning_acc
@@ -469,24 +485,33 @@ class Trainer:
         
         # Record pre-pruning synaptic state
         if self.synaptic_pruning_analyzer:
+            logger.info("Recording pre-pruning synaptic state...")
             self.synaptic_pruning_analyzer.record_pruning_event(
                 model=model,
                 epoch=self.epochs,  # Use final epoch
                 pruning_stats={},  # Will be filled after pruning
                 pre_pruning=True
             )
+            logger.info("✓ Pre-pruning state recorded")
+        else:
+            logger.warning("Synaptic pruning analyzer not available for pre-pruning recording")
         
         # Apply pruning
         pruning_stats = self.pruning_manager.prune_model(model)
         
         # Record post-pruning synaptic state
         if self.synaptic_pruning_analyzer:
+            logger.info("Recording post-pruning synaptic state...")
             self.synaptic_pruning_analyzer.record_pruning_event(
                 model=model,
                 epoch=self.epochs,
                 pruning_stats=pruning_stats,
                 pre_pruning=False
             )
+            logger.info("✓ Post-pruning state recorded")
+            logger.info(f"Total pruning events: {len(self.synaptic_pruning_analyzer.pruning_events)}")
+        else:
+            logger.warning("Synaptic pruning analyzer not available for post-pruning recording")
         
         # Report pruning statistics
         if self.reporting_config.report_non_pruned:
@@ -494,13 +519,12 @@ class Trainer:
         
         # Save pruning statistics if requested
         if self.reporting_config.save_pruning_stats and self.save_path:
-            from pathlib import Path
             stats_path = Path(self.save_path).parent / "pruning_stats.json"
             self.pruning_manager.save_pruning_stats(stats_path)
         
         # Re-evaluate after pruning
         if self.pruning_config.re_evaluate_after:
-            post_pruning_loss, post_pruning_acc = self._epoch_validate(model, valid_loader)
+            post_pruning_loss, post_pruning_acc = self._epoch_valid(model, valid_loader)
             self.post_pruning_performance = {
                 'loss': post_pruning_loss,
                 'accuracy': post_pruning_acc
@@ -513,17 +537,132 @@ class Trainer:
             # Integrate with synapse turnover analysis if available
             if self.synaptic_pruning_analyzer and self.analysis_manager:
                 integrate_pruning_with_turnover_analysis(
-                    self.synaptic_pruning_analyzer,
+                    model,
+                    self.pruning_manager,
                     self.analysis_manager,
-                    self.pre_pruning_performance,
-                    self.post_pruning_performance
+                    self.epochs
                 )
+                
+                # Generate synaptic pruning plots if detailed reporting is enabled
+                logger.info(f"Checking if pruning plots should be generated...")
+                logger.info(f"  detailed_branch_report: {self.reporting_config.detailed_branch_report}")
+                logger.info(f"  save_path exists: {self.save_path is not None}")
+                
+                if self.reporting_config.detailed_branch_report and self.save_path:
+                    plots_path = Path(self.save_path).parent / "pruning_plots"
+                    plots_path.mkdir(exist_ok=True)
+                    logger.info(f"  Creating plots in: {plots_path}")
+                    
+                    try:
+                        # Generate the original per-branch plot
+                        logger.info("  Generating per-branch plot...")
+                        result1 = self.synaptic_pruning_analyzer.plot_active_synapses_per_branch(
+                            save_path=str(plots_path),
+                            filename="active_synapses_per_branch"
+                        )
+                        logger.info(f"  Per-branch plot result: {result1 is not None}")
+                        
+                        # Generate the new summary plot with mean/std by layer
+                        logger.info("  Generating summary plot...")
+                        result2 = self.synaptic_pruning_analyzer.plot_active_synapses_summary_by_layer(
+                            save_path=str(plots_path),
+                            filename="active_synapses_summary_by_layer"
+                        )
+                        logger.info(f"  Summary plot result: {result2 is not None}")
+                        
+                        logger.info(f"✓ Pruning analysis plots saved to {plots_path}")
+                    except Exception as e:
+                        logger.error(f"Error generating pruning plots: {e}")
+                        logger.error(f"Traceback: {traceback.format_exc()}")
+                else:
+                    logger.info("  Pruning plots not generated - conditions not met")
+            
+            # If we have synaptic pruning analyzer but no analysis manager, still generate plots
+            elif self.synaptic_pruning_analyzer and self.reporting_config.detailed_branch_report and self.save_path:
+                plots_path = Path(self.save_path).parent / "pruning_plots"
+                plots_path.mkdir(exist_ok=True)
+                
+                # Generate the plots
+                self.synaptic_pruning_analyzer.plot_active_synapses_per_branch(
+                    save_path=str(plots_path),
+                    filename="active_synapses_per_branch"
+                )
+                
+                self.synaptic_pruning_analyzer.plot_active_synapses_summary_by_layer(
+                    save_path=str(plots_path),
+                    filename="active_synapses_summary_by_layer"
+                )
+                
+                logger.info(f"Pruning analysis plots saved to {plots_path}")
+            
+            # Redo analysis after pruning if requested
+            if (self.reporting_config.redo_analysis_after_pruning and 
+                self.analysis_manager and self.save_path):
+                self._redo_analysis_after_pruning(model, train_data, valid_data)
         
         return {
             'pruning_stats': pruning_stats,
             'pre_pruning_performance': self.pre_pruning_performance,
             'post_pruning_performance': self.post_pruning_performance,
         }
+
+    def _redo_analysis_after_pruning(self, model: BaseModel, train_data, valid_data):
+        """Redo all analysis after pruning for comprehensive comparison."""
+        logger.info("Starting post-pruning analysis...")
+        
+        try:
+            # Create a separate save path for post-pruning analysis
+            post_pruning_analysis_path = Path(self.save_path).parent / "post_pruning_analysis"
+            post_pruning_analysis_path.mkdir(exist_ok=True)
+            
+            # Collect performance data for comparison
+            performance_comparison = {
+                'before_pruning': getattr(self, 'pre_pruning_performance', {}),
+                'best_performance': getattr(self, 'best_performance', {}),
+                'last_epoch': getattr(self, 'last_epoch_performance', {}),
+                'after_pruning': getattr(self, 'post_pruning_performance', {})
+            }
+            
+            # Add any additional metrics from the analysis manager if available
+            if hasattr(self.analysis_manager, 'performance_analyzer'):
+                try:
+                    # Get latest performance metrics
+                    latest_performance = self.analysis_manager.performance_analyzer.get_latest_performance()
+                    if latest_performance:
+                        for key, value in latest_performance.items():
+                            if key not in performance_comparison['after_pruning']:
+                                performance_comparison['after_pruning'][key] = value
+                except Exception as e:
+                    logger.warning(f"Could not get latest performance from analyzer: {e}")
+            
+            # Generate performance comparison plot
+            from dendritic_modeling.plotting.visualizations.general_analysis_plots import plot_pruning_performance_comparison
+            
+            performance_plot = plot_pruning_performance_comparison(
+                performance_comparison,
+                save_path=str(post_pruning_analysis_path),
+                filename="performance_comparison"
+            )
+            
+            if performance_plot:
+                logger.info("Generated performance comparison plot")
+            
+            # Run all enabled analyses on the pruned model
+            # This will create new analysis results in the post_pruning_analysis folder
+            original_save_root = self.analysis_manager.save_root
+            self.analysis_manager.save_root = str(post_pruning_analysis_path)
+            
+            try:
+                # Run post-pruning analysis (final mode, not training mode)
+                self.analysis_manager.run_analysis(filename="post_pruning", training=False)
+                logger.info(f"Post-pruning analysis completed and saved to {post_pruning_analysis_path}")
+            finally:
+                # Restore original save root
+                self.analysis_manager.save_root = original_save_root
+                
+        except Exception as e:
+            logger.error(f"Error during post-pruning analysis: {e}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
 
     def _log_enhanced_config(self):
         """Log enhanced configuration if any features are enabled."""
@@ -639,7 +778,13 @@ class Trainer:
         valid_losses.append(valid_loss)
         valid_accs.append(valid_acc)
 
-        self._update_best(model, valid_loss)
+        # Update last epoch performance (will be overwritten each epoch)
+        self.last_epoch_performance = {
+            'loss': valid_loss,
+            'accuracy': valid_acc
+        }
+
+        self._update_best(model, valid_loss, valid_acc)
         self._analyze()
         self._save_checkpoint(model)
         self._tracking(train_loss, valid_loss, logger_info, wandb_info)
@@ -817,11 +962,18 @@ class Trainer:
         accuracy = (correct / total * 100) if total > 0 else 0.0
         return avg_loss, accuracy
 
-    def _update_best(self, model: BaseModel, valid_loss: float) -> None:
+    def _update_best(self, model: BaseModel, valid_loss: float, valid_acc: float = None) -> None:
         if valid_loss < self.best_loss:
             self.best_loss = valid_loss
             self.best_epoch = self.epoch_counter
             self.best_state_dict = deepcopy(model.state_dict())
+            
+            # Update best performance metrics
+            self.best_performance = {
+                'loss': valid_loss,
+                'accuracy': valid_acc if valid_acc is not None else 0.0
+            }
+            
             self.patience_counter = 0
             if self.save_path and os.path.exists(self.save_path):
                 torch.save(
@@ -837,7 +989,7 @@ class Trainer:
         if self.analysis_manager is not None:
             # Conditional import to avoid circular dependency
             from dendritic_modeling.analysis import AnalysisManager
-
+            
             if isinstance(self.analysis_manager, AnalysisManager):
                 # Check if any analysis is enabled for training
                 config = self.analysis_manager.config

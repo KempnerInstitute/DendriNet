@@ -1,9 +1,17 @@
 """General analysis plotting functions for dendritic modeling."""
 
+import glob
+import json
 import os
+import re
+import traceback
+from collections import defaultdict
 from typing import Optional, Any, Dict, List, Tuple
+
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
+
 from dendritic_modeling import logger
 from .plotting_utils import save_plot, create_figure, setup_basic_plot, handle_plot_error, convert_layer_names, create_subplots
 
@@ -247,51 +255,6 @@ def plot_per_layer_ablation(layer_results: dict[str, dict[str, dict]], **kwargs)
                     clean_metric = metric_type.replace(' ', '_').replace('_drop', '')
                     save_plot(fig, save_path, f"{filename_prefix}_{clean_metric}")
         
-        # Create summary plot with all metrics
-        if layer_data_by_depth:
-            fig, axes = plt.subplots(1, len(metric_types), figsize=(18, 6))
-            if len(metric_types) == 1:
-                axes = [axes]
-            
-            for idx, metric_type in enumerate(metric_types):
-                ax = axes[idx]
-                
-                if any(any(metric_type in layer['metrics'] for layer in layers) 
-                       for layers in layer_data_by_depth.values()):
-                    
-                    ablation_types = list(layer_data_by_depth.keys())
-                    n_layers = len(layer_data_by_depth[ablation_types[0]])
-                    x_pos = np.arange(n_layers) * 1.5  # Add spacing between layer groups
-                    width = 0.3  # Slightly wider bars for better visibility
-                    
-                    for i, ablation_type in enumerate(ablation_types):
-                        layers = layer_data_by_depth[ablation_type]
-                        layer_names = [layer['name'] for layer in layers]
-                        values = [layer['metrics'].get(metric_type, 0) for layer in layers]
-                        
-                        bars = ax.bar(x_pos + i*width, values, width, 
-                                     label=ablation_type.replace('_', ' ').title(),
-                                     color=colors[i % len(colors)], alpha=0.8)
-                    
-                    ax.set_xlabel('Layer (Soma → Distal)')
-                    ax.set_ylabel(metric_type.replace('_', ' ').title())
-                    ax.set_title(f'{metric_type.replace("_", " ").title()}')
-                    ax.set_xticks(x_pos + width * (len(ablation_types) - 1) / 2)
-                    ax.set_xticklabels(layer_names)
-                    if idx == 0:  # Only show legend on first subplot
-                        ax.legend()
-                    ax.grid(True, alpha=0.3)
-                else:
-                    ax.text(0.5, 0.5, f'No {metric_type} data', 
-                           ha='center', va='center', transform=ax.transAxes)
-                    ax.set_title(f'{metric_type.replace("_", " ").title()}')
-            
-            plt.suptitle('Ablation Analysis: Performance Drops by Layer and Synapse Type', fontsize=16)
-            plt.tight_layout()
-            plots.append(fig)
-            
-            if save_path:
-                save_plot(fig, save_path, f"{filename_prefix}_summary")
         
         logger.info(f"Generated {len(plots)} ablation plots")
         return plots
@@ -300,6 +263,155 @@ def plot_per_layer_ablation(layer_results: dict[str, dict[str, dict]], **kwargs)
         logger.error(f"Error in per-layer ablation plotting: {e}")
         return handle_plot_error("per-layer ablation plotting", e)
 
+
+def plot_pruning_performance_comparison(
+    performance_data: dict,
+    save_path: str = None,
+    filename: str = "pruning_performance_comparison"
+) -> plt.Figure:
+    """
+    Create a comprehensive bar plot comparing performance before/after pruning.
+    
+    Args:
+        performance_data: Dict containing performance metrics for different stages:
+            {
+                'before_pruning': {...},
+                'best_performance': {...},
+                'last_epoch': {...}, 
+                'after_pruning': {...}
+            }
+        save_path: Directory to save the plot
+        filename: Base filename for the plot
+    
+    Returns:
+        matplotlib Figure object
+    """
+    try:
+        logger.info("Creating pruning performance comparison plot")
+        
+        if not performance_data:
+            logger.warning("No performance data provided")
+            return None
+            
+        # Extract available metrics from the data
+        all_metrics = set()
+        stages = ['before_pruning', 'best_performance', 'last_epoch', 'after_pruning']
+        available_stages = []
+        
+        for stage in stages:
+            if stage in performance_data and performance_data[stage]:
+                available_stages.append(stage)
+                all_metrics.update(performance_data[stage].keys())
+        
+        if not available_stages or not all_metrics:
+            logger.warning("No valid performance data found")
+            return None
+            
+        # Remove any non-numeric metrics
+        numeric_metrics = []
+        for metric in all_metrics:
+            try:
+                # Check if all values for this metric are numeric
+                values = []
+                for stage in available_stages:
+                    if metric in performance_data[stage]:
+                        val = performance_data[stage][metric]
+                        if isinstance(val, (int, float)) and not np.isnan(val):
+                            values.append(val)
+                if values:  # Only include if we have at least one valid value
+                    numeric_metrics.append(metric)
+            except:
+                continue
+                
+        if not numeric_metrics:
+            logger.warning("No numeric metrics found")
+            return None
+            
+        # Create the plot
+        n_metrics = len(numeric_metrics)
+        n_stages = len(available_stages)
+        
+        fig, axes = create_subplots(1, n_metrics, figsize=(4*n_metrics, 6))
+        if n_metrics == 1:
+            axes = [axes]
+            
+        # Color scheme for different stages
+        colors = {
+            'before_pruning': '#e74c3c',     # Red
+            'best_performance': '#2ecc71',   # Green  
+            'last_epoch': '#f39c12',         # Orange
+            'after_pruning': '#3498db'       # Blue
+        }
+        
+        # Stage labels for display
+        stage_labels = {
+            'before_pruning': 'Before\nPruning',
+            'best_performance': 'Best\nPerformance',
+            'last_epoch': 'Last\nEpoch',
+            'after_pruning': 'After\nPruning'
+        }
+        
+        x_pos = np.arange(n_stages)
+        width = 0.6
+        
+        for i, metric in enumerate(numeric_metrics):
+            ax = axes[i]
+            
+            # Collect values for this metric across stages
+            values = []
+            stage_names = []
+            bar_colors = []
+            
+            for stage in available_stages:
+                if metric in performance_data[stage]:
+                    val = performance_data[stage][metric]
+                    if isinstance(val, (int, float)) and not np.isnan(val):
+                        values.append(val)
+                        stage_names.append(stage_labels[stage])
+                        bar_colors.append(colors[stage])
+                    else:
+                        values.append(0)
+                        stage_names.append(stage_labels[stage])
+                        bar_colors.append('#95a5a6')  # Gray for missing data
+                else:
+                    values.append(0)
+                    stage_names.append(stage_labels[stage])
+                    bar_colors.append('#95a5a6')  # Gray for missing data
+                    
+            # Create the bar plot
+            bars = ax.bar(range(len(values)), values, width, color=bar_colors, alpha=0.8)
+            
+            # Add value labels on top of bars
+            for bar, value in zip(bars, values):
+                if value > 0:
+                    height = bar.get_height()
+                    ax.text(bar.get_x() + bar.get_width()/2., height + max(values)*0.01,
+                           f'{value:.4f}', ha='center', va='bottom', fontsize=10)
+            
+            # Formatting
+            ax.set_xlabel('Training Stage')
+            ax.set_ylabel(metric.replace('_', ' ').title())
+            ax.set_title(f'{metric.replace("_", " ").title()} Comparison')
+            ax.set_xticks(range(len(stage_names)))
+            ax.set_xticklabels(stage_names, rotation=0, ha='center')
+            ax.grid(True, alpha=0.3, axis='y')
+            
+            # Set y-axis limits for better visualization
+            if values and max(values) > 0:
+                ax.set_ylim(0, max(values) * 1.1)
+        
+        plt.suptitle('Performance Comparison: Training vs Pruning Effects', fontsize=16)
+        plt.tight_layout()
+        
+        # Save the plot
+        if save_path:
+            save_plot(fig, save_path, filename)
+            
+        return fig
+        
+    except Exception as e:
+        logger.error(f"Error in plot_pruning_performance_comparison: {e}")
+        return handle_plot_error("pruning performance comparison plotting", e)
 
 
 def plot_weight_distributions(weight_data: dict[str, list[np.ndarray]], **kwargs):
@@ -694,9 +806,6 @@ def plot_performance_evolution(performance_dir: str, save_path: Optional[str] = 
             logger.warning(f"Performance directory does not exist: {performance_dir}")
             return {}
         
-        import glob
-        import json
-        
         # Find all performance files (assuming JSON format with epoch data)
         perf_files = glob.glob(os.path.join(performance_dir, "*performance*.json"))
         
@@ -724,7 +833,6 @@ def plot_performance_evolution(performance_dir: str, save_path: Optional[str] = 
                     epoch = data['epoch']
                 else:
                     # Try to extract from filename
-                    import re
                     match = re.search(r'epoch_(\d+)', file_path)
                     if match:
                         epoch = int(match.group(1))
@@ -813,8 +921,6 @@ def plot_loss_curves(train_losses: list[float], valid_losses: list[float],
 
 def plot_branch_sweep_results(results_csv_path, split="test"):
     """Plot branch sweep results."""
-    import pandas as pd
-    
     # Read the results CSV
     results_df = pd.read_csv(results_csv_path)
 
@@ -1149,4 +1255,189 @@ def plot_active_synapses_per_branch(
         
     except Exception as e:
         logger.error(f"Error in plot_active_synapses_per_branch: {e}")
-        return handle_plot_error("active synapses per branch plotting", e) 
+        return handle_plot_error("active synapses per branch plotting", e)
+
+
+def plot_active_synapses_summary_by_layer(
+    connectivity_stats: dict, 
+    save_path: str = None, 
+    filename: str = "active_synapses_summary_by_layer"
+) -> plt.Figure:
+    """
+    Plot mean and std of active synapses per layer for each synapse type.
+    
+    This function creates a plot showing:
+    - X-axis: Layer number (L)
+    - Y-axis: Number of active synapses
+    - For each layer L: mean and std of active synapses across all branches in that layer
+    - Separate plots for excitatory (EE), inhibitory (IE), and total synapses
+    
+    Args:
+        connectivity_stats: Dictionary containing layer and branch statistics
+        save_path: Directory to save the plot
+        filename: Base filename for the plot
+        
+    Returns:
+        matplotlib Figure object
+    """
+    try:
+        import matplotlib.pyplot as plt
+        import numpy as np
+        from collections import defaultdict
+        
+        # Extract data from connectivity stats
+        layer_stats = connectivity_stats.get('layer_stats', {})
+        
+        logger.info(f"DEBUG: connectivity_stats keys: {list(connectivity_stats.keys())}")
+        logger.info(f"DEBUG: layer_stats keys: {list(layer_stats.keys())}")
+        
+        if not layer_stats:
+            logger.warning("No layer statistics found for plotting")
+            logger.warning(f"Available connectivity_stats keys: {list(connectivity_stats.keys())}")
+            return None
+        
+        # Organize data by layer
+        layers_summary = {}
+        
+        # Extract detailed branch data from layer_stats
+        for layer_name, layer_data in layer_stats.items():
+            # Extract layer index from name like "layer_0"
+            try:
+                layer_idx = int(layer_name.split('_')[1])
+            except (ValueError, IndexError):
+                logger.warning(f"Could not parse layer name: {layer_name}")
+                continue
+            
+            branch_stats = layer_data.get('branch_stats', {})
+            if not branch_stats:
+                continue
+            
+            # Collect synapse counts for all branches in this layer
+            exc_counts = []
+            inh_counts = []
+            total_counts = []
+            
+            for branch_name, branch_data in branch_stats.items():
+                exc_active = branch_data.get('excitatory', {}).get('active', 0)
+                inh_active = branch_data.get('inhibitory', {}).get('active', 0)
+                total_active = exc_active + inh_active
+                
+                exc_counts.append(exc_active)
+                inh_counts.append(inh_active)
+                total_counts.append(total_active)
+            
+            # Calculate statistics for this layer
+            if exc_counts or inh_counts:
+                layers_summary[layer_idx] = {
+                    'excitatory': {
+                        'mean': np.mean(exc_counts) if exc_counts else 0,
+                        'std': np.std(exc_counts) if len(exc_counts) > 1 else 0,
+                        'count': len(exc_counts)
+                    },
+                    'inhibitory': {
+                        'mean': np.mean(inh_counts) if inh_counts else 0,
+                        'std': np.std(inh_counts) if len(inh_counts) > 1 else 0,
+                        'count': len(inh_counts)
+                    },
+                    'total': {
+                        'mean': np.mean(total_counts) if total_counts else 0,
+                        'std': np.std(total_counts) if len(total_counts) > 1 else 0,
+                        'count': len(total_counts)
+                    }
+                }
+        
+        if not layers_summary:
+            logger.warning("No valid layer data found for summary plotting")
+            return None
+        
+        # Prepare data for plotting
+        sorted_layers = sorted(layers_summary.keys())
+        
+        # Extract data arrays
+        exc_means = [layers_summary[l]['excitatory']['mean'] for l in sorted_layers]
+        exc_stds = [layers_summary[l]['excitatory']['std'] for l in sorted_layers]
+        
+        inh_means = [layers_summary[l]['inhibitory']['mean'] for l in sorted_layers]
+        inh_stds = [layers_summary[l]['inhibitory']['std'] for l in sorted_layers]
+        
+        total_means = [layers_summary[l]['total']['mean'] for l in sorted_layers]
+        total_stds = [layers_summary[l]['total']['std'] for l in sorted_layers]
+        
+        # Create the plot with 3 subplots
+        fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(15, 5))
+        
+        x_pos = np.array(sorted_layers)
+        
+        # Plot 1: Excitatory synapses
+        ax1.errorbar(x_pos, exc_means, yerr=exc_stds, 
+                    marker='o', capsize=5, capthick=2, 
+                    color='red', ecolor='red', alpha=0.7,
+                    label='Excitatory (EE)')
+        ax1.set_xlabel('Layer Number')
+        ax1.set_ylabel('Active Synapses (Mean ± Std)')
+        ax1.set_title('Excitatory Synapses per Branch')
+        ax1.grid(True, alpha=0.3)
+        ax1.set_xticks(sorted_layers)
+        
+        # Add branch count annotations
+        for i, layer_idx in enumerate(sorted_layers):
+            branch_count = layers_summary[layer_idx]['excitatory']['count']
+            ax1.annotate(f'n={branch_count}', 
+                        xy=(layer_idx, exc_means[i]),
+                        xytext=(0, 10), textcoords="offset points",
+                        ha='center', va='bottom', fontsize=8)
+        
+        # Plot 2: Inhibitory synapses
+        ax2.errorbar(x_pos, inh_means, yerr=inh_stds, 
+                    marker='s', capsize=5, capthick=2, 
+                    color='blue', ecolor='blue', alpha=0.7,
+                    label='Inhibitory (IE)')
+        ax2.set_xlabel('Layer Number')
+        ax2.set_ylabel('Active Synapses (Mean ± Std)')
+        ax2.set_title('Inhibitory Synapses per Branch')
+        ax2.grid(True, alpha=0.3)
+        ax2.set_xticks(sorted_layers)
+        
+        # Add branch count annotations
+        for i, layer_idx in enumerate(sorted_layers):
+            branch_count = layers_summary[layer_idx]['inhibitory']['count']
+            ax2.annotate(f'n={branch_count}', 
+                        xy=(layer_idx, inh_means[i]),
+                        xytext=(0, 10), textcoords="offset points",
+                        ha='center', va='bottom', fontsize=8)
+        
+        # Plot 3: Total synapses
+        ax3.errorbar(x_pos, total_means, yerr=total_stds, 
+                    marker='^', capsize=5, capthick=2, 
+                    color='green', ecolor='green', alpha=0.7,
+                    label='Total (EE + IE)')
+        ax3.set_xlabel('Layer Number')
+        ax3.set_ylabel('Active Synapses (Mean ± Std)')
+        ax3.set_title('Total Synapses per Branch')
+        ax3.grid(True, alpha=0.3)
+        ax3.set_xticks(sorted_layers)
+        
+        # Add branch count annotations
+        for i, layer_idx in enumerate(sorted_layers):
+            branch_count = layers_summary[layer_idx]['total']['count']
+            ax3.annotate(f'n={branch_count}', 
+                        xy=(layer_idx, total_means[i]),
+                        xytext=(0, 10), textcoords="offset points",
+                        ha='center', va='bottom', fontsize=8)
+        
+        plt.tight_layout()
+        
+        # Add overall title
+        fig.suptitle('Active Synapses per Branch: Mean ± Std by Layer and Synapse Type', 
+                    fontsize=14, y=1.02)
+        
+        # Save the plot
+        if save_path:
+            save_plot(fig, save_path, filename)
+            logger.info(f"Active synapses summary plot saved to {save_path}/{filename}")
+        
+        return fig
+        
+    except Exception as e:
+        logger.error(f"Error in plot_active_synapses_summary_by_layer: {e}")
+        return handle_plot_error("active synapses summary by layer plotting", e) 
