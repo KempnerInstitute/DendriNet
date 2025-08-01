@@ -48,6 +48,9 @@ class AnalysisManager:
         os.makedirs(self.save_root, exist_ok=True)
         # Note: Logging should be configured externally at the application startup.
         self.logger = logging.getLogger(__name__)
+        
+        # Store pruning results if available
+        self.pruning_results = None
 
         # Initialize Performance Analysis
         if self.config.performance_analysis.enabled:
@@ -119,6 +122,10 @@ class AnalysisManager:
         else:
             self.correlation_analysis_enabled = False
 
+    def set_pruning_results(self, pruning_results: dict):
+        """Set pruning results for inclusion in performance plots."""
+        self.pruning_results = pruning_results
+
     def run_analysis(self, filename: str = "final", training: bool = False):
         """Run configured analyses and generate plots."""
         # Run analyses and get results
@@ -155,9 +162,20 @@ class AnalysisManager:
                 if self.config.performance_analysis.training:
                     from dendritic_modeling.plotting.visualizations.performance_plots import PerformancePlotter
                     plotter = PerformancePlotter()
+                    
+                    # Get pruning performance data if available
+                    pruning_performance = self.pruning_results
+                    final_epoch = None
+                    if (self.train_config and hasattr(self.train_config, 'main') and 
+                        hasattr(self.train_config.main, 'trainer') and
+                        hasattr(self.train_config.main.trainer, 'epochs')):
+                        final_epoch = self.train_config.main.trainer.epochs
+                    
                     plotter.plot_performance_evolution(
                         performance_dir=os.path.join(self.save_root, "performance", "epochs"),
                         save_path=os.path.join(self.save_root, "performance"),
+                        pruning_performance=pruning_performance,
+                        final_epoch=final_epoch,
                     )
 
         # Information Analysis
@@ -232,6 +250,15 @@ class AnalysisManager:
                         save_path=os.path.join(self.save_root, "synapse_turnover_analysis"),
                         filename="synapse_turnover"
                     )
+                    
+                    # Plot layer statistics if available
+                    if "layer_statistics" in turnover_results:
+                        from dendritic_modeling.plotting.visualizations.general_analysis_plots import plot_layer_synapse_statistics
+                        plot_layer_synapse_statistics(
+                            turnover_results["layer_statistics"],
+                            save_path=os.path.join(self.save_root, "synapse_turnover_analysis"),
+                            filename="layer_synapse_statistics"
+                        )
                 else:
                     self.logger.warning("No turnover results to plot")
             else:

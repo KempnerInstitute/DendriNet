@@ -5,7 +5,7 @@ from typing import Optional, Any, Dict, List, Tuple
 import matplotlib.pyplot as plt
 import numpy as np
 from dendritic_modeling import logger
-from .plotting_utils import save_plot, create_figure, setup_basic_plot, handle_plot_error, convert_layer_names
+from .plotting_utils import save_plot, create_figure, setup_basic_plot, handle_plot_error, convert_layer_names, create_subplots
 
 
 def plot_layer_contributions(results: dict[str, Any], **kwargs):
@@ -562,6 +562,81 @@ def _plot_turnover_original_format(turnover_results: dict, save_path: str, filen
     except Exception as e:
         logger.warning(f"Error plotting original turnover format: {e}")
         return []
+
+
+def plot_layer_synapse_statistics(layer_stats: dict, save_path: str = None, filename: str = "layer_synapse_statistics"):
+    """Plot per-layer synapse type statistics (ee, ei, ie, ii)."""
+    try:
+        logger.info("Generating layer synapse statistics plots...")
+        
+        # Create figure with subplots for incremental and cumulative
+        fig, (ax1, ax2) = create_subplots(1, 2, figsize=(16, 6))
+        
+        synapse_types = ['ee', 'ei', 'ie', 'ii']
+        colors = ['blue', 'red', 'green', 'orange']
+        
+        # Plot incremental statistics
+        if 'incremental' in layer_stats and 'per_layer_avg' in layer_stats['incremental']:
+            incremental_data = layer_stats['incremental']['per_layer_avg']
+            x_positions = range(len(synapse_types))
+            
+            # Calculate averages for each synapse type
+            avg_values = []
+            for syn_type in synapse_types:
+                if syn_type in incremental_data and incremental_data[syn_type]:
+                    # Average across all time points
+                    avg_values.append(np.mean(incremental_data[syn_type]))
+                else:
+                    avg_values.append(0)
+            
+            bars1 = ax1.bar(x_positions, avg_values, color=colors, alpha=0.7)
+            ax1.set_title('Average Per-Layer Synapse Counts (Incremental)')
+            ax1.set_xlabel('Synapse Type')
+            ax1.set_ylabel('Average Count per Layer')
+            ax1.set_xticks(x_positions)
+            ax1.set_xticklabels([s.upper() for s in synapse_types])
+            
+            # Add value labels on bars
+            for bar, value in zip(bars1, avg_values):
+                height = bar.get_height()
+                ax1.text(bar.get_x() + bar.get_width()/2., height,
+                        f'{value:.1f}', ha='center', va='bottom')
+        
+        # Plot cumulative statistics
+        if 'cumulative' in layer_stats and 'per_layer_avg' in layer_stats['cumulative']:
+            cumulative_data = layer_stats['cumulative']['per_layer_avg']
+            
+            # Calculate averages for each synapse type
+            avg_values_cum = []
+            for syn_type in synapse_types:
+                if syn_type in cumulative_data and cumulative_data[syn_type]:
+                    # Average across all time points
+                    avg_values_cum.append(np.mean(cumulative_data[syn_type]))
+                else:
+                    avg_values_cum.append(0)
+            
+            bars2 = ax2.bar(x_positions, avg_values_cum, color=colors, alpha=0.7)
+            ax2.set_title('Average Per-Layer Synapse Counts (Cumulative)')
+            ax2.set_xlabel('Synapse Type')
+            ax2.set_ylabel('Average Count per Layer')
+            ax2.set_xticks(x_positions)
+            ax2.set_xticklabels([s.upper() for s in synapse_types])
+            
+            # Add value labels on bars
+            for bar, value in zip(bars2, avg_values_cum):
+                height = bar.get_height()
+                ax2.text(bar.get_x() + bar.get_width()/2., height,
+                        f'{value:.1f}', ha='center', va='bottom')
+        
+        plt.tight_layout()
+        
+        if save_path:
+            save_plot(fig, save_path, filename)
+        
+        return fig
+        
+    except Exception as e:
+        return handle_plot_error("layer synapse statistics plotting", e)
 
 
 def plot_performance_metrics(performance_data: dict, **kwargs):

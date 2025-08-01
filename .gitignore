@@ -12,7 +12,6 @@ notebook/wandb/*
 notebook/votage_plots/*
 notebook/*.log
 notebook/test/*
-experiments/*
 data/*
 configs/*.txt
 src/data/*
@@ -60,7 +59,6 @@ outputs/*
 #  before PyInstaller builds the exe, so as to inject date/other infos into it.
 *.manifest
 *.spec
-
 # Installer logs
 pip-log.txt
 pip-delete-this-directory.txt

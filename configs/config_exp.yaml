@@ -19,22 +19,6 @@ model:
       decoder_hidden_dims: [64, 128]  # Hidden dimensions for autoencoder decoders
       activation: relu            # Activation function
 
-  # EXAMPLE: To use encoder_network_analysis with an MLP autoencoder, uncomment and modify:
-  # encoder_network:
-  #   type: mlpautoencoder        # This will trigger encoder_network_analysis()
-  #   parameters:
-  #     input_dim: 3072           # Flattened CIFAR-10 input (3*32*32)
-  #     encoder_hidden_dims: [512, 256]  # Encoder layers: 3072 -> 512 -> 256
-  #     latent_dim: 64            # Compressed representation dimension
-  #     decoder_hidden_dims: [256, 512]  # Decoder layers: 64 -> 256 -> 512 -> 3072
-  #     activation: relu          # Activation function
-  # 
-  # This configuration will:
-  # 1. Train an autoencoder to compress CIFAR-10 images from 3072 -> 64 dimensions
-  # 2. Run encoder_network_analysis() automatically after training
-  # 3. Log reconstruction error, latent statistics, and representation quality
-  # 4. Use the encoded representations as input to your dendritic network
-
   # ==========================================
   # CORE NETWORK (Main Processing Stage)
   # ==========================================
@@ -470,5 +454,5 @@ analysis:
 # ============================================================================
 outputs:
   run_name: exp_run
-  dir: results/
+  dir: outputs/
   dataset_dir: ""                         # Optional: separate directory for shared datasets
