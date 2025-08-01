@@ -74,8 +74,14 @@ class SlurmJobGenerator:
         gpu_recs = {rec.gpu_model: rec for rec in estimator.get_gpu_recommendations(memory_breakdown)}
 
         best_gpu_type, min_gpus_needed = self._select_best_gpu(gpu_recs)
-        num_gpus = self._calculate_num_gpus(min_gpus_needed)
-        gpus_per_node = self.run_config.get('gpu_per_node', min(CLUSTER_LIMITS['max_gpus_per_node'], num_gpus))
+        # Allow override of GPU count from config
+        requested_gpus_per_node = self.run_config.get('gpu_per_node', None)
+        if requested_gpus_per_node:
+            gpus_per_node = min(CLUSTER_LIMITS['max_gpus_per_node'], requested_gpus_per_node)
+            num_gpus = gpus_per_node * self.run_config.get('nodes', 1)
+        else:
+            num_gpus = self._calculate_num_gpus(min_gpus_needed)
+            gpus_per_node = min(CLUSTER_LIMITS['max_gpus_per_node'], num_gpus)
         num_nodes = max(1, math.ceil(num_gpus / gpus_per_node))
         ntasks_per_node = 1
         cpus_per_task = self._calculate_cpus_per_task(ntasks_per_node)
@@ -221,7 +227,7 @@ conda activate dendritic_env"""
         """
         resources = self.estimate_resources()
         use_fsdp = resources['num_nodes'] > 1 or resources['num_gpus'] > 1
-        default_script = 'src/dendritic_modeling/scripts/train_experiments_fstp.py' if use_fsdp else 'src/dendritic_modeling/scripts/train_experiments.py'
+        default_script = 'src/dendritic_modeling/scripts/training/train_experiments_fsdp.py' if use_fsdp else 'src/dendritic_modeling/scripts/training/train_experiments.py'
         training_script = self.run_config.get('training_script', default_script)
         partition = self.run_config.get('partition', 'kempner_h100')
         account = self.run_config.get('account', 'kempner_dev')

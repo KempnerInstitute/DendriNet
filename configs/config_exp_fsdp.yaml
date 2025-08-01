@@ -1,0 +1,359 @@
+# ============================================================================
+# FSDP EXPERIMENT CONFIGURATION - Large Scale Multi-GPU/Multi-Node Training
+# ============================================================================
+# This configuration is based on config_exp.yaml but scaled up for FSDP training
+# across multiple GPUs/nodes. The model is significantly larger to demonstrate
+# FSDP capabilities and necessitate distributed training.
+#
+# Usage:
+#   Single node, multiple GPUs:
+#   torchrun --nproc_per_node=4 src/dendritic_modeling/scripts/training/train_experiments.py configs/config_exp_fsdp.yaml
+#
+#   Multiple nodes (2 nodes, 4 GPUs each):
+#   Node 0: torchrun --nnodes=2 --node_rank=0 --nproc_per_node=4 --master_addr=NODE0_IP --master_port=29500 \
+#           src/dendritic_modeling/scripts/training/train_experiments.py configs/config_exp_fsdp.yaml
+#   Node 1: torchrun --nnodes=2 --node_rank=1 --nproc_per_node=4 --master_addr=NODE0_IP --master_port=29500 \
+#           src/dendritic_modeling/scripts/training/train_experiments.py configs/config_exp_fsdp.yaml
+# ============================================================================
+
+model:
+  task: classification
+
+  # ==========================================
+  # ENCODER NETWORK (Input Processing Stage)
+  # ==========================================
+  encoder_network:
+    type: identity
+    parameters:
+      input_shape: [3, 32, 32]   # CIFAR10 input
+
+  # ==========================================
+  # CORE NETWORK (Main Processing Stage) - SCALED UP FOR FSDP
+  # ==========================================
+  core_network:
+    type: EINet
+    parameters:
+      # Core network structure - significantly larger for FSDP
+      transfer_params:
+        input_mode: 1               
+        independent_pathways: false  
+        excitatory_dim: null
+        inhibitory_dim: null
+        output_activation: null
+
+      # ==========================================
+      # MORPHOLOGICAL ARCHITECTURE - TRUE 4 GPU SCALE
+      # ==========================================
+      excitatory_layer_sizes: [100, 80, 60, 40]        # 4 layers, larger for multi-GPU
+      inhibitory_layer_sizes: [25, 20, 15, 10]         # Corresponding inhibitory layers
+      excitatory_branch_factors: [8, 6, 6, 4]          # More branches
+      inhibitory_branch_factors: [4, 3, 3, 2]          # Inhibitory branches
+      
+      # Synaptic connectivity patterns - richer connectivity
+      ee_synapses_per_branch_per_layer: [60, 50, 40, 30]   # E→E synapses per layer
+      ei_synapses_per_branch_per_layer: [20, 15, 12, 8]    # E→I synapses per layer
+      ie_synapses_per_branch_per_layer: [30, 25, 20, 15]   # I→E synapses per layer
+      ii_synapses_per_branch_per_layer: [10, 8, 6, 4]      # I→I synapses per layer
+
+      # Morphological features
+      somatic_synapses: true
+      use_shunting: true
+
+      # ==========================================
+      # TOPK SPARSITY PARAMETERS
+      # ==========================================
+      topk_init_method: xavier_normal
+      topk_noise_level: 0.0
+      topk_type: standard
+      topk_temperature: 0.0
+      topk_strategy: conductance_dynamic
+      
+      # ==========================================
+      # REACTIVATION PARAMETERS
+      # ==========================================
+      reactivate: true
+      reactivation_type: param_tanh
+      reactivation_init_m: 1.5
+      reactivation_init_b: 0.5
+      reactivation_strategy: inverse
+
+      # ==========================================
+      # BLOCK LINEAR PARAMETERS
+      # ==========================================
+      blocklinear_strategy: conductance_dynamic
+      efficient_blocklinear: true
+      
+      # ==========================================
+      # IMPLEMENTATION OPTIMIZATIONS
+      # ==========================================
+      adaptive_initialization: true
+      print_hooks: false
+
+  # ==========================================
+  # DECODER NETWORK (Output Processing Stage)
+  # ==========================================
+  decoder_network:
+    type: MLP
+    parameters:
+      input_dim: null           # Will be set automatically
+      hidden_dims: [64, 32]     # Moderate decoder size for 4 GPUs
+      activation: relu
+      output_dim: 10            # CIFAR10 classes
+      
+# ============================================================================
+# TRAINING CONFIGURATION - FSDP OPTIMIZED
+# ============================================================================
+train:
+  seed: 0
+  train_valid_split: 0.8
+
+  # ==========================================
+  # FSDP SETTINGS
+  # ==========================================
+  use_fsdp: true               # Enable FSDP for distributed training
+  
+  fsdp_config:
+    sharding_strategy: "FULL_SHARD"      # Full parameter sharding
+    mixed_precision: true                # Use FP16 for parameters, gradients, and buffers
+    cpu_offload: false                   # Keep on GPU for speed (set true if memory constrained)
+    min_num_params: 10000               # Lower threshold for 4 GPU setup
+    reduce_communication_overhead: true  # Enable communication optimizations
+    limit_all_gathers: true             # Reduce memory pressure during communication
+    forward_prefetch: true              # Prefetch parameters for forward pass
+    sync_module_states: true            # Synchronize module states across ranks
+    use_orig_params: true               # Important for dendritic models
+    backward_prefetch: "BACKWARD_PRE"   # Prefetch for backward pass
+    gradient_checkpointing: false       # Disable for smaller model
+
+  # ==========================================
+  # PERFORMANCE OPTIMIZATION SETTINGS
+  # ==========================================
+  enable_amp: true             # Enable automatic mixed precision (works with FSDP)
+  enable_profiling: false      # Disable profiling for max performance
+  enable_hooks: true           # Keep analysis capability
+
+  # ==========================================
+  # CHECKPOINTING - Critical for long FSDP runs
+  # ==========================================
+  checkpointing:
+    enabled: true
+    save_every_n_epochs: 5
+    checkpoint_dir: "results/fsdp_checkpoints/"
+
+  # ==========================================
+  # ENCODER TRAINING CONFIGURATION
+  # ==========================================
+  encoder:
+    load_save_root: null
+    lr: 0.001
+    trainer:
+      loss_function: mse
+      epochs: 0               # Skip encoder training for identity encoder
+      early_stopping: false
+      patience: 10
+      batch_size: 128
+      shuffle: true
+      grad_clip_value: 5.0
+      load_best_state_dict: true
+      plot_losses: false
+      save_path: null
+      suppress_prints: false
+      print_every: 10
+
+  # ==========================================
+  # MAIN NETWORK TRAINING - FSDP OPTIMIZED
+  # ==========================================
+  main:
+    learning_strategy: standard
+    weight_decay_rate: 0.01
+    
+    # Parameter groups with different learning rates for large model
+    param_groups:
+      lr: 0.0005               # Lower base learning rate for large model
+      split_params: true
+      topk_lr: 0.0002         # Conservative LR for TopK layers
+      blocklinear_lr: 0.0001  # Conservative LR for BlockLinear layers
+      reactivation_lr: 0.0002 # Conservative LR for reactivation layers
+      decoder_lr: 0.0003      # Conservative LR for decoder network
+
+    trainer:
+      loss_function: ce
+      epochs: 50               # Moderate epochs for 4 GPU setup
+      early_stopping: true
+      patience: 10
+      batch_size: 64           # Per-GPU batch size (effective = 64 * 4 = 256)
+      shuffle: true
+      grad_clip_value: 1.0     # Conservative gradient clipping for stability
+      load_best_state_dict: true
+      plot_losses: true
+      save_path: null
+      suppress_prints: false
+      print_every: 5           # More frequent logging for monitoring
+
+    # ==========================================
+    # ADVANCED TRAINING FEATURES
+    # ==========================================
+    
+    # Regularization configuration - DISABLED for initial FSDP testing
+    regularization:
+      l1_weight: 0.0                # Disabled
+      l2_weight: 0.0                # Disabled
+      selective:
+        layers: []
+        branches: []
+        weight_types: ["all"]
+      
+      split_params: false           # Disabled
+      param_group_weights:
+        topk:
+          l1_weight: 0.0
+          l2_weight: 0.0            # Disabled
+        blocklinear:
+          l1_weight: 0.0
+          l2_weight: 0.0            # Disabled
+        reactivation:
+          l1_weight: 0.0
+          l2_weight: 0.0            # Disabled
+        decoder:
+          l1_weight: 0.0
+          l2_weight: 0.0            # Disabled
+          
+    # Pruning configuration - DISABLED for initial FSDP testing
+    pruning:
+      enabled: false                # DISABLED for now
+      threshold: 0.001
+      selective:
+        layers: []
+        branches: []
+        weight_types: ["excitatory", "inhibitory"]
+      re_evaluate_after: true
+      dynamic_pruning: false
+      pruning_frequency: 10
+
+    # Reporting configuration - disabled with pruning
+    reporting:
+      report_non_pruned: false      # Disabled with pruning
+      save_pruning_stats: false     # Disabled with pruning
+      detailed_branch_report: false # Disabled with pruning
+      redo_analysis_after_pruning: false  # Disabled with pruning
+
+# ============================================================================
+# DATASET/TASK CONFIGURATION
+# ============================================================================
+task:
+  dataset: cifar10
+  data_path: ""
+  parameters:
+    flatten: true
+    normalize: true
+
+# ============================================================================
+# WANDB LOGGING
+# ============================================================================
+wandb:
+  entity: 
+  project: "dendritic-fsdp-experiments"
+  group: "large-scale-ei"
+  tags: ["fsdp", "large-model", "ei-network", "pruning"]
+  use_wandb: false
+
+# ============================================================================
+# ANALYSIS CONFIGURATION - Focused for large model
+# ============================================================================
+analysis:
+  performance_analysis:
+    enabled: true
+    training: false              # Run post-training
+    params:
+      accuracy: true
+      auc: true
+      categorical_loglikelihood: true
+      mse: false
+      cosine_similarity: false
+      
+  information_analysis:
+    enabled: false               # Disabled for initial FSDP testing
+    training: false
+    params:
+      method: kraskov
+      max_samples: 500           # Reduced for 4 GPU setup
+      n_neighbors: 10
+      n_bins: 20
+      copula_type: gaussian
+      compute_basic_mi: true
+      compute_pairwise_mi: false # Disabled for performance
+      compute_conditional_mi: false
+      compute_pid: false
+      include_vinf: true
+      normalize_mi: false
+      verbose: false
+      compute_per_branch: false  # Disabled for performance
+      branch_aggregation: mean
+
+  synapse_turnover_analysis:
+    enabled: false               # Disabled for initial FSDP testing
+    training: false
+    snapshot_interval: 10
+    synaptic_analysis: false
+    save_synaptic_report: false
+    
+  noise_perturbation_analysis:
+    enabled: false               # Disabled for initial FSDP testing
+    training: false
+    
+  ablation_analysis:
+    enabled: false               # Disabled for initial FSDP testing
+    training: false
+    params:
+      layer_ablation: false
+      compartment_ablation: false
+      ablate_all_synapses: false
+      ablate_excitation: false
+      ablate_inhibition: false
+      ablate_upstream: false
+      accuracy: true
+      auc: true
+      categorical_loglikelihood: true
+      mse: false
+      cosine_similarity: false
+
+  weight_analysis:
+    enabled: false               # Disabled for initial FSDP testing
+    training: false
+
+  synaptic_activation_analysis:
+    enabled: false               # Disabled for initial FSDP testing
+    training: false
+
+  branch_activation_analysis:
+    enabled: false               # Disabled for initial FSDP testing
+    training: false
+
+  single_layer_contribution:
+    enabled: false               # Disabled for initial FSDP testing
+    training: false
+      
+  correlation_analysis:
+    enabled: false               # Disabled for initial FSDP testing
+    training: false
+
+# ============================================================================
+# OUTPUT CONFIGURATION
+# ============================================================================
+outputs:
+  run_name: fsdp_large_exp
+  dir: results/fsdp_experiments/
+  dataset_dir: data
+  
+# ============================================================================
+# SLURM/CLUSTER CONFIGURATION (for generate_slurm_job.py)
+# ============================================================================
+slurm_config:
+  account: kempner_dev
+  partition: kempner_h100
+  nodes: 1
+  gpu_per_node: 4              # Force 4 GPUs for true FSDP testing
+  training_script: src/dendritic_modeling/scripts/training/train_experiments_fsdp.py
+  modules_to_load: []
+  conda_env_path: dendritic_env
+  max_concurrent_jobs: 1

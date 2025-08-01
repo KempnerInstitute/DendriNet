@@ -2,7 +2,7 @@
 """
 train_experiments.py
 ====================
-Main training script for dendritic modeling experiments.
+Main training script for dendritic modeling experiments (single-GPU only).
 
 This script handles:
 - Configuration loading and setup
@@ -10,6 +10,8 @@ This script handles:
 - Encoder network pretraining (for dendritic models)
 - Visualization and analysis
 - Results saving and logging
+
+For multi-GPU/FSDP training, use train_experiments_fsdp.py instead.
 
 Usage:
     python train_experiments.py <config_path> [options]
@@ -47,12 +49,7 @@ except ImportError:
     TORCHINFO_AVAILABLE = False
     warnings.warn("torchinfo not available. Model summary will be skipped.")
 
-# Distributed training imports
-try:
-    import torch.distributed as dist
-    DISTRIBUTED_AVAILABLE = True
-except ImportError:
-    DISTRIBUTED_AVAILABLE = False
+
 
 import torch
 import wandb
@@ -80,72 +77,8 @@ from dendritic_modeling.utils.training_validation import (
     apply_automatic_safeguards
 )
 
-# FSDP import (conditional)
-try:
-    from dendritic_modeling.training.strategies.fsdp_standard import FSDPTrainer
-    FSDP_AVAILABLE = True
-except ImportError:
-    FSDP_AVAILABLE = False
 
 
-def _run_fsdp_training(config):
-    """
-    Intelligent FSDP training delegation.
-    
-    This function determines the appropriate FSDP training approach based on:
-    1. Whether we're in a distributed environment (torchrun/SLURM)
-    2. The available resources and model requirements
-    3. Single-node vs multi-node setup
-    """
-    import subprocess
-    import sys
-    from pathlib import Path
-    
-    # Check if we're in a distributed environment
-    is_torchrun = "RANK" in os.environ and "WORLD_SIZE" in os.environ
-    is_slurm = "SLURM_JOB_ID" in os.environ
-    
-    if not is_torchrun and not is_slurm:
-        # Not in distributed environment - provide helpful guidance
-        logger.error("FSDP training requires a distributed environment!")
-        logger.error("For single-node FSDP, use:")
-        logger.error(f"  torchrun --nproc_per_node=<num_gpus> {sys.argv[0]} {' '.join(sys.argv[1:])}")
-        logger.error("For multi-node FSDP, use SLURM with generate_slurm_job.py")
-        logger.error("Alternatively, use train_experiments_fsdp.py directly")
-        raise RuntimeError("FSDP requires distributed environment. See error messages above for proper usage.")
-    
-    # We're in a distributed environment - delegate to the proper FSDP script
-    current_script_dir = Path(__file__).parent
-    fsdp_script = current_script_dir / "train_experiments_fsdp.py"
-    
-    if not fsdp_script.exists():
-        raise RuntimeError(f"FSDP script not found at {fsdp_script}")
-    
-    # Detect environment details for better logging
-    rank = int(os.environ.get("RANK", 0))
-    world_size = int(os.environ.get("WORLD_SIZE", 1))
-    local_rank = int(os.environ.get("LOCAL_RANK", 0))
-    
-    logger.info("Delegating to full FSDP implementation...")
-    logger.info(f"Environment: {'SLURM' if is_slurm else 'torchrun'}")
-    logger.info(f"World size: {world_size}, Rank: {rank}, Local rank: {local_rank}")
-    logger.info(f"Using FSDP script: {fsdp_script}")
-    
-    # Get the config path from command line arguments
-    config_path = sys.argv[1] if len(sys.argv) > 1 else None
-    if not config_path:
-        raise RuntimeError("No config path provided")
-    
-    logger.info(f"Config file: {config_path}")
-    logger.info(f"Arguments being passed: {' '.join(sys.argv)}")
-    
-    # Delegate to the FSDP script with the same arguments
-    try:
-        # Use execv to replace current process - cleaner than subprocess for this use case
-        os.execv(sys.executable, [sys.executable, str(fsdp_script), config_path])
-    except Exception as e:
-        logger.error(f"Failed to delegate to FSDP script: {e}")
-        raise RuntimeError(f"FSDP delegation failed: {e}")
 
 
 def run_analysis(
@@ -211,11 +144,6 @@ def main(config_path: str, args=None):
         if args.run_name:
             config.train.run_name = args.run_name
             logger.info(f"Override run name: {args.run_name}")
-        if args.use_fsdp:
-            # Enable FSDP mode
-            logger.info("FSDP mode enabled - initializing distributed training")
-            _run_fsdp_training(config)
-            return
 
     model_config = config.model
     train_config = config.train
@@ -488,12 +416,6 @@ if __name__ == "__main__":
         ],
         help="Override learning strategy specified in config.",
     )
-    parser.add_argument(
-        "--use_fsdp",
-        action="store_true",
-        help="Enable FSDP (Fully Sharded Data Parallel) training. Requires torchrun or SLURM environment. "
-             "For single-node: 'torchrun --nproc_per_node=<gpus> train_experiments.py config.yaml --use_fsdp'. "
-             "For multi-node: Use generate_slurm_job.py or train_experiments_fsdp.py directly.",
-    )
+
     args = parser.parse_args()
     main(config_path=args.config, args=args)
