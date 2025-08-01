@@ -361,6 +361,10 @@ def main(config_path: str, args=None):
         weight_decay=main_train_config.weight_decay_rate,
     )
 
+    # Store original pruning config and temporarily disable it for initial training
+    original_pruning_config = main_trainer_config_dict.get("pruning", {})
+    main_trainer_config_dict["pruning"] = {}  # Temporarily disable pruning for initial training
+    
     main_trainer = get_trainer(
         strategy=main_train_config.learning_strategy,
         optimizer=optimizer,
@@ -402,7 +406,9 @@ def main(config_path: str, args=None):
         hasattr(analysis_config, 'correlation_analysis') and analysis_config.correlation_analysis.enabled,
     ])
     
+    # Run original analysis BEFORE pruning
     if any_analysis_enabled:
+        logger.info("Running original analysis before pruning...")
         run_analysis(
             model=model,
             train_ds=train_ds,
@@ -410,10 +416,37 @@ def main(config_path: str, args=None):
             test_ds=test_ds,
             run_save_path=run_save_path,
             analysis_manager=analysis_manager,
-            training_results=training_results,
+            training=False,  # Final analysis, not during training
         )
+        logger.info("Original analysis completed")
     else:
-        logger.info("No analysis enabled - skipping analysis for speed")
+        logger.info("No analysis enabled - skipping original analysis")
+
+    # Now apply pruning if enabled (separate step)
+    if original_pruning_config and original_pruning_config.get("enabled", False):
+        logger.info("Applying pruning as separate step...")
+        # Restore pruning config and create new trainer for pruning
+        main_trainer_config_dict["pruning"] = original_pruning_config
+        main_trainer_config_dict["reporting"] = main_trainer_config_dict.get("reporting", {})
+        
+        pruning_trainer = get_trainer(
+            strategy=main_train_config.learning_strategy,
+            optimizer=optimizer,
+            trainer_config_dict=main_trainer_config_dict,
+            analysis_manager=analysis_manager,
+        )
+        
+        # Initialize trainer attributes (device, etc.) without training
+        pruning_trainer._initialize_attributes(model, main_train_config.trainer.epochs)
+        
+        # Apply pruning and evaluate
+        pruning_results = pruning_trainer._apply_pruning_and_evaluate(
+            model=model,
+            train_data=encoded_train_ds,
+            valid_data=encoded_valid_ds
+        )
+        training_results.update(pruning_results)  # Merge results
+        logger.info("Pruning completed")
 
     # Fix for Identity encoder
     if isinstance(encoder_network, Identity):
