@@ -23,6 +23,7 @@ from torch.utils.data import DataLoader
 from torch.cuda.amp import autocast, GradScaler
 
 from dendritic_modeling import logger
+from dendritic_modeling.analysis import AnalysisManager
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.training.fsdp_utils import (
     wrap_model_with_fsdp,
@@ -324,9 +325,6 @@ class FSDPTrainer(Trainer):
                 try:
                     # Run analysis if enabled and we have the manager
                     if self.analysis_manager is not None:
-                        # Conditional import to avoid circular dependency
-                        from dendritic_modeling.analysis import AnalysisManager
-                        
                         if isinstance(self.analysis_manager, AnalysisManager):
                             self.analysis_manager.run_analysis(
                                 filename=f"epoch{epoch + 1}", training=True

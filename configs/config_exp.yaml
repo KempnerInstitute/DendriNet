@@ -148,7 +148,7 @@ train:
   checkpointing:
     enabled: false
     save_every_n_epochs: 10
-    checkpoint_dir: "outputs/checkpoints/"
+    checkpoint_dir: "results/checkpoints/"
 
   # ==========================================
   # ENCODER TRAINING CONFIGURATION
@@ -235,8 +235,8 @@ train:
 
     # Regularization configuration
     regularization:
-      l1_weight: 0.001               # Global L1 regularization strength (used when split_params=false)
-      l2_weight: 0.01                # Global L2 regularization strength (used when split_params=false)
+      l1_weight: 0.0               # Global L1 regularization strength (used when split_params=false)
+      l2_weight: 0.0                # Global L2 regularization strength (used when split_params=false)
       selective:                     # Selective application
         layers: []                   # List of layer indices (empty = all layers)
         branches: []                 # List of branch names (empty = all branches)
@@ -248,7 +248,7 @@ train:
         # Apply different regularization to different parameter groups (when split_params=true)
         topk:                       # TopK layers
           l1_weight: 0.0          # L1 for TopK layers
-          l2_weight: 0.005          # L2 for TopK layers
+          l2_weight: 0.5          # L2 for TopK layers
         blocklinear:                # BlockLinear layers
           l1_weight: 0.0            # No L1 for BlockLinear
           l2_weight: 0.0          # No L2 for BlockLinear
@@ -276,6 +276,7 @@ train:
       report_non_pruned: true        # Print detailed pruning report
       save_pruning_stats: true       # Save pruning statistics to file
       detailed_branch_report: true   # Include per-branch statistics
+      redo_analysis_after_pruning: true  # Redo all analyses after pruning for comparison
 
 # ============================================================================
 # DATASET/TASK CONFIGURATION - VALIDATED DATASETS ONLY
@@ -454,5 +455,5 @@ analysis:
 # ============================================================================
 outputs:
   run_name: exp_run
-  dir: outputs/
-  dataset_dir: ""                         # Optional: separate directory for shared datasets
+  dir: results/
+  dataset_dir: data                         # Optional: separate directory for shared datasets

@@ -55,6 +55,7 @@ class ReportingConfig(BaseConfig):
     report_non_pruned: bool = True  # Report number of non-pruned synapses
     save_pruning_stats: bool = True  # Save pruning statistics to file
     detailed_branch_report: bool = True  # Detailed per-branch reporting
+    redo_analysis_after_pruning: bool = True  # Redo all analyses after pruning for comparison
 
 
 @dataclass

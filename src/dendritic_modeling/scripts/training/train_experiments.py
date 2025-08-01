@@ -306,6 +306,28 @@ def main(config_path: str, args=None):
         main_train_config.trainer, resolve=True
     )
 
+    # Add enhanced configurations for pruning, regularization, reporting, and parameter groups
+    # These configurations are needed for the trainer factory to enable advanced features
+    if hasattr(main_train_config, 'param_groups'):
+        main_trainer_config_dict["param_groups"] = OmegaConf.to_container(
+            main_train_config.param_groups, resolve=True
+        )
+    
+    if hasattr(main_train_config, 'regularization'):
+        main_trainer_config_dict["regularization"] = OmegaConf.to_container(
+            main_train_config.regularization, resolve=True
+        )
+    
+    if hasattr(main_train_config, 'pruning'):
+        main_trainer_config_dict["pruning"] = OmegaConf.to_container(
+            main_train_config.pruning, resolve=True
+        )
+    
+    if hasattr(main_train_config, 'reporting'):
+        main_trainer_config_dict["reporting"] = OmegaConf.to_container(
+            main_train_config.reporting, resolve=True
+        )
+
     # Add checkpoint configuration if specified
     if (
         hasattr(main_train_config.trainer, "save_every_n_epochs")
