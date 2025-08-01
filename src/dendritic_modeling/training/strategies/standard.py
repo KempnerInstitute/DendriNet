@@ -3,12 +3,18 @@ Base training strategy classes.
 
 This module contains the base trainer class that provides common functionality
 for all training strategies in the dendritic modeling framework.
+
+The Trainer class now supports optional enhanced features including:
+- Flexible optimizer configuration
+- L1/L2 regularization with selective application
+- Weight pruning with detailed reporting
+- All features default to disabled for backward compatibility
 """
 
 import os
 import time
 from copy import deepcopy
-from typing import Optional
+from typing import Optional, Dict, Any
 
 import torch
 import torch.profiler as torch_profiler
@@ -23,13 +29,21 @@ from dendritic_modeling.models import BaseModel
 from dendritic_modeling.plotting import plot_loss_curves
 from dendritic_modeling.training.loss.functions import LossFunction, get_loss_function
 from dendritic_modeling.plotting.visualizations.general_analysis_plots import plot_loss_curves as plot_training_loss_curves
+from dendritic_modeling.training.regularization import RegularizationManager, PruningManager
+from dendritic_modeling.training.optimizers.factory import create_optimizer, validate_optimizer_config
+from dendritic_modeling.config.training import (
+    OptimizerConfig, RegularizationConfig, PruningConfig, ReportingConfig
+)
+from dendritic_modeling.analysis.tools.synaptic_pruning import (
+    SynapticPruningAnalyzer, integrate_pruning_with_turnover_analysis
+)
 
 
 class Trainer:
     def __init__(
         self,
-        optimizer: torch.optim.Optimizer,
-        loss_function: str,
+        optimizer: Optional[torch.optim.Optimizer] = None,
+        loss_function: str = "mse",
         epochs: int = 100,
         early_stopping: bool = False,
         patience: int = 10,
@@ -46,9 +60,29 @@ class Trainer:
         checkpoint_dir: Optional[str] = None,
         enable_adaptive_clipping: bool = False,
         disable_hooks_with_amp: bool = False,
+        # NEW: Optional enhanced features (all default to disabled)
+        optimizer_config: Optional[OptimizerConfig] = None,
+        regularization_config: Optional[RegularizationConfig] = None,
+        pruning_config: Optional[PruningConfig] = None,
+        reporting_config: Optional[ReportingConfig] = None,
+        # Parameter groups configuration for differential learning rates
+        param_groups_config: Optional[Dict[str, Any]] = None,
         **kwargs,
     ):
-        self.optimizer = optimizer
+        # Handle optimizer configuration (backward compatibility)
+        if optimizer_config is not None:
+            # Enhanced mode: create optimizer from config during training
+            if optimizer is not None:
+                logger.warning("Both optimizer and optimizer_config provided. Using optimizer_config.")
+            self.optimizer_config = optimizer_config
+            self.optimizer = None  # Will be created in train()
+        else:
+            # Standard mode: use provided optimizer
+            if optimizer is None:
+                raise ValueError("Either optimizer or optimizer_config must be provided")
+            self.optimizer = optimizer
+            self.optimizer_config = None
+        
         self.loss_function: LossFunction = get_loss_function(loss_function)
         self.epochs = epochs
         self.early_stopping = early_stopping
@@ -63,6 +97,32 @@ class Trainer:
         self.print_every = print_every
         self.analysis_manager = analysis_manager
 
+        # Initialize enhanced feature configs with safe defaults
+        self.regularization_config = regularization_config or RegularizationConfig()
+        self.pruning_config = pruning_config or PruningConfig()
+        self.reporting_config = reporting_config or ReportingConfig()
+        self.param_groups_config = param_groups_config
+        
+        # Initialize managers only if features are enabled
+        if (self.regularization_config.l1_weight > 0 or 
+            self.regularization_config.l2_weight > 0):
+            self.regularization_manager = RegularizationManager(self.regularization_config)
+            logger.info(f"Regularization enabled: L1={self.regularization_config.l1_weight}, L2={self.regularization_config.l2_weight}")
+        else:
+            self.regularization_manager = None
+            
+        if self.pruning_config.enabled:
+            self.pruning_manager = PruningManager(self.pruning_config)
+            logger.info(f"Pruning enabled with threshold {self.pruning_config.threshold}")
+        else:
+            self.pruning_manager = None
+        
+        # Initialize synaptic pruning analyzer
+        self.synaptic_pruning_analyzer = None
+        
+        # Track original performance for comparison (needed for pruning)
+        self.pre_pruning_performance = {}
+        self.post_pruning_performance = {}
 
         # Profiling Support
         self.enable_profiling = kwargs.get('enable_profiling', False)
@@ -240,6 +300,68 @@ class Trainer:
         train_data: torch.utils.data.Dataset,
         valid_data: torch.utils.data.Dataset,
     ) -> dict:
+        # Create optimizer from config if needed (enhanced mode)
+        if self.optimizer_config is not None:
+            # Check if we have param_groups configuration for differential learning rates
+            param_groups_config = getattr(self, 'param_groups_config', None)
+            if param_groups_config and param_groups_config.get('split_params', False):
+                # Use parameter groups with different learning rates (preserves original behavior)
+                param_groups = model.get_param_groups(param_groups_config)
+                self.optimizer = self._create_optimizer_from_param_groups(param_groups, self.optimizer_config)
+                logger.info(f"Created optimizer from config with parameter groups: {self.optimizer_config.name}")
+            else:
+                # Use single learning rate for all parameters
+                self.optimizer = create_optimizer(model.parameters(), self.optimizer_config)
+                logger.info(f"Created optimizer from config: {self.optimizer_config.name}")
+        
+        # Initialize synaptic pruning analyzer if needed
+        if (self.pruning_config.enabled and 
+            self.analysis_manager and 
+            hasattr(self.analysis_manager, 'synapse_turnover_analysis')):
+            turnover_config = getattr(self.analysis_manager, 'synapse_turnover_analysis', {})
+            synaptic_analysis_enabled = False
+            if isinstance(turnover_config, dict):
+                synaptic_analysis_enabled = (
+                    turnover_config.get('enabled', False) and 
+                    turnover_config.get('synaptic_analysis', False)
+                )
+            elif hasattr(turnover_config, 'enabled'):
+                synaptic_analysis_enabled = (
+                    getattr(turnover_config, 'enabled', False) and
+                    getattr(turnover_config, 'synaptic_analysis', False)
+                )
+            
+            if synaptic_analysis_enabled and self.reporting_config.detailed_branch_report:
+                try:
+                    self.synaptic_pruning_analyzer = SynapticPruningAnalyzer(model, snapshot_interval=1)
+                    logger.info("Initialized synaptic pruning analyzer")
+                except Exception as e:
+                    logger.warning(f"Could not initialize synaptic pruning analyzer: {e}")
+                    self.synaptic_pruning_analyzer = None
+
+        # Log enhanced configuration if features are enabled
+        self._log_enhanced_config()
+        
+        # Run training with optional regularization
+        if self.regularization_manager:
+            training_results = self._train_with_regularization(model, train_data, valid_data)
+        else:
+            training_results = self._train_standard(model, train_data, valid_data)
+        
+        # Apply pruning if enabled
+        if self.pruning_config.enabled:
+            pruning_results = self._apply_pruning_and_evaluate(model, train_data, valid_data)
+            training_results.update(pruning_results)
+        
+        return training_results
+
+    def _train_standard(
+        self,
+        model: BaseModel,
+        train_data: torch.utils.data.Dataset,
+        valid_data: torch.utils.data.Dataset,
+    ) -> dict:
+        """Standard training without regularization (original behavior)."""
         train_loader, valid_loader = self._dataloaders(train_data, valid_data)
 
         self.epoch_counter = 0
@@ -292,6 +414,164 @@ class Trainer:
         self._loss_plotting(train_losses, valid_losses)
 
         return results
+
+    def _train_with_regularization(
+        self,
+        model: BaseModel,
+        train_data: torch.utils.data.Dataset,
+        valid_data: torch.utils.data.Dataset,
+    ) -> Dict[str, Any]:
+        """Train the model with regularization."""
+        # Store original loss function
+        original_loss_function = self.loss_function
+        
+        # Wrap loss function to include regularization
+        self.loss_function = self._create_regularized_loss_function(original_loss_function, model)
+        
+        # Run standard training
+        results = self._train_standard(model, train_data, valid_data)
+        
+        # Restore original loss function
+        self.loss_function = original_loss_function
+        
+        return results
+    
+    def _create_regularized_loss_function(self, original_loss_fn, model):
+        """Create a loss function that includes regularization."""
+        def regularized_loss(model_input, x_batch, y_batch):
+            # Compute base loss
+            base_loss = original_loss_fn(model_input, x_batch, y_batch)
+            
+            # Add regularization (pass parameter groups if available)
+            param_groups = getattr(self.optimizer, 'param_groups', None) if hasattr(self, 'optimizer') and self.optimizer else None
+            reg_loss = self.regularization_manager.compute_regularization_loss(model, param_groups)
+            
+            return base_loss + reg_loss
+        
+        return regularized_loss
+
+    def _apply_pruning_and_evaluate(
+        self,
+        model: BaseModel,
+        train_data: torch.utils.data.Dataset,
+        valid_data: torch.utils.data.Dataset,
+    ) -> Dict[str, Any]:
+        """Apply pruning and evaluate performance."""
+        logger.info("Starting pruning phase...")
+        
+        # Store pre-pruning performance
+        train_loader, valid_loader = self._dataloaders(train_data, valid_data)
+        pre_pruning_loss, pre_pruning_acc = self._epoch_validate(model, valid_loader)
+        self.pre_pruning_performance = {
+            'loss': pre_pruning_loss,
+            'accuracy': pre_pruning_acc
+        }
+        
+        # Record pre-pruning synaptic state
+        if self.synaptic_pruning_analyzer:
+            self.synaptic_pruning_analyzer.record_pruning_event(
+                model=model,
+                epoch=self.epochs,  # Use final epoch
+                pruning_stats={},  # Will be filled after pruning
+                pre_pruning=True
+            )
+        
+        # Apply pruning
+        pruning_stats = self.pruning_manager.prune_model(model)
+        
+        # Record post-pruning synaptic state
+        if self.synaptic_pruning_analyzer:
+            self.synaptic_pruning_analyzer.record_pruning_event(
+                model=model,
+                epoch=self.epochs,
+                pruning_stats=pruning_stats,
+                pre_pruning=False
+            )
+        
+        # Report pruning statistics
+        if self.reporting_config.report_non_pruned:
+            self.pruning_manager.print_pruning_report()
+        
+        # Save pruning statistics if requested
+        if self.reporting_config.save_pruning_stats and self.save_path:
+            from pathlib import Path
+            stats_path = Path(self.save_path).parent / "pruning_stats.json"
+            self.pruning_manager.save_pruning_stats(stats_path)
+        
+        # Re-evaluate after pruning
+        if self.pruning_config.re_evaluate_after:
+            post_pruning_loss, post_pruning_acc = self._epoch_validate(model, valid_loader)
+            self.post_pruning_performance = {
+                'loss': post_pruning_loss,
+                'accuracy': post_pruning_acc
+            }
+            
+            # Log performance comparison
+            logger.info(f"Pre-pruning performance: Loss={pre_pruning_loss:.4f}, Acc={pre_pruning_acc:.4f}")
+            logger.info(f"Post-pruning performance: Loss={post_pruning_loss:.4f}, Acc={post_pruning_acc:.4f}")
+            
+            # Integrate with synapse turnover analysis if available
+            if self.synaptic_pruning_analyzer and self.analysis_manager:
+                integrate_pruning_with_turnover_analysis(
+                    self.synaptic_pruning_analyzer,
+                    self.analysis_manager,
+                    self.pre_pruning_performance,
+                    self.post_pruning_performance
+                )
+        
+        return {
+            'pruning_stats': pruning_stats,
+            'pre_pruning_performance': self.pre_pruning_performance,
+            'post_pruning_performance': self.post_pruning_performance,
+        }
+
+    def _log_enhanced_config(self):
+        """Log enhanced configuration if any features are enabled."""
+        if self.regularization_manager or self.pruning_manager:
+            logger.info("Enhanced training features active:")
+            if self.regularization_manager:
+                logger.info(f"  - Regularization: L1={self.regularization_config.l1_weight}, L2={self.regularization_config.l2_weight}")
+            if self.pruning_manager:
+                logger.info(f"  - Pruning: threshold={self.pruning_config.threshold}, dynamic={self.pruning_config.dynamic_pruning}")
+            if self.optimizer_config:
+                logger.info(f"  - Optimizer: {self.optimizer_config.name} (lr={self.optimizer_config.lr})")
+
+    def _create_optimizer_from_param_groups(self, param_groups: list, optimizer_config: OptimizerConfig) -> torch.optim.Optimizer:
+        """Create optimizer from parameter groups with config settings."""
+        optimizer_name = optimizer_config.name.lower()
+        
+        if optimizer_name == "adam":
+            return torch.optim.Adam(
+                param_groups,
+                lr=optimizer_config.lr,  # This will be overridden by individual group lrs
+                weight_decay=optimizer_config.weight_decay,
+                betas=optimizer_config.betas,
+                eps=optimizer_config.eps
+            )
+        elif optimizer_name == "adamw":
+            return torch.optim.AdamW(
+                param_groups,
+                lr=optimizer_config.lr,
+                weight_decay=optimizer_config.weight_decay,
+                betas=optimizer_config.betas,
+                eps=optimizer_config.eps
+            )
+        elif optimizer_name == "sgd":
+            return torch.optim.SGD(
+                param_groups,
+                lr=optimizer_config.lr,
+                weight_decay=optimizer_config.weight_decay,
+                momentum=optimizer_config.momentum
+            )
+        elif optimizer_name == "rmsprop":
+            return torch.optim.RMSprop(
+                param_groups,
+                lr=optimizer_config.lr,
+                weight_decay=optimizer_config.weight_decay,
+                momentum=optimizer_config.momentum
+            )
+        else:
+            raise ValueError(f"Unsupported optimizer: {optimizer_name}")
 
     def _run_training_loop(
         self,

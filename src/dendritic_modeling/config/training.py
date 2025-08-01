@@ -29,6 +29,13 @@ class RegularizationConfig(BaseConfig):
     l1_weight: float = 0.0  # Strength of L1 regularization (0 to disable)
     l2_weight: float = 0.0  # Strength of L2 regularization (0 to disable)
     selective: SelectiveConfig = field(default_factory=SelectiveConfig)
+    
+    # Parameter group specific regularization
+    split_params: bool = True  # Split parameters into groups for differential regularization
+    param_group_weights: Dict[str, Dict[str, float]] = field(default_factory=dict)
+    # Example: {"topk": {"l1_weight": 0.001, "l2_weight": 0.01}, 
+    #          "blocklinear": {"l1_weight": 0.0, "l2_weight": 0.005}}
+    # Note: When split_params=True, uses param_group_weights; when False, uses global l1_weight/l2_weight
 
 
 @dataclass

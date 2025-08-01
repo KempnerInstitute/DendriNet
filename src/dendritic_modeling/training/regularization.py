@@ -25,22 +25,33 @@ class RegularizationManager:
         self.l1_weight = config.l1_weight
         self.l2_weight = config.l2_weight
         self.selective = config.selective
+        self.split_params = config.split_params
+        self.param_group_weights = config.param_group_weights
     
-    def compute_regularization_loss(self, model: nn.Module) -> torch.Tensor:
+    def compute_regularization_loss(self, model: nn.Module, param_groups: Optional[List] = None) -> torch.Tensor:
         """
         Compute regularization loss based on configuration.
         
         Args:
             model: The model to regularize
+            param_groups: Optional parameter groups with their parameters
             
         Returns:
             Regularization loss tensor
         """
-        l1_reg = torch.tensor(0.0, device=next(model.parameters()).device)
-        l2_reg = torch.tensor(0.0, device=next(model.parameters()).device)
+        device = next(model.parameters()).device
+        total_reg_loss = torch.tensor(0.0, device=device)
         
+        # If split_params is enabled and parameter group weights are specified and param_groups are provided
+        if self.split_params and self.param_group_weights and param_groups:
+            return self._compute_param_group_regularization(param_groups, device)
+        
+        # Otherwise use global regularization weights
         if self.l1_weight <= 0 and self.l2_weight <= 0:
-            return l1_reg
+            return total_reg_loss
+        
+        l1_reg = torch.tensor(0.0, device=device)
+        l2_reg = torch.tensor(0.0, device=device)
         
         for name, param in model.named_parameters():
             if not param.requires_grad or 'weight' not in name:
@@ -53,6 +64,49 @@ class RegularizationManager:
                     l2_reg += torch.sum(param ** 2)
         
         return self.l1_weight * l1_reg + self.l2_weight * l2_reg
+    
+    def _compute_param_group_regularization(self, param_groups: List, device) -> torch.Tensor:
+        """Compute regularization loss for parameter groups with different weights."""
+        total_reg_loss = torch.tensor(0.0, device=device)
+        
+        for group_idx, group in enumerate(param_groups):
+            # Determine group type based on learning rate or parameter names
+            group_type = self._identify_group_type(group, group_idx)
+            
+            # Get regularization weights for this group
+            group_reg_config = self.param_group_weights.get(group_type, {})
+            l1_weight = group_reg_config.get('l1_weight', self.l1_weight)
+            l2_weight = group_reg_config.get('l2_weight', self.l2_weight)
+            
+            if l1_weight <= 0 and l2_weight <= 0:
+                continue
+            
+            # Apply regularization to parameters in this group
+            l1_reg = torch.tensor(0.0, device=device)
+            l2_reg = torch.tensor(0.0, device=device)
+            
+            for param in group['params']:
+                if param.requires_grad:
+                    if l1_weight > 0:
+                        l1_reg += torch.sum(torch.abs(param))
+                    if l2_weight > 0:
+                        l2_reg += torch.sum(param ** 2)
+            
+            total_reg_loss += l1_weight * l1_reg + l2_weight * l2_reg
+        
+        return total_reg_loss
+    
+    def _identify_group_type(self, group: Dict, group_idx: int) -> str:
+        """Identify the type of parameter group based on index (same order as model.get_param_groups)."""
+        # Map group indices to group types (matching BaseModel.get_param_groups order)
+        # Index 0: topk, Index 1: blocklinear, Index 2: reactivation, Index 3: decoder
+        group_names = ['topk', 'blocklinear', 'reactivation', 'decoder']
+        
+        if group_idx < len(group_names):
+            return group_names[group_idx]
+        
+        # Fallback to generic naming for additional groups
+        return f'group_{group_idx}'
     
     def _should_regularize(self, param_name: str, model: nn.Module) -> bool:
         """Check if parameter should be regularized based on selective criteria."""

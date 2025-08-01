@@ -175,7 +175,7 @@ train:
   
   # Main network training
   main:
-    learning_strategy: standard
+    learning_strategy: standard  # Supports regularization and pruning features
     weight_decay_rate: 0.01
     
     # Parameter groups with different learning rates
@@ -186,6 +186,25 @@ train:
       blocklinear_lr: 0.0001
       reactivation_lr: 0.0001
       decoder_lr: 0.0001
+    
+    # Parameter group specific regularization
+    regularization:
+      l1_weight: 0.001              # Global regularization (used when split_params=false)
+      l2_weight: 0.01               # Global regularization (used when split_params=false)
+      split_params: true            # Split parameters into groups for differential regularization
+      param_group_weights:          # Different weights per parameter group (when split_params=true)
+        topk:                       # TopK layers - promote sparsity
+          l1_weight: 0.002
+          l2_weight: 0.005
+        blocklinear:                # BlockLinear - preserve structure
+          l1_weight: 0.0
+          l2_weight: 0.001
+        reactivation:               # Reactivation - light regularization
+          l1_weight: 0.0005
+          l2_weight: 0.0
+        decoder:                    # Decoder - balanced regularization
+          l1_weight: 0.0005
+          l2_weight: 0.005
     
     trainer:
       loss_function: ce

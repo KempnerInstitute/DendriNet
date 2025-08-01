@@ -61,9 +61,9 @@ model:
       inhibitory_branch_factors: []       # Branches per inhibitory neuron (fixed: was empty)
       
       # Synaptic connectivity patterns
-      ee_synapses_per_branch_per_layer: [40]   # Excitatory-to-excitatory synapses
+      ee_synapses_per_branch_per_layer: [100]   # Excitatory-to-excitatory synapses
       ei_synapses_per_branch_per_layer: [0]   # No E→I connections since no inhibitory neurons exist
-      ie_synapses_per_branch_per_layer: [10]   # Input→E inhibitory synapses (input_mode=1 provides inhibitory signals)
+      ie_synapses_per_branch_per_layer: [100]   # Input→E inhibitory synapses (input_mode=1 provides inhibitory signals)
       ii_synapses_per_branch_per_layer: [0]   # No I→I connections since no inhibitory neurons exist
 
       # Morphological features
@@ -138,7 +138,7 @@ train:
   # ==========================================
   enable_amp: false             # Enable automatic mixed precision
   enable_profiling: false       # Enable PyTorch profiler
-  profiling_output_dir: "outputs/profiling/"
+  profiling_output_dir: "results/profiling/"
   enable_hooks: true            # Enable hooks for analysis (set false for max speed)
   
   # FSDP (Fully Sharded Data Parallel) Configuration
@@ -198,9 +198,9 @@ train:
   # MAIN NETWORK TRAINING
   # ==========================================
   main:
-    learning_strategy: standard # Options: "standard", "enhanced", "freeze_layers", "local_ca", etc.
-                               # To use enhanced training features, set to "enhanced" and configure options below
-    weight_decay_rate: 0.01     # Deprecated when using enhanced training (use optimizer.weight_decay below)
+    learning_strategy: standard # Options: "standard", "freeze_layers", "local_ca", etc.
+                               # Supports regularization, pruning, and parameter group features
+    weight_decay_rate: 0.01     # Use optimizer.weight_decay for internal optimizer creation
     
     # Parameter groups with different learning rates
     param_groups:
@@ -234,36 +234,55 @@ train:
       final_tune_epochs: 10
 
     # ==========================================
-    # ENHANCED TRAINING FEATURES
+    # ADVANCED TRAINING FEATURES
     # ==========================================
-    # Configure these when using learning_strategy: "enhanced"
+    # Regularization, pruning, and flexible optimizer configuration
+    # All features default to disabled, so no impact unless explicitly enabled
     
-    # Optimizer configuration (replaces param_groups when using enhanced training)
-    optimizer:
-      name: "adam"                    # Options: "adam", "sgd", "rmsprop", "adamw"
-      lr: 0.001                      # Learning rate
-      weight_decay: 0.0001           # Built-in L2 regularization (global)
-      momentum: 0.9                  # For SGD
-      betas: [0.9, 0.999]           # For Adam/AdamW
-      eps: 1e-8                      # For Adam/AdamW
+    # Internal optimizer configuration (alternative to external optimizer creation)
+    # Note: When provided, respects param_groups learning rates above
+    # optimizer:
+    #   name: "adam"                    # Options: "adam", "sgd", "rmsprop", "adamw"
+    #   lr: 0.001                      # Learning rate (used when param_groups.split_params=false)
+    #   weight_decay: 0.0001           # Built-in L2 regularization (global)
+    #   momentum: 0.9                  # For SGD
+    #   betas: [0.9, 0.999]           # For Adam/AdamW
+    #   eps: 1e-8                      # For Adam/AdamW
 
     # Regularization configuration
     regularization:
-      l1_weight: 0.0                 # L1 regularization strength (0 to disable)
-      l2_weight: 0.0                 # L2 regularization strength (0 to disable, use optimizer.weight_decay instead)
+      l1_weight: 0.001               # Global L1 regularization strength (used when split_params=false)
+      l2_weight: 0.01                # Global L2 regularization strength (used when split_params=false)
       selective:                     # Selective application
         layers: []                   # List of layer indices (empty = all layers)
         branches: []                 # List of branch names (empty = all branches)
-        weight_types: ["all"]        # Types of weights to regularize: "recurrent", "input", "output", "all"
-
+        weight_types: ["all"]        # Options: "all", "recurrent", "input", "output", "linear"
+      
+      # Parameter group specific regularization
+      split_params: true             # Split parameters into groups for differential regularization
+      param_group_weights:
+        # Apply different regularization to different parameter groups (when split_params=true)
+        topk:                       # TopK layers
+          l1_weight: 0.0          # L1 for TopK layers
+          l2_weight: 0.005          # L2 for TopK layers
+        blocklinear:                # BlockLinear layers
+          l1_weight: 0.0            # No L1 for BlockLinear
+          l2_weight: 0.0          # No L2 for BlockLinear
+        reactivation:               # Reactivation layers
+          l1_weight: 0.0         # No L1 for reactivation
+          l2_weight: 0.0            # No L2 for reactivation
+        decoder:                    # Decoder network
+          l1_weight: 0.0          # No L1 for decoder
+          l2_weight: 0.0          # No L2 for decoder
+          
     # Pruning configuration
     pruning:
-      enabled: false                 # Enable pruning
+      enabled: true                 # Enable pruning
       threshold: 0.001               # Prune weights with abs(value) < threshold
       selective:                     # Selective application
         layers: []                   # List of layer indices (empty = all layers)
         branches: []                 # List of branch names (empty = all branches)
-        weight_types: ["all"]        # Types of weights to prune
+        weight_types: ["excitatory", "inhibitory"]        # Options: "all", "excitatory", "inhibitory", "recurrent", "input", "output", "linear"
       re_evaluate_after: true        # Re-evaluate model after pruning
       dynamic_pruning: false         # Whether to prune during training
       pruning_frequency: 10          # Epochs between dynamic pruning (if enabled)
