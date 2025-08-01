@@ -230,11 +230,59 @@ train:
 **Learning Strategies:**
 
 - ``standard``: Standard backpropagation training
+- ``enhanced``: Advanced training with flexible optimization and regularization
 - ``two_step``: Train branches then soma connections
 - ``voltage_stabilization``: Stabilize dendritic voltages during training
 - ``freeze_layers``: Layer-wise training from output to input
 - ``freeze_branches``: Branch-wise training
 - ``local_ca``: Local credit assignment
+
+Enhanced Training Features
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+When using ``learning_strategy: enhanced``, additional configuration options become available:
+
+.. code-block:: yaml
+
+   train:
+     main:
+       learning_strategy: enhanced
+       
+       # Optimizer configuration
+       optimizer:
+         name: adam               # Options: adam, sgd, rmsprop, adamw
+         lr: 0.001
+         weight_decay: 0.01
+         momentum: 0.9           # For SGD
+         betas: [0.9, 0.999]     # For Adam/AdamW
+         eps: 1e-8
+       
+       # Regularization options
+       regularization:
+         l1_weight: 0.0          # L1 penalty weight
+         l2_weight: 0.01         # L2 penalty weight
+         selective:
+           layers: []            # Apply to specific layers (empty = all)
+           branches: []          # Apply to specific branches (empty = all)
+           weight_types: ["all"] # Options: "all", "excitatory", "inhibitory"
+       
+       # Weight pruning
+       pruning:
+         enabled: false          # Enable weight pruning
+         threshold: 0.001        # Magnitude threshold for pruning
+         dynamic_pruning: false  # Prune during training
+         pruning_frequency: 10   # Epochs between pruning (if dynamic)
+         re_evaluate_after: true # Re-evaluate after pruning
+         selective:
+           layers: []            # Prune specific layers (empty = all)
+           branches: []          # Prune specific branches (empty = all)
+           weight_types: ["all"] # Options: "all", "excitatory", "inhibitory"
+       
+       # Reporting options
+       reporting:
+         report_non_pruned: true      # Report synapse counts after pruning
+         save_pruning_stats: true     # Save pruning statistics
+         detailed_branch_report: true # Enable detailed branch reporting
 
 Task Configuration
 ------------------
@@ -282,6 +330,14 @@ analysis:
          method: kraskov         # MI estimation method
          n_neighbors: 10
          max_samples: 5000
+     
+     # Synaptic turnover analysis
+     synapse_turnover_analysis:
+       enabled: true
+       training: true
+       snapshot_interval: 5        # Frequency of snapshots
+       synaptic_analysis: true     # Enable synaptic connectivity analysis
+       save_synaptic_report: true  # Save synaptic analysis to file
 
 Output Configuration
 --------------------

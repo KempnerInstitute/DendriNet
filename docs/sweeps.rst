@@ -128,6 +128,32 @@ Workflow Examples
    python -m dendritic_modeling.scripts.sweeps.unified.sweep_manager general \
        --config configs/large_sweep.yaml --run --split-jobs 10
 
+Enhanced Training in Sweeps
+---------------------------
+
+Sweeps can utilize enhanced training features for advanced experimentation:
+
+.. code-block:: yaml
+
+   # Enable enhanced training with regularization
+   train:
+     main:
+       learning_strategy: enhanced
+       optimizer:
+         name: adam
+         lr: 0.001
+       regularization:
+         l1_weight: 0.001
+         l2_weight: 0.0
+       pruning:
+         enabled: false  # Usually disabled for sweeps
+   
+   # Sweep over enhanced training parameters
+   sweep_config:
+     train.main.optimizer.name: ["adam", "sgd", "rmsprop"]
+     train.main.regularization.l1_weight: [0.0, 0.001, 0.01]
+     train.main.regularization.l2_weight: [0.0, 0.001, 0.01]
+
 Result Analysis
 --------------
 

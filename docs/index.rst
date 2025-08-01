@@ -45,6 +45,15 @@ Training Options
 **Standard Training**
    Single-GPU training with standard backpropagation.
 
+**Enhanced Training**
+   Advanced training with multiple optimizers, regularization, and pruning:
+   
+   - Multiple optimizers: Adam, SGD, RMSprop, AdamW
+   - L1/L2 regularization with selective application
+   - Weight pruning with magnitude thresholds
+   - Synaptic turnover analysis with active synapse tracking
+   - Detailed reporting with branch-level statistics
+
 **FSDP Training**
    Distributed training for large models across multiple GPUs.
 
