@@ -18,8 +18,6 @@ from dendritic_modeling.training.strategies import (
     TwoStepTrainer,
     TwoStepTrainerWithKL,
     VoltageStabilizationTrainer,
-    EnhancedTrainer,
-    create_enhanced_trainer_from_config,
 )
 from dendritic_modeling.config.training import (
     OptimizerConfig, RegularizationConfig, PruningConfig, ReportingConfig

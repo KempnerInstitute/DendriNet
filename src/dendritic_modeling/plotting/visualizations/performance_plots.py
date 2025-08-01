@@ -132,6 +132,8 @@ class PerformancePlotter(TimeSeriesPlotter):
         performance_dir: str,
         save_path: Optional[str] = None,
         filename: str = "performance_evolution",
+        pruning_performance: Optional[Dict[str, Dict[str, float]]] = None,
+        final_epoch: Optional[int] = None,
     ) -> Dict[str, Tuple[plt.Figure, plt.Axes]]:
         """Plot performance metrics evolution over epochs from saved files."""
         plots = {}
@@ -199,7 +201,7 @@ class PerformancePlotter(TimeSeriesPlotter):
                 metric_groups[base_metric] = []
             metric_groups[base_metric].append(key)
         
-                # Create separate plots for each metric type
+        # Create separate plots for each metric type
         for metric_type, metric_keys in metric_groups.items():
             fig, ax = self._create_figure(figsize=(12, 8))
             
@@ -217,6 +219,10 @@ class PerformancePlotter(TimeSeriesPlotter):
                     smooth_values = self._smooth_data(np.array(values), window_size=3)
                     ax.plot(epochs[1:len(smooth_values)+1], smooth_values, '-', 
                            color=color, linewidth=3, alpha=0.9)
+                           
+                # Add pruning performance markers if available
+                if pruning_performance and final_epoch is not None:
+                    self._add_pruning_markers(ax, metric_type, key, pruning_performance, final_epoch)
             
             self._apply_styling(
                 ax,
@@ -234,6 +240,29 @@ class PerformancePlotter(TimeSeriesPlotter):
                 self._save_plot(fig, save_path, individual_filename)
         
         return plots
+
+    def _add_pruning_markers(self, ax: plt.Axes, metric_type: str, key: str, 
+                           pruning_performance: Dict[str, Dict[str, float]], final_epoch: int):
+        """Add pruning performance markers to the plot."""
+        # Check if this key matches any pruning performance data
+        for stage in ['pre_pruning_performance', 'post_pruning_performance']:
+            if stage in pruning_performance:
+                stage_data = pruning_performance[stage]
+                # Find matching metric
+                for perf_key, value in stage_data.items():
+                    # Match metric type (e.g., 'accuracy' in key and 'accuracy' in perf_key)
+                    if metric_type.lower() in perf_key.lower() or perf_key.lower() in metric_type.lower():
+                        marker_epoch = final_epoch if stage == 'pre_pruning_performance' else final_epoch + 1
+                        marker_style = 's' if stage == 'pre_pruning_performance' else 'o'
+                        marker_color = 'red' if stage == 'pre_pruning_performance' else 'darkred'
+                        marker_size = 12
+                        marker_label = f"{'Pre' if stage == 'pre_pruning_performance' else 'Post'} Pruning"
+                        
+                        ax.scatter([marker_epoch], [value], 
+                                 marker=marker_style, s=marker_size**2, 
+                                 color=marker_color, alpha=0.9, 
+                                 edgecolor='black', linewidth=2,
+                                 label=marker_label, zorder=10)
 
 
 class SweepResultsPlotter(TimeSeriesPlotter):

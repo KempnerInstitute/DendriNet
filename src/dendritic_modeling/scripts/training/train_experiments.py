@@ -156,10 +156,15 @@ def run_analysis(
     run_save_path: str,
     analysis_manager: AnalysisManager | None = None,
     training: bool = False,
+    training_results: dict | None = None,
 ):
     """Run analysis using the AnalysisManager."""
     logger.info("Running analyses...")
     if analysis_manager is not None:
+        # Set pruning results if available
+        if training_results and ('pre_pruning_performance' in training_results or 'post_pruning_performance' in training_results):
+            analysis_manager.set_pruning_results(training_results)
+        
         analysis_manager.run_analysis(filename="final", training=training)
         logger.info("Analysis completed")
 
@@ -340,7 +345,7 @@ def main(config_path: str, args=None):
         trainer_config_dict=main_trainer_config_dict,
         analysis_manager=analysis_manager,
     )
-    main_trainer.train(
+    training_results = main_trainer.train(
         model=model, train_data=encoded_train_ds, valid_data=encoded_valid_ds
     )
 
@@ -383,6 +388,7 @@ def main(config_path: str, args=None):
             test_ds=test_ds,
             run_save_path=run_save_path,
             analysis_manager=analysis_manager,
+            training_results=training_results,
         )
     else:
         logger.info("No analysis enabled - skipping analysis for speed")

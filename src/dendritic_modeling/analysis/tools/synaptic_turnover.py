@@ -49,7 +49,69 @@ class SynapticTurnoverAnalyzer:
         self.data_dict_list = []
         self.snapshot_interval = snapshot_interval
         self.epoch_counter = 0
+        
+        # Store synapse configuration for layer-wise analysis
+        self.synapse_config = {
+            'ee': getattr(model.core_network, 'ee_synapses_per_branch_per_layer', []),
+            'ei': getattr(model.core_network, 'ei_synapses_per_branch_per_layer', []),
+            'ie': getattr(model.core_network, 'ie_synapses_per_branch_per_layer', []),
+            'ii': getattr(model.core_network, 'ii_synapses_per_branch_per_layer', [])
+        }
+        
         self.analyze(model=model, training=True)
+
+    def _compute_layer_synapse_averages(self, total_exc_active: int, total_inh_active: int) -> dict:
+        """
+        Compute average synapse counts per layer for each synapse type.
+        
+        Args:
+            total_exc_active: Total active excitatory synapses
+            total_inh_active: Total active inhibitory synapses
+            
+        Returns:
+            Dictionary with average synapse counts for ee, ei, ie, ii
+        """
+        # Get configuration
+        ee_config = self.synapse_config['ee']
+        ei_config = self.synapse_config['ei'] 
+        ie_config = self.synapse_config['ie']
+        ii_config = self.synapse_config['ii']
+        
+        # Default to 0 if no configuration available
+        num_layers = max(len(ee_config), len(ei_config), len(ie_config), len(ii_config), 1)
+        
+        # Estimate average synapses per layer for each type
+        # Note: This is an approximation since we don't have exact layer-wise breakdowns
+        # from the mask data. We use the configuration ratios as a guide.
+        total_ee_config = sum(ee_config) if ee_config else 0
+        total_ei_config = sum(ei_config) if ei_config else 0  
+        total_ie_config = sum(ie_config) if ie_config else 0
+        total_ii_config = sum(ii_config) if ii_config else 0
+        
+        total_config = total_ee_config + total_ie_config  # Excitatory connections
+        total_inh_config = total_ei_config + total_ii_config  # Inhibitory connections
+        
+        # Compute averages per layer based on actual vs configured ratios
+        if total_config > 0:
+            exc_ratio = total_exc_active / max(total_config, 1)
+            ee_avg = (total_ee_config * exc_ratio) / max(num_layers, 1)
+            ie_avg = (total_ie_config * exc_ratio) / max(num_layers, 1)
+        else:
+            ee_avg = ie_avg = 0
+            
+        if total_inh_config > 0:
+            inh_ratio = total_inh_active / max(total_inh_config, 1)
+            ei_avg = (total_ei_config * inh_ratio) / max(num_layers, 1)
+            ii_avg = (total_ii_config * inh_ratio) / max(num_layers, 1)
+        else:
+            ei_avg = ii_avg = 0
+        
+        return {
+            'ee': ee_avg,
+            'ei': ei_avg, 
+            'ie': ie_avg,
+            'ii': ii_avg
+        }
 
     def analyze(
         self,
@@ -155,6 +217,13 @@ class SynapticTurnoverAnalyzer:
                 "inh": {"active": [], "stable": [], "transient": []},
                 "both": {"active": [], "stable": [], "transient": []},
             }
+            
+            # Initialize per-layer synapse type statistics
+            # Collect layer-wise statistics for ee, ei, ie, ii synapses
+            layer_stats = {
+                "incremental": {"per_layer_avg": {"ee": [], "ei": [], "ie": [], "ii": []}},
+                "cumulative": {"per_layer_avg": {"ee": [], "ei": [], "ie": [], "ii": []}}
+            }
 
             # Get initial snapshot for cumulative comparison
             initial_data_dict = self.data_dict_list[0] if len(self.data_dict_list) > 0 else None
@@ -171,6 +240,10 @@ class SynapticTurnoverAnalyzer:
                 # Initialize counters for cumulative comparison (t vs t=0)
                 cum_exc_active = cum_exc_stable = cum_exc_transient = 0
                 cum_inh_active = cum_inh_stable = cum_inh_transient = 0
+                
+                # Initialize per-layer synapse type counters
+                inc_ee = inc_ei = inc_ie = inc_ii = 0
+                cum_ee = cum_ei = cum_ie = cum_ii = 0
 
                 # Process each dendritic branch layer
                 for name in curr_data_dict.keys():
@@ -261,6 +334,13 @@ class SynapticTurnoverAnalyzer:
                     inc_exc_transient + inc_inh_transient
                 )
                 
+                # Compute per-layer averages for synapse types
+                inc_layer_avg = self._compute_layer_synapse_averages(inc_exc_active, inc_inh_active)
+                layer_stats["incremental"]["per_layer_avg"]["ee"].append(inc_layer_avg["ee"])
+                layer_stats["incremental"]["per_layer_avg"]["ei"].append(inc_layer_avg["ei"])
+                layer_stats["incremental"]["per_layer_avg"]["ie"].append(inc_layer_avg["ie"])
+                layer_stats["incremental"]["per_layer_avg"]["ii"].append(inc_layer_avg["ii"])
+                
                 # Store cumulative turnover statistics
                 cumulative_turnover["exc"]["active"].append(cum_exc_active)
                 cumulative_turnover["exc"]["stable"].append(cum_exc_stable)
@@ -279,11 +359,19 @@ class SynapticTurnoverAnalyzer:
                 cumulative_turnover["both"]["transient"].append(
                     cum_exc_transient + cum_inh_transient
                 )
+                
+                # Compute cumulative per-layer averages for synapse types
+                cum_layer_avg = self._compute_layer_synapse_averages(cum_exc_active, cum_inh_active)
+                layer_stats["cumulative"]["per_layer_avg"]["ee"].append(cum_layer_avg["ee"])
+                layer_stats["cumulative"]["per_layer_avg"]["ei"].append(cum_layer_avg["ei"])
+                layer_stats["cumulative"]["per_layer_avg"]["ie"].append(cum_layer_avg["ie"])
+                layer_stats["cumulative"]["per_layer_avg"]["ii"].append(cum_layer_avg["ii"])
 
             # Return both types of turnover statistics
             turnover_dict = {
                 "incremental": incremental_turnover,
                 "cumulative": cumulative_turnover,
+                "layer_statistics": layer_stats,
                 "n_snapshots": len(self.data_dict_list)
             }
 
