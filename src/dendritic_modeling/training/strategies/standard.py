@@ -595,6 +595,23 @@ class Trainer:
                 
                 logger.info(f"Pruning analysis plots saved to {plots_path}")
             
+            # Generate independent performance comparison plot
+            if self.save_path:
+                from dendritic_modeling.plotting.visualizations.general_analysis_plots import plot_pruning_performance_comparison
+                performance_comparison = {
+                    'before_pruning': self.pre_pruning_performance,
+                    'after_pruning': self.post_pruning_performance
+                }
+                try:
+                    plot_pruning_performance_comparison(
+                        performance_comparison,
+                        save_path=str(Path(self.save_path).parent),
+                        filename="pruning_performance_comparison"
+                    )
+                    logger.info("Generated independent pruning performance comparison plot")
+                except Exception as e:
+                    logger.warning(f"Failed to generate independent performance plot: {e}")
+            
             # Redo analysis after pruning if requested
             if (self.reporting_config.redo_analysis_after_pruning and 
                 self.analysis_manager and self.save_path):
@@ -612,7 +629,7 @@ class Trainer:
         
         try:
             # Create a separate save path for post-pruning analysis
-            post_pruning_analysis_path = Path(self.save_path).parent / "post_pruning_analysis"
+            post_pruning_analysis_path = Path(self.save_path).parent / "pruned_analysis"
             post_pruning_analysis_path.mkdir(exist_ok=True)
             
             # Collect performance data for comparison
@@ -648,14 +665,14 @@ class Trainer:
                 logger.info("Generated performance comparison plot")
             
             # Run all enabled analyses on the pruned model
-            # This will create new analysis results in the post_pruning_analysis folder
+            # This will create new analysis results in the pruned_analysis folder
             original_save_root = self.analysis_manager.save_root
             self.analysis_manager.save_root = str(post_pruning_analysis_path)
             
             try:
                 # Run post-pruning analysis (final mode, not training mode)
                 self.analysis_manager.run_analysis(filename="post_pruning", training=False)
-                logger.info(f"Post-pruning analysis completed and saved to {post_pruning_analysis_path}")
+                logger.info(f"Pruned model analysis completed and saved to {post_pruning_analysis_path}")
             finally:
                 # Restore original save root
                 self.analysis_manager.save_root = original_save_root

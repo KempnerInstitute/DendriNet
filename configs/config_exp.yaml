@@ -262,7 +262,7 @@ train:
     # Pruning configuration
     pruning:
       enabled: true                 # Enable pruning
-      threshold: 0.001               # Prune weights with abs(value) < threshold
+      threshold: 0.1               # Prune weights with abs(value) < threshold
       selective:                     # Selective application
         layers: []                   # List of layer indices (empty = all layers)
         branches: []                 # List of branch names (empty = all branches)

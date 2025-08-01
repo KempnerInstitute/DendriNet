@@ -1130,9 +1130,17 @@ def plot_active_synapses_per_branch(
         layer_stats = connectivity_stats.get('layer_stats', {})
         branch_stats = connectivity_stats.get('branch_stats', {})
         
-        if not layer_stats or not branch_stats:
-            logger.warning("No layer or branch statistics found for plotting")
-            return None
+        if not layer_stats and not branch_stats:
+            logger.warning("No layer or branch statistics found - generating default empty plot")
+            fig, ax = plt.subplots(figsize=(12, 8))
+            ax.text(0.5, 0.5, "No pruning statistics available\n(Small model or no synapses pruned)", 
+                    ha='center', va='center', fontsize=12)
+            ax.set_title("Active Synapses per Branch", fontsize=14, fontweight='bold')
+            ax.set_xlabel("Layer")
+            ax.set_ylabel("Number of Active Synapses")
+            if save_path and filename:
+                plotting_utils.save_plot(fig, save_path, filename)
+            return fig
         
         # Organize data by layer and branch
         layers_data = defaultdict(list)
@@ -1292,9 +1300,16 @@ def plot_active_synapses_summary_by_layer(
         logger.info(f"DEBUG: layer_stats keys: {list(layer_stats.keys())}")
         
         if not layer_stats:
-            logger.warning("No layer statistics found for plotting")
-            logger.warning(f"Available connectivity_stats keys: {list(connectivity_stats.keys())}")
-            return None
+            logger.warning("No layer statistics found - generating default empty plot")
+            fig, ax = plt.subplots(figsize=(12, 8))
+            ax.text(0.5, 0.5, "No layer statistics available\n(Small model or no synapses pruned)", 
+                    ha='center', va='center', fontsize=12)
+            ax.set_title("Active Synapses Summary by Layer", fontsize=14, fontweight='bold')
+            ax.set_xlabel("Layer")
+            ax.set_ylabel("Number of Active Synapses")
+            if save_path and filename:
+                plotting_utils.save_plot(fig, save_path, filename)
+            return fig
         
         # Organize data by layer
         layers_summary = {}

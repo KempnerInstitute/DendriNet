@@ -46,6 +46,10 @@ def _extract_enhanced_configs(trainer_config_dict: Dict[str, Any]) -> Dict[str, 
     if "regularization" in trainer_config_dict:
         reg_config = trainer_config_dict.pop("regularization")
         if isinstance(reg_config, dict):
+            # Handle nested SelectiveConfig properly
+            if "selective" in reg_config and isinstance(reg_config["selective"], dict):
+                from dendritic_modeling.config.training import SelectiveConfig
+                reg_config["selective"] = SelectiveConfig(**reg_config["selective"])
             enhanced_configs["regularization_config"] = RegularizationConfig(**reg_config)
         else:
             enhanced_configs["regularization_config"] = reg_config
@@ -54,6 +58,10 @@ def _extract_enhanced_configs(trainer_config_dict: Dict[str, Any]) -> Dict[str, 
     if "pruning" in trainer_config_dict:
         prune_config = trainer_config_dict.pop("pruning")
         if isinstance(prune_config, dict):
+            # Handle nested SelectiveConfig properly
+            if "selective" in prune_config and isinstance(prune_config["selective"], dict):
+                from dendritic_modeling.config.training import SelectiveConfig
+                prune_config["selective"] = SelectiveConfig(**prune_config["selective"])
             enhanced_configs["pruning_config"] = PruningConfig(**prune_config)
         else:
             enhanced_configs["pruning_config"] = prune_config
