@@ -7,13 +7,15 @@
   <a href="https://codecov.io/gh/KempnerInstitute/dendritic-modeling">
     <img src="https://codecov.io/gh/KempnerInstitute/dendritic-modeling/graph/badge.svg?token=HUJRFX92DF" alt="Coverage"/>
  </a>
+  <img src="https://img.shields.io/badge/Python-29,692%20lines-blue" alt="Lines of Code">
+  <img src="https://img.shields.io/badge/Code%20Quality-Optimized-green" alt="Code Quality">
 </p>
 
 <p align="center">
   <img src="dendritic_diagram.png" alt="Dendritic Neural Network Architecture" width="600">
 </p>
 
-A framework for modeling dendritic neural networks with biologically-inspired excitation-inhibition dynamics and sophisticated synaptic processing.
+A comprehensive framework for modeling dendritic neural networks with biologically-inspired excitation-inhibition dynamics, sophisticated synaptic processing, and advanced training capabilities including pruning, regularization, and synaptic turnover analysis.
 
 ## Installation
 
@@ -32,13 +34,32 @@ pip install -e .
 
 ## Quick Start
 
+### Training
 Run a simple training experiment:
 
 ```bash
 python src/dendritic_modeling/scripts/training/train_experiments.py configs/config_exp.yaml
 ```
 
-This trains an EINet model on MNIST and saves results in the `results/` directory.
+Use advanced training with pruning, regularization, and synaptic analysis:
+
+```bash
+# Edit config_exp.yaml and set:
+# train.main.learning_strategy: enhanced
+# train.main.pruning.enabled: true
+# analysis.synapse_turnover_analysis.synaptic_analysis: true
+
+python src/dendritic_modeling/scripts/training/train_experiments.py configs/config_exp.yaml
+```
+
+**Enhanced features include:**
+- ✅ **Multiple optimizers** (Adam, SGD, RMSprop, AdamW)
+- ✅ **L1/L2 regularization** with selective application
+- ✅ **Weight pruning** with magnitude thresholds
+- ✅ **Synaptic turnover analysis** with active synapse tracking
+- ✅ **Advanced reporting** with branch-level statistics
+
+See [ENHANCED_TRAINING_GUIDE.md](ENHANCED_TRAINING_GUIDE.md) for detailed usage.
 
 ## Parameter Sweeps & Analysis
 
@@ -69,9 +90,10 @@ For detailed usage, configuration options, and advanced features, see the [full 
 ## Core Components
 
 - **Models**: Classifier and Regressor with encoder-core-decoder architecture
-- **Networks**: EINet (excitation-inhibition), DendriNet (dendritic branching), and classical networks
-- **Training**: Standard training, FSDP for large models, and parameter sweeps
-- **Analysis**: Information-theoretic analysis, correlation studies, and visualization tools
+- **Networks**: EINet (excitation-inhibition), DendriNet (dendritic branching), and classical networks  
+- **Training**: Standard & enhanced training, FSDP for large models, pruning, regularization
+- **Analysis**: Information theory, synaptic turnover, correlation studies, and 65+ visualization plots
+- **Sweeps**: Automated parameter exploration with intelligent result analysis
 
 ## License
 
