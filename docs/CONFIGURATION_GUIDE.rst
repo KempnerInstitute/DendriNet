@@ -1,15 +1,15 @@
 Configuration Guide
 ===================
 
-This guide covers all configuration options for the Dendritic Modeling Framework. All configurations use YAML files passed to training scripts.
+Configuration options for the framework using YAML files.
 
 Training Features
 -----------------
 
-- **Regularization**: L1/L2 regularization with global or parameter group specific weights
-- **Pruning**: Magnitude-based weight pruning with selective application
-- **Optimizers**: Adam, SGD, RMSprop, AdamW with parameter group support
-- **Learning Rates**: Different learning rates for different network components
+- Regularization: L1/L2 with parameter group support
+- Pruning: Magnitude-based weight pruning
+- Optimizers: Adam, SGD, RMSprop, AdamW
+- Learning rates: Different rates for network components
 
 Model Architecture
 ------------------
@@ -39,7 +39,7 @@ The framework uses a three-part model structure:
 Encoder Networks
 ^^^^^^^^^^^^^^^^
 
-**Identity** (default)
+Identity (default)
    Passes input unchanged to core network.
 
 .. code-block:: yaml
@@ -48,7 +48,7 @@ Encoder Networks
         type: Identity
         parameters: {}
 
-**MLP**
+MLP
    Multi-layer perceptron encoder.
 
    .. code-block:: yaml
@@ -61,7 +61,7 @@ Encoder Networks
           output_dim: 128
           activation: relu
 
-**CNN**
+CNN
    Convolutional encoder for image data.
 
    .. code-block:: yaml
@@ -75,7 +75,7 @@ Encoder Networks
 Core Networks
 ^^^^^^^^^^^^^
 
-**EINet (Excitation-Inhibition Network)**
+EINet (Excitation-Inhibition Network)
 
 The main dendritic architecture with separate excitatory and inhibitory pathways:
 
@@ -122,22 +122,22 @@ The main dendritic architecture with separate excitatory and inhibitory pathways
        input_mode: 1                            # Input routing mode
        transfer_params: {}                      # Transfer function params
 
-**Key EINet Parameters:**
+Key EINet Parameters:
 
-- **Layer Sizes**: Define the number of neurons in each layer for excitatory and inhibitory pathways
-- **Branch Factors**: Determine dendritic branching structure (e.g., [2, 2] means each neuron branches into 2 at each level)
-- **Synaptic Connectivity**: Number of connections per branch between different neuron types
-- **TopK Types**:
+- Layer Sizes: Define the number of neurons in each layer for excitatory and inhibitory pathways
+- Branch Factors: Determine dendritic branching structure (e.g., [2, 2] means each neuron branches into 2 at each level)
+- Synaptic Connectivity: Number of connections per branch between different neuron types
+- TopK Types:
   - ``standard``: Select top-k synapses by weight magnitude
   - ``stochastic``: Probabilistic selection with temperature
   - ``variance``: Selection based on input variance
   - ``deepst``: Dynamic sparse training with rewiring
-- **Activation Types**:
+- Activation Types:
   - ``param_tanh``: Parametric tanh with learnable m and b
   - ``relu``, ``sigmoid``, ``tanh``: Standard activations
   - ``param_linear_sigmoid``, ``param_linear_tanh``: Interpolated activations
 
-**DendriNet**
+DendriNet
 
 Pure dendritic network without explicit E/I separation:
 
@@ -153,7 +153,7 @@ Pure dendritic network without explicit E/I separation:
        use_shunting: true                       # Enable shunting
        reactivate: true                         # Branch activation
 
-**MLP**
+MLP
 
 Standard multi-layer perceptron:
 
@@ -167,7 +167,7 @@ Standard multi-layer perceptron:
       output_dim: 10
        activation: relu
 
-**MatchedParamMLP**
+MatchedParamMLP
 
 MLP with parameter count matched to EINet for fair comparison:
 
@@ -184,7 +184,7 @@ MLP with parameter count matched to EINet for fair comparison:
 Decoder Networks
 ^^^^^^^^^^^^^^^^
 
-**Identity** (default)
+Identity (default)
    Uses core network output directly.
 
    .. code-block:: yaml
@@ -193,7 +193,7 @@ Decoder Networks
         type: Identity
         parameters: {}
 
-**MLP**
+MLP
    Additional processing of core network output.
 
    .. code-block:: yaml
@@ -209,16 +209,16 @@ Decoder Networks
 Training Configuration
 ----------------------
 
-**Training Workflow:**
+Training Workflow:
 
 The training process follows this sequence:
 
-1. **Training**: Model trains for specified epochs
-2. **Original Analysis**: All enabled analyses run on the trained model
-3. **Pruning** (if enabled): Weights below threshold are pruned, performance is re-evaluated
-4. **Pruned Model Analysis** (if ``redo_analysis_after_pruning: true``): All analyses re-run on pruned model
+1. Training: Model trains for specified epochs
+2. Original Analysis: All enabled analyses run on the trained model
+3. Pruning (if enabled): Weights below threshold are pruned, performance is re-evaluated
+4. Pruned Model Analysis (if ``redo_analysis_after_pruning: true``): All analyses re-run on pruned model
 
-**Learning Strategies:**
+Learning Strategies:
 
 - ``standard``: Standard training with optional regularization, pruning, and post-pruning analysis  
 - ``two_step``: Train branches then soma connections
@@ -227,7 +227,7 @@ The training process follows this sequence:
 - ``freeze_branches``: Branch-wise training
 - ``local_ca``: Local credit assignment
 
-**Configuration Example:**
+Configuration Example:
 
 .. code-block:: yaml
 
@@ -288,7 +288,7 @@ The training process follows this sequence:
          detailed_branch_report: true     # Generate synaptic analysis plots
          redo_analysis_after_pruning: true  # Re-run all enabled analyses on pruned model
 
-**Pruning Outputs:**
+Pruning Outputs:
 
 When pruning is enabled, the following files are generated:
 
@@ -301,7 +301,7 @@ If ``detailed_branch_report: true``, additional plots are generated:
 - ``active_synapses_per_branch.png``: Number of active synapses per branch per layer
 - ``active_synapses_summary_by_layer.png``: Summary statistics of active synapses by layer
 
-**Regularization**
+Regularization
 
 ``split_params: false`` - Uses global ``l1_weight`` and ``l2_weight`` for all parameters.
 
@@ -314,7 +314,7 @@ If ``detailed_branch_report: true``, additional plots are generated:
 
 If no ``param_group_weights`` specified when ``split_params=true``, no regularization is applied.
 
-**Optimizer Configuration**
+Optimizer Configuration
 
 .. code-block:: yaml
 
@@ -346,7 +346,7 @@ task:
        normalize: true           # Apply normalization
        flatten: true             # Flatten images
 
-**Supported Datasets:**
+Supported Datasets:
 
 - ``mnist``: Handwritten digits (28x28)
 - ``cifar10``: Natural images (32x32x3)
@@ -419,7 +419,7 @@ wandb:
 Complete Example Configuration
 ------------------------------
 
-**Basic EINet on MNIST:**
+Basic EINet on MNIST:
 
 .. code-block:: yaml
 
@@ -476,24 +476,61 @@ outputs:
    wandb:
      use_wandb: false
 
-**FSDP Configuration for Large Models:**
+FSDP Configuration for Large Models:
 
 .. code-block:: yaml
 
-   # Add to train section for distributed training
-train:
-     learning_strategy: fsdp
+   # Enable FSDP for multi-GPU training
+   train:
+     use_fsdp: true
      
-     fsdp:
-       sharding_strategy: FULL_SHARD
-       cpu_offload: true
-       mixed_precision: true
-       
-  trainer:
-       gradient_accumulation_steps: 4
-       # Other trainer settings...
+     # FSDP-specific configuration
+     fsdp_config:
+       sharding_strategy: "FULL_SHARD"       # Full parameter sharding
+       mixed_precision: true                 # Use FP16 for memory efficiency
+       cpu_offload: false                    # Keep on GPU for speed
+       min_num_params: 10000                # Wrap layers with more params
+       reduce_communication_overhead: true   # Optimize communication
+       limit_all_gathers: true              # Reduce memory pressure
+       forward_prefetch: true               # Prefetch for forward pass
+       sync_module_states: true             # Sync across ranks
+       use_orig_params: true                # Important for dendritic models
+       backward_prefetch: "BACKWARD_PRE"    # Prefetch for backward
+       gradient_checkpointing: false        # Trade compute for memory
+     
+     main:
+       trainer:
+         batch_size: 64                      # Per-GPU batch size
+         # Other trainer settings...
 
-**Parameter Sweep Configuration:**
+   # Optional: SLURM configuration for automated submission
+   slurm_config:
+     account: kempner_dev
+     partition: kempner_h100
+     nodes: 1
+     gpu_per_node: 4
+     training_script: src/dendritic_modeling/scripts/training/train_experiments_fsdp.py
+
+FSDP Workflow Tools:
+
+The framework provides automated tools for FSDP training:
+
+.. code-block:: bash
+
+   # Automated workflow (recommended)
+   python src/dendritic_modeling/scripts/tools/submit_fsdp_job.py configs/config_exp_fsdp.yaml --submit
+
+   # Manual workflow
+   python src/dendritic_modeling/scripts/tools/estimate_gpu_requirements.py configs/config_exp_fsdp.yaml
+   python src/dendritic_modeling/scripts/tools/generate_slurm_job.py configs/config_exp_fsdp.yaml
+   sbatch src/dendritic_modeling/scripts/tools/slurm/config_exp_fsdp.sbatch
+
+   # Direct FSDP training
+   torchrun --nproc_per_node=4 src/dendritic_modeling/scripts/training/train_experiments_fsdp.py configs/config_exp_fsdp.yaml
+
+For complete FSDP documentation, see :doc:`FSDP_TRAINING_GUIDE`.
+
+Parameter Sweep Configuration:
 
 .. code-block:: yaml
 

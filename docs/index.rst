@@ -1,76 +1,42 @@
-Dendritic Modeling Framework Documentation
-==========================================
+Dendritic Modeling Framework
+============================
 
-A PyTorch-based framework for biologically-inspired neural networks with dendritic computation and excitation-inhibition dynamics.
+PyTorch framework for biologically-inspired neural networks with dendritic computation and excitation-inhibition dynamics.
 
-Quick Start
+Architecture
 -----------
 
-.. code-block:: bash
+Three-part model architecture:
 
-   # Installation
-   git clone https://github.com/KempnerInstitute/dendritic-modeling.git
-   cd dendritic-modeling
-   conda env create -f environment.yml
-   conda activate dendritic_env
-   pip install -e .
-   
-   # Simple training
-   python src/dendritic_modeling/scripts/training/train_experiments.py configs/config_exp.yaml
+1. Encoder Network: Processes input data
+2. Core Network: Main computation (EINet, DendriNet, MLP)  
+3. Decoder Network: Maps to output space
 
-Architecture Overview
----------------------
+Core Networks:
 
-The framework uses a three-part model architecture:
-
-1. **Encoder Network**: Processes raw input data (Identity, MLP, CNN)
-2. **Core Network**: Main computational unit (EINet, DendriNet, MLP)
-3. **Decoder Network**: Maps to output space (Identity, MLP)
-
-Core Networks
-^^^^^^^^^^^^^
-
-**EINet (Excitation-Inhibition Network)**
-   Implements biologically-inspired dendritic computation with separate excitatory and inhibitory pathways.
-
-**DendriNet**
-   Pure dendritic network with hierarchical branching structure.
-
-**MLP**
-   Standard multi-layer perceptron for baseline comparisons.
+- EINet: Excitation-inhibition networks with dendritic computation
+- DendriNet: Hierarchical branching dendritic networks
+- MLP: Standard multi-layer perceptrons
 
 Training Options
-----------------
+---------------
 
-**Standard Training**
-   Single-GPU training with standard backpropagation.
+Standard Training
+   Single-GPU training with analysis
 
-**Enhanced Training**
-   Advanced training with multiple optimizers, regularization, and pruning:
-   
-   - Multiple optimizers: Adam, SGD, RMSprop, AdamW
-   - L1/L2 regularization with selective application
-   - Weight pruning with magnitude thresholds and post-pruning analysis
-   - Synaptic turnover analysis with active synapse tracking
-   - Performance comparison plots and detailed branch-level statistics
-   - Complete re-analysis on pruned models
+Enhanced Training
+   Multiple optimizers, regularization, pruning, and detailed analysis
 
-**FSDP Training**
-   Distributed training for large models across multiple GPUs.
+FSDP Training
+   Multi-GPU distributed training with automated resource estimation
 
-**Parameter Sweeps**
-   Systematic exploration of hyperparameter spaces.
+Parameter Sweeps
+   Systematic hyperparameter exploration
 
-Configuration
--------------
+Quick Start
+----------
 
-All experiments are configured through YAML files. Key sections:
-
-- ``model``: Network architecture and parameters
-- ``train``: Training hyperparameters and strategies
-- ``task``: Dataset configuration
-- ``analysis``: Optional analysis settings
-- ``wandb``: Experiment tracking
+See :doc:`QUICK_START` for basic experiment examples.
 
 Documentation
 -------------
@@ -78,9 +44,10 @@ Documentation
 .. toctree::
    :maxdepth: 2
 
+   QUICK_START
    CONFIGURATION_GUIDE
+   FSDP_TRAINING_GUIDE
    sweeps
-   FSDP_TROUBLESHOOTING
 
 Indices and Tables
 ==================

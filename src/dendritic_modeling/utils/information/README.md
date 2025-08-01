@@ -5,10 +5,10 @@ This module provides a unified framework for computing information-theoretic met
 ## Overview
 
 The framework supports:
-- **Multiple estimation methods**: Kraskov (k-NN), scikit-learn, copula-based
-- **Comprehensive metrics**: MI, conditional MI, joint MI, PID
-- **Configurable analysis**: Choose which metrics to compute
-- **Method comparison**: Easy benchmarking of different estimators
+- Multiple estimation methods: Kraskov (k-NN), scikit-learn, copula-based
+- Comprehensive metrics: MI, conditional MI, joint MI, PID
+- Configurable analysis: Choose which metrics to compute
+- Method comparison: Easy benchmarking of different estimators
 
 ## Quick Start
 
@@ -52,10 +52,10 @@ All pairwise metrics conditioned on C:
 
 ### 4. Partial Information Decomposition (PID)
 For variable pairs (X,Y) → Z:
-- **Synergy** - Information only available from X and Y together
-- **Redundancy** - Information available from both X and Y
-- **Unique(X)** - Information only from X
-- **Unique(Y)** - Information only from Y
+- Synergy - Information only available from X and Y together
+- Redundancy - Information available from both X and Y
+- Unique(X) - Information only from X
+- Unique(Y) - Information only from Y
 
 Computed for:
 - `PID(E,I→C)` - How E and I contribute to class information
@@ -307,17 +307,17 @@ aggregate_results(results_list)
 
 ## Performance Tips
 
-1. **Choose the right method**:
+1. Choose the right method:
    - Use Kraskov for general continuous data
    - Use sklearn for mixed/discrete data or speed
    - Use copula for complex dependencies
 
-2. **Optimize parameters**:
+2. Optimize parameters:
    - Reduce `n_neighbors` for faster Kraskov estimation
    - Reduce `n_bins` for faster sklearn histogram method
    - Disable unnecessary metrics with `compute_*=False`
 
-3. **Handle large datasets**:
+3. Handle large datasets:
    - Consider subsampling for initial exploration
    - Use sklearn method for faster computation
    - Process in batches if memory is limited

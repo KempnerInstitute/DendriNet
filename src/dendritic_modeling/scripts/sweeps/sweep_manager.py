@@ -96,7 +96,7 @@ class SweepManager:
         
         # Save configurations
         config_paths = self.generator.save_configs(sweep_configs, sweep_output_dir)
-        print(f"💾 Saved configurations to: {os.path.join(sweep_output_dir, 'configs')}")
+        print(f"Saved configurations to: {os.path.join(sweep_output_dir, 'configs')}")
         
         # Create job scripts
         print("Creating job scripts...")

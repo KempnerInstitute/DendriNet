@@ -21,11 +21,11 @@ python src/dendritic_modeling/scripts/sweeps/result_analyzer.py \
 ## Sweep Types
 
 ### Available Sweep Types
-- **`unified`** - General parameter sweeps with filtering (recommended)
-- **`ei`** - E/I balance focused sweeps  
-- **`branch`** - Dendritic architecture sweeps
-- **`noise`** - Noise robustness studies
-- **`general`** - Generic parameter exploration
+- `unified` - General parameter sweeps with filtering (recommended)
+- `ei` - E/I balance focused sweeps
+- `branch` - Dendritic architecture sweeps
+- `noise` - Noise robustness studies
+- `general` - Generic parameter exploration
 
 All sweep types use the same unified configuration format below.
 
@@ -110,7 +110,7 @@ filter_config:
   # Result: 3 depths × 4 patterns = 12 configurations
 ```
 
-**Available patterns:**
+Available patterns:
 - `uniform`: [4,4,4,4] - Same branches per layer
 - `decreasing`: [4,3,2,1] - Decreasing with depth  
 - `increasing`: [1,2,3,4] - Increasing with depth
@@ -194,7 +194,7 @@ base_config:
 
 ## Examples
 
-**EI Sweep Only:**
+EI Sweep Only:
 ```yaml
 sweep_config:
   model.core_network.parameters.ee_synapses_per_branch_per_layer: [[1],[2],[3]]
@@ -205,7 +205,7 @@ filter_config:
 # Result: 3 combinations where E+I=4
 ```
 
-**Branch Sweep Only:**
+Branch Sweep Only:
 ```yaml
 filter_config:
   branch_sweep_mode: "pattern_sweep"
@@ -215,7 +215,7 @@ filter_config:
 # Result: 2 depths × 2 patterns = 4 configurations
 ```
 
-**Mixed Parameters:**
+Mixed Parameters:
 ```yaml
 sweep_config:
   model.core_network.parameters.ee_synapses_per_branch_per_layer: [[2],[3]]
@@ -249,21 +249,21 @@ python src/dendritic_modeling/scripts/sweeps/result_analyzer.py \
 ```
 
 ### Generated Plot Types
-**Performance Analysis:**
+Performance Analysis:
 - Metric vs E/I ratio plots (shunting vs non-shunting)
 - Parameter scaling analysis 
 - Performance heatmaps (EE vs IE parameter space)
 
-**Robustness Analysis:**
+Robustness Analysis:
 - Noise perturbation analysis (gaussian/uniform)
 - Ablation analysis (layer-wise component contributions)
 
-**Information Theory Analysis:**
+Information Theory Analysis:
 - Global mutual information trends: I(E;C), I(I;C), I(E;I|C), etc.
 - Layer-specific information flow: MI vs E/I ratio by dendritic layer
 - Information cascade patterns through dendritic tree
 
-**Output Structure:**
+Output Structure:
 ```
 results/unified_20240101120000/plots/
 ├── metric_vs_ei_ratio_plots/      # Performance trends
@@ -285,6 +285,6 @@ python src/dendritic_modeling/scripts/sweeps/sweep_manager.py --help
 python src/dendritic_modeling/scripts/sweeps/result_analyzer.py --help
 ```
 
-**Configuration Examples:**
+Configuration Examples:
 - `configs/unified_all_sweeps_example.yaml` - Complete configuration template
 - `.vscode/unified_all_sweeps_example.yaml` - Development configuration

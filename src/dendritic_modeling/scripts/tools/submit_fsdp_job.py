@@ -12,16 +12,16 @@ Similar to sweep_manager.py but for single FSDP training jobs.
 
 Usage:
     # Estimate resources and generate SLURM script
-    python submit_fsdp_job.py configs/config_exp_fsdp.yaml --generate-only
+    python src/dendritic_modeling/scripts/tools/submit_fsdp_job.py configs/config_exp_fsdp.yaml --generate-only
     
     # Generate and submit job
-    python submit_fsdp_job.py configs/config_exp_fsdp.yaml --submit
+    python src/dendritic_modeling/scripts/tools/submit_fsdp_job.py configs/config_exp_fsdp.yaml --submit
     
     # Dry run (show what would be submitted)
-    python submit_fsdp_job.py configs/config_exp_fsdp.yaml --submit --dry-run
+    python src/dendritic_modeling/scripts/tools/submit_fsdp_job.py configs/config_exp_fsdp.yaml --submit --dry-run
     
     # Override SLURM settings
-    python submit_fsdp_job.py configs/config_exp_fsdp.yaml --submit --partition kempner_h100 --account my_account
+    python src/dendritic_modeling/scripts/tools/submit_fsdp_job.py configs/config_exp_fsdp.yaml --submit --partition kempner_h100 --account my_account
 """
 
 import argparse
@@ -71,7 +71,7 @@ class FSDPJobManager:
         Returns:
             Dictionary with estimation results and recommendations
         """
-        logger.info("🔍 Estimating GPU requirements...")
+        logger.info("Estimating GPU requirements...")
         
         try:
             estimator, model = estimate_from_config(str(self.config_path))
@@ -108,17 +108,17 @@ class FSDPJobManager:
             estimation_results = {
                 'model_params': sum(p.numel() for p in model.parameters()),
                 'batch_size': batch_size,
-                'memory_single_gpu': memory_breakdown.total_memory_gb,
-                'memory_per_gpu_fsdp': fsdp_memory_breakdown.total_memory_gb / 4,
+                'memory_single_gpu': memory_breakdown.total,
+                'memory_per_gpu_fsdp': fsdp_memory_breakdown.total / 4,
                 'gpu_recommendations': gpu_recs,
                 'memory_breakdown': memory_breakdown,
                 'fsdp_memory_breakdown': fsdp_memory_breakdown
             }
             
             # Log summary
-            logger.info(f"📊 Model: {estimation_results['model_params']:,} parameters")
-            logger.info(f"📊 Single GPU memory: {estimation_results['memory_single_gpu']:.2f} GB")
-            logger.info(f"📊 4-GPU FSDP memory per GPU: {estimation_results['memory_per_gpu_fsdp']:.2f} GB")
+            logger.info(f"Model: {estimation_results['model_params']:,} parameters")
+            logger.info(f"Single GPU memory: {estimation_results['memory_single_gpu']:.2f} GB")
+            logger.info(f"4-GPU FSDP memory per GPU: {estimation_results['memory_per_gpu_fsdp']:.2f} GB")
             
             return estimation_results
             
@@ -138,7 +138,7 @@ class FSDPJobManager:
         Returns:
             Path to generated SLURM script
         """
-        logger.info("📝 Generating SLURM script...")
+        logger.info("Generating SLURM script...")
         
         try:
             # Apply overrides to config if provided
@@ -155,7 +155,7 @@ class FSDPJobManager:
             script_path = generator.save_script(f"{self.run_name}.sbatch")
             
             self.slurm_script_path = script_path
-            logger.info(f"✅ SLURM script generated: {script_path}")
+            logger.info(f"SLURM script generated: {script_path}")
             
             return script_path
             
@@ -178,7 +178,7 @@ class FSDPJobManager:
             return False
         
         if dry_run:
-            logger.info("🔍 DRY RUN - Would submit the following job:")
+            logger.info("DRY RUN - Would submit the following job:")
             logger.info(f"   sbatch {self.slurm_script_path}")
             
             # Show script content summary
@@ -189,13 +189,13 @@ class FSDPJobManager:
                         logger.info(f"   {line.strip()}")
             return True
         
-        logger.info(f"🚀 Submitting job: {self.slurm_script_path}")
+        logger.info(f"Submitting job: {self.slurm_script_path}")
         
         try:
             result = subprocess.run(['sbatch', str(self.slurm_script_path)], 
                                   capture_output=True, text=True, check=True)
             
-            logger.info("✅ Job submitted successfully!")
+            logger.info("Job submitted successfully!")
             logger.info(f"   {result.stdout.strip()}")
             logger.info("Monitor job progress with: squeue -u $USER")
             
@@ -230,7 +230,7 @@ class FSDPJobManager:
             if submit:
                 return self.submit_job(dry_run)
             else:
-                logger.info("✅ Workflow complete. To submit job, run:")
+                logger.info("Workflow complete. To submit job, run:")
                 logger.info(f"   sbatch {script_path}")
                 return True
                 
@@ -247,16 +247,16 @@ def main():
         epilog="""
 Examples:
     # Generate SLURM script only
-    python submit_fsdp_job.py configs/config_exp_fsdp.yaml --generate-only
+    python src/dendritic_modeling/scripts/tools/submit_fsdp_job.py configs/config_exp_fsdp.yaml --generate-only
     
     # Generate and submit job
-    python submit_fsdp_job.py configs/config_exp_fsdp.yaml --submit
+    python src/dendritic_modeling/scripts/tools/submit_fsdp_job.py configs/config_exp_fsdp.yaml --submit
     
     # Dry run to see what would be submitted
-    python submit_fsdp_job.py configs/config_exp_fsdp.yaml --submit --dry-run
+    python src/dendritic_modeling/scripts/tools/submit_fsdp_job.py configs/config_exp_fsdp.yaml --submit --dry-run
     
     # Override SLURM settings
-    python submit_fsdp_job.py configs/config_exp_fsdp.yaml --submit \\
+    python src/dendritic_modeling/scripts/tools/submit_fsdp_job.py configs/config_exp_fsdp.yaml --submit \\
         --partition kempner_h100 --account my_account --gpu-per-node 4
 """
     )
