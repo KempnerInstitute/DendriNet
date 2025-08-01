@@ -12,6 +12,7 @@ notebook/wandb/*
 notebook/votage_plots/*
 notebook/*.log
 notebook/test/*
+experiments/*
 data/*
 configs/*.txt
 src/data/*
@@ -204,3 +205,4 @@ encoder_networks/*
 notebooks_backup/
 docs_notebooks_backup/
 scripts_backup/
+experiments/
