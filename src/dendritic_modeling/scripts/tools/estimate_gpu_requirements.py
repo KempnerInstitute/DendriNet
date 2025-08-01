@@ -15,6 +15,7 @@ Usage:
 
 import argparse
 import json
+import os
 import sys
 import traceback
 from pathlib import Path
@@ -69,6 +70,7 @@ Examples:
 
     # Estimate GPU requirements
     try:
+        from dendritic_modeling.utils.gpu_estimation import estimate_from_config
         estimator, model = estimate_from_config(args.config_file, args.batch_size)
     except Exception as e:
         print(f"Error analyzing configuration: {e}")

@@ -209,9 +209,18 @@ Decoder Networks
 Training Configuration
 ----------------------
 
+**Training Workflow:**
+
+The training process follows this sequence:
+
+1. **Training**: Model trains for specified epochs
+2. **Original Analysis**: All enabled analyses run on the trained model
+3. **Pruning** (if enabled): Weights below threshold are pruned, performance is re-evaluated
+4. **Pruned Model Analysis** (if ``redo_analysis_after_pruning: true``): All analyses re-run on pruned model
+
 **Learning Strategies:**
 
-- ``standard``: Standard training with regularization and pruning support  
+- ``standard``: Standard training with optional regularization, pruning, and post-pruning analysis  
 - ``two_step``: Train branches then soma connections
 - ``voltage_stabilization``: Stabilize dendritic voltages during training
 - ``freeze_layers``: Layer-wise training from output to input
@@ -264,19 +273,33 @@ Training Configuration
        pruning:
          enabled: false              # Enable weight pruning
          threshold: 0.001            # Magnitude threshold for pruning
-         dynamic_pruning: false      # Prune during training
+         dynamic_pruning: false      # Prune during training (false = prune after training)
          pruning_frequency: 10       # Epochs between pruning (if dynamic)
-         re_evaluate_after: true     # Re-evaluate after pruning
+         re_evaluate_after: true     # Re-evaluate model performance after pruning
          selective:
            layers: []                # Prune specific layers (empty = all)
            branches: []              # Prune specific branches (empty = all)
            weight_types: ["all"]     # Options: "all", "excitatory", "inhibitory", "recurrent", "input", "output", "linear"
        
-       # Reporting options
+       # Reporting and post-analysis options
        reporting:
-         report_non_pruned: true          # Report synapse counts after pruning
-         save_pruning_stats: true         # Save pruning statistics
-         detailed_branch_report: true     # Enable detailed branch reporting
+         report_non_pruned: true          # Print detailed pruning report
+         save_pruning_stats: true         # Save pruning statistics to JSON
+         detailed_branch_report: true     # Generate synaptic analysis plots
+         redo_analysis_after_pruning: true  # Re-run all enabled analyses on pruned model
+
+**Pruning Outputs:**
+
+When pruning is enabled, the following files are generated:
+
+- ``pruning_stats.json``: Detailed pruning statistics by layer, branch, and weight type
+- ``pruning_performance_comparison.png``: Performance before and after pruning
+- ``pruned_analysis/``: Complete re-analysis results on pruned model (if enabled)
+
+If ``detailed_branch_report: true``, additional plots are generated:
+
+- ``active_synapses_per_branch.png``: Number of active synapses per branch per layer
+- ``active_synapses_summary_by_layer.png``: Summary statistics of active synapses by layer
 
 **Regularization**
 
@@ -332,7 +355,7 @@ task:
 Analysis Configuration
 ----------------------
 
-Optional analysis during or after training:
+Optional analysis during or after training. Analysis runs twice if pruning is enabled: once on the original trained model, and again on the pruned model (if ``redo_analysis_after_pruning: true``):
 
 .. code-block:: yaml
 

@@ -50,9 +50,10 @@ Training Options
    
    - Multiple optimizers: Adam, SGD, RMSprop, AdamW
    - L1/L2 regularization with selective application
-   - Weight pruning with magnitude thresholds
+   - Weight pruning with magnitude thresholds and post-pruning analysis
    - Synaptic turnover analysis with active synapse tracking
-   - Detailed reporting with branch-level statistics
+   - Performance comparison plots and detailed branch-level statistics
+   - Complete re-analysis on pruned models
 
 **FSDP Training**
    Distributed training for large models across multiple GPUs.
