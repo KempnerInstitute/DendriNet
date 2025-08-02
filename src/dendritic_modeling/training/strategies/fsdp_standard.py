@@ -103,9 +103,7 @@ class FSDPTrainer(Trainer):
 
         # Initialize loss function based on loss_function parameter
         loss_fn_name = kwargs.get("loss_function", "cat_nll")
-        if loss_fn_name == "cat_nll":
-            self.loss_fn = torch.nn.CrossEntropyLoss()
-        elif loss_fn_name == "cross_entropy":
+        if loss_fn_name in ["cat_nll", "cross_entropy", "ce"]:
             self.loss_fn = torch.nn.CrossEntropyLoss()
         elif loss_fn_name == "mse":
             self.loss_fn = torch.nn.MSELoss()
@@ -161,11 +159,11 @@ class FSDPTrainer(Trainer):
         all_params = list(model.parameters())
 
         # If not using split params, use all parameters with single LR
-        if not self.optimizer_config.get("split_params", False):
+        if not (self.optimizer_config or {}).get("split_params", False):
             return torch.optim.Adam(
                 all_params,
-                lr=self.optimizer_config.get("lr", 0.001),
-                weight_decay=self.optimizer_config.get("weight_decay", 0.0),
+                lr=(self.optimizer_config or {}).get("lr", 0.001),
+                weight_decay=(self.optimizer_config or {}).get("weight_decay", 0.0),
             )
 
         # Otherwise, create parameter groups
@@ -183,7 +181,7 @@ class FSDPTrainer(Trainer):
             param_groups.append(
                 {
                     "params": topk_params,
-                    "lr": self.optimizer_config.get("topk_lr", 0.001),
+                    "lr": (self.optimizer_config or {}).get("topk_lr", 0.001),
                 }
             )
 
@@ -196,7 +194,7 @@ class FSDPTrainer(Trainer):
             param_groups.append(
                 {
                     "params": blocklinear_params,
-                    "lr": self.optimizer_config.get("blocklinear_lr", 0.001),
+                    "lr": (self.optimizer_config or {}).get("blocklinear_lr", 0.001),
                 }
             )
 
@@ -209,7 +207,7 @@ class FSDPTrainer(Trainer):
             param_groups.append(
                 {
                     "params": reactivation_params,
-                    "lr": self.optimizer_config.get("reactivation_lr", 0.001),
+                    "lr": (self.optimizer_config or {}).get("reactivation_lr", 0.001),
                 }
             )
 
@@ -221,7 +219,7 @@ class FSDPTrainer(Trainer):
             param_groups.append(
                 {
                     "params": decoder_params,
-                    "lr": self.optimizer_config.get("decoder_lr", 0.001),
+                    "lr": (self.optimizer_config or {}).get("decoder_lr", 0.001),
                 }
             )
 
@@ -229,11 +227,11 @@ class FSDPTrainer(Trainer):
         other_params = [p for p in all_params if id(p) not in used_params]
         if other_params:
             param_groups.append(
-                {"params": other_params, "lr": self.optimizer_config.get("lr", 0.001)}
+                {"params": other_params, "lr": (self.optimizer_config or {}).get("lr", 0.001)}
             )
 
         return torch.optim.Adam(
-            param_groups, weight_decay=self.optimizer_config.get("weight_decay", 0.0)
+            param_groups, weight_decay=(self.optimizer_config or {}).get("weight_decay", 0.0)
         )
 
     def train(

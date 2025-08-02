@@ -1,16 +1,23 @@
 """
-Configuration Validation and Safeguards
-=======================================
+Training Stability Validator for Dendritic Networks
+==================================================
 
-This module provides validation functions and safeguards for configuration combinations
-that may cause numerical instability or performance issues.
+This module validates training configuration combinations that may cause numerical
+instability or performance issues BEFORE training starts. It detects:
+- AMP + gradient hooks compatibility issues
+- High NaN risk optimization combinations
+- FSDP configuration problems
+- Problematic learning rate combinations
+- Memory vs speed trade-off recommendations
+
+This is separate from model architecture validation and runs during training setup.
 """
 
 import logging
 
 logger = logging.getLogger(__name__)
 
-def validate_optimization_combinations(config) -> bool:
+def validate_training_stability(config) -> bool:
     """
     Validate optimization combinations and warn about potential issues.
     
@@ -188,4 +195,12 @@ def apply_automatic_safeguards(config) -> None:
             
             if not hasattr(config.train.main.trainer, 'disable_hooks_with_amp'):
                 config.train.main.trainer.disable_hooks_with_amp = True
-                logger.info("Auto-enabled hook disabling with AMP for compatibility") 
+                logger.info("Auto-enabled hook disabling with AMP for compatibility")
+        
+        return len(errors) == 0
+
+
+# Legacy function name for backward compatibility
+def validate_optimization_combinations(config) -> bool:
+    """Legacy function name - use validate_training_stability instead."""
+    return validate_training_stability(config) 

@@ -215,11 +215,14 @@ def create_large_model(config):
     else:
         raise ValueError(f"Unknown task: {model_config.task}")
 
-    # Log model info
+    # Log model info with detailed breakdown
     total_params = sum(p.numel() for p in model.parameters())
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     logger.info(f"Model created with {total_params:,} total parameters")
     logger.info(f"Trainable parameters: {trainable_params:,}")
+    
+    # Generate detailed parameter summary table
+    print_model_parameter_summary(model)
 
     return model
 
@@ -269,7 +272,7 @@ def setup_data_loaders(config, rank, world_size):
         persistent_workers=True
     )
     
-    return train_loader, valid_loader, test_ds
+    return train_loader, valid_loader, test_ds, train_ds, valid_ds
 
 
 def main(config_path):
@@ -314,7 +317,7 @@ def main(config_path):
     model = create_large_model(config)
     
     # Setup data loaders
-    train_loader, valid_loader, test_ds = setup_data_loaders(config, rank, world_size)
+    train_loader, valid_loader, test_ds, train_ds, valid_ds = setup_data_loaders(config, rank, world_size)
     
     # Create FSDP config from config file or defaults
     trainer_config = config.train.main.trainer

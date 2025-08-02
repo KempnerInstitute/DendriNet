@@ -51,14 +51,24 @@ class FSDPJobManager:
         
         Args:
             config_path: Path to FSDP configuration file
-            output_dir: Output directory for SLURM scripts (defaults to scripts/tools/slurm/)
+            output_dir: Output directory for SLURM scripts (defaults to results/slurm_jobs/)
         """
         self.config_path = Path(config_path)
-        self.output_dir = Path(output_dir) if output_dir else Path(__file__).parent / 'slurm'
-        self.output_dir.mkdir(exist_ok=True)
         
-        # Load config to get run name
+        # Load config first to get results directory
         self.config = OmegaConf.load(config_path)
+        
+        # Set output directory - prefer results directory from config
+        if output_dir:
+            self.output_dir = Path(output_dir)
+        else:
+            # Get results directory from config
+            results_dir = self.config.get('outputs', {}).get('dir', 'results')
+            self.output_dir = Path(results_dir) / 'slurm_jobs'
+        
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Get run name from config
         self.run_name = self.config.outputs.get('run_name', self.config_path.stem)
         
         # Default SLURM script path
@@ -92,25 +102,26 @@ class FSDPJobManager:
             }
             input_shape = input_shapes.get(dataset, (784,))
             
+            # Get optimal GPU configuration
+            optimal_config = estimator.print_estimation_report(model, batch_size, input_shape)
+            
             # Memory breakdown for single GPU
             memory_breakdown = estimator.estimate_memory_breakdown(
                 model, batch_size, input_shape, use_fsdp=False, num_gpus=1
             )
             
-            # Memory breakdown for FSDP (4 GPUs)
+            # Memory breakdown for optimal FSDP configuration
             fsdp_memory_breakdown = estimator.estimate_memory_breakdown(
-                model, batch_size, input_shape, use_fsdp=True, num_gpus=4
+                model, batch_size, input_shape, use_fsdp=True, 
+                num_gpus=optimal_config['total_gpus']
             )
-            
-            # Get GPU recommendations
-            gpu_recs = {rec.gpu_model: rec for rec in estimator.get_gpu_recommendations(memory_breakdown)}
             
             estimation_results = {
                 'model_params': sum(p.numel() for p in model.parameters()),
                 'batch_size': batch_size,
                 'memory_single_gpu': memory_breakdown.total,
-                'memory_per_gpu_fsdp': fsdp_memory_breakdown.total / 4,
-                'gpu_recommendations': gpu_recs,
+                'memory_per_gpu_fsdp': fsdp_memory_breakdown.total,
+                'optimal_config': optimal_config,
                 'memory_breakdown': memory_breakdown,
                 'fsdp_memory_breakdown': fsdp_memory_breakdown
             }
@@ -118,7 +129,7 @@ class FSDPJobManager:
             # Log summary
             logger.info(f"Model: {estimation_results['model_params']:,} parameters")
             logger.info(f"Single GPU memory: {estimation_results['memory_single_gpu']:.2f} GB")
-            logger.info(f"4-GPU FSDP memory per GPU: {estimation_results['memory_per_gpu_fsdp']:.2f} GB")
+            logger.info(f"Optimal config: {optimal_config['nodes']} nodes × {optimal_config['gpus_per_node']} GPUs")
             
             return estimation_results
             
@@ -141,7 +152,20 @@ class FSDPJobManager:
         logger.info("Generating SLURM script...")
         
         try:
-            # Apply overrides to config if provided
+            # Apply optimal GPU configuration from estimator
+            if estimation_results and 'optimal_config' in estimation_results:
+                optimal_config = estimation_results['optimal_config']
+                
+                if 'slurm_config' not in self.config:
+                    self.config.slurm_config = {}
+                
+                # Set optimal nodes and GPU configuration
+                self.config.slurm_config['nodes'] = optimal_config['nodes']
+                self.config.slurm_config['gpu_per_node'] = optimal_config['gpus_per_node']
+                
+                logger.info(f"Using optimal GPU config: {optimal_config['nodes']} nodes × {optimal_config['gpus_per_node']} GPUs")
+            
+            # Apply additional overrides if provided
             if overrides:
                 if 'slurm_config' not in self.config:
                     self.config.slurm_config = {}

@@ -1,4 +1,16 @@
 
+# ============================================================================
+# STANDARD DENDRITIC MODELING EXPERIMENT CONFIGURATION
+# ============================================================================
+# This is the main configuration file for running standard dendritic modeling
+# experiments on single GPUs with moderate-sized models.
+#
+# USAGE:
+#   Standard Training:
+#   python src/dendritic_modeling/scripts/training/train_experiments.py configs/config_exp.yaml
+#
+#   Or with command line overrides:
+#   python src/dendritic_modeling/scripts/training/train_experiments.py configs/config_exp.yaml --epochs 100
 
 model:
   task: classification  # Options: "classification", "regression"

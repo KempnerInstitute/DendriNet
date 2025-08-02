@@ -16,12 +16,27 @@ from .data import (
     save_dict
 )
 from .logging_config import get_logger, setup_logging
-from dendritic_modeling.utils.config_validator import ConfigValidator, validate_config
-from dendritic_modeling.utils.training_validation import (
-    validate_optimization_combinations,
+# New validation modules
+from .config_validation import (
+    validate_full_config,
+    validate_architecture_only,
+    validate_training_only,
+    get_validation_summary,
+)
+from .model_architecture_validator import (
+    ModelArchitectureValidator,
+    validate_model_architecture,
+    validate_config,  # Legacy compatibility
+)
+from .training_stability_validator import (
+    validate_training_stability,
+    validate_optimization_combinations,  # Legacy compatibility
     suggest_optimal_config_for_model_size,
     apply_automatic_safeguards,
 )
+
+# Legacy imports for backward compatibility
+ConfigValidator = ModelArchitectureValidator
 from .sparse_ops import (
     get_sparse_layer,
     get_available_sparse_types,
@@ -49,9 +64,17 @@ __all__ = [
     "setup_logging",
     # Core utilities
     "Shaper",
+    # New validation functions
+    "validate_full_config",
+    "validate_architecture_only", 
+    "validate_training_only",
+    "validate_model_architecture",
+    "validate_training_stability",
+    "get_validation_summary",
+    "ModelArchitectureValidator",
+    # Legacy compatibility
     "ConfigValidator",
     "validate_config",
-    # Training validation utilities
     "validate_optimization_combinations",
     "suggest_optimal_config_for_model_size", 
     "apply_automatic_safeguards",
