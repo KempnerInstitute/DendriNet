@@ -52,7 +52,7 @@ class GPURecommendation:
     fits: bool
 
     def __str__(self):
-        status = "✓" if self.fits else "✗"
+        status = "[FITS]" if self.fits else "[NO FIT]"
         return (
             f"{status} {self.gpu_model} ({self.gpu_memory_gb}GB): "
             f"min {self.min_gpus_needed} GPUs, "
@@ -446,6 +446,87 @@ class GPUMemoryEstimator:
         recommendations.sort(key=lambda r: (r.recommended_gpus, -r.utilization_percent))
 
         return recommendations
+    
+    def get_optimal_gpu_config(self, single_gpu_breakdown, h100_memory, h200_memory):
+        """
+        Determine optimal GPU configuration for FSDP training.
+        
+        Returns:
+            dict: Optimal configuration with nodes, gpus_per_node, total_gpus, etc.
+        """
+        # Check if single GPU is sufficient
+        if single_gpu_breakdown.total <= h200_memory:
+            return {
+                'single_gpu_fits': True,
+                'gpu_type': 'H200',
+                'nodes': 1,
+                'gpus_per_node': 1,
+                'total_gpus': 1,
+                'memory_per_gpu': single_gpu_breakdown.total
+            }
+        elif single_gpu_breakdown.total <= h100_memory:
+            return {
+                'single_gpu_fits': True,
+                'gpu_type': 'H100',
+                'nodes': 1,
+                'gpus_per_node': 1,
+                'total_gpus': 1,
+                'memory_per_gpu': single_gpu_breakdown.total
+            }
+        
+        # Multi-GPU FSDP needed - test different configurations
+        configurations = [
+            # (total_gpus, nodes, gpus_per_node)
+            (2, 1, 2),   # 2 GPUs, 1 node
+            (4, 1, 4),   # 4 GPUs, 1 node
+            (8, 2, 4),   # 8 GPUs, 2 nodes
+            (16, 4, 4),  # 16 GPUs, 4 nodes
+            (32, 8, 4),  # 32 GPUs, 8 nodes
+        ]
+        
+        for total_gpus, nodes, gpus_per_node in configurations:
+            # Estimate memory per GPU with FSDP based on single GPU breakdown
+            # Scale down memory usage with FSDP (parameters, gradients, optimizer states get sharded)
+            param_memory = single_gpu_breakdown.parameters / total_gpus
+            grad_memory = single_gpu_breakdown.gradients / total_gpus
+            optimizer_memory = single_gpu_breakdown.optimizer_states / total_gpus
+            # Activations and FSDP overhead don't scale as much
+            activation_memory = single_gpu_breakdown.activations * 0.8  # Some reduction with FSDP
+            fsdp_overhead = 0.1 * (param_memory + grad_memory)  # FSDP communication overhead
+            
+            total_memory = param_memory + grad_memory + optimizer_memory + activation_memory + fsdp_overhead
+            
+            # Check if fits on H100
+            if total_memory <= h100_memory:
+                return {
+                    'single_gpu_fits': False,
+                    'gpu_type': 'H100',
+                    'nodes': nodes,
+                    'gpus_per_node': gpus_per_node,
+                    'total_gpus': total_gpus,
+                    'memory_per_gpu': total_memory
+                }
+            # Check if fits on H200
+            elif total_memory <= h200_memory:
+                return {
+                    'single_gpu_fits': False,
+                    'gpu_type': 'H200',
+                    'nodes': nodes,
+                    'gpus_per_node': gpus_per_node,
+                    'total_gpus': total_gpus,
+                    'memory_per_gpu': total_memory
+                }
+        
+        # If nothing fits, return largest config
+        return {
+            'single_gpu_fits': False,
+            'gpu_type': 'H200',
+            'nodes': 8,
+            'gpus_per_node': 4,
+            'total_gpus': 32,
+            'memory_per_gpu': total_memory,
+            'warning': 'Model may be too large - consider optimization'
+        }
 
     def print_estimation_report(
         self,
@@ -455,7 +536,7 @@ class GPUMemoryEstimator:
         config: Optional[Any] = None,
     ):
         """
-        Print a comprehensive GPU memory estimation report.
+        Print a simplified GPU memory estimation report focused on H200/H100.
 
         Args:
             model: PyTorch model
@@ -463,125 +544,50 @@ class GPUMemoryEstimator:
             input_shape: Input shape (excluding batch dimension)
             config: Optional configuration object
         """
-        logger.info("=" * 80)
-        logger.info("GPU MEMORY ESTIMATION REPORT")
-        logger.info("=" * 80)
-
-        # Model information
-        param_counts = self.estimate_model_parameters(model)
-        logger.info("\nModel Parameter Breakdown:")
-        for layer_type, count in param_counts.items():
-            if count > 0:
-                logger.info(f"  {layer_type}: {count:,} parameters")
-
+        # Get total parameters
+        total_params = sum(p.numel() for p in model.parameters())
+        
         # Single GPU estimation
-        logger.info("\n" + "-" * 60)
-        logger.info("SINGLE GPU TRAINING")
-        logger.info("-" * 60)
-
         single_gpu_breakdown = self.estimate_memory_breakdown(
             model, batch_size, input_shape, use_fsdp=False
         )
-        logger.info(str(single_gpu_breakdown))
-
-        # Check current GPU if available
-        if torch.cuda.is_available():
-            current_gpu = torch.cuda.get_device_properties(0)
-            current_memory_gb = current_gpu.total_memory / (1024**3)
-            logger.info(
-                f"\nCurrent GPU: {current_gpu.name} ({current_memory_gb:.1f}GB)"
-            )
-
-            if single_gpu_breakdown.total <= current_memory_gb * 0.85:
-                logger.info("✓ Model fits on current GPU!")
-            else:
-                logger.info("✗ Model does NOT fit on current GPU")
-                logger.info(f"  Required: {single_gpu_breakdown.total:.2f}GB")
-                logger.info(
-                    f"  Available: {current_memory_gb * 0.85:.2f}GB (with safety margin)"
-                )
-
-        # Multi-GPU estimation with FSDP
-        logger.info("\n" + "-" * 60)
-        logger.info("MULTI-GPU TRAINING (FSDP)")
-        logger.info("-" * 60)
-
-        # Test different GPU counts
-        gpu_counts = [2, 4, 8, 16]
-        for num_gpus in gpu_counts:
-            fsdp_breakdown = self.estimate_memory_breakdown(
-                model, batch_size, input_shape, use_fsdp=True, num_gpus=num_gpus
-            )
-            logger.info(f"\nWith {num_gpus} GPUs:")
-            logger.info(f"  Memory per GPU: {fsdp_breakdown.total:.2f}GB")
-
-            # Check against common GPU types
-            for gpu_name in ["H100", "A100-80GB", "A100-40GB"]:
-                gpu_memory = self.GPU_SPECS[gpu_name]["memory_gb"]
-                if fsdp_breakdown.total <= gpu_memory * 0.85:
-                    logger.info(f"  ✓ Fits on {gpu_name}")
-                    break
-
-        # Recommendations
-        logger.info("\n" + "-" * 60)
-        logger.info("GPU RECOMMENDATIONS")
-        logger.info("-" * 60)
-
-        recommendations = self.get_gpu_recommendations(single_gpu_breakdown)
-
-        logger.info("\nSingle-GPU capable configurations:")
-        single_gpu_recs = [r for r in recommendations if r.min_gpus_needed == 1]
-        if single_gpu_recs:
-            for rec in single_gpu_recs[:3]:  # Top 3
-                logger.info(f"  {rec}")
-        else:
-            logger.info("  None - model requires multi-GPU setup")
-
-        logger.info("\nMulti-GPU configurations:")
-        multi_gpu_recs = [r for r in recommendations if r.min_gpus_needed > 1]
-        for rec in multi_gpu_recs[:5]:  # Top 5
-            logger.info(f"  {rec}")
-
-        # Training command suggestions
-        logger.info("\n" + "-" * 60)
-        logger.info("SUGGESTED TRAINING COMMANDS")
-        logger.info("-" * 60)
-
-        if config:
-            config_path = getattr(config, "config_path", "config.yaml")
-        else:
-            config_path = "config.yaml"
-
-        # Find best single-GPU option
-        best_single_gpu = next(
-            (r for r in recommendations if r.min_gpus_needed == 1), None
+        
+        logger.info("=" * 80)
+        logger.info("GPU MEMORY ESTIMATION")
+        logger.info("=" * 80)
+        logger.info(f"Model: {total_params:,} parameters")
+        logger.info(f"Single GPU memory: {single_gpu_breakdown.total:.2f} GB")
+        
+        # Test 4-GPU FSDP (common setup)
+        fsdp_4gpu = self.estimate_memory_breakdown(
+            model, batch_size, input_shape, use_fsdp=True, num_gpus=4
         )
-        if best_single_gpu:
-            logger.info(f"\nSingle GPU ({best_single_gpu.gpu_model}):")
-            logger.info(f"  python train_experiments.py {config_path}")
-
-        # Find best multi-GPU option
-        best_multi_gpu = next(
-            (r for r in recommendations if 2 <= r.recommended_gpus <= 8), None
-        )
-        if best_multi_gpu:
-            n_gpus = best_multi_gpu.recommended_gpus
-            n_nodes = max(1, n_gpus // 4)  # Assume 4 GPUs per node
-
-            logger.info(f"\nMulti-GPU FSDP ({n_gpus} x {best_multi_gpu.gpu_model}):")
-            if n_nodes == 1:
-                logger.info(
-                    f"  torchrun --nproc_per_node={n_gpus} train_experiment_fstp.py {config_path}"
-                )
-            else:
-                logger.info(
-                    f"  # Submit to SLURM with {n_nodes} nodes, {n_gpus} total GPUs"
-                )
-                logger.info(
-                    f"  sbatch --nodes={n_nodes} --gpus-per-node=4 train_fsdp.sbatch {config_path}"
-                )
-
-        logger.info("\n" + "=" * 80)
+        logger.info(f"4-GPU FSDP memory per GPU: {fsdp_4gpu.total:.2f} GB")
+        
+        # Check H200/H100 compatibility
+        h200_memory = self.GPU_SPECS["H200"]["memory_gb"] * 0.85  # 85% usable
+        h100_memory = self.GPU_SPECS["H100"]["memory_gb"] * 0.85  # 85% usable
+        
+        # Single GPU recommendations
+        if single_gpu_breakdown.total <= h200_memory:
+            logger.info("[FITS] Fits on single H200 (141GB)")
+        elif single_gpu_breakdown.total <= h100_memory:
+            logger.info("[FITS] Fits on single H100 (80GB)")
+        else:
+            logger.info("[NO FIT] Requires multi-GPU setup")
+            
+        # Multi-GPU recommendations with optimal configuration
+        optimal_config = self.get_optimal_gpu_config(single_gpu_breakdown, h100_memory, h200_memory)
+        
+        if optimal_config['single_gpu_fits']:
+            logger.info(f"[FITS] Single {optimal_config['gpu_type']} sufficient")
+        else:
+            logger.info(f"[RECOMMENDED] {optimal_config['total_gpus']}x {optimal_config['gpu_type']} FSDP")
+            logger.info(f"[CONFIG] {optimal_config['nodes']} nodes × {optimal_config['gpus_per_node']} GPUs/node")
+            
+        logger.info("=" * 80)
+        
+        return optimal_config
 
 
 def estimate_from_config(config_path: str, batch_size: Optional[int] = None):

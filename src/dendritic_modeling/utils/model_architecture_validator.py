@@ -1,5 +1,19 @@
 #!/usr/bin/env python3
-"""Configuration validation for dendritic networks"""
+"""
+Model Architecture Validator for Dendritic Networks
+==================================================
+
+This module validates the structural/architectural parameters of dendritic models
+BEFORE model creation. It ensures:
+- Layer dimensions are compatible
+- Synapse counts match layer configurations  
+- TopK constraints are satisfied
+- Branch factors are consistent
+- Transfer learning dimensions align
+- Biological plausibility constraints
+
+This is separate from training stability validation and runs during model setup.
+"""
 
 import logging
 from typing import Dict, List
@@ -7,24 +21,47 @@ from typing import Dict, List
 logger = logging.getLogger(__name__)
 
 
-class ConfigValidator:
-    """Validates configuration parameters for dendritic networks"""
+class ModelArchitectureValidator:
+    """Validates structural/architectural parameters for dendritic networks"""
 
-    def __init__(self, config: Dict):
+    def __init__(self, config):
         self.config = config
+        
+        # Convert config to dict if it's a Config object
+        if hasattr(config, '__dict__'):
+            config_dict = config.__dict__ if hasattr(config, '__dict__') else {}
+        else:
+            config_dict = config
 
         # Try different paths for network config
-        if "model" in self.config and "core_network" in self.config["model"]:
-            self.network_config = self.config["model"]["core_network"].get(
-                "parameters", {}
-            )
-        elif "network" in self.config:
-            self.network_config = self.config.get("network", {})
+        if hasattr(config, 'model') and hasattr(config.model, 'core_network'):
+            self.network_config = getattr(config.model.core_network, 'parameters', {})
+            if hasattr(self.network_config, '__dict__'):
+                self.network_config = self.network_config.__dict__
+        elif "model" in config_dict and "core_network" in config_dict["model"]:
+            self.network_config = config_dict["model"]["core_network"].get("parameters", {})
+        elif hasattr(config, 'network'):
+            self.network_config = getattr(config, 'network', {})
+            if hasattr(self.network_config, '__dict__'):
+                self.network_config = self.network_config.__dict__
+        elif "network" in config_dict:
+            self.network_config = config_dict.get("network", {})
         else:
             self.network_config = {}
 
         self.errors: List[str] = []
         self.warnings: List[str] = []
+    
+    def _get_config_value(self, key: str, default=None):
+        """Safely get configuration value from Config object or dict."""
+        if hasattr(self.config, key):
+            return getattr(self.config, key, default)
+        elif hasattr(self.config, 'get'):
+            return self.config.get(key, default)
+        elif hasattr(self.config, '__dict__') and key in self.config.__dict__:
+            return self.config.__dict__[key]
+        else:
+            return default
 
     def validate(self) -> bool:
         """Validate all constraints and return True if config is valid"""
@@ -58,11 +95,25 @@ class ConfigValidator:
         )
 
         # Get input dimension from task config (preferred) or data config (fallback)
-        task_config = self.config.get("task", {})
-        data_config = self.config.get("data", {})
-        dataset_name = task_config.get("dataset", "") or data_config.get(
-            "dataset_name", ""
-        )
+        task_config = self._get_config_value("task", {})
+        data_config = self._get_config_value("data", {})
+        
+        # Handle task_config if it's a Config object
+        if hasattr(task_config, 'dataset'):
+            dataset_name = getattr(task_config, 'dataset', "")
+        elif hasattr(task_config, 'get'):
+            dataset_name = task_config.get("dataset", "")
+        else:
+            dataset_name = ""
+            
+        # Fallback to data_config
+        if not dataset_name:
+            if hasattr(data_config, 'dataset_name'):
+                dataset_name = getattr(data_config, 'dataset_name', "")
+            elif hasattr(data_config, 'get'):
+                dataset_name = data_config.get("dataset_name", "")
+            else:
+                dataset_name = ""
 
         if dataset_name == "cifar10":
             self.input_dim = 3072  # 32x32x3
@@ -466,14 +517,20 @@ class ConfigValidator:
             logger.info("Configuration validation passed with warnings")
 
 
-def validate_config(config: Dict) -> bool:
-    """Validate a configuration dictionary
-
+def validate_model_architecture(config: Dict) -> bool:
+    """Validate model architecture configuration.
+    
     Args:
         config: Configuration dictionary
-
+        
     Returns:
-        True if config is valid, False otherwise
+        bool: True if architecture is valid
     """
-    validator = ConfigValidator(config)
+    validator = ModelArchitectureValidator(config)
     return validator.validate()
+
+
+# Legacy function name for backward compatibility
+def validate_config(config: Dict) -> bool:
+    """Legacy function name - use validate_model_architecture instead."""
+    return validate_model_architecture(config)

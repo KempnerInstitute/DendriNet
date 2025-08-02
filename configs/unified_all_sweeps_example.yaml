@@ -1,15 +1,29 @@
 # ============================================================================
-# UNIFIED SWEEP CONFIGURATION
-# ============================
-# Single YAML for all sweep types:
-# - EI sweeps: ee/ie synapse parameters
-# - Branch sweeps: dendritic architecture patterns
-# - General sweeps: any model/training parameters
-# - Mixed sweeps: combine multiple types
-#
-# See EXAMPLES section at end of file for complete configurations
-# Usage: python src/dendritic_modeling/scripts/sweeps/sweep_manager.py --config this_file.yaml --run
+# UNIFIED PARAMETER SWEEP CONFIGURATION
 # ============================================================================
+# This configuration file enables comprehensive parameter sweeps across multiple
+# dimensions of dendritic models. It supports EI ratios, branch architecture,
+# and general hyperparameter sweeps in a unified framework.
+#
+# USAGE:
+#   Generate sweep configurations:
+#   python src/dendritic_modeling/scripts/sweeps/sweep_manager.py configs/unified_all_sweeps_example.yaml
+#
+#   Generate and submit SLURM jobs:
+#   python src/dendritic_modeling/scripts/sweeps/sweep_manager.py configs/unified_all_sweeps_example.yaml --submit
+#
+#   Generate and submit in one command:
+#   python src/dendritic_modeling/scripts/sweeps/sweep_manager.py configs/unified_all_sweeps_example.yaml --run
+#
+#   Analyze completed sweep results:
+#   python src/dendritic_modeling/scripts/sweeps/result_analyzer.py /path/to/sweep/results/
+#
+# SWEEP TYPES SUPPORTED:
+#   - EI sweeps: Excitatory/Inhibitory synapse ratios and connectivity
+#   - Branch sweeps: Dendritic architecture patterns and branching factors
+#   - General sweeps: Any model/training hyperparameters
+#   - Mixed sweeps: Combine multiple sweep types simultaneously
+#   - Noise sweeps: Robustness testing with various noise types
 
 # Output and SLURM configuration
 output_dir: "results"

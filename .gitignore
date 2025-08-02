@@ -3,10 +3,12 @@
 scripts/__pycache__/*
 tests/__pycache__/*
 results/*
+slurm_jobs/  # Generated SLURM script directories
 dendritic_modeling.egg-info/*
 dendritic_modeling/__pycache__/*
 *.sh
 *.out
+*.sbatch  # Generated SLURM batch scripts
 notebooks/data/*
 notebook/wandb/*
 notebook/votage_plots/*

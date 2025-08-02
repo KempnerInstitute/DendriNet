@@ -68,11 +68,11 @@ from dendritic_modeling.networks.architectures.factory import get_architecture
 from dendritic_modeling.scripts.training.train_encoder_network import load_train_encoder_network
 from dendritic_modeling.scripts.script_utils.setup_utils import setup_environment, save_model, load_model, initialize_model
 from dendritic_modeling.training import CustomWeightDecayOptimizer, get_trainer
-from dendritic_modeling.utils import save_dict, validate_config, set_seed
+from dendritic_modeling.utils import save_dict, validate_full_config, set_seed
 from dendritic_modeling.plotting.visualizations.information_analysis import plot_information_analysis
 from dendritic_modeling.plotting.visualizations.general_analysis_plots import plot_synapse_turnover
-from dendritic_modeling.utils.training_validation import (
-    validate_optimization_combinations,
+from dendritic_modeling.utils.training_stability_validator import (
+    validate_training_stability,
     suggest_optimal_config_for_model_size,
     apply_automatic_safeguards
 )
@@ -112,7 +112,7 @@ def main(config_path: str, args=None):
     # Convert config to dict for validation
     config_dict = asdict(config) if hasattr(config, "__dataclass_fields__") else config
 
-    if not validate_config(config_dict):
+    if not validate_full_config(config_dict, strict=False):
         logger.error("Configuration validation failed. Please fix the errors above.")
         raise ValueError("Invalid configuration")
 
@@ -120,7 +120,7 @@ def main(config_path: str, args=None):
 
     # Apply configuration safeguards and warnings
     logger.info("Applying configuration safeguards...")
-    validation_passed = validate_optimization_combinations(config)
+    validation_passed = validate_training_stability(config)
     if not validation_passed:
         logger.error("Configuration validation failed. Please address the errors above.")
         raise ValueError("Invalid configuration - critical errors detected")

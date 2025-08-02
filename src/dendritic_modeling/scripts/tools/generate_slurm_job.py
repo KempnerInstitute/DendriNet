@@ -43,8 +43,16 @@ class SlurmJobGenerator:
         """
         self.config_path = Path(config_path)
         self.config = OmegaConf.load(config_path)
-        self.output_dir = Path(output_dir) if output_dir else Path(__file__).parent / 'slurm'
-        self.output_dir.mkdir(exist_ok=True)
+        
+        # Set output directory - prefer results directory from config, fallback to project root
+        if output_dir:
+            self.output_dir = Path(output_dir)
+        else:
+            # Get results directory from config
+            results_dir = self.config.get('outputs', {}).get('dir', 'results')
+            self.output_dir = Path(results_dir) / 'slurm_jobs'
+        
+        self.output_dir.mkdir(parents=True, exist_ok=True)
 
         self.run_config = self.config.get('run_config', {})
         self.project_dir = self.run_config.get('project_dir', '/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling')  # Configurable
@@ -226,7 +234,9 @@ conda activate dendritic_env"""
             SLURM script as a string
         """
         resources = self.estimate_resources()
-        use_fsdp = resources['num_nodes'] > 1 or resources['num_gpus'] > 1
+        # Check if FSDP is enabled in config or if multi-GPU is needed
+        config_uses_fsdp = self.config.get('train', {}).get('use_fsdp', False)
+        use_fsdp = config_uses_fsdp or resources['num_nodes'] > 1 or resources['num_gpus'] > 1
         default_script = 'src/dendritic_modeling/scripts/training/train_experiments_fsdp.py' if use_fsdp else 'src/dendritic_modeling/scripts/training/train_experiments.py'
         training_script = self.run_config.get('training_script', default_script)
         partition = self.run_config.get('partition', 'kempner_h100')
@@ -256,10 +266,17 @@ export WORLD_SIZE=$((SLURM_NNODES * {resources['gpus_per_node']}))
 export RANK=$SLURM_PROCID
 export MASTER_ADDR=$(scontrol show hostnames $SLURM_JOB_NODELIST | head -n 1)
 
-    export NCCL_DEBUG=INFO
-    export NCCL_SOCKET_FAMILY=AF_INET
-
+# FSDP/NCCL Networking Fixes
+export NCCL_DEBUG=INFO
+export NCCL_SOCKET_FAMILY=AF_INET
+export NCCL_IB_DISABLE=0
 export TORCH_NCCL_ASYNC_ERROR_HANDLING=1
+export TORCH_NCCL_BLOCKING_WAIT=1
+
+# TorchElastic Timeout Fixes
+export TORCHELASTIC_RENDEZVOUS_TIMEOUT=1800
+export TORCHELASTIC_RDV_BACKEND=c10d
+export TORCHELASTIC_STORE_TIMEOUT=1800
 
 cd {self.project_dir}
 mkdir -p {self.log_dir}
@@ -267,10 +284,28 @@ mkdir -p {self.log_dir}
 # Training command
 '''
         if use_fsdp:
-            template += f'''if [ $SLURM_NNODES -eq 1 ]; then
+            template += f'''# FSDP Training Command
+if [ $SLURM_NNODES -eq 1 ]; then
+    # Single-node FSDP
     torchrun --standalone --nproc_per_node={resources['gpus_per_node']} {training_script} {self.config_path}
 else
-    srun --ntasks-per-node=1 torchrun --nnodes=$SLURM_NNODES --nproc_per_node={resources['gpus_per_node']} --node_rank=$SLURM_NODEID --master_addr=$MASTER_ADDR --master_port=$MASTER_PORT {training_script} {self.config_path}
+    # Multi-node FSDP with improved synchronization
+    echo "Starting multi-node FSDP training on $SLURM_NNODES nodes..."
+    echo "Node $SLURM_NODEID: Master=$MASTER_ADDR:$MASTER_PORT"
+    
+    # Wait for all nodes to be ready
+    sleep $((SLURM_NODEID * 5))
+    
+    srun --ntasks-per-node=1 --exclusive \\
+        torchrun \\
+            --nnodes=$SLURM_NNODES \\
+            --nproc_per_node={resources['gpus_per_node']} \\
+            --node_rank=$SLURM_NODEID \\
+            --master_addr=$MASTER_ADDR \\
+            --master_port=$MASTER_PORT \\
+            --rdzv_backend=c10d \\
+            --rdzv_endpoint=$MASTER_ADDR:$MASTER_PORT \\
+            {training_script} {self.config_path}
 fi'''
         else:
             template += f'python {training_script} {self.config_path}'
