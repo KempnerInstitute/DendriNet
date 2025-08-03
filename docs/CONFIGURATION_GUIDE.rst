@@ -517,8 +517,8 @@ The framework provides automated tools for FSDP training:
 
 .. code-block:: bash
 
-   # Automated workflow (recommended)
-   python src/dendritic_modeling/scripts/tools/submit_fsdp_job.py configs/config_exp_fsdp.yaml --submit
+   # Automated workflow (recommended - default behavior)
+   python src/dendritic_modeling/scripts/tools/submit_fsdp_job.py configs/config_exp_fsdp.yaml
 
    # Manual workflow
    python src/dendritic_modeling/scripts/tools/estimate_gpu_requirements.py configs/config_exp_fsdp.yaml

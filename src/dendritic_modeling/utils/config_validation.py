@@ -53,14 +53,14 @@ def validate_full_config(config: Dict, strict: bool = True) -> bool:
         logger.error("Model architecture validation failed - cannot continue")
         return False
     
-    logger.info("✓ Model architecture validation passed")
+            logger.info("Model architecture validation passed")
     
     # 2. Training Stability Validation (warnings only unless strict=True)
     logger.info("Validating training stability...")
     training_valid = validate_training_stability(config)
     
     if training_valid:
-        logger.info("✓ Training stability validation passed")
+        logger.info("Training stability validation passed")
     else:
         if strict:
             logger.error("Training stability validation failed in strict mode")
@@ -68,7 +68,7 @@ def validate_full_config(config: Dict, strict: bool = True) -> bool:
         else:
             logger.warning("Training stability validation failed - proceeding with warnings")
     
-    logger.info("✓ Full configuration validation completed successfully")
+    logger.info("Full configuration validation completed successfully")
     return True
 
 

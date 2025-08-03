@@ -1,9 +1,8 @@
 """
 Training Factory and Utilities
-===============================
 
-This module contains factory functions for creating training strategies
-and utility functions for training simple MLPs and weight transfer.
+Factory functions for creating training strategies and utility functions
+for MLP training and weight transfer.
 """
 
 from typing import Optional, Dict, Any, Union

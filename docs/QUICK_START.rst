@@ -47,9 +47,9 @@ Large model training across multiple GPUs:
 
 .. code-block:: bash
 
-   # Automated FSDP workflow
+   # Automated FSDP workflow (default behavior)
    python src/dendritic_modeling/scripts/tools/submit_fsdp_job.py \
-     configs/config_exp_fsdp.yaml --submit
+     configs/config_exp_fsdp.yaml
 
    # Direct FSDP training (4 GPUs)
    torchrun --nproc_per_node=4 \

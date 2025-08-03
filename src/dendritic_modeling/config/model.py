@@ -57,6 +57,7 @@ class EINetParameters(BaseConfig):
     init_method: str = "xavier_normal"
     weight_threshold: float = 1e-6
     adaptive_initialization: bool = True  # use network-aware weight scaling
+    epsilon: float = 1e-8  # numerical stability constant for shunting computation
 
 
 @dataclass

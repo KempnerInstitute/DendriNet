@@ -1,14 +1,9 @@
 """
 Base training strategy classes.
 
-This module contains the base trainer class that provides common functionality
-for all training strategies in the dendritic modeling framework.
-
-The Trainer class now supports optional enhanced features including:
-- Flexible optimizer configuration
-- L1/L2 regularization with selective application
-- Weight pruning with detailed reporting
-- All features default to disabled for backward compatibility
+This module implements the core Trainer class used across all training 
+strategies. It provides standard training loops, optimization, and optional
+advanced features like regularization and pruning.
 """
 
 import os
@@ -344,7 +339,7 @@ class Trainer:
             if synaptic_analysis_enabled and self.reporting_config.detailed_branch_report:
                 try:
                     self.synaptic_pruning_analyzer = SynapticPruningAnalyzer(model, snapshot_interval=1)
-                    logger.info("✓ Successfully initialized synaptic pruning analyzer")
+                    logger.info("Successfully initialized synaptic pruning analyzer")
                 except Exception as e:
                     logger.warning(f"Could not initialize synaptic pruning analyzer: {e}")
                     self.synaptic_pruning_analyzer = None
@@ -492,7 +487,7 @@ class Trainer:
                 pruning_stats={},  # Will be filled after pruning
                 pre_pruning=True
             )
-            logger.info("✓ Pre-pruning state recorded")
+            logger.info("Pre-pruning state recorded")
         else:
             logger.warning("Synaptic pruning analyzer not available for pre-pruning recording")
         
@@ -508,7 +503,7 @@ class Trainer:
                 pruning_stats=pruning_stats,
                 pre_pruning=False
             )
-            logger.info("✓ Post-pruning state recorded")
+            logger.info("Post-pruning state recorded")
             logger.info(f"Total pruning events: {len(self.synaptic_pruning_analyzer.pruning_events)}")
         else:
             logger.warning("Synaptic pruning analyzer not available for post-pruning recording")
@@ -570,7 +565,7 @@ class Trainer:
                         )
                         logger.info(f"  Summary plot result: {result2 is not None}")
                         
-                        logger.info(f"✓ Pruning analysis plots saved to {plots_path}")
+                        logger.info(f"Pruning analysis plots saved to {plots_path}")
                     except Exception as e:
                         logger.error(f"Error generating pruning plots: {e}")
                         logger.error(f"Traceback: {traceback.format_exc()}")

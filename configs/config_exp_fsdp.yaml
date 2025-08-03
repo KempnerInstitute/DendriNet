@@ -43,9 +43,9 @@ model:
       # ==========================================
       # MORPHOLOGICAL ARCHITECTURE - FIXED FOR CIFAR10
       # ==========================================
-      excitatory_layer_sizes: [20000]        # 4 layers, smaller for stability
+      excitatory_layer_sizes: [1000]         # Further reduced for stability testing
       inhibitory_layer_sizes: []             # Minimal inhibitory layers for stability
-      excitatory_branch_factors: [4, 4, 4, 4]          # Consistent branching
+      excitatory_branch_factors: [2, 2]                # Reduced to prevent huge intermediate layers
       inhibitory_branch_factors: []          # Minimal inhibitory branches
       
         # Synaptic connectivity patterns - simplified
@@ -72,8 +72,8 @@ model:
       # ==========================================
       reactivate: true
       reactivation_type: param_tanh
-      reactivation_init_m: 1.5
-      reactivation_init_b: 0.5
+      reactivation_init_m: 1.0           # Reduced from 1.5 to prevent activation explosion
+      reactivation_init_b: 0.1           # Small positive value to avoid log(0) error
       reactivation_strategy: none
 
       # ==========================================
@@ -112,16 +112,16 @@ train:
   use_fsdp: true               # Enable FSDP for distributed training
   
   fsdp_config:
-    sharding_strategy: "FULL_SHARD"      # Full parameter sharding
+    sharding_strategy: "NO_SHARD"       # Disable sharding for debugging - equivalent to DDP
     mixed_precision: false               # Disable mixed precision to avoid dtype conflicts
-    cpu_offload: false                   # Keep on GPU for speed (set true if memory constrained)
-    min_num_params: 10000               # Lower threshold for 4 GPU setup
-    reduce_communication_overhead: true  # Enable communication optimizations
-    limit_all_gathers: true             # Reduce memory pressure during communication
-    forward_prefetch: true              # Prefetch parameters for forward pass
-    sync_module_states: true            # Synchronize module states across ranks
-    use_orig_params: true               # Important for dendritic models
-    backward_prefetch: "BACKWARD_PRE"   # Prefetch for backward pass
+    cpu_offload: false                   # Keep on GPU for speed
+    min_num_params: 10000               # STEP 3: Restore reasonable threshold
+    reduce_communication_overhead: false # Disable advanced features for debugging
+    limit_all_gathers: false            # Disable advanced features for debugging
+    forward_prefetch: false             # Disable advanced features for debugging
+    sync_module_states: false           # Keep disabled from Step 1
+    use_orig_params: true               # STEP 3: Restore original params for manual wrapping
+    backward_prefetch: "BACKWARD_POST"  # STEP 3: Restore simpler prefetch
     gradient_checkpointing: false       # Disable for smaller model
 
   # ==========================================
@@ -136,7 +136,7 @@ train:
   # ==========================================
   checkpointing:
     enabled: true
-    save_every_n_epochs: 5
+    save_every_n_epochs: 50
     checkpoint_dir: "results/fsdp_checkpoints/"
 
   # ==========================================
@@ -168,7 +168,7 @@ train:
     
     # Parameter groups with different learning rates for large model
     param_groups:
-      lr: 0.0001               # Very conservative base learning rate
+      lr: 0.001                # Increased from 0.0001 for better numerical stability
       split_params: true
       topk_lr: 0.00005        # Very conservative LR for TopK layers
       blocklinear_lr: 0.00005 # Very conservative LR for BlockLinear layers
@@ -182,7 +182,7 @@ train:
       patience: 10
       batch_size: 64           # Per-GPU batch size (effective = 64 * 4 = 256)
       shuffle: true
-      grad_clip_value: 5.0     # Relaxed gradient clipping to prevent NaN loss
+      grad_clip_value: 1.0     # More aggressive gradient clipping to prevent NaN loss
       load_best_state_dict: true
       plot_losses: true
       save_path: null

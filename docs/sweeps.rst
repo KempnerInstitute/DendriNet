@@ -16,9 +16,9 @@ Usage
 
 .. code-block:: bash
 
-   # Generate and run sweep
+   # Generate and run sweep (default behavior)
    python -m dendritic_modeling.scripts.sweeps.unified.sweep_manager \
-     --config configs/examples/general_sweep_example.yaml --run
+     --config configs/examples/general_sweep_example.yaml
 
    # Generate only (no job submission)
    python -m dendritic_modeling.scripts.sweeps.unified.sweep_manager \

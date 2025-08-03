@@ -5,9 +5,9 @@ Single YAML interface for all parameter sweeps in dendritic modeling experiments
 ## Quick Start
 
 ```bash
-# Run a sweep
+# Run a sweep (default behavior)
 python src/dendritic_modeling/scripts/sweeps/sweep_manager.py \
-    --config configs/unified_all_sweeps_example.yaml --run
+    --config configs/unified_all_sweeps_example.yaml
 
 # Generate configs only  
 python src/dendritic_modeling/scripts/sweeps/sweep_manager.py \

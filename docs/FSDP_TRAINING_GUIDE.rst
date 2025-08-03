@@ -21,21 +21,21 @@ Basic Usage:
 
 .. code-block:: bash
 
-   # Generate SLURM script only (default)
+   # Generate and submit job (default behavior)
    python src/dendritic_modeling/scripts/tools/submit_fsdp_job.py configs/config_exp_fsdp.yaml
 
-   # Generate and submit job
-   python src/dendritic_modeling/scripts/tools/submit_fsdp_job.py configs/config_exp_fsdp.yaml --submit
+   # Generate SLURM script only
+   python src/dendritic_modeling/scripts/tools/submit_fsdp_job.py configs/config_exp_fsdp.yaml --generate-only
 
    # Dry run (see what would be submitted)
-   python src/dendritic_modeling/scripts/tools/submit_fsdp_job.py configs/config_exp_fsdp.yaml --submit --dry-run
+   python src/dendritic_modeling/scripts/tools/submit_fsdp_job.py configs/config_exp_fsdp.yaml --dry-run
 
 Override SLURM Settings:
 
 .. code-block:: bash
 
    # Force 4-GPU training with specific cluster settings
-   python src/dendritic_modeling/scripts/tools/submit_fsdp_job.py configs/config_exp_fsdp.yaml --submit \
+   python src/dendritic_modeling/scripts/tools/submit_fsdp_job.py configs/config_exp_fsdp.yaml \
      --gpu-per-node 4 --partition kempner_h100 --account my_account --time "12:00:00"
 
 The script outputs model parameters, memory requirements, and generated script paths.

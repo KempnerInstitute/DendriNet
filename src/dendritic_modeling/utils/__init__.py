@@ -1,15 +1,12 @@
 """
 General utilities for dendritic modeling.
 
-This module contains core utility functions for:
-- Data handling and serialization
-- Logging configuration
-- Random seed management
-- Data reshaping utilities
+Common utility functions for data serialization, logging, seed management,
+and configuration validation.
 """
 
 # Core utilities
-from .data import (
+from .general import (
     Shaper,
     convert_to_serializable,
     set_seed,
@@ -35,8 +32,7 @@ from .training_stability_validator import (
     apply_automatic_safeguards,
 )
 
-# Legacy imports for backward compatibility
-ConfigValidator = ModelArchitectureValidator
+
 from .sparse_ops import (
     get_sparse_layer,
     get_available_sparse_types,
@@ -49,11 +45,7 @@ from .sparse_ops import (
 # Math utilities
 from .math import roc_auc_score
 
-# Import from other modules for backward compatibility
-# Note: Commented out due to circular import issues - import these directly when needed
-# from dendritic_modeling.training.utils.evaluation import accuracy_score
-# from dendritic_modeling.plotting.core.utils import split_MNIST_inputs
-# from dendritic_modeling.datasets import load_MNIST_modulo10
+
 
 __all__ = [
     # Configuration and validation
@@ -72,8 +64,7 @@ __all__ = [
     "validate_training_stability",
     "get_validation_summary",
     "ModelArchitectureValidator",
-    # Legacy compatibility
-    "ConfigValidator",
+
     "validate_config",
     "validate_optimization_combinations",
     "suggest_optimal_config_for_model_size", 
