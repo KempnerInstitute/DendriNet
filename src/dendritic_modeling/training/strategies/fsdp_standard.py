@@ -93,7 +93,13 @@ class FSDPTrainer(Trainer):
         
         # Store checkpoint_dir before parent call (parent might override it)
         checkpoint_dir_backup = self.checkpoint_dir
-        super().__init__(optimizer=dummy_optimizer, **kwargs)
+        
+        # Handle AMP parameter name mismatch between FSDP and standard trainer
+        fsdp_kwargs = kwargs.copy()
+        if 'use_amp' in fsdp_kwargs:
+            fsdp_kwargs['enable_amp'] = fsdp_kwargs.pop('use_amp')
+        
+        super().__init__(optimizer=dummy_optimizer, **fsdp_kwargs)
         # Restore checkpoint_dir after parent call
         self.checkpoint_dir = checkpoint_dir_backup
 
@@ -405,7 +411,7 @@ class FSDPTrainer(Trainer):
         total_correct = 0
         total_examples = 0
 
-        for x_batch, y_batch in train_loader:
+        for batch_idx, (x_batch, y_batch) in enumerate(train_loader):
             x_batch = x_batch.to(self.device)
             y_batch = y_batch.to(self.device)
 
@@ -473,7 +479,6 @@ class FSDPTrainer(Trainer):
                 x_batch = x_batch.to(self.device)
                 y_batch = y_batch.to(self.device)
 
-                # Forward pass
                 outputs = model(x_batch)
                 loss = self.loss_fn(outputs, y_batch)
 

@@ -11,8 +11,8 @@ The sweep type (EI, branch, noise, general, mixed) is determined by
 the sweep_config and filter_config in the YAML file.
 
 Usage:
-    # Generate and run any sweep (determined by config content)
-    python sweep_manager.py --config configs/my_sweep.yaml --run
+    # Generate and run any sweep (default behavior)
+    python sweep_manager.py --config configs/my_sweep.yaml
 
     # Generate configs only (no job submission)
     python sweep_manager.py --config configs/my_sweep.yaml --generate-only
@@ -22,6 +22,9 @@ Usage:
 
     # Generate with job splitting
     python sweep_manager.py --config configs/my_sweep.yaml --split-jobs 10
+
+    # Dry run (show what would be submitted)
+    python sweep_manager.py --config configs/my_sweep.yaml --dry-run
 """
 
 import argparse
@@ -87,7 +90,7 @@ class SweepManager:
         # Create output directory
         base_dir = output_dir or config.get("output_dir", "output")
         sweep_output_dir = self.generator.create_output_directory(base_dir)
-        print(f"📁 Created output directory: {sweep_output_dir}")
+        print(f"Created output directory: {sweep_output_dir}")
         
         # Generate configurations
         print("Generating sweep configurations...")
@@ -243,8 +246,8 @@ def parse_args():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Generate and run any sweep (type determined by config content)
-  python sweep_manager.py --config configs/my_sweep.yaml --run
+  # Generate and run any sweep (default behavior)
+  python sweep_manager.py --config configs/my_sweep.yaml
 
   # Generate configs only (no job submission)  
   python sweep_manager.py --config configs/my_sweep.yaml --generate-only
@@ -256,7 +259,7 @@ Examples:
   python sweep_manager.py --config configs/my_sweep.yaml --split-jobs 10
 
   # Dry run (show what would be submitted)
-  python sweep_manager.py --config configs/my_sweep.yaml --run --dry-run
+  python sweep_manager.py --config configs/my_sweep.yaml --dry-run
 """
     )
     
@@ -281,7 +284,7 @@ Examples:
     parser.add_argument(
         "--run",
         action="store_true",
-        help="Generate configs and submit jobs"
+        help="Generate configs and submit jobs (default behavior - kept for backward compatibility)"
     )
     parser.add_argument(
         "--split-jobs",
@@ -329,14 +332,7 @@ def main():
                 print("Error: --config required for generation mode")
                 sys.exit(1)
             
-            if args.run and not args.generate_only:
-                # Full sweep: generate and submit
-                manager.run_full_sweep(
-                    args.config,
-                    split_jobs=args.split_jobs,
-                    dry_run=args.dry_run
-                )
-            else:
+            if args.generate_only:
                 # Generate only
                 sweep_info = manager.generate_sweep(
                     args.config,
@@ -344,10 +340,16 @@ def main():
                     split_jobs=args.split_jobs
                 )
                 
-                if not args.generate_only:
-                    print("\nTo submit jobs, run:")
-                    print(f"   bash {sweep_info['output_dir']}/submit_all_jobs.sh")
-                    print("   OR use --run flag to auto-submit")
+                print("\nTo submit jobs, run:")
+                print(f"   bash {sweep_info['output_dir']}/submit_all_jobs.sh")
+                print("   OR run without --generate-only flag to auto-submit")
+            else:
+                # Default behavior: generate and submit (--run is now default)
+                manager.run_full_sweep(
+                    args.config,
+                    split_jobs=args.split_jobs,
+                    dry_run=args.dry_run
+                )
     
     except Exception as e:
         print(f"Error: {e}")

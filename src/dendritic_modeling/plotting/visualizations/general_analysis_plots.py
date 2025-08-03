@@ -1,4 +1,4 @@
-"""General analysis plotting functions for dendritic modeling."""
+"""Plotting functions for analysis results and performance metrics."""
 
 import glob
 import json

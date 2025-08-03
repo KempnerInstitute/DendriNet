@@ -196,8 +196,6 @@ def apply_automatic_safeguards(config) -> None:
             if not hasattr(config.train.main.trainer, 'disable_hooks_with_amp'):
                 config.train.main.trainer.disable_hooks_with_amp = True
                 logger.info("Auto-enabled hook disabling with AMP for compatibility")
-        
-        return len(errors) == 0
 
 
 # Legacy function name for backward compatibility

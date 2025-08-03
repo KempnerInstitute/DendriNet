@@ -4,8 +4,9 @@
 
 1. Run a Sweep:
 ```bash
+# Generate and run sweep (default behavior)
 python src/dendritic_modeling/scripts/sweeps/sweep_manager.py \
-    --config configs/unified_all_sweeps_example.yaml --run
+    --config configs/unified_all_sweeps_example.yaml
 ```
 
 2. Analyze Results:

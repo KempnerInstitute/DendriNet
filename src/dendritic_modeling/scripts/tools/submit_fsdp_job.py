@@ -6,22 +6,22 @@ FSDP Job Submission Manager
 Automated workflow for FSDP training job submission. This script:
 1. Estimates GPU requirements for the model
 2. Generates optimized SLURM script
-3. Optionally submits the job to SLURM
+3. Submits the job to SLURM (default behavior)
 
 Similar to sweep_manager.py but for single FSDP training jobs.
 
 Usage:
-    # Estimate resources and generate SLURM script
+    # Generate and submit job (default behavior)
+    python src/dendritic_modeling/scripts/tools/submit_fsdp_job.py configs/config_exp_fsdp.yaml
+    
+    # Estimate resources and generate SLURM script only
     python src/dendritic_modeling/scripts/tools/submit_fsdp_job.py configs/config_exp_fsdp.yaml --generate-only
     
-    # Generate and submit job
-    python src/dendritic_modeling/scripts/tools/submit_fsdp_job.py configs/config_exp_fsdp.yaml --submit
-    
     # Dry run (show what would be submitted)
-    python src/dendritic_modeling/scripts/tools/submit_fsdp_job.py configs/config_exp_fsdp.yaml --submit --dry-run
+    python src/dendritic_modeling/scripts/tools/submit_fsdp_job.py configs/config_exp_fsdp.yaml --dry-run
     
     # Override SLURM settings
-    python src/dendritic_modeling/scripts/tools/submit_fsdp_job.py configs/config_exp_fsdp.yaml --submit --partition kempner_h100 --account my_account
+    python src/dendritic_modeling/scripts/tools/submit_fsdp_job.py configs/config_exp_fsdp.yaml --partition kempner_h100 --account my_account
 """
 
 import argparse
@@ -270,17 +270,17 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
+    # Generate and submit job (default behavior)
+    python src/dendritic_modeling/scripts/tools/submit_fsdp_job.py configs/config_exp_fsdp.yaml
+    
     # Generate SLURM script only
     python src/dendritic_modeling/scripts/tools/submit_fsdp_job.py configs/config_exp_fsdp.yaml --generate-only
     
-    # Generate and submit job
-    python src/dendritic_modeling/scripts/tools/submit_fsdp_job.py configs/config_exp_fsdp.yaml --submit
-    
     # Dry run to see what would be submitted
-    python src/dendritic_modeling/scripts/tools/submit_fsdp_job.py configs/config_exp_fsdp.yaml --submit --dry-run
+    python src/dendritic_modeling/scripts/tools/submit_fsdp_job.py configs/config_exp_fsdp.yaml --dry-run
     
     # Override SLURM settings
-    python src/dendritic_modeling/scripts/tools/submit_fsdp_job.py configs/config_exp_fsdp.yaml --submit \\
+    python src/dendritic_modeling/scripts/tools/submit_fsdp_job.py configs/config_exp_fsdp.yaml \\
         --partition kempner_h100 --account my_account --gpu-per-node 4
 """
     )
@@ -300,7 +300,7 @@ Examples:
     workflow_group.add_argument(
         '--submit',
         action='store_true', 
-        help='Generate and submit job'
+        help='Generate and submit job (default behavior)'
     )
     
     parser.add_argument(
@@ -350,8 +350,8 @@ Examples:
         parser.error("--dry-run requires --submit")
     
     if not args.generate_only and not args.submit:
-        # Default behavior: generate only
-        args.generate_only = True
+        # Default behavior: submit job
+        args.submit = True
     
     # Check if config file exists
     if not os.path.exists(args.config):

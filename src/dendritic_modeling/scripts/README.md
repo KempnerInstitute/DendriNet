@@ -25,8 +25,8 @@ To run a script from the project root:
 # Training experiments
 python src/dendritic_modeling/scripts/training/train_experiments.py [args]
 
-# FSDP training with automatic resource allocation
-python src/dendritic_modeling/scripts/tools/submit_fsdp_job.py configs/config_exp_fsdp.yaml --submit
+# FSDP training with automatic resource allocation (default behavior)
+python src/dendritic_modeling/scripts/tools/submit_fsdp_job.py configs/config_exp_fsdp.yaml
 
 # Generate SLURM jobs manually
 python src/dendritic_modeling/scripts/tools/generate_slurm_job.py [args]

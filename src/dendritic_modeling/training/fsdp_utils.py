@@ -140,7 +140,7 @@ def get_fsdp_config(
     else:
         min_params = 10_000_000  # Wrap layers with >10M params
 
-    auto_wrap_policy = create_fsdp_wrap_policy(min_params)
+    auto_wrap_policy = None  # Disable auto-wrapping to fix parameter corruption
 
     # Convert backward_prefetch string to enum
     backward_prefetch_map = {
@@ -233,7 +233,7 @@ def wrap_model_with_fsdp(
             # Apply to the entire model
             _apply_gradient_checkpointing(model)
 
-    # Wrap the model
+    # Wrap the model with FSDP
     fsdp_model = FSDP(model, **fsdp_config)
 
     return fsdp_model

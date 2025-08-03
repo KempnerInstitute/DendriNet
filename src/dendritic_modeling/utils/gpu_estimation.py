@@ -419,7 +419,11 @@ class GPUMemoryEstimator:
             single_gpu_fits = memory_breakdown.total <= usable_memory
 
             # Multi-GPU scenario (with FSDP)
-            min_gpus_needed = math.ceil(memory_breakdown.total / usable_memory)
+            if usable_memory <= 0 or memory_breakdown.total <= 0:
+                print(f" Invalid memory values: total={memory_breakdown.total:.2f}GB, usable={usable_memory:.2f}GB")
+                min_gpus_needed = 1  # Default to 1 GPU if calculation fails
+            else:
+                min_gpus_needed = math.ceil(memory_breakdown.total / usable_memory)
 
             # Recommend power of 2 for communication efficiency
             recommended_gpus = 1
@@ -427,8 +431,12 @@ class GPUMemoryEstimator:
                 recommended_gpus *= 2
 
             # Memory per GPU with FSDP
-            memory_per_gpu = memory_breakdown.total / recommended_gpus
-            utilization = (memory_per_gpu / gpu_memory) * 100
+            if recommended_gpus > 0:
+                memory_per_gpu = memory_breakdown.total / recommended_gpus
+                utilization = (memory_per_gpu / gpu_memory) * 100 if gpu_memory > 0 else 0
+            else:
+                memory_per_gpu = memory_breakdown.total
+                utilization = 0
 
             recommendation = GPURecommendation(
                 gpu_model=gpu_name,
@@ -593,6 +601,7 @@ class GPUMemoryEstimator:
 def estimate_from_config(config_path: str, batch_size: Optional[int] = None):
     """
     Estimate GPU requirements from a configuration file.
+    Uses real dataset samples for accurate shape inference, similar to train_experiments.py.
 
     Args:
         config_path: Path to configuration file
@@ -602,6 +611,7 @@ def estimate_from_config(config_path: str, batch_size: Optional[int] = None):
     from dendritic_modeling.models import Classifier, Regressor
     from dendritic_modeling.networks import Identity
     from dendritic_modeling.networks.architectures.factory import get_architecture
+    from dendritic_modeling.datasets import get_unified_datasets
 
     # Load configuration
     config = load_config(config_path)
@@ -615,20 +625,40 @@ def estimate_from_config(config_path: str, batch_size: Optional[int] = None):
         )
         batch_size = trainer_params.get("batch_size", 32)
 
-    # Get input dimensions
+    # Initialize task_params for later use
     task_params = config.task.parameters or {}
-    if config.task.dataset == "mnist":
-        input_shape = (784,)  # Flattened
-    elif config.task.dataset == "cifar10":
-        input_shape = (3072,)  # Flattened
-    elif config.task.dataset == "imagenet":
-        if task_params.get("flatten", False):
-            input_shape = (150528,)  # Flattened
+
+    # Load real dataset to get accurate input shape (like train_experiments.py)
+    try:
+        # Get datasets using the same method as training scripts
+        train_ds, valid_ds, test_ds = get_unified_datasets(
+            task_cfg=config.task,
+            train_cfg=config.train,
+            output_dir=config.outputs.dir,
+        )
+        
+        # Get sample input shape from real data
+        sample_input = train_ds[0][0]  # First sample, input only
+        input_shape = sample_input.shape  # This is the real shape from dataset
+        
+        print(f"Using real dataset input shape: {input_shape}")
+        
+    except Exception as e:
+        print(f"Failed to load dataset, falling back to hardcoded shapes: {e}")
+        
+        # Fallback to hardcoded input dimensions if dataset loading fails
+        if config.task.dataset == "mnist":
+            input_shape = (784,)  # Flattened
+        elif config.task.dataset == "cifar10":
+            input_shape = (3072,)  # Flattened
+        elif config.task.dataset == "imagenet":
+            if task_params.get("flatten", False):
+                input_shape = (150528,)  # Flattened
+            else:
+                input_shape = (3, 224, 224)
         else:
-            input_shape = (3, 224, 224)
-    else:
-        input_dim = task_params.get("input_dim", 784)
-        input_shape = (input_dim,)
+            input_dim = task_params.get("input_dim", 784)
+            input_shape = (input_dim,)
 
     # Create model (similar to train scripts)
     model_config = config.model

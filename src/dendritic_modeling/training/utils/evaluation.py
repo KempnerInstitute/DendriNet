@@ -14,7 +14,7 @@ from torch.distributions import Categorical
 
 from dendritic_modeling.models import Classifier, Regressor
 from dendritic_modeling.utils.math.auc import roc_auc_score
-from dendritic_modeling.utils.data import save_dict
+from dendritic_modeling.utils.general import save_dict
 
 
 def _compute_metric_score(

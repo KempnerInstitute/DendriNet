@@ -1,8 +1,8 @@
 """
 Base Input Transform for neural networks.
 
-This module implements the base InputNetTransform class that maps
-raw inputs to excitatory and inhibitory pathways.
+InputNetTransform maps raw inputs to excitatory and inhibitory pathways
+for dendritic network architectures.
 """
 
 import logging
@@ -15,10 +15,7 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.input_trans
     IndexInputTransform,
 )
 
-# Commented out imports for undefined classes
-# from dendritic_modeling.networks.architectures.classical.mlp.mlp import MLPInputTransform
-# from dendritic_modeling.networks.architectures.classical.cnn.cnn import CNNInputTransform
-# from dendritic_modeling.networks.architectures.classical.cnn.alexnet import AlexNetInputTransform
+
 
 logger = logging.getLogger(__name__)
 

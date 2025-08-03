@@ -180,9 +180,9 @@ def main():
 
     # Check if it fits
     if results['memory_per_gpu_16'] <= 70:
-        print("\n✓ This model WILL FIT on 4 nodes with comfortable headroom")
+        print("\nSUCCESS: This model WILL FIT on 4 nodes with comfortable headroom")
     else:
-        print("\n✗ This model will NOT FIT - requires memory reduction")
+        print("\nWARNING: This model will NOT FIT - requires memory reduction")
 
 
 if __name__ == '__main__':

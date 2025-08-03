@@ -19,18 +19,17 @@ import logging
 from dataclasses import asdict
 from datetime import datetime
 
-# Set NCCL environment variables to fix communication issues
-os.environ.setdefault("NCCL_ASYNC_ERROR_HANDLING", "1")
+os.environ.setdefault("TORCH_NCCL_ASYNC_ERROR_HANDLING", "1")
 os.environ.setdefault("NCCL_TIMEOUT", "1800")  # 30 minutes timeout
-os.environ.setdefault("NCCL_BLOCKING_WAIT", "1")
+os.environ.setdefault("TORCH_NCCL_BLOCKING_WAIT", "1")
 os.environ.setdefault("NCCL_DEBUG", "INFO")
+os.environ.setdefault("NCCL_SOCKET_FAMILY", "AF_INET")  # Force IPv4 to fix socket errors
 os.environ.setdefault(
     "NCCL_SOCKET_IFNAME", "ib0,eth0"
-)  # Try InfiniBand first, then Ethernet
+)  
 os.environ.setdefault("NCCL_IB_DISABLE", "0")  # Enable InfiniBand if available
 os.environ.setdefault("NCCL_NET_GDR_LEVEL", "2")  # Enable GPU Direct RDMA
 
-# Suppress TensorFlow warnings
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
 os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
 
@@ -48,12 +47,20 @@ except ImportError:
     WANDB_AVAILABLE = False
     logger.warning("WandB not available. Install with: pip install wandb")
 
+# torchinfo import (optional)
+try:
+    import torchinfo
+    TORCHINFO_AVAILABLE = True
+except ImportError:
+    TORCHINFO_AVAILABLE = False
+    logger.warning("torchinfo not available. Model summary will be skipped.")
+
 from dendritic_modeling.config import load_config
 from dendritic_modeling.datasets import get_unified_datasets
 from dendritic_modeling.models import Classifier, Regressor
 from dendritic_modeling.networks import Identity
 from dendritic_modeling.networks.architectures.factory import get_architecture
-from dendritic_modeling.utils.data import set_seed, save_dict
+from dendritic_modeling.utils.general import set_seed, save_dict
 from dendritic_modeling.utils.gpu_estimation import GPUMemoryEstimator
 from dendritic_modeling.analysis import AnalysisManager
 from dendritic_modeling.training.fsdp_utils import get_fsdp_config
@@ -146,6 +153,41 @@ def setup_distributed():
     return rank, local_rank, world_size
 
 
+def print_model_parameter_summary(model, sample_input=None):
+    """Print detailed model parameter summary using torchinfo if available."""
+    logger.info("Network architecture summary before training:")
+    try:
+        if TORCHINFO_AVAILABLE and sample_input is not None:
+            summary = torchinfo.summary(
+                model,
+                input_size=(100, *sample_input.shape),
+                col_names=["input_size", "output_size", "num_params"],
+                col_width=25,
+                row_settings=["depth"],
+                depth=7,
+            )
+            logger.info("Model summary generated (see console output)")
+        else:
+            if not TORCHINFO_AVAILABLE:
+                logger.warning("torchinfo is not available. Model summary not generated.")
+            else:
+                logger.warning("No sample input provided. Using basic parameter count.")
+            
+            # Basic parameter breakdown
+            total_params = sum(p.numel() for p in model.parameters())
+            trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+            logger.info(f"Total parameters: {total_params:,}")
+            logger.info(f"Trainable parameters: {trainable_params:,}")
+            
+    except Exception as e:
+        logger.error(f"Failed to generate model summary before training: {e}")
+        # Fallback to basic count
+        total_params = sum(p.numel() for p in model.parameters())
+        trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+        logger.info(f"Total parameters: {total_params:,}")
+        logger.info(f"Trainable parameters: {trainable_params:,}")
+
+
 def create_large_model(config):
     """Create a large dendritic model from configuration."""
     model_config = config.model
@@ -221,9 +263,6 @@ def create_large_model(config):
     logger.info(f"Model created with {total_params:,} total parameters")
     logger.info(f"Trainable parameters: {trainable_params:,}")
     
-    # Generate detailed parameter summary table
-    print_model_parameter_summary(model)
-
     return model
 
 
@@ -319,6 +358,15 @@ def main(config_path):
     # Setup data loaders
     train_loader, valid_loader, test_ds, train_ds, valid_ds = setup_data_loaders(config, rank, world_size)
     
+    # Generate detailed parameter summary with real sample input
+    if rank == 0:  # Only on rank 0 to avoid duplicate output
+        try:
+            sample_input = train_ds[0][0]  # Get sample input from dataset
+            print_model_parameter_summary(model, sample_input)
+        except Exception as e:
+            logger.warning(f"Could not generate model summary with sample input: {e}")
+            print_model_parameter_summary(model)  # Fallback without sample input
+    
     # Create FSDP config from config file or defaults
     trainer_config = config.train.main.trainer
     
@@ -330,7 +378,7 @@ def main(config_path):
         # Fall back to legacy method
         logger.info("Using default FSDP configuration")
         fsdp_config = get_fsdp_config(
-            mixed_precision=getattr(trainer_config, 'use_mixed_precision', True),
+            mixed_precision=getattr(trainer_config, 'use_mixed_precision', False),  # Disable FSDP mixed precision for stability
             cpu_offload=getattr(trainer_config, 'cpu_offload', False),
             sharding_strategy="FULL_SHARD"
         )
@@ -367,15 +415,20 @@ def main(config_path):
         epochs=trainer_config.epochs,
         loss_function=getattr(trainer_config, 'loss_function', 'cat_nll'),
         grad_clip_value=getattr(trainer_config, 'grad_clip_value', 5.0),
-        use_amp=getattr(trainer_config, 'use_amp', False),
+        use_amp=getattr(config.train, 'enable_amp', False),
         early_stopping=getattr(trainer_config, 'early_stopping', False),
         patience=getattr(trainer_config, 'patience', 10),
         print_every=getattr(trainer_config, 'print_every', 1),
         save_checkpoints=True,
+        # Add plotting functionality similar to regular trainer
+        plot_losses=getattr(trainer_config, 'plot_losses', False),
+        save_path=run_save_path if rank == 0 else None,
     )
     
     if rank == 0:
         logger.info("Starting FSDP training...")
+        logger.info(f"Plot losses enabled: {getattr(trainer_config, 'plot_losses', False)}")
+        logger.info(f"Save path for plots: {run_save_path}")
     
     # Train the model
     results = trainer.train(model, train_loader, valid_loader)
@@ -388,11 +441,12 @@ def main(config_path):
         # Save final results
         save_dict(results, run_save_path, "training_results.json")
         
-        # Run final analysis
+        # Run final analysis - this will automatically handle performance analysis and figure generation
         if analysis_manager:
             try:
+                logger.info("Running final analysis (includes performance metrics plotting)...")
                 analysis_manager.run_analysis(filename="final", training=False)
-                logger.info("Final analysis completed")
+                logger.info("Final analysis completed - figures saved to performance folder")
             except Exception as e:
                 logger.error(f"Final analysis failed: {e}")
     

@@ -8,10 +8,9 @@ Example configurations for the unified sweep framework.
 # Use the comprehensive example
 cp configs/unified_all_sweeps_example.yaml configs/my_sweep.yaml
 
-# Edit for your needs, then run
+# Edit for your needs, then run (default behavior)
 python src/dendritic_modeling/scripts/sweeps/sweep_manager.py \
-    --config configs/my_sweep.yaml \
-    --run
+    --config configs/my_sweep.yaml
 ```
 
 ## Main Configuration
@@ -62,8 +61,8 @@ Test first:
 # Generate configs only
 python sweep_manager.py --config my_sweep.yaml --generate-only
 
-# Dry run  
-python sweep_manager.py --config my_sweep.yaml --run --dry-run
+# Dry run (default behavior with dry-run flag)
+python sweep_manager.py --config my_sweep.yaml --dry-run
 ```
 
 Scale appropriately:

@@ -100,6 +100,7 @@ class DendriticBranchLayer(nn.Module):
         weight_threshold=1e-6,
         adaptive_initialization=True,
         branch_factors=None,  # Add branch_factors parameter
+        epsilon=1e-8,  # Add configurable epsilon for numerical stability
         **kwargs,
     ):
         super().__init__()
@@ -108,6 +109,7 @@ class DendriticBranchLayer(nn.Module):
         self.blocklinear_strategy = blocklinear_strategy
         self.efficient_blocklinear = efficient_blocklinear
         self.use_shunting = use_shunting
+        self.epsilon = epsilon  # Store epsilon for numerical stability
         self.topk_type = topk_type  # Store the strategy
         self.topk_temperature = topk_temperature  # Store the temperature
         self.topk_ultrafast = topk_ultrafast  # Store the ultrafast flag
@@ -343,22 +345,27 @@ class DendriticBranchLayer(nn.Module):
             if self.input_excitatory and self.branch_excitation is not None:
                 excitation = self.branch_excitation(x)
                 numerator = numerator + excitation
-                denominator = denominator + excitation
+                # Ensure excitation is positive using ReLU (biologically realistic and efficient)
+                denominator = denominator + torch.nn.functional.relu(excitation)
 
             if self.input_branches and branch_input is not None:
                 current = self.branches_to_output(branch_input)
                 numerator = numerator + current
                 conductance = self.branches_to_output.sum_conductances()
-                denominator = denominator + conductance
+                # Ensure conductance is positive using ReLU (biologically realistic and efficient)
+                denominator = denominator + torch.nn.functional.relu(conductance)
 
             if (
                 self.input_inhibitory
                 and self.branch_inhibition is not None
                 and inhibitory_input is not None
             ):
-                denominator = denominator + self.branch_inhibition(inhibitory_input)
+                inhibition = self.branch_inhibition(inhibitory_input)
+                # Ensure inhibition is positive using ReLU (biologically realistic and efficient)
+                denominator = denominator + torch.nn.functional.relu(inhibition)
 
-            voltage = numerator / denominator
+            # Add configurable epsilon for numerical stability
+            voltage = numerator / (denominator + self.epsilon)
 
         else:
             voltage = 0
@@ -382,7 +389,8 @@ class DendriticBranchLayer(nn.Module):
         ]:
             self.compute_grad_scales(g_total=denominator if self.use_shunting else None)
 
-        return self.reactivation(voltage)
+        result = self.reactivation(voltage)
+        return result
 
     def compute_grad_scales(self, g_total=None):
         """

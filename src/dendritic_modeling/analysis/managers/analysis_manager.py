@@ -1,8 +1,8 @@
 """
 Analysis manager module.
 
-This module contains the AnalysisManager class which coordinates and orchestrates
-all the different analysis tools in the dendritic modeling package.
+The AnalysisManager coordinates analysis tools for performance metrics,
+information analysis, and visualization generation.
 """
 
 import logging
