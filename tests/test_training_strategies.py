@@ -70,7 +70,7 @@ class TestTrainerFactory(unittest.TestCase):
     def test_get_trainer_voltage_stabilization(self):
         """Test getting voltage stabilization trainer."""
         trainer_config = {"loss_function": "cross_entropy", "epochs": 10}
-        trainer = get_trainer("voltage_stablization", self.optimizer, trainer_config)  # Note: typo in factory is 'stablization'
+        trainer = get_trainer("voltage_stabilization", self.optimizer, trainer_config)
         self.assertIsInstance(trainer, VoltageStabilizationTrainer)
 
     def test_get_trainer_freeze_branches(self):
