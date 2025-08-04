@@ -1,9 +1,8 @@
 import unittest
 
 import torch
-import torch.nn as nn
 
-from dendritic_modeling.dendrinet import BlockLinear, DendriticBranchLayer, TopKLinear
+from dendritic_modeling.networks import BlockLinear, DendriticBranchLayer, TopKLinear
 
 
 class TestDendriticBranchLayer(unittest.TestCase):
@@ -25,7 +24,7 @@ class TestDendriticBranchLayer(unittest.TestCase):
             reactivate=False,
         )
         self.assertTrue(isinstance(layer.branch_excitation, TopKLinear))
-        self.assertFalse(hasattr(layer, "branch_inhibition"))
+        self.assertIsNone(layer.branch_inhibition)
         self.assertFalse(hasattr(layer, "branches_to_output"))
         self.assertFalse(layer.reactivate)
 

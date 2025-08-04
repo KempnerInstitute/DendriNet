@@ -3,32 +3,39 @@
 scripts/__pycache__/*
 tests/__pycache__/*
 results/*
+slurm_jobs/  # Generated SLURM script directories
 dendritic_modeling.egg-info/*
 dendritic_modeling/__pycache__/*
 *.sh
 *.out
+*.sbatch  # Generated SLURM batch scripts
 notebooks/data/*
 notebook/wandb/*
 notebook/votage_plots/*
 notebook/*.log
 notebook/test/*
+experiments/*
 data/*
 configs/*.txt
 src/data/*
 cifar-10-*
 wandb/*
-mnist*
 mnist*/*
 notebooks/*
 None/*
+dendritic_env/*
+logs/*
+notebooks/RNN/*
+notebooks/covnets/*
+notebooks/vision/*
+archive/*
 #ndb/ Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 *$py.class
-
 # C extensions
 *.so
-
+outputs/*
 # Distribution / packaging
 .Python
 build/
@@ -48,13 +55,13 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
-
+output/*
+outputs/*
 # PyInstaller
 #  Usually these files are written by a python script from a template
 #  before PyInstaller builds the exe, so as to inject date/other infos into it.
 *.manifest
 *.spec
-
 # Installer logs
 pip-log.txt
 pip-delete-this-directory.txt
@@ -168,6 +175,9 @@ venv.bak/
 .dmypy.json
 dmypy.json
 
+# ruff cache
+.ruff_cache/
+
 # Pyre type checker
 .pyre/
 
@@ -187,3 +197,14 @@ cython_debug/
 .DS_Store
 .vscode/*
 outputs/*
+.data/*
+trained_encoder_networks/*
+.trained_encoder_networks/*
+encoder_networks/*
+
+# Backup directories
+*_backup/
+notebooks_backup/
+docs_notebooks_backup/
+scripts_backup/
+experiments/
