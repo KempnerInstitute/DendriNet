@@ -126,13 +126,13 @@ Step-by-step control:
 
 .. code-block:: bash
 
-   # Step 1: Estimate requirements
+   # Estimate requirements
    python src/dendritic_modeling/scripts/tools/estimate_gpu_requirements.py configs/config_exp_fsdp.yaml
 
-   # Step 2: Generate SLURM script
+   # Generate SLURM script
    python src/dendritic_modeling/scripts/tools/generate_slurm_job.py configs/config_exp_fsdp.yaml
 
-   # Step 3: Submit job
+   # Submit job
    sbatch src/dendritic_modeling/scripts/tools/slurm/config_exp_fsdp.sbatch
 
 Common Issues

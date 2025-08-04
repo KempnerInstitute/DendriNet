@@ -608,7 +608,7 @@ class UnifiedResultAnalyzer:
         if output_dir is None:
             output_dir = results_dir
         
-        # Step 1: Collect results from the flattened directory structure
+        # Collect results from the flattened directory structure
         print("Collecting results from config directories...")
         results_df, missing_df = self.collect_results(results_dir)
 
@@ -624,7 +624,7 @@ class UnifiedResultAnalyzer:
                 "message": "No results found in directory."
             }
         
-        # Step 2: Clean and process the results data
+        # Clean and process the results data
         print("Processing results data...")
         clean_results = self.clean_results_data(results_df)
         
@@ -640,15 +640,15 @@ class UnifiedResultAnalyzer:
                 "message": "No valid results after data cleaning."
             }
 
-        # Step 3: Aggregate results (mean/std over seeds)
+        # Aggregate results (mean/std over seeds)
         print("Aggregating results...")
         agg_results = self.aggregate_results(clean_results)
 
-        # Step 4: Generate comprehensive plots
+        # Generate comprehensive plots
         print("Generating plots...")
         plot_paths = self.generate_plots(agg_results, output_dir, f"{sweep_type}_sweep")
 
-        # Step 5: Save processed data
+        # Save processed data
         plots_dir = os.path.join(output_dir, "plots")
         os.makedirs(plots_dir, exist_ok=True)
         

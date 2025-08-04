@@ -84,7 +84,7 @@ class SlurmJobGenerator:
         memory_breakdown = estimator.estimate_memory_breakdown(model, self.batch_size, input_shape, use_fsdp=True, num_gpus=1)
         
         # GPU calculation based on memory requirements
-        total_memory_gb = memory_breakdown.total * 2.0  # Safety factor
+        total_memory_gb = memory_breakdown.total * 2.0  # Memory safety factor
         max_memory_per_gpu = 70  # Safe limit for H100
         
         # Calculate minimum GPUs needed

@@ -336,7 +336,7 @@ class UnifiedSweepGenerator(BaseSweepGenerator):
             "outputs": base_config.get("outputs", {})
         }
         
-        # Step 1: Expand sweep parameters (handle ranges like [start, end, step])
+        # Expand sweep parameters (handle ranges like [start, end, step])
         param_values = {}
         if sweep_params:  # Only iterate if sweep_params is not None/empty
             for key, value in sweep_params.items():
@@ -345,7 +345,7 @@ class UnifiedSweepGenerator(BaseSweepGenerator):
                     expanded = [expanded]
                 param_values[key] = expanded
         
-        # Step 2: Handle filter_config modes
+        # Handle filter_config modes
         mode = filter_config.get("mode", "default")
         
         # Handle branch sweeps if specified (can be combined with EI filtering)
@@ -355,7 +355,7 @@ class UnifiedSweepGenerator(BaseSweepGenerator):
             # Add as a single parameter that will be unpacked later
             param_values["_branch_config"] = branch_configs
         
-        # Step 3: Handle EI filtering if EI parameters are present
+        # Handle EI filtering if EI parameters are present
         ee_param = "model.core_network.parameters.ee_synapses_per_branch_per_layer"
         ie_param = "model.core_network.parameters.ie_synapses_per_branch_per_layer"
         
@@ -378,7 +378,7 @@ class UnifiedSweepGenerator(BaseSweepGenerator):
             # Add as a special paired parameter
             param_values["_ei_config"] = [{"ee": combo[0], "ie": combo[1]} for combo in filtered_combos]
         
-        # Step 4: Generate cartesian product of all sweep params
+        # Generate cartesian product of all sweep params
         param_keys = list(param_values.keys())
         param_value_lists = [param_values[key] for key in param_keys]
         
@@ -388,11 +388,11 @@ class UnifiedSweepGenerator(BaseSweepGenerator):
             # No parameters to sweep - generate single config
             all_combos = [()]
         
-        # Step 5: Handle seeds and other experiment settings
+        # Handle seeds and other experiment settings
         seeds_per_condition = experiment_settings.get("seeds_per_condition", 1)
         base_seed = experiment_settings.get("base_seed", 42)
         
-        # Step 6: Generate configs
+        # Generate configs
         configs = []
         for combo in all_combos:
             # Create new config from base
