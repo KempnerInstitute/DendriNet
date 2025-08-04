@@ -19,13 +19,13 @@ Features:
 
 Usage:
     # Analyze specific sweep type
-    python result_analyzer.py --sweep-type ei --results-dir output/ei_20240101120000
+    python src/dendritic_modeling/scripts/sweeps/result_analyzer.py --sweep-type ei --results-dir output/ei_20240101120000
     
     # Auto-detect sweep type
-    python result_analyzer.py --results-dir output/ei_20240101120000 --auto-detect
+    python src/dendritic_modeling/scripts/sweeps/result_analyzer.py --results-dir output/ei_20240101120000 --auto-detect
     
     # Analyze multiple directories
-    python result_analyzer.py --results-dirs output/ei_* --sweep-type ei
+    python src/dendritic_modeling/scripts/sweeps/result_analyzer.py --results-dirs output/ei_* --sweep-type ei
 """
 
 import argparse

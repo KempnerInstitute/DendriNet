@@ -14,9 +14,15 @@ def save_plot(fig: plt.Figure, save_path: str, filename: str, dpi: int = 300) ->
         os.makedirs(save_path, exist_ok=True)
         filepath = os.path.join(save_path, f"{filename}.png")
         fig.savefig(filepath, dpi=dpi, bbox_inches='tight')
+        plt.close(fig)  # Close the figure to free memory
         logger.info(f"Plot saved to {filepath}")
+        
+        # Close all figures if too many are open to prevent memory issues
+        if len(plt.get_fignums()) > 10:
+            plt.close('all')
     except Exception as e:
         logger.warning(f"Error saving plot: {e}")
+        plt.close(fig)  # Close figure even if save failed
 
 def create_figure(figsize: Tuple[int, int] = (10, 6)) -> Tuple[plt.Figure, plt.Axes]:
     """Create a figure and axis with standard settings."""
@@ -25,6 +31,9 @@ def create_figure(figsize: Tuple[int, int] = (10, 6)) -> Tuple[plt.Figure, plt.A
 
 def create_subplots(rows: int, cols: int, figsize: Tuple[int, int] = (15, 10)) -> Tuple[plt.Figure, np.ndarray]:
     """Create subplots with standard settings."""
+    # Close some figures if too many are open
+    if len(plt.get_fignums()) > 15:
+        plt.close('all')
     fig, axes = plt.subplots(rows, cols, figsize=figsize)
     return fig, axes
 

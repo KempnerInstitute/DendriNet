@@ -170,14 +170,13 @@ class PerformancePlotter(TimeSeriesPlotter):
                     
                 with open(filepath, 'r') as f:
                     data = json.load(f)
-                                            if not data:
+                    if not data:
                         continue
                         
                     epochs.append(epoch)
                     
-                    
                     for metric_name, metric_data in data.items():
-                                                    if metric_name.startswith('_'):
+                        if metric_name.startswith('_'):
                             continue
                             
                         if isinstance(metric_data, dict):
