@@ -1,3 +1,7 @@
+from typing import Dict, Any, Union
+
+import torch.nn as nn
+
 from dendritic_modeling.networks.architectures.classical.autoencoder import (
     CNNAutoencoder,
     CNNVariationalAutoencoder,
@@ -10,13 +14,13 @@ from dendritic_modeling.networks.architectures.classical.cnn import (
     CNNUpsample,
 )
 from dendritic_modeling.networks.architectures.classical.identity import Identity
-from dendritic_modeling.networks.architectures.classical.mlp import MLP, MatchedParamMLP
+from dendritic_modeling.networks.architectures.classical.mlp import MLP, MatchedParamMLP, EffectiveMatchedParamMLP
 from dendritic_modeling.networks.architectures.excitation_inhibition import (
     ExcitationInhibitionNetwork,
 )
 
 
-def get_architecture(type: str, parameters: dict):
+def get_architecture(type: str, parameters: Dict[str, Any]) -> nn.Module:
     type = type.lower()
     if type == "alexnet":
         return AlexNet(**parameters)
@@ -28,6 +32,8 @@ def get_architecture(type: str, parameters: dict):
         return MLP(**parameters)
     elif type == "matchedparammlp":
         return MatchedParamMLP(**parameters)
+    elif type == "effectivematchedparammlp":
+        return EffectiveMatchedParamMLP(**parameters)
     elif type == "mlpautoencoder":
         return MLPAutoencoder(**parameters)
     elif type == "cnnautoencoder":

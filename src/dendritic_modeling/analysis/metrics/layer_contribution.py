@@ -13,7 +13,7 @@ import torch
 from torch.utils.data import TensorDataset
 
 from dendritic_modeling.config import SingleLayerContributionAnalysisParams
-from dendritic_modeling.models import BaseModel
+from dendritic_modeling.models import BaseModel, Classifier
 from dendritic_modeling.networks import (
     DendriticBranchLayer,
     ExcitationInhibitionNetwork,
@@ -44,59 +44,107 @@ class SingleLayerContributionAnalyzer:
         self.categorical_ll = getattr(params, "categorical_loglikelihood", False)
         self.mse = getattr(params, "mse", False)
         self.cosine_similarity = getattr(params, "cosine_similarity", False)
-        self.logger = logging.getLogger(__name__)
+        self.logger = logging.getLogger("dendritic_modeling.analysis")
 
-    def evaluate_layer_contribution(
-        self,
-        model: BaseModel,
-        test_dataset: torch.utils.data.Dataset,
-        module: DendriticBranchLayer,
-        module_name: str,
-        contribution_type: str,
-        results_dict: dict,
-        state_dict: dict,
-    ):
-        results_dict[contribution_type][module_name] = {}
-        results_dict[contribution_type][module_name]["depth"] = module.layer_idx
+    def _evaluate_single_layer(
+        self, model: BaseModel, test_dataset: TensorDataset, **kwargs
+    ) -> dict:
+        """Evaluate each dendritic layer in isolation"""
+        results_dict = {"excitation": {}, "inhibition": {}, "all": {}}
+        
+        # Check if model is a Classifier to skip inappropriate metrics
+        is_classifier = isinstance(model, Classifier)
+        if is_classifier:
+            self.logger.info("Detected Classifier model - skipping MSE and cosine similarity metrics")
 
-        for mod, name in model.named_modules():
-            if isinstance(mod, DendriticBranchLayer):
+        state_dict = deepcopy(model.state_dict())
+
+        for layer_idx, module in enumerate(model.core_network.layers):
+            if not isinstance(module, DendriticBranchLayer):
+                continue
+
+            module_name = f"layer_{layer_idx}"
+
+            # Initialize results for this layer
+            for contribution_type in ["excitation", "inhibition", "all"]:
                 if (
-                    name != module_name
-                    and mod.branch_excitation is not None
-                    and mod.branch_inhibition is not None
+                    contribution_type == "excitation"
+                    and not self.excitation_contribution
                 ):
-                    mod.branch_excitation.pre_w.data.fill_(-1000)
-                    mod.branch_inhibition.pre_w.data.fill_(-1000)
+                    continue
+                if (
+                    contribution_type == "inhibition"
+                    and not self.inhibition_contribution
+                ):
+                    continue
+                if contribution_type == "all" and not self.both_contribution:
+                    continue
 
-        if contribution_type == "excitation":
-            module.branch_inhibition.pre_w.data.fill_(-1000)
-        if contribution_type == "inhibition":
-            module.branch_excitation.pre_w.data.fill_(-1000)
+                results_dict[contribution_type][module_name] = {}
 
-        def _evaluate_metric(metric_func: Callable, metric_key: str):
-            metric_score = metric_func(model, test_ds=test_dataset, move_device=False)[
-                -1
-            ]
-            results_dict[contribution_type][module_name][metric_key] = metric_score
+        for layer_idx, module in enumerate(model.core_network.layers):
+            if not isinstance(module, DendriticBranchLayer):
+                continue
 
-        if self.accuracy:
-            _evaluate_metric(metric_func=evaluate_accuracy, metric_key="accuracy")
-        if self.auc:
-            _evaluate_metric(metric_func=evaluate_auc, metric_key="auc")
-        if self.categorical_ll:
-            _evaluate_metric(
-                metric_func=evaluate_categorical_loglikelihood,
-                metric_key="log likelihood",
-            )
-        if self.mse:
-            _evaluate_metric(metric_func=evaluate_mse, metric_key="mse")
-        if self.cosine_similarity:
-            _evaluate_metric(
-                metric_func=evaluate_cosine_similarity, metric_key="cosine similarity"
-            )
+            module_name = f"layer_{layer_idx}"
 
-        model.load_state_dict(state_dict)
+            for contribution_type in ["excitation", "inhibition", "all"]:
+                if (
+                    contribution_type == "excitation"
+                    and not self.excitation_contribution
+                ):
+                    continue
+                if (
+                    contribution_type == "inhibition"
+                    and not self.inhibition_contribution
+                ):
+                    continue
+                if contribution_type == "all" and not self.both_contribution:
+                    continue
+
+                # Reset model state
+                model.load_state_dict(state_dict)
+
+                # Disable all layers except the current one
+                for lidx, mod in enumerate(model.core_network.layers):
+                    if lidx != layer_idx and isinstance(mod, DendriticBranchLayer):
+                        mod.branch_excitation.pre_w.data.fill_(-1000)
+                        mod.branch_inhibition.pre_w.data.fill_(-1000)
+
+                if contribution_type == "excitation":
+                    module.branch_inhibition.pre_w.data.fill_(-1000)
+                if contribution_type == "inhibition":
+                    module.branch_excitation.pre_w.data.fill_(-1000)
+
+                def _evaluate_metric(metric_func: Callable, metric_key: str):
+                    metric_score = metric_func(model, test_ds=test_dataset, move_device=True)[
+                        -1
+                    ]
+                    results_dict[contribution_type][module_name][metric_key] = metric_score
+
+                if self.accuracy:
+                    _evaluate_metric(metric_func=evaluate_accuracy, metric_key="accuracy")
+                if self.auc:
+                    _evaluate_metric(metric_func=evaluate_auc, metric_key="auc")
+                if self.categorical_ll:
+                    _evaluate_metric(
+                        metric_func=evaluate_categorical_loglikelihood,
+                        metric_key="log likelihood",
+                    )
+                # Skip MSE and cosine similarity for Classifier models
+                if self.mse and not is_classifier:
+                    _evaluate_metric(metric_func=evaluate_mse, metric_key="mse")
+                elif self.mse and is_classifier:
+                    self.logger.info(f"Skipping MSE evaluation for Classifier model at {module_name}")
+                    
+                if self.cosine_similarity and not is_classifier:
+                    _evaluate_metric(
+                        metric_func=evaluate_cosine_similarity, metric_key="cosine similarity"
+                    )
+                elif self.cosine_similarity and is_classifier:
+                    self.logger.info(f"Skipping cosine similarity evaluation for Classifier model at {module_name}")
+
+                model.load_state_dict(state_dict)
 
         return results_dict
 
@@ -129,54 +177,8 @@ class SingleLayerContributionAnalyzer:
         labels: torch.Tensor = labels.to(device)
         test_dataset = TensorDataset(inputs, labels)
 
-        state_dict = deepcopy(model.state_dict())
-
-        results = {}
-        if self.excitation_contribution:
-            results["excitation"] = {}
-        if self.inhibition_contribution:
-            results["inhibition"] = {}
-        if self.both_contribution:
-            results["both"] = {}
-
-        for _name, module in model.named_modules():
-            if (
-                isinstance(module, DendriticBranchLayer)
-                and module.branch_excitation is not None
-                and module.branch_inhibition is not None
-            ):
-                if self.both_contribution:
-                    results = self.evaluate_layer_contribution(
-                        model=model,
-                        test_dataset=test_dataset,
-                        module=module,
-                        module_name=_name,
-                        contribution_type="both",
-                        results_dict=results,
-                        state_dict=state_dict,
-                    )
-
-                if self.excitation_contribution:
-                    results = self.evaluate_layer_contribution(
-                        model=model,
-                        test_dataset=test_dataset,
-                        module=module,
-                        module_name=_name,
-                        contribution_type="excitation",
-                        results_dict=results,
-                        state_dict=state_dict,
-                    )
-
-                if self.inhibition_contribution:
-                    results = self.evaluate_layer_contribution(
-                        model=model,
-                        test_dataset=test_dataset,
-                        module=module,
-                        module_name=_name,
-                        contribution_type="inhibition",
-                        results_dict=results,
-                        state_dict=state_dict,
-                    )
+        # Use the new _evaluate_single_layer method
+        results = self._evaluate_single_layer(model, test_dataset)
 
         if save_path is not None:
             save_dict(results, save_path, filename)

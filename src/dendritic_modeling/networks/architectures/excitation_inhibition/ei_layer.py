@@ -53,11 +53,13 @@ class ExcitationInhibitionLayer(nn.Module):
         freeze_inhibitory_connectivity=False,
         init_method="xavier_normal",
         weight_threshold=1e-6,
+        adaptive_initialization=True,
         **kwargs,
     ):
         super().__init__()
 
-        if build_inhibitory_cells:
+        # Only build inhibitory cells if n_inhibitory_cells is not None and build_inhibitory_cells is True
+        if build_inhibitory_cells and n_inhibitory_cells is not None:
             self.inhibitory_cells = DendriNet(
                 n_soma=n_inhibitory_cells,
                 branch_factors=inhibitory_branch_factors,
@@ -89,15 +91,26 @@ class ExcitationInhibitionLayer(nn.Module):
                 freeze_inhibitory_connectivity=freeze_inhibitory_connectivity,
                 init_method=init_method,
                 weight_threshold=weight_threshold,
+                adaptive_initialization=adaptive_initialization,
                 **kwargs,
             )
+        else:
+            self.inhibitory_cells = None
+
+        # Excitatory cells receive inhibitory input from the inhibitory cells in the same layer
+        # The dimension is the number of inhibitory neurons (each outputs one value)
+        excitatory_inhibitory_input_dim = (
+            n_inhibitory_cells
+            if (build_inhibitory_cells and n_inhibitory_cells is not None)
+            else inhibitory_input_dim
+        )
 
         self.excitatory_cells = DendriNet(
             n_soma=n_excitatory_cells,
             branch_factors=excitatory_branch_factors,
             excitatory_input_dim=excitatory_input_dim,
             excitatory_synapses_per_branch=ee_synapses_per_branch,
-            inhibitory_input_dim=inhibitory_input_dim,
+            inhibitory_input_dim=excitatory_inhibitory_input_dim,
             inhibitory_synapses_per_branch=ie_synapses_per_branch,
             reactivate=reactivate,
             reactivation_init_m=reactivation_init_m,
@@ -123,16 +136,17 @@ class ExcitationInhibitionLayer(nn.Module):
             freeze_inhibitory_connectivity=freeze_inhibitory_connectivity,
             init_method=init_method,
             weight_threshold=weight_threshold,
+            adaptive_initialization=adaptive_initialization,
             **kwargs,
         )
 
     def decay_weights(self, weight_decay: float):
-        if hasattr(self, "inhibitory_cells"):
+        if self.inhibitory_cells is not None:
             self.inhibitory_cells.decay_weights(weight_decay)
         self.excitatory_cells.decay_weights(weight_decay)
 
     def apply_rewiring(self):
-        if hasattr(self, "inhibitory_cells"):
+        if self.inhibitory_cells is not None:
             self.inhibitory_cells.apply_rewiring()
         self.excitatory_cells.apply_rewiring()
 
@@ -147,7 +161,7 @@ class ExcitationInhibitionLayer(nn.Module):
         Returns:
             excitatory_output, inhibitory_output
         """
-        if hasattr(self, "inhibitory_cells"):
+        if self.inhibitory_cells is not None:
             inhibitory_x = self.inhibitory_cells(excitatory_x, inhibitory_x)
 
         excitatory_x = self.excitatory_cells(excitatory_x, inhibitory_x)

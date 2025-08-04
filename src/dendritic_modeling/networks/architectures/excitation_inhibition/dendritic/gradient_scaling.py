@@ -6,6 +6,7 @@ various gradient-scaling strategies for BlockLinear or other modules.
 """
 
 import functools
+import torch
 
 
 def safe_hook(hook_fn):
@@ -53,6 +54,28 @@ def safe_hook(hook_fn):
     return safe_hook_fn
 
 
+def amp_safe_dtype_cast(grad, target_dtype=torch.float32):
+    """
+    Safely cast gradient to target dtype for AMP compatibility.
+    
+    Args:
+        grad: Input gradient tensor
+        target_dtype: Target dtype (default: float32)
+        
+    Returns:
+        Gradient cast to target dtype, or original if None
+    """
+    if grad is None:
+        return None
+    
+    # Handle different gradient types and ensure compatibility
+    if isinstance(grad, torch.Tensor):
+        if grad.dtype != target_dtype:
+            return grad.to(target_dtype)
+    
+    return grad
+
+
 def scale_activation_grad_hook(module, grad_input, grad_output):
     """
     A hook for reactivation functions. If inputs don't require gradients,
@@ -60,10 +83,20 @@ def scale_activation_grad_hook(module, grad_input, grad_output):
     """
     # Check if prints are enabled
     print_hooks = getattr(module, "print_hooks", False)
+    
+    # Check for AMP compatibility mode
+    disable_hooks_with_amp = getattr(module, "disable_hooks_with_amp", False)
+    if disable_hooks_with_amp and hasattr(module, "_amp_enabled") and module._amp_enabled:
+        if print_hooks:
+            print("Skipping reactivation hook due to AMP compatibility mode", flush=True)
+        return grad_output
 
     if print_hooks:
         print("\nscaling reactivation grad\n", flush=True)
 
+    # Simply return grad_output to preserve dtypes
+    # The actual reactivation gradient scaling should be implemented
+    # in the forward pass or through other means that don't change dtypes
     return grad_output
 
 
@@ -78,34 +111,71 @@ def scale_layer_input_gradients_elementwise(module, grad_input, grad_output):
 
     # Check if prints are enabled
     print_hooks = getattr(module, "print_hooks", False)
+    
+    # Check for AMP compatibility mode
+    disable_hooks_with_amp = getattr(module, "disable_hooks_with_amp", False)
+    if disable_hooks_with_amp and hasattr(module, "_amp_enabled") and module._amp_enabled:
+        if print_hooks:
+            print("Skipping input gradient scaling due to AMP compatibility mode", flush=True)
+        return grad_input
 
     if print_hooks:
         for i, grad in enumerate(grad_input):
             if grad is not None:
-                mean_abs_before = grad.abs().mean().item()
-                mean_abs_after = (grad * input_scale_vec).abs().mean().item()
+                # Use AMP-safe dtype casting for statistics
+                grad_float32 = amp_safe_dtype_cast(grad, torch.float32)
+                scaled_grad_float32 = grad_float32 * input_scale_vec
+                
+                mean_abs_before = grad_float32.abs().mean().item()
+                mean_abs_after = scaled_grad_float32.abs().mean().item()
                 print(
                     f"Gradient {i} - Mean Abs Before: {mean_abs_before:.6f}, Mean Abs After: {mean_abs_after:.6f}",
                     flush=True,
                 )
-    return tuple(
-        grad * input_scale_vec if grad is not None else None for grad in grad_input
-    )
+    
+    # Apply scaling while preserving original dtypes
+    scaled_gradients = []
+    for grad in grad_input:
+        if grad is not None:
+            # Direct scaling to preserve dtype
+            scaled_grad = grad * input_scale_vec
+            scaled_gradients.append(scaled_grad)
+        else:
+            scaled_gradients.append(None)
+    
+    return tuple(scaled_gradients)
 
 
-def scale_layer_param_gradients_elementwise(grad, param_scale_vec, print_hooks=False):
+def scale_layer_param_gradients_elementwise(grad, param_scale_vec, print_hooks=False, disable_hooks_with_amp=False, amp_enabled=False):
     """
     Apply element-wise scaling to the parameter gradients.
     """
     param_scale_vec = 1 if param_scale_vec is None else param_scale_vec
-    if print_hooks and grad is not None:
-        mean_abs_before = grad.abs().mean().item()
-        mean_abs_after = (grad * param_scale_vec).abs().mean().item()
+    
+    # Check for AMP compatibility mode
+    if disable_hooks_with_amp and amp_enabled:
+        if print_hooks:
+            print("Skipping parameter gradient scaling due to AMP compatibility mode", flush=True)
+        return grad
+    
+    if grad is None:
+        return None
+        
+    if print_hooks:
+        # Use AMP-safe dtype casting for statistics only
+        grad_float32 = amp_safe_dtype_cast(grad, torch.float32)
+        scaled_grad_float32 = grad_float32 * param_scale_vec
+        
+        mean_abs_before = grad_float32.abs().mean().item()
+        mean_abs_after = scaled_grad_float32.abs().mean().item()
         print(
             f"Parameter Gradient - Mean Abs Before: {mean_abs_before:.6f}, Mean Abs After: {mean_abs_after:.6f}",
             flush=True,
         )
-    return grad * param_scale_vec if grad is not None else None
+    
+    # Direct scaling to preserve dtype
+    scaled_grad = grad * param_scale_vec
+    return scaled_grad
 
 
 def scale_layer_gradients_scalar(module, grad_input, grad_output, scale_factor):
@@ -157,6 +227,8 @@ class GradientScaler:
         scale_factor=1.0,
         layer_idx=0,
         print_hooks=False,
+        disable_hooks_with_amp=False,
+        amp_enabled=False,
     ):
         """
         Parameters
@@ -169,6 +241,10 @@ class GradientScaler:
             For 'distal_upweight_by_idx' if needed.
         print_hooks : bool
             Whether to print gradient statistics in hooks. Default is False.
+        disable_hooks_with_amp : bool
+            Whether to disable hooks when AMP is enabled. Default is False.
+        amp_enabled : bool
+            Whether AMP is currently enabled. Default is False.
         """
         self.reactivation_strategy = reactivation_strategy
         self.blocklinear_strategy = blocklinear_strategy
@@ -176,6 +252,8 @@ class GradientScaler:
         self.scale_factor = scale_factor
         self.layer_idx = layer_idx
         self.print_hooks = print_hooks
+        self.disable_hooks_with_amp = disable_hooks_with_amp
+        self.amp_enabled = amp_enabled
 
     def register_reactivation_inverse(self, reactivation_layer):
         """
@@ -190,6 +268,10 @@ class GradientScaler:
 
             # Set the print_hooks attribute
             reactivation_layer.print_hooks = self.print_hooks
+            
+            # Set AMP compatibility attributes
+            reactivation_layer.disable_hooks_with_amp = self.disable_hooks_with_amp
+            reactivation_layer._amp_enabled = self.amp_enabled
 
             # Register with full backward hook consistently
             reactivation_layer.register_full_backward_hook(
@@ -244,7 +326,11 @@ class GradientScaler:
             if self.blocklinear_strategy == "conductance_dynamic":
                 try:
                     return scale_layer_param_gradients_elementwise(
-                        grad, block_linear_layer.param_scale_vec, self.print_hooks
+                        grad, 
+                        block_linear_layer.param_scale_vec, 
+                        self.print_hooks,
+                        self.disable_hooks_with_amp,
+                        self.amp_enabled
                     )
                 except Exception:
                     # If there's any error in applying the scale, return the original gradients
@@ -262,6 +348,10 @@ class GradientScaler:
 
             # Set the print_hooks attribute
             block_linear_layer.print_hooks = self.print_hooks
+            
+            # Set AMP compatibility attributes
+            block_linear_layer.disable_hooks_with_amp = self.disable_hooks_with_amp
+            block_linear_layer._amp_enabled = self.amp_enabled
 
             # Register consistently with full backward hook
             block_linear_layer.register_full_backward_hook(input_hook_fn)
@@ -312,7 +402,11 @@ class GradientScaler:
             if self.topk_strategy == "conductance_dynamic":
                 try:
                     return scale_layer_param_gradients_elementwise(
-                        grad, topk_layer.param_scale_vec, self.print_hooks
+                        grad, 
+                        topk_layer.param_scale_vec, 
+                        self.print_hooks,
+                        self.disable_hooks_with_amp,
+                        self.amp_enabled
                     )
                 except Exception:
                     # If there's any error in applying the scale, return the original gradients
@@ -330,6 +424,10 @@ class GradientScaler:
 
             # Set the print_hooks attribute
             topk_layer.print_hooks = self.print_hooks
+            
+            # Set AMP compatibility attributes  
+            topk_layer.disable_hooks_with_amp = self.disable_hooks_with_amp
+            topk_layer._amp_enabled = self.amp_enabled
 
             # Register consistently with full backward hook
             # topk_layer.register_full_backward_hook(input_hook_fn)

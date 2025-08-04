@@ -121,5 +121,4 @@ class WeightAnalyzer:
 
         if save_path is not None:
             save_dict(weights, save_path, filename)
-        else:
-            return weights
+        return weights

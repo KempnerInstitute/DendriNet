@@ -1,11 +1,11 @@
+import logging
 from typing import Any, Optional
 
 import torch
 from torch import nn
 
-from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.dendrinet import (
-    DendriNet,
-)
+logger = logging.getLogger(__name__)
+
 from dendritic_modeling.networks.architectures.excitation_inhibition.input_transform.identity import (
     IdentityInputTransform,
 )
@@ -46,66 +46,75 @@ class TransferLayer(nn.Module):
         freeze_inhibitory_connectivity: bool = False,
         init_method: str = "xavier_normal",
         weight_threshold: float = 1e-6,
+        efficient_blocklinear: bool = False,
+        adaptive_initialization: bool = True,
     ):
         super().__init__()
 
-        input_mode = transfer_params.get("input_mode", 0)
-        independent_pathways = transfer_params.get("independent_pathways", False)
+        self.input_mode = input_mode = transfer_params.get("input_mode", 0)
+        self.independent_pathways = independent_pathways = transfer_params.get(
+            "independent_pathways", False
+        )
+
+        # Add output activation option
+        self.output_activation = transfer_params.get("output_activation", None)
+
+        # Create activation function if specified
+        if self.output_activation == "sigmoid":
+            self.activation_fn = nn.Sigmoid()
+        elif self.output_activation == "relu":
+            self.activation_fn = nn.ReLU()
+        elif self.output_activation == "tanh":
+            self.activation_fn = nn.Tanh()
+        elif self.output_activation == "softplus":
+            self.activation_fn = nn.Softplus()
+        elif self.output_activation is None or self.output_activation == "none":
+            self.activation_fn = nn.Identity()
+        else:
+            raise ValueError(f"Unknown output_activation: {self.output_activation}")
 
         if independent_pathways:
-            excitatory_input_dim = transfer_params.get(
-                "excitatory_dim", int(input_dim / 2)
-            )
-            inhibitory_input_dim = transfer_params.get(
-                "inhibitory_dim", int(input_dim - excitatory_input_dim)
-            )
+            # Get dimensions from transfer_params, checking for None, 0, or missing
+            excitatory_dim = transfer_params.get("excitatory_dim", None)
+            inhibitory_dim = transfer_params.get("inhibitory_dim", None)
+
+            # If excitatory_dim is None, 0, or not provided, use input_dim / 2
+            if not excitatory_dim:  # This covers None, 0, empty string, etc.
+                excitatory_dim = int(input_dim / 2)
+                logger.info(
+                    f"excitatory_dim not provided or is 0/None. Setting to input_dim/2 = {excitatory_dim}"
+                )
+
+            # If inhibitory_dim is None, 0, or not provided, use remaining dimensions
+            if not inhibitory_dim:  # This covers None, 0, empty string, etc.
+                inhibitory_dim = int(input_dim - excitatory_dim)
+                logger.info(
+                    f"inhibitory_dim not provided or is 0/None. Setting to input_dim - excitatory_dim = {inhibitory_dim}"
+                )
+
+            excitatory_input_dim = excitatory_dim
+            inhibitory_input_dim = inhibitory_dim
+
             self.pathway_split = IndexInputTransform(
                 input_dim=input_dim,
                 excitatory_dim=excitatory_input_dim,
                 inhibitory_dim=inhibitory_input_dim,
             )
         else:
+            # When independent_pathways is False, both use full input_dim
             excitatory_input_dim = input_dim
             inhibitory_input_dim = input_dim
             self.pathway_split = IdentityInputTransform()
 
-        if input_mode == 0:
-            self.inhibitory_cells = DendriNet(
-                n_soma=n_inhibitory_cells,
-                branch_factors=inhibitory_branch_factors,
-                excitatory_input_dim=inhibitory_input_dim,
-                excitatory_synapses_per_branch=excitatory_synapses_per_branch,
-                inhibitory_input_dim=None,
-                reactivate=reactivate,
-                reactivation_init_m=reactivation_init_m,
-                reactivation_init_b=reactivation_init_b,
-                somatic_synapses=somatic_synapses,
-                topk_init_method=topk_init_method,
-                use_shunting=use_shunting,
-                reactivation_type=reactivation_type,
-                reactivation_strategy=reactivation_strategy,
-                blocklinear_strategy=blocklinear_strategy,
-                topk_noise_level=topk_noise_level,
-                topk_strategy=topk_strategy,
-                topk_type=topk_type,
-                print_hooks=print_hooks,
-                excitatory_target_density=excitatory_target_density,
-                inhibitory_target_density=inhibitory_target_density,
-                use_noise=use_noise,
-                sigma=sigma,
-                rewiring_mode=rewiring_mode,
-                rewire_frequency=rewire_frequency,
-                synapses_per_branch=synapses_per_branch,
-                freeze_excitatory_connectivity=freeze_excitatory_connectivity,
-                freeze_inhibitory_connectivity=freeze_inhibitory_connectivity,
-                init_method=init_method,
-                weight_threshold=weight_threshold,
-            )
+        # Remove inhibitory cell creation - this will now be handled in the first EI layer
+        # The TransferLayer only handles input splitting/duplication
 
         self.excitatory_dim = excitatory_input_dim
 
         if input_mode == 0:
-            self.inhibitory_dim = n_inhibitory_cells
+            # When input_mode=0, inhibitory dimension is the same as excitatory
+            # The first EI layer will build inhibitory cells
+            self.inhibitory_dim = inhibitory_input_dim
         elif input_mode == 1 and independent_pathways:
             self.inhibitory_dim = int(input_dim - self.excitatory_dim)
         elif input_mode == 1 and not independent_pathways:
@@ -116,7 +125,9 @@ class TransferLayer(nn.Module):
     def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         x1, x2 = self.pathway_split(x)
 
-        if hasattr(self, "inhibitory_cells"):
-            x2 = self.inhibitory_cells(x2)
+        # Apply activation function if specified
+        x1 = self.activation_fn(x1)
+        x2 = self.activation_fn(x2)
 
+        # No longer process inhibitory cells here - just return the split/duplicated input
         return x1, x2

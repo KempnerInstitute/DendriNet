@@ -6,13 +6,15 @@ disabling or ablating different network components to understand their contribut
 """
 
 from copy import deepcopy
-from typing import Callable, Optional
+from typing import Optional, Callable
 
 import torch
-from torch.utils.data import TensorDataset
+from torch.utils.data import TensorDataset, DataLoader
 
+from dendritic_modeling.analysis.core.base import AbstractAnalyzer
 from dendritic_modeling.config.analysis import AblationAnalysisParams
 from dendritic_modeling.models import BaseModel
+from dendritic_modeling.models import Regressor
 from dendritic_modeling.networks import ExcitationInhibitionNetwork
 from dendritic_modeling.networks.architectures import DendriticBranchLayer
 from dendritic_modeling.training.utils.evaluation import (
@@ -25,8 +27,12 @@ from dendritic_modeling.training.utils.evaluation import (
 from dendritic_modeling.utils import save_dict
 
 
-class AblationAnalyzer:
+class AblationAnalyzer(AbstractAnalyzer):
+    """Analyzer for performing ablation studies on model components."""
+
     def __init__(self, params: AblationAnalysisParams):
+        """Initialize with ablation parameters."""
+        super().__init__("AblationAnalyzer")
         self.layer_ablation = getattr(params, "layer_ablation", False)
         self.compartment_ablation = getattr(params, "compartment_ablation", False)
         self.ablate_all_synapses = getattr(params, "ablate_all_synapses", False)
@@ -50,6 +56,7 @@ class AblationAnalyzer:
         results_dict: dict,
         state_dict: dict,
     ):
+        """Ablate a single layer and evaluate its impact."""
         results_dict[ablation_type][module_name] = {}
         results_dict[ablation_type][module_name]["depth"] = module.layer_idx
 
@@ -75,7 +82,7 @@ class AblationAnalyzer:
         if self.categorical_ll:
             _evaluate_metric(
                 metric_func=evaluate_categorical_loglikelihood,
-                metric_key="log likelihood",
+                metric_key="categorical_loglikelihood",
             )
         if self.mse:
             _evaluate_metric(metric_func=evaluate_mse, metric_key="mse")
@@ -99,6 +106,7 @@ class AblationAnalyzer:
         results_dict: dict,
         state_dict: dict,
     ):
+        """Ablate a single compartment and evaluate its impact."""
         results_dict[ablation_type][module_name] = {}
         results_dict[ablation_type][module_name]["depth"] = module.layer_idx
 
@@ -151,7 +159,7 @@ class AblationAnalyzer:
             if self.categorical_ll:
                 _evaluate_metric(
                     metric_func=evaluate_categorical_loglikelihood,
-                    metric_key="log likelihood",
+                    metric_key="categorical_loglikelihood",
                     metric_list=loglikelihood_list,
                 )
             if self.mse:
@@ -173,7 +181,7 @@ class AblationAnalyzer:
             results_dict[ablation_type][module_name]["auc drop"] = auc_list
         if self.categorical_ll:
             results_dict[ablation_type][module_name][
-                "log likelihood drop"
+                "categorical_loglikelihood drop"
             ] = loglikelihood_list
         if self.mse:
             results_dict[ablation_type][module_name]["mse drop"] = mse_list
@@ -184,6 +192,37 @@ class AblationAnalyzer:
 
         return results_dict
 
+    def _plot_ablation_results(self, results: dict, save_path: str, filename: str):
+        """Generate comprehensive ablation plots similar to information analysis."""
+        try:
+            from dendritic_modeling.plotting.visualizations.general_analysis_plots import (
+                plot_ablation_results, plot_per_layer_ablation
+            )
+            
+            # Plot layer ablation results if available
+            if "layer" in results and results["layer"]:
+                # Create comprehensive per-layer plots
+                plot_per_layer_ablation(
+                    results["layer"],
+                    save_path=save_path,
+                    filename_prefix="ablation_per_layer"
+                )
+                
+
+            
+            # Plot compartment ablation results if available
+            if "compartment" in results and results["compartment"]:
+                plot_ablation_results(
+                    results["compartment"],
+                    save_path=save_path,
+                    filename=f"{filename}_compartment"
+                )
+                
+        except ImportError as e:
+            print(f"Warning: Ablation plotting functions not found: {e}")
+        except Exception as e:
+            print(f"Warning: Could not generate ablation plots: {e}")
+
     def analyze(
         self,
         model: BaseModel,
@@ -191,7 +230,9 @@ class AblationAnalyzer:
         device: str = "cpu",
         save_path: Optional[str] = None,
         filename: str = "final",
+        batch_size: int = 32,  # adding optional batch_size for evaluations
     ):
+        """Perform ablation analysis and return results."""
         try:
             assert isinstance(model.core_network, ExcitationInhibitionNetwork)
         except AssertionError:
@@ -206,6 +247,10 @@ class AblationAnalyzer:
 
         state_dict = deepcopy(model.state_dict())
 
+        # Wrapping dataset in DataLoader for batched evaluation if large
+        test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
+
+        # Calculate baseline performance using correct function signatures
         baselines = {}
         if self.accuracy:
             baselines["accuracy"] = evaluate_accuracy(
@@ -216,13 +261,11 @@ class AblationAnalyzer:
                 classifier=model, test_ds=test_dataset, move_device=False
             )[-1]
         if self.categorical_ll:
-            baselines["log likelihood"] = evaluate_categorical_loglikelihood(
+            baselines["categorical_loglikelihood"] = evaluate_categorical_loglikelihood(
                 classifier=model, test_ds=test_dataset, move_device=False
             )[-1]
         if self.mse:
             # Check if model is a regressor before using MSE
-            from dendritic_modeling.models import Regressor
-
             if isinstance(model, Regressor):
                 baselines["mse"] = evaluate_mse(
                     regressor=model, test_ds=test_dataset, move_device=False
@@ -235,8 +278,6 @@ class AblationAnalyzer:
                 self.mse = False
         if self.cosine_similarity:
             # Check if model is a regressor before using cosine similarity
-            from dendritic_modeling.models import Regressor
-
             if isinstance(model, Regressor):
                 baselines["cosine similarity"] = evaluate_cosine_similarity(
                     regressor=model, test_ds=test_dataset, move_device=False
@@ -379,14 +420,8 @@ class AblationAnalyzer:
 
         if save_path is not None:
             save_dict(results, save_path, filename)
-            if self.layer_ablation:
-                # Import plotting function
-                from dendritic_modeling.plotting.ablation_plots import (
-                    plot_layer_ablation,
-                )
-
-                plot_layer_ablation(
-                    layer_results=layer_results, save_path=save_path, filename=filename
-                )
-        else:
-            return results
+            
+            # Generate ablation plots
+            self._plot_ablation_results(results, save_path, filename)
+            
+        return results

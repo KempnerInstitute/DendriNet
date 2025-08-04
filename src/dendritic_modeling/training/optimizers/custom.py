@@ -32,6 +32,11 @@ class CustomWeightDecayOptimizer:
         self.optimizer = optimizer
         self.weight_decay = weight_decay
 
+    @property
+    def param_groups(self):
+        """Expose the underlying optimizer's param_groups."""
+        return self.optimizer.param_groups
+
     def zero_grad(self):
         """Zero gradients of the underlying optimizer."""
         self.optimizer.zero_grad()

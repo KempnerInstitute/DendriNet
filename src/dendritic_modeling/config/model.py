@@ -10,6 +10,9 @@ class TransferFunctionParams(BaseConfig):
     independent_pathways: bool = False
     excitatory_dim: Optional[int] = None
     inhibitory_dim: Optional[int] = None
+    output_activation: Optional[str] = (
+        None  # Options: "sigmoid", "relu", "tanh", "softplus", None
+    )
 
 
 @dataclass
@@ -41,6 +44,7 @@ class EINetParameters(BaseConfig):
     reactivation_strategy: str = "inverse"
     blocklinear_strategy: str = "conductance_dynamic"
     print_hooks: bool = False  # Whether to print gradient statistics in hooks
+    efficient_blocklinear: bool = False  # use memory-efficient implementation
     excitatory_target_density: float = 0.1
     inhibitory_target_density: float = 0.1
     use_noise: bool = True
@@ -52,6 +56,8 @@ class EINetParameters(BaseConfig):
     freeze_inhibitory_connectivity: bool = False
     init_method: str = "xavier_normal"
     weight_threshold: float = 1e-6
+    adaptive_initialization: bool = True  # use network-aware weight scaling
+    epsilon: float = 1e-8  # numerical stability constant for shunting computation
 
 
 @dataclass

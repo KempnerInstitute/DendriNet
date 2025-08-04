@@ -45,11 +45,14 @@ python src/dendritic_modeling/scripts/training/train_experiments.py configs/conf
 Use FSDP for large models with automatic GPU allocation:
 
 ```bash
-# Auto-configured multi-node FSDP training (default behavior)
+# Generate and submit FSDP job (default behavior)
 python src/dendritic_modeling/scripts/tools/submit_fsdp_job.py configs/config_exp_fsdp.yaml
 
-# Manual generation only
+# Generate SLURM script only
 python src/dendritic_modeling/scripts/tools/submit_fsdp_job.py configs/config_exp_fsdp.yaml --generate-only
+
+# Dry run to see what would be submitted
+python src/dendritic_modeling/scripts/tools/submit_fsdp_job.py configs/config_exp_fsdp.yaml --dry-run
 ```
 
 Use advanced training with pruning, regularization, and synaptic analysis:
@@ -79,13 +82,14 @@ See [ENHANCED_TRAINING_GUIDE.md](ENHANCED_TRAINING_GUIDE.md) for detailed usage 
 Run comprehensive parameter sweeps with automatic analysis:
 
 ```bash
-# 1. Run a sweep (E/I balance + architecture combinations - default behavior)
-python src/dendritic_modeling/scripts/sweeps/sweep_manager.py \
-    --config configs/unified_all_sweeps_example.yaml
+# Generate and run sweep (default behavior)
+python src/dendritic_modeling/scripts/sweeps/sweep_manager.py --config configs/unified_all_sweeps_example.yaml
 
-# 2. Analyze results (generates 65+ plots)
-python src/dendritic_modeling/scripts/sweeps/result_analyzer.py \
-    --results-dir results/unified_20250101120000 --auto-detect
+# Generate configs only (no job submission)
+python src/dendritic_modeling/scripts/sweeps/sweep_manager.py --config configs/unified_all_sweeps_example.yaml --generate-only
+
+# Analyze results with auto-detection
+python src/dendritic_modeling/scripts/sweeps/result_analyzer.py --results-dir output/sweep_20240101120000 --auto-detect
 ```
 
 Generates comprehensive analysis:

@@ -19,7 +19,6 @@ from dendritic_modeling.networks import (
     DendriticBranchLayer,
     ExcitationInhibitionNetwork,
 )
-from dendritic_modeling.plotting.analysis import plot_information_analysis
 from dendritic_modeling.utils import save_dict
 from dendritic_modeling.utils.information.estimators import (
     EstimatorConfig,
@@ -29,9 +28,10 @@ from dendritic_modeling.utils.information.pid import (
     check_pid_available,
     pid_synergy_redundancy,
 )
+from dendritic_modeling.analysis.core.base import AbstractAnalyzer
 
 
-class InformationAnalyzer:
+class InformationAnalyzer(AbstractAnalyzer):
     """Unified analyzer for computing information-theoretic metrics in dendritic networks.
 
     This analyzer uses the multivariate-aware methods from information.py to compute
@@ -47,7 +47,7 @@ class InformationAnalyzer:
         config : InformationAnalysisConfig or dict
             Configuration from the main config system (analysis.information_analysis)
         """
-        self.logger = logging.getLogger(self.__class__.__name__)
+        super().__init__("InformationAnalyzer")
 
         # Extract configuration parameters
         self.method = getattr(params, "method", "kraskov")
@@ -74,18 +74,25 @@ class InformationAnalyzer:
         self.compute_per_branch = getattr(params, "compute_per_branch", False)
         self.branch_aggregation = getattr(params, "branch_aggregation", "mean")
 
+        self.methods = getattr(params, 'methods', ['kraskov'])  # list of methods: copula, kraskov, pid
+        self.compute_types = getattr(params, 'compute_types', ['basic_mi', 'pairwise_mi', 'conditional_mi', 'class_mi'])  # new
+        self.target_dimensions = getattr(params, 'target_dimensions', None)  # for dimensional MI, e.g., list of dims
+        self.normalize = getattr(params, 'normalize', False)  # general normalize
+
         if self.verbose:
             self.logger.setLevel(logging.DEBUG)
 
-        # Create the estimator
-        estimator_config = EstimatorConfig(
-            method=self.method,
-            n_neighbors=self.n_neighbors,
-            n_bins=self.n_bins,
-            copula_type=self.copula_type,
-            verbose=self.verbose,
-        )
-        self.estimator = InformationEstimatorFactory.create(estimator_config)
+        # Create estimators for each method
+        self.estimators = {}
+        for method in self.methods:
+            estimator_config = EstimatorConfig(
+                method=method,
+                n_neighbors=self.n_neighbors,
+                n_bins=self.n_bins,
+                copula_type=self.copula_type,
+                verbose=self.verbose,
+            )
+            self.estimators[method] = InformationEstimatorFactory.create(estimator_config)
 
         # Check if PID is available
         self.pid_available = False
@@ -110,20 +117,20 @@ class InformationAnalyzer:
         """Compute mutual information between each variable and C."""
         metrics = {}
         # I(E;C)
-        metrics["I(E;C)"] = self.estimator.mutual_information(E, C)
+        metrics["I(E;C)"] = self.estimators[self.method].mutual_information(E, C)
         # I(I;C)
-        metrics["I(I;C)"] = self.estimator.mutual_information(I_var, C)
+        metrics["I(I;C)"] = self.estimators[self.method].mutual_information(I_var, C)
         # I(Vout;C)
-        metrics["I(Vout;C)"] = self.estimator.mutual_information(Vout, C)
+        metrics["I(Vout;C)"] = self.estimators[self.method].mutual_information(Vout, C)
         # I(Vinf;C) if available
         if Vinf is not None and self.include_vinf:
-            metrics["I(Vinf;C)"] = self.estimator.mutual_information(Vinf, C)
+            metrics["I(Vinf;C)"] = self.estimators[self.method].mutual_information(Vinf, C)
         # Joint MI: I(E,I;C)
         EI = np.hstack([E, I_var])
-        metrics["I(E,I;C)"] = self.estimator.mutual_information(EI, C)
+        metrics["I(E,I;C)"] = self.estimators[self.method].mutual_information(EI, C)
         # Optionally normalize by entropy
         if self.normalize_mi:
-            H_C = self.estimator.entropy(C.reshape(-1, 1))
+            H_C = self.estimators[self.method].entropy(C.reshape(-1, 1))
             # Create a list of keys to avoid modifying dict during iteration
             keys_to_normalize = list(metrics.keys())
             for key in keys_to_normalize:
@@ -140,18 +147,18 @@ class InformationAnalyzer:
         """Compute pairwise mutual information between variables."""
         metrics = {}
         # I(E;I)
-        metrics["I(E;I)"] = self.estimator.mutual_information(E, I_var)
+        metrics["I(E;I)"] = self.estimators[self.method].mutual_information(E, I_var)
         # I(E;Vout)
-        metrics["I(E;Vout)"] = self.estimator.mutual_information(E, Vout)
+        metrics["I(E;Vout)"] = self.estimators[self.method].mutual_information(E, Vout)
         # I(I;Vout)
-        metrics["I(I;Vout)"] = self.estimator.mutual_information(I_var, Vout)
+        metrics["I(I;Vout)"] = self.estimators[self.method].mutual_information(I_var, Vout)
         if Vinf is not None and self.include_vinf:
             # I(E;Vinf)
-            metrics["I(E;Vinf)"] = self.estimator.mutual_information(E, Vinf)
+            metrics["I(E;Vinf)"] = self.estimators[self.method].mutual_information(E, Vinf)
             # I(I;Vinf)
-            metrics["I(I;Vinf)"] = self.estimator.mutual_information(I_var, Vinf)
+            metrics["I(I;Vinf)"] = self.estimators[self.method].mutual_information(I_var, Vinf)
             # I(Vout;Vinf)
-            metrics["I(Vout;Vinf)"] = self.estimator.mutual_information(Vout, Vinf)
+            metrics["I(Vout;Vinf)"] = self.estimators[self.method].mutual_information(Vout, Vinf)
         return metrics
 
     def _compute_conditional_mi(
@@ -165,24 +172,24 @@ class InformationAnalyzer:
         """Compute conditional mutual information given C."""
         metrics = {}
         # I(E;I|C)
-        metrics["I(E;I|C)"] = self.estimator.conditional_mutual_information(
+        metrics["I(E;I|C)"] = self.estimators[self.method].conditional_mutual_information(
             E, I_var, C.reshape(-1, 1)
         )
         # I(E;Vout|C)
-        metrics["I(E;Vout|C)"] = self.estimator.conditional_mutual_information(
+        metrics["I(E;Vout|C)"] = self.estimators[self.method].conditional_mutual_information(
             E, Vout, C.reshape(-1, 1)
         )
         # I(I;Vout|C)
-        metrics["I(I;Vout|C)"] = self.estimator.conditional_mutual_information(
+        metrics["I(I;Vout|C)"] = self.estimators[self.method].conditional_mutual_information(
             I_var, Vout, C.reshape(-1, 1)
         )
         if Vinf is not None and self.include_vinf:
             # I(E;Vinf|C)
-            metrics["I(E;Vinf|C)"] = self.estimator.conditional_mutual_information(
+            metrics["I(E;Vinf|C)"] = self.estimators[self.method].conditional_mutual_information(
                 E, Vinf, C.reshape(-1, 1)
             )
             # I(I;Vinf|C)
-            metrics["I(I;Vinf|C)"] = self.estimator.conditional_mutual_information(
+            metrics["I(I;Vinf|C)"] = self.estimators[self.method].conditional_mutual_information(
                 I_var, Vinf, C.reshape(-1, 1)
             )
         return metrics
@@ -222,11 +229,11 @@ class InformationAnalyzer:
                 pid_results[pid_key] = {
                     "synergy": synergy,
                     "redundancy": redundancy,
-                    f"unique_{source1_name}": self.estimator.mutual_information(
+                    f"unique_{source1_name}": self.estimators[self.method].mutual_information(
                         source1_array, target_array
                     )
                     - redundancy,
-                    f"unique_{source2_name}": self.estimator.mutual_information(
+                    f"unique_{source2_name}": self.estimators[self.method].mutual_information(
                         source2_array, target_array
                     )
                     - redundancy,
@@ -327,6 +334,18 @@ class InformationAnalyzer:
 
         return "\n".join(summary_lines)
 
+    def compute_general_class_mi(self, activations: np.ndarray, labels: np.ndarray, dims: Optional[list[int]] = None) -> dict:
+        """Compute MI between activations (optionally specific dims) and class labels using all methods."""
+        results = {}
+        acts = activations if dims is None else activations[:, dims]
+        for method, estimator in self.estimators.items():
+            mi = estimator.mutual_information(acts, labels.reshape(-1, 1))
+            results[f'{method}_mi_class'] = mi
+            if self.normalize:
+                h_labels = estimator.entropy(labels.reshape(-1, 1))
+                results[f'{method}_normalized_mi_class'] = mi / h_labels if h_labels > 0 else 0
+        return results
+
     def compute_metrics(
         self,
         E: np.ndarray,
@@ -394,6 +413,12 @@ class InformationAnalyzer:
             self.logger.info("Computing PID metrics...")
             results["pid"] = self._compute_pid(E, I_var, Vout, C)
 
+        if 'class_mi' in self.compute_types:
+            results['class_mi'] = self.compute_general_class_mi(Vout, C, self.target_dimensions)  # example on Vout
+        if 'pid' in self.methods:
+            results['pid'] = self._compute_pid(E, I_var, Vout, C)  # use base estimator for sub-MIs if needed
+        # Ensemble results from multiple methods if needed
+
         return results
 
     def _average_mi_results(
@@ -445,6 +470,35 @@ class InformationAnalyzer:
 
         return averaged_results
 
+    def _compute_layer_statistics(self, results_list: list[dict[str, Any]]) -> dict[str, float]:
+        """Compute mean and std of MI results across multiple branches for a given layer."""
+        layer_stats = {}
+        
+        # Handle nested structure
+        if "basic_mi" in results_list[0]:
+            # Process basic MI metrics
+            if "basic_mi" in results_list[0]:
+                for key in results_list[0]["basic_mi"].keys():
+                    values = [r["basic_mi"][key] for r in results_list]
+                    layer_stats[f"{key}_mean"] = np.mean(values)
+                    layer_stats[f"{key}_std"] = np.std(values)
+            
+            # Process pairwise MI metrics
+            if "pairwise_mi" in results_list[0]:
+                for key in results_list[0]["pairwise_mi"].keys():
+                    values = [r["pairwise_mi"][key] for r in results_list]
+                    layer_stats[f"{key}_mean"] = np.mean(values)
+                    layer_stats[f"{key}_std"] = np.std(values)
+            
+            # Process conditional MI metrics
+            if "conditional_mi" in results_list[0]:
+                for key in results_list[0]["conditional_mi"].keys():
+                    values = [r["conditional_mi"][key] for r in results_list]
+                    layer_stats[f"{key}_mean"] = np.mean(values)
+                    layer_stats[f"{key}_std"] = np.std(values)
+        
+        return layer_stats
+
     def attach_forward_hooks(self, model: BaseModel):
         """Attach forward hooks to the model."""
         # Initalize data_dict attribute
@@ -472,12 +526,16 @@ class InformationAnalyzer:
     ):
         """Forward hook to collect branch data."""
         excitatory_input, inhibitory_input, _ = input
-        self.data_dict[module._name]["excitation"] = module.branch_excitation(
-            excitatory_input
-        )
-        self.data_dict[module._name]["inhibition"] = module.branch_inhibition(
-            inhibitory_input
-        )
+
+        # Get the outputs from TopKLinear layers
+        # These represent the weighted sum for each branch (already computed by TopKLinear)
+        # Shape: (batch_size, num_branches)
+        excitation_per_branch = module.branch_excitation(excitatory_input)
+        inhibition_per_branch = module.branch_inhibition(inhibitory_input)
+
+        # Store per-branch data
+        self.data_dict[module._name]["excitation"] = excitation_per_branch
+        self.data_dict[module._name]["inhibition"] = inhibition_per_branch
         self.data_dict[module._name]["output"] = output
 
     def remove_forward_hooks(self, handles: list[torch.utils.hooks.RemovableHandle]):
@@ -487,17 +545,11 @@ class InformationAnalyzer:
 
     def analyze(
         self,
-        model_or_E=None,
-        test_dataset_or_I=None,
-        device_or_Vout=None,
-        save_path_or_C=None,
-        filename_or_Vinf=None,
-        *,
-        model=None,
-        test_dataset=None,
-        device=None,
-        save_path=None,
-        filename=None,
+        model: BaseModel,
+        test_dataset: torch.utils.data.Dataset,
+        device: str = "cpu",
+        save_path: Optional[str] = None,
+        filename: str = "final",
     ):
         """Run integrated information analysis on the model or compute metrics from arrays.
 
@@ -588,28 +640,51 @@ class InformationAnalyzer:
 
                 all_results = []
                 branch_names = []
+                layer_results = {}  # Store results per layer
 
-                for branch_name, branch_data in self.data_dict.items():
-                    if "excitation" not in branch_data:
+                for layer_name, layer_data in self.data_dict.items():
+                    if "excitation" not in layer_data:
                         continue
 
-                    # Get single branch data
-                    E_branch = branch_data["excitation"].detach().cpu().numpy()
-                    I_branch = branch_data["inhibition"].detach().cpu().numpy()
-                    Vout_branch = branch_data["output"].detach().cpu().numpy()
+                    # Get data for all branches in this layer
+                    E_all_branches = layer_data["excitation"].detach().cpu().numpy()
+                    I_all_branches = layer_data["inhibition"].detach().cpu().numpy()
+                    Vout_all_branches = layer_data["output"].detach().cpu().numpy()
 
-                    # Compute MI for this single branch
-                    branch_results = self.compute_metrics(
-                        E_branch, I_branch, Vout_branch, C, None
-                    )
-                    all_results.append(branch_results)
-                    branch_names.append(branch_name)
+                    # E_all_branches shape: (n_samples, n_branches)
+                    n_branches = E_all_branches.shape[1]
+
+                    # Store per-branch results for this layer
+                    layer_branch_results = []
+                    
+                    # Process each branch individually
+                    for branch_idx in range(n_branches):
+                        # Extract data for this specific branch
+                        E_branch = E_all_branches[
+                            :, branch_idx : branch_idx + 1
+                        ]  # Keep 2D shape
+                        I_branch = I_all_branches[:, branch_idx : branch_idx + 1]
+                        Vout_branch = Vout_all_branches[:, branch_idx : branch_idx + 1]
+
+                        # Compute MI for this single branch
+                        branch_results = self.compute_metrics(
+                            E_branch, I_branch, Vout_branch, C, None
+                        )
+                        all_results.append(branch_results)
+                        layer_branch_results.append(branch_results)
+                        branch_names.append(f"{layer_name}_branch_{branch_idx}")
+                    
+                    # Compute layer statistics
+                    if layer_branch_results:
+                        layer_stats = self._compute_layer_statistics(layer_branch_results)
+                        layer_results[layer_name] = layer_stats
 
                 # Average the results across branches
                 if all_results:
                     results = self._average_mi_results(all_results)
                     results["branch_names"] = branch_names
                     results["num_branches"] = len(all_results)
+                    results["layer_statistics"] = layer_results  # Add per-layer statistics
                 else:
                     self.logger.warning("No branch results to average")
                     return
@@ -762,44 +837,20 @@ class InformationAnalyzer:
                 results["num_branches_aggregated"] = len(excitation_list)
 
             # Save results
-            os.makedirs(save_path, exist_ok=True)
-            save_dict(results, save_path, filename)
-
-            # Also save a summary report
-            summary = self.get_summary(results)
-            summary_path = os.path.join(save_path, f"{filename}_summary.txt")
-            with open(summary_path, "w") as f:
-                f.write(summary)
-
-            self.logger.info(
-                f"Information analysis completed. Results saved to {save_path}"
-            )
-
-            # Generate information plots
-            try:
-                self.logger.info("Generating information analysis plots...")
-
-                plot_save_path = os.path.join(save_path, "plots")
-                os.makedirs(plot_save_path, exist_ok=True)
-
-                # Generate all plots
-                figs = plot_information_analysis(
-                    results, save_path=plot_save_path, filename_prefix=filename
-                )
-
-                self.logger.info(
-                    f"Generated {len(figs)} information analysis plots in {plot_save_path}"
-                )
-
-                # Close all figures to free memory
-                import matplotlib.pyplot as plt
-
-                for fig in figs:
-                    plt.close(fig)
-
-            except Exception as e:
-                self.logger.warning(f"Could not generate information plots: {e}")
+            if save_path is not None:
+                save_dict(results, save_path, filename)
+                summary = self.get_summary(results)
+                summary_path = os.path.join(save_path, f"{filename}_summary.txt")
+                with open(summary_path, "w") as f:
+                    f.write(summary)
+            return results
 
         except Exception as e:
             self.logger.error(f"Error in information analysis: {e}")
             traceback.print_exc()
+
+    def compute_class_mi(self, activations, labels):
+        return self.estimators[self.method].mutual_information(activations, labels)
+
+    def compute_conditional_mi(self, activations, labels, condition):
+        return self.estimators[self.method].conditional_mutual_information(activations, labels, condition)

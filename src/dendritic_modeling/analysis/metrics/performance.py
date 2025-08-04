@@ -6,6 +6,10 @@ accuracy, categorical log-likelihood, and mean squared error.
 """
 
 from typing import Callable, Optional
+import os
+
+# Disable Dynamo to fix fake tensor device issues during analysis
+os.environ["TORCHDYNAMO_DISABLE"] = "1"
 
 import torch
 from torch.utils.data import TensorDataset
@@ -20,6 +24,7 @@ from dendritic_modeling.training.utils.evaluation import (
     evaluate_mse,
 )
 from dendritic_modeling.utils import save_dict
+
 
 
 class PerformanceAnalyzer:
@@ -119,5 +124,4 @@ class PerformanceAnalyzer:
 
         if save_path is not None:
             save_dict(results, save_path, filename)
-        else:
-            return results
+        return results
