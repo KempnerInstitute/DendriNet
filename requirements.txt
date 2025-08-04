@@ -1,57 +1,64 @@
-# Core dependencies for dendritic modeling
-torch>=2.0.0,!=2.6.0  # Exclude 2.6.0 due to GHSA-887c-mr87-cxwp vulnerability
-numpy
-torchvision
-torchinfo
-matplotlib
-wandb
-pandas
-omegaconf>=2.3.0
-scikit-learn
-tensorflow>=2.16.0
-tensorflow_probability
-tf-keras
+# Core dependencies for dendritic-modeling
+# ======================================
 
-# Dependencies discovered during runtime testing
-python-dateutil  # Required by matplotlib
-PyYAML  # Required for yaml module in training scripts
-tqdm  # Progress bars in training
-scipy  # Scientific computing utilities
+# Deep Learning Framework
+torch>=2.0.0,!=2.6.0,<3.0.0   # PyTorch for neural networks and training (exclude 2.6.0 due to GHSA-887c-mr87-cxwp)
+torchvision>=0.15.0,<1.0.0     # Computer vision utilities
+torchinfo>=1.7.0                # Model summaries and analysis
 
-# Optional but useful for training and analysis
-jupyter  # For training notebooks and analysis
-ipykernel  # Jupyter kernel support
-plotly  # Interactive plotting for analysis
-seaborn  # Additional plotting capabilities
-tensorboard  # TensorFlow/PyTorch logging and visualization
+# Configuration Management
+omegaconf>=2.1.0,<3.0.0         # Hierarchical configuration management
+pyyaml>=6.0                     # YAML parsing (dependency of omegaconf)
 
-# Testing dependencies for comprehensive test suite
-pytest>=7.0.0
-pytest-cov>=4.0.0
-pytest-mock>=3.10.0
-pytest-timeout>=2.1.0
-pytest-xdist>=3.0.0
-coverage[toml]>=6.5.0
+# Scientific Computing
+numpy>=1.21.0,<2.0.0            # Numerical computations
+scipy>=1.7.0                    # Scientific computing utilities
+scikit-learn>=1.0.0             # Machine learning utilities
 
-# Code quality and formatting
-ruff>=0.1.0
-mypy>=1.0,<1.4
-black>=24.3.0  # Updated to fix PYSEC-2024-48 vulnerability
-isort>=5.12,<5.13
+# Data Handling
+pandas>=1.3.0,<3.0.0            # Data manipulation and analysis
+h5py>=3.0.0                     # HDF5 file format support
 
-# Pre-commit hooks for development
-pre-commit>=3.0.0
+# Visualization
+matplotlib>=3.5.0,<4.0.0        # Basic plotting
+seaborn>=0.11.0,<1.0.0          # Enhanced statistical visualizations
+plotly>=5.0.0                   # Interactive plotting
 
-# Additional testing utilities
-networkx  # For graph/network testing
-mock  # Additional mocking utilities (backup for pytest-mock)
+# Experiment Tracking
+wandb>=0.12.0                   # Weights & Biases experiment tracking
+tensorboard>=2.10.0             # TensorBoard for profiling visualization
 
-# Documentation dependencies
-sphinx
-sphinx-rtd-theme
-sphinxcontrib-napoleon
-myst-parser
-nbsphinx
-recommonmark
-sphinx-copybutton
-sphinxcontrib-bibtex
+# Testing and Quality Assurance
+# ==============================
+pytest>=7.0.0                  # Unit testing framework
+pytest-cov>=3.0.0              # Coverage measurement
+pytest-xdist>=2.5.0            # Parallel test execution
+mypy>=0.900                     # Static type checking
+ruff>=0.0.200                   # Fast Python linter
+
+# Development Tools
+# =================
+ipython>=8.0.0                  # Enhanced interactive Python
+jupyter>=1.0.0                  # Jupyter notebook support
+black>=22.0.0                   # Code formatting
+isort>=5.10.0                   # Import sorting
+
+# System and Performance
+# ======================
+psutil>=5.8.0                   # System monitoring utilities
+tqdm>=4.60.0                    # Progress bars
+
+# Optional: Distributed Training
+# ==============================
+# These are typically included with PyTorch but listed for completeness
+# torch.distributed (included with torch)
+# nccl (typically comes with CUDA/PyTorch)
+
+# Optional: SLURM Integration
+# ===========================
+# No additional packages needed - uses standard subprocess calls
+
+# Note: Some packages may require additional system dependencies:
+# - CUDA toolkit for GPU support (install separately)
+# - HDF5 development libraries for h5py
+# - System-level packages for visualization (e.g., libgl1-mesa-glx) 

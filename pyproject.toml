@@ -6,36 +6,67 @@ build-backend = "setuptools.build_meta"
 name = "dendritic_modeling"
 version = "0.1.0"
 description = "package containing artificial neural networks emulating dendritic computation"
-license = { file = "LICENSE" }
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+    {name = "Dendritic Modeling Team", email = "hsafaai@fas.harvard.edu"}
+]
+requires-python = ">=3.8,<4.0"
+keywords = ["dendritic", "neural-networks", "pytorch", "machine-learning", "neuroscience"]
 classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "License :: OSI Approved :: MIT License",
 "Programming Language :: Python :: 3",
-"License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
 "Operating System :: OS Independent"
 ]
-
 dependencies = [
-    "torch",
-    "numpy",
-    "torchvision",
-    "torchinfo",
-    "matplotlib",
-    "seaborn",
-    "wandb",
-    "pandas",
-    "omegaconf>=2.3.0",
-    "scikit-learn",
+    "torch>=2.0.0,!=2.6.0,<3.0.0",
+    "numpy>=1.21.0,<2.0.0",
+    "torchvision>=0.15.0,<1.0.0",
+    "torchinfo>=1.7.0",
+    "matplotlib>=3.5.0,<4.0.0",
+    "seaborn>=0.11.0,<1.0.0",
+    "wandb>=0.12.0",
+    "pandas>=1.3.0,<3.0.0",
+    "omegaconf>=2.1.0,<3.0.0",
+    "scikit-learn>=1.0.0",
     "tensorflow>=2.16.0",
     "tensorflow_probability",
     "tf-keras",
     "python-dateutil",
-    "PyYAML",
-    "tqdm",
-    "scipy",
+    "PyYAML>=6.0",
+    "tqdm>=4.60.0",
+    "scipy>=1.7.0",
+    "h5py>=3.0.0",
+    "plotly>=5.0.0",
+    "tensorboard>=2.10.0",
+    "psutil>=5.8.0",
 ]
 
+[project.urls]
+"Bug Reports" = "https://github.com/kempner-institute/dendritic-modeling/issues"
+"Source" = "https://github.com/kempner-institute/dendritic-modeling"
+"Documentation" = "https://github.com/kempner-institute/dendritic-modeling/blob/main/README.md"
+
+[project.scripts]
+dendritic-train = "dendritic_modeling.scripts.training.train_experiments:main"
+dendritic-sweep = "dendritic_modeling.scripts.sweeps.unified.sweep_manager:main"
+dendritic-analyze = "dendritic_modeling.scripts.sweeps.result_analyzer:main"
+
 [tool.setuptools]
-package-dir = { "" = "src" }
-packages = ["dendritic_modeling"]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+dendritic_modeling = ["configs/*.yaml", "configs/**/*.yaml"]
 
 
 [project.optional-dependencies]
