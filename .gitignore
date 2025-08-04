@@ -65,7 +65,7 @@ outputs/*
 # Installer logs
 pip-log.txt
 pip-delete-this-directory.txt
-
+archive/*
 # Unit test / coverage reports
 htmlcov/
 .tox/
