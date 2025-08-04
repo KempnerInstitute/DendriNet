@@ -5,6 +5,7 @@ import os
 from typing import Optional, Any, Tuple, Dict, List
 import matplotlib.pyplot as plt
 import numpy as np
+import seaborn as sns
 
 logger = logging.getLogger(__name__)
 
@@ -125,7 +126,6 @@ def create_heatmap(ax: plt.Axes, data_matrix: np.ndarray,
                   title: str, cmap: str = 'viridis',
                   annotate: bool = True, fmt: str = '.3f'):
     """Create a standardized heatmap."""
-    import seaborn as sns
     
     im = ax.imshow(data_matrix, cmap=cmap, aspect='auto')
     ax.set_xticks(np.arange(len(xlabels)))
