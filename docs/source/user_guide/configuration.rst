@@ -327,7 +327,7 @@ To override specific parameters at runtime:
 
 .. code-block:: bash
 
-    python src/dendritic_modeling/train_experiments.py config_exp.yaml --train.learning_strategy freeze_branches --train.lr 0.01
+    python src/dendritic_modeling/scripts/train_experiments.py config_exp.yaml --train.learning_strategy freeze_branches --train.lr 0.01
 
 This flexible configuration system allows you to:
 

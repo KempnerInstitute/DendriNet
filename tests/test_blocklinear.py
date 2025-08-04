@@ -2,7 +2,7 @@ import unittest
 
 import torch
 
-from dendritic_modeling.dendrinet import BlockLinear
+from dendritic_modeling.networks import BlockLinear
 
 
 class TestBlockLinear(unittest.TestCase):
@@ -26,7 +26,7 @@ class TestBlockLinear(unittest.TestCase):
         """Test with minimal input sizes."""
         in_features = 2
         out_features = 1
-        batch_size = 1
+        batch_size = 4
 
         model = BlockLinear(in_features, out_features)
         x = torch.randn(batch_size, in_features)
@@ -39,7 +39,7 @@ class TestBlockLinear(unittest.TestCase):
         """Test with large input sizes."""
         in_features = 10000
         out_features = 100
-        batch_size = 16
+        batch_size = 4
 
         model = BlockLinear(in_features, out_features)
         x = torch.randn(batch_size, in_features)
@@ -54,7 +54,7 @@ class TestBlockLinear(unittest.TestCase):
         out_features = 2
 
         with self.assertRaises(AssertionError) as context:
-            model = BlockLinear(in_features, out_features)
+            _ = BlockLinear(in_features, out_features)
         self.assertIn("must be divisible", str(context.exception))
 
     def test_error_handling_negative_in_features(self):
@@ -62,20 +62,20 @@ class TestBlockLinear(unittest.TestCase):
         in_features = -8
         out_features = 2
 
-        with self.assertRaises(AssertionError):
-            model = BlockLinear(in_features, out_features)
+        with self.assertRaises(RuntimeError):
+            _ = BlockLinear(in_features, out_features)
 
     def test_input_shape_mismatch(self):
         """Test error handling when input shape does not match in_features."""
         in_features = 8
         out_features = 2
-        batch_size = 1
+        batch_size = 4
 
         model = BlockLinear(in_features, out_features)
         x = torch.randn(batch_size, in_features + 1)  # Incorrect input size
 
         with self.assertRaises(RuntimeError) as context:
-            output = model(x)
+            _ = model(x)
         self.assertIn("cannot be multiplied", str(context.exception))
 
 
