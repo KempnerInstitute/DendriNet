@@ -1,0 +1,715 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Configuration Guide &mdash; Dendritic Modeling Framework v0.1.0</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=01f34227"></script>
+      <script src="_static/doctools.js?v=9bcbadda"></script>
+      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="author" title="About these documents" href="about.html" />
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="FSDP Training Guide" href="FSDP_TRAINING_GUIDE.html" />
+    <link rel="prev" title="Quick Start Guide" href="QUICK_START.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            Dendritic Modeling Framework
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="QUICK_START.html">Quick Start Guide</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Configuration Guide</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#training-features">Training Features</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#model-architecture">Model Architecture</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#encoder-networks">Encoder Networks</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#core-networks">Core Networks</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#decoder-networks">Decoder Networks</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#training-configuration">Training Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#task-configuration">Task Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#analysis-configuration">Analysis Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#output-configuration">Output Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#weights-biases-configuration">Weights &amp; Biases Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#complete-example-configuration">Complete Example Configuration</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="FSDP_TRAINING_GUIDE.html">FSDP Training Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sweeps.html">Sweeps Guide</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">Dendritic Modeling Framework</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Configuration Guide</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/CONFIGURATION_GUIDE.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="configuration-guide">
+<h1>Configuration Guide<a class="headerlink" href="#configuration-guide" title="Link to this heading"></a></h1>
+<p>Configuration options for the framework using YAML files.</p>
+<section id="training-features">
+<h2>Training Features<a class="headerlink" href="#training-features" title="Link to this heading"></a></h2>
+<ul class="simple">
+<li><p>Regularization: L1/L2 with parameter group support</p></li>
+<li><p>Pruning: Magnitude-based weight pruning</p></li>
+<li><p>Optimizers: Adam, SGD, RMSprop, AdamW</p></li>
+<li><p>Learning rates: Different rates for network components</p></li>
+</ul>
+</section>
+<section id="model-architecture">
+<h2>Model Architecture<a class="headerlink" href="#model-architecture" title="Link to this heading"></a></h2>
+<p>The framework uses a three-part model structure:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">model</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">task</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">classification</span><span class="w">  </span><span class="c1"># or &quot;regression&quot;</span>
+
+<span class="w">  </span><span class="nt">encoder_network</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Identity</span><span class="w">      </span><span class="c1"># Options: Identity, MLP, CNN, AlexNet</span>
+<span class="w">    </span><span class="nt">parameters</span><span class="p">:</span>
+<span class="w">      </span><span class="c1"># Parameters specific to encoder type</span>
+
+<span class="w">  </span><span class="nt">core_network</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">EINet</span><span class="w">         </span><span class="c1"># Options: EINet, DendriNet, MLP, MatchedParamMLP</span>
+<span class="w">    </span><span class="nt">parameters</span><span class="p">:</span>
+<span class="w">      </span><span class="c1"># Parameters specific to core network type</span>
+
+<span class="w">  </span><span class="nt">decoder_network</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Identity</span><span class="w">      </span><span class="c1"># Options: Identity, MLP</span>
+<span class="w">    </span><span class="nt">parameters</span><span class="p">:</span>
+<span class="w">      </span><span class="c1"># Parameters specific to decoder type</span>
+</pre></div>
+</div>
+<section id="encoder-networks">
+<h3>Encoder Networks<a class="headerlink" href="#encoder-networks" title="Link to this heading"></a></h3>
+<dl class="simple">
+<dt>Identity (default)</dt><dd><p>Passes input unchanged to core network.</p>
+</dd>
+</dl>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">encoder_network</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Identity</span>
+<span class="w">  </span><span class="nt">parameters</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{}</span>
+</pre></div>
+</div>
+<dl>
+<dt>MLP</dt><dd><blockquote>
+<div><p>Multi-layer perceptron encoder.</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span>
+</pre></div>
+</div>
+</div></blockquote>
+<dl>
+<dt>encoder_network:</dt><dd><blockquote>
+<div><p>type: MLP</p>
+</div></blockquote>
+<dl class="simple">
+<dt>parameters:</dt><dd><dl class="simple">
+<dt>input_dim: 784</dt><dd><p>hidden_dims: [512, 256]
+output_dim: 128
+activation: relu</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd>
+<dt>CNN</dt><dd><p>Convolutional encoder for image data.</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="w">  </span><span class="nt">encoder_network</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CNN</span>
+<span class="nt">parameters</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">input_channels</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<span class="w">      </span><span class="nt">output_dim</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">128</span>
+</pre></div>
+</div>
+</dd>
+</dl>
+</section>
+<section id="core-networks">
+<h3>Core Networks<a class="headerlink" href="#core-networks" title="Link to this heading"></a></h3>
+<p>EINet (Excitation-Inhibition Network)</p>
+<p>The main dendritic architecture with separate excitatory and inhibitory pathways:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">core_network</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">EINet</span>
+<span class="w">  </span><span class="nt">parameters</span><span class="p">:</span>
+<span class="w">     </span><span class="c1"># Layer architecture</span>
+<span class="w">     </span><span class="nt">excitatory_layer_sizes</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">128</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">64</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">10</span><span class="p p-Indicator">]</span><span class="w">    </span><span class="c1"># Neurons per layer</span>
+<span class="w">     </span><span class="nt">inhibitory_layer_sizes</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">64</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">32</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">0</span><span class="p p-Indicator">]</span><span class="w">      </span><span class="c1"># Neurons per layer</span>
+
+<span class="w">    </span><span class="c1"># Branching structure</span>
+<span class="w">     </span><span class="nt">excitatory_branch_factors</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">2</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">2</span><span class="p p-Indicator">]</span><span class="w">        </span><span class="c1"># Branching per layer</span>
+<span class="w">     </span><span class="nt">inhibitory_branch_factors</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[]</span><span class="w">            </span><span class="c1"># Usually empty</span>
+
+<span class="w">     </span><span class="c1"># Synaptic connectivity</span>
+<span class="w">  </span><span class="w w-Error">  </span><span class="nt">ee_synapses_per_branch_per_layer</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">100</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">50</span><span class="p p-Indicator">]</span><span class="w">  </span><span class="c1"># E→E connections</span>
+<span class="w">    </span><span class="nt">ei_synapses_per_branch_per_layer</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">50</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">25</span><span class="p p-Indicator">]</span><span class="w">   </span><span class="c1"># E→I connections</span>
+<span class="w">    </span><span class="nt">ie_synapses_per_branch_per_layer</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">25</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">10</span><span class="p p-Indicator">]</span><span class="w">   </span><span class="c1"># I→E connections</span>
+<span class="w">     </span><span class="nt">ii_synapses_per_branch_per_layer</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">0</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">0</span><span class="p p-Indicator">]</span><span class="w">     </span><span class="c1"># I→I (usually 0)</span>
+
+<span class="w">     </span><span class="c1"># Core features</span>
+<span class="w">     </span><span class="nt">use_shunting</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">                       </span><span class="c1"># Shunting inhibition</span>
+<span class="w">     </span><span class="nt">somatic_synapses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">                   </span><span class="c1"># Direct soma connections</span>
+<span class="w">     </span><span class="nt">epsilon</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1e-6</span><span class="w">                            </span><span class="c1"># Numerical stability</span>
+
+<span class="w">     </span><span class="c1"># TopK selection</span>
+<span class="w">     </span><span class="nt">topk_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">standard</span><span class="w">                      </span><span class="c1"># Synapse selection method</span>
+<span class="w">     </span><span class="nt">topk_init_method</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">xavier_normal</span><span class="w">          </span><span class="c1"># Weight initialization</span>
+
+<span class="w">     </span><span class="c1"># Activation functions</span>
+<span class="w">     </span><span class="nt">reactivate</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">                         </span><span class="c1"># Enable branch activation</span>
+<span class="w">     </span><span class="nt">reactivation_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">param_tanh</span><span class="w">            </span><span class="c1"># Activation function</span>
+<span class="w">     </span><span class="nt">reactivation_init_m</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1.5</span><span class="w">                 </span><span class="c1"># Initial slope</span>
+<span class="w">     </span><span class="nt">reactivation_init_b</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.5</span><span class="w">                 </span><span class="c1"># Initial bias</span>
+
+<span class="w">     </span><span class="c1"># Gradient scaling</span>
+<span class="w">     </span><span class="nt">reactivation_strategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">inverse</span><span class="w">           </span><span class="c1"># Gradient strategy</span>
+<span class="w">     </span><span class="nt">topk_strategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">conductance_dynamic</span><span class="w">       </span><span class="c1"># TopK gradient scaling</span>
+<span class="w">     </span><span class="nt">blocklinear_strategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">conductance_dynamic</span><span class="w"> </span><span class="c1"># Output gradient scaling</span>
+
+<span class="w">     </span><span class="c1"># Input processing</span>
+<span class="w">     </span><span class="nt">input_mode</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span><span class="w">                            </span><span class="c1"># Input routing mode</span>
+<span class="w">     </span><span class="nt">transfer_params</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{}</span><span class="w">                      </span><span class="c1"># Transfer function params</span>
+</pre></div>
+</div>
+<p>Key EINet Parameters:</p>
+<ul class="simple">
+<li><p>Layer Sizes: Define the number of neurons in each layer for excitatory and inhibitory pathways</p></li>
+<li><p>Branch Factors: Determine dendritic branching structure (e.g., [2, 2] means each neuron branches into 2 at each level)</p></li>
+<li><p>Synaptic Connectivity: Number of connections per branch between different neuron types</p></li>
+<li><p>TopK Types:
+- <code class="docutils literal notranslate"><span class="pre">standard</span></code>: Select top-k synapses by weight magnitude
+- <code class="docutils literal notranslate"><span class="pre">stochastic</span></code>: Probabilistic selection with temperature
+- <code class="docutils literal notranslate"><span class="pre">variance</span></code>: Selection based on input variance
+- <code class="docutils literal notranslate"><span class="pre">deepst</span></code>: Dynamic sparse training with rewiring</p></li>
+<li><p>Activation Types:
+- <code class="docutils literal notranslate"><span class="pre">param_tanh</span></code>: Parametric tanh with learnable m and b
+- <code class="docutils literal notranslate"><span class="pre">relu</span></code>, <code class="docutils literal notranslate"><span class="pre">sigmoid</span></code>, <code class="docutils literal notranslate"><span class="pre">tanh</span></code>: Standard activations
+- <code class="docutils literal notranslate"><span class="pre">param_linear_sigmoid</span></code>, <code class="docutils literal notranslate"><span class="pre">param_linear_tanh</span></code>: Interpolated activations</p></li>
+</ul>
+<p>DendriNet</p>
+<p>Pure dendritic network without explicit E/I separation:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">core_network</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">DendriNet</span>
+<span class="w">  </span><span class="nt">parameters</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">n_soma</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span><span class="w">                               </span><span class="c1"># Output neurons</span>
+<span class="w">    </span><span class="nt">branch_factors</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">2</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">2</span><span class="p p-Indicator">]</span><span class="w">                   </span><span class="c1"># Branching structure</span>
+<span class="w">    </span><span class="nt">excitatory_input_dim</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">784</span><span class="w">                </span><span class="c1"># Input dimension</span>
+<span class="w">    </span><span class="nt">excitatory_synapses_per_branch</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">100</span><span class="w">      </span><span class="c1"># Synapses per branch</span>
+<span class="w">    </span><span class="nt">use_shunting</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">                       </span><span class="c1"># Enable shunting</span>
+<span class="w">    </span><span class="nt">reactivate</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">                         </span><span class="c1"># Branch activation</span>
+</pre></div>
+</div>
+<p>MLP</p>
+<p>Standard multi-layer perceptron:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">core_network</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MLP</span>
+<span class="w">  </span><span class="nt">parameters</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">input_dim</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">784</span>
+<span class="w">    </span><span class="nt">hidden_dims</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">512</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">256</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">128</span><span class="p p-Indicator">]</span>
+<span class="w">    </span><span class="nt">output_dim</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
+<span class="w">     </span><span class="l l-Scalar l-Scalar-Plain">activation</span><span class="p p-Indicator">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">relu</span>
+</pre></div>
+</div>
+<p>MatchedParamMLP</p>
+<p>MLP with parameter count matched to EINet for fair comparison:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">core_network</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MatchedParamMLP</span>
+<span class="w">  </span><span class="nt">parameters</span><span class="p">:</span>
+<span class="w">    </span><span class="c1"># Uses same parameters as EINet to match parameter count</span>
+<span class="w">    </span><span class="nt">excitatory_layer_sizes</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">128</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">64</span><span class="p p-Indicator">]</span>
+<span class="w">    </span><span class="nt">inhibitory_layer_sizes</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">64</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">32</span><span class="p p-Indicator">]</span>
+<span class="w">     </span><span class="c1"># Other EINet parameters...</span>
+</pre></div>
+</div>
+</section>
+<section id="decoder-networks">
+<h3>Decoder Networks<a class="headerlink" href="#decoder-networks" title="Link to this heading"></a></h3>
+<dl>
+<dt>Identity (default)</dt><dd><p>Uses core network output directly.</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">decoder_network</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Identity</span>
+<span class="w">  </span><span class="nt">parameters</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{}</span>
+</pre></div>
+</div>
+</dd>
+<dt>MLP</dt><dd><p>Additional processing of core network output.</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">decoder_network</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MLP</span>
+<span class="w">  </span><span class="nt">parameters</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">input_dim</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
+<span class="w">    </span><span class="nt">hidden_dims</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">32</span><span class="p p-Indicator">]</span>
+<span class="w">    </span><span class="nt">output_dim</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
+<span class="w">    </span><span class="nt">activation</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">relu</span>
+</pre></div>
+</div>
+</dd>
+</dl>
+</section>
+</section>
+<section id="training-configuration">
+<h2>Training Configuration<a class="headerlink" href="#training-configuration" title="Link to this heading"></a></h2>
+<p>Training Workflow:</p>
+<p>The training process follows this sequence:</p>
+<ol class="arabic simple">
+<li><p>Training: Model trains for specified epochs</p></li>
+<li><p>Original Analysis: All enabled analyses run on the trained model</p></li>
+<li><p>Pruning (if enabled): Weights below threshold are pruned, performance is re-evaluated</p></li>
+<li><p>Pruned Model Analysis (if <code class="docutils literal notranslate"><span class="pre">redo_analysis_after_pruning:</span> <span class="pre">true</span></code>): All analyses re-run on pruned model</p></li>
+</ol>
+<p>Learning Strategies:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">standard</span></code>: Standard training with optional regularization, pruning, and post-pruning analysis</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">two_step</span></code>: Train branches then soma connections</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">voltage_stabilization</span></code>: Stabilize dendritic voltages during training</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">freeze_layers</span></code>: Layer-wise training from output to input</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">freeze_branches</span></code>: Branch-wise training</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">local_ca</span></code>: Local credit assignment</p></li>
+</ul>
+<p>Configuration Example:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">train</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">main</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">learning_strategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">standard</span>
+
+<span class="w">    </span><span class="c1"># Parameter groups for differential learning rates</span>
+<span class="w">    </span><span class="nt">param_groups</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">lr</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.001</span><span class="w">                   </span><span class="c1"># Default learning rate</span>
+<span class="w">      </span><span class="nt">split_params</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">          </span><span class="c1"># Enable parameter grouping</span>
+<span class="w">      </span><span class="nt">topk_lr</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.001</span><span class="w">             </span><span class="c1"># TopK layer learning rate</span>
+<span class="w">      </span><span class="nt">blocklinear_lr</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.0001</span><span class="w">     </span><span class="c1"># BlockLinear layer learning rate</span>
+<span class="w">      </span><span class="nt">reactivation_lr</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.0001</span><span class="w">    </span><span class="c1"># Reactivation layer learning rate</span>
+<span class="w">      </span><span class="nt">decoder_lr</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.0001</span><span class="w">         </span><span class="c1"># Decoder network learning rate</span>
+
+<span class="w">    </span><span class="c1"># Regularization configuration</span>
+<span class="w">    </span><span class="nt">regularization</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">l1_weight</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.001</span><span class="w">            </span><span class="c1"># Global L1 penalty weight (used when split_params=false)</span>
+<span class="w">      </span><span class="nt">l2_weight</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.01</span><span class="w">             </span><span class="c1"># Global L2 penalty weight (used when split_params=false)</span>
+<span class="w">      </span><span class="nt">selective</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">layers</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[]</span><span class="w">                </span><span class="c1"># Apply to specific layers (empty = all)</span>
+<span class="w">        </span><span class="nt">branches</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[]</span><span class="w">              </span><span class="c1"># Apply to specific branches (empty = all)</span>
+<span class="w">        </span><span class="nt">weight_types</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;all&quot;</span><span class="p p-Indicator">]</span><span class="w">     </span><span class="c1"># Options: &quot;all&quot;, &quot;recurrent&quot;, &quot;input&quot;, &quot;output&quot;, &quot;linear&quot;</span>
+
+<span class="w">      </span><span class="c1"># Parameter group specific regularization</span>
+<span class="w">      </span><span class="nt">split_params</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">          </span><span class="c1"># Split parameters into groups for differential regularization</span>
+<span class="w">      </span><span class="nt">param_group_weights</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">topk</span><span class="p">:</span><span class="w">                     </span><span class="c1"># TopK layer parameters</span>
+<span class="w">          </span><span class="nt">l1_weight</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.002</span><span class="w">        </span><span class="c1"># Stronger L1 for sparsity</span>
+<span class="w">          </span><span class="nt">l2_weight</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.005</span>
+<span class="w">        </span><span class="nt">blocklinear</span><span class="p">:</span><span class="w">              </span><span class="c1"># BlockLinear parameters</span>
+<span class="w">          </span><span class="nt">l1_weight</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.0</span><span class="w">          </span><span class="c1"># No L1 to preserve structure</span>
+<span class="w">          </span><span class="nt">l2_weight</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.001</span><span class="w">        </span><span class="c1"># Light L2 only</span>
+<span class="w">        </span><span class="nt">reactivation</span><span class="p">:</span><span class="w">             </span><span class="c1"># Reactivation parameters</span>
+<span class="w">          </span><span class="nt">l1_weight</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.0005</span><span class="w">       </span><span class="c1"># Light L1</span>
+<span class="w">          </span><span class="nt">l2_weight</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.0</span><span class="w">          </span><span class="c1"># No L2</span>
+<span class="w">        </span><span class="nt">decoder</span><span class="p">:</span><span class="w">                  </span><span class="c1"># Decoder network parameters</span>
+<span class="w">          </span><span class="nt">l1_weight</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.001</span>
+<span class="w">          </span><span class="nt">l2_weight</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.005</span>
+
+<span class="w">    </span><span class="c1"># Weight pruning</span>
+<span class="w">    </span><span class="nt">pruning</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span><span class="w">              </span><span class="c1"># Enable weight pruning</span>
+<span class="w">      </span><span class="nt">threshold</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.001</span><span class="w">            </span><span class="c1"># Magnitude threshold for pruning</span>
+<span class="w">      </span><span class="nt">dynamic_pruning</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span><span class="w">      </span><span class="c1"># Prune during training (false = prune after training)</span>
+<span class="w">      </span><span class="nt">pruning_frequency</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span><span class="w">       </span><span class="c1"># Epochs between pruning (if dynamic)</span>
+<span class="w">      </span><span class="nt">re_evaluate_after</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">     </span><span class="c1"># Re-evaluate model performance after pruning</span>
+<span class="w">      </span><span class="nt">selective</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">layers</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[]</span><span class="w">                </span><span class="c1"># Prune specific layers (empty = all)</span>
+<span class="w">        </span><span class="nt">branches</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[]</span><span class="w">              </span><span class="c1"># Prune specific branches (empty = all)</span>
+<span class="w">        </span><span class="nt">weight_types</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;all&quot;</span><span class="p p-Indicator">]</span><span class="w">     </span><span class="c1"># Options: &quot;all&quot;, &quot;excitatory&quot;, &quot;inhibitory&quot;, &quot;recurrent&quot;, &quot;input&quot;, &quot;output&quot;, &quot;linear&quot;</span>
+
+<span class="w">    </span><span class="c1"># Reporting and post-analysis options</span>
+<span class="w">    </span><span class="nt">reporting</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">report_non_pruned</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">          </span><span class="c1"># Print detailed pruning report</span>
+<span class="w">      </span><span class="nt">save_pruning_stats</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">         </span><span class="c1"># Save pruning statistics to JSON</span>
+<span class="w">      </span><span class="nt">detailed_branch_report</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">     </span><span class="c1"># Generate synaptic analysis plots</span>
+<span class="w">      </span><span class="nt">redo_analysis_after_pruning</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">  </span><span class="c1"># Re-run all enabled analyses on pruned model</span>
+</pre></div>
+</div>
+<p>Pruning Outputs:</p>
+<p>When pruning is enabled, the following files are generated:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">pruning_stats.json</span></code>: Detailed pruning statistics by layer, branch, and weight type</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">pruning_performance_comparison.png</span></code>: Performance before and after pruning</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">pruned_analysis/</span></code>: Complete re-analysis results on pruned model (if enabled)</p></li>
+</ul>
+<p>If <code class="docutils literal notranslate"><span class="pre">detailed_branch_report:</span> <span class="pre">true</span></code>, additional plots are generated:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">active_synapses_per_branch.png</span></code>: Number of active synapses per branch per layer</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">active_synapses_summary_by_layer.png</span></code>: Summary statistics of active synapses by layer</p></li>
+</ul>
+<p>Regularization</p>
+<p><code class="docutils literal notranslate"><span class="pre">split_params:</span> <span class="pre">false</span></code> - Uses global <code class="docutils literal notranslate"><span class="pre">l1_weight</span></code> and <code class="docutils literal notranslate"><span class="pre">l2_weight</span></code> for all parameters.</p>
+<p><code class="docutils literal notranslate"><span class="pre">split_params:</span> <span class="pre">true</span></code> - Uses <code class="docutils literal notranslate"><span class="pre">param_group_weights</span></code> for component-specific regularization:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">topk</span></code>: TopK layer parameters</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">blocklinear</span></code>: BlockLinear layer parameters</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">reactivation</span></code>: Reactivation layer parameters</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">decoder</span></code>: Decoder network parameters</p></li>
+</ul>
+<p>If no <code class="docutils literal notranslate"><span class="pre">param_group_weights</span></code> specified when <code class="docutils literal notranslate"><span class="pre">split_params=true</span></code>, no regularization is applied.</p>
+<p>Optimizer Configuration</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">train</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">main</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">learning_strategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">standard</span>
+
+<span class="w">    </span><span class="c1"># Internal optimizer creation (respects param_groups above)</span>
+<span class="w">    </span><span class="nt">optimizer</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">adam</span><span class="w">                  </span><span class="c1"># Options: adam, sgd, rmsprop, adamw</span>
+<span class="w">      </span><span class="nt">lr</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.001</span><span class="w">                  </span><span class="c1"># Base learning rate</span>
+<span class="w">      </span><span class="nt">weight_decay</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.01</span><span class="w">         </span><span class="c1"># Global L2 regularization</span>
+<span class="w">      </span><span class="nt">momentum</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.9</span><span class="w">              </span><span class="c1"># For SGD</span>
+<span class="w">      </span><span class="nt">betas</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">0.9</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">0.999</span><span class="p p-Indicator">]</span><span class="w">        </span><span class="c1"># For Adam/AdamW</span>
+<span class="w">      </span><span class="nt">eps</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1e-8</span><span class="w">                  </span><span class="c1"># For Adam/AdamW</span>
+</pre></div>
+</div>
+</section>
+<section id="task-configuration">
+<h2>Task Configuration<a class="headerlink" href="#task-configuration" title="Link to this heading"></a></h2>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span>
+</pre></div>
+</div>
+<dl>
+<dt>task:</dt><dd><blockquote>
+<div><p>dataset: mnist              # Dataset name</p>
+</div></blockquote>
+<dl class="simple">
+<dt>parameters:</dt><dd><p># Dataset-specific parameters
+train_size: 50000         # Training samples
+valid_size: 10000         # Validation samples
+test_size: 10000          # Test samples
+normalize: true           # Apply normalization
+flatten: true             # Flatten images</p>
+</dd>
+</dl>
+</dd>
+</dl>
+<p>Supported Datasets:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">mnist</span></code>: Handwritten digits (28x28)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">cifar10</span></code>: Natural images (32x32x3)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">cifar100</span></code>: Natural images with 100 classes</p></li>
+</ul>
+</section>
+<section id="analysis-configuration">
+<h2>Analysis Configuration<a class="headerlink" href="#analysis-configuration" title="Link to this heading"></a></h2>
+<p>Optional analysis during or after training. Analysis runs twice if pruning is enabled: once on the original trained model, and again on the pruned model (if <code class="docutils literal notranslate"><span class="pre">redo_analysis_after_pruning:</span> <span class="pre">true</span></code>):</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span>
+</pre></div>
+</div>
+<dl>
+<dt>analysis:</dt><dd><blockquote>
+<div><p># Performance metrics
+performance_analysis:</p>
+</div></blockquote>
+<dl>
+<dt>enabled: true</dt><dd><p>training: false           # Run during training</p>
+</dd>
+<dt>params:</dt><dd><blockquote>
+<div><p>accuracy: true
+categorical_loglikelihood: true</p>
+<blockquote>
+<div><p>mse: false              # For regression</p>
+</div></blockquote>
+</div></blockquote>
+<p># Information theory (optional)
+information_analysis:</p>
+<blockquote>
+<div><p>enabled: false            # Expensive computation</p>
+</div></blockquote>
+</dd>
+</dl>
+<p>training: false
+params:</p>
+<blockquote>
+<div><blockquote>
+<div><p>method: kraskov         # MI estimation method
+n_neighbors: 10
+max_samples: 5000</p>
+</div></blockquote>
+<p># Synaptic turnover analysis
+synapse_turnover_analysis:</p>
+<blockquote>
+<div><p>enabled: true
+training: true
+snapshot_interval: 5        # Frequency of snapshots
+synaptic_analysis: true     # Enable synaptic connectivity analysis
+save_synaptic_report: true  # Save synaptic analysis to file</p>
+</div></blockquote>
+</div></blockquote>
+</dd>
+</dl>
+</section>
+<section id="output-configuration">
+<h2>Output Configuration<a class="headerlink" href="#output-configuration" title="Link to this heading"></a></h2>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span>
+</pre></div>
+</div>
+<dl>
+<dt>outputs:</dt><dd><blockquote>
+<div><p>output_dir: results/        # Base output directory
+checkpoint_dir: checkpoints/
+save_frequency: 10          # Save every N epochs</p>
+</div></blockquote>
+<dl>
+<dt>visualization:</dt><dd><p>enabled: true
+plot_frequency: 10
+plots:</p>
+<blockquote>
+<div><ul class="simple">
+<li><p>loss_curves</p></li>
+<li><p>accuracy_curves</p></li>
+<li><p>weight_distributions</p></li>
+</ul>
+</div></blockquote>
+</dd>
+</dl>
+</dd>
+</dl>
+</section>
+<section id="weights-biases-configuration">
+<h2>Weights &amp; Biases Configuration<a class="headerlink" href="#weights-biases-configuration" title="Link to this heading"></a></h2>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span>
+</pre></div>
+</div>
+<dl class="simple">
+<dt>wandb:</dt><dd><p>use_wandb: true
+project: dendritic-modeling
+entity: my-team
+tags: [einet, mnist]
+log_frequency: 100          # Log every N batches</p>
+</dd>
+</dl>
+</section>
+<section id="complete-example-configuration">
+<h2>Complete Example Configuration<a class="headerlink" href="#complete-example-configuration" title="Link to this heading"></a></h2>
+<p>Basic EINet on MNIST:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span>
+</pre></div>
+</div>
+<dl>
+<dt>model:</dt><dd><p>task: classification</p>
+<dl>
+<dt>encoder_network:</dt><dd><dl class="simple">
+<dt>type: Identity</dt><dd><p>parameters: {}</p>
+</dd>
+</dl>
+</dd>
+<dt>core_network:</dt><dd><p>type: EINet
+parameters:</p>
+<blockquote>
+<div><blockquote>
+<div><p>excitatory_layer_sizes: [512, 256, 10]
+inhibitory_layer_sizes: [128, 64, 0]
+excitatory_branch_factors: [2, 2]
+inhibitory_branch_factors: []
+ee_synapses_per_branch_per_layer: [100, 50]
+ei_synapses_per_branch_per_layer: [50, 25]
+ie_synapses_per_branch_per_layer: [25, 10]
+ii_synapses_per_branch_per_layer: [0, 0]</p>
+</div></blockquote>
+<dl class="simple">
+<dt>use_shunting: true</dt><dd><p>reactivate: true</p>
+</dd>
+<dt>reactivation_type: param_tanh</dt><dd><p>topk_type: standard</p>
+</dd>
+</dl>
+</div></blockquote>
+</dd>
+<dt>decoder_network:</dt><dd><dl class="simple">
+<dt>type: Identity</dt><dd><p>parameters: {}</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd>
+<dt>train:</dt><dd><dl>
+<dt>learning_strategy: standard</dt><dd><blockquote>
+<div><p>run_name: einet_mnist_basic
+seed: 42</p>
+</div></blockquote>
+<dl>
+<dt>trainer:</dt><dd><p>epochs: 100
+batch_size: 64</p>
+<blockquote>
+<div><p>optimizer: adam
+learning_rate: 0.001
+weight_decay: 0.0001</p>
+</div></blockquote>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd>
+<dt>task:</dt><dd><p>dataset: mnist
+parameters:</p>
+<blockquote>
+<div><blockquote>
+<div><p>train_size: 50000
+valid_size: 10000
+normalize: true</p>
+</div></blockquote>
+<p>flatten: true</p>
+</div></blockquote>
+</dd>
+<dt>outputs:</dt><dd><blockquote>
+<div><p>output_dir: results/einet_mnist/</p>
+</div></blockquote>
+<dl class="simple">
+<dt>wandb:</dt><dd><p>use_wandb: false</p>
+</dd>
+</dl>
+</dd>
+</dl>
+<p>FSDP Configuration for Large Models:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="c1"># Enable FSDP for multi-GPU training</span>
+<span class="nt">train</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">use_fsdp</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+
+<span class="w">  </span><span class="c1"># FSDP-specific configuration</span>
+<span class="w">  </span><span class="nt">fsdp_config</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">sharding_strategy</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;FULL_SHARD&quot;</span><span class="w">       </span><span class="c1"># Full parameter sharding</span>
+<span class="w">    </span><span class="nt">mixed_precision</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">                 </span><span class="c1"># Use FP16 for memory efficiency</span>
+<span class="w">    </span><span class="nt">cpu_offload</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span><span class="w">                    </span><span class="c1"># Keep on GPU for speed</span>
+<span class="w">    </span><span class="nt">min_num_params</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10000</span><span class="w">                </span><span class="c1"># Wrap layers with more params</span>
+<span class="w">    </span><span class="nt">reduce_communication_overhead</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">   </span><span class="c1"># Optimize communication</span>
+<span class="w">    </span><span class="nt">limit_all_gathers</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">              </span><span class="c1"># Reduce memory pressure</span>
+<span class="w">    </span><span class="nt">forward_prefetch</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">               </span><span class="c1"># Prefetch for forward pass</span>
+<span class="w">    </span><span class="nt">sync_module_states</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">             </span><span class="c1"># Sync across ranks</span>
+<span class="w">    </span><span class="nt">use_orig_params</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">                </span><span class="c1"># Important for dendritic models</span>
+<span class="w">    </span><span class="nt">backward_prefetch</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;BACKWARD_PRE&quot;</span><span class="w">    </span><span class="c1"># Prefetch for backward</span>
+<span class="w">    </span><span class="nt">gradient_checkpointing</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span><span class="w">        </span><span class="c1"># Trade compute for memory</span>
+
+<span class="w">  </span><span class="nt">main</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">trainer</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">batch_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">64</span><span class="w">                      </span><span class="c1"># Per-GPU batch size</span>
+<span class="w">      </span><span class="c1"># Other trainer settings...</span>
+
+<span class="c1"># Optional: SLURM configuration for automated submission</span>
+<span class="nt">slurm_config</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">account</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">kempner_dev</span>
+<span class="w">  </span><span class="nt">partition</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">kempner_h100</span>
+<span class="w">  </span><span class="nt">nodes</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<span class="w">  </span><span class="nt">gpu_per_node</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">4</span>
+<span class="w">  </span><span class="nt">training_script</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">src/dendritic_modeling/scripts/training/train_experiments_fsdp.py</span>
+</pre></div>
+</div>
+<p>FSDP Workflow Tools:</p>
+<p>The framework provides automated tools for FSDP training:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Automated workflow (recommended - default behavior)</span>
+python<span class="w"> </span>src/dendritic_modeling/scripts/tools/submit_fsdp_job.py<span class="w"> </span>configs/config_exp_fsdp.yaml
+
+<span class="c1"># Manual workflow</span>
+python<span class="w"> </span>src/dendritic_modeling/scripts/tools/estimate_gpu_requirements.py<span class="w"> </span>configs/config_exp_fsdp.yaml
+python<span class="w"> </span>src/dendritic_modeling/scripts/tools/generate_slurm_job.py<span class="w"> </span>configs/config_exp_fsdp.yaml
+sbatch<span class="w"> </span>src/dendritic_modeling/scripts/tools/slurm/config_exp_fsdp.sbatch
+
+<span class="c1"># Direct FSDP training</span>
+torchrun<span class="w"> </span>--nproc_per_node<span class="o">=</span><span class="m">4</span><span class="w"> </span>src/dendritic_modeling/scripts/training/train_experiments_fsdp.py<span class="w"> </span>configs/config_exp_fsdp.yaml
+</pre></div>
+</div>
+<p>For complete FSDP documentation, see <a class="reference internal" href="FSDP_TRAINING_GUIDE.html"><span class="doc">FSDP Training Guide</span></a>.</p>
+<p>Parameter Sweep Configuration:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="c1"># Sweep-specific configuration</span>
+</pre></div>
+</div>
+<dl>
+<dt>sweep_config:</dt><dd><blockquote>
+<div><dl class="simple">
+<dt>model.core_network.parameters.ee_synapses_per_branch_per_layer:</dt><dd><ul class="simple">
+<li><p>[50, 25]</p></li>
+<li><p>[100, 50]</p></li>
+<li><p>[200, 100]</p></li>
+</ul>
+</dd>
+<dt>model.core_network.parameters.use_shunting:</dt><dd><ul class="simple">
+<li><p>true</p></li>
+<li><p>false</p></li>
+</ul>
+</dd>
+</dl>
+</div></blockquote>
+<dl class="simple">
+<dt>experiment_settings:</dt><dd><p>seeds_per_condition: 3
+base_seed: 42</p>
+</dd>
+</dl>
+<p># Rest of configuration…</p>
+</dd>
+</dl>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="QUICK_START.html" class="btn btn-neutral float-left" title="Quick Start Guide" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="FSDP_TRAINING_GUIDE.html" class="btn btn-neutral float-right" title="FSDP Training Guide" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, Kempner Institute.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

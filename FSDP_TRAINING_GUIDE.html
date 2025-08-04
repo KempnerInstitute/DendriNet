@@ -1,0 +1,243 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FSDP Training Guide &mdash; Dendritic Modeling Framework v0.1.0</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=01f34227"></script>
+      <script src="_static/doctools.js?v=9bcbadda"></script>
+      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="author" title="About these documents" href="about.html" />
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Sweeps Guide" href="sweeps.html" />
+    <link rel="prev" title="Configuration Guide" href="CONFIGURATION_GUIDE.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            Dendritic Modeling Framework
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="QUICK_START.html">Quick Start Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="CONFIGURATION_GUIDE.html">Configuration Guide</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">FSDP Training Guide</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#automated-job-submission">Automated Job Submission</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#direct-fsdp-training">Direct FSDP Training</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#fsdp-configuration">FSDP Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#manual-workflow">Manual Workflow</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#common-issues">Common Issues</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="sweeps.html">Sweeps Guide</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">Dendritic Modeling Framework</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">FSDP Training Guide</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/FSDP_TRAINING_GUIDE.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="fsdp-training-guide">
+<h1>FSDP Training Guide<a class="headerlink" href="#fsdp-training-guide" title="Link to this heading"></a></h1>
+<p>FSDP (Fully Sharded Data Parallel) training for large dendritic models across multiple GPUs.</p>
+<section id="overview">
+<h2>Overview<a class="headerlink" href="#overview" title="Link to this heading"></a></h2>
+<p>FSDP enables training of large models by sharding parameters across GPUs, using mixed precision, and optimizing communication. The framework provides three approaches:</p>
+<ol class="arabic simple">
+<li><p>Automated job submission with resource estimation</p></li>
+<li><p>Direct FSDP script for manual training</p></li>
+<li><p>Manual workflow for step-by-step control</p></li>
+</ol>
+</section>
+<section id="automated-job-submission">
+<h2>Automated Job Submission<a class="headerlink" href="#automated-job-submission" title="Link to this heading"></a></h2>
+<p>The submit_fsdp_job.py script automates GPU requirement estimation, SLURM script generation, and job submission.</p>
+<p>Basic Usage:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Generate and submit job (default behavior)</span>
+python<span class="w"> </span>src/dendritic_modeling/scripts/tools/submit_fsdp_job.py<span class="w"> </span>configs/config_exp_fsdp.yaml
+
+<span class="c1"># Generate SLURM script only</span>
+python<span class="w"> </span>src/dendritic_modeling/scripts/tools/submit_fsdp_job.py<span class="w"> </span>configs/config_exp_fsdp.yaml<span class="w"> </span>--generate-only
+
+<span class="c1"># Dry run (see what would be submitted)</span>
+python<span class="w"> </span>src/dendritic_modeling/scripts/tools/submit_fsdp_job.py<span class="w"> </span>configs/config_exp_fsdp.yaml<span class="w"> </span>--dry-run
+</pre></div>
+</div>
+<p>Override SLURM Settings:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Force 4-GPU training with specific cluster settings</span>
+python<span class="w"> </span>src/dendritic_modeling/scripts/tools/submit_fsdp_job.py<span class="w"> </span>configs/config_exp_fsdp.yaml<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--gpu-per-node<span class="w"> </span><span class="m">4</span><span class="w"> </span>--partition<span class="w"> </span>kempner_h100<span class="w"> </span>--account<span class="w"> </span>my_account<span class="w"> </span>--time<span class="w"> </span><span class="s2">&quot;12:00:00&quot;</span>
+</pre></div>
+</div>
+<p>The script outputs model parameters, memory requirements, and generated script paths.</p>
+</section>
+<section id="direct-fsdp-training">
+<h2>Direct FSDP Training<a class="headerlink" href="#direct-fsdp-training" title="Link to this heading"></a></h2>
+<p>Single Node (4 GPUs):</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>torchrun<span class="w"> </span>--nproc_per_node<span class="o">=</span><span class="m">4</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>src/dendritic_modeling/scripts/training/train_experiments_fsdp.py<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>configs/config_exp_fsdp.yaml
+</pre></div>
+</div>
+<p>Multi-Node (2 nodes, 4 GPUs each):</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Node 0 (master)</span>
+torchrun<span class="w"> </span>--nnodes<span class="o">=</span><span class="m">2</span><span class="w"> </span>--node_rank<span class="o">=</span><span class="m">0</span><span class="w"> </span>--nproc_per_node<span class="o">=</span><span class="m">4</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--master_addr<span class="o">=</span>NODE0_IP<span class="w"> </span>--master_port<span class="o">=</span><span class="m">29500</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>src/dendritic_modeling/scripts/training/train_experiments_fsdp.py<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>configs/config_exp_fsdp.yaml
+
+<span class="c1"># Node 1 (worker)</span>
+torchrun<span class="w"> </span>--nnodes<span class="o">=</span><span class="m">2</span><span class="w"> </span>--node_rank<span class="o">=</span><span class="m">1</span><span class="w"> </span>--nproc_per_node<span class="o">=</span><span class="m">4</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--master_addr<span class="o">=</span>NODE0_IP<span class="w"> </span>--master_port<span class="o">=</span><span class="m">29500</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>src/dendritic_modeling/scripts/training/train_experiments_fsdp.py<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>configs/config_exp_fsdp.yaml
+</pre></div>
+</div>
+</section>
+<section id="fsdp-configuration">
+<h2>FSDP Configuration<a class="headerlink" href="#fsdp-configuration" title="Link to this heading"></a></h2>
+<p>Required FSDP settings:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">train</span><span class="p">:</span>
+<span class="w">  </span><span class="c1"># Enable FSDP</span>
+<span class="w">  </span><span class="nt">use_fsdp</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+
+<span class="w">  </span><span class="c1"># FSDP-specific configuration</span>
+<span class="w">  </span><span class="nt">fsdp_config</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">sharding_strategy</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;FULL_SHARD&quot;</span><span class="w">       </span><span class="c1"># Full parameter sharding</span>
+<span class="w">    </span><span class="nt">mixed_precision</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">                 </span><span class="c1"># Use FP16 for memory efficiency</span>
+<span class="w">    </span><span class="nt">cpu_offload</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span><span class="w">                    </span><span class="c1"># Keep on GPU for speed</span>
+<span class="w">    </span><span class="nt">min_num_params</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10000</span><span class="w">                </span><span class="c1"># Wrap layers with more params</span>
+<span class="w">    </span><span class="nt">reduce_communication_overhead</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">   </span><span class="c1"># Optimize communication</span>
+<span class="w">    </span><span class="nt">limit_all_gathers</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">              </span><span class="c1"># Reduce memory pressure</span>
+<span class="w">    </span><span class="nt">forward_prefetch</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">               </span><span class="c1"># Prefetch for forward pass</span>
+<span class="w">    </span><span class="nt">sync_module_states</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">             </span><span class="c1"># Sync across ranks</span>
+<span class="w">    </span><span class="nt">use_orig_params</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">                </span><span class="c1"># Important for dendritic models</span>
+<span class="w">    </span><span class="nt">backward_prefetch</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;BACKWARD_PRE&quot;</span><span class="w">    </span><span class="c1"># Prefetch for backward</span>
+<span class="w">    </span><span class="nt">gradient_checkpointing</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span><span class="w">        </span><span class="c1"># Trade compute for memory</span>
+
+<span class="c1"># Optional: SLURM configuration for automated submission</span>
+<span class="nt">slurm_config</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">account</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">kempner_dev</span>
+<span class="w">  </span><span class="nt">partition</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">kempner_h100</span>
+<span class="w">  </span><span class="nt">nodes</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<span class="w">  </span><span class="nt">gpu_per_node</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">4</span>
+<span class="w">  </span><span class="nt">training_script</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">src/dendritic_modeling/scripts/training/train_experiments_fsdp.py</span>
+<span class="w">  </span><span class="nt">modules_to_load</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[]</span>
+<span class="w">  </span><span class="nt">conda_env_path</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dendritic_env</span>
+</pre></div>
+</div>
+<p>Model Configuration for FSDP:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">model</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">core_network</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">EINet</span>
+<span class="w">    </span><span class="nt">parameters</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">excitatory_layer_sizes</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">100</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">80</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">60</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">40</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">inhibitory_layer_sizes</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">25</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">20</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">15</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">10</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">excitatory_branch_factors</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">8</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">6</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">6</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">4</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">inhibitory_branch_factors</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">4</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">3</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">3</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">2</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">ee_synapses_per_branch_per_layer</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">60</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">50</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">40</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">30</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">ei_synapses_per_branch_per_layer</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">20</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">15</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">12</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">8</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">ie_synapses_per_branch_per_layer</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">30</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">25</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">20</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">15</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">ii_synapses_per_branch_per_layer</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">10</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">8</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">6</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">4</span><span class="p p-Indicator">]</span>
+</pre></div>
+</div>
+</section>
+<section id="manual-workflow">
+<h2>Manual Workflow<a class="headerlink" href="#manual-workflow" title="Link to this heading"></a></h2>
+<p>Step-by-step control:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Estimate requirements</span>
+python<span class="w"> </span>src/dendritic_modeling/scripts/tools/estimate_gpu_requirements.py<span class="w"> </span>configs/config_exp_fsdp.yaml
+
+<span class="c1"># Generate SLURM script</span>
+python<span class="w"> </span>src/dendritic_modeling/scripts/tools/generate_slurm_job.py<span class="w"> </span>configs/config_exp_fsdp.yaml
+
+<span class="c1"># Submit job</span>
+sbatch<span class="w"> </span>src/dendritic_modeling/scripts/tools/slurm/config_exp_fsdp.sbatch
+</pre></div>
+</div>
+</section>
+<section id="common-issues">
+<h2>Common Issues<a class="headerlink" href="#common-issues" title="Link to this heading"></a></h2>
+<p>Memory errors: Reduce batch_size or enable cpu_offload
+Communication timeouts: Check network connectivity
+Model initialization errors: Use meta device initialization</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="CONFIGURATION_GUIDE.html" class="btn btn-neutral float-left" title="Configuration Guide" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="sweeps.html" class="btn btn-neutral float-right" title="Sweeps Guide" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, Kempner Institute.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

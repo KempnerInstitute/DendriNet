@@ -1,0 +1,163 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sweeps Guide &mdash; Dendritic Modeling Framework v0.1.0</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=01f34227"></script>
+      <script src="_static/doctools.js?v=9bcbadda"></script>
+      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="author" title="About these documents" href="about.html" />
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="prev" title="FSDP Training Guide" href="FSDP_TRAINING_GUIDE.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            Dendritic Modeling Framework
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="QUICK_START.html">Quick Start Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="CONFIGURATION_GUIDE.html">Configuration Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="FSDP_TRAINING_GUIDE.html">FSDP Training Guide</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Sweeps Guide</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#sweep-types">Sweep Types</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#usage">Usage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#configuration">Configuration</a></li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">Dendritic Modeling Framework</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Sweeps Guide</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/sweeps.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="sweeps-guide">
+<h1>Sweeps Guide<a class="headerlink" href="#sweeps-guide" title="Link to this heading"></a></h1>
+<p>Systematic parameter exploration across different configurations.</p>
+<section id="sweep-types">
+<h2>Sweep Types<a class="headerlink" href="#sweep-types" title="Link to this heading"></a></h2>
+<ol class="arabic simple">
+<li><p>EI Sweep: Explore excitatory/inhibitory synapse combinations</p></li>
+<li><p>Branch Sweep: Vary branch architecture parameters</p></li>
+<li><p>Noise Sweep: Test robustness to different noise types</p></li>
+<li><p>General Sweep: Arbitrary parameter combinations</p></li>
+</ol>
+</section>
+<section id="usage">
+<h2>Usage<a class="headerlink" href="#usage" title="Link to this heading"></a></h2>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Generate and run sweep (default behavior)</span>
+python<span class="w"> </span>-m<span class="w"> </span>dendritic_modeling.scripts.sweeps.unified.sweep_manager<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--config<span class="w"> </span>configs/examples/general_sweep_example.yaml
+
+<span class="c1"># Generate only (no job submission)</span>
+python<span class="w"> </span>-m<span class="w"> </span>dendritic_modeling.scripts.sweeps.unified.sweep_manager<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--config<span class="w"> </span>configs/examples/general_sweep_example.yaml<span class="w"> </span>--generate-only
+
+<span class="c1"># Analyze results</span>
+python<span class="w"> </span>-m<span class="w"> </span>dendritic_modeling.scripts.sweeps.unified.sweep_manager<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--analyze<span class="w"> </span>--results-dir<span class="w"> </span>output/sweep_20240101_120000
+</pre></div>
+</div>
+</section>
+<section id="configuration">
+<h2>Configuration<a class="headerlink" href="#configuration" title="Link to this heading"></a></h2>
+<p>Basic sweep configuration:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">sweep_config</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">train.main.trainer.lr</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">0.0001</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">0.001</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">0.01</span><span class="p p-Indicator">]</span>
+<span class="w">  </span><span class="nt">train.main.trainer.batch_size</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">32</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">64</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">128</span><span class="p p-Indicator">]</span>
+<span class="w">  </span><span class="nt">model.core_network.parameters.excitatory_layer_sizes</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[[</span><span class="nv">10</span><span class="p p-Indicator">],</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">20</span><span class="p p-Indicator">],</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">30</span><span class="p p-Indicator">]]</span>
+
+<span class="nt">experiment_settings</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">seeds_per_condition</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3</span>
+<span class="w">  </span><span class="nt">base_seed</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">42</span>
+
+<span class="nt">slurm_config</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">account</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;kempner_dev&quot;</span>
+<span class="w">  </span><span class="nt">partition</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;kempner&quot;</span>
+<span class="w">  </span><span class="nt">time</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;02:00:00&quot;</span>
+<span class="w">  </span><span class="nt">gpus_per_node</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+</pre></div>
+</div>
+<p>Results are saved in timestamped directories with heatmaps and statistical analysis.</p>
+<p>See <code class="docutils literal notranslate"><span class="pre">configs/examples/</span></code> for example sweep configurations.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="FSDP_TRAINING_GUIDE.html" class="btn btn-neutral float-left" title="FSDP Training Guide" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, Kempner Institute.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
