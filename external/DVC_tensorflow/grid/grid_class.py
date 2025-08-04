@@ -2,7 +2,7 @@ import tensorflow as tf
 from utils.tensor_op import *
 
 
-class grid_obj(object):
+class grid_obj:
     """Grid object."""
 
     def __init__(self, ex):
@@ -52,9 +52,7 @@ class grid_obj(object):
             self.step = dx1
         else:
             raise Exception(
-                "The grid is not uniform. There are different steps that exceeds tol: {}".format(
-                    dx1
-                )
+                f"The grid is not uniform. There are different steps that exceeds tol: {dx1}"
             )
         del dx, dx1, len_dx
         return self.step
