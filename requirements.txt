@@ -2,7 +2,7 @@
 # ======================================
 
 # Deep Learning Framework
-torch>=2.0.0,<3.0.0            # PyTorch for neural networks and training
+torch>=2.0.0,!=2.6.0,<3.0.0   # PyTorch for neural networks and training (exclude 2.6.0 due to GHSA-887c-mr87-cxwp)
 torchvision>=0.15.0,<1.0.0     # Computer vision utilities
 torchinfo>=1.7.0                # Model summaries and analysis
 
