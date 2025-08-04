@@ -184,17 +184,17 @@ def define_copulas(vine_type, method, binning, n_bin, dim):
             for col in range(0, d - 1 - tr, 1):
                 if (tr == 0) | (binning == False):
                     print(
-                        "edge: {} ".format(matrix_edges[tr][col]),
-                        "cop family: {}".format(cop_vine[tr][col].family),
-                        "theta: {}".format(cop_vine[tr][col].theta),
+                        f"edge: {matrix_edges[tr][col]} ",
+                        f"cop family: {cop_vine[tr][col].family}",
+                        f"theta: {cop_vine[tr][col].theta}",
                     )
                 else:
                     for bb in range(0, n_bin, 1):
                         print(
-                            "edge: {} ".format(matrix_edges[tr][col]),
-                            "bin: {} ".format(bb),
-                            "cop family: {}".format(cop_vine[tr][col][bb].family),
-                            "theta: {}".format(cop_vine[tr][col][bb].theta),
+                            f"edge: {matrix_edges[tr][col]} ",
+                            f"bin: {bb} ",
+                            f"cop family: {cop_vine[tr][col][bb].family}",
+                            f"theta: {cop_vine[tr][col][bb].theta}",
                         )
 
         ################# IF YOU WANT TO USE C-VINE OR D-VINE    ###################################
@@ -273,17 +273,17 @@ def define_copulas(vine_type, method, binning, n_bin, dim):
             for col in range(0, d - 1 - tr, 1):
                 if (tr == 0) | (binning == False):
                     print(
-                        "edge: {} ".format(matrix_edges[tr][col]),
-                        "cop family: {}".format(cop_vine[tr][col].family),
-                        "theta: {}".format(cop_vine[tr][col].theta),
+                        f"edge: {matrix_edges[tr][col]} ",
+                        f"cop family: {cop_vine[tr][col].family}",
+                        f"theta: {cop_vine[tr][col].theta}",
                     )
                 else:
                     for bb in range(0, n_bin, 1):
                         print(
-                            "edge: {} ".format(matrix_edges[tr][col]),
-                            "bin: {} ".format(bb),
-                            "cop family: {}".format(cop_vine[tr][col][bb].family),
-                            "theta: {}".format(cop_vine[tr][col][bb].theta),
+                            f"edge: {matrix_edges[tr][col]} ",
+                            f"bin: {bb} ",
+                            f"cop family: {cop_vine[tr][col][bb].family}",
+                            f"theta: {cop_vine[tr][col][bb].theta}",
                         )
 
     return r_matrix, cop_vine, ind_vine, nodes, matrix_edges, margin_vine

@@ -4,7 +4,6 @@ import tensorflow as tf
 from optim.bandwidth import bandwidth_mul
 from optim.nadam import fit_ban, fit_banLL2
 from param.copula_fit import *
-from sklearn.model_selection import KFold
 from utils.dataset_op import *
 from utils.prob_op import biv_norm
 
