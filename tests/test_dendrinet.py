@@ -2,7 +2,7 @@ import unittest
 
 import torch
 
-from dendritic_modeling.dendrinet import BlockLinear, DendriNet, DendriticBranchLayer
+from dendritic_modeling.networks import BlockLinear, DendriNet, DendriticBranchLayer
 
 
 class TestDendriNet(unittest.TestCase):
@@ -20,11 +20,16 @@ class TestDendriNet(unittest.TestCase):
             excitatory_synapses_per_branch=excitatory_synapses_per_branch,
         )
 
-        # Check that the model has the correct number of branch layers
-        self.assertEqual(len(model.branch_layers), len(branch_factors))
+        # Check that the model has the correct number of branch layers (including soma)
+        self.assertEqual(len(model.branch_layers), len(branch_factors) + 1)
 
-        # Check that the soma layer is correctly initialized
-        self.assertIsInstance(model.soma_layer, DendriticBranchLayer)
+        # Check that the soma layer is correctly initialized (last layer)
+        self.assertIsInstance(model.branch_layers[-1], DendriticBranchLayer)
+
+    @property
+    def soma_layer(self):
+        """Property to access soma layer for backward compatibility."""
+        return self.branch_layers[-1]
 
     def test_forward_pass(self):
         """Test that the forward pass works with valid input data."""
@@ -72,7 +77,9 @@ class TestDendriNet(unittest.TestCase):
         )
 
         x = torch.randn(batch_size, excitatory_input_dim)
-        inhibitory_input = torch.randn(batch_size, inhibitory_input_dim)
+        inhibitory_input = inhibitory_input = torch.randn(
+            batch_size, inhibitory_input_dim
+        )
         output = model(x, inhibitory_input)
 
         # Check that the output has the correct shape
@@ -86,7 +93,7 @@ class TestDendriNet(unittest.TestCase):
         excitatory_synapses_per_branch = 3
 
         with self.assertRaises(ValueError):
-            model = DendriNet(
+            _ = DendriNet(
                 n_soma=n_soma,
                 branch_factors=branch_factors,
                 excitatory_input_dim=excitatory_input_dim,
@@ -101,7 +108,7 @@ class TestDendriNet(unittest.TestCase):
         excitatory_synapses_per_branch = -1  # Invalid value
 
         with self.assertRaises(ValueError):
-            model = DendriNet(
+            _ = DendriNet(
                 n_soma=n_soma,
                 branch_factors=branch_factors,
                 excitatory_input_dim=excitatory_input_dim,
@@ -111,10 +118,10 @@ class TestDendriNet(unittest.TestCase):
     def test_gradient_flow(self):
         """Test that gradients flow correctly through the network."""
         n_soma = 1
+        batch_size = 4
         branch_factors = [2, 2]
         excitatory_input_dim = 10
         excitatory_synapses_per_branch = 3
-        batch_size = 2
 
         model = DendriNet(
             n_soma=n_soma,
@@ -136,10 +143,10 @@ class TestDendriNet(unittest.TestCase):
     def test_variable_branch_factors(self):
         """Test the network with variable branch factors."""
         n_soma = 1
+        batch_size = 4
         branch_factors = [3, 1, 4]
         excitatory_input_dim = 20
         excitatory_synapses_per_branch = 5
-        batch_size = 3
 
         model = DendriNet(
             n_soma=n_soma,
@@ -162,7 +169,7 @@ class TestDendriNet(unittest.TestCase):
         excitatory_synapses_per_branch = 3
 
         with self.assertRaises(ValueError):
-            model = DendriNet(
+            _ = DendriNet(
                 n_soma=n_soma,
                 branch_factors=branch_factors,
                 excitatory_input_dim=excitatory_input_dim,
@@ -172,10 +179,10 @@ class TestDendriNet(unittest.TestCase):
     def test_edge_case_large_branch_factors(self):
         """Test the network with large branch factors."""
         n_soma = 1
+        batch_size = 4
         branch_factors = [10, 10]
         excitatory_input_dim = 100
         excitatory_synapses_per_branch = 5
-        batch_size = 1
 
         model = DendriNet(
             n_soma=n_soma,
@@ -192,12 +199,12 @@ class TestDendriNet(unittest.TestCase):
     def test_different_input_dimensions(self):
         """Test the network with different excitatory and inhibitory input dimensions."""
         n_soma = 1
+        batch_size = 4
         branch_factors = [2]
         excitatory_input_dim = 15
         inhibitory_input_dim = 5
         excitatory_synapses_per_branch = 3
         inhibitory_synapses_per_branch = 2
-        batch_size = 2
 
         model = DendriNet(
             n_soma=n_soma,
@@ -217,10 +224,10 @@ class TestDendriNet(unittest.TestCase):
     def test_activation_function(self):
         """Test that the reactivation function works when reactivate is True."""
         n_soma = 1
+        batch_size = 4
         branch_factors = [2]
         excitatory_input_dim = 10
         excitatory_synapses_per_branch = 3
-        batch_size = 2
 
         model = DendriNet(
             n_soma=n_soma,
@@ -239,10 +246,10 @@ class TestDendriNet(unittest.TestCase):
     def test_no_activation_function(self):
         """Test the network when reactivate is False."""
         n_soma = 1
+        batch_size = 4
         branch_factors = [2]
         excitatory_input_dim = 10
         excitatory_synapses_per_branch = 3
-        batch_size = 2
 
         model = DendriNet(
             n_soma=n_soma,
@@ -261,10 +268,10 @@ class TestDendriNet(unittest.TestCase):
     def test_large_network(self):
         """Test the network with a larger configuration."""
         n_soma = 10
+        batch_size = 4
         branch_factors = [5, 4, 3]
         excitatory_input_dim = 100
         excitatory_synapses_per_branch = 10
-        batch_size = 5
 
         model = DendriNet(
             n_soma=n_soma,
@@ -295,15 +302,16 @@ class TestDendriNet(unittest.TestCase):
 
         # Check that weights in TopKLinear are initialized
         for layer in model.branch_layers:
-            self.assertIsNotNone(layer.branch_excitation.pre_w)
-            self.assertEqual(
-                layer.branch_excitation.pre_w.shape,
-                (layer.branch_excitation.weight().shape),
-            )
+            if layer.branch_excitation is not None:
+                self.assertIsNotNone(layer.branch_excitation.pre_w)
+                self.assertEqual(
+                    layer.branch_excitation.pre_w.shape,
+                    (layer.branch_excitation.weight().shape),
+                )
 
     def test_blocklinear_aggregation(self):
         """Test that BlockLinear aggregates inputs correctly."""
-        n_soma = 1
+        n_soma = 2  # Use 2 soma to ensure proper block_size
         branch_factors = [2]
         excitatory_input_dim = 5
         excitatory_synapses_per_branch = 2
@@ -315,11 +323,11 @@ class TestDendriNet(unittest.TestCase):
             excitatory_synapses_per_branch=excitatory_synapses_per_branch,
         )
 
-        # Simulate branch input
-        branch_input = torch.randn(1, 2)  # Two branches from previous layer
+        # Simulate branch input with correct size (4 branches for 2 soma)
+        branch_input = torch.randn(1, 4)  # 2 branches * 2 soma = 4 inputs
 
-        # Get the soma layer
-        soma_layer = model.soma_layer
+        # Get the soma layer (last layer)
+        soma_layer = model.branch_layers[-1]
 
         # Check that BlockLinear is used
         self.assertIsInstance(soma_layer.branches_to_output, BlockLinear)
@@ -334,11 +342,11 @@ class TestDendriNet(unittest.TestCase):
         """Test that the soma layer processes aggregated output from
         previous layers."""
         n_soma = 1
+        batch_size = 4
         # Multiple branch layers leading to soma
         branch_factors = [2, 3]
         excitatory_input_dim = 10
         excitatory_synapses_per_branch = 3
-        batch_size = 2
 
         model = DendriNet(
             n_soma=n_soma,
@@ -352,8 +360,8 @@ class TestDendriNet(unittest.TestCase):
 
         # Check output shape and ensure the forward pass reaches soma layer
         self.assertEqual(output.shape, (batch_size, n_soma))
-        # Confirm that the soma layer was involved in processing
-        self.assertIsInstance(model.soma_layer, DendriticBranchLayer)
+        # Confirm that the soma layer was involved in processing (last layer)
+        self.assertIsInstance(model.branch_layers[-1], DendriticBranchLayer)
 
     def test_sum_weights_no_inhibitory(self):
         """Test sum_weights without inhibitory inputs."""

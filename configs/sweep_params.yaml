@@ -7,20 +7,22 @@ slurm_config:
   max_concurrent_jobs: 8
   training_script: "/" # path of train_experiments.py
   config_filename_init: "test_config"
-  account: "kempner_dev"
+  account: 
   nodes: 1
   ntasks_per_node: 1
   gpus_per_node: 1
   cpus_per_task: 10
   mem: 200GB
   time: "0:30:00"
-  partition: "kempner_h100"
+  partition: 
   run_name: "dendritic_model_sweep_job"
 
 train_config:
   model:
     task: "classification"
-    probabilistic: false  # Updated to match config_exp.yaml
+    base:
+      output_layer: true
+      output_dim: 10
     network:
       type: "EINet"
       parameters:
@@ -45,10 +47,6 @@ train_config:
         reactivation_strategy: "inverse"
         blocklinear_strategy: "block_conductance_dynamic"
 
-        enable_branch_outputs: false
-        output_layer: false
-        output_dim: 10
-
         input_mode: 0
         input_net_dict:
           type: "CNNInputTransform"  # Type of input network: "IndexInputTransform", "MLPInputTransform", "AlexNetTransform", etc.
@@ -65,7 +63,7 @@ train_config:
           inhibitory_strides: [1]
 
   train:
-    learning_strategy: "mle"
+    learning_strategy: "standard"
     run_name: "dendritic_sweep_run"
     seed: 0
     train_valid_split: 0.8
@@ -76,14 +74,7 @@ train_config:
       topk_lr: 0.01  # learning rate for topk layers
       blocklinear_lr: 0.001  # learning rate for blocklinear layers
       reactivation_lr: 0.001  # learning rate for reactivation layers
-      output_layer_lr: 0.001  # learning rate for output layer  
-    epochs: 50
-    batch_size: 1024
-    grad_clip_value: 5
-    epochs_per_layer: 50
-    final_tune_epochs: 10
-    warmup_epochs: 1
-    stability_target_voltage: 0.5
+      output_layer_lr: 0.001  # learning rate for output layer
     weight_decay_rate: 0.1
     input_net_training:
       training_mode: "sequential"
@@ -96,11 +87,31 @@ train_config:
         source: "file"
         weights_path: ""
         pytorch_model: ""
+    trainer:
+      # for all learning strategies:
+      loss_function: "categorical_nll"
+      epochs: 50
+      early_stopping: false
+      patience: 10
+      batch_size: 128
+      shuffle: true
+      grad_clip_value: 5.0
+      load_best_state_dict: true
+      plot_losses: true
+      suppress_prints: false
+      print_every: 10
+      # for learning strategies other than standard:
+      pretrain_epochs: 50
+      target_voltage: 0.5
+      reverse_training: false
+      epochs_per_layer: 50
+      epochs_per_branch: 50
+      final_tune_epochs: 10
 
   task:
-    dataset: "random_flip_mnist"
+    dataset: "cifar10"
     data_path:
-    parameters: {}
+    parameters: {flatten: true, normalize: false}
 
   wandb:
     entity:
@@ -118,14 +129,106 @@ train_config:
       - gradients
       - branch_ablation
       - layer_ablation
-  
+
   analysis:
-    ei_mi_analysis_enabled: false
-    ei_mi_analysis_params:
-      compute_mi_E_I: true
-      compute_mi_EI_Vout: true
-      compute_mi_EI_label: true
-      n_neighbors: 10
+    performance_analysis:
+      enabled: true
+      training: false
+      params:
+        accuracy: true
+        categorical_loglikelihood: true
+        mse: false
+    # NEW: Integrated information-theoretic analysis using multivariate methods
+    information_analysis:
+      enabled: true
+      training: false
+      params:
+        # Estimation method for mutual information computation
+        method: "kraskov"  # Options: "kraskov" (k-NN), "sklearn" (histogram/kernel), "copula" (copula-based)
+
+        max_samples: null
+
+        # Method-specific parameters
+        n_neighbors: 10       # For Kraskov k-NN estimator (higher = more accurate but slower)
+        n_bins: 20           # For sklearn histogram method (more bins = finer resolution)
+        copula_type: "gaussian"  # For copula method: "gaussian", "t", "clayton", "frank"
+        
+        # Which information metrics to compute
+        compute_basic_mi: true       # Basic MI: I(E;C), I(I;C), I(Vout;C), I(E,I;C)
+        compute_pairwise_mi: true    # Pairwise MI: I(E;I), I(E;Vout), I(I;Vout)
+        compute_conditional_mi: true  # Conditional MI: I(E;I|C), I(E;Vout|C), I(I;Vout|C)
+        compute_pid: false           # Partial Information Decomposition (requires external PID library)
+        
+        # PID-specific settings (only used if compute_pid=true)
+        pid_binarize: true              # Whether to binarize data for PID computation
+        pid_binarize_method: "median"   # Binarization method: "median", "mean", "quantile"
+        pid_binarize_threshold: 0.5     # Threshold for "quantile" method (0-1)
+        
+        # Additional options
+        include_vinf: true     # Include soma activation (Vinf) in analysis
+        normalize_mi: false    # Normalize MI values by entropy H(C)
+        verbose: false        # Print detailed progress during computation
+
+        compute_per_branch: true
+        branch_aggregation: none
+
+    synapse_turnover_analysis:
+      enabled: false
+      training: false
+    noise_perturbation_analysis:
+      enabled: false
+      training: false
+      params:
+        uniform_noise: true
+        uniform_magnitudes: [0.1, 0.2]
+        gaussian_noise: true
+        gaussian_sdevs: [0.1, 0.2]
+        n_samples: 10
+        accuracy: true
+        categorical_loglikelihood: true
+    ablation_analysis:
+      enabled: false
+      training: false
+      params:
+        layer_ablation: true
+        compartment_ablation: true
+        ablate_all_synapses: true
+        ablate_excitation: true
+        ablate_inhibition: true
+        ablate_upstream: true
+        accuracy: true
+        categorical_loglikelihood: true
+    weight_analysis:
+      enabled: false
+      training: false
+      params:
+        synapse_weights: true
+        branch_weights: true
+    synaptic_activation_analysis:
+      enabled: false
+      training: false
+      params:
+        network_summary: true
+        layer_summary: true
+        branch_summary: true
+        raw_summary: true
+        logspace: false
+        downsample: true
+        samples: 5
+    branch_activation_analysis:
+      enabled: false
+      training: false
+      params:
+        synapse_activations: true
+        branch_activations: true
+        network_summary: true
+        layer_summary: true
+        branch_summary: true
+        raw_summary: true
+        logspace: false
+        downsample: true
+        samples: 5
+
 
   outputs:
     dir:

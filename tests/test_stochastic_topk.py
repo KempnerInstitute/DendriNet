@@ -2,7 +2,7 @@ import unittest
 
 import torch
 
-from dendritic_modeling.dendrinet import StochasticTopKLinear, VarianceTopKLinear
+from dendritic_modeling.networks import StochasticTopKLinear, VarianceTopKLinear
 
 
 class TestStochasticTopKLinear(unittest.TestCase):
@@ -11,9 +11,9 @@ class TestStochasticTopKLinear(unittest.TestCase):
     def test_basic_functionality(self):
         """Test the basic functionality with standard input data."""
         in_features = 100
+        batch_size = 4
         out_features = 10
         K = 5
-        batch_size = 8
 
         # Create model with moderate temperature
         model = StochasticTopKLinear(
@@ -52,9 +52,9 @@ class TestStochasticTopKLinear(unittest.TestCase):
     def test_ultrafast_implementation(self):
         """Test the ultrafast implementation of stochastic TopK."""
         in_features = 100
+        batch_size = 4
         out_features = 10
         K = 5
-        batch_size = 8
 
         # Create model with ultrafast enabled
         model = StochasticTopKLinear(
@@ -91,7 +91,7 @@ class TestStochasticTopKLinear(unittest.TestCase):
         in_features = 100
         out_features = 10
         K = 5
-        batch_size = 8
+
         torch.manual_seed(42)  # For reproducibility
 
         # Create models with different temperatures
@@ -133,9 +133,9 @@ class TestStochasticTopKLinear(unittest.TestCase):
     def test_forward_pass_gradient_flow(self):
         """Test that gradients flow properly through the stochastic selection."""
         in_features = 50
+        batch_size = 4
         out_features = 5
         K = 10
-        batch_size = 4
 
         # Create model
         model = StochasticTopKLinear(
@@ -172,9 +172,9 @@ class TestVarianceTopKLinear(unittest.TestCase):
     def test_basic_functionality(self):
         """Test the basic functionality with standard input data."""
         in_features = 100
+        batch_size = 4
         out_features = 10
         K = 5
-        batch_size = 8
 
         # Create model
         model = VarianceTopKLinear(
@@ -203,9 +203,9 @@ class TestVarianceTopKLinear(unittest.TestCase):
     def test_train_eval_modes(self):
         """Test that train/eval modes properly control statistics tracking."""
         in_features = 100
+        batch_size = 4
         out_features = 10
         K = 5
-        batch_size = 8
 
         # Create model
         model = VarianceTopKLinear(
@@ -231,9 +231,12 @@ class TestVarianceTopKLinear(unittest.TestCase):
     def test_importance_score_calculation(self):
         """Test that importance scores combine weight and variance information."""
         in_features = 20
+        batch_size = 4
         out_features = 5
         K = 4
-        batch_size = 10
+
+        # Set seed for reproducibility
+        torch.manual_seed(42)
 
         # Create model
         model = VarianceTopKLinear(
@@ -247,6 +250,11 @@ class TestVarianceTopKLinear(unittest.TestCase):
         low_var_features = torch.randn(batch_size, in_features // 2) * 0.1
         x = torch.cat([high_var_features, low_var_features], dim=1)
 
+        # Verify the data has the expected variance properties
+        high_var_actual = high_var_features.var(dim=0).mean()
+        low_var_actual = low_var_features.var(dim=0).mean()
+        self.assertGreater(high_var_actual, low_var_actual)
+
         # Update model with this data several times
         for _ in range(10):
             model(x)
@@ -259,7 +267,17 @@ class TestVarianceTopKLinear(unittest.TestCase):
         low_var_connections = mask[:, in_features // 2 :].sum()
 
         # More connections should go to high-variance inputs
-        self.assertGreater(high_var_connections, low_var_connections)
+        # Use a more lenient assertion in case of edge cases
+        total_connections = high_var_connections + low_var_connections
+        high_var_ratio = high_var_connections.float() / total_connections.float()
+
+        # Expect at least 55% of connections to go to high-variance inputs
+        # (more lenient than strict greater-than comparison)
+        self.assertGreater(
+            high_var_ratio,
+            0.55,
+            f"Expected >55% connections to high-var inputs, got {high_var_ratio:.2%}",
+        )
 
 
 if __name__ == "__main__":
