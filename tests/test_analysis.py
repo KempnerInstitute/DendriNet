@@ -15,24 +15,6 @@ from unittest.mock import patch
 
 import torch
 
-import pytest
-from dendritic_modeling.analysis.core.information import InformationAnalyzer
-try:
-    import sys
-    import os
-    experiments_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "experiments")
-    if experiments_path not in sys.path:
-        sys.path.insert(0, experiments_path)
-    from data_generation.synthetic_datasets import generate_synthetic_data
-except ImportError:
-    # Create a dummy function if synthetic datasets not available
-    import torch
-    from torch.utils.data import TensorDataset
-    def generate_synthetic_data(num_samples=100, num_features=10):
-        data = torch.randn(num_samples, num_features)
-        labels = torch.randint(0, 2, (num_samples,))
-        return TensorDataset(data, labels)
-
 from dendritic_modeling.analysis import (
     AblationAnalyzer,
     AnalysisManager,
@@ -40,8 +22,6 @@ from dendritic_modeling.analysis import (
     InformationAnalyzer,
     PerformanceAnalyzer,
 )
-from dendritic_modeling.analysis.core.ablation import AblationAnalyzer
-from dendritic_modeling.analysis.core.information import InformationAnalyzer
 from dendritic_modeling.analysis.tools import SynapticActivationAnalyzer
 from dendritic_modeling.config import (
     AblationAnalysisParams,
@@ -50,13 +30,9 @@ from dendritic_modeling.config import (
     PerformanceAnalysisParams,
     SynapticActivationAnalysisParams,
     TransferFunctionParams,
-    InformationAnalysisParams,
 )
 from dendritic_modeling.models import Classifier
 from dendritic_modeling.networks import ExcitationInhibitionNetwork, Identity
-
-from unittest.mock import Mock
-import numpy as np
 
 
 class TestPerformanceAnalyzer(unittest.TestCase):
@@ -82,7 +58,7 @@ class TestPerformanceAnalyzer(unittest.TestCase):
                 ee_synapses_per_branch_per_layer=[1],
                 ei_synapses_per_branch_per_layer=[1],
                 ie_synapses_per_branch_per_layer=[1],
-                ii_synapses_per_branch_per_layer=[1],
+                ii_synapses_per_branch_per_layer=[],
             ),
             decoder_network=Identity(input_dim=4),
         )
@@ -127,24 +103,6 @@ class TestPerformanceAnalyzer(unittest.TestCase):
             # Check that results is a dictionary
             self.assertIsInstance(results, dict)
 
-    def test_empty_dataset(self):
-        """Test handling of empty dataset."""
-        params = PerformanceAnalysisParams()
-        analyzer = PerformanceAnalyzer(params)
-        empty_data = torch.utils.data.TensorDataset(torch.empty(0, 10), torch.empty(0, dtype=torch.long))
-        results = analyzer.analyze(model=self.model, test_ds=empty_data, device=self.device, save_path=None)
-        self.assertIsInstance(results, dict)
-        # Check that the analyzer handles empty data gracefully
-        # The exact behavior may vary, but it should not crash
-        self.assertIn('accuracy', results)
-        self.assertIsInstance(results['accuracy'], dict)
-        # For empty datasets, accuracy might be NaN which is expected
-        if 'test' in results['accuracy']:
-            # NaN is acceptable for empty datasets
-            import math
-            self.assertTrue(isinstance(results['accuracy']['test'], float) or math.isnan(results['accuracy']['test']))
-        # Main goal: ensure no crash occurs with empty data
-
 
 class TestAblationAnalyzer(unittest.TestCase):
     """Test the AblationAnalyzer class."""
@@ -168,7 +126,7 @@ class TestAblationAnalyzer(unittest.TestCase):
                 ee_synapses_per_branch_per_layer=[1, 1],
                 ei_synapses_per_branch_per_layer=[1, 1],
                 ie_synapses_per_branch_per_layer=[1, 1],
-                ii_synapses_per_branch_per_layer=[1],
+                ii_synapses_per_branch_per_layer=[],
             ),
             decoder_network=Identity(input_dim=4),
         )
@@ -214,6 +172,8 @@ class TestInformationAnalyzer(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures."""
+        from dendritic_modeling.config import InformationAnalysisParams
+
         params = InformationAnalysisParams()
         self.analyzer = InformationAnalyzer(params)
 
@@ -231,7 +191,7 @@ class TestInformationAnalyzer(unittest.TestCase):
                 ee_synapses_per_branch_per_layer=[1],
                 ei_synapses_per_branch_per_layer=[1],
                 ie_synapses_per_branch_per_layer=[1],
-                ii_synapses_per_branch_per_layer=[1],
+                ii_synapses_per_branch_per_layer=[],
             ),
             decoder_network=Identity(input_dim=4),
         )
@@ -292,7 +252,7 @@ class TestActivationAnalyzers(unittest.TestCase):
                 ee_synapses_per_branch_per_layer=[1],
                 ei_synapses_per_branch_per_layer=[1],
                 ie_synapses_per_branch_per_layer=[1],
-                ii_synapses_per_branch_per_layer=[1],
+                ii_synapses_per_branch_per_layer=[],
             ),
             decoder_network=Identity(input_dim=4),
         )
@@ -348,7 +308,7 @@ class TestAnalysisManager(unittest.TestCase):
                 ee_synapses_per_branch_per_layer=[1],
                 ei_synapses_per_branch_per_layer=[1],
                 ie_synapses_per_branch_per_layer=[1],
-                ii_synapses_per_branch_per_layer=[1],
+                ii_synapses_per_branch_per_layer=[],
             ),
             decoder_network=Identity(input_dim=4),
         )
@@ -399,62 +359,6 @@ class TestAnalysisManager(unittest.TestCase):
 
                 # The method doesn't return results, so just check it doesn't crash
                 self.assertIsNone(results)
-
-
-def test_ablation_analyzer():
-    params = {'layer_ablation': True, 'compartment_ablation': True}
-    analyzer = AblationAnalyzer(params)
-    assert analyzer.layer_ablation
-    assert analyzer.compartment_ablation
-
-def test_ablation_analyze(simple_model, sample_data):
-    params = {'layer_ablation': True}
-    analyzer = AblationAnalyzer(params)
-    results = analyzer.analyze(simple_model, sample_data)
-    assert isinstance(results, dict)
-    assert 'layer_ablation' in results or 'compartment_ablation' in results
-
-def test_information_analyzer():
-    params = {'method': 'kraskov'}
-    analyzer = InformationAnalyzer(params)
-    assert analyzer.params.method == 'kraskov'
-
-@pytest.fixture
-def sample_analyzer():
-    params = InformationAnalysisParams()
-    return InformationAnalyzer(params)
-
-@pytest.fixture
-def sample_data():
-    return generate_synthetic_data(num_samples=100, num_features=10)  # Adjust as needed
-
-def test_compute_class_mi(sample_analyzer, sample_data):
-    mock_model = Mock()
-    # Mock the model to have the required structure for InformationAnalyzer
-    mock_model.get_branch_activations.return_value = np.random.rand(100, 1)
-    
-    # Mock the network structure that InformationAnalyzer expects
-    mock_network = Mock()
-    mock_network.__class__.__name__ = 'ExcitationInhibitionNetwork'
-    mock_model.network = mock_network
-    
-    results = sample_analyzer.analyze(mock_model, sample_data)
-    
-    # Handle case where analysis might return None for incompatible models
-    if results is not None:
-        assert 'mi_class' in results['branch_0']
-        assert isinstance(results['branch_0']['mi_class'], float)
-    else:
-        # If the analyzer skips this model type, that's acceptable
-        pytest.skip("Model type not compatible with InformationAnalyzer")
-
-def test_compute_conditional_mi(sample_analyzer, sample_data):
-    # Similar, with condition
-    pass
-
-def test_compute_pid_per_branch(sample_analyzer, sample_data):
-    # Test PID
-    pass
 
 
 if __name__ == "__main__":

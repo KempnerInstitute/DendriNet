@@ -1,6 +1,6 @@
 import numpy as np
 import tensorflow as tf
-from utils.tensor_op import create_points, replace_nan_inf
+from utils.tensor_op import create_points, moving_average, replace_nan_inf
 
 ################## PREDICT VINE ########################
 
@@ -137,7 +137,7 @@ def smooth(x, window_len=11, window="hanning"):
     if window_len < 3:
         return x
 
-    if window not in ["flat", "hanning", "hamming", "bartlett", "blackman"]:
+    if not window in ["flat", "hanning", "hamming", "bartlett", "blackman"]:
         raise ValueError(
             "Window is on of 'flat', 'hanning', 'hamming', 'bartlett', 'blackman'"
         )

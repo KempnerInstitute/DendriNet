@@ -103,14 +103,14 @@ Once you have set up your environment and created the configuration file, you ca
 
 .. code-block:: bash
 
-  $ python src/dendritic_modeling/train_experiments.py configs/config_exp.yaml
+  $ python src/dendritic_modeling/scripts/train_experiments.py configs/config_exp.yaml
 
 
 You can also override specific configuration values at runtime:
 
 .. code-block:: bash
 
-  $ python src/dendritic_modeling/train_experiments.py configs/config_exp.yaml --train.learning_strategy freeze_branches --train.lr 0.005
+  $ python src/dendritic_modeling/scripts/train_experiments.py configs/config_exp.yaml --train.learning_strategy freeze_branches --train.lr 0.005
 
 
 The `train_experiments.py` script will load the configuration file `config_exp.yaml` and start the training process. You can monitor the training progress in the terminal output and visualize the results using the W&B dashboard if you've enabled it.

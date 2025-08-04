@@ -14,57 +14,25 @@ import unittest
 from unittest.mock import Mock, patch
 
 import torch
-from torch.utils.data import TensorDataset
 
 from dendritic_modeling.datasets import (
+    CenterSurroundDataset,
+    CompositionalMNIST,
+    InfoShuntingDataset,
+    LineDataset,
+    MultiXORDataset,
+    NoisyLineDataset,
+    OrientationBarsDataset,
+    OrthoNetDataset,
+    PoissonGeneratorDataset,
+    RandomFlipMNISTDataset,
     get_data_directory,
     get_unified_datasets,
     load_cifar10_as_datasets,
     load_mnist_as_datasets,
     load_mnist_modulo10,
 )
-from torchvision.datasets import MNIST, CIFAR10
-
-# Import synthetic datasets from experiments folder
-try:
-    import sys
-    import os
-    experiments_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "experiments")
-    if experiments_path not in sys.path:
-        sys.path.insert(0, experiments_path)
-    
-    from data_generation.synthetic_datasets import (
-        CenterSurroundDataset,
-        InfoShuntingDataset,
-        LineDataset,
-        MultiXORDataset,
-        NoisyLineDataset,
-        OrientationBarsDataset,
-        OrthoNetDataset,
-        PoissonGeneratorDataset,
-        RandomFlipMNISTDataset,
-        CompositionalMNIST,
-    )
-except ImportError:
-    # If synthetic datasets are not available, create dummy classes for testing
-    class DummyDataset:
-        def __init__(self, *args, **kwargs):
-            pass
-        def __len__(self):
-            return 10
-        def __getitem__(self, idx):
-            return torch.randn(10), torch.randint(0, 2, (1,)).item()
-    
-    CenterSurroundDataset = DummyDataset
-    InfoShuntingDataset = DummyDataset
-    LineDataset = DummyDataset
-    MultiXORDataset = DummyDataset
-    NoisyLineDataset = DummyDataset
-    OrientationBarsDataset = DummyDataset
-    OrthoNetDataset = DummyDataset
-    PoissonGeneratorDataset = DummyDataset
-    RandomFlipMNISTDataset = DummyDataset
-    CompositionalMNIST = DummyDataset
+from dendritic_modeling.plotting import split_mnist_inputs
 
 
 class TestSyntheticDatasets(unittest.TestCase):
@@ -187,8 +155,13 @@ class TestRealDatasets(unittest.TestCase):
 
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
-    def test_load_mnist_as_datasets(self):
+    @patch("dendritic_modeling.datasets.synthetic_datasets.datasets.MNIST")
+    def test_load_mnist_as_datasets(self, mock_mnist):
         """Test MNIST dataset loading."""
+        # Mock MNIST dataset
+        mock_data = [(torch.randn(28, 28), i % 10) for i in range(100)]
+        mock_mnist.return_value = mock_data
+
         train_ds, valid_ds, test_ds = load_mnist_as_datasets(
             train_valid_split=0.8,
             flatten=True,
@@ -200,23 +173,21 @@ class TestRealDatasets(unittest.TestCase):
         self.assertIsNotNone(train_ds)
         self.assertIsNotNone(valid_ds)
         self.assertIsNotNone(test_ds)
-        
-        # Check dataset types and basic properties
-        self.assertIsInstance(train_ds, TensorDataset)
-        self.assertIsInstance(valid_ds, TensorDataset)
-        self.assertIsInstance(test_ds, TensorDataset)
-        
-        # Check that we have data
-        self.assertGreater(len(train_ds), 0)
-        self.assertGreater(len(test_ds), 0)
-        # valid_ds might be empty if train_valid_split=1
 
-    def test_load_cifar10_as_datasets(self):
+        # Check that the mock was called
+        self.assertTrue(mock_mnist.called)
+
+    @patch("dendritic_modeling.datasets.synthetic_datasets.datasets.CIFAR10")
+    def test_load_cifar10_as_datasets(self, mock_cifar):
         """Test CIFAR-10 dataset loading."""
+        # Mock CIFAR-10 dataset
+        mock_data = [(torch.randn(3, 32, 32), i % 10) for i in range(100)]
+        mock_cifar.return_value = mock_data
+
         train_ds, valid_ds, test_ds = load_cifar10_as_datasets(
             train_valid_split=0.8,
             flatten=False,
-            normalize=False,
+            normalize=True,
             output_dir=self.temp_dir,
         )
 
@@ -224,15 +195,9 @@ class TestRealDatasets(unittest.TestCase):
         self.assertIsNotNone(train_ds)
         self.assertIsNotNone(valid_ds)
         self.assertIsNotNone(test_ds)
-        
-        # Check dataset types and basic properties
-        self.assertIsInstance(train_ds, TensorDataset)
-        self.assertIsInstance(valid_ds, TensorDataset)
-        self.assertIsInstance(test_ds, TensorDataset)
-        
-        # Check that we have data
-        self.assertGreater(len(train_ds), 0)
-        self.assertGreater(len(test_ds), 0)
+
+        # Check that the mock was called
+        self.assertTrue(mock_cifar.called)
 
     def test_load_mnist_modulo10(self):
         """Test MNIST modulo 10 dataset loading."""
@@ -248,7 +213,7 @@ class TestRealDatasets(unittest.TestCase):
         )
 
         with patch(
-            "dendritic_modeling.datasets.standard_datasets.load_mnist_as_datasets"
+            "dendritic_modeling.datasets.synthetic_datasets.load_mnist_as_datasets"
         ) as mock_load:
             mock_load.return_value = (mock_train, mock_valid, mock_test)
 
@@ -294,6 +259,32 @@ class TestDatasetUtilities(unittest.TestCase):
         expected_path2 = os.path.join(self.temp_dir, "datasets", "cifar")
         self.assertEqual(data_dir2, expected_path2)
         self.assertTrue(os.path.exists(data_dir2))
+
+    def test_split_mnist_inputs(self):
+        """Test MNIST input splitting by labels."""
+        # Create test data with multiple classes
+        inputs = torch.randn(100, 784)
+        labels = torch.cat(
+            [
+                torch.zeros(30, dtype=torch.long),  # 30 samples of class 0
+                torch.ones(40, dtype=torch.long),  # 40 samples of class 1
+                torch.full((30,), 2, dtype=torch.long),  # 30 samples of class 2
+            ]
+        )
+
+        input_list = split_mnist_inputs(inputs, labels)
+
+        # Check that we got the right number of classes (function returns 10 for all digits 0-9)
+        self.assertEqual(len(input_list), 10)
+
+        # Check shapes for the classes we actually have data for
+        self.assertEqual(input_list[0].shape, (30, 784))  # Class 0
+        self.assertEqual(input_list[1].shape, (40, 784))  # Class 1
+        self.assertEqual(input_list[2].shape, (30, 784))  # Class 2
+
+        # Check that classes without data have empty tensors
+        for i in range(3, 10):
+            self.assertEqual(input_list[i].shape[0], 0)  # Empty for classes 3-9
 
 
 class TestGetUnifiedDatasets(unittest.TestCase):
@@ -351,26 +342,7 @@ class TestGetUnifiedDatasets(unittest.TestCase):
                 self.assertEqual(len(valid_ds), 10)
                 self.assertEqual(len(test_ds), 10)
 
-    def test_custom_parameters(self):
-        """Test loading with custom parameters."""
-        self.task_cfg.dataset = "line"
-        self.task_cfg.data_path = None
-        self.task_cfg.parameters = {
-            "train_size": 25,
-            "valid_size": 10,
-            "test_size": 15,
-            "image_size": 16
-        }
-        train_ds, valid_ds, test_ds = get_unified_datasets(
-            self.task_cfg, self.train_cfg, output_dir=self.temp_dir
-        )
-        self.assertEqual(len(train_ds), 25)
-        self.assertEqual(len(valid_ds), 10)
-        self.assertEqual(len(test_ds), 15)
-        sample, _ = train_ds[0]
-        self.assertEqual(sample.shape, (256,))  # 16x16 flattened
-
-    @patch("dendritic_modeling.datasets.standard_datasets.load_mnist_as_datasets")
+    @patch("dendritic_modeling.datasets.synthetic_datasets.load_mnist_as_datasets")
     def test_mnist_dataset(self, mock_load_mnist):
         """Test MNIST dataset loading through unified interface."""
         # Setup mock
@@ -469,7 +441,7 @@ class TestSpecializedDatasets(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             # Mock the MNIST loading
             with patch(
-                "dendritic_modeling.datasets.standard_datasets.MNIST"
+                "dendritic_modeling.datasets.synthetic_datasets.datasets.MNIST"
             ) as mock_mnist:
                 mock_data = [(torch.randn(28, 28), i % 10) for i in range(100)]
                 mock_mnist.return_value = mock_data

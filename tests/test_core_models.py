@@ -74,7 +74,7 @@ class TestEINetworkIntegration(unittest.TestCase):
             ee_synapses_per_branch_per_layer=[1],
             ei_synapses_per_branch_per_layer=[1],
             ie_synapses_per_branch_per_layer=[1],
-            ii_synapses_per_branch_per_layer=[1],
+            ii_synapses_per_branch_per_layer=[],
         )
 
         self.assertIsInstance(ei_network, ExcitationInhibitionNetwork)
@@ -93,7 +93,7 @@ class TestEINetworkIntegration(unittest.TestCase):
             ee_synapses_per_branch_per_layer=[1],
             ei_synapses_per_branch_per_layer=[1],
             ie_synapses_per_branch_per_layer=[1],
-            ii_synapses_per_branch_per_layer=[1],
+            ii_synapses_per_branch_per_layer=[],
         )
 
         classifier = Classifier(
@@ -133,7 +133,7 @@ class TestModelParameterGroups(unittest.TestCase):
             ee_synapses_per_branch_per_layer=[1],
             ei_synapses_per_branch_per_layer=[1],
             ie_synapses_per_branch_per_layer=[1],
-            ii_synapses_per_branch_per_layer=[1],
+            ii_synapses_per_branch_per_layer=[],
         )
 
         classifier = Classifier(

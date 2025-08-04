@@ -4,6 +4,7 @@ import tensorflow_probability as tfp
 tfd = tfp.distributions
 tfb = tfp.bijectors
 import numpy as np
+from classes.objects import margin_obj
 from grid.grid_op import mk_grid
 from param.cond_copula import *
 from param.margin_op import *

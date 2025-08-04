@@ -9,6 +9,7 @@ from param.cond_copula import *
 from pre_proc.preparation import prep_copula
 from pre_proc.transformation import Transform
 from utils.dataset_op import check_bins, create_bins
+from utils.interpolation import interp1d_np
 from utils.prob_op import kernel_cdf
 from vine_tree.tree_op import parent_var
 
