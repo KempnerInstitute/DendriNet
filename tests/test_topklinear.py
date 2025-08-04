@@ -6,31 +6,31 @@ from dendritic_modeling.networks import TopKLinear
 
 
 class TestTopKLinear(unittest.TestCase):
-    # def test_basic_functionality(self):
-    #     """Test the basic functionality with standard input data."""
-    #     in_features = 10
-    #     out_features = 5
-    #     K = 3
-    #     batch_size = 4
+    def test_basic_functionality(self):
+        """Test the basic functionality with standard input data."""
+        in_features = 10
+        out_features = 5
+        K = 3
+        batch_size = 4
 
-    #     model = TopKLinear(in_features, out_features, K)
-    #     x = torch.randn(batch_size, in_features)
-    #     output = model(x)
+        model = TopKLinear(in_features, out_features, K)
+        x = torch.randn(batch_size, in_features)
+        output = model(x)
 
-    #     # Check output shape
-    #     self.assertEqual(output.shape, (batch_size, out_features))
+        # Check output shape
+        self.assertEqual(output.shape, (batch_size, out_features))
 
-    #     # Ensure output is a tensor
-    #     self.assertIsInstance(output, torch.Tensor)
+        # Ensure output is a tensor
+        self.assertIsInstance(output, torch.Tensor)
 
-    #     # Check that weights are positive
-    #     weights = model.weight()
-    #     self.assertTrue(torch.all(weights >= 0))
+        # Check that weights are positive
+        weights = model.weight()
+        self.assertTrue(torch.all(weights >= 0))
 
-    #     # Check that only K weights are non-zero per output neuron after pruning
-    #     pruned_weights = model.pruned_weight()
-    #     non_zero_counts = (pruned_weights > 0).sum(dim=1)
-    #     self.assertTrue(torch.all(non_zero_counts == K))
+        # Check that only K weights are non-zero per output neuron after pruning
+        pruned_weights = model.pruned_weight()
+        non_zero_counts = (pruned_weights > 0).sum(dim=1)
+        self.assertTrue(torch.all(non_zero_counts == K))
 
     def test_edge_cases_small_input(self):
         """Test with very small input data."""
@@ -118,23 +118,23 @@ class TestTopKLinear(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             _ = model(x)
 
-    # def test_param_space_presigmoid(self):
-    #     """Test functionality with param_space set to 'presigmoid'."""
-    #     in_features = 10
-    #     out_features = 5
-    #     K = 3
-    #     batch_size = 4
+    def test_param_space_presigmoid(self):
+        """Test functionality with param_space set to 'presigmoid'."""
+        in_features = 10
+        out_features = 5
+        K = 3
+        batch_size = 4
 
-    #     model = TopKLinear(in_features, out_features, K, param_space='presigmoid')
-    #     x = torch.randn(batch_size, in_features)
-    #     output = model(x)
+        model = TopKLinear(in_features, out_features, K, param_space='presigmoid')
+        x = torch.randn(batch_size, in_features)
+        output = model(x)
 
-    #     # Check output shape
-    #     self.assertEqual(output.shape, (batch_size, out_features))
+        # Check output shape
+        self.assertEqual(output.shape, (batch_size, out_features))
 
-    #     # Ensure weights are between 0 and 1
-    #     weights = model.weight()
-    #     self.assertTrue(torch.all((weights >= 0) & (weights <= 1)))
+        # Ensure weights are between 0 and 1
+        weights = model.weight()
+        self.assertTrue(torch.all((weights >= 0) & (weights <= 1)))
 
     # def test_weight_gradients(self):
     #     """Test that gradients flow correctly through the pruned weights."""
