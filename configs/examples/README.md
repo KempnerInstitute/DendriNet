@@ -36,6 +36,9 @@ Individual sweep examples (use unified example instead):
 # Basic setup
 output_dir: "results"
 slurm_config:
+  account: your_account      # SLURM account name
+  partition: gpu_partition   # GPU partition name
+  gpu_per_node: 4            # Maximum GPUs per node (nodes computed automatically)
   max_concurrent_jobs: 15    # Concurrent job limit
 
 # Parameters to sweep

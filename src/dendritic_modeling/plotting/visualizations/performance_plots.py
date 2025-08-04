@@ -163,27 +163,41 @@ class PerformancePlotter(TimeSeriesPlotter):
         
         for epoch, filepath in perf_files:
             try:
+                # Check if file exists and is readable
+                if not os.path.exists(filepath):
+                    self.logger.warning(f"Performance file does not exist: {filepath}")
+                    continue
+                    
                 with open(filepath, 'r') as f:
                     data = json.load(f)
+                                            if not data:
+                        continue
+                        
                     epochs.append(epoch)
                     
-                    # Handle nested structure (metric -> dataset -> value)
+                    
                     for metric_name, metric_data in data.items():
+                                                    if metric_name.startswith('_'):
+                            continue
+                            
                         if isinstance(metric_data, dict):
                             # For each dataset (train, valid, test)
                             for dataset, value in metric_data.items():
-                                if isinstance(value, (int, float)):
+                                if isinstance(value, (int, float)) and not (np.isnan(value) or np.isinf(value)):
                                     key = f"{metric_name}_{dataset}"
                                     if key not in metrics_data:
                                         metrics_data[key] = []
                                     metrics_data[key].append(value)
-                        elif isinstance(metric_data, (int, float)):
+                        elif isinstance(metric_data, (int, float)) and not (np.isnan(metric_data) or np.isinf(metric_data)):
                             # Direct value
                             if metric_name not in metrics_data:
                                 metrics_data[metric_name] = []
                             metrics_data[metric_name].append(metric_data)
-            except Exception as e:
+                            
+            except (json.JSONDecodeError, FileNotFoundError, PermissionError) as e:
                 self.logger.warning(f"Error loading {filepath}: {e}")
+            except Exception as e:
+                self.logger.error(f"Unexpected error loading {filepath}: {e}")
         
         if not metrics_data:
             fig, ax = self._create_error_plot(

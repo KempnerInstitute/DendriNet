@@ -105,15 +105,8 @@ def get_fsdp_config(
         "HYBRID_SHARD": ShardingStrategy.HYBRID_SHARD,  # Reduces communication overhead
     }
     
-    # Use HYBRID_SHARD by default for better communication efficiency if available
     if reduce_communication_overhead and sharding_strategy == "FULL_SHARD":
-        try:
-            # Check if HYBRID_SHARD is available (PyTorch 2.0+)
-            if hasattr(ShardingStrategy, 'HYBRID_SHARD'):
-                sharding_strategy = "HYBRID_SHARD"
-                logger.info("Using HYBRID_SHARD strategy for reduced communication overhead")
-        except AttributeError:
-            logger.info("HYBRID_SHARD not available, using FULL_SHARD")
+        logger.info("HYBRID_SHARD auto-upgrade disabled - using FULL_SHARD with communication optimizations")
 
     # Mixed precision configuration
     mp_config = None

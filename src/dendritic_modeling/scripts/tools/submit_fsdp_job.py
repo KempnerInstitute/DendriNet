@@ -152,17 +152,9 @@ class FSDPJobManager:
         logger.info("Generating SLURM script...")
         
         try:
-            # Apply optimal GPU configuration from estimator
+            # Log optimal GPU configuration from estimator (don't override config)
             if estimation_results and 'optimal_config' in estimation_results:
                 optimal_config = estimation_results['optimal_config']
-                
-                if 'slurm_config' not in self.config:
-                    self.config.slurm_config = {}
-                
-                # Set optimal nodes and GPU configuration
-                self.config.slurm_config['nodes'] = optimal_config['nodes']
-                self.config.slurm_config['gpu_per_node'] = optimal_config['gpus_per_node']
-                
                 logger.info(f"Using optimal GPU config: {optimal_config['nodes']} nodes × {optimal_config['gpus_per_node']} GPUs")
             
             # Apply additional overrides if provided
@@ -244,13 +236,13 @@ class FSDPJobManager:
             True if successful
         """
         try:
-            # Step 1: Estimate resources
+            # Estimate resources
             estimation_results = self.estimate_resources()
             
-            # Step 2: Generate SLURM script
+            # Generate SLURM script
             script_path = self.generate_slurm_script(estimation_results, overrides)
             
-            # Step 3: Submit job (if requested)
+            # Submit job (if requested)
             if submit:
                 return self.submit_job(dry_run)
             else:
