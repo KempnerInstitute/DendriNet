@@ -128,19 +128,22 @@ class AnalysisManager:
 
     def run_analysis(self, filename: str = "final", training: bool = False):
         """Run configured analyses and generate plots."""
-        self.logger.info(f"Starting analysis run - filename: {filename}, training: {training}")
+        # Only log for final analysis, not every training epoch
+        if not training:
+            self.logger.info(f"Starting analysis run - filename: {filename}, training: {training}")
         
         # Run analyses and get results
         if self.config.performance_analysis.enabled and (
             (self.config.performance_analysis.training and training) or not training
         ):
-            self.logger.info(f"Running performance analysis - enabled: {self.config.performance_analysis.enabled}, training_mode: {self.config.performance_analysis.training}, is_training: {training}")
+            # Only log for final analysis, not every training epoch
+            if not training:
+                self.logger.info(f"Running performance analysis - enabled: {self.config.performance_analysis.enabled}, training_mode: {self.config.performance_analysis.training}, is_training: {training}")
             
             # Determine save path based on whether this is training or final analysis
             if training:
                 # Save epoch results in a subfolder
                 epoch_save_path = os.path.join(self.save_root, "performance", "epochs")
-                self.logger.info(f"Creating epochs directory: {epoch_save_path}")
                 os.makedirs(epoch_save_path, exist_ok=True)
             else:
                 # Save final results in main performance folder

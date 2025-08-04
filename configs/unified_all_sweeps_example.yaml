@@ -29,7 +29,7 @@
 output_dir: "results"
 slurm_config:
   job_name: "unified_sweep"
-  account:  # Your SLURM account
+  account:   # Your SLURM account
   partition: # Your SLURM partition  
   time: "02:00:00"
   nodes: 1

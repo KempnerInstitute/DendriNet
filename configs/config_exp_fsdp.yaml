@@ -288,6 +288,27 @@ task:
     normalize: true
 
 # ============================================================================
+# SLURM CONFIGURATION
+# ============================================================================
+
+slurm_config:
+  # Basic resource configuration
+  gpu_per_node: 1
+  account:  # Your SLURM account
+  
+  # Environment setup
+  conda_env_path:   # Path to your conda environment
+  modules_to_load: []
+  
+  # Directory configuration
+  project_dir:  # Your project directory
+  log_dir: results/fsdp_experiments/logs
+  dir: results/fsdp_experiments/
+  
+  # Optional overrides (script will auto-determine these based on model requirements)
+  # training_script: src/dendritic_modeling/scripts/training/train_experiments_fsdp.py
+
+# ============================================================================
 # OUTPUT CONFIGURATION
 # ============================================================================
 

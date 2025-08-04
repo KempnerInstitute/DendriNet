@@ -330,11 +330,14 @@ class FSDPTrainer(Trainer):
                     # Run analysis if enabled and we have the manager
                     if self.analysis_manager is not None:
                         if isinstance(self.analysis_manager, AnalysisManager):
-                            logger.info(f"Running epoch analysis for epoch {epoch + 1}...")
+                            # Only log analysis runs every 10 epochs to reduce verbosity
+                            if epoch % 10 == 0:
+                                logger.info(f"Running epoch analysis for epoch {epoch + 1}...")
                             self.analysis_manager.run_analysis(
                                 filename=f"epoch{epoch + 1}", training=True
                             )
-                            logger.info(f"Epoch analysis completed for epoch {epoch + 1}")
+                            if epoch % 10 == 0:
+                                logger.info(f"Epoch analysis completed for epoch {epoch + 1}")
                         else:
                             logger.warning(f"Analysis manager is not AnalysisManager instance: {type(self.analysis_manager)}")
                     else:
