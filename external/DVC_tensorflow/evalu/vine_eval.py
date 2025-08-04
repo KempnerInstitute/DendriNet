@@ -5,9 +5,10 @@ tfd = tfp.distributions
 tfb = tfp.bijectors
 import numpy as np
 from evalu.cop_eval import *
-from optim.local_lik import loclik_batch_eval
-from utils.interpolation import nearestInterp2d
-from utils.prob_op import biv_norm, kernel_cdf
+from optim.bandwidth import bandwidth_mul
+from optim.local_lik import loclik_batch, loclik_batch_eval
+from utils.interpolation import interp1d_np, nearestInterp2d
+from utils.prob_op import biv_norm, kernel_cdf, kernel_cdf_batch
 
 ################# EVALUATE PDF (UV-SPACE), CDF AND THETA ######################
 

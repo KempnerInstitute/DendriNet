@@ -23,6 +23,7 @@ from dendritic_modeling.config import (
     OutputsConfig,
     TaskConfig,
     TrainConfig,
+    VisualizationConfig,
     WandbConfig,
     load_config,
 )
@@ -148,7 +149,7 @@ class TestConfigDataclasses(unittest.TestCase):
                         ee_synapses_per_branch_per_layer=[24],
                         ei_synapses_per_branch_per_layer=[200],
                         ie_synapses_per_branch_per_layer=[1],
-                        ii_synapses_per_branch_per_layer=[1],
+                        ii_synapses_per_branch_per_layer=[],
                     ),
                 ),
             ),
@@ -156,6 +157,9 @@ class TestConfigDataclasses(unittest.TestCase):
             task=TaskConfig(dataset="mnist", data_path="", parameters={}),
             wandb=WandbConfig(entity="", project="test_project", use_wandb=False),
             outputs=OutputsConfig(dir="/tmp/outputs"),
+            visualization=VisualizationConfig(
+                enabled=False, visualize_epochs=[], plots=[]
+            ),
             analysis=AnalysisConfig(),
         )
 

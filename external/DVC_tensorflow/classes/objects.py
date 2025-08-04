@@ -20,7 +20,7 @@ from utils.tensor_op import *
 from vine_tree.tree_op import *
 
 
-class copula_obj:
+class copula_obj(object):
     """Copula object."""
 
     def __init__(self, opt_bw):
@@ -33,7 +33,7 @@ class copula_obj:
         self.cdf = None
 
 
-class cop_par_obj:
+class cop_par_obj(object):
     """Marginal object."""
 
     def __init__(self, family, theta):
@@ -48,7 +48,7 @@ class cop_par_obj:
         self.theta = theta
 
 
-class margin_obj:
+class margin_obj(object):
     """Marginal object."""
 
     def __init__(self, dist, theta, is_cont):
@@ -65,7 +65,7 @@ class margin_obj:
         self.ker = None
 
 
-class vine_obj_bin:
+class vine_obj_bin(object):
     """Vine object."""
 
     def __init__(self, vine_family, families, vine_depth, margin, knots, method, *args):
@@ -2624,7 +2624,7 @@ class vine_obj_bin:
         return p, p_copula, logf_marginal
 
 
-class vine_obj:
+class vine_obj(object):
     """Vine object."""
 
     def __init__(self, vine_family, families, vine_depth, margin, knots, *args):
