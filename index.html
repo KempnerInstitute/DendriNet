@@ -17,10 +17,9 @@
       <script src="_static/doctools.js?v=9bcbadda"></script>
       <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="_static/js/theme.js"></script>
-    <link rel="author" title="About these documents" href="about.html" />
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-    <link rel="next" title="Quick Start Guide" href="QUICK_START.html" /> 
+    <link rel="next" title="Configuration Guide" href="CONFIGURATION_GUIDE.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -43,10 +42,9 @@
 </div>
         </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
               <ul>
-<li class="toctree-l1"><a class="reference internal" href="QUICK_START.html">Quick Start Guide</a></li>
 <li class="toctree-l1"><a class="reference internal" href="CONFIGURATION_GUIDE.html">Configuration Guide</a></li>
-<li class="toctree-l1"><a class="reference internal" href="FSDP_TRAINING_GUIDE.html">FSDP Training Guide</a></li>
-<li class="toctree-l1"><a class="reference internal" href="sweeps.html">Sweeps Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sweeps.html">Parameter Sweeps</a></li>
+<li class="toctree-l1"><a class="reference internal" href="FSDP_TROUBLESHOOTING.html">FSDP Training Guide</a></li>
 </ul>
 
         </div>
@@ -75,77 +73,123 @@
              
   <section id="dendritic-modeling-framework">
 <h1>Dendritic Modeling Framework<a class="headerlink" href="#dendritic-modeling-framework" title="Link to this heading"></a></h1>
-<p>PyTorch framework for biologically-inspired neural networks with dendritic computation and excitation-inhibition dynamics.</p>
-<section id="architecture">
-<h2>Architecture<a class="headerlink" href="#architecture" title="Link to this heading"></a></h2>
-<p>Three-part model architecture:</p>
-<ol class="arabic simple">
-<li><p>Encoder Network: Processes input data</p></li>
-<li><p>Core Network: Main computation (EINet, DendriNet, MLP)</p></li>
-<li><p>Decoder Network: Maps to output space</p></li>
-</ol>
-<p>Core Networks:</p>
-<ul class="simple">
-<li><p>EINet: Excitation-inhibition networks with dendritic computation</p></li>
-<li><p>DendriNet: Hierarchical branching dendritic networks</p></li>
-<li><p>MLP: Standard multi-layer perceptrons</p></li>
-</ul>
+<p>A framework for biologically-inspired neural networks with excitation-inhibition dynamics and dendritic computation.</p>
+<section id="quick-start">
+<h2>Quick Start<a class="headerlink" href="#quick-start" title="Link to this heading"></a></h2>
+<p>Installation:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/KempnerInstitute/dendritic-modeling.git
+<span class="nb">cd</span><span class="w"> </span>dendritic-modeling
+conda<span class="w"> </span>env<span class="w"> </span>create<span class="w"> </span>-f<span class="w"> </span>environment.yml
+conda<span class="w"> </span>activate<span class="w"> </span>dendritic_env
+pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>.
+</pre></div>
+</div>
+<p>Basic Training:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>src/dendritic_modeling/scripts/training/train_experiments.py<span class="w"> </span>configs/config_exp.yaml
+</pre></div>
+</div>
 </section>
-<section id="training-options">
-<h2>Training Options<a class="headerlink" href="#training-options" title="Link to this heading"></a></h2>
+<section id="architecture-overview">
+<h2>Architecture Overview<a class="headerlink" href="#architecture-overview" title="Link to this heading"></a></h2>
+<p>The framework uses a three-part model architecture:</p>
+<ol class="arabic simple">
+<li><p>Encoder Network: Processes raw input data (Identity, MLP, CNN)</p></li>
+<li><p>Core Network: Main computational unit (EINet, DendriNet, MLP)</p></li>
+<li><p>Decoder Network: Maps to output space (Identity, MLP)</p></li>
+</ol>
+<section id="core-networks">
+<h3>Core Networks<a class="headerlink" href="#core-networks" title="Link to this heading"></a></h3>
 <dl class="simple">
-<dt>Standard Training</dt><dd><p>Single-GPU training with analysis</p>
+<dt>EINet (Excitation-Inhibition Network)</dt><dd><p>Implements biologically-inspired dendritic computation with separate excitatory and inhibitory pathways.</p>
 </dd>
-<dt>Enhanced Training</dt><dd><p>Multiple optimizers, regularization, pruning, and detailed analysis</p>
+<dt>DendriNet</dt><dd><p>Pure dendritic network with hierarchical branching structure.</p>
 </dd>
-<dt>FSDP Training</dt><dd><p>Multi-GPU distributed training with automated resource estimation</p>
-</dd>
-<dt>Parameter Sweeps</dt><dd><p>Systematic hyperparameter exploration</p>
+<dt>MLP</dt><dd><p>Standard multi-layer perceptron for baseline comparisons.</p>
 </dd>
 </dl>
 </section>
-<section id="quick-start">
-<h2>Quick Start<a class="headerlink" href="#quick-start" title="Link to this heading"></a></h2>
-<p>See <a class="reference internal" href="QUICK_START.html"><span class="doc">Quick Start Guide</span></a> for basic experiment examples.</p>
+</section>
+<section id="training-options">
+<h2>Training Options<a class="headerlink" href="#training-options" title="Link to this heading"></a></h2>
+<dl>
+<dt>Standard Training</dt><dd><p>Single-GPU training with standard backpropagation.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Standard Training</span>
+python<span class="w"> </span>src/dendritic_modeling/scripts/training/train_experiments.py<span class="w"> </span>configs/config_exp.yaml
+
+<span class="c1"># Or with command line overrides</span>
+python<span class="w"> </span>src/dendritic_modeling/scripts/training/train_experiments.py<span class="w"> </span>configs/config_exp.yaml<span class="w"> </span>--epochs<span class="w"> </span><span class="m">100</span>
+</pre></div>
+</div>
+</dd>
+<dt>FSDP Training</dt><dd><p>Distributed training for large models across multiple GPUs.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Generate and submit FSDP job (default behavior)</span>
+python<span class="w"> </span>src/dendritic_modeling/scripts/tools/submit_fsdp_job.py<span class="w"> </span>configs/config_exp_fsdp.yaml
+
+<span class="c1"># Generate SLURM script only</span>
+python<span class="w"> </span>src/dendritic_modeling/scripts/tools/submit_fsdp_job.py<span class="w"> </span>configs/config_exp_fsdp.yaml<span class="w"> </span>--generate-only
+
+<span class="c1"># Dry run to see what would be submitted</span>
+python<span class="w"> </span>src/dendritic_modeling/scripts/tools/submit_fsdp_job.py<span class="w"> </span>configs/config_exp_fsdp.yaml<span class="w"> </span>--dry-run
+</pre></div>
+</div>
+</dd>
+<dt>Parameter Sweeps</dt><dd><p>Systematic exploration of hyperparameter spaces.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Generate and run sweep (default behavior)</span>
+python<span class="w"> </span>src/dendritic_modeling/scripts/sweeps/sweep_manager.py<span class="w"> </span>--config<span class="w"> </span>configs/unified_all_sweeps_example.yaml
+
+<span class="c1"># Generate configs only (no job submission)</span>
+python<span class="w"> </span>src/dendritic_modeling/scripts/sweeps/sweep_manager.py<span class="w"> </span>--config<span class="w"> </span>configs/unified_all_sweeps_example.yaml<span class="w"> </span>--generate-only
+
+<span class="c1"># Analyze sweep results with auto-detection</span>
+python<span class="w"> </span>src/dendritic_modeling/scripts/sweeps/result_analyzer.py<span class="w"> </span>--results-dir<span class="w"> </span>output/sweep_20240101120000<span class="w"> </span>--auto-detect
+</pre></div>
+</div>
+</dd>
+</dl>
+</section>
+<section id="configuration">
+<h2>Configuration<a class="headerlink" href="#configuration" title="Link to this heading"></a></h2>
+<p>All experiments are configured through YAML files. Key sections:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">model</span></code>: Network architecture and parameters</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">train</span></code>: Training hyperparameters and strategies</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">task</span></code>: Dataset configuration</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">analysis</span></code>: Optional analysis settings</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">wandb</span></code>: Experiment tracking</p></li>
+</ul>
 </section>
 <section id="documentation">
 <h2>Documentation<a class="headerlink" href="#documentation" title="Link to this heading"></a></h2>
 <div class="toctree-wrapper compound">
 <ul>
-<li class="toctree-l1"><a class="reference internal" href="QUICK_START.html">Quick Start Guide</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="QUICK_START.html#installation">Installation</a></li>
-<li class="toctree-l2"><a class="reference internal" href="QUICK_START.html#basic-experiment">Basic Experiment</a></li>
-<li class="toctree-l2"><a class="reference internal" href="QUICK_START.html#sweep-experiment">Sweep Experiment</a></li>
-<li class="toctree-l2"><a class="reference internal" href="QUICK_START.html#fsdp-experiment">FSDP Experiment</a></li>
-<li class="toctree-l2"><a class="reference internal" href="QUICK_START.html#configuration">Configuration</a></li>
-<li class="toctree-l2"><a class="reference internal" href="QUICK_START.html#output-structure">Output Structure</a></li>
-<li class="toctree-l2"><a class="reference internal" href="QUICK_START.html#next-steps">Next Steps</a></li>
-</ul>
-</li>
 <li class="toctree-l1"><a class="reference internal" href="CONFIGURATION_GUIDE.html">Configuration Guide</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="CONFIGURATION_GUIDE.html#training-features">Training Features</a></li>
-<li class="toctree-l2"><a class="reference internal" href="CONFIGURATION_GUIDE.html#model-architecture">Model Architecture</a></li>
-<li class="toctree-l2"><a class="reference internal" href="CONFIGURATION_GUIDE.html#training-configuration">Training Configuration</a></li>
-<li class="toctree-l2"><a class="reference internal" href="CONFIGURATION_GUIDE.html#task-configuration">Task Configuration</a></li>
-<li class="toctree-l2"><a class="reference internal" href="CONFIGURATION_GUIDE.html#analysis-configuration">Analysis Configuration</a></li>
-<li class="toctree-l2"><a class="reference internal" href="CONFIGURATION_GUIDE.html#output-configuration">Output Configuration</a></li>
-<li class="toctree-l2"><a class="reference internal" href="CONFIGURATION_GUIDE.html#weights-biases-configuration">Weights &amp; Biases Configuration</a></li>
-<li class="toctree-l2"><a class="reference internal" href="CONFIGURATION_GUIDE.html#complete-example-configuration">Complete Example Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="CONFIGURATION_GUIDE.html#quick-start">Quick Start</a></li>
+<li class="toctree-l2"><a class="reference internal" href="CONFIGURATION_GUIDE.html#basic-structure">Basic Structure</a></li>
+<li class="toctree-l2"><a class="reference internal" href="CONFIGURATION_GUIDE.html#core-networks">Core Networks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="CONFIGURATION_GUIDE.html#training-options">Training Options</a></li>
+<li class="toctree-l2"><a class="reference internal" href="CONFIGURATION_GUIDE.html#datasets">Datasets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="CONFIGURATION_GUIDE.html#analysis-options">Analysis Options</a></li>
+<li class="toctree-l2"><a class="reference internal" href="CONFIGURATION_GUIDE.html#wandb-integration">WandB Integration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="CONFIGURATION_GUIDE.html#common-configurations">Common Configurations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="CONFIGURATION_GUIDE.html#troubleshooting">Troubleshooting</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="FSDP_TRAINING_GUIDE.html">FSDP Training Guide</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="FSDP_TRAINING_GUIDE.html#overview">Overview</a></li>
-<li class="toctree-l2"><a class="reference internal" href="FSDP_TRAINING_GUIDE.html#automated-job-submission">Automated Job Submission</a></li>
-<li class="toctree-l2"><a class="reference internal" href="FSDP_TRAINING_GUIDE.html#direct-fsdp-training">Direct FSDP Training</a></li>
-<li class="toctree-l2"><a class="reference internal" href="FSDP_TRAINING_GUIDE.html#fsdp-configuration">FSDP Configuration</a></li>
-<li class="toctree-l2"><a class="reference internal" href="FSDP_TRAINING_GUIDE.html#manual-workflow">Manual Workflow</a></li>
-<li class="toctree-l2"><a class="reference internal" href="FSDP_TRAINING_GUIDE.html#common-issues">Common Issues</a></li>
-</ul>
-</li>
-<li class="toctree-l1"><a class="reference internal" href="sweeps.html">Sweeps Guide</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="sweeps.html#sweep-types">Sweep Types</a></li>
-<li class="toctree-l2"><a class="reference internal" href="sweeps.html#usage">Usage</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sweeps.html">Parameter Sweeps</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="sweeps.html#quick-start">Quick Start</a></li>
 <li class="toctree-l2"><a class="reference internal" href="sweeps.html#configuration">Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="sweeps.html#sweep-types">Sweep Types</a></li>
+<li class="toctree-l2"><a class="reference internal" href="sweeps.html#analysis-output">Analysis Output</a></li>
+<li class="toctree-l2"><a class="reference internal" href="sweeps.html#examples">Examples</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="FSDP_TROUBLESHOOTING.html">FSDP Training Guide</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="FSDP_TROUBLESHOOTING.html#quick-start">Quick Start</a></li>
+<li class="toctree-l2"><a class="reference internal" href="FSDP_TROUBLESHOOTING.html#when-to-use-fsdp">When to Use FSDP</a></li>
+<li class="toctree-l2"><a class="reference internal" href="FSDP_TROUBLESHOOTING.html#when-to-use-single-gpu">When to Use Single GPU</a></li>
+<li class="toctree-l2"><a class="reference internal" href="FSDP_TROUBLESHOOTING.html#common-issues">Common Issues</a></li>
+<li class="toctree-l2"><a class="reference internal" href="FSDP_TROUBLESHOOTING.html#configuration">Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="FSDP_TROUBLESHOOTING.html#monitoring">Monitoring</a></li>
+<li class="toctree-l2"><a class="reference internal" href="FSDP_TROUBLESHOOTING.html#additional-help">Additional Help</a></li>
 </ul>
 </li>
 </ul>
@@ -164,7 +208,7 @@
            </div>
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
-        <a href="QUICK_START.html" class="btn btn-neutral float-right" title="Quick Start Guide" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="CONFIGURATION_GUIDE.html" class="btn btn-neutral float-right" title="Configuration Guide" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>

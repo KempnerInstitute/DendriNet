@@ -1,44 +1,40 @@
-Sweeps Guide
-============
+Parameter Sweeps
+================
 
-Systematic parameter exploration across different configurations.
+Systematic exploration of hyperparameter spaces with automated job submission and analysis.
 
-Sweep Types
+Quick Start
 -----------
 
-1. EI Sweep: Explore excitatory/inhibitory synapse combinations
-2. Branch Sweep: Vary branch architecture parameters  
-3. Noise Sweep: Test robustness to different noise types
-4. General Sweep: Arbitrary parameter combinations
-
-Usage
------
+Run a parameter sweep:
 
 .. code-block:: bash
 
    # Generate and run sweep (default behavior)
-   python -m dendritic_modeling.scripts.sweeps.unified.sweep_manager \
-     --config configs/examples/general_sweep_example.yaml
+   python src/dendritic_modeling/scripts/sweeps/sweep_manager.py --config configs/unified_all_sweeps_example.yaml
 
-   # Generate only (no job submission)
-   python -m dendritic_modeling.scripts.sweeps.unified.sweep_manager \
-     --config configs/examples/general_sweep_example.yaml --generate-only
+   # Generate configs only (no job submission)
+   python src/dendritic_modeling/scripts/sweeps/sweep_manager.py --config configs/unified_all_sweeps_example.yaml --generate-only
 
-   # Analyze results
-   python -m dendritic_modeling.scripts.sweeps.unified.sweep_manager \
-     --analyze --results-dir output/sweep_20240101_120000
+   # Analyze results with auto-detection
+   python src/dendritic_modeling/scripts/sweeps/result_analyzer.py --results-dir output/sweep_20240101120000 --auto-detect
 
 Configuration
-------------
+-------------
 
 Basic sweep configuration:
 
 .. code-block:: yaml
 
    sweep_config:
-     train.main.trainer.lr: [0.0001, 0.001, 0.01]
-     train.main.trainer.batch_size: [32, 64, 128]
-     model.core_network.parameters.excitatory_layer_sizes: [[10], [20], [30]]
+     model.core_network.parameters.ee_synapses_per_branch_per_layer: [[1], [2], [3]]
+     model.core_network.parameters.ie_synapses_per_branch_per_layer: [[1], [2], [3]]
+     model.core_network.parameters.use_shunting: [true, false]
+     train.main.param_groups.lr: [0.001, 0.01, 0.1]
+
+   filter_config:
+     mode: "ei-sum"
+     value: 4
 
    experiment_settings:
      seeds_per_condition: 3
@@ -50,6 +46,42 @@ Basic sweep configuration:
      time: "02:00:00"
      gpus_per_node: 1
 
-Results are saved in timestamped directories with heatmaps and statistical analysis.
+Sweep Types
+-----------
 
-See ``configs/examples/`` for example sweep configurations. 
+The framework supports unified parameter sweeps with filtering:
+
+- EI balance studies (excitatory/inhibitory ratios)
+- Architecture exploration (layer sizes, branch factors)
+- Training parameter optimization (learning rates, batch sizes)
+- Noise robustness analysis
+
+Analysis Output
+---------------
+
+The result analyzer generates comprehensive plots:
+
+- Performance vs parameter heatmaps
+- Statistical analysis across seeds
+- Architecture comparisons
+- Information theory analysis (when enabled)
+
+Results are saved in timestamped directories:
+
+.. code-block:: text
+
+   output/sweep_20240101120000/
+   ├── configs/              # Generated configurations
+   ├── analysis/             # Analysis plots and data
+   ├── submit_all_jobs.sh   # Job submission script
+   └── sweep_summary.json   # Sweep metadata
+
+Examples
+--------
+
+See example configurations in ``configs/unified_all_sweeps_example.yaml`` and refer to the sweep manager help:
+
+.. code-block:: bash
+
+   python src/dendritic_modeling/scripts/sweeps/sweep_manager.py --help
+   python src/dendritic_modeling/scripts/sweeps/result_analyzer.py --help
