@@ -27,7 +27,6 @@ from collections import defaultdict
 
 import ecos
 import numpy as np
-from numpy import linalg as LA
 from scipy import sparse
 
 log = math.log2
@@ -278,7 +277,7 @@ class Solve_w_ECOS:
         mysum = 0.0
         for x in self.X:
             for z in self.Z:
-                if not (x, z) in self.b_xz.keys():
+                if (x, z) not in self.b_xz.keys():
                     continue
                 for y in self.Y:
                     if (x, y, z) in self.idx_of_trip.keys():
@@ -304,7 +303,7 @@ class Solve_w_ECOS:
         mysum = 0.0
         for x in self.X:
             for y in self.Y:
-                if not (x, y) in self.b_xy.keys():
+                if (x, y) not in self.b_xy.keys():
                     continue
                 for z in self.Z:
                     if (x, y, z) in self.idx_of_trip.keys():
@@ -329,7 +328,7 @@ class Solve_w_ECOS:
         for x in self.X:
             psum = 0.0
             for y in self.Y:
-                if not (x, y) in self.b_xy:
+                if (x, y) not in self.b_xy:
                     continue
                 for z in self.Z:
                     if (x, y, z) in pdf.keys():
