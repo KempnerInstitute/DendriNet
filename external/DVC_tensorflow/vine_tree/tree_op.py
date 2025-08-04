@@ -11,7 +11,7 @@ from scipy.stats import kendalltau
 
 def optimal_tree(data, data_flip, ind_vine, tr, rand):
     random.seed(9001)
-    V = set(range(0, data.shape[1] - tr))  # {0,1,2,3,4,5}
+    V = set(range(data.shape[1] - tr))  # {0,1,2,3,4,5}
     Q = set()
     edges = []
     weights = []
@@ -463,7 +463,7 @@ def prepare_optimal(d, ind_vine):
 
 def random_tree(vine_depth, ind_vine, tr):
     random.seed(9001)
-    V = set(range(0, vine_depth - tr))  # {0,1,2,3,4,5}
+    V = set(range(vine_depth - tr))  # {0,1,2,3,4,5}
     Q = set()
     edges = []
     weights = []
