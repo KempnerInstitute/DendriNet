@@ -1,0 +1,322 @@
+"""
+Base classes for the unified sweep framework.
+
+This module provides abstract base classes that define the interface
+for different sweep types (EI, branch, noise, general).
+"""
+
+from abc import ABC, abstractmethod
+from typing import Dict, List, Any, Optional
+from pathlib import Path
+import os
+from datetime import datetime
+
+from omegaconf import OmegaConf, DictConfig
+
+
+class BaseSweepGenerator(ABC):
+    """
+    Abstract base class for sweep configuration generators.
+    
+    Each sweep type (EI, branch, noise, general) should inherit from this
+    and implement the required methods.
+    """
+    
+    def __init__(self, sweep_type: str):
+        self.sweep_type = sweep_type
+        self.timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+    
+    @abstractmethod
+    def generate_configs(self, base_config: DictConfig) -> List[DictConfig]:
+        """
+        Generate sweep configurations from base configuration.
+        
+        Args:
+            base_config: Base configuration with sweep parameters
+            
+        Returns:
+            List of configurations for each sweep condition
+        """
+        pass
+    
+    @abstractmethod
+    def validate_config(self, config: DictConfig) -> bool:
+        """
+        Validate that the configuration is valid for this sweep type.
+        
+        Args:
+            config: Configuration to validate
+            
+        Returns:
+            True if valid, raises ValueError if invalid
+        """
+        pass
+    
+    def create_output_directory(self, base_dir: str, prefix: str = None) -> str:
+        """
+        Create timestamped output directory for sweep results.
+        
+        Args:
+            base_dir: Base directory for outputs
+            prefix: Optional prefix for directory name
+            
+        Returns:
+            Path to created output directory
+        """
+        if prefix is None:
+            prefix = self.sweep_type
+        
+        output_dir = os.path.join(base_dir, f"{prefix}_{self.timestamp}")
+        os.makedirs(output_dir, exist_ok=True)
+        
+        # Create standard subdirectories
+        for subdir in ["configs", "results", "plots", "jobs"]:
+            os.makedirs(os.path.join(output_dir, subdir), exist_ok=True)
+        
+        return output_dir
+    
+    def save_configs(self, configs: List[DictConfig], output_dir: str) -> List[str]:
+        """
+        Save generated configurations to files.
+        
+        Args:
+            configs: List of configurations to save
+            output_dir: Directory to save configurations
+            
+        Returns:
+            List of paths to saved configuration files
+        """
+        config_dir = os.path.join(output_dir, "configs")
+        config_paths = []
+        
+        for i, config in enumerate(configs):
+            config_path = os.path.join(config_dir, f"{self.sweep_type}_config_{i}.yaml")
+            OmegaConf.save(config, config_path)
+            config_paths.append(config_path)
+        
+        # Save metadata
+        metadata = {
+            "sweep_type": self.sweep_type,
+            "timestamp": self.timestamp,
+            "num_configs": len(configs),
+            "config_files": [os.path.basename(p) for p in config_paths]
+        }
+        metadata_path = os.path.join(config_dir, "sweep_metadata.yaml")
+        OmegaConf.save(OmegaConf.create(metadata), metadata_path)
+        
+        return config_paths
+
+
+class BaseSweepAnalyzer(ABC):
+    """
+    Abstract base class for sweep result analyzers.
+    """
+    
+    def __init__(self, sweep_type: str):
+        self.sweep_type = sweep_type
+    
+    @abstractmethod
+    def collect_results(self, results_dir: str) -> Dict[str, Any]:
+        """
+        Collect and aggregate results from sweep experiments.
+        
+        Args:
+            results_dir: Directory containing sweep results
+            
+        Returns:
+            Dictionary with aggregated results
+        """
+        pass
+    
+    @abstractmethod
+    def generate_plots(self, results: Dict[str, Any], output_dir: str) -> List[str]:
+        """
+        Generate analysis plots for sweep results.
+        
+        Args:
+            results: Aggregated results from collect_results
+            output_dir: Directory to save plots
+            
+        Returns:
+            List of paths to generated plot files
+        """
+        pass
+    
+    def find_best_configs(self, results: Dict[str, Any], metric: str = "test_acc") -> List[Dict[str, Any]]:
+        """
+        Find the best performing configurations.
+        
+        Args:
+            results: Aggregated results
+            metric: Metric to optimize (default: test_acc)
+            
+        Returns:
+            List of best configurations sorted by performance
+        """
+        # Default implementation - can be overridden by subclasses
+        if "configs" not in results or metric not in results:
+            return []
+        
+        configs_with_scores = []
+        for i, config in enumerate(results["configs"]):
+            if i < len(results[metric]):
+                score = results[metric][i]
+                configs_with_scores.append({
+                    "config": config,
+                    "score": score,
+                    "config_id": i
+                })
+        
+        # Sort by score (descending for accuracy, may need to adjust for loss)
+        configs_with_scores.sort(key=lambda x: x["score"], reverse=True)
+        return configs_with_scores[:10]  # Return top 10
+    
+    def generate_summary_report(self, results: Dict[str, Any], output_dir: str) -> str:
+        """
+        Generate a summary report of sweep results.
+        
+        Args:
+            results: Aggregated results
+            output_dir: Directory to save report
+            
+        Returns:
+            Path to generated report file
+        """
+        report_path = os.path.join(output_dir, "plots", f"{self.sweep_type}_sweep_summary.txt")
+        
+        with open(report_path, "w") as f:
+            f.write(f"{self.sweep_type.upper()} Sweep Summary Report\n")
+            f.write("=" * 50 + "\n\n")
+            f.write(f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+            f.write(f"Sweep type: {self.sweep_type}\n\n")
+            
+            if "configs" in results:
+                f.write(f"Total configurations: {len(results['configs'])}\n")
+            
+            # Find best configs if possible
+            try:
+                best_configs = self.find_best_configs(results)
+                if best_configs:
+                    f.write(f"\nTop 5 configurations:\n")
+                    f.write("-" * 30 + "\n")
+                    for i, config_info in enumerate(best_configs[:5]):
+                        f.write(f"{i+1}. Score: {config_info['score']:.4f} "
+                               f"(Config ID: {config_info['config_id']})\n")
+            except Exception as e:
+                f.write(f"\nCould not determine best configurations: {e}\n")
+        
+        return report_path
+
+
+class SweepJobManager:
+    """
+    Manages SLURM job creation and submission for sweeps.
+    """
+    
+    def __init__(self, slurm_config: DictConfig):
+        self.slurm_config = slurm_config
+    
+    def create_job_scripts(self, config_paths: List[str], output_dir: str, 
+                          split_jobs: Optional[int] = None) -> List[str]:
+        """
+        Create SLURM job scripts for sweep configurations.
+        
+        Args:
+            config_paths: List of configuration file paths
+            output_dir: Output directory for sweep
+            split_jobs: Number of jobs to split into (None for single job)
+            
+        Returns:
+            List of paths to created job scripts
+        """
+        jobs_dir = os.path.join(output_dir, "jobs")
+        job_scripts = []
+        
+        if split_jobs is None or split_jobs <= 1:
+            # Single job script
+            script_path = os.path.join(jobs_dir, "run_sweep.sh")
+            self._create_single_job_script(script_path, config_paths, output_dir)
+            job_scripts.append(script_path)
+        else:
+            # Split into multiple jobs
+            configs_per_job = max(1, len(config_paths) // split_jobs)
+            
+            for i in range(split_jobs):
+                start_idx = i * configs_per_job
+                end_idx = min((i + 1) * configs_per_job, len(config_paths))
+                
+                if start_idx >= len(config_paths):
+                    break
+                
+                job_configs = config_paths[start_idx:end_idx]
+                script_path = os.path.join(jobs_dir, f"run_sweep_{i}.sh")
+                self._create_single_job_script(script_path, job_configs, output_dir)
+                job_scripts.append(script_path)
+        
+        # Create main submission script
+        main_script = self._create_main_submission_script(job_scripts, output_dir)
+        
+        return job_scripts + [main_script]
+    
+    def _create_single_job_script(self, script_path: str, config_paths: List[str], 
+                                output_dir: str):
+        """Create a single SLURM job script."""
+        with open(script_path, "w") as f:
+            f.write("#!/bin/bash\n")
+            f.write(f"#SBATCH --job-name={self.slurm_config.get('job_name', 'sweep')}\n")
+            f.write(f"#SBATCH --account={self.slurm_config.get('account', 'kempner_dev')}\n")
+            f.write(f"#SBATCH --partition={self.slurm_config.get('partition', 'kempner')}\n")
+            f.write(f"#SBATCH --time={self.slurm_config.get('time', '02:00:00')}\n")
+            f.write(f"#SBATCH --nodes={self.slurm_config.get('nodes', 1)}\n")
+            f.write(f"#SBATCH --ntasks-per-node={self.slurm_config.get('ntasks_per_node', 1)}\n")
+            f.write(f"#SBATCH --gpus-per-node={self.slurm_config.get('gpus_per_node', 1)}\n")
+            f.write(f"#SBATCH --cpus-per-task={self.slurm_config.get('cpus_per_task', 4)}\n")
+            f.write(f"#SBATCH --mem={self.slurm_config.get('mem', '32G')}\n")
+            f.write(f"#SBATCH --output={output_dir}/jobs/%j.out\n")
+            f.write(f"#SBATCH --error={output_dir}/jobs/%j.err\n\n")
+            
+            # Load modules
+            modules = self.slurm_config.get('modules_to_load', [])
+            for module in modules:
+                f.write(f"module load {module}\n")
+            
+            # Activate conda environment
+            conda_env = self.slurm_config.get('conda_env_path')
+            if conda_env:
+                f.write(f"source activate {conda_env}\n")
+            
+            f.write("\n# Run experiments\n")
+            
+            # Training script
+            training_script = self.slurm_config.get('training_script', 
+                                                  'src/dendritic_modeling/scripts/train_experiments.py')
+            
+            for config_path in config_paths:
+                rel_config_path = os.path.relpath(config_path, os.getcwd())
+                f.write(f"python {training_script} {rel_config_path}\n")
+        
+        # Make executable
+        os.chmod(script_path, 0o755)
+    
+    def _create_main_submission_script(self, job_scripts: List[str], output_dir: str) -> str:
+        """Create main script to submit all jobs."""
+        main_script = os.path.join(output_dir, "submit_all_jobs.sh")
+        
+        with open(main_script, "w") as f:
+            f.write("#!/bin/bash\n")
+            f.write("# Main script to submit all sweep jobs\n\n")
+            f.write(f"# Sweep output directory: {output_dir}\n\n")
+            
+            f.write("echo \"Submitting sweep jobs...\"\n")
+            for script in job_scripts:
+                if script.endswith("submit_all_jobs.sh"):
+                    continue  # Skip self
+                rel_script = os.path.relpath(script, os.getcwd())
+                f.write(f"echo \"Submitting {rel_script}\"\n")
+                f.write(f"sbatch {rel_script}\n")
+                f.write("sleep 2  # Brief delay between submissions\n")
+            
+            f.write("\necho \"All jobs submitted. Check status with: squeue -u $USER\"\n")
+        
+        os.chmod(main_script, 0o755)
+        return main_script 
