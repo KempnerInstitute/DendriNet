@@ -1,0 +1,96 @@
+# dendrinet_simulation_config.yaml
+# Configuration for dendrinet simulation experiments with array job support
+#
+# NEW APPROACH: This configuration uses a two-level parameter sweep:
+# 1. ARRAY JOB LEVEL: Parameters N_E, N_I, and rho create separate array jobs
+# 2. WITHIN-JOB LEVEL: Each job loops internally over correlation_combos and group_combos
+#
+# This reduces the number of array jobs significantly while still exploring
+# the full parameter space.
+
+# SLURM configuration
+slurm_config:
+  account: kempner_dev
+  run_name: dendrinet_sim
+  output_dir: /n/holylabs/LABS/kempner_dev/Users/hsafaai/results/dendritic-modeling/outputs
+  create_subdir_with_timestamp: true
+  subdir_prefix: "dendrinet_"
+  run_subfolders:
+    - configs
+    - results
+    - plots
+  nodes: 1
+  ntasks_per_node: 1
+  gpus_per_node: 1
+  cpus_per_task: 10
+  time: "1:00:00"  # Format: HH:MM:SS (1 hour)
+  mem: "200GB"
+  partition: kempner_eng
+  max_concurrent_jobs: 32
+  modules_to_load:
+    - python/3.12.5-fasrc01
+    - cuda/12.4.1-fasrc01
+    - cudnn/8.9.2.26_cuda12-fasrc01
+  conda_env_path: /n/home13/hsafaai/.conda/envs/dendritic_env
+  simulation_script: scripts/simulate_dendrinet_array.py
+  config_filename_init: dendrinet_sim_config
+
+# Experiment settings
+experiment_settings:
+  seeds_per_condition: 5
+  base_seed: 42
+
+# Base simulation parameters - default values that will be used
+# unless overridden in the sweep_config
+simulation_params:
+  D: 100  # Feature dimensions
+  C: 5   # Number of classes
+  N_E: 10  # Number of excitatory dimensions
+  N_I: 5   # Number of inhibitory dimensions
+  rho: 0.1  # Correlation parameter
+  max_iter: 100  # Maximum iterations for fitting
+  apply_sigmoid: true  # Whether to apply sigmoid to inputs
+  num_samples: 2000  # Number of samples to generate
+  model_types: ["shunting", "linear"]  # Models to train
+
+  # ===== WITHIN-JOB LOOP PARAMETERS =====
+  # These parameters are looped over WITHIN each array job
+  # Each job processes all combinations of these parameters
+
+  # Correlation combinations (cEE, cII, cEI)
+  # Each entry is a list of 3 values representing [cEE, cII, cEI]
+  correlation_combos:
+    - [-0.02, -0.02, -0.02]
+    - [-0.02, 0.0, 0.02]
+    - [0.0, -0.02, 0.02]
+    - [0.0, 0.0, 0.0]
+    - [0.0, 0.02, -0.02]
+    - [0.02, 0.0, -0.02]
+    - [0.02, 0.02, 0.02]
+
+  # Information group assignments (E_group, I_group)
+  # Each group is one of: 0 (no info), 1 (medium info), or 2 (high info)
+  group_combos:
+    - [0, 0]  # Both E and I from no-info group
+    - [0, 1]  # E from no-info, I from medium-info
+    - [0, 2]  # E from no-info, I from high-info
+    - [1, 0]  # E from medium-info, I from no-info
+    - [1, 1]  # Both E and I from medium-info
+    - [1, 2]  # E from medium-info, I from high-info
+    - [2, 0]  # E from high-info, I from no-info
+    - [2, 1]  # E from high-info, I from medium-info
+    - [2, 2]  # Both E and I from high-info
+
+# Parameters to sweep over
+sweep_config:
+  # ===== ARRAY JOB LEVEL PARAMETERS =====
+  # These parameters create separate array jobs (each combination = one job)
+  # You can use either arrays or ranges for parameters
+  # Format for ranges: [start, end, step]
+  N_E: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30]  # Each value creates a separate array job
+  N_I: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30]    # Each value creates a separate array job
+  rho: [-0.02, 0, 0.02]  # Each value creates a separate array job
+
+
+# python scripts/generate_dendrinet_sweep.py configs/dendrinet_simulation_config.yaml
+# python scripts/simulate_dendrinet_array.py configs/dendrinet_simulation_config.yaml

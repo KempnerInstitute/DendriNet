@@ -1,6 +1,6 @@
 import tensorflow as tf
 from param.margin_pdf import *
-from utils.tensor_op import replace_inf_with, replace_nan_with
+from utils.tensor_op import replace_inf_with, replace_nan_inf, replace_nan_with
 
 ############################################ GAUSSIAN COST FUNCTION  ######################################
 

@@ -500,6 +500,366 @@ The ``VarianceTopKLinear`` class implements a variant of TopKLinear that selects
             """
             # Implementation details...
 
+Analysis and Evaluation Tools
+---------------------------
+
+The framework includes comprehensive analysis tools for evaluating model performance and understanding dendritic computation.
+
+AnalysisManager
+~~~~~~~~~~~~~
+
+The ``AnalysisManager`` coordinates various analysis tasks:
+
+.. code-block:: python
+
+    class AnalysisManager:
+        """
+        Centralized manager for running various types of analysis on models.
+        
+        This class coordinates performance analysis, ablation studies, information
+        analysis, and other evaluation tasks.
+        
+        Parameters
+        ----------
+        output_dir : str
+            Directory for saving analysis results
+        save_format : str
+            Format for saving results ('json', 'csv', 'pkl')
+        """
+        
+        def run_full_analysis(self, model, dataset, config):
+            """
+            Run comprehensive analysis suite on a trained model.
+            
+            Parameters
+            ----------
+            model : torch.nn.Module
+                Trained model to analyze
+            dataset : Dataset
+                Dataset for evaluation
+            config : dict
+                Analysis configuration
+                
+            Returns
+            -------
+            dict
+                Analysis results
+            """
+            # Implementation details...
+
+PerformanceAnalyzer
+~~~~~~~~~~~~~~~~
+
+Analyzes model performance metrics:
+
+.. code-block:: python
+
+    class PerformanceAnalyzer:
+        """
+        Analyzer for model performance metrics including accuracy, loss, and timing.
+        
+        Provides comprehensive performance evaluation with statistical analysis
+        and visualization capabilities.
+        """
+        
+        def analyze_accuracy(self, model, dataset):
+            """Analyze model accuracy across different conditions."""
+            pass
+            
+        def analyze_confusion_matrix(self, model, dataset):
+            """Generate and analyze confusion matrix."""
+            pass
+            
+        def benchmark_inference_time(self, model, input_shapes):
+            """Benchmark model inference time."""
+            pass
+
+AblationAnalyzer
+~~~~~~~~~~~~~~
+
+Performs ablation studies on dendritic components:
+
+.. code-block:: python
+
+    class AblationAnalyzer:
+        """
+        Analyzer for conducting ablation studies on dendritic networks.
+        
+        Tests the impact of disabling different components (branches, layers,
+        connections) on model performance.
+        """
+        
+        def ablate_branches(self, model, dataset, branch_indices):
+            """Ablate specific dendritic branches."""
+            pass
+            
+        def ablate_layers(self, model, dataset, layer_indices):
+            """Ablate entire layers."""
+            pass
+            
+        def systematic_ablation(self, model, dataset):
+            """Run systematic ablation across all components."""
+            pass
+
+BranchInformationAnalyzer
+~~~~~~~~~~~~~~~~~~~~~~
+
+Analyzes information processing in dendritic branches:
+
+.. code-block:: python
+
+    class BranchInformationAnalyzer:
+        """
+        Analyzer for studying information flow and processing in dendritic branches.
+        
+        Examines how information is distributed, processed, and integrated
+        across different branches and layers.
+        """
+        
+        def analyze_branch_activations(self, model, dataset):
+            """Analyze activation patterns across branches."""
+            pass
+            
+        def compute_branch_mutual_information(self, model, dataset):
+            """Compute mutual information between branches and targets."""
+            pass
+            
+        def analyze_branch_specialization(self, model, dataset):
+            """Analyze how branches specialize for different inputs."""
+            pass
+
+Training Strategies
+-----------------
+
+The framework supports multiple training strategies optimized for dendritic networks.
+
+TrainerMLE
+~~~~~~~~
+
+Maximum Likelihood Estimation trainer:
+
+.. code-block:: python
+
+    class TrainerMLE:
+        """
+        Trainer using Maximum Likelihood Estimation.
+        
+        Standard end-to-end training approach suitable for most dendritic
+        network architectures.
+        
+        Parameters
+        ----------
+        optimizer : torch.optim.Optimizer
+            Optimizer for parameter updates
+        criterion : torch.nn.Module, optional
+            Loss function (defaults to CrossEntropyLoss)
+        """
+        
+        def train(self, model, train_data, valid_data, epochs, **kwargs):
+            """
+            Train model using MLE approach.
+            
+            Parameters
+            ----------
+            model : torch.nn.Module
+                Model to train
+            train_data : Dataset
+                Training dataset
+            valid_data : Dataset
+                Validation dataset
+            epochs : int
+                Number of training epochs
+                
+            Returns
+            -------
+            dict
+                Training results and metrics
+            """
+            # Implementation details...
+
+TwoStepTrainer
+~~~~~~~~~~~~
+
+Two-step training for dendritic networks:
+
+.. code-block:: python
+
+    class TwoStepTrainer:
+        """
+        Two-step training strategy for dendritic networks.
+        
+        First pretrains dendritic components, then fine-tunes the entire network.
+        Useful for complex architectures or when standard training fails.
+        """
+        
+        def pretrain_dendrites(self, model, data, epochs):
+            """Pretrain dendritic components."""
+            pass
+            
+        def finetune_network(self, model, data, epochs):
+            """Fine-tune entire network."""
+            pass
+
+Dataset Utilities
+---------------
+
+Comprehensive dataset loading and preprocessing utilities.
+
+Synthetic Datasets
+~~~~~~~~~~~~~~~~
+
+.. code-block:: python
+
+    def load_line_orientation_dataset(n_samples=1000, **kwargs):
+        """
+        Load line orientation classification dataset.
+        
+        Tests the ability to discriminate between different line orientations,
+        a classic test of spatial pattern recognition.
+        """
+        pass
+    
+    def load_xor_dataset(n_samples=1000, noise_level=0.1, **kwargs):
+        """
+        Load XOR dataset for testing nonlinear separation capabilities.
+        """
+        pass
+    
+    def load_center_surround_dataset(n_samples=1000, **kwargs):
+        """
+        Load center-surround pattern recognition dataset.
+        
+        Tests spatial pattern recognition similar to retinal processing.
+        """
+        pass
+
+Real Datasets
+~~~~~~~~~~~
+
+.. code-block:: python
+
+    def load_mnist_as_datasets(data_path="", train_valid_split=0.8, **kwargs):
+        """
+        Load MNIST dataset with train/validation split.
+        
+        Returns
+        -------
+        tuple
+            (train_dataset, valid_dataset, test_dataset)
+        """
+        pass
+    
+    def load_cifar10_as_datasets(data_path="", train_valid_split=0.8, **kwargs):
+        """Load CIFAR-10 dataset with train/validation split."""
+        pass
+
+Visualization Tools
+-----------------
+
+Comprehensive plotting and visualization utilities.
+
+Network Visualization
+~~~~~~~~~~~~~~~~~~
+
+.. code-block:: python
+
+    def plot_network_architecture(model, save_path=None):
+        """
+        Visualize dendritic network architecture.
+        
+        Creates a graph representation showing the structure of dendritic
+        branches, connections, and data flow.
+        """
+        pass
+    
+    def plot_branch_connectivity(model, layer_idx=0, save_path=None):
+        """Plot connectivity patterns in dendritic branches."""
+        pass
+
+Training Visualization
+~~~~~~~~~~~~~~~~~~~
+
+.. code-block:: python
+
+    def plot_training_curves(training_results, save_path=None):
+        """Plot training and validation curves."""
+        pass
+    
+    def plot_learning_rate_schedule(optimizer_history, save_path=None):
+        """Plot learning rate schedule over training."""
+        pass
+
+Analysis Visualization
+~~~~~~~~~~~~~~~~~~~
+
+.. code-block:: python
+
+    def plot_ablation_results(ablation_results, save_path=None):
+        """Visualize ablation study results."""
+        pass
+    
+    def plot_branch_activations(activations, save_path=None):
+        """Plot branch activation patterns."""
+        pass
+    
+    def plot_confusion_matrix(y_true, y_pred, class_names=None, save_path=None):
+        """Plot confusion matrix with customizable styling."""
+        pass
+
+Configuration System
+------------------
+
+The framework uses a sophisticated configuration system based on OmegaConf for experiment management.
+
+Configuration Classes
+~~~~~~~~~~~~~~~~~~~
+
+.. code-block:: python
+
+    @dataclass
+    class EINetParameters:
+        """Configuration for ExcitationInhibition network parameters."""
+        input_dim: int
+        excitatory_layer_sizes: List[int]
+        inhibitory_layer_sizes: List[int]
+        output_dim: int = 10
+        # ... additional parameters
+    
+    @dataclass
+    class TrainingConfig:
+        """Training configuration parameters."""
+        learning_strategy: str = "mle"
+        lr: float = 0.001
+        epochs: int = 20
+        batch_size: int = 64
+        # ... additional parameters
+    
+    @dataclass
+    class ExperimentConfig:
+        """Top-level experiment configuration."""
+        model: ModelConfig
+        train: TrainingConfig
+        task: TaskConfig
+        outputs: OutputConfig
+
+Usage Examples
+~~~~~~~~~~~~
+
+.. code-block:: python
+
+    # Load configuration from YAML
+    config = load_config("experiment_config.yaml")
+    
+    # Create model from config
+    model = create_model_from_config(config.model)
+    
+    # Run training
+    trainer = create_trainer_from_config(config.train)
+    results = trainer.train(model, datasets, **config.train)
+
+For complete API documentation with all parameters and methods, see the auto-generated documentation in the following sections.
+            # Implementation details...
+
         def weight_mask(self):
             """
             Select TopK connections based on a combination of:

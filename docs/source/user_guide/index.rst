@@ -1,15 +1,29 @@
 User Guide
 ==========
 
-.. toctree::
-   :maxdepth: 2
-   :caption: Contents:
+This user guide covers practical workflows—dataset prep, experiment configuration, and result analysis.  Conceptual explanations now live in :doc:`../core_concepts/index`.
 
-   concepts
-   configuration
-   config_yaml_guide
-   interactive_run
-   train_experiments_guide
-   experiment_tracking
-   ei_sweep_guide
-   cifar10_tutorial
+.. toctree::
+   :maxdepth: 1
+   :caption: User Guide Contents
+
+   getting_started
+   architecture_and_models
+   training_and_configuration
+   analysis_and_visualization
+   information_analysis_guide
+
+Overview
+--------
+
+Skip the biology and jump straight into hands-on usage.  If you need a refresher on the underlying neuron model or synaptic sparsity, see :doc:`../core_concepts/index`.
+
+Sections
+~~~~~~~~
+* **Getting Started** – Installation shortcuts, dataset download helpers, minimal scripts.
+* **Architecture & Models** – Factory APIs, pre-defined templates, conversion tools.
+* **Training & Configuration** – YAML schema, branch-wise vs. joint training, WandB integration.
+* **Analysis & Visualisation** – Information-theoretic metrics, layer ablations, plotting utilities.
+* **Information Analysis Guide** – Comprehensive guide to information-theoretic analysis of EI networks.
+
+Quick Reference snippets and configuration examples remain in their respective sub-pages to avoid duplication.

@@ -1,196 +1,115 @@
-
-
-<p align="center">
-  <a href="https://github.com/KempnerInstitute/dendritic_modeling/actions/workflows/deploy-docs.yml">
-    <img src="https://github.com/KempnerInstitute/dendritic_modeling/actions/workflows/deploy-docs.yml/badge.svg?branch=develop" alt="docs">
-  </a>
-  <a href="https://github.com/KempnerInstitute/dendritic_modeling/actions/workflows/python-package.yml">
-    <img src="https://github.com/KempnerInstitute/dendritic_modeling/actions/workflows/python-package.yml/badge.svg" alt="tests">
-  </a>
-  <a href="https://codecov.io/gh/KempnerInstitute/dendritic-modeling" >
- <img src="https://codecov.io/gh/KempnerInstitute/dendritic-modeling/graph/badge.svg?token=HUJRFX92DF"/>
- </a>
-</p>
-
 # Dendritic Modeling Framework
 
-This Python package introduces a novel approach to artificial neural networks by emulating dendritic computation through the encoding of dendrite morphology into the network architecture. Inspired by the complexity and efficiency of biological neurons, our models aim to enhance traditional neural network architectures by incorporating dendrite-like structures.
+<p align="center">
+  <a href="https://github.com/KempnerInstitute/dendritic_modeling/actions/workflows/ci.yml">
+    <img src="https://github.com/KempnerInstitute/dendritic_modeling/actions/workflows/ci.yml/badge.svg" alt="CI">
+  </a>
+  <a href="https://codecov.io/gh/KempnerInstitute/dendritic-modeling">
+    <img src="https://codecov.io/gh/KempnerInstitute/dendritic-modeling/graph/badge.svg?token=HUJRFX92DF" alt="Coverage"/>
+ </a>
+  <img src="https://img.shields.io/badge/Python-29,692%20lines-blue" alt="Lines of Code">
+  <img src="https://img.shields.io/badge/Code%20Quality-Optimized-green" alt="Code Quality">
+</p>
 
-## Key Features
+<p align="center">
+  <img src="docs/_static/dendritic_diagram.png" alt="Dendritic Neural Network Architecture" width="600">
+</p>
 
-- **Dendrite-Inspired Neural Networks**: Implementations of neural networks that simulate the functionality and structure of dendrites, enabling more complex and nuanced information processing.
-- **Customizable Morphologies**: Users can define and experiment with various dendritic morphologies, allowing for the exploration of different computational properties and their impact on learning and performance.
-- **Integration with Existing Frameworks**: Seamlessly integrate with popular deep learning frameworks, making it easy to incorporate into existing projects and workflows.
-- **Extensive Documentation and Examples**: Comprehensive documentation and a collection of examples to help users get started quickly and explore the capabilities of the package.
+A comprehensive framework for modeling dendritic neural networks with biologically-inspired excitation-inhibition dynamics, sophisticated synaptic processing, and advanced training capabilities including pruning, regularization, and synaptic turnover analysis.
 
-## Getting Started
-
-The fastest way to get started is to run an experiment using our configuration-based approach:
+## Installation
 
 ```bash
-# Install the package
+# 1. Clone the repository
+git clone https://github.com/KempnerInstitute/dendritic-modeling.git
+cd dendritic-modeling
+
+# 2. Create conda environment
+conda env create -f environment.yml
+conda activate dendritic_env
+
+# 3. Install the package
 pip install -e .
-
-# Create a simple configuration file (examples in configs/)
-# Run an experiment
-python src/dendritic_modeling/train_experiments.py configs/config_exp.yaml
 ```
 
-For a step-by-step guide, check out our [Quickstart Documentation](https://kempnerinstitute.github.io/dendritic-modeling/getting_started/quickstart.html).
+## Quick Start
 
-## Running Experiments
+### Training
 
-The primary way to run experiments with this framework is through the configuration-based approach:
-
-1. Create a YAML configuration file defining your model architecture, training parameters, and dataset
-2. Run the experiment using the `train_experiments.py` script
-3. Analyze the results with the visualization and analysis tools
-
-Example configuration:
-
-```yaml
-model:
-  task: classification
-  network:
-    type: EINet
-    parameters:
-      input_dim: 784
-      excitatory_layer_sizes: [512, 256]
-      # ... other parameters
-
-train:
-  learning_strategy: mle
-  epochs: 20
-  batch_size: 64
-
-task:
-  dataset: mnist
-```
-
-For detailed documentation on all configuration options and examples, see the [Documentation](https://kempnerinstitute.github.io/dendritic-modeling/index.html).
-
-## Setting Up a Mamba Virtual Environment
-To ensure a consistent and isolated development environment, we recommend using Mamba for managing dependencies. Follow the steps below to set up a Mamba virtual environment for this project:
-
-### Install Mamba
-If you haven't installed Mamba yet, you can do so by using Conda:
-
-```sh
-    conda install mamba -n base -c conda-forge
-```
-
-### Create a Mamba Environment
-Create a new Mamba environment with the desired Python version:
-
-```sh
-    mamba create -n <myvenv>
-```
-### Activate the Environment
-Activate the newly created environment:
-
-```sh
-    mamba activate <myvenv>
-```
-
-### Install the Package
-
-```sh
-    pip install .
-```
-
-If you want to install the package in development mode, use the following command:
-
-```sh
-    pip install -e .
-```
-
-
-## Generating Documentation Locally
-
-To generate the documentation locally, you can use the following command:
-
-```sh
-    pip install -e '.[docs]'
-    cd docs
-    make html
-    open _build/html/index.html
-```
-
-## Running Tests
-
-To run the tests, you can use the following command:
-
-```sh
-    pip install -e '.[dev]'
-    pytest
-```
-
-To run the tests with coverage, you can use the following command:
-
-```sh
-    pytest --cov=dendritic_modeling --cov-report=html
-    open htmlcov/index.html
-```
-
-## Running on Kempner Cluster GPUs
-
-The steps for running the package on the Kempner cluster GPU are similar to the previous instructions; however, you must ensure that compatible modules are loaded.
-
-```sh
-module load python/3.12.5-fasrc01
-module load cuda/12.4.1-fasrc01
-module load cudnn/8.9.2.26_cuda12-fasrc01
-```
-
-## E-I Sweep Filtering
-
-The `generate_ei_sweep.py` script now supports filtering E-I combinations based on specific constraints:
-
-### Available Filtering Modes
-
-- `all`: Generate all E-I combinations (default)
-- `ei-sum`: Only include combinations where E+I equals a constant (E+I=K)
-- `e-const`: Only include combinations with a specific constant E value
-- `i-const`: Only include combinations with a specific constant I value
-- `ei-ratio`: Only include combinations where E/I approximates a constant ratio
-
-### Compare EINet vs MLP Using `use_shunting`
-
-You can now specify `"MLP"` as a value for `model.network.parameters.use_shunting` in the sweep configuration to create MLP networks alongside EINet models in the same sweep:
-
-```yaml
-sweep_config:
-  model.network.parameters.ee_synapses_per_branch_per_layer: [
-    [1], [6], [11], [16], [21], [26]
-  ]
-  model.network.parameters.ie_synapses_per_branch_per_layer: [
-    [1], [6], [11], [16], [21], [26]
-  ]
-  model.network.parameters.use_shunting: [true, false, "MLP"]  # "MLP" creates MLP networks
-```
-
-This configuration will:
-- Generate configs with EINet models and `use_shunting=true`
-- Generate configs with EINet models and `use_shunting=false`
-- Generate configs with standard MLP models (`model.network.type="MLP"`)
-
-When using the `"MLP"` option, the specified `ee_synapses_per_branch_per_layer` and `ie_synapses_per_branch_per_layer` values from the sweep will be used to define the MLP's structure/parameters. This enables direct comparison between EINet and MLP models with equivalent parameter counts.
-
-### Usage Examples
+Run a simple training experiment:
 
 ```bash
-# Generate only combinations where E+I=52
-python scripts/generate_ei_sweep.py configs/sweep_params_seeds_ei.yaml --filter-mode ei-sum --filter-value 52
-
-# Generate only combinations where E=26
-python scripts/generate_ei_sweep.py configs/sweep_params_seeds_ei.yaml --filter-mode e-const --filter-value 26
-
-# Generate only combinations where I=26
-python scripts/generate_ei_sweep.py configs/sweep_params_seeds_ei.yaml --filter-mode i-const --filter-value 26
-
-# Generate only combinations where E/I ratio is approximately 2 (with default tolerance of 0.1)
-python scripts/generate_ei_sweep.py configs/sweep_params_seeds_ei.yaml --filter-mode ei-ratio --filter-value 2
-
-# Generate only combinations where E/I ratio is approximately 2 with a custom tolerance of 0.2
-python scripts/generate_ei_sweep.py configs/sweep_params_seeds_ei.yaml --filter-mode ei-ratio --filter-value 2 --filter-tolerance 0.2
+python src/dendritic_modeling/scripts/training/train_experiments.py configs/config_exp.yaml
 ```
+
+Use FSDP for large models with automatic GPU allocation:
+
+```bash
+# Auto-configured multi-node FSDP training (default behavior)
+python src/dendritic_modeling/scripts/tools/submit_fsdp_job.py configs/config_exp_fsdp.yaml
+
+# Manual generation only
+python src/dendritic_modeling/scripts/tools/submit_fsdp_job.py configs/config_exp_fsdp.yaml --generate-only
+```
+
+Use advanced training with pruning, regularization, and synaptic analysis:
+
+```bash
+# Edit config_exp.yaml and set:
+# train.main.learning_strategy: enhanced
+# train.main.pruning.enabled: true
+# analysis.synapse_turnover_analysis.synaptic_analysis: true
+
+python src/dendritic_modeling/scripts/training/train_experiments.py configs/config_exp.yaml
+```
+
+Enhanced features include:
+- Automatic GPU allocation with optimal node distribution
+- Multi-node distributed training with improved synchronization
+- Multiple optimizers (Adam, SGD, RMSprop, AdamW)
+- L1/L2 regularization with selective application
+- Weight pruning with magnitude thresholds
+- Synaptic turnover analysis with active synapse tracking
+- Advanced reporting with branch-level statistics
+
+See [ENHANCED_TRAINING_GUIDE.md](ENHANCED_TRAINING_GUIDE.md) for detailed usage and [VALIDATION_AND_FSDP_GUIDE.md](VALIDATION_AND_FSDP_GUIDE.md) for validation and FSDP configuration.
+
+## Parameter Sweeps & Analysis
+
+Run comprehensive parameter sweeps with automatic analysis:
+
+```bash
+# 1. Run a sweep (E/I balance + architecture combinations - default behavior)
+python src/dendritic_modeling/scripts/sweeps/sweep_manager.py \
+    --config configs/unified_all_sweeps_example.yaml
+
+# 2. Analyze results (generates 65+ plots)
+python src/dendritic_modeling/scripts/sweeps/result_analyzer.py \
+    --results-dir results/unified_20250101120000 --auto-detect
+```
+
+Generates comprehensive analysis:
+- Performance trends vs E/I ratios
+- Dendritic architecture comparisons  
+- Noise robustness analysis
+- Layer-specific information theory analysis (I(E;C), I(I;E|C), etc.)
+
+See [`src/dendritic_modeling/scripts/sweeps/README.md`](src/dendritic_modeling/scripts/sweeps/README.md) for details.
+
+## Documentation
+
+For detailed usage, configuration options, and advanced features, see the [full documentation](docs/index.html).
+
+## Core Components
+
+- Models: Classifier and Regressor with encoder-core-decoder architecture
+- Networks: EINet (excitation-inhibition), DendriNet (dendritic branching), and classical networks
+- Training: Standard & enhanced training, auto-scaling FSDP for large models, pruning, regularization
+- Validation: Unified configuration validation with model architecture and training stability checks
+- GPU Estimation: Automatic resource allocation with A100/H100 optimization and optimal node distribution
+- Analysis: Information theory, synaptic turnover, correlation studies, and 65+ visualization plots
+- Sweeps: Automated parameter exploration with intelligent result analysis
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

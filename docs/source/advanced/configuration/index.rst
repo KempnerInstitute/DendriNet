@@ -138,20 +138,20 @@ To run an experiment using a configuration file:
 
 .. code-block:: bash
 
-    python src/dendritic_modeling/train_experiments.py path/to/config.yaml
+    python src/dendritic_modeling/scripts/train_experiments.py path/to/config.yaml
 
 You can override configuration values from the command line:
 
 .. code-block:: bash
 
     # Override learning rate
-    python src/dendritic_modeling/train_experiments.py config.yaml --train.lr 0.0001
+    python src/dendritic_modeling/scripts/train_experiments.py config.yaml --train.lr 0.0001
 
     # Change dataset
-    python src/dendritic_modeling/train_experiments.py config.yaml --task.dataset cifar10
+    python src/dendritic_modeling/scripts/train_experiments.py config.yaml --task.dataset cifar10
 
     # Enable visualization
-    python src/dendritic_modeling/train_experiments.py config.yaml --visualization.enabled true
+    python src/dendritic_modeling/scripts/train_experiments.py config.yaml --visualization.enabled true
 
 Configuration Templates
 ----------------------
