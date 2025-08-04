@@ -17,7 +17,6 @@
       <script src="_static/doctools.js?v=9bcbadda"></script>
       <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
     <script src="_static/js/theme.js"></script>
-    <link rel="author" title="About these documents" href="about.html" />
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" /> 
 </head>
@@ -74,40 +73,27 @@
              
   <section id="contributing-guide">
 <h1>Contributing Guide<a class="headerlink" href="#contributing-guide" title="Link to this heading"></a></h1>
-<p>Thank you for your interest in contributing to the Dendritic Modeling Framework! This guide will help you get started with contributing code, documentation, examples, or ideas.</p>
-<section id="code-of-conduct">
-<h2>Code of Conduct<a class="headerlink" href="#code-of-conduct" title="Link to this heading"></a></h2>
-<p>We are committed to providing a welcoming and inclusive environment. All contributors are expected to adhere to our Code of Conduct:</p>
-<ul class="simple">
-<li><p>Be respectful and inclusive</p></li>
-<li><p>Welcome newcomers and help them get started</p></li>
-<li><p>Focus on constructive criticism</p></li>
-<li><p>Respect differing viewpoints and experiences</p></li>
-</ul>
-</section>
-<section id="getting-started">
-<h2>Getting Started<a class="headerlink" href="#getting-started" title="Link to this heading"></a></h2>
-<section id="setting-up-development-environment">
-<h3>Setting Up Development Environment<a class="headerlink" href="#setting-up-development-environment" title="Link to this heading"></a></h3>
+<section id="development-setup">
+<h2>Development Setup<a class="headerlink" href="#development-setup" title="Link to this heading"></a></h2>
 <ol class="arabic">
-<li><p><strong>Fork and clone the repository</strong>:</p>
+<li><p>Fork and clone the repository:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/yourusername/dendritic-modeling.git
 <span class="nb">cd</span><span class="w"> </span>dendritic-modeling
 </pre></div>
 </div>
 </li>
-<li><p><strong>Create a virtual environment</strong>:</p>
+<li><p>Create a virtual environment:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>venv<span class="w"> </span>venv
-<span class="nb">source</span><span class="w"> </span>venv/bin/activate<span class="w">  </span><span class="c1"># On Windows: venv\Scripts\activate</span>
+<span class="nb">source</span><span class="w"> </span>venv/bin/activate
 </pre></div>
 </div>
 </li>
-<li><p><strong>Install in development mode</strong>:</p>
+<li><p>Install in development mode:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span><span class="s2">&quot;.[dev]&quot;</span>
 </pre></div>
 </div>
 </li>
-<li><p><strong>Install pre-commit hooks</strong>:</p>
+<li><p>Install pre-commit hooks:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pre-commit<span class="w"> </span>install
 </pre></div>
 </div>
@@ -115,62 +101,45 @@
 </ol>
 </section>
 <section id="development-workflow">
-<h3>Development Workflow<a class="headerlink" href="#development-workflow" title="Link to this heading"></a></h3>
+<h2>Development Workflow<a class="headerlink" href="#development-workflow" title="Link to this heading"></a></h2>
 <ol class="arabic">
-<li><p><strong>Create a feature branch</strong>:</p>
+<li><p>Create a feature branch:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>checkout<span class="w"> </span>-b<span class="w"> </span>feature/your-feature-name
 </pre></div>
 </div>
 </li>
-<li><p><strong>Make your changes</strong></p></li>
-<li><p><strong>Run tests</strong>:</p>
+<li><p>Make your changes</p></li>
+<li><p>Run tests:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pytest<span class="w"> </span>tests/
-pytest<span class="w"> </span>--cov<span class="o">=</span>dendritic_modeling<span class="w"> </span>tests/<span class="w">  </span><span class="c1"># With coverage</span>
+pytest<span class="w"> </span>--cov<span class="o">=</span>dendritic_modeling<span class="w"> </span>tests/
 </pre></div>
 </div>
 </li>
-<li><p><strong>Check code style</strong>:</p>
+<li><p>Check code style:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>flake8<span class="w"> </span>src/
 black<span class="w"> </span>--check<span class="w"> </span>src/
-mypy<span class="w"> </span>src/
 </pre></div>
 </div>
 </li>
-<li><p><strong>Commit changes</strong>:</p>
+<li><p>Commit and push:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>add<span class="w"> </span>.
 git<span class="w"> </span>commit<span class="w"> </span>-m<span class="w"> </span><span class="s2">&quot;feat: add new feature&quot;</span>
-</pre></div>
-</div>
-</li>
-<li><p><strong>Push and create pull request</strong>:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>push<span class="w"> </span>origin<span class="w"> </span>feature/your-feature-name
+git<span class="w"> </span>push<span class="w"> </span>origin<span class="w"> </span>feature/your-feature-name
 </pre></div>
 </div>
 </li>
 </ol>
 </section>
-</section>
-<section id="contributing-code">
-<h2>Contributing Code<a class="headerlink" href="#contributing-code" title="Link to this heading"></a></h2>
-<section id="architecture-guidelines">
-<h3>Architecture Guidelines<a class="headerlink" href="#architecture-guidelines" title="Link to this heading"></a></h3>
-<p>When adding new features, follow these architectural principles:</p>
-<ol class="arabic simple">
-<li><p><strong>Biological Inspiration</strong>: Ensure new features align with neuroscience principles</p></li>
-<li><p><strong>Modularity</strong>: Create reusable components that integrate well</p></li>
-<li><p><strong>Performance</strong>: Consider computational efficiency</p></li>
-<li><p><strong>Documentation</strong>: All public APIs must be documented</p></li>
-</ol>
-</section>
-<section id="code-style">
-<h3>Code Style<a class="headerlink" href="#code-style" title="Link to this heading"></a></h3>
-<p>We follow PEP 8 with these additions:</p>
+<section id="code-standards">
+<h2>Code Standards<a class="headerlink" href="#code-standards" title="Link to this heading"></a></h2>
 <ul class="simple">
-<li><p>Line length: 88 characters (Black default)</p></li>
+<li><p>Follow PEP 8 with 88 character line length</p></li>
 <li><p>Use type hints for all public functions</p></li>
-<li><p>Docstrings in NumPy style</p></li>
+<li><p>Write docstrings in NumPy style</p></li>
+<li><p>Include tests for all new code</p></li>
+<li><p>Ensure GPU compatibility where applicable</p></li>
 </ul>
-<p>Example:</p>
+<p>Example function:</p>
 <div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">compute_shunting_inhibition</span><span class="p">(</span>
     <span class="n">excitation</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
     <span class="n">inhibition</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
@@ -192,26 +161,15 @@ git<span class="w"> </span>commit<span class="w"> </span>-m<span class="w"> </sp
 <span class="sd">    -------</span>
 <span class="sd">    torch.Tensor</span>
 <span class="sd">        Normalized response, shape (batch_size, n_neurons)</span>
-
-<span class="sd">    Examples</span>
-<span class="sd">    --------</span>
-<span class="sd">    &gt;&gt;&gt; exc = torch.rand(32, 100)</span>
-<span class="sd">    &gt;&gt;&gt; inh = torch.rand(32, 100)</span>
-<span class="sd">    &gt;&gt;&gt; response = compute_shunting_inhibition(exc, inh)</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="k">return</span> <span class="n">excitation</span> <span class="o">/</span> <span class="p">(</span><span class="n">excitation</span> <span class="o">+</span> <span class="n">inhibition</span> <span class="o">+</span> <span class="n">epsilon</span><span class="p">)</span>
 </pre></div>
 </div>
 </section>
 <section id="testing-requirements">
-<h3>Testing Requirements<a class="headerlink" href="#testing-requirements" title="Link to this heading"></a></h3>
+<h2>Testing Requirements<a class="headerlink" href="#testing-requirements" title="Link to this heading"></a></h2>
 <p>All new code must include tests:</p>
-<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># tests/test_shunting.py</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">pytest</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling</span><span class="w"> </span><span class="kn">import</span> <span class="n">compute_shunting_inhibition</span>
-
-<span class="k">def</span><span class="w"> </span><span class="nf">test_shunting_inhibition_basic</span><span class="p">():</span>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">test_shunting_inhibition_basic</span><span class="p">():</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Test basic shunting inhibition computation.&quot;&quot;&quot;</span>
     <span class="n">exc</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">20</span><span class="p">)</span>
     <span class="n">inh</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">20</span><span class="p">)</span>
@@ -220,154 +178,18 @@ git<span class="w"> </span>commit<span class="w"> </span>-m<span class="w"> </sp
 
     <span class="k">assert</span> <span class="n">result</span><span class="o">.</span><span class="n">shape</span> <span class="o">==</span> <span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">20</span><span class="p">)</span>
     <span class="k">assert</span> <span class="n">torch</span><span class="o">.</span><span class="n">allclose</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">full</span><span class="p">((</span><span class="mi">10</span><span class="p">,</span> <span class="mi">20</span><span class="p">),</span> <span class="mf">0.5</span><span class="p">),</span> <span class="n">atol</span><span class="o">=</span><span class="mf">1e-5</span><span class="p">)</span>
-
-<span class="k">def</span><span class="w"> </span><span class="nf">test_shunting_inhibition_edge_cases</span><span class="p">():</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Test edge cases.&quot;&quot;&quot;</span>
-    <span class="c1"># Zero inhibition</span>
-    <span class="n">exc</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="mi">5</span><span class="p">,</span> <span class="mi">10</span><span class="p">)</span>
-    <span class="n">inh</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="mi">5</span><span class="p">,</span> <span class="mi">10</span><span class="p">)</span>
-    <span class="n">result</span> <span class="o">=</span> <span class="n">compute_shunting_inhibition</span><span class="p">(</span><span class="n">exc</span><span class="p">,</span> <span class="n">inh</span><span class="p">)</span>
-    <span class="k">assert</span> <span class="n">torch</span><span class="o">.</span><span class="n">allclose</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="mi">5</span><span class="p">,</span> <span class="mi">10</span><span class="p">),</span> <span class="n">atol</span><span class="o">=</span><span class="mf">1e-5</span><span class="p">)</span>
-
-    <span class="c1"># Zero excitation</span>
-    <span class="n">exc</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="mi">5</span><span class="p">,</span> <span class="mi">10</span><span class="p">)</span>
-    <span class="n">inh</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">ones</span><span class="p">(</span><span class="mi">5</span><span class="p">,</span> <span class="mi">10</span><span class="p">)</span>
-    <span class="n">result</span> <span class="o">=</span> <span class="n">compute_shunting_inhibition</span><span class="p">(</span><span class="n">exc</span><span class="p">,</span> <span class="n">inh</span><span class="p">)</span>
-    <span class="k">assert</span> <span class="n">torch</span><span class="o">.</span><span class="n">allclose</span><span class="p">(</span><span class="n">result</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="mi">5</span><span class="p">,</span> <span class="mi">10</span><span class="p">),</span> <span class="n">atol</span><span class="o">=</span><span class="mf">1e-5</span><span class="p">)</span>
 </pre></div>
 </div>
 </section>
-<section id="performance-considerations">
-<h3>Performance Considerations<a class="headerlink" href="#performance-considerations" title="Link to this heading"></a></h3>
-<p>When implementing computationally intensive features:</p>
-<ol class="arabic simple">
-<li><p><strong>Profile first</strong>: Use PyTorch profiler to identify bottlenecks</p></li>
-<li><p><strong>Optimize hotspots</strong>: Focus on frequently called functions</p></li>
-<li><p><strong>Consider GPU</strong>: Ensure operations are GPU-friendly</p></li>
-<li><p><strong>Benchmark</strong>: Compare against baseline implementations</p></li>
-</ol>
-</section>
-</section>
-<section id="contributing-documentation">
-<h2>Contributing Documentation<a class="headerlink" href="#contributing-documentation" title="Link to this heading"></a></h2>
-<section id="documentation-standards">
-<h3>Documentation Standards<a class="headerlink" href="#documentation-standards" title="Link to this heading"></a></h3>
-<ul class="simple">
-<li><p>Use clear, concise language</p></li>
-<li><p>Include code examples</p></li>
-<li><p>Add figures where helpful</p></li>
-<li><p>Cross-reference related topics</p></li>
-</ul>
-</section>
-<section id="adding-tutorials">
-<h3>Adding Tutorials<a class="headerlink" href="#adding-tutorials" title="Link to this heading"></a></h3>
-<p>Create tutorials that:</p>
-<ol class="arabic simple">
-<li><p>Start with motivation</p></li>
-<li><p>Build incrementally</p></li>
-<li><p>Include complete, runnable code</p></li>
-<li><p>Explain key concepts</p></li>
-<li><p>Show results/visualizations</p></li>
-</ol>
-<p>Example structure:</p>
-<div class="highlight-rst notranslate"><div class="highlight"><pre><span></span><span class="gh">Tutorial: Building a Custom Dendritic Layer</span>
-<span class="gh">===========================================</span>
-
-In this tutorial, we&#39;ll create a custom dendritic layer with
-specialized plasticity rules.
-
-<span class="gh">Motivation</span>
-<span class="gh">----------</span>
-
-Biological neurons exhibit diverse plasticity mechanisms...
-
-<span class="gh">Implementation</span>
-<span class="gh">-------------</span>
-
-Let&#39;s start by defining our custom layer:
-
-<span class="p">..</span> <span class="ow">code-block</span><span class="p">::</span> <span class="k">python</span>
-
-   <span class="k">class</span><span class="w"> </span><span class="nc">CustomDendriticLayer</span><span class="p">(</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
-       <span class="o">...</span>
-
-<span class="gh">Key Concepts</span>
-<span class="gh">-----------</span>
-
-This implementation incorporates three key ideas:
-
-<span class="m">1.</span> <span class="gs">**Heterosynaptic plasticity**</span>: ...
-<span class="m">2.</span> <span class="gs">**Dendritic spikes**</span>: ...
-<span class="m">3.</span> <span class="gs">**Branch-specific learning**</span>: ...
-</pre></div>
-</div>
-</section>
-</section>
-<section id="contributing-examples">
-<h2>Contributing Examples<a class="headerlink" href="#contributing-examples" title="Link to this heading"></a></h2>
-<section id="example-requirements">
-<h3>Example Requirements<a class="headerlink" href="#example-requirements" title="Link to this heading"></a></h3>
-<p>Each example should include:</p>
-<ol class="arabic simple">
-<li><p><strong>README.md</strong>: Clear description and instructions</p></li>
-<li><p><strong>requirements.txt</strong>: Specific dependencies</p></li>
-<li><p><strong>config.yaml</strong>: Configuration file</p></li>
-<li><p><strong>main.py</strong>: Main script</p></li>
-<li><p><strong>visualize.py</strong>: Visualization code</p></li>
-<li><p><strong>results/</strong>: Sample outputs</p></li>
-</ol>
-<p>Template structure:</p>
-<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>examples/your_example/
-├── README.md
-├── requirements.txt
-├── config.yaml
-├── main.py
-├── utils.py
-├── visualize.py
-└── results/
-    ├── figures/
-    └── checkpoints/
-</pre></div>
-</div>
-</section>
-</section>
-<section id="research-contributions">
-<h2>Research Contributions<a class="headerlink" href="#research-contributions" title="Link to this heading"></a></h2>
-<section id="publishing-research">
-<h3>Publishing Research<a class="headerlink" href="#publishing-research" title="Link to this heading"></a></h3>
-<p>If you use the framework in research:</p>
-<ol class="arabic simple">
-<li><p><strong>Cite the framework</strong>: Use our citation format</p></li>
-<li><p><strong>Share your code</strong>: Create an example</p></li>
-<li><p><strong>Report results</strong>: Add to our benchmark table</p></li>
-<li><p><strong>Describe methods</strong>: Document novel techniques</p></li>
-</ol>
-</section>
-<section id="proposing-new-features">
-<h3>Proposing New Features<a class="headerlink" href="#proposing-new-features" title="Link to this heading"></a></h3>
-<p>For significant new features:</p>
-<ol class="arabic simple">
-<li><p><strong>Open an issue</strong>: Discuss the proposal</p></li>
-<li><p><strong>Write a design doc</strong>: Outline the approach</p></li>
-<li><p><strong>Implement prototype</strong>: Show feasibility</p></li>
-<li><p><strong>Gather feedback</strong>: Iterate on design</p></li>
-</ol>
-</section>
-</section>
-<section id="review-process">
-<h2>Review Process<a class="headerlink" href="#review-process" title="Link to this heading"></a></h2>
 <section id="pull-request-checklist">
-<h3>Pull Request Checklist<a class="headerlink" href="#pull-request-checklist" title="Link to this heading"></a></h3>
+<h2>Pull Request Checklist<a class="headerlink" href="#pull-request-checklist" title="Link to this heading"></a></h2>
 <p>Before submitting:</p>
 <ul class="simple">
-<li><p>[ ] Tests pass locally</p></li>
-<li><p>[ ] Code follows style guidelines</p></li>
-<li><p>[ ] Documentation is updated</p></li>
-<li><p>[ ] Changelog entry added</p></li>
-<li><p>[ ] No merge conflicts</p></li>
+<li><p>Tests pass locally</p></li>
+<li><p>Code follows style guidelines</p></li>
+<li><p>Documentation is updated</p></li>
+<li><p>No merge conflicts</p></li>
 </ul>
-<p>Your contributions make this project better for everyone. Whether you’re fixing a typo, adding a feature, or sharing your research, every contribution matters.</p>
-</section>
 </section>
 </section>
 
