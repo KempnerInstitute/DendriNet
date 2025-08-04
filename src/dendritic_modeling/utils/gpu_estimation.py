@@ -308,7 +308,7 @@ class GPUMemoryEstimator:
             if activation_memory_bytes == 0:
                 total_params = sum(p.numel() for p in model.parameters())
                 # For dendritic models, activations can be 10-20x parameters due to branching
-                activation_memory_bytes = total_params * self.bytes_per_param * 60  # High multiplier for dendritic models
+                activation_memory_bytes = total_params * self.bytes_per_param * 60  # Multiplier for dendritic models
 
             # Add gradient graph overhead
             activation_memory_bytes *= 2.5
