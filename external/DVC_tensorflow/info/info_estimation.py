@@ -4,10 +4,7 @@ import tensorflow_probability as tfp
 tfd = tfp.distributions
 tfb = tfp.bijectors
 import numpy as np
-from pre_proc.preparation import prep_copula
 from sampling.vine_sample import vine_cop_par_sample, vine_copula_sample
-from utils.prob_op import kernel_pdf2
-from utils.tensor_op import replace_nan_inf, update_tensor, update_tensor2D
 
 ########################## INFO ESTIMATION ##################################
 
