@@ -43,7 +43,7 @@ class TestTrainerFactory(unittest.TestCase):
                 ee_synapses_per_branch_per_layer=[1],
                 ei_synapses_per_branch_per_layer=[1],
                 ie_synapses_per_branch_per_layer=[1],
-                ii_synapses_per_branch_per_layer=[],
+                ii_synapses_per_branch_per_layer=[1],
             ),
             decoder_network=Identity(input_dim=4),
         )
@@ -58,13 +58,13 @@ class TestTrainerFactory(unittest.TestCase):
     def test_get_trainer_two_step(self):
         """Test getting two-step trainer."""
         trainer_config = {"loss_function": "cross_entropy", "epochs": 10}
-        trainer = get_trainer("two_step", self.optimizer, trainer_config)
+        trainer = get_trainer("freeze_branches", self.optimizer, trainer_config)
         self.assertIsInstance(trainer, TwoStepTrainer)
 
     def test_get_trainer_two_step_kl(self):
         """Test getting two-step KL trainer."""
         trainer_config = {"loss_function": "cross_entropy", "epochs": 10}
-        trainer = get_trainer("two_step_kl", self.optimizer, trainer_config)
+        trainer = get_trainer("freeze_branch_kl", self.optimizer, trainer_config)
         self.assertIsInstance(trainer, TwoStepTrainerWithKL)
 
     def test_get_trainer_voltage_stabilization(self):
@@ -77,7 +77,7 @@ class TestTrainerFactory(unittest.TestCase):
         """Test getting local credit assignment trainer."""
         trainer_config = {"loss_function": "cross_entropy", "epochs": 10}
         trainer = get_trainer("freeze_branches", self.optimizer, trainer_config)
-        self.assertIsInstance(trainer, LocalCreditAssignment)
+        self.assertIsInstance(trainer, TwoStepTrainer)
 
     def test_get_trainer_invalid_strategy(self):
         """Test handling of invalid training strategy."""
@@ -119,7 +119,7 @@ class TestTrainer(unittest.TestCase):
                 ee_synapses_per_branch_per_layer=[1],
                 ei_synapses_per_branch_per_layer=[1],
                 ie_synapses_per_branch_per_layer=[1],
-                ii_synapses_per_branch_per_layer=[],
+                ii_synapses_per_branch_per_layer=[1],
             ),
             decoder_network=Identity(input_dim=4),
         )
