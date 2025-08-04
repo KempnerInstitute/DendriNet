@@ -15,6 +15,7 @@ from enum import Enum
 from typing import Any, ClassVar, Optional, Union
 
 import numpy as np
+from scipy import stats
 from sklearn.feature_selection import mutual_info_classif, mutual_info_regression
 from sklearn.metrics import mutual_info_score
 
@@ -331,7 +332,6 @@ class CopulaEstimator(BaseInformationEstimator):
 
     def _simple_copula_mi(self, x: np.ndarray, y: np.ndarray) -> float:
         """Simple Gaussian copula-based MI estimation."""
-        from scipy import stats
 
         # Transform to uniform margins using empirical CDF
         n_samples = len(x)

@@ -402,7 +402,8 @@ class TestAnalysisManager(unittest.TestCase):
 
 
 def test_ablation_analyzer():
-    params = {'layer_ablation': True, 'compartment_ablation': True}
+    from dendritic_modeling.config.analysis import AblationAnalysisParams
+    params = AblationAnalysisParams(layer_ablation=True, compartment_ablation=True)
     analyzer = AblationAnalyzer(params)
     assert analyzer.layer_ablation
     assert analyzer.compartment_ablation
@@ -415,9 +416,10 @@ def test_ablation_analyze(simple_model, sample_data):
     assert 'layer_ablation' in results or 'compartment_ablation' in results
 
 def test_information_analyzer():
-    params = {'method': 'kraskov'}
+    from dendritic_modeling.config.analysis import InformationAnalysisParams
+    params = InformationAnalysisParams(method='kraskov')
     analyzer = InformationAnalyzer(params)
-    assert analyzer.params.method == 'kraskov'
+    assert analyzer.method == 'kraskov'
 
 @pytest.fixture
 def sample_analyzer():

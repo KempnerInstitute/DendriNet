@@ -961,7 +961,6 @@ def plot_branch_sweep_results(results_csv_path, split="test"):
 
 def plot_ei_sweep_results(results_csv_path, ei_ratio_range=None, split="test"):
     """Plot E/I ratio sweep results."""
-    import pandas as pd
     
     # Read the results CSV
     results_df = pd.read_csv(results_csv_path)
@@ -1003,7 +1002,6 @@ def plot_ei_sweep_results(results_csv_path, ei_ratio_range=None, split="test"):
 
 def plot_noise_sweep_branch_results(results_csv_path, noise_type="gaussian"):
     """Plot noise sweep results for branch networks."""
-    import pandas as pd
     
     # Read the results CSV
     results_df = pd.read_csv(results_csv_path)
@@ -1055,7 +1053,6 @@ def plot_noise_sweep_branch_results(results_csv_path, noise_type="gaussian"):
 
 def plot_noise_sweep_ei_results(results_csv_path, noise_type="gaussian"):
     """Plot noise sweep results for E/I networks."""
-    import pandas as pd
     
     # Read the results CSV
     results_df = pd.read_csv(results_csv_path)
@@ -1122,9 +1119,6 @@ def plot_active_synapses_per_branch(
         matplotlib Figure object
     """
     try:
-        import matplotlib.pyplot as plt
-        import numpy as np
-        from collections import defaultdict
         
         # Extract data from connectivity stats
         layer_stats = connectivity_stats.get('layer_stats', {})
@@ -1289,9 +1283,6 @@ def plot_active_synapses_summary_by_layer(
         matplotlib Figure object
     """
     try:
-        import matplotlib.pyplot as plt
-        import numpy as np
-        from collections import defaultdict
         
         # Extract data from connectivity stats
         layer_stats = connectivity_stats.get('layer_stats', {})
