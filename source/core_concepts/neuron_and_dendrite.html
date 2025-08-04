@@ -1,0 +1,153 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Neuron &amp; Dendrite Model &mdash; Dendritic Modeling Framework v0.1.0</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=01f34227"></script>
+      <script src="../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="author" title="About these documents" href="../../about.html" />
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            Dendritic Modeling Framework
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../QUICK_START.html">Quick Start Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../CONFIGURATION_GUIDE.html">Configuration Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../FSDP_TRAINING_GUIDE.html">FSDP Training Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../sweeps.html">Sweeps Guide</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">Dendritic Modeling Framework</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Neuron &amp; Dendrite Model</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../../_sources/source/core_concepts/neuron_and_dendrite.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="neuron-dendrite-model">
+<h1>Neuron &amp; Dendrite Model<a class="headerlink" href="#neuron-dendrite-model" title="Link to this heading"></a></h1>
+<figure class="align-center" id="id7">
+<a class="reference internal image-reference" href="../../_images/dendritic_diagram.png"><img alt="Multi-dendrite neuron schematic" src="../../_images/dendritic_diagram.png" style="width: 60%;" />
+</a>
+<figcaption>
+<p><span class="caption-text">Each dendrite executes a local non-linear operation before contributing to the soma.</span><a class="headerlink" href="#id7" title="Link to this image"></a></p>
+</figcaption>
+</figure>
+<section id="computation">
+<h2>Computation<a class="headerlink" href="#computation" title="Link to this heading"></a></h2>
+<p>Given excitatory input (E) and inhibitory input (I) to a branch, the post-synaptic response is</p>
+<div class="math notranslate nohighlight">
+\[D(E, I) \;=\; \frac{E}{E + I + \varepsilon},\]</div>
+<p>where (varepsilon) prevents division by zero and can be tuned as a learnable parameter.</p>
+</section>
+<section id="implementation">
+<h2>Implementation<a class="headerlink" href="#implementation" title="Link to this heading"></a></h2>
+<p>The dendritic computation is implemented within the <code class="docutils literal notranslate"><span class="pre">DendriticBranchLayer</span></code> and <code class="docutils literal notranslate"><span class="pre">DendriNet</span></code> classes.
+Key features:</p>
+<ul class="simple">
+<li><p><strong>Shunting inhibition</strong> – Divisive normalization E/(E+I+ε)</p></li>
+<li><p><strong>Sequential processing</strong> – Dendrites process inputs from distal to proximal</p></li>
+<li><p><strong>Sparse connectivity</strong> – TopK and DEEPST algorithms for sparse connections</p></li>
+</ul>
+<section id="morphology">
+<h3>Morphology<a class="headerlink" href="#morphology" title="Link to this heading"></a></h3>
+<p>Dendrite counts and branch factors per layer are passed when constructing networks:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">ExcitationInhibitionNetwork</span><span class="p">(</span>
+    <span class="n">excitatory_branch_factors</span><span class="o">=</span><span class="p">[</span><span class="mi">5</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span>
+    <span class="n">inhibitory_branch_factors</span><span class="o">=</span><span class="p">[</span><span class="mi">3</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+    <span class="o">...</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<p>This gives 5 branches per excitatory neuron in layer 1, one branch in layer 2, etc.</p>
+</section>
+<section id="inspection-utilities">
+<h3>Inspection Utilities<a class="headerlink" href="#inspection-utilities" title="Link to this heading"></a></h3>
+<p>Useful helpers for visualising dendritic behaviour:</p>
+<ul class="simple">
+<li><p><a href="#id1"><span class="problematic" id="id2">:pyfunc:`dendritic_modeling.plotting.analysis.plot_dendrinet_activations`</span></a> – branch activations for a Dendrinet model.</p></li>
+<li><p><a href="#id3"><span class="problematic" id="id4">:pyfunc:`dendritic_modeling.plotting.network.plot_branch_weights`</span></a> – per-branch weight distributions.</p></li>
+<li><p><a href="#id5"><span class="problematic" id="id6">:pyfunc:`dendritic_modeling.plotting.network.plot_branch_gradients`</span></a> – gradient magnitudes across branches.</p></li>
+</ul>
+</section>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, Kempner Institute.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

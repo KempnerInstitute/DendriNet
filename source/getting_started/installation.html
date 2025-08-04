@@ -1,0 +1,472 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Installation and Setup &mdash; Dendritic Modeling Framework v0.1.0</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=01f34227"></script>
+      <script src="../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="author" title="About these documents" href="../../about.html" />
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            Dendritic Modeling Framework
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../QUICK_START.html">Quick Start Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../CONFIGURATION_GUIDE.html">Configuration Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../FSDP_TRAINING_GUIDE.html">FSDP Training Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../sweeps.html">Sweeps Guide</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">Dendritic Modeling Framework</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Installation and Setup</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../../_sources/source/getting_started/installation.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="installation-and-setup">
+<span id="installation-section"></span><h1>Installation and Setup<a class="headerlink" href="#installation-and-setup" title="Link to this heading"></a></h1>
+<p>This document provides comprehensive instructions for installing and setting up the dendritic modeling framework, including environment configuration, dependencies, and troubleshooting common issues.</p>
+<section id="overview">
+<h2>Overview<a class="headerlink" href="#overview" title="Link to this heading"></a></h2>
+<p>The dendritic modeling framework is a PyTorch-based library for implementing and experimenting with dendritic neural networks. This guide will help you:</p>
+<ol class="arabic simple">
+<li><p>Set up a Python environment for the framework</p></li>
+<li><p>Install the framework and its dependencies</p></li>
+<li><p>Configure development tools and testing</p></li>
+<li><p>Verify the installation</p></li>
+<li><p>Configure your environment for different hardware</p></li>
+<li><p>Troubleshoot common installation issues</p></li>
+</ol>
+</section>
+<section id="system-requirements">
+<h2>System Requirements<a class="headerlink" href="#system-requirements" title="Link to this heading"></a></h2>
+<p>Before installing, ensure your system meets the following requirements:</p>
+<ul class="simple">
+<li><p><strong>Python</strong>: 3.9 or higher (3.12 recommended)</p></li>
+<li><p><strong>CUDA</strong> (for GPU support): Version 11.8 or higher recommended</p></li>
+<li><p><strong>Operating System</strong>: Linux (recommended), macOS, or Windows</p></li>
+<li><p><strong>Disk Space</strong>: At least 8GB for the framework, dependencies, and datasets</p></li>
+<li><p><strong>Memory</strong>: At least 8GB RAM (16GB or more recommended)</p></li>
+<li><p><strong>GPU</strong>: NVIDIA GPU with at least 4GB VRAM (recommended for training)</p></li>
+</ul>
+</section>
+<section id="quick-installation-recommended">
+<h2>Quick Installation (Recommended)<a class="headerlink" href="#quick-installation-recommended" title="Link to this heading"></a></h2>
+<p>The fastest way to get started is using our conda environment file:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Create and activate conda environment with all dependencies</span>
+conda<span class="w"> </span>env<span class="w"> </span>create<span class="w"> </span>-f<span class="w"> </span>environment.yml
+conda<span class="w"> </span>activate<span class="w"> </span>dendritic_env
+
+<span class="c1"># Install the package in development mode</span>
+pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>.
+
+<span class="c1"># Verify installation</span>
+python<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;import dendritic_modeling; print(&#39;Installation successful!&#39;)&quot;</span>
+</pre></div>
+</div>
+<p>This creates a complete development environment with testing, code quality tools, and all optional dependencies.</p>
+</section>
+<section id="installation-options">
+<h2>Installation Options<a class="headerlink" href="#installation-options" title="Link to this heading"></a></h2>
+<p>Choose the installation method that best fits your needs:</p>
+<section id="full-development-setup-recommended-for-contributors">
+<h3>Full Development Setup (Recommended for Contributors)<a class="headerlink" href="#full-development-setup-recommended-for-contributors" title="Link to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Option A: Using conda environment file (recommended)</span>
+conda<span class="w"> </span>env<span class="w"> </span>create<span class="w"> </span>-f<span class="w"> </span>environment.yml
+conda<span class="w"> </span>activate<span class="w"> </span>dendritic_env
+pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span><span class="s2">&quot;.[dev]&quot;</span>
+
+<span class="c1"># Option B: Using pip only</span>
+python<span class="w"> </span>-m<span class="w"> </span>venv<span class="w"> </span>dendritic_env
+<span class="nb">source</span><span class="w"> </span>dendritic_env/bin/activate<span class="w">  </span><span class="c1"># Windows: dendritic_env\Scripts\activate</span>
+pip<span class="w"> </span>install<span class="w"> </span>-r<span class="w"> </span>requirements.txt
+pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>.
+
+<span class="c1"># Set up pre-commit hooks for code quality</span>
+pre-commit<span class="w"> </span>install
+
+<span class="c1"># Verify development setup</span>
+python<span class="w"> </span>tests/test_runner.py<span class="w"> </span>--mode<span class="w"> </span>full
+</pre></div>
+</div>
+</section>
+<section id="core-package-only-minimal-installation">
+<h3>Core Package Only (Minimal Installation)<a class="headerlink" href="#core-package-only-minimal-installation" title="Link to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Create virtual environment</span>
+python<span class="w"> </span>-m<span class="w"> </span>venv<span class="w"> </span>dendritic_env
+<span class="nb">source</span><span class="w"> </span>dendritic_env/bin/activate<span class="w">  </span><span class="c1"># Windows: dendritic_env\Scripts\activate</span>
+
+<span class="c1"># Install core dependencies only</span>
+pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>.
+</pre></div>
+</div>
+</section>
+<section id="specialized-installations">
+<h3>Specialized Installations<a class="headerlink" href="#specialized-installations" title="Link to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># For testing and CI development</span>
+pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span><span class="s2">&quot;.[test]&quot;</span>
+
+<span class="c1"># For training and analysis work</span>
+pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span><span class="s2">&quot;.[train]&quot;</span>
+
+<span class="c1"># For documentation building</span>
+pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span><span class="s2">&quot;.[docs]&quot;</span>
+
+<span class="c1"># For code quality tools only</span>
+pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span><span class="s2">&quot;.[lint]&quot;</span>
+
+<span class="c1"># Everything (development + training + docs)</span>
+pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span><span class="s2">&quot;.[all]&quot;</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="dependency-groups-explained">
+<h2>Dependency Groups Explained<a class="headerlink" href="#dependency-groups-explained" title="Link to this heading"></a></h2>
+<p>The framework uses a modular dependency system:</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 15.0%" />
+<col style="width: 25.0%" />
+<col style="width: 60.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Group</p></th>
+<th class="head"><p>Purpose</p></th>
+<th class="head"><p>Key Packages</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">core</span></code></p></td>
+<td><p>Basic functionality</p></td>
+<td><p>torch, numpy, matplotlib, tensorflow, omegaconf</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">test</span></code></p></td>
+<td><p>Testing suite</p></td>
+<td><p>pytest, pytest-cov, pytest-mock, coverage, networkx</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">lint</span></code></p></td>
+<td><p>Code quality</p></td>
+<td><p>ruff, black, isort, mypy, pre-commit</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">train</span></code></p></td>
+<td><p>Training tools</p></td>
+<td><p>jupyter, plotly, seaborn, tensorboard</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">docs</span></code></p></td>
+<td><p>Documentation</p></td>
+<td><p>sphinx, sphinx-rtd-theme, nbsphinx</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">dev</span></code></p></td>
+<td><p>Development</p></td>
+<td><p>Combines test + lint + build tools</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">all</span></code></p></td>
+<td><p>Everything</p></td>
+<td><p>All dependency groups combined</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="detailed-installation-steps">
+<h2>Detailed Installation Steps<a class="headerlink" href="#detailed-installation-steps" title="Link to this heading"></a></h2>
+<section id="step-1-set-up-the-python-environment">
+<h3>Step 1: Set up the Python environment<a class="headerlink" href="#step-1-set-up-the-python-environment" title="Link to this heading"></a></h3>
+<p><strong>Using Conda (Recommended):</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Create and activate environment with full dependencies</span>
+conda<span class="w"> </span>env<span class="w"> </span>create<span class="w"> </span>-f<span class="w"> </span>environment.yml
+conda<span class="w"> </span>activate<span class="w"> </span>dendritic_env
+</pre></div>
+</div>
+<p><strong>Using Python venv:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Create virtual environment</span>
+python<span class="w"> </span>-m<span class="w"> </span>venv<span class="w"> </span>dendritic_env
+<span class="nb">source</span><span class="w"> </span>dendritic_env/bin/activate<span class="w">  </span><span class="c1"># Windows: dendritic_env\Scripts\activate</span>
+</pre></div>
+</div>
+<p><strong>Using Mamba (Faster alternative to conda):</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Install mamba first</span>
+conda<span class="w"> </span>install<span class="w"> </span>mamba<span class="w"> </span>-n<span class="w"> </span>base<span class="w"> </span>-c<span class="w"> </span>conda-forge
+
+<span class="c1"># Create environment</span>
+mamba<span class="w"> </span>env<span class="w"> </span>create<span class="w"> </span>-f<span class="w"> </span>environment.yml
+mamba<span class="w"> </span>activate<span class="w"> </span>dendritic_env
+</pre></div>
+</div>
+</section>
+<section id="step-2-install-pytorch">
+<h3>Step 2: Install PyTorch<a class="headerlink" href="#step-2-install-pytorch" title="Link to this heading"></a></h3>
+<p>PyTorch is automatically installed via our environment files, but you can install manually:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># For CUDA 12.1 (recommended)</span>
+conda<span class="w"> </span>install<span class="w"> </span>pytorch<span class="w"> </span>torchvision<span class="w"> </span>torchaudio<span class="w"> </span>pytorch-cuda<span class="o">=</span><span class="m">12</span>.1<span class="w"> </span>-c<span class="w"> </span>pytorch<span class="w"> </span>-c<span class="w"> </span>nvidia
+
+<span class="c1"># For CUDA 11.8</span>
+conda<span class="w"> </span>install<span class="w"> </span>pytorch<span class="w"> </span>torchvision<span class="w"> </span>torchaudio<span class="w"> </span>pytorch-cuda<span class="o">=</span><span class="m">11</span>.8<span class="w"> </span>-c<span class="w"> </span>pytorch<span class="w"> </span>-c<span class="w"> </span>nvidia
+
+<span class="c1"># For CPU only</span>
+conda<span class="w"> </span>install<span class="w"> </span>pytorch<span class="w"> </span>torchvision<span class="w"> </span>torchaudio<span class="w"> </span>cpuonly<span class="w"> </span>-c<span class="w"> </span>pytorch
+</pre></div>
+</div>
+<p>Verify PyTorch installation:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;</span>
+<span class="s2">import torch</span>
+<span class="s2">print(f&#39;PyTorch version: {torch.__version__}&#39;)</span>
+<span class="s2">print(f&#39;CUDA available: {torch.cuda.is_available()}&#39;)</span>
+<span class="s2">if torch.cuda.is_available():</span>
+<span class="s2">    print(f&#39;CUDA version: {torch.version.cuda}&#39;)</span>
+<span class="s2">    print(f&#39;GPU count: {torch.cuda.device_count()}&#39;)</span>
+<span class="s2">&quot;</span>
+</pre></div>
+</div>
+</section>
+<section id="step-3-clone-the-repository">
+<h3>Step 3: Clone the repository<a class="headerlink" href="#step-3-clone-the-repository" title="Link to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/KempnerInstitute/dendritic-modeling.git
+<span class="nb">cd</span><span class="w"> </span>dendritic-modeling
+</pre></div>
+</div>
+</section>
+<section id="step-4-install-the-package">
+<h3>Step 4: Install the package<a class="headerlink" href="#step-4-install-the-package" title="Link to this heading"></a></h3>
+<p>Choose your installation method:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Basic installation</span>
+pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>.
+
+<span class="c1"># Development installation (recommended for contributors)</span>
+pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span><span class="s2">&quot;.[dev]&quot;</span>
+
+<span class="c1"># Full installation with all optional dependencies</span>
+pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span><span class="s2">&quot;.[all]&quot;</span>
+</pre></div>
+</div>
+</section>
+<section id="step-5-set-up-development-tools-optional">
+<h3>Step 5: Set up development tools (optional)<a class="headerlink" href="#step-5-set-up-development-tools-optional" title="Link to this heading"></a></h3>
+<p>For development work, set up code quality tools:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Install pre-commit hooks</span>
+pre-commit<span class="w"> </span>install
+
+<span class="c1"># Test the setup</span>
+pre-commit<span class="w"> </span>run<span class="w"> </span>--all-files
+
+<span class="c1"># Run tests to verify everything works</span>
+pytest<span class="w"> </span>tests/<span class="w"> </span>-v
+</pre></div>
+</div>
+</section>
+</section>
+<section id="verification-and-testing">
+<h2>Verification and Testing<a class="headerlink" href="#verification-and-testing" title="Link to this heading"></a></h2>
+<section id="basic-verification">
+<h3>Basic Verification<a class="headerlink" href="#basic-verification" title="Link to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Test basic functionality</span>
+python<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;import dendritic_modeling; print(&#39;Installation successful!&#39;)&quot;</span>
+
+<span class="c1"># Test all core dependencies</span>
+python<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;</span>
+<span class="s2">import torch</span>
+<span class="s2">import tensorflow as tf</span>
+<span class="s2">import matplotlib.pyplot as plt</span>
+<span class="s2">import pandas as pd</span>
+<span class="s2">import numpy as np</span>
+<span class="s2">import dendritic_modeling</span>
+<span class="s2">print(&#39;All core dependencies working&#39;)</span>
+<span class="s2">&quot;</span>
+</pre></div>
+</div>
+</section>
+<section id="comprehensive-testing">
+<h3>Comprehensive Testing<a class="headerlink" href="#comprehensive-testing" title="Link to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Run the full test suite</span>
+pytest<span class="w"> </span>tests/<span class="w"> </span>-v
+
+<span class="c1"># Run tests with coverage</span>
+pytest<span class="w"> </span>--cov<span class="o">=</span>dendritic_modeling<span class="w"> </span>--cov-report<span class="o">=</span>html
+open<span class="w"> </span>htmlcov/index.html<span class="w">  </span><span class="c1"># View coverage report</span>
+
+<span class="c1"># Run specific test categories</span>
+pytest<span class="w"> </span>-m<span class="w"> </span>unit<span class="w">              </span><span class="c1"># Unit tests only</span>
+pytest<span class="w"> </span>-m<span class="w"> </span>integration<span class="w">       </span><span class="c1"># Integration tests only</span>
+pytest<span class="w"> </span>-m<span class="w"> </span><span class="s2">&quot;not slow&quot;</span><span class="w">        </span><span class="c1"># Skip slow tests</span>
+
+<span class="c1"># Use our custom test runner</span>
+python<span class="w"> </span>tests/test_runner.py<span class="w"> </span>--mode<span class="w"> </span>full
+</pre></div>
+</div>
+</section>
+<section id="code-quality-verification">
+<h3>Code Quality Verification<a class="headerlink" href="#code-quality-verification" title="Link to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Check code style</span>
+ruff<span class="w"> </span>check<span class="w"> </span>src/<span class="w"> </span>tests/
+black<span class="w"> </span>--check<span class="w"> </span>src/<span class="w"> </span>tests/
+isort<span class="w"> </span>--check-only<span class="w"> </span>src/<span class="w"> </span>tests/
+
+<span class="c1"># Type checking</span>
+mypy<span class="w"> </span>src/
+
+<span class="c1"># Run all pre-commit hooks</span>
+pre-commit<span class="w"> </span>run<span class="w"> </span>--all-files
+</pre></div>
+</div>
+</section>
+</section>
+<section id="troubleshooting">
+<h2>Troubleshooting<a class="headerlink" href="#troubleshooting" title="Link to this heading"></a></h2>
+<section id="common-issues-and-solutions">
+<h3>Common Issues and Solutions<a class="headerlink" href="#common-issues-and-solutions" title="Link to this heading"></a></h3>
+<p><strong>Missing libbz2.so.1.0 (Linux)</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Create symlink to available version</span>
+ln<span class="w"> </span>-sf<span class="w"> </span>/lib64/libbz2.so.1.0.6<span class="w"> </span><span class="nv">$CONDA_PREFIX</span>/lib/libbz2.so.1.0
+</pre></div>
+</div>
+<p><strong>NetworkX Import Errors</strong></p>
+<p>NetworkX is optional for plotting. Install if needed:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>networkx
+</pre></div>
+</div>
+<p><strong>CUDA Compatibility Issues</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Check CUDA version</span>
+nvcc<span class="w"> </span>--version
+
+<span class="c1"># Check PyTorch CUDA compatibility</span>
+python<span class="w"> </span>-c<span class="w"> </span><span class="s2">&quot;import torch; print(f&#39;PyTorch CUDA: {torch.version.cuda}&#39;)&quot;</span>
+
+<span class="c1"># Reinstall PyTorch with matching CUDA version</span>
+pip<span class="w"> </span>uninstall<span class="w"> </span>torch<span class="w"> </span>torchvision<span class="w"> </span>torchaudio
+pip<span class="w"> </span>install<span class="w"> </span>torch<span class="w"> </span>torchvision<span class="w"> </span>torchaudio<span class="w"> </span>--index-url<span class="w"> </span>https://download.pytorch.org/whl/cu118
+</pre></div>
+</div>
+<p><strong>Pre-commit Hook Failures</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Update pre-commit hooks</span>
+pre-commit<span class="w"> </span>autoupdate
+
+<span class="c1"># Clear cache and reinstall</span>
+pre-commit<span class="w"> </span>clean
+pre-commit<span class="w"> </span>install
+</pre></div>
+</div>
+</section>
+</section>
+<section id="running-your-first-experiment">
+<h2>Running Your First Experiment<a class="headerlink" href="#running-your-first-experiment" title="Link to this heading"></a></h2>
+<p>After installation, test with a simple experiment:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Run a basic experiment</span>
+python<span class="w"> </span>src/dendritic_modeling/scripts/train_experiments.py<span class="w"> </span>configs/config_exp.yaml
+
+<span class="c1"># For interactive exploration</span>
+jupyter<span class="w"> </span>notebook<span class="w"> </span>examples/quickstart.ipynb
+</pre></div>
+</div>
+</section>
+<section id="continuous-integration-setup">
+<h2>Continuous Integration Setup<a class="headerlink" href="#continuous-integration-setup" title="Link to this heading"></a></h2>
+<p>The project includes comprehensive CI/CD with GitHub Actions. Every pull request automatically runs:</p>
+<ul class="simple">
+<li><p><strong>Quick PR Check</strong> (~2-3 minutes): Basic tests, linting, import validation</p></li>
+<li><p><strong>Full CI Pipeline</strong> (~10-15 minutes): Complete test suite across multiple Python versions</p></li>
+</ul>
+<p><strong>Local CI Simulation</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Run the same checks as CI locally</span>
+python<span class="w"> </span>tests/test_runner.py<span class="w"> </span>--mode<span class="w"> </span>full
+pre-commit<span class="w"> </span>run<span class="w"> </span>--all-files
+pytest<span class="w"> </span>--cov<span class="o">=</span>dendritic_modeling<span class="w"> </span>--cov-fail-under<span class="o">=</span><span class="m">75</span>
+</pre></div>
+</div>
+<p>For more details, see the <span class="xref std std-doc">../../development/contributing</span> guide.</p>
+</section>
+<section id="next-steps">
+<h2>Next Steps<a class="headerlink" href="#next-steps" title="Link to this heading"></a></h2>
+<p>Now that you have installed the framework, you can:</p>
+<ul class="simple">
+<li><p>Follow the <a class="reference internal" href="quickstart.html"><span class="doc">Quick Start Guide</span></a> guide</p></li>
+<li><p>Explore <a class="reference internal" href="examples.html"><span class="doc">Examples</span></a></p></li>
+<li><p>Learn about <a class="reference internal" href="../user_guide/concepts.html"><span class="doc">Key Concepts and Overview</span></a></p></li>
+<li><p>Set up your development environment with <span class="xref std std-doc">../../development/contributing</span></p></li>
+</ul>
+<p>For additional help:</p>
+<ul class="simple">
+<li><p><strong>Installation Issues</strong>: Check the <a class="reference external" href="https://github.com/KempnerInstitute/dendritic-modeling/blob/main/INSTALL.md">INSTALL.md</a> file</p></li>
+<li><p><strong>Development Setup</strong>: See the <a class="reference external" href="https://github.com/KempnerInstitute/dendritic-modeling/blob/main/CI_SETUP.md">CI_SETUP.md</a> guide</p></li>
+<li><p><strong>Bug Reports</strong>: Open an issue on <a class="reference external" href="https://github.com/KempnerInstitute/dendritic-modeling/issues">GitHub</a></p></li>
+</ul>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, Kempner Institute.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

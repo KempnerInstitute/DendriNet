@@ -1,0 +1,377 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Parameter Sweeps &mdash; Dendritic Modeling Framework v0.1.0</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../_static/documentation_options.js?v=01f34227"></script>
+      <script src="../../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="author" title="About these documents" href="../../../about.html" />
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            Dendritic Modeling Framework
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../QUICK_START.html">Quick Start Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../CONFIGURATION_GUIDE.html">Configuration Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../FSDP_TRAINING_GUIDE.html">FSDP Training Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../sweeps.html">Sweeps Guide</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">Dendritic Modeling Framework</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Parameter Sweeps</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../../../_sources/source/advanced/configuration/parameter_sweeps.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="parameter-sweeps">
+<span id="id1"></span><h1>Parameter Sweeps<a class="headerlink" href="#parameter-sweeps" title="Link to this heading"></a></h1>
+<p>The Dendritic Modeling framework provides powerful tools for conducting systematic parameter sweeps. This guide focuses on the EI sweep functionality, which allows you to explore how different combinations of excitatory-excitatory (EE) and inhibitory-excitatory (IE) synapse counts affect model performance.</p>
+<section id="ei-sweep-workflow">
+<h2>EI Sweep Workflow<a class="headerlink" href="#ei-sweep-workflow" title="Link to this heading"></a></h2>
+<p>The EI sweep workflow consists of three main steps:</p>
+<ol class="arabic simple">
+<li><p>Generate sweep configurations with different EE and IE values</p></li>
+<li><p>Run the sweeps using SLURM</p></li>
+<li><p>Analyze results and generate plots</p></li>
+</ol>
+<section id="step-1-generate-sweep-configurations">
+<h3>Step 1: Generate Sweep Configurations<a class="headerlink" href="#step-1-generate-sweep-configurations" title="Link to this heading"></a></h3>
+<p>Use <code class="docutils literal notranslate"><span class="pre">generate_ei_sweep.py</span></code> to create all required configuration files:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Basic usage - generates one big array job</span>
+python<span class="w"> </span>scripts/generate_ei_sweep.py<span class="w"> </span>configs/sweep_params_seeds_ei.yaml
+
+<span class="c1"># Split into 10 separate job scripts</span>
+python<span class="w"> </span>scripts/generate_ei_sweep.py<span class="w"> </span>configs/sweep_params_seeds_ei.yaml<span class="w"> </span>--split-jobs<span class="w"> </span><span class="m">10</span>
+
+<span class="c1"># Limit to 50 configurations per job</span>
+python<span class="w"> </span>scripts/generate_ei_sweep.py<span class="w"> </span>configs/sweep_params_seeds_ei.yaml<span class="w"> </span>--configs-per-job<span class="w"> </span><span class="m">50</span>
+
+<span class="c1"># Filter combinations where E+I=52</span>
+python<span class="w"> </span>scripts/generate_ei_sweep.py<span class="w"> </span>configs/sweep_params_seeds_ei.yaml<span class="w"> </span>--filter-mode<span class="w"> </span>ei-sum<span class="w"> </span>--filter-value<span class="w"> </span><span class="m">52</span>
+</pre></div>
+</div>
+<p>This script:</p>
+<ul class="simple">
+<li><p>Creates a timestamped directory (e.g., <code class="docutils literal notranslate"><span class="pre">ei_20250411145829</span></code>)</p></li>
+<li><p>Generates individual YAML configuration files for each parameter combination and seed</p></li>
+<li><p>Creates job scripts for batch execution and stores them in a <code class="docutils literal notranslate"><span class="pre">jobs</span></code> directory</p></li>
+<li><p>Produces a main <code class="docutils literal notranslate"><span class="pre">run.sh</span></code> script in the workspace root for easy submission</p></li>
+<li><p>Optionally splits the sweep into multiple smaller job scripts</p></li>
+<li><p>Optionally filters E-I combinations based on specified constraints</p></li>
+</ul>
+<p>The <code class="docutils literal notranslate"><span class="pre">--split-jobs</span></code> option divides the parameter sweep into the specified number of job scripts, each handling a subset of configurations. The <code class="docutils literal notranslate"><span class="pre">--configs-per-job</span></code> option limits each job script to at most the specified number of configurations.</p>
+<section id="filtering-options">
+<h4>Filtering Options<a class="headerlink" href="#filtering-options" title="Link to this heading"></a></h4>
+<p>The script now supports advanced filtering options to focus on specific E-I relationships:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Generate only combinations where E+I=52</span>
+python<span class="w"> </span>scripts/generate_ei_sweep.py<span class="w"> </span>configs/sweep_params_seeds_ei.yaml<span class="w"> </span>--filter-mode<span class="w"> </span>ei-sum<span class="w"> </span>--filter-value<span class="w"> </span><span class="m">52</span>
+
+<span class="c1"># Generate only combinations where E=26</span>
+python<span class="w"> </span>scripts/generate_ei_sweep.py<span class="w"> </span>configs/sweep_params_seeds_ei.yaml<span class="w"> </span>--filter-mode<span class="w"> </span>e-const<span class="w"> </span>--filter-value<span class="w"> </span><span class="m">26</span>
+
+<span class="c1"># Generate only combinations where I=26</span>
+python<span class="w"> </span>scripts/generate_ei_sweep.py<span class="w"> </span>configs/sweep_params_seeds_ei.yaml<span class="w"> </span>--filter-mode<span class="w"> </span>i-const<span class="w"> </span>--filter-value<span class="w"> </span><span class="m">26</span>
+
+<span class="c1"># Generate only combinations where E/I ratio is approximately 2</span>
+python<span class="w"> </span>scripts/generate_ei_sweep.py<span class="w"> </span>configs/sweep_params_seeds_ei.yaml<span class="w"> </span>--filter-mode<span class="w"> </span>ei-ratio<span class="w"> </span>--filter-value<span class="w"> </span><span class="m">2</span>
+
+<span class="c1"># Customize the tolerance for ratio filtering</span>
+python<span class="w"> </span>scripts/generate_ei_sweep.py<span class="w"> </span>configs/sweep_params_seeds_ei.yaml<span class="w"> </span>--filter-mode<span class="w"> </span>ei-ratio<span class="w"> </span>--filter-value<span class="w"> </span><span class="m">2</span><span class="w"> </span>--filter-tolerance<span class="w"> </span><span class="m">0</span>.2
+</pre></div>
+</div>
+<p>Available filtering modes:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">all</span></code>: Generate all E-I combinations (default)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">ei-sum</span></code>: Only include combinations where E+I equals a constant (E+I=K)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">e-const</span></code>: Only include combinations with a specific constant E value</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">i-const</span></code>: Only include combinations with a specific constant I value</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">ei-ratio</span></code>: Only include combinations where E/I approximates a constant ratio (within tolerance)</p></li>
+</ul>
+<p>This filtering functionality allows you to focus your computational resources on the most interesting regions of the parameter space or study specific E-I relationships in depth.</p>
+<p>The <code class="docutils literal notranslate"><span class="pre">sweep_params_seeds_ei.yaml</span></code> file defines:</p>
+<ul class="simple">
+<li><p>SLURM configuration (account, resources, partition)</p></li>
+<li><p>Parameter ranges for EE and IE synapses</p></li>
+<li><p>Number of seeds per parameter combination</p></li>
+<li><p>Base network architecture and training parameters</p></li>
+</ul>
+</section>
+<section id="example-configuration">
+<h4>Example Configuration<a class="headerlink" href="#example-configuration" title="Link to this heading"></a></h4>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="c1"># sweep_params_seeds_ei.yaml</span>
+<span class="nt">slurm_config</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">account</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">kempner_dev</span>
+<span class="w">  </span><span class="nt">run_name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dendritic_ei_sweep</span>
+<span class="w">  </span><span class="nt">output_dir</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/path/to/outputs</span>
+<span class="w">  </span><span class="nt">nodes</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<span class="w">  </span><span class="nt">gpus_per_node</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<span class="w">  </span><span class="nt">time</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3:00:00</span>
+<span class="w">  </span><span class="c1"># ... other SLURM parameters</span>
+
+<span class="nt">experiment_settings</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">seeds_per_condition</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span><span class="w">  </span><span class="c1"># Use 5 seeds per parameter combination</span>
+<span class="w">  </span><span class="nt">base_seed</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">42</span>
+
+<span class="nt">train_config</span><span class="p">:</span>
+<span class="w">  </span><span class="c1"># Base configuration for the model</span>
+<span class="w">  </span><span class="nt">model</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">network</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;EINet&quot;</span>
+<span class="w">      </span><span class="nt">parameters</span><span class="p">:</span>
+<span class="w">        </span><span class="c1"># ... base architecture parameters</span>
+
+<span class="nt">sweep_config</span><span class="p">:</span>
+<span class="w">  </span><span class="c1"># Parameters to sweep - will generate all combinations</span>
+<span class="w">  </span><span class="nt">model.network.parameters.ee_synapses_per_branch_per_layer</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span>
+<span class="w">    </span><span class="p p-Indicator">[</span><span class="nv">1</span><span class="p p-Indicator">],</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">6</span><span class="p p-Indicator">],</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">11</span><span class="p p-Indicator">],</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">16</span><span class="p p-Indicator">],</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">21</span><span class="p p-Indicator">],</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">26</span><span class="p p-Indicator">],</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">31</span><span class="p p-Indicator">],</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">36</span><span class="p p-Indicator">],</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">41</span><span class="p p-Indicator">],</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">46</span><span class="p p-Indicator">],</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">51</span><span class="p p-Indicator">]</span>
+<span class="w">  </span><span class="p p-Indicator">]</span>
+<span class="w">  </span><span class="nt">model.network.parameters.ie_synapses_per_branch_per_layer</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span>
+<span class="w">    </span><span class="p p-Indicator">[</span><span class="nv">1</span><span class="p p-Indicator">],</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">6</span><span class="p p-Indicator">],</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">11</span><span class="p p-Indicator">],</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">16</span><span class="p p-Indicator">],</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">21</span><span class="p p-Indicator">],</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">26</span><span class="p p-Indicator">],</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">31</span><span class="p p-Indicator">],</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">36</span><span class="p p-Indicator">],</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">41</span><span class="p p-Indicator">],</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">46</span><span class="p p-Indicator">],</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">51</span><span class="p p-Indicator">]</span>
+<span class="w">  </span><span class="p p-Indicator">]</span>
+<span class="w">  </span><span class="nt">model.network.parameters.use_shunting</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">true</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">false</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;MLP&quot;</span><span class="p p-Indicator">]</span><span class="w">  </span><span class="c1"># &quot;MLP&quot; will create MLP networks</span>
+</pre></div>
+</div>
+<p>Note that the special value <code class="docutils literal notranslate"><span class="pre">&quot;MLP&quot;</span></code> in the <code class="docutils literal notranslate"><span class="pre">use_shunting</span></code> parameter will create configurations with network type set to MLP instead of EINet, which allows you to compare EINet models (with shunting enabled or disabled) against standard MLP models in the same sweep. The MLP networks will use the values specified in <code class="docutils literal notranslate"><span class="pre">ee_synapses_per_branch_per_layer</span></code> and <code class="docutils literal notranslate"><span class="pre">ie_synapses_per_branch_per_layer</span></code> from the sweep to define their structure and parameter counts, ensuring fair comparisons between the architectures.</p>
+</section>
+<section id="directory-structure">
+<h4>Directory Structure<a class="headerlink" href="#directory-structure" title="Link to this heading"></a></h4>
+<p>The <code class="docutils literal notranslate"><span class="pre">generate_ei_sweep.py</span></code> script creates the following directory structure:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>outputs/ei_[timestamp]/
+├── configs/           # Individual configuration files
+├── jobs/              # SLURM job scripts
+├── results/           # Will contain results from each job
+└── plots/             # Will contain analysis plots
+</pre></div>
+</div>
+</section>
+</section>
+<section id="step-2-run-the-sweeps">
+<h3>Step 2: Run the Sweeps<a class="headerlink" href="#step-2-run-the-sweeps" title="Link to this heading"></a></h3>
+<p>Run the sweep using the generated main script:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Run all jobs with automatic sequencing</span>
+./run.sh
+</pre></div>
+</div>
+<p>The main <code class="docutils literal notranslate"><span class="pre">run.sh</span></code> script:</p>
+<ul class="simple">
+<li><p>Finds all job scripts in the output directory’s <code class="docutils literal notranslate"><span class="pre">jobs</span></code> folder</p></li>
+<li><p>Submits them sequentially with a small delay between submissions</p></li>
+<li><p>Provides status messages and job tracking information</p></li>
+</ul>
+<p>The individual job scripts in the output directory’s <code class="docutils literal notranslate"><span class="pre">jobs</span></code> folder:</p>
+<ul class="simple">
+<li><p>Launch SLURM array jobs with their respective subsets of configurations</p></li>
+<li><p>Each task runs the dendritic model with specific EE/IE values and seed</p></li>
+<li><p>Results are saved to individual directories within the experiment folder</p></li>
+</ul>
+<section id="job-organization-benefits">
+<h4>Job Organization Benefits<a class="headerlink" href="#job-organization-benefits" title="Link to this heading"></a></h4>
+<p>The new job organization provides several advantages:</p>
+<ol class="arabic simple">
+<li><p><strong>Clean Workspace</strong>: All job scripts are stored in the output directory, keeping your workspace clean</p></li>
+<li><p><strong>Automatic Submission</strong>: The main script handles submitting all jobs in the correct order</p></li>
+<li><p><strong>Everything in One Place</strong>: All files related to a sweep (configs, jobs, results) are stored together</p></li>
+<li><p><strong>Simplified Workflow</strong>: A single command starts the entire sweep process</p></li>
+</ol>
+</section>
+</section>
+<section id="step-3-analyze-results">
+<h3>Step 3: Analyze Results<a class="headerlink" href="#step-3-analyze-results" title="Link to this heading"></a></h3>
+<p>After jobs complete, analyze results with:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Analyze a specific experiment</span>
+python<span class="w"> </span>scripts/analyze_ei_sweep.py<span class="w"> </span>--timestamp<span class="w"> </span><span class="m">20250411145829</span>
+
+<span class="c1"># Analyze all experiments with &#39;ei_&#39; prefix</span>
+python<span class="w"> </span>scripts/analyze_ei_sweep.py<span class="w"> </span>--all
+
+<span class="c1"># Compare multiple experiments</span>
+python<span class="w"> </span>scripts/analyze_ei_sweep.py<span class="w"> </span>--multiple<span class="w"> </span><span class="m">20250411145829</span><span class="w"> </span><span class="m">20250412123456</span>
+</pre></div>
+</div>
+<p>The analysis script supports several options:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>--timestamp TIMESTAMP  Timestamp ID of the experiment (e.g. 20250411144518)
+--folder FOLDER        Full path to the experiment folder
+--all                  Analyze all ei_ folders in the output directory
+--multiple IDs         List of timestamp IDs to analyze and compare
+--output-base DIR      Base directory for outputs (default: ./output)
+--prefix PREFIX        Prefix used for the output folder (default: ei_)
+--show-plots           Display plots in addition to saving them
+--report-missing       Report detail of missing or unfinished runs
+</pre></div>
+</div>
+<p>The analysis script automatically combines results from all jobs, regardless of whether they were run as a single job or multiple smaller jobs. It also handles missing or incomplete runs gracefully, showing these as grey areas in heatmaps with “N/A” annotations.</p>
+<section id="generated-plots-and-analysis">
+<h4>Generated Plots and Analysis<a class="headerlink" href="#generated-plots-and-analysis" title="Link to this heading"></a></h4>
+<p>The analysis script generates various plots to help understand the impact of EE and IE synapse counts:</p>
+<ol class="arabic">
+<li><p><strong>Heatmap of Accuracy</strong>: Shows how train, validation, and test accuracy varies with different EE/IE combinations</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>heatmap_train_acc.png
+heatmap_val_acc.png
+heatmap_test_acc.png
+</pre></div>
+</div>
+</li>
+<li><p><strong>Line Plots</strong>: Show trends in accuracy for different parameter values</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>sweep_by_ee.png  # Test accuracy vs EE values for different IE values
+sweep_by_ie.png  # Test accuracy vs IE values for different EE values
+</pre></div>
+</div>
+</li>
+<li><p><strong>Bar Chart of Top Combinations</strong>: Compares the best-performing parameter combinations</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>top_combinations.png
+</pre></div>
+</div>
+</li>
+<li><p><strong>Summary Files</strong>:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>ei_sweep_results.csv  # All results in tabular format
+summary.txt  # Text summary with the best parameter combination
+missing_runs.csv  # (if missing runs exist) Details about missing or incomplete runs
+</pre></div>
+</div>
+</li>
+</ol>
+<p>When comparing multiple experiments with the <code class="docutils literal notranslate"><span class="pre">--multiple</span></code> option, additional files are generated in a comparison directory (named <code class="docutils literal notranslate"><span class="pre">ei_comparison_[timestamp]</span></code>):</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>experiment_comparison.png  # Bar chart comparing best results across experiments
+multi_experiment_summary.txt  # Text summary of the experiment comparison
+</pre></div>
+</div>
+<p>The <code class="docutils literal notranslate"><span class="pre">--report-missing</span></code> flag provides detailed information about any missing or incomplete runs, which can be helpful for debugging or planning additional runs to complete the parameter sweep.</p>
+</section>
+</section>
+</section>
+<section id="output-structure">
+<h2>Output Structure<a class="headerlink" href="#output-structure" title="Link to this heading"></a></h2>
+<p>After running the complete workflow, the output directory will have this structure:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>outputs/ei_[timestamp]/
+├── configs/           # Configuration files for each parameter combination
+├── jobs/              # SLURM job scripts
+├── results/           # Results from each SLURM job
+│   └── [job_id]/
+│       └── task_[task_id]/
+│           ├── output.log
+│           ├── error.log
+│           └── performance/
+│               └── final.json
+└── plots/             # Generated analysis plots
+    ├── heatmap_train_acc.png
+    ├── heatmap_val_acc.png
+    ├── heatmap_test_acc.png
+    ├── sweep_by_ee.png
+    ├── sweep_by_ie.png
+    └── top_combinations.png
+</pre></div>
+</div>
+<p>When comparing multiple experiments, a separate summary directory is created with comparison plots.</p>
+</section>
+<section id="key-parameters">
+<h2>Key Parameters<a class="headerlink" href="#key-parameters" title="Link to this heading"></a></h2>
+<p>In <code class="docutils literal notranslate"><span class="pre">sweep_params_seeds_ei.yaml</span></code>:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">model.network.parameters.ee_synapses_per_branch_per_layer</span></code>: Excitatory-excitatory synapses</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">model.network.parameters.ie_synapses_per_branch_per_layer</span></code>: Inhibitory-excitatory synapses</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">model.network.parameters.use_shunting</span></code>: Network type (true for EINet, false for standard MLP, “MLP” for MLP networks)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">seeds_per_condition</span></code>: Number of random seeds to use for each parameter combination</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">slurm_config.max_concurrent_jobs</span></code>: Maximum number of jobs to run simultaneously</p></li>
+</ul>
+</section>
+<section id="tips-for-effective-sweeps">
+<h2>Tips for Effective Sweeps<a class="headerlink" href="#tips-for-effective-sweeps" title="Link to this heading"></a></h2>
+<ol class="arabic simple">
+<li><p><strong>Parameter Range</strong>: Start with a wide range and then refine with narrower sweeps</p></li>
+<li><p><strong>Multiple Seeds</strong>: Always use multiple seeds (3-5) to ensure robust results</p></li>
+<li><p><strong>Resource Management</strong>: Set appropriate time limits and memory requirements</p></li>
+<li><p><strong>Job Splitting</strong>: For very large sweeps (&gt;100 configurations), use <code class="docutils literal notranslate"><span class="pre">--split-jobs</span></code> or <code class="docutils literal notranslate"><span class="pre">--configs-per-job</span></code></p></li>
+<li><p><strong>Organized Outputs</strong>: All job scripts and configs are organized by timestamp to avoid confusion between sweeps</p></li>
+<li><p><strong>Result Tracking</strong>: Use W&amp;B integration for additional tracking and visualization</p></li>
+<li><p><strong>Incremental Analysis</strong>: You can analyze partial results while jobs are still running</p></li>
+</ol>
+</section>
+<section id="extending-for-custom-sweeps">
+<h2>Extending for Custom Sweeps<a class="headerlink" href="#extending-for-custom-sweeps" title="Link to this heading"></a></h2>
+<p>The EI sweep framework can be extended to explore other parameter combinations:</p>
+<ol class="arabic simple">
+<li><p>Modify the <code class="docutils literal notranslate"><span class="pre">sweep_config</span></code> section in your YAML file to include different parameters</p></li>
+<li><p>Update the analysis script to extract and visualize the relevant parameters</p></li>
+</ol>
+<p>See the source code of <code class="docutils literal notranslate"><span class="pre">generate_ei_sweep.py</span></code> and <code class="docutils literal notranslate"><span class="pre">analyze_ei_sweep.py</span></code> for implementation details.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, Kempner Institute.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

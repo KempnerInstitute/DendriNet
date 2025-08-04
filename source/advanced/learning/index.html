@@ -1,0 +1,143 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Learning Strategies &mdash; Dendritic Modeling Framework v0.1.0</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../_static/documentation_options.js?v=01f34227"></script>
+      <script src="../../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="author" title="About these documents" href="../../../about.html" />
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            Dendritic Modeling Framework
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../QUICK_START.html">Quick Start Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../CONFIGURATION_GUIDE.html">Configuration Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../FSDP_TRAINING_GUIDE.html">FSDP Training Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../sweeps.html">Sweeps Guide</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">Dendritic Modeling Framework</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Learning Strategies</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../../../_sources/source/advanced/learning/index.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="learning-strategies">
+<span id="learning"></span><h1>Learning Strategies<a class="headerlink" href="#learning-strategies" title="Link to this heading"></a></h1>
+<p>The Dendritic Modeling framework offers multiple learning strategies specifically designed for training dendritic networks effectively. These strategies range from standard gradient-based approaches to specialized techniques that leverage the unique properties of dendritic computation.</p>
+<div class="toctree-wrapper compound">
+<p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="learning_strategies.html">Learning Strategies</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="learning_strategies.html#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="learning_strategies.html#available-learning-strategies">Available Learning Strategies</a></li>
+<li class="toctree-l2"><a class="reference internal" href="learning_strategies.html#maximum-likelihood-estimation-mle">Maximum Likelihood Estimation (MLE)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="learning_strategies.html#freeze-branches-strategy">Freeze Branches Strategy</a></li>
+<li class="toctree-l2"><a class="reference internal" href="learning_strategies.html#freeze-branches-with-pretraining-strategy">Freeze Branches with Pretraining Strategy</a></li>
+<li class="toctree-l2"><a class="reference internal" href="learning_strategies.html#freeze-branches-reversed-strategy">Freeze Branches Reversed Strategy</a></li>
+<li class="toctree-l2"><a class="reference internal" href="learning_strategies.html#freeze-branches-reversed-with-pretraining-strategy">Freeze Branches Reversed with Pretraining Strategy</a></li>
+<li class="toctree-l2"><a class="reference internal" href="learning_strategies.html#two-step-training">Two-Step Training</a></li>
+<li class="toctree-l2"><a class="reference internal" href="learning_strategies.html#voltage-stabilization-strategy">Voltage Stabilization Strategy</a></li>
+<li class="toctree-l2"><a class="reference internal" href="learning_strategies.html#configuration-parameters-for-learning-strategies">Configuration Parameters for Learning Strategies</a></li>
+<li class="toctree-l2"><a class="reference internal" href="learning_strategies.html#factory-function">Factory Function</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="topk_linear.html">TopKLinear Layers and Dendritic Processing</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="topk_linear.html#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="topk_linear.html#topklinear-variants">TopKLinear Variants</a></li>
+<li class="toctree-l2"><a class="reference internal" href="topk_linear.html#topklinear-architecture">TopKLinear Architecture</a></li>
+<li class="toctree-l2"><a class="reference internal" href="topk_linear.html#configuration">Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="topk_linear.html#branch-factor-selection">Branch Factor Selection</a></li>
+<li class="toctree-l2"><a class="reference internal" href="topk_linear.html#biological-intuition">Biological Intuition</a></li>
+<li class="toctree-l2"><a class="reference internal" href="topk_linear.html#forward-pass-implementation">Forward Pass Implementation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="topk_linear.html#reactivation-strategies">Reactivation Strategies</a></li>
+<li class="toctree-l2"><a class="reference internal" href="topk_linear.html#gradient-flow-in-topklinear">Gradient Flow in TopKLinear</a></li>
+<li class="toctree-l2"><a class="reference internal" href="topk_linear.html#comparison-with-standard-linear-layers">Comparison with Standard Linear Layers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="topk_linear.html#blocklinear-strategies">BlockLinear Strategies</a></li>
+<li class="toctree-l2"><a class="reference internal" href="topk_linear.html#best-practices">Best Practices</a></li>
+<li class="toctree-l2"><a class="reference internal" href="topk_linear.html#example-configuration">Example Configuration</a></li>
+</ul>
+</li>
+</ul>
+</div>
+</section>
+
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, Kempner Institute.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

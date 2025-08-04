@@ -1,0 +1,242 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Weight Initialization Methods &mdash; Dendritic Modeling Framework v0.1.0</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../_static/documentation_options.js?v=01f34227"></script>
+      <script src="../../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="author" title="About these documents" href="../../../about.html" />
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            Dendritic Modeling Framework
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../QUICK_START.html">Quick Start Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../CONFIGURATION_GUIDE.html">Configuration Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../FSDP_TRAINING_GUIDE.html">FSDP Training Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../sweeps.html">Sweeps Guide</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">Dendritic Modeling Framework</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Weight Initialization Methods</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../../../_sources/source/advanced/network_structures/weight_initialization.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="weight-initialization-methods">
+<span id="weight-initialization"></span><h1>Weight Initialization Methods<a class="headerlink" href="#weight-initialization-methods" title="Link to this heading"></a></h1>
+<p>Proper weight initialization is critical for training dendritic networks successfully. This document explains the initialization methods used in the dendritic modeling framework and their importance for dendritic computation.</p>
+<section id="overview">
+<h2>Overview<a class="headerlink" href="#overview" title="Link to this heading"></a></h2>
+<p>Dendritic networks have unique initialization requirements due to:</p>
+<ol class="arabic simple">
+<li><p><strong>Sparse connectivity</strong>: The top-k selection in TopKLinear layers means only a subset of weights are active</p></li>
+<li><p><strong>Branch-specific processing</strong>: Different branches may require different initialization scales</p></li>
+<li><p><strong>Excitatory-inhibitory balance</strong>: Initial balance between these pathways is crucial for stable training</p></li>
+<li><p><strong>Multiple processing layers</strong>: Deeper networks require careful initialization to maintain signal propagation</p></li>
+</ol>
+<p>The framework provides several initialization methods that address these challenges, with specific consideration for the selective activation patterns in dendritic branches.</p>
+</section>
+<section id="topklinear-initialization">
+<h2>TopKLinear Initialization<a class="headerlink" href="#topklinear-initialization" title="Link to this heading"></a></h2>
+<p>The <code class="docutils literal notranslate"><span class="pre">TopKLinear</span></code> layer, which models selective synaptic activation in dendrites, has specialized initialization options that can be selected through the <code class="docutils literal notranslate"><span class="pre">topk_init_method</span></code> parameter:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">model</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">network</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">parameters</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">topk_init_method</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;xavier_normal&quot;</span>
+<span class="w">      </span><span class="nt">init_gain</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1.0</span>
+</pre></div>
+</div>
+<p>Available initialization methods include:</p>
+<ol class="arabic simple">
+<li><p><strong>xavier_normal</strong>: Xavier (Glorot) initialization with normal distribution</p></li>
+<li><p><strong>xavier_uniform</strong>: Xavier initialization with uniform distribution</p></li>
+<li><p><strong>kaiming_normal</strong>: Kaiming (He) initialization with normal distribution</p></li>
+<li><p><strong>kaiming_uniform</strong>: Kaiming initialization with uniform distribution</p></li>
+<li><p><strong>orthogonal</strong>: Orthogonal initialization</p></li>
+<li><p><strong>normal</strong>: Standard normal distribution initialization</p></li>
+<li><p><strong>uniform</strong>: Uniform distribution initialization</p></li>
+<li><p><strong>eye</strong>: Identity matrix initialization</p></li>
+</ol>
+<p>Implementation details:</p>
+<p>The initialization is handled internally by the TopKLinear layer:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">TOPK_INIT_METHODS</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s1">&#39;xavier_normal&#39;</span><span class="p">:</span> <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">xavier_normal_</span><span class="p">,</span>
+    <span class="s1">&#39;xavier_uniform&#39;</span><span class="p">:</span> <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">xavier_uniform_</span><span class="p">,</span>
+    <span class="s1">&#39;kaiming_normal&#39;</span><span class="p">:</span> <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">kaiming_normal_</span><span class="p">,</span>
+    <span class="s1">&#39;kaiming_uniform&#39;</span><span class="p">:</span> <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">kaiming_uniform_</span><span class="p">,</span>
+    <span class="s1">&#39;orthogonal&#39;</span><span class="p">:</span> <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">orthogonal_</span><span class="p">,</span>
+    <span class="s1">&#39;normal&#39;</span><span class="p">:</span> <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">normal_</span><span class="p">,</span>
+    <span class="s1">&#39;uniform&#39;</span><span class="p">:</span> <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">uniform_</span><span class="p">,</span>
+    <span class="s1">&#39;eye&#39;</span><span class="p">:</span> <span class="n">nn</span><span class="o">.</span><span class="n">init</span><span class="o">.</span><span class="n">eye_</span><span class="p">,</span>
+<span class="p">}</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">initialize</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">init_method</span> <span class="ow">in</span> <span class="n">TOPK_INIT_METHODS</span><span class="p">:</span>
+        <span class="n">init_func</span> <span class="o">=</span> <span class="n">TOPK_INIT_METHODS</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">init_method</span><span class="p">]</span>
+        <span class="n">init_func</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">pre_w</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">pre_w</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">mul_</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">init_gain</span><span class="p">)</span>  <span class="c1"># scale</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s1">&#39;Invalid initialization method: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">init_method</span><span class="si">}</span><span class="s1">. &#39;</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s1">&#39;Choose from </span><span class="si">{</span><span class="nb">list</span><span class="p">(</span><span class="n">TOPK_INIT_METHODS</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="xavier-vs-kaiming-initialization">
+<h2>Xavier vs. Kaiming Initialization<a class="headerlink" href="#xavier-vs-kaiming-initialization" title="Link to this heading"></a></h2>
+<p>For dendritic networks, the choice between Xavier and Kaiming initialization depends on the activation functions and network depth:</p>
+<ol class="arabic simple">
+<li><p><strong>Xavier initialization</strong> (also called Glorot initialization):
+- Designed for symmetric activations like tanh
+- Maintains variance across layers by considering both fan-in and fan-out
+- Works well with ParametricTanh activations in dendritic networks
+- Better for shallower networks</p></li>
+<li><p><strong>Kaiming initialization</strong> (also called He initialization):
+- Designed for ReLU-like activations with positive skew
+- Focuses on fan-in to maintain variance for forward pass
+- May need adaptation for ParametricTanh (adjusting the ‘a’ parameter)
+- Better for deeper networks</p></li>
+</ol>
+</section>
+<section id="the-init-gain-parameter">
+<h2>The init_gain Parameter<a class="headerlink" href="#the-init-gain-parameter" title="Link to this heading"></a></h2>
+<p>The <code class="docutils literal notranslate"><span class="pre">init_gain</span></code> parameter scales the standard deviation or bounds of the initialization:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">model</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">network</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">parameters</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">init_gain</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1.0</span><span class="w">  </span><span class="c1"># Default value</span>
+</pre></div>
+</div>
+<p>A higher gain increases the initial magnitude of weights, which can help with vanishing gradients but risks saturation. Values between 0.5 and 2.0 are most common.</p>
+<p>Guidelines for different activation functions:
+- For ParametricTanh with default parameters: gain ≈ 1.0
+- For steeper ParametricTanh (higher m): gain ≈ 0.5-0.8
+- For flatter ParametricTanh (lower m): gain ≈ 1.2-1.5</p>
+</section>
+<section id="blocklinear-initialization">
+<h2>BlockLinear Initialization<a class="headerlink" href="#blocklinear-initialization" title="Link to this heading"></a></h2>
+<p>For BlockLinear layers, which handle information flow between branches, initialization is handled internally by the layer. The layer ensures that the input features are divisible by the output features to maintain proper block structure.</p>
+</section>
+<section id="initialization-of-parametrictanh-parameters">
+<h2>Initialization of ParametricTanh Parameters<a class="headerlink" href="#initialization-of-parametrictanh-parameters" title="Link to this heading"></a></h2>
+<p>The learnable parameters in ParametricTanh activations (m and b) also require careful initialization:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">model</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">network</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">parameters</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">reactivation_initial_m</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1.5</span><span class="w">  </span><span class="c1"># Initial slope parameter (default)</span>
+<span class="w">      </span><span class="nt">reactivation_initial_b</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1.0</span><span class="w">  </span><span class="c1"># Initial offset parameter (default)</span>
+</pre></div>
+</div>
+<p>These values strongly influence the initial response properties of dendritic branches:</p>
+<ol class="arabic simple">
+<li><p><strong>reactivation_initial_m</strong>: Controls the initial slope of the tanh function
+- Higher values create steeper curves with stronger saturation
+- Lower values create more gradual, linear-like responses
+- Biological dendrites often exhibit steep nonlinearities, so values ≥ 1.0 are common</p></li>
+<li><p><strong>reactivation_initial_b</strong>: Controls the initial offset of the tanh function
+- Positive values shift the sensitive region toward negative inputs
+- Negative values shift the sensitive region toward positive inputs
+- The optimal value depends on the distribution of pre-activation values</p></li>
+</ol>
+</section>
+<section id="best-practices-for-initialization">
+<h2>Best Practices for Initialization<a class="headerlink" href="#best-practices-for-initialization" title="Link to this heading"></a></h2>
+<p>For optimal performance when training dendritic networks:</p>
+<ol class="arabic simple">
+<li><p><strong>Match initialization to activation</strong>: Use xavier_normal for ParametricTanh, kaiming for ReLU-like functions</p></li>
+<li><p><strong>Adjust for network depth</strong>: Deeper networks may need lower gain values</p></li>
+<li><p><strong>Monitor initial activations</strong>: Check activation statistics at initialization to verify signal propagation</p></li>
+<li><p><strong>Consider layer-specific initialization</strong>: Different layers may benefit from different initialization parameters</p></li>
+</ol>
+<p>Example complete initialization configuration:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">model</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">network</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">parameters</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">topk_init_method</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;xavier_normal&quot;</span>
+<span class="w">      </span><span class="nt">init_gain</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1.0</span>
+<span class="w">      </span><span class="nt">reactivation_initial_m</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1.5</span>
+<span class="w">      </span><span class="nt">reactivation_initial_b</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1.0</span>
+</pre></div>
+</div>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, Kempner Institute.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

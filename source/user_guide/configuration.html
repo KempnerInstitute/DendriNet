@@ -1,0 +1,410 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Configuration System &mdash; Dendritic Modeling Framework v0.1.0</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=01f34227"></script>
+      <script src="../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="author" title="About these documents" href="../../about.html" />
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            Dendritic Modeling Framework
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../QUICK_START.html">Quick Start Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../CONFIGURATION_GUIDE.html">Configuration Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../FSDP_TRAINING_GUIDE.html">FSDP Training Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../sweeps.html">Sweeps Guide</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">Dendritic Modeling Framework</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Configuration System</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../../_sources/source/user_guide/configuration.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="configuration-system">
+<h1>Configuration System<a class="headerlink" href="#configuration-system" title="Link to this heading"></a></h1>
+<p>The Dendritic Modeling framework uses a flexible YAML-based configuration system to define experiment parameters. This approach allows you to:</p>
+<ol class="arabic simple">
+<li><p>Define complex experiments without changing code</p></li>
+<li><p>Track experiment parameters for reproducibility</p></li>
+<li><p>Run parameter sweeps by varying configuration values</p></li>
+<li><p>Share experiment setups with colleagues</p></li>
+</ol>
+<section id="basic-configuration-structure">
+<h2>Basic Configuration Structure<a class="headerlink" href="#basic-configuration-structure" title="Link to this heading"></a></h2>
+<p>Configuration files are organized into several sections:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">model</span><span class="p">:</span>
+<span class="w">  </span><span class="c1"># Model architecture and parameters</span>
+
+<span class="nt">train</span><span class="p">:</span>
+<span class="w">  </span><span class="c1"># Training parameters</span>
+
+<span class="nt">task</span><span class="p">:</span>
+<span class="w">  </span><span class="c1"># Dataset and task parameters</span>
+
+<span class="nt">wandb</span><span class="p">:</span>
+<span class="w">  </span><span class="c1"># Experiment tracking settings</span>
+
+<span class="nt">visualization</span><span class="p">:</span>
+<span class="w">  </span><span class="c1"># Visualization parameters</span>
+
+<span class="nt">outputs</span><span class="p">:</span>
+<span class="w">  </span><span class="c1"># Output directory settings</span>
+</pre></div>
+</div>
+<p>Let’s explore each section in detail:</p>
+</section>
+<section id="model-configuration">
+<h2>Model Configuration<a class="headerlink" href="#model-configuration" title="Link to this heading"></a></h2>
+<p>The <cite>model</cite> section defines the network architecture and parameters:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">model</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">task</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">classification</span>
+<span class="w">  </span><span class="nt">probabilistic</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+<span class="w">  </span><span class="nt">network</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">EINet</span><span class="w">  </span><span class="c1"># &quot;EINet&quot; or &quot;MLP&quot;</span>
+<span class="w">    </span><span class="nt">parameters</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">excitatory_layer_sizes</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">10</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">inhibitory_layer_sizes</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">20</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">excitatory_branch_factors</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">2</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">2</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">inhibitory_branch_factors</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[]</span>
+<span class="w">      </span><span class="nt">ee_synapses_per_branch_per_layer</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">24</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">ei_synapses_per_branch_per_layer</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">100</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">ie_synapses_per_branch_per_layer</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">2</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">ii_synapses_per_branch_per_layer</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">0</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">reactivate</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">somatic_synapses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">topk_init_method</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">xavier_normal</span>
+<span class="w">      </span><span class="nt">use_shunting</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">reactivation_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">param_tanh</span>
+<span class="w">      </span><span class="nt">reactivation_strategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">inverse</span>
+<span class="w">      </span><span class="nt">blocklinear_strategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">block_conductance_dynamic</span>
+<span class="w">      </span><span class="nt">enable_branch_outputs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">output_layer</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+<span class="w">      </span><span class="nt">output_dim</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
+
+<span class="w">      </span><span class="c1"># Input mode (0=original, 1=exc=x+inh=x, 2=input_net)</span>
+<span class="w">      </span><span class="nt">input_mode</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2</span>
+<span class="w">      </span><span class="nt">input_net_dict</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;MLPInputTransform&quot;</span>
+<span class="w">        </span><span class="nt">hidden_dims</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">512</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">256</span><span class="p p-Indicator">]</span>
+<span class="w">        </span><span class="nt">output_dim</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">128</span>
+</pre></div>
+</div>
+<p>Key parameters include:</p>
+<ul class="simple">
+<li><p><strong>network.type</strong>: Network architecture to use (<cite>EINet</cite> or <cite>MLP</cite>)</p></li>
+<li><p><strong>excitatory_layer_sizes/inhibitory_layer_sizes</strong>: Number of cells in each layer</p></li>
+<li><p><strong>excitatory_branch_factors/inhibitory_branch_factors</strong>: Branching structure</p></li>
+<li><p><strong>synapses_per_branch_per_layer</strong>: Connectivity parameters</p></li>
+<li><p><strong>input_mode</strong>: Method for handling inputs (direct or through input network)</p></li>
+</ul>
+</section>
+<section id="training-configuration">
+<h2>Training Configuration<a class="headerlink" href="#training-configuration" title="Link to this heading"></a></h2>
+<p>The <cite>train</cite> section defines the training process and hyperparameters:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">train</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">learning_strategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mle</span><span class="w">  </span><span class="c1"># Multiple strategies available (see below)</span>
+<span class="w">  </span><span class="nt">run_name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mnist_einet</span>
+<span class="w">  </span><span class="nt">seed</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">42</span>
+<span class="w">  </span><span class="nt">train_valid_split</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.8</span>
+<span class="w">  </span><span class="nt">lr</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.001</span>
+<span class="w">  </span><span class="nt">weight_decay_rate</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.01</span>
+<span class="w">  </span><span class="nt">epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">50</span>
+<span class="w">  </span><span class="nt">batch_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">64</span>
+<span class="w">  </span><span class="nt">grad_clip_value</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1.0</span>
+
+<span class="w">  </span><span class="c1"># For branch-wise learning strategies</span>
+<span class="w">  </span><span class="nt">epochs_per_layer</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span><span class="w">   </span><span class="c1"># Number of epochs to train each branch</span>
+<span class="w">  </span><span class="nt">final_tune_epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span><span class="w">   </span><span class="c1"># Number of epochs for final fine-tuning</span>
+
+<span class="w">  </span><span class="c1"># For strategies with pretraining</span>
+<span class="w">  </span><span class="nt">pretrain_epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span><span class="w">    </span><span class="c1"># Number of epochs for initial full network training</span>
+
+<span class="w">  </span><span class="c1"># For voltage stabilization strategy</span>
+<span class="w">  </span><span class="nt">warmup_epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span><span class="w">       </span><span class="c1"># Number of epochs for activation stabilization</span>
+<span class="w">  </span><span class="nt">stability_target_voltage</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.5</span><span class="w">  </span><span class="c1"># Target activation value</span>
+
+<span class="w">  </span><span class="c1"># Input network training configuration</span>
+<span class="w">  </span><span class="nt">input_net_training</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">training_mode</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;sequential&quot;</span><span class="w">  </span><span class="c1"># &quot;joint&quot; or &quot;sequential&quot;</span>
+<span class="w">    </span><span class="nt">train_input_net</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">input_net_epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">20</span>
+<span class="w">    </span><span class="nt">train_heads_independently</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+</pre></div>
+</div>
+<p>Key parameters include:</p>
+<ul class="simple">
+<li><p><strong>learning_strategy</strong>: Algorithm for training the network</p></li>
+<li><p><strong>lr</strong>, <strong>batch_size</strong>, <strong>epochs</strong>: Standard training hyperparameters</p></li>
+<li><p><strong>epochs_per_layer</strong>, <strong>final_tune_epochs</strong>: Parameters for branch-wise training strategies</p></li>
+<li><p><strong>pretrain_epochs</strong>: Parameter for strategies with initial full-network training</p></li>
+<li><p><strong>input_net_training</strong>: Configuration for input transformation networks</p></li>
+</ul>
+<section id="available-learning-strategies">
+<h3>Available Learning Strategies<a class="headerlink" href="#available-learning-strategies" title="Link to this heading"></a></h3>
+<p>The framework provides several learning strategies that can be specified in the configuration:</p>
+<ol class="arabic">
+<li><p><strong>MLE (Maximum Likelihood Estimation)</strong> - <cite>learning_strategy: mle</cite></p>
+<p>Standard end-to-end training where all parameters are updated simultaneously.</p>
+</li>
+<li><p><strong>Freeze Branches</strong> - <cite>learning_strategy: freeze_branches</cite></p>
+<p>Trains the network one branch at a time, from the soma (output) to the input, focusing on:</p>
+<ul class="simple">
+<li><p>Training soma-proximal branches first, then progressively moving to distal branches</p></li>
+<li><p>Using <cite>epochs_per_layer</cite> epochs for each branch (parameter name remains the same despite operating on branches)</p></li>
+<li><p>Performing final tuning of all branches for <cite>final_tune_epochs</cite> epochs</p></li>
+</ul>
+<p>Example configuration:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">train</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">learning_strategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">freeze_branches</span>
+<span class="w">  </span><span class="nt">epochs_per_layer</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">20</span><span class="w">    </span><span class="c1"># Each branch is trained for 20 epochs</span>
+<span class="w">  </span><span class="nt">final_tune_epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span><span class="w">   </span><span class="c1"># 10 epochs of full-network fine-tuning</span>
+</pre></div>
+</div>
+</li>
+<li><p><strong>Freeze Branches Reversed</strong> - <cite>learning_strategy: freeze_branches_reversed</cite></p>
+<p>Similar to freeze_branches, but trains the network in the opposite direction:</p>
+<ul class="simple">
+<li><p>Starting from distal branches (input) and moving toward the soma (output)</p></li>
+<li><p>Following the natural flow of information in neural dendrites</p></li>
+<li><p>More biologically plausible than standard freeze_branches</p></li>
+</ul>
+<p>Example configuration:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">train</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">learning_strategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">freeze_branches_reversed</span>
+<span class="w">  </span><span class="nt">epochs_per_layer</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">20</span><span class="w">    </span><span class="c1"># Each branch is trained for 20 epochs</span>
+<span class="w">  </span><span class="nt">final_tune_epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span><span class="w">   </span><span class="c1"># 10 epochs of full-network fine-tuning</span>
+</pre></div>
+</div>
+</li>
+<li><p><strong>Freeze Branches with Pretraining</strong> - <cite>learning_strategy: freeze_branches_with_pretraining</cite></p>
+<p>Three-phase training approach:</p>
+<ul class="simple">
+<li><p>Initial full-network training for <cite>pretrain_epochs</cite> epochs</p></li>
+<li><p>Branch-by-branch training from soma to input for <cite>epochs_per_layer</cite> epochs per branch</p></li>
+<li><p>Final full-network fine-tuning for <cite>final_tune_epochs</cite> epochs</p></li>
+</ul>
+<p>Example configuration:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">train</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">learning_strategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">freeze_branches_with_pretraining</span>
+<span class="w">  </span><span class="nt">pretrain_epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span><span class="w">     </span><span class="c1"># Initial full-network training</span>
+<span class="w">  </span><span class="nt">epochs_per_layer</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">20</span><span class="w">    </span><span class="c1"># Each branch is trained for 20 epochs</span>
+<span class="w">  </span><span class="nt">final_tune_epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span><span class="w">   </span><span class="c1"># 10 epochs of full-network fine-tuning</span>
+</pre></div>
+</div>
+</li>
+<li><p><strong>Freeze Branches Reversed with Pretraining</strong> - <cite>learning_strategy: freeze_branches_reversed_with_pretraining</cite></p>
+<p>Combines pretraining with the reversed branch training approach:</p>
+<ul class="simple">
+<li><p>Initial full-network training for <cite>pretrain_epochs</cite> epochs</p></li>
+<li><p>Branch-by-branch training from input to soma for <cite>epochs_per_layer</cite> epochs per branch</p></li>
+<li><p>Final full-network fine-tuning for <cite>final_tune_epochs</cite> epochs</p></li>
+</ul>
+<p>Example configuration:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">train</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">learning_strategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">freeze_branches_reversed_with_pretraining</span>
+<span class="w">  </span><span class="nt">pretrain_epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span><span class="w">     </span><span class="c1"># Initial full-network training</span>
+<span class="w">  </span><span class="nt">epochs_per_layer</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">20</span><span class="w">    </span><span class="c1"># Each branch is trained for 20 epochs</span>
+<span class="w">  </span><span class="nt">final_tune_epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span><span class="w">   </span><span class="c1"># 10 epochs of full-network fine-tuning</span>
+</pre></div>
+</div>
+</li>
+<li><p><strong>Two-Step Training</strong> - <cite>learning_strategy: two_step</cite></p>
+<p>Two-phase training approach:</p>
+<ul class="simple">
+<li><p>Pretraining phase for <cite>pretrain_epochs</cite> epochs</p></li>
+<li><p>Main training phase for remaining epochs</p></li>
+</ul>
+<p>Example configuration:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">train</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">learning_strategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">two_step</span>
+<span class="w">  </span><span class="nt">pretrain_epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span><span class="w">     </span><span class="c1"># Pretraining phase</span>
+<span class="w">  </span><span class="nt">epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">50</span><span class="w">              </span><span class="c1"># Total epochs (including pretraining)</span>
+</pre></div>
+</div>
+</li>
+<li><p><strong>Voltage Stabilization</strong> - <cite>learning_strategy: voltage_stabilization</cite></p>
+<p>Includes a warm-up phase to stabilize activations:</p>
+<ul class="simple">
+<li><p>Initial warm-up phase for <cite>warmup_epochs</cite> epochs to stabilize branch voltages</p></li>
+<li><p>Main training phase for remaining epochs</p></li>
+</ul>
+<p>Example configuration:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">train</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">learning_strategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">voltage_stabilization</span>
+<span class="w">  </span><span class="nt">warmup_epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span><span class="w">        </span><span class="c1"># Activation stabilization phase</span>
+<span class="w">  </span><span class="nt">stability_target_voltage</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.5</span><span class="w">  </span><span class="c1"># Target activation value</span>
+<span class="w">  </span><span class="nt">epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">50</span><span class="w">              </span><span class="c1"># Total epochs (including warmup)</span>
+</pre></div>
+</div>
+</li>
+</ol>
+</section>
+<section id="complete-example">
+<h3>Complete Example<a class="headerlink" href="#complete-example" title="Link to this heading"></a></h3>
+<p>A complete example of a configuration using the freeze_branches_reversed_with_pretraining strategy:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">train</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">learning_strategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">freeze_branches_reversed_with_pretraining</span>
+<span class="w">  </span><span class="nt">run_name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mnist_einet_freeze_reversed_pretrain</span>
+<span class="w">  </span><span class="nt">seed</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">42</span>
+<span class="w">  </span><span class="nt">train_valid_split</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.8</span>
+<span class="w">  </span><span class="nt">lr</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.005</span>
+<span class="w">  </span><span class="nt">weight_decay_rate</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.01</span>
+<span class="w">  </span><span class="nt">epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">60</span><span class="w">             </span><span class="c1"># Total epochs across all phases</span>
+<span class="w">  </span><span class="nt">batch_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">128</span>
+<span class="w">  </span><span class="nt">grad_clip_value</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5.0</span>
+<span class="w">  </span><span class="nt">pretrain_epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span><span class="w">    </span><span class="c1"># Initial full-network training</span>
+<span class="w">  </span><span class="nt">epochs_per_layer</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">20</span><span class="w">   </span><span class="c1"># Each branch is trained for 20 epochs</span>
+<span class="w">  </span><span class="nt">final_tune_epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span><span class="w">  </span><span class="c1"># Final full-network fine-tuning</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="task-configuration">
+<h2>Task Configuration<a class="headerlink" href="#task-configuration" title="Link to this heading"></a></h2>
+<p>The <cite>task</cite> section defines the dataset and task-specific parameters:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">task</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">dataset</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mnist</span><span class="w">  </span><span class="c1"># Dataset to use</span>
+<span class="w">  </span><span class="nt">data_path</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;&quot;</span><span class="w">   </span><span class="c1"># Optional path to data (will use default if empty)</span>
+<span class="w">  </span><span class="nt">parameters</span><span class="p">:</span>
+<span class="w">    </span><span class="c1"># Dataset-specific parameters</span>
+<span class="w">    </span><span class="nt">transform</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;normalize&quot;</span>
+<span class="w">    </span><span class="nt">target_transform</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;&quot;</span>
+</pre></div>
+</div>
+</section>
+<section id="wandb-configuration">
+<h2>Wandb Configuration<a class="headerlink" href="#wandb-configuration" title="Link to this heading"></a></h2>
+<p>The <cite>wandb</cite> section configures experiment tracking with Weights &amp; Biases:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">wandb</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">entity</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;your_username&quot;</span>
+<span class="w">  </span><span class="nt">project</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;dendritic_modeling&quot;</span>
+<span class="w">  </span><span class="nt">group</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;mnist_experiments&quot;</span>
+<span class="w">  </span><span class="nt">tags</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;einet&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;mnist&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;exploration&quot;</span><span class="p p-Indicator">]</span>
+<span class="w">  </span><span class="nt">use_wandb</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">  </span><span class="c1"># Set to false to disable wandb logging</span>
+</pre></div>
+</div>
+</section>
+<section id="visualization-configuration">
+<h2>Visualization Configuration<a class="headerlink" href="#visualization-configuration" title="Link to this heading"></a></h2>
+<p>The <cite>visualization</cite> section controls model visualization:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">visualization</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">  </span><span class="nt">visualize_epochs</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">0</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">10</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">20</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">30</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">40</span><span class="p p-Indicator">]</span><span class="w">  </span><span class="c1"># Epochs at which to generate visualizations</span>
+<span class="w">  </span><span class="nt">plots</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;branch_info&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;ablation&quot;</span><span class="p p-Indicator">]</span><span class="w">  </span><span class="c1"># Plot types to generate</span>
+<span class="w">  </span><span class="nt">parameters</span><span class="p">:</span>
+<span class="w">    </span><span class="c1"># Visualization-specific parameters</span>
+<span class="w">    </span><span class="nt">save_figures</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">figure_format</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;png&quot;</span>
+</pre></div>
+</div>
+</section>
+<section id="outputs-configuration">
+<h2>Outputs Configuration<a class="headerlink" href="#outputs-configuration" title="Link to this heading"></a></h2>
+<p>The <cite>outputs</cite> section defines where experiment results are saved:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">outputs</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">dir</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;outputs&quot;</span><span class="w">  </span><span class="c1"># Directory for experiment outputs</span>
+</pre></div>
+</div>
+</section>
+<section id="using-the-configuration-system">
+<h2>Using the Configuration System<a class="headerlink" href="#using-the-configuration-system" title="Link to this heading"></a></h2>
+<p>To run an experiment with a specific configuration file:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>src/dendritic_modeling/train_experiments.py<span class="w"> </span>config_exp.yaml
+</pre></div>
+</div>
+<p>To override specific parameters at runtime:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>src/dendritic_modeling/scripts/train_experiments.py<span class="w"> </span>config_exp.yaml<span class="w"> </span>--train.learning_strategy<span class="w"> </span>freeze_branches<span class="w"> </span>--train.lr<span class="w"> </span><span class="m">0</span>.01
+</pre></div>
+</div>
+<p>This flexible configuration system allows you to:</p>
+<ol class="arabic simple">
+<li><p>Define a wide range of experiments without code changes</p></li>
+<li><p>Ensure reproducibility by capturing all experiment parameters</p></li>
+<li><p>Easily iterate on hyperparameters</p></li>
+<li><p>Share experiment setups with colleagues</p></li>
+</ol>
+<p>The configuration is fully typed and validated, with detailed error messages if parameters are invalid.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, Kempner Institute.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

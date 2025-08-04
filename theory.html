@@ -1,0 +1,243 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Theory and Background &mdash; Dendritic Modeling Framework v0.1.0</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=01f34227"></script>
+      <script src="_static/doctools.js?v=9bcbadda"></script>
+      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="author" title="About these documents" href="about.html" />
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            Dendritic Modeling Framework
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="QUICK_START.html">Quick Start Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="CONFIGURATION_GUIDE.html">Configuration Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="FSDP_TRAINING_GUIDE.html">FSDP Training Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sweeps.html">Sweeps Guide</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">Dendritic Modeling Framework</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Theory and Background</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/theory.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="theory-and-background">
+<h1>Theory and Background<a class="headerlink" href="#theory-and-background" title="Link to this heading"></a></h1>
+<p>This section covers the theoretical foundations and biological principles underlying the Dendritic Modeling Framework.</p>
+<section id="biological-foundations">
+<h2>Biological Foundations<a class="headerlink" href="#biological-foundations" title="Link to this heading"></a></h2>
+<section id="dendritic-computation">
+<h3>Dendritic Computation<a class="headerlink" href="#dendritic-computation" title="Link to this heading"></a></h3>
+<p>Neurons are not simple point processors. Their dendritic trees perform sophisticated local computations before signals reach the soma:</p>
+<a class="reference internal image-reference" href="_images/dendritic_neuron_schematic.png"><img alt="Dendritic neuron architecture" class="align-center" src="_images/dendritic_neuron_schematic.png" style="width: 600px;" />
+</a>
+<p><strong>Key principles:</strong></p>
+<ul class="simple">
+<li><p><strong>Spatial segregation</strong>: Different dendritic branches can process different input streams independently</p></li>
+<li><p><strong>Local nonlinearities</strong>: Dendritic branches implement nonlinear operations through voltage-gated channels</p></li>
+<li><p><strong>Compartmentalization</strong>: Electrical and biochemical isolation allows for localized processing</p></li>
+</ul>
+</section>
+<section id="shunting-inhibition">
+<h3>Shunting Inhibition<a class="headerlink" href="#shunting-inhibition" title="Link to this heading"></a></h3>
+<p>The core computational principle in our framework is shunting inhibition, a divisive form of inhibition ubiquitous in biological neural circuits:</p>
+<a class="reference internal image-reference" href="_images/dendritic_computation_flow1.png"><img alt="Dendritic computation flow" class="align-center" src="_images/dendritic_computation_flow1.png" style="width: 700px;" />
+</a>
+<div class="math notranslate nohighlight">
+\[V_{out} = \frac{E}{E + I + \epsilon}\]</div>
+<p>Where:
+- <span class="math notranslate nohighlight">\(E\)</span> is the excitatory input
+- <span class="math notranslate nohighlight">\(I\)</span> is the inhibitory input
+- <span class="math notranslate nohighlight">\(\epsilon\)</span> is a small constant preventing division by zero</p>
+<p>This provides several computational advantages:
+- <strong>Gain control</strong>: Automatic adjustment of neural sensitivity
+- <strong>Normalization</strong>: Inputs are normalized by total activity
+- <strong>Stability</strong>: Prevents runaway excitation</p>
+</section>
+<section id="excitation-inhibition-balance">
+<h3>Excitation-Inhibition Balance<a class="headerlink" href="#excitation-inhibition-balance" title="Link to this heading"></a></h3>
+<p>Following Dale’s principle, neurons in biological networks are either excitatory or inhibitory, but not both:</p>
+<a class="reference internal image-reference" href="_images/network_architecture_enhanced.png"><img alt="E/I network architecture" class="align-center" src="_images/network_architecture_enhanced.png" style="width: 800px;" />
+</a>
+<p><strong>Network organization:</strong>
+- Separate excitatory (E) and inhibitory (I) populations
+- E→E connections propagate signals between layers
+- E→I connections recruit inhibition
+- I→E connections provide feedback inhibition within layers
+- I→I connections between layers</p>
+</section>
+</section>
+<section id="mathematical-framework">
+<h2>Mathematical Framework<a class="headerlink" href="#mathematical-framework" title="Link to this heading"></a></h2>
+<section id="dendritic-integration">
+<h3>Dendritic Integration<a class="headerlink" href="#dendritic-integration" title="Link to this heading"></a></h3>
+<p>Each dendritic branch <span class="math notranslate nohighlight">\(d_i\)</span> performs the following computation:</p>
+<div class="math notranslate nohighlight">
+\[\begin{split}V_{d_i} = \begin{cases}
+\frac{E_i}{E_i + I_i + \epsilon} &amp; \text{if } i = n \text{ (distal)} \\
+\frac{E_i + V_{d_{i+1}}}{E_i + V_{d_{i+1}} + I_i + \epsilon} &amp; \text{otherwise}
+\end{cases}\end{split}\]</div>
+<p>This creates a sequential processing chain from distal to proximal dendrites:</p>
+<a class="reference internal image-reference" href="_images/dendritic_computation_flow1.png"><img alt="Sequential dendritic computation" class="align-center" src="_images/dendritic_computation_flow1.png" style="width: 800px;" />
+</a>
+</section>
+<section id="network-dynamics">
+<h3>Network Dynamics<a class="headerlink" href="#network-dynamics" title="Link to this heading"></a></h3>
+<p>The full network dynamics for layer <span class="math notranslate nohighlight">\(\ell\)</span> are described by:</p>
+<div class="math notranslate nohighlight">
+\[ \begin{align}\begin{aligned}\mathbf{h}^{(\ell)}_E = f_{dendrite}(W^{(\ell)}_{EE} \mathbf{h}^{(\ell-1)}_E, W^{(\ell)}_{IE} \mathbf{h}^{(\ell-1)}_I)\\\mathbf{h}^{(\ell)}_I = g(W^{(\ell)}_{EI} \mathbf{h}^{(\ell-1)}_E + W^{(\ell)}_{II} \mathbf{h}^{(\ell-1)}_I)\end{aligned}\end{align} \]</div>
+<p>Where <span class="math notranslate nohighlight">\(f_{dendrite}\)</span> implements the sequential dendritic computation with shunting inhibition.</p>
+</section>
+<section id="sparse-connectivity">
+<h3>Sparse Connectivity<a class="headerlink" href="#sparse-connectivity" title="Link to this heading"></a></h3>
+<p>Biological networks are sparsely connected. We implement several strategies:</p>
+<a class="reference internal image-reference" href="_images/sparse_connectivity.png"><img alt="Sparse connectivity strategies" class="align-center" src="_images/sparse_connectivity.png" style="width: 800px;" />
+</a>
+<ol class="arabic simple">
+<li><p><strong>Dense Connectivity</strong>: Traditional fully-connected layers</p></li>
+<li><p><strong>TopK Sparse</strong>: Each neuron connects to exactly K others</p></li>
+<li><p><strong>DEEPST Dynamic</strong>: Adaptive rewiring based on importance</p></li>
+</ol>
+</section>
+</section>
+<section id="implementation-details">
+<h2>Implementation Details<a class="headerlink" href="#implementation-details" title="Link to this heading"></a></h2>
+<section id="computational-efficiency">
+<h3>Computational Efficiency<a class="headerlink" href="#computational-efficiency" title="Link to this heading"></a></h3>
+<p>Despite biological complexity, our implementation is computationally efficient:</p>
+<ul class="simple">
+<li><p>Sparse matrix operations for connectivity</p></li>
+<li><p>Vectorized dendritic computations</p></li>
+<li><p>GPU-accelerated forward/backward passes</p></li>
+<li><p>Memory-efficient gradient computation</p></li>
+</ul>
+</section>
+<section id="stability-considerations">
+<h3>Stability Considerations<a class="headerlink" href="#stability-considerations" title="Link to this heading"></a></h3>
+<p>To ensure stable training:</p>
+<ol class="arabic simple">
+<li><p><strong>Voltage stabilization</strong>: Pre-training phase to establish proper voltage ranges</p></li>
+<li><p><strong>Gradient scaling</strong>: Adaptive normalization for dendritic gradients</p></li>
+<li><p><strong>Weight initialization</strong>: Specialized initialization for E/I balance</p></li>
+<li><p><strong>Homeostatic regularization</strong>: Maintains healthy activity levels</p></li>
+</ol>
+</section>
+</section>
+<section id="key-advantages">
+<h2>Key Advantages<a class="headerlink" href="#key-advantages" title="Link to this heading"></a></h2>
+<p>The dendritic modeling framework offers several advantages over traditional neural networks:</p>
+<dl class="simple">
+<dt><strong>Biological Plausibility</strong></dt><dd><ul class="simple">
+<li><p>Respects Dale’s principle (separate E/I populations)</p></li>
+<li><p>Implements realistic synaptic dynamics</p></li>
+<li><p>Models dendritic computation</p></li>
+</ul>
+</dd>
+<dt><strong>Computational Benefits</strong></dt><dd><ul class="simple">
+<li><p>Natural normalization through shunting inhibition</p></li>
+<li><p>Improved gradient flow through dendrites</p></li>
+<li><p>Sparse connectivity for efficiency</p></li>
+</ul>
+</dd>
+<dt><strong>Robustness</strong></dt><dd><ul class="simple">
+<li><p>Inherent stability from divisive normalization</p></li>
+<li><p>Better noise tolerance</p></li>
+<li><p>Reduced need for explicit regularization</p></li>
+</ul>
+</dd>
+</dl>
+</section>
+<section id="references">
+<h2>References<a class="headerlink" href="#references" title="Link to this heading"></a></h2>
+<p>Key papers underlying this framework:</p>
+<ol class="arabic simple">
+<li><p><strong>Shunting inhibition</strong>: Carandini &amp; Heeger (2012) “Normalization as a canonical neural computation”</p></li>
+<li><p><strong>Dendritic computation</strong>: Stuart &amp; Spruston (2015) “Dendritic integration: 60 years of progress”</p></li>
+<li><p><strong>E/I balance</strong>: Denève &amp; Machens (2016) “Efficient codes and balanced networks”</p></li>
+<li><p><strong>Sparse connectivity</strong>: Litwin-Kumar &amp; Doiron (2014) “Formation and maintenance of neuronal assemblies”</p></li>
+</ol>
+<p>For implementation details, see the <a class="reference internal" href="api_reference.html"><span class="doc">API Reference</span></a>.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, Kempner Institute.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

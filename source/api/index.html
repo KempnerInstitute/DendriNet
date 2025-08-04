@@ -1,0 +1,259 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>API Reference &mdash; Dendritic Modeling Framework v0.1.0</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=01f34227"></script>
+      <script src="../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="author" title="About these documents" href="../../about.html" />
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            Dendritic Modeling Framework
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../QUICK_START.html">Quick Start Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../CONFIGURATION_GUIDE.html">Configuration Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../FSDP_TRAINING_GUIDE.html">FSDP Training Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../sweeps.html">Sweeps Guide</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">Dendritic Modeling Framework</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">API Reference</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../../_sources/source/api/index.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="api-reference">
+<h1>API Reference<a class="headerlink" href="#api-reference" title="Link to this heading"></a></h1>
+<p>This section provides detailed API documentation for all modules in the Dendritic Modeling Framework.</p>
+<div class="toctree-wrapper compound">
+</div>
+<div class="toctree-wrapper compound">
+</div>
+<div class="toctree-wrapper compound">
+</div>
+<div class="toctree-wrapper compound">
+</div>
+<div class="toctree-wrapper compound">
+</div>
+<section id="overview">
+<h2>Overview<a class="headerlink" href="#overview" title="Link to this heading"></a></h2>
+<p>The Dendritic Modeling Framework is organized into several key modules:</p>
+<section id="core-modules">
+<h3>Core Modules<a class="headerlink" href="#core-modules" title="Link to this heading"></a></h3>
+<dl class="simple">
+<dt><strong>Networks</strong> (<code class="docutils literal notranslate"><span class="pre">dendritic_modeling.networks</span></code>)</dt><dd><p>Core neural network architectures implementing dendritic computation, including excitation-inhibition networks, MLPs, CNNs, and Vision Transformers.</p>
+</dd>
+<dt><strong>Models</strong> (<code class="docutils literal notranslate"><span class="pre">dendritic_modeling.models</span></code>)</dt><dd><p>High-level model wrappers that combine networks with task-specific components for classification, regression, and other applications.</p>
+</dd>
+<dt><strong>Configuration</strong> (<code class="docutils literal notranslate"><span class="pre">dendritic_modeling.config</span></code>)</dt><dd><p>Type-safe configuration system for experiments, models, and training parameters with YAML support.</p>
+</dd>
+</dl>
+</section>
+<section id="training-and-optimization">
+<h3>Training and Optimization<a class="headerlink" href="#training-and-optimization" title="Link to this heading"></a></h3>
+<dl class="simple">
+<dt><strong>Training</strong> (<code class="docutils literal notranslate"><span class="pre">dendritic_modeling.training</span></code>)</dt><dd><p>Comprehensive training utilities including multiple learning strategies, distributed training, and experiment management.</p>
+</dd>
+<dt><strong>Optimization</strong> (<code class="docutils literal notranslate"><span class="pre">dendritic_modeling.optimization</span></code>)</dt><dd><p>Optimization algorithms and utilities specifically designed for dendritic networks.</p>
+</dd>
+</dl>
+</section>
+<section id="analysis-and-visualization">
+<h3>Analysis and Visualization<a class="headerlink" href="#analysis-and-visualization" title="Link to this heading"></a></h3>
+<dl class="simple">
+<dt><strong>Analysis</strong> (<code class="docutils literal notranslate"><span class="pre">dendritic_modeling.analysis</span></code>)</dt><dd><p>Tools for analyzing network behavior, information flow, biological plausibility, and performance evaluation.</p>
+</dd>
+<dt><strong>Plotting</strong> (<code class="docutils literal notranslate"><span class="pre">dendritic_modeling.plotting</span></code>)</dt><dd><p>Visualization tools for networks, training curves, analysis results, and publication-quality figures.</p>
+</dd>
+</dl>
+</section>
+<section id="data-and-utilities">
+<h3>Data and Utilities<a class="headerlink" href="#data-and-utilities" title="Link to this heading"></a></h3>
+<dl class="simple">
+<dt><strong>Datasets</strong> (<code class="docutils literal notranslate"><span class="pre">dendritic_modeling.datasets</span></code>)</dt><dd><p>Dataset utilities for loading standard datasets and creating synthetic data for dendritic modeling research.</p>
+</dd>
+<dt><strong>Utils</strong> (<code class="docutils literal notranslate"><span class="pre">dendritic_modeling.utils</span></code>)</dt><dd><p>Utility functions for logging, file operations, mathematical operations, and other common tasks.</p>
+</dd>
+</dl>
+</section>
+<section id="managers-and-workflows">
+<h3>Managers and Workflows<a class="headerlink" href="#managers-and-workflows" title="Link to this heading"></a></h3>
+<dl class="simple">
+<dt><strong>Managers</strong> (<code class="docutils literal notranslate"><span class="pre">dendritic_modeling.managers</span></code>)</dt><dd><p>High-level managers for experiments, analysis workflows, and automated pipelines.</p>
+</dd>
+</dl>
+</section>
+</section>
+<section id="quick-reference">
+<h2>Quick Reference<a class="headerlink" href="#quick-reference" title="Link to this heading"></a></h2>
+<section id="common-import-patterns">
+<h3>Common Import Patterns<a class="headerlink" href="#common-import-patterns" title="Link to this heading"></a></h3>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Core components</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks</span><span class="w"> </span><span class="kn">import</span> <span class="n">ExcitationInhibitionNetwork</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.models</span><span class="w"> </span><span class="kn">import</span> <span class="n">Classifier</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.config</span><span class="w"> </span><span class="kn">import</span> <span class="n">TransferFunctionParams</span>
+
+<span class="c1"># Training</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.training</span><span class="w"> </span><span class="kn">import</span> <span class="n">train_model</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.training.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">evaluate_model</span>
+
+<span class="c1"># Analysis</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.analysis</span><span class="w"> </span><span class="kn">import</span> <span class="n">InformationAnalyzer</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.plotting</span><span class="w"> </span><span class="kn">import</span> <span class="n">NetworkVisualizer</span>
+
+<span class="c1"># Data</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.datasets</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_unified_datasets</span>
+</pre></div>
+</div>
+</section>
+<section id="key-classes-and-functions">
+<h3>Key Classes and Functions<a class="headerlink" href="#key-classes-and-functions" title="Link to this heading"></a></h3>
+<p><strong>Network Creation</strong></p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Create E/I network</span>
+<span class="n">ei_network</span> <span class="o">=</span> <span class="n">ExcitationInhibitionNetwork</span><span class="p">(</span>
+    <span class="n">input_dim</span><span class="o">=</span><span class="mi">784</span><span class="p">,</span>
+    <span class="n">transfer_params</span><span class="o">=</span><span class="n">TransferFunctionParams</span><span class="p">()</span><span class="o">.</span><span class="n">asdict</span><span class="p">(),</span>
+    <span class="n">excitatory_layer_sizes</span><span class="o">=</span><span class="p">[</span><span class="mi">100</span><span class="p">,</span> <span class="mi">10</span><span class="p">],</span>
+    <span class="n">inhibitory_layer_sizes</span><span class="o">=</span><span class="p">[</span><span class="mi">50</span><span class="p">,</span> <span class="mi">0</span><span class="p">]</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<p><strong>Model Creation</strong></p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Create classifier</span>
+<span class="n">model</span> <span class="o">=</span> <span class="n">Classifier</span><span class="p">(</span>
+    <span class="n">core_network</span><span class="o">=</span><span class="n">ei_network</span><span class="p">,</span>
+    <span class="n">encoder_network</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+    <span class="n">decoder_network</span><span class="o">=</span><span class="kc">None</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<p><strong>Training</strong></p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Train model</span>
+<span class="n">train_model</span><span class="p">(</span>
+    <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>
+    <span class="n">train_dataset</span><span class="o">=</span><span class="n">train_dataset</span><span class="p">,</span>
+    <span class="n">val_dataset</span><span class="o">=</span><span class="n">val_dataset</span><span class="p">,</span>
+    <span class="n">epochs</span><span class="o">=</span><span class="mi">50</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<p><strong>Analysis</strong></p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Analyze information flow</span>
+<span class="n">analyzer</span> <span class="o">=</span> <span class="n">InformationAnalyzer</span><span class="p">(</span><span class="n">model</span><span class="p">)</span>
+<span class="n">info_metrics</span> <span class="o">=</span> <span class="n">analyzer</span><span class="o">.</span><span class="n">compute_information_metrics</span><span class="p">(</span><span class="n">test_dataset</span><span class="p">)</span>
+</pre></div>
+</div>
+<p><strong>Visualization</strong></p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Visualize network</span>
+<span class="n">visualizer</span> <span class="o">=</span> <span class="n">NetworkVisualizer</span><span class="p">(</span><span class="n">model</span><span class="p">)</span>
+<span class="n">visualizer</span><span class="o">.</span><span class="n">plot_network_architecture</span><span class="p">()</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="module-dependencies">
+<h2>Module Dependencies<a class="headerlink" href="#module-dependencies" title="Link to this heading"></a></h2>
+<p>The framework modules have the following dependency structure:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>dendritic_modeling/
+├── config/          # No dependencies (base configuration)
+├── utils/           # Depends on: config
+├── networks/        # Depends on: config, utils
+├── models/          # Depends on: networks, config, utils
+├── datasets/        # Depends on: utils
+├── training/        # Depends on: models, datasets, utils, config
+├── optimization/    # Depends on: training, models, utils
+├── analysis/        # Depends on: models, training, utils
+├── plotting/        # Depends on: analysis, models, utils
+└── managers/        # Depends on: all other modules
+</pre></div>
+</div>
+</section>
+<section id="version-information">
+<h2>Version Information<a class="headerlink" href="#version-information" title="Link to this heading"></a></h2>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">dendritic_modeling</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">dendritic_modeling</span><span class="o">.</span><span class="n">__version__</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>For detailed documentation of each module, see the corresponding sections in the API reference.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, Kempner Institute.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

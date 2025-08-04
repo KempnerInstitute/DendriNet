@@ -1,0 +1,888 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Training and Configuration &mdash; Dendritic Modeling Framework v0.1.0</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=01f34227"></script>
+      <script src="../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="author" title="About these documents" href="../../about.html" />
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            Dendritic Modeling Framework
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../QUICK_START.html">Quick Start Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../CONFIGURATION_GUIDE.html">Configuration Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../FSDP_TRAINING_GUIDE.html">FSDP Training Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../sweeps.html">Sweeps Guide</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">Dendritic Modeling Framework</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Training and Configuration</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../../_sources/source/user_guide/training_and_configuration.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="training-and-configuration">
+<h1>Training and Configuration<a class="headerlink" href="#training-and-configuration" title="Link to this heading"></a></h1>
+<p>This comprehensive guide covers training strategies, configuration systems, and experiment management for the Dendritic Modeling Framework.</p>
+<figure class="align-center" id="id1">
+<a class="reference internal image-reference" href="../_static/training_workflow_diagram.svg"><img alt="Training Workflow Overview" src="../_static/training_workflow_diagram.svg" style="width: 90%;" />
+</a>
+<figcaption>
+<p><span class="caption-text"><strong>Training Workflow</strong>: Complete training pipeline from data loading through model evaluation, showing configuration management, training strategies, and experiment tracking.</span><a class="headerlink" href="#id1" title="Link to this image"></a></p>
+</figcaption>
+</figure>
+<section id="training-strategies">
+<h2>Training Strategies<a class="headerlink" href="#training-strategies" title="Link to this heading"></a></h2>
+<p>The framework supports multiple training strategies optimized for different network architectures and learning objectives.</p>
+<section id="maximum-likelihood-estimation-mle">
+<h3>Maximum Likelihood Estimation (MLE)<a class="headerlink" href="#maximum-likelihood-estimation-mle" title="Link to this heading"></a></h3>
+<p>Standard gradient-based training with backpropagation:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.training</span><span class="w"> </span><span class="kn">import</span> <span class="n">MLETrainer</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.config</span><span class="w"> </span><span class="kn">import</span> <span class="n">TrainingConfig</span>
+
+<span class="c1"># Basic MLE training</span>
+<span class="n">trainer</span> <span class="o">=</span> <span class="n">MLETrainer</span><span class="p">(</span>
+    <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>
+    <span class="n">optimizer</span><span class="o">=</span><span class="s1">&#39;adam&#39;</span><span class="p">,</span>
+    <span class="n">learning_rate</span><span class="o">=</span><span class="mf">0.001</span><span class="p">,</span>
+    <span class="n">weight_decay</span><span class="o">=</span><span class="mf">1e-4</span>
+<span class="p">)</span>
+
+<span class="c1"># Training configuration</span>
+<span class="n">train_config</span> <span class="o">=</span> <span class="n">TrainingConfig</span><span class="p">(</span>
+    <span class="n">learning_strategy</span><span class="o">=</span><span class="s1">&#39;mle&#39;</span><span class="p">,</span>
+    <span class="n">epochs</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span>
+    <span class="n">batch_size</span><span class="o">=</span><span class="mi">64</span><span class="p">,</span>
+    <span class="n">validation_split</span><span class="o">=</span><span class="mf">0.2</span><span class="p">,</span>
+    <span class="n">early_stopping</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="n">patience</span><span class="o">=</span><span class="mi">10</span>
+<span class="p">)</span>
+
+<span class="c1"># Train the model</span>
+<span class="n">results</span> <span class="o">=</span> <span class="n">trainer</span><span class="o">.</span><span class="n">train</span><span class="p">(</span>
+    <span class="n">train_dataset</span><span class="o">=</span><span class="n">train_dataset</span><span class="p">,</span>
+    <span class="n">val_dataset</span><span class="o">=</span><span class="n">val_dataset</span><span class="p">,</span>
+    <span class="n">config</span><span class="o">=</span><span class="n">train_config</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<p><strong>Key Features:</strong></p>
+<ul class="simple">
+<li><p>Standard backpropagation through dendritic networks</p></li>
+<li><p>Automatic gradient clipping and normalization</p></li>
+<li><p>Support for various optimizers (Adam, SGD, RMSprop)</p></li>
+<li><p>Learning rate scheduling</p></li>
+<li><p>Mixed precision training support</p></li>
+</ul>
+</section>
+<section id="branch-wise-training-strategies">
+<h3>Branch-Wise Training Strategies<a class="headerlink" href="#branch-wise-training-strategies" title="Link to this heading"></a></h3>
+<p>Specialized training strategies that leverage the dendritic structure:</p>
+<p><strong>Freeze Branches Forward</strong></p>
+<p>Train layers sequentially from input to output:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.training</span><span class="w"> </span><span class="kn">import</span> <span class="n">BranchWiseTrainer</span>
+
+<span class="c1"># Freeze branches forward training</span>
+<span class="n">trainer</span> <span class="o">=</span> <span class="n">BranchWiseTrainer</span><span class="p">(</span>
+    <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>
+    <span class="n">strategy</span><span class="o">=</span><span class="s1">&#39;freeze_branches_forward&#39;</span>
+<span class="p">)</span>
+
+<span class="n">train_config</span> <span class="o">=</span> <span class="n">TrainingConfig</span><span class="p">(</span>
+    <span class="n">learning_strategy</span><span class="o">=</span><span class="s1">&#39;freeze_branches_forward&#39;</span><span class="p">,</span>
+    <span class="n">epochs_per_layer</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span>
+    <span class="n">final_tune_epochs</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span>
+    <span class="n">layer_wise_lr</span><span class="o">=</span><span class="p">[</span><span class="mf">0.001</span><span class="p">,</span> <span class="mf">0.0005</span><span class="p">,</span> <span class="mf">0.0001</span><span class="p">],</span>
+    <span class="n">freeze_previous_layers</span><span class="o">=</span><span class="kc">True</span>
+<span class="p">)</span>
+
+<span class="n">results</span> <span class="o">=</span> <span class="n">trainer</span><span class="o">.</span><span class="n">train</span><span class="p">(</span><span class="n">train_dataset</span><span class="p">,</span> <span class="n">val_dataset</span><span class="p">,</span> <span class="n">train_config</span><span class="p">)</span>
+</pre></div>
+</div>
+<p><strong>Freeze Branches Reversed</strong></p>
+<p>Train layers sequentially from output to input:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Freeze branches reversed training</span>
+<span class="n">train_config</span> <span class="o">=</span> <span class="n">TrainingConfig</span><span class="p">(</span>
+    <span class="n">learning_strategy</span><span class="o">=</span><span class="s1">&#39;freeze_branches_reversed&#39;</span><span class="p">,</span>
+    <span class="n">epochs_per_layer</span><span class="o">=</span><span class="mi">25</span><span class="p">,</span>
+    <span class="n">final_tune_epochs</span><span class="o">=</span><span class="mi">15</span><span class="p">,</span>
+    <span class="n">layer_wise_lr</span><span class="o">=</span><span class="p">[</span><span class="mf">0.0001</span><span class="p">,</span> <span class="mf">0.0005</span><span class="p">,</span> <span class="mf">0.001</span><span class="p">],</span>  <span class="c1"># Reversed order</span>
+    <span class="n">unfreeze_schedule</span><span class="o">=</span><span class="s1">&#39;exponential&#39;</span>
+<span class="p">)</span>
+
+<span class="n">results</span> <span class="o">=</span> <span class="n">trainer</span><span class="o">.</span><span class="n">train</span><span class="p">(</span><span class="n">train_dataset</span><span class="p">,</span> <span class="n">val_dataset</span><span class="p">,</span> <span class="n">train_config</span><span class="p">)</span>
+</pre></div>
+</div>
+<p><strong>Freeze Branches Interleaved</strong></p>
+<p>Alternate training between different layers:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Freeze branches interleaved training</span>
+<span class="n">train_config</span> <span class="o">=</span> <span class="n">TrainingConfig</span><span class="p">(</span>
+    <span class="n">learning_strategy</span><span class="o">=</span><span class="s1">&#39;freeze_branches_interleaved&#39;</span><span class="p">,</span>
+    <span class="n">epochs_per_cycle</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span>
+    <span class="n">num_cycles</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span>
+    <span class="n">interleave_pattern</span><span class="o">=</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>  <span class="c1"># Layer training order</span>
+    <span class="n">cycle_lr_decay</span><span class="o">=</span><span class="mf">0.9</span>
+<span class="p">)</span>
+
+<span class="n">results</span> <span class="o">=</span> <span class="n">trainer</span><span class="o">.</span><span class="n">train</span><span class="p">(</span><span class="n">train_dataset</span><span class="p">,</span> <span class="n">val_dataset</span><span class="p">,</span> <span class="n">train_config</span><span class="p">)</span>
+</pre></div>
+</div>
+<p><strong>Branch-Wise Training Benefits:</strong></p>
+<ul class="simple">
+<li><p>Improved convergence for deep dendritic networks</p></li>
+<li><p>Better gradient flow through complex architectures</p></li>
+<li><p>Reduced overfitting through structured regularization</p></li>
+<li><p>Biologically-inspired learning patterns</p></li>
+</ul>
+</section>
+<section id="voltage-stabilization-training">
+<h3>Voltage Stabilization Training<a class="headerlink" href="#voltage-stabilization-training" title="Link to this heading"></a></h3>
+<p>Training strategy that maintains stable voltage dynamics:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.training</span><span class="w"> </span><span class="kn">import</span> <span class="n">VoltageStabilizationTrainer</span>
+
+<span class="c1"># Voltage stabilization training</span>
+<span class="n">trainer</span> <span class="o">=</span> <span class="n">VoltageStabilizationTrainer</span><span class="p">(</span>
+    <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>
+    <span class="n">voltage_target</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span>
+    <span class="n">stabilization_weight</span><span class="o">=</span><span class="mf">0.1</span>
+<span class="p">)</span>
+
+<span class="n">train_config</span> <span class="o">=</span> <span class="n">TrainingConfig</span><span class="p">(</span>
+    <span class="n">learning_strategy</span><span class="o">=</span><span class="s1">&#39;voltage_stabilization&#39;</span><span class="p">,</span>
+    <span class="n">epochs</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span>
+    <span class="n">batch_size</span><span class="o">=</span><span class="mi">32</span><span class="p">,</span>
+    <span class="n">voltage_monitoring</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="n">voltage_clipping</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="n">voltage_regularization</span><span class="o">=</span><span class="mf">0.01</span>
+<span class="p">)</span>
+
+<span class="n">results</span> <span class="o">=</span> <span class="n">trainer</span><span class="o">.</span><span class="n">train</span><span class="p">(</span><span class="n">train_dataset</span><span class="p">,</span> <span class="n">val_dataset</span><span class="p">,</span> <span class="n">train_config</span><span class="p">)</span>
+</pre></div>
+</div>
+<p><strong>Key Features:</strong></p>
+<ul class="simple">
+<li><p>Maintains stable dendritic voltage dynamics</p></li>
+<li><p>Prevents voltage saturation and instability</p></li>
+<li><p>Biologically-inspired voltage regulation</p></li>
+<li><p>Improved network robustness</p></li>
+</ul>
+</section>
+<section id="curriculum-learning">
+<h3>Curriculum Learning<a class="headerlink" href="#curriculum-learning" title="Link to this heading"></a></h3>
+<p>Progressive training with increasing difficulty:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.training</span><span class="w"> </span><span class="kn">import</span> <span class="n">CurriculumTrainer</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.datasets</span><span class="w"> </span><span class="kn">import</span> <span class="n">create_curriculum_dataset</span>
+
+<span class="c1"># Create curriculum dataset</span>
+<span class="n">curriculum_dataset</span> <span class="o">=</span> <span class="n">create_curriculum_dataset</span><span class="p">(</span>
+    <span class="n">base_dataset</span><span class="o">=</span><span class="n">train_dataset</span><span class="p">,</span>
+    <span class="n">difficulty_levels</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span>
+    <span class="n">progression_strategy</span><span class="o">=</span><span class="s1">&#39;linear&#39;</span>
+<span class="p">)</span>
+
+<span class="c1"># Curriculum training</span>
+<span class="n">trainer</span> <span class="o">=</span> <span class="n">CurriculumTrainer</span><span class="p">(</span>
+    <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>
+    <span class="n">curriculum_strategy</span><span class="o">=</span><span class="s1">&#39;difficulty_based&#39;</span>
+<span class="p">)</span>
+
+<span class="n">train_config</span> <span class="o">=</span> <span class="n">TrainingConfig</span><span class="p">(</span>
+    <span class="n">learning_strategy</span><span class="o">=</span><span class="s1">&#39;curriculum&#39;</span><span class="p">,</span>
+    <span class="n">epochs_per_level</span><span class="o">=</span><span class="mi">20</span><span class="p">,</span>
+    <span class="n">difficulty_progression</span><span class="o">=</span><span class="s1">&#39;adaptive&#39;</span><span class="p">,</span>
+    <span class="n">performance_threshold</span><span class="o">=</span><span class="mf">0.8</span>
+<span class="p">)</span>
+
+<span class="n">results</span> <span class="o">=</span> <span class="n">trainer</span><span class="o">.</span><span class="n">train</span><span class="p">(</span><span class="n">curriculum_dataset</span><span class="p">,</span> <span class="n">val_dataset</span><span class="p">,</span> <span class="n">train_config</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="meta-learning-and-few-shot-learning">
+<h3>Meta-Learning and Few-Shot Learning<a class="headerlink" href="#meta-learning-and-few-shot-learning" title="Link to this heading"></a></h3>
+<p>Training for rapid adaptation to new tasks:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.training</span><span class="w"> </span><span class="kn">import</span> <span class="n">MetaLearner</span>
+
+<span class="c1"># Meta-learning setup</span>
+<span class="n">meta_learner</span> <span class="o">=</span> <span class="n">MetaLearner</span><span class="p">(</span>
+    <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>
+    <span class="n">meta_algorithm</span><span class="o">=</span><span class="s1">&#39;maml&#39;</span><span class="p">,</span>
+    <span class="n">inner_steps</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span>
+    <span class="n">inner_lr</span><span class="o">=</span><span class="mf">0.01</span><span class="p">,</span>
+    <span class="n">outer_lr</span><span class="o">=</span><span class="mf">0.001</span>
+<span class="p">)</span>
+
+<span class="n">train_config</span> <span class="o">=</span> <span class="n">TrainingConfig</span><span class="p">(</span>
+    <span class="n">learning_strategy</span><span class="o">=</span><span class="s1">&#39;meta_learning&#39;</span><span class="p">,</span>
+    <span class="n">meta_batch_size</span><span class="o">=</span><span class="mi">16</span><span class="p">,</span>
+    <span class="n">support_shots</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span>
+    <span class="n">query_shots</span><span class="o">=</span><span class="mi">15</span><span class="p">,</span>
+    <span class="n">num_tasks_per_batch</span><span class="o">=</span><span class="mi">8</span>
+<span class="p">)</span>
+
+<span class="n">results</span> <span class="o">=</span> <span class="n">meta_learner</span><span class="o">.</span><span class="n">train</span><span class="p">(</span><span class="n">meta_dataset</span><span class="p">,</span> <span class="n">train_config</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="configuration-system">
+<h2>Configuration System<a class="headerlink" href="#configuration-system" title="Link to this heading"></a></h2>
+<p>The framework provides a comprehensive configuration system for reproducible experiments.</p>
+<section id="yaml-configuration">
+<h3>YAML Configuration<a class="headerlink" href="#yaml-configuration" title="Link to this heading"></a></h3>
+<p>Complete experiment configuration in YAML:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="c1"># experiment_config.yaml</span>
+<span class="nt">experiment</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;dendritic_mnist_classification&quot;</span>
+<span class="w">  </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;E/I</span><span class="nv"> </span><span class="s">network</span><span class="nv"> </span><span class="s">training</span><span class="nv"> </span><span class="s">on</span><span class="nv"> </span><span class="s">MNIST</span><span class="nv"> </span><span class="s">with</span><span class="nv"> </span><span class="s">branch-wise</span><span class="nv"> </span><span class="s">learning&quot;</span>
+<span class="w">  </span><span class="nt">tags</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;mnist&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;classification&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;dendritic&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;branch-wise&quot;</span><span class="p p-Indicator">]</span>
+
+<span class="nt">model</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">task</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">classification</span>
+<span class="w">  </span><span class="nt">core_network</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">EINet</span>
+<span class="w">    </span><span class="nt">parameters</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">input_dim</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">784</span>
+<span class="w">      </span><span class="nt">transfer_params</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">input_mode</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0</span>
+<span class="w">        </span><span class="nt">multiplicative</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">        </span><span class="nt">shunting_inhibition</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">excitatory_layer_sizes</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">200</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">100</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">10</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">inhibitory_layer_sizes</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">100</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">50</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">0</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">excitatory_branch_factors</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">10</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">5</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">1</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">inhibitory_branch_factors</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">5</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">3</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">0</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">ee_synapses_per_branch_per_layer</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">15</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">10</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">1</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">ei_synapses_per_branch_per_layer</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">8</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">5</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">0</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">ie_synapses_per_branch_per_layer</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">3</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">2</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">0</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">ii_synapses_per_branch_per_layer</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[]</span>
+<span class="w">      </span><span class="nt">reactivate</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">somatic_synapses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+
+<span class="w">  </span><span class="nt">encoder_network</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">identity</span>
+
+<span class="w">  </span><span class="nt">decoder_network</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">identity</span>
+
+<span class="nt">training</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">learning_strategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">freeze_branches_reversed</span>
+<span class="w">  </span><span class="nt">epochs_per_layer</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">25</span>
+<span class="w">  </span><span class="nt">final_tune_epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">15</span>
+<span class="w">  </span><span class="nt">batch_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">64</span>
+<span class="w">  </span><span class="nt">validation_split</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.2</span>
+
+<span class="w">  </span><span class="nt">optimizer</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">adam</span>
+<span class="w">    </span><span class="nt">lr</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.001</span>
+<span class="w">    </span><span class="nt">weight_decay</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1e-4</span>
+<span class="w">    </span><span class="nt">betas</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">0.9</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">0.999</span><span class="p p-Indicator">]</span>
+
+<span class="w">  </span><span class="nt">scheduler</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">cosine_annealing</span>
+<span class="w">    </span><span class="nt">T_max</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">100</span>
+<span class="w">    </span><span class="nt">eta_min</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1e-6</span>
+
+<span class="w">  </span><span class="nt">early_stopping</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">patience</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">15</span>
+<span class="w">    </span><span class="nt">min_delta</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1e-4</span>
+<span class="w">    </span><span class="nt">monitor</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">val_accuracy</span>
+<span class="w">    </span><span class="nt">mode</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">max</span>
+
+<span class="w">  </span><span class="nt">regularization</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">dropout</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.2</span>
+<span class="w">    </span><span class="nt">weight_decay</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1e-4</span>
+<span class="w">    </span><span class="nt">label_smoothing</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.1</span>
+
+<span class="nt">task</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">dataset</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mnist</span>
+<span class="w">  </span><span class="nt">data_path</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;./data&quot;</span>
+<span class="w">  </span><span class="nt">num_classes</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
+<span class="w">  </span><span class="nt">input_shape</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">1</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">28</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">28</span><span class="p p-Indicator">]</span>
+
+<span class="w">  </span><span class="nt">data_augmentation</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">transforms</span><span class="p">:</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">random_rotation</span>
+<span class="w">        </span><span class="nt">degrees</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">random_translation</span>
+<span class="w">        </span><span class="nt">translate</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">0.1</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">0.1</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">gaussian_noise</span>
+<span class="w">        </span><span class="nt">std</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.01</span>
+
+<span class="nt">evaluation</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">metrics</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">accuracy</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">precision</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">recall</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">f1_score</span><span class="p p-Indicator">]</span>
+<span class="w">  </span><span class="nt">test_time_augmentation</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+<span class="w">  </span><span class="nt">ensemble_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+
+<span class="nt">logging</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">level</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">INFO</span>
+<span class="w">  </span><span class="nt">log_dir</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;./logs&quot;</span>
+<span class="w">  </span><span class="nt">save_model</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">  </span><span class="nt">save_frequency</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
+
+<span class="nt">experiment_tracking</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">  </span><span class="nt">backend</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">wandb</span>
+<span class="w">  </span><span class="nt">project</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;dendritic-modeling&quot;</span>
+<span class="w">  </span><span class="nt">entity</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;your-team&quot;</span>
+<span class="w">  </span><span class="nt">tags</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;experiment&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;dendritic&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;mnist&quot;</span><span class="p p-Indicator">]</span>
+</pre></div>
+</div>
+<p>Load and use configuration:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.config</span><span class="w"> </span><span class="kn">import</span> <span class="n">load_config</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.training</span><span class="w"> </span><span class="kn">import</span> <span class="n">run_experiment</span>
+
+<span class="c1"># Load configuration</span>
+<span class="n">config</span> <span class="o">=</span> <span class="n">load_config</span><span class="p">(</span><span class="s1">&#39;experiment_config.yaml&#39;</span><span class="p">)</span>
+
+<span class="c1"># Run experiment</span>
+<span class="n">results</span> <span class="o">=</span> <span class="n">run_experiment</span><span class="p">(</span><span class="n">config</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="python-configuration">
+<h3>Python Configuration<a class="headerlink" href="#python-configuration" title="Link to this heading"></a></h3>
+<p>Programmatic configuration for dynamic experiments:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.config</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">ExperimentConfig</span><span class="p">,</span>
+    <span class="n">ModelConfig</span><span class="p">,</span>
+    <span class="n">TrainingConfig</span><span class="p">,</span>
+    <span class="n">TaskConfig</span><span class="p">,</span>
+    <span class="n">CoreNetworkConfig</span><span class="p">,</span>
+    <span class="n">EINetParameters</span><span class="p">,</span>
+    <span class="n">TransferFunctionParams</span><span class="p">,</span>
+    <span class="n">OptimizerConfig</span><span class="p">,</span>
+    <span class="n">SchedulerConfig</span>
+<span class="p">)</span>
+
+<span class="c1"># Create comprehensive configuration</span>
+<span class="n">config</span> <span class="o">=</span> <span class="n">ExperimentConfig</span><span class="p">(</span>
+    <span class="n">name</span><span class="o">=</span><span class="s2">&quot;dendritic_experiment&quot;</span><span class="p">,</span>
+    <span class="n">description</span><span class="o">=</span><span class="s2">&quot;Programmatic experiment configuration&quot;</span><span class="p">,</span>
+
+    <span class="n">model</span><span class="o">=</span><span class="n">ModelConfig</span><span class="p">(</span>
+        <span class="n">task</span><span class="o">=</span><span class="s1">&#39;classification&#39;</span><span class="p">,</span>
+        <span class="n">core_network</span><span class="o">=</span><span class="n">CoreNetworkConfig</span><span class="p">(</span>
+            <span class="nb">type</span><span class="o">=</span><span class="s1">&#39;EINet&#39;</span><span class="p">,</span>
+            <span class="n">parameters</span><span class="o">=</span><span class="n">EINetParameters</span><span class="p">(</span>
+                <span class="n">input_dim</span><span class="o">=</span><span class="mi">784</span><span class="p">,</span>
+                <span class="n">transfer_params</span><span class="o">=</span><span class="n">TransferFunctionParams</span><span class="p">(</span>
+                    <span class="n">input_mode</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+                    <span class="n">multiplicative</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                    <span class="n">shunting_inhibition</span><span class="o">=</span><span class="kc">True</span>
+                <span class="p">),</span>
+                <span class="n">excitatory_layer_sizes</span><span class="o">=</span><span class="p">[</span><span class="mi">200</span><span class="p">,</span> <span class="mi">100</span><span class="p">,</span> <span class="mi">10</span><span class="p">],</span>
+                <span class="n">inhibitory_layer_sizes</span><span class="o">=</span><span class="p">[</span><span class="mi">100</span><span class="p">,</span> <span class="mi">50</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+                <span class="n">excitatory_branch_factors</span><span class="o">=</span><span class="p">[</span><span class="mi">10</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span>
+                <span class="n">inhibitory_branch_factors</span><span class="o">=</span><span class="p">[</span><span class="mi">5</span><span class="p">,</span> <span class="mi">3</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+                <span class="n">ee_synapses_per_branch_per_layer</span><span class="o">=</span><span class="p">[</span><span class="mi">15</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="mi">1</span><span class="p">],</span>
+                <span class="n">ei_synapses_per_branch_per_layer</span><span class="o">=</span><span class="p">[</span><span class="mi">8</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+                <span class="n">ie_synapses_per_branch_per_layer</span><span class="o">=</span><span class="p">[</span><span class="mi">3</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">0</span><span class="p">],</span>
+                <span class="n">ii_synapses_per_branch_per_layer</span><span class="o">=</span><span class="p">[],</span>
+                <span class="n">reactivate</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                <span class="n">somatic_synapses</span><span class="o">=</span><span class="kc">True</span>
+            <span class="p">)</span>
+        <span class="p">)</span>
+    <span class="p">),</span>
+
+    <span class="n">training</span><span class="o">=</span><span class="n">TrainingConfig</span><span class="p">(</span>
+        <span class="n">learning_strategy</span><span class="o">=</span><span class="s1">&#39;freeze_branches_reversed&#39;</span><span class="p">,</span>
+        <span class="n">epochs_per_layer</span><span class="o">=</span><span class="mi">25</span><span class="p">,</span>
+        <span class="n">final_tune_epochs</span><span class="o">=</span><span class="mi">15</span><span class="p">,</span>
+        <span class="n">batch_size</span><span class="o">=</span><span class="mi">64</span><span class="p">,</span>
+        <span class="n">validation_split</span><span class="o">=</span><span class="mf">0.2</span><span class="p">,</span>
+
+        <span class="n">optimizer</span><span class="o">=</span><span class="n">OptimizerConfig</span><span class="p">(</span>
+            <span class="nb">type</span><span class="o">=</span><span class="s1">&#39;adam&#39;</span><span class="p">,</span>
+            <span class="n">lr</span><span class="o">=</span><span class="mf">0.001</span><span class="p">,</span>
+            <span class="n">weight_decay</span><span class="o">=</span><span class="mf">1e-4</span>
+        <span class="p">),</span>
+
+        <span class="n">scheduler</span><span class="o">=</span><span class="n">SchedulerConfig</span><span class="p">(</span>
+            <span class="nb">type</span><span class="o">=</span><span class="s1">&#39;cosine_annealing&#39;</span><span class="p">,</span>
+            <span class="n">T_max</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span>
+            <span class="n">eta_min</span><span class="o">=</span><span class="mf">1e-6</span>
+        <span class="p">)</span>
+    <span class="p">),</span>
+
+    <span class="n">task</span><span class="o">=</span><span class="n">TaskConfig</span><span class="p">(</span>
+        <span class="n">dataset</span><span class="o">=</span><span class="s1">&#39;mnist&#39;</span><span class="p">,</span>
+        <span class="n">data_path</span><span class="o">=</span><span class="s1">&#39;./data&#39;</span><span class="p">,</span>
+        <span class="n">num_classes</span><span class="o">=</span><span class="mi">10</span>
+    <span class="p">)</span>
+<span class="p">)</span>
+
+<span class="c1"># Run experiment</span>
+<span class="n">results</span> <span class="o">=</span> <span class="n">run_experiment</span><span class="p">(</span><span class="n">config</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="configuration-validation">
+<h3>Configuration Validation<a class="headerlink" href="#configuration-validation" title="Link to this heading"></a></h3>
+<p>Automatic validation of configuration parameters:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.config</span><span class="w"> </span><span class="kn">import</span> <span class="n">validate_config</span>
+
+<span class="c1"># Validate configuration</span>
+<span class="n">is_valid</span><span class="p">,</span> <span class="n">errors</span> <span class="o">=</span> <span class="n">validate_config</span><span class="p">(</span><span class="n">config</span><span class="p">)</span>
+
+<span class="k">if</span> <span class="ow">not</span> <span class="n">is_valid</span><span class="p">:</span>
+    <span class="k">for</span> <span class="n">error</span> <span class="ow">in</span> <span class="n">errors</span><span class="p">:</span>
+        <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Configuration error: </span><span class="si">{</span><span class="n">error</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="k">else</span><span class="p">:</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Configuration is valid&quot;</span><span class="p">)</span>
+
+<span class="c1"># Auto-fix common issues</span>
+<span class="n">config</span> <span class="o">=</span> <span class="n">auto_fix_config</span><span class="p">(</span><span class="n">config</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="advanced-training-techniques">
+<h2>Advanced Training Techniques<a class="headerlink" href="#advanced-training-techniques" title="Link to this heading"></a></h2>
+<section id="mixed-precision-training">
+<h3>Mixed Precision Training<a class="headerlink" href="#mixed-precision-training" title="Link to this heading"></a></h3>
+<p>Accelerate training with mixed precision:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.training</span><span class="w"> </span><span class="kn">import</span> <span class="n">MixedPrecisionTrainer</span>
+
+<span class="c1"># Mixed precision configuration</span>
+<span class="n">trainer</span> <span class="o">=</span> <span class="n">MixedPrecisionTrainer</span><span class="p">(</span>
+    <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>
+    <span class="n">use_amp</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="n">loss_scale</span><span class="o">=</span><span class="s1">&#39;dynamic&#39;</span><span class="p">,</span>
+    <span class="n">opt_level</span><span class="o">=</span><span class="s1">&#39;O1&#39;</span>
+<span class="p">)</span>
+
+<span class="n">train_config</span> <span class="o">=</span> <span class="n">TrainingConfig</span><span class="p">(</span>
+    <span class="n">learning_strategy</span><span class="o">=</span><span class="s1">&#39;mle&#39;</span><span class="p">,</span>
+    <span class="n">epochs</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span>
+    <span class="n">batch_size</span><span class="o">=</span><span class="mi">128</span><span class="p">,</span>  <span class="c1"># Larger batch size with mixed precision</span>
+    <span class="n">mixed_precision</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="n">gradient_clipping</span><span class="o">=</span><span class="mf">1.0</span>
+<span class="p">)</span>
+
+<span class="n">results</span> <span class="o">=</span> <span class="n">trainer</span><span class="o">.</span><span class="n">train</span><span class="p">(</span><span class="n">train_dataset</span><span class="p">,</span> <span class="n">val_dataset</span><span class="p">,</span> <span class="n">train_config</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="gradient-accumulation">
+<h3>Gradient Accumulation<a class="headerlink" href="#gradient-accumulation" title="Link to this heading"></a></h3>
+<p>Handle large effective batch sizes:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Gradient accumulation setup</span>
+<span class="n">train_config</span> <span class="o">=</span> <span class="n">TrainingConfig</span><span class="p">(</span>
+    <span class="n">learning_strategy</span><span class="o">=</span><span class="s1">&#39;mle&#39;</span><span class="p">,</span>
+    <span class="n">epochs</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span>
+    <span class="n">batch_size</span><span class="o">=</span><span class="mi">32</span><span class="p">,</span>
+    <span class="n">accumulate_grad_batches</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span>  <span class="c1"># Effective batch size = 128</span>
+    <span class="n">gradient_clipping</span><span class="o">=</span><span class="mf">1.0</span>
+<span class="p">)</span>
+
+<span class="n">results</span> <span class="o">=</span> <span class="n">trainer</span><span class="o">.</span><span class="n">train</span><span class="p">(</span><span class="n">train_dataset</span><span class="p">,</span> <span class="n">val_dataset</span><span class="p">,</span> <span class="n">train_config</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="distributed-training">
+<h3>Distributed Training<a class="headerlink" href="#distributed-training" title="Link to this heading"></a></h3>
+<p>Scale training across multiple GPUs:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.training</span><span class="w"> </span><span class="kn">import</span> <span class="n">DistributedTrainer</span>
+
+<span class="c1"># Distributed training setup</span>
+<span class="n">trainer</span> <span class="o">=</span> <span class="n">DistributedTrainer</span><span class="p">(</span>
+    <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>
+    <span class="n">backend</span><span class="o">=</span><span class="s1">&#39;nccl&#39;</span><span class="p">,</span>
+    <span class="n">world_size</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span>
+    <span class="n">rank</span><span class="o">=</span><span class="mi">0</span>
+<span class="p">)</span>
+
+<span class="n">train_config</span> <span class="o">=</span> <span class="n">TrainingConfig</span><span class="p">(</span>
+    <span class="n">learning_strategy</span><span class="o">=</span><span class="s1">&#39;mle&#39;</span><span class="p">,</span>
+    <span class="n">epochs</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span>
+    <span class="n">batch_size</span><span class="o">=</span><span class="mi">64</span><span class="p">,</span>  <span class="c1"># Per-GPU batch size</span>
+    <span class="n">distributed</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="n">sync_batchnorm</span><span class="o">=</span><span class="kc">True</span>
+<span class="p">)</span>
+
+<span class="n">results</span> <span class="o">=</span> <span class="n">trainer</span><span class="o">.</span><span class="n">train</span><span class="p">(</span><span class="n">train_dataset</span><span class="p">,</span> <span class="n">val_dataset</span><span class="p">,</span> <span class="n">train_config</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="hyperparameter-optimization">
+<h2>Hyperparameter Optimization<a class="headerlink" href="#hyperparameter-optimization" title="Link to this heading"></a></h2>
+<p>Automated hyperparameter tuning:</p>
+<section id="optuna-integration">
+<h3>Optuna Integration<a class="headerlink" href="#optuna-integration" title="Link to this heading"></a></h3>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">optuna</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.training</span><span class="w"> </span><span class="kn">import</span> <span class="n">OptunaOptimizer</span>
+
+<span class="k">def</span><span class="w"> </span><span class="nf">objective</span><span class="p">(</span><span class="n">trial</span><span class="p">):</span>
+    <span class="c1"># Suggest hyperparameters</span>
+    <span class="n">lr</span> <span class="o">=</span> <span class="n">trial</span><span class="o">.</span><span class="n">suggest_float</span><span class="p">(</span><span class="s1">&#39;lr&#39;</span><span class="p">,</span> <span class="mf">1e-5</span><span class="p">,</span> <span class="mf">1e-2</span><span class="p">,</span> <span class="n">log</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">batch_size</span> <span class="o">=</span> <span class="n">trial</span><span class="o">.</span><span class="n">suggest_categorical</span><span class="p">(</span><span class="s1">&#39;batch_size&#39;</span><span class="p">,</span> <span class="p">[</span><span class="mi">32</span><span class="p">,</span> <span class="mi">64</span><span class="p">,</span> <span class="mi">128</span><span class="p">])</span>
+    <span class="n">excitatory_size</span> <span class="o">=</span> <span class="n">trial</span><span class="o">.</span><span class="n">suggest_int</span><span class="p">(</span><span class="s1">&#39;excitatory_size&#39;</span><span class="p">,</span> <span class="mi">50</span><span class="p">,</span> <span class="mi">300</span><span class="p">)</span>
+
+    <span class="c1"># Create configuration</span>
+    <span class="n">config</span> <span class="o">=</span> <span class="n">TrainingConfig</span><span class="p">(</span>
+        <span class="n">learning_strategy</span><span class="o">=</span><span class="s1">&#39;mle&#39;</span><span class="p">,</span>
+        <span class="n">epochs</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span>
+        <span class="n">batch_size</span><span class="o">=</span><span class="n">batch_size</span><span class="p">,</span>
+        <span class="n">optimizer</span><span class="o">=</span><span class="n">OptimizerConfig</span><span class="p">(</span>
+            <span class="nb">type</span><span class="o">=</span><span class="s1">&#39;adam&#39;</span><span class="p">,</span>
+            <span class="n">lr</span><span class="o">=</span><span class="n">lr</span>
+        <span class="p">)</span>
+    <span class="p">)</span>
+
+    <span class="c1"># Update model configuration</span>
+    <span class="n">config</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">core_network</span><span class="o">.</span><span class="n">parameters</span><span class="o">.</span><span class="n">excitatory_layer_sizes</span> <span class="o">=</span> <span class="p">[</span><span class="n">excitatory_size</span><span class="p">,</span> <span class="mi">10</span><span class="p">]</span>
+
+    <span class="c1"># Train and evaluate</span>
+    <span class="n">results</span> <span class="o">=</span> <span class="n">run_experiment</span><span class="p">(</span><span class="n">config</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">results</span><span class="p">[</span><span class="s1">&#39;val_accuracy&#39;</span><span class="p">]</span>
+
+<span class="c1"># Run optimization</span>
+<span class="n">study</span> <span class="o">=</span> <span class="n">optuna</span><span class="o">.</span><span class="n">create_study</span><span class="p">(</span><span class="n">direction</span><span class="o">=</span><span class="s1">&#39;maximize&#39;</span><span class="p">)</span>
+<span class="n">study</span><span class="o">.</span><span class="n">optimize</span><span class="p">(</span><span class="n">objective</span><span class="p">,</span> <span class="n">n_trials</span><span class="o">=</span><span class="mi">100</span><span class="p">)</span>
+
+<span class="n">best_params</span> <span class="o">=</span> <span class="n">study</span><span class="o">.</span><span class="n">best_params</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Best parameters: </span><span class="si">{</span><span class="n">best_params</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="weights-biases-sweeps">
+<h3>Weights &amp; Biases Sweeps<a class="headerlink" href="#weights-biases-sweeps" title="Link to this heading"></a></h3>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="c1"># wandb_sweep.yaml</span>
+<span class="nt">program</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">train_experiment.py</span>
+<span class="nt">method</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">bayes</span>
+<span class="nt">metric</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">val_accuracy</span>
+<span class="w">  </span><span class="nt">goal</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">maximize</span>
+
+<span class="nt">parameters</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">learning_rate</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">distribution</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">log_uniform</span>
+<span class="w">    </span><span class="nt">min</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1e-5</span>
+<span class="w">    </span><span class="nt">max</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1e-2</span>
+<span class="w">  </span><span class="nt">batch_size</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">values</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">32</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">64</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">128</span><span class="p p-Indicator">]</span>
+<span class="w">  </span><span class="nt">excitatory_layer_sizes</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">values</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[[</span><span class="nv">100</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">10</span><span class="p p-Indicator">],</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">200</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">10</span><span class="p p-Indicator">],</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">300</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">10</span><span class="p p-Indicator">]]</span>
+<span class="w">  </span><span class="nt">learning_strategy</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">values</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&#39;mle&#39;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&#39;freeze_branches_forward&#39;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&#39;freeze_branches_reversed&#39;</span><span class="p p-Indicator">]</span>
+</pre></div>
+</div>
+<p>Run sweep:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>wandb<span class="w"> </span>sweep<span class="w"> </span>wandb_sweep.yaml
+wandb<span class="w"> </span>agent<span class="w"> </span>&lt;sweep_id&gt;
+</pre></div>
+</div>
+</section>
+</section>
+<section id="experiment-management">
+<h2>Experiment Management<a class="headerlink" href="#experiment-management" title="Link to this heading"></a></h2>
+<section id="experiment-tracking">
+<h3>Experiment Tracking<a class="headerlink" href="#experiment-tracking" title="Link to this heading"></a></h3>
+<p>Integration with experiment tracking platforms:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.training</span><span class="w"> </span><span class="kn">import</span> <span class="n">ExperimentTracker</span>
+
+<span class="c1"># Initialize tracker</span>
+<span class="n">tracker</span> <span class="o">=</span> <span class="n">ExperimentTracker</span><span class="p">(</span>
+    <span class="n">backend</span><span class="o">=</span><span class="s1">&#39;wandb&#39;</span><span class="p">,</span>
+    <span class="n">project</span><span class="o">=</span><span class="s1">&#39;dendritic-modeling&#39;</span><span class="p">,</span>
+    <span class="n">entity</span><span class="o">=</span><span class="s1">&#39;your-team&#39;</span><span class="p">,</span>
+    <span class="n">name</span><span class="o">=</span><span class="s1">&#39;experiment_1&#39;</span>
+<span class="p">)</span>
+
+<span class="c1"># Log configuration</span>
+<span class="n">tracker</span><span class="o">.</span><span class="n">log_config</span><span class="p">(</span><span class="n">config</span><span class="p">)</span>
+
+<span class="c1"># Log metrics during training</span>
+<span class="k">for</span> <span class="n">epoch</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">epochs</span><span class="p">):</span>
+    <span class="c1"># Training step</span>
+    <span class="n">train_loss</span><span class="p">,</span> <span class="n">train_acc</span> <span class="o">=</span> <span class="n">train_step</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">train_loader</span><span class="p">)</span>
+    <span class="n">val_loss</span><span class="p">,</span> <span class="n">val_acc</span> <span class="o">=</span> <span class="n">validate_step</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">val_loader</span><span class="p">)</span>
+
+    <span class="c1"># Log metrics</span>
+    <span class="n">tracker</span><span class="o">.</span><span class="n">log_metrics</span><span class="p">({</span>
+        <span class="s1">&#39;epoch&#39;</span><span class="p">:</span> <span class="n">epoch</span><span class="p">,</span>
+        <span class="s1">&#39;train_loss&#39;</span><span class="p">:</span> <span class="n">train_loss</span><span class="p">,</span>
+        <span class="s1">&#39;train_accuracy&#39;</span><span class="p">:</span> <span class="n">train_acc</span><span class="p">,</span>
+        <span class="s1">&#39;val_loss&#39;</span><span class="p">:</span> <span class="n">val_loss</span><span class="p">,</span>
+        <span class="s1">&#39;val_accuracy&#39;</span><span class="p">:</span> <span class="n">val_acc</span>
+    <span class="p">})</span>
+
+    <span class="c1"># Log model artifacts</span>
+    <span class="k">if</span> <span class="n">epoch</span> <span class="o">%</span> <span class="mi">10</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">tracker</span><span class="o">.</span><span class="n">log_model</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="sa">f</span><span class="s1">&#39;model_epoch_</span><span class="si">{</span><span class="n">epoch</span><span class="si">}</span><span class="s1">&#39;</span><span class="p">)</span>
+
+<span class="c1"># Log final results</span>
+<span class="n">tracker</span><span class="o">.</span><span class="n">log_results</span><span class="p">(</span><span class="n">results</span><span class="p">)</span>
+<span class="n">tracker</span><span class="o">.</span><span class="n">finish</span><span class="p">()</span>
+</pre></div>
+</div>
+</section>
+<section id="model-checkpointing">
+<h3>Model Checkpointing<a class="headerlink" href="#model-checkpointing" title="Link to this heading"></a></h3>
+<p>Automatic model saving and loading:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.training</span><span class="w"> </span><span class="kn">import</span> <span class="n">ModelCheckpointer</span>
+
+<span class="c1"># Checkpoint configuration</span>
+<span class="n">checkpointer</span> <span class="o">=</span> <span class="n">ModelCheckpointer</span><span class="p">(</span>
+    <span class="n">save_dir</span><span class="o">=</span><span class="s1">&#39;./checkpoints&#39;</span><span class="p">,</span>
+    <span class="n">save_frequency</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span>
+    <span class="n">save_best_only</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="n">monitor</span><span class="o">=</span><span class="s1">&#39;val_accuracy&#39;</span><span class="p">,</span>
+    <span class="n">mode</span><span class="o">=</span><span class="s1">&#39;max&#39;</span>
+<span class="p">)</span>
+
+<span class="c1"># Training with checkpointing</span>
+<span class="n">trainer</span> <span class="o">=</span> <span class="n">MLETrainer</span><span class="p">(</span>
+    <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>
+    <span class="n">checkpointer</span><span class="o">=</span><span class="n">checkpointer</span>
+<span class="p">)</span>
+
+<span class="n">results</span> <span class="o">=</span> <span class="n">trainer</span><span class="o">.</span><span class="n">train</span><span class="p">(</span><span class="n">train_dataset</span><span class="p">,</span> <span class="n">val_dataset</span><span class="p">,</span> <span class="n">train_config</span><span class="p">)</span>
+
+<span class="c1"># Load best checkpoint</span>
+<span class="n">best_model</span> <span class="o">=</span> <span class="n">checkpointer</span><span class="o">.</span><span class="n">load_best_model</span><span class="p">()</span>
+</pre></div>
+</div>
+</section>
+<section id="result-analysis">
+<h3>Result Analysis<a class="headerlink" href="#result-analysis" title="Link to this heading"></a></h3>
+<p>Comprehensive analysis of training results:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.analysis</span><span class="w"> </span><span class="kn">import</span> <span class="n">TrainingAnalyzer</span>
+
+<span class="c1"># Analyze training results</span>
+<span class="n">analyzer</span> <span class="o">=</span> <span class="n">TrainingAnalyzer</span><span class="p">(</span><span class="n">results</span><span class="p">)</span>
+
+<span class="c1"># Generate training curves</span>
+<span class="n">analyzer</span><span class="o">.</span><span class="n">plot_training_curves</span><span class="p">()</span>
+
+<span class="c1"># Analyze convergence</span>
+<span class="n">convergence_analysis</span> <span class="o">=</span> <span class="n">analyzer</span><span class="o">.</span><span class="n">analyze_convergence</span><span class="p">()</span>
+
+<span class="c1"># Compare different runs</span>
+<span class="n">comparison</span> <span class="o">=</span> <span class="n">analyzer</span><span class="o">.</span><span class="n">compare_runs</span><span class="p">([</span><span class="n">results1</span><span class="p">,</span> <span class="n">results2</span><span class="p">,</span> <span class="n">results3</span><span class="p">])</span>
+
+<span class="c1"># Generate report</span>
+<span class="n">report</span> <span class="o">=</span> <span class="n">analyzer</span><span class="o">.</span><span class="n">generate_report</span><span class="p">()</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="debugging-and-troubleshooting">
+<h2>Debugging and Troubleshooting<a class="headerlink" href="#debugging-and-troubleshooting" title="Link to this heading"></a></h2>
+<section id="training-diagnostics">
+<h3>Training Diagnostics<a class="headerlink" href="#training-diagnostics" title="Link to this heading"></a></h3>
+<p>Tools for diagnosing training issues:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.training</span><span class="w"> </span><span class="kn">import</span> <span class="n">TrainingDiagnostics</span>
+
+<span class="c1"># Initialize diagnostics</span>
+<span class="n">diagnostics</span> <span class="o">=</span> <span class="n">TrainingDiagnostics</span><span class="p">(</span><span class="n">model</span><span class="p">)</span>
+
+<span class="c1"># Check gradient flow</span>
+<span class="n">grad_analysis</span> <span class="o">=</span> <span class="n">diagnostics</span><span class="o">.</span><span class="n">analyze_gradients</span><span class="p">(</span><span class="n">train_loader</span><span class="p">)</span>
+
+<span class="c1"># Monitor activations</span>
+<span class="n">activation_stats</span> <span class="o">=</span> <span class="n">diagnostics</span><span class="o">.</span><span class="n">monitor_activations</span><span class="p">(</span><span class="n">train_loader</span><span class="p">)</span>
+
+<span class="c1"># Check for common issues</span>
+<span class="n">issues</span> <span class="o">=</span> <span class="n">diagnostics</span><span class="o">.</span><span class="n">check_common_issues</span><span class="p">()</span>
+
+<span class="k">for</span> <span class="n">issue</span> <span class="ow">in</span> <span class="n">issues</span><span class="p">:</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Issue detected: </span><span class="si">{</span><span class="n">issue</span><span class="p">[</span><span class="s1">&#39;type&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Description: </span><span class="si">{</span><span class="n">issue</span><span class="p">[</span><span class="s1">&#39;description&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Suggested fix: </span><span class="si">{</span><span class="n">issue</span><span class="p">[</span><span class="s1">&#39;fix&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="performance-profiling">
+<h3>Performance Profiling<a class="headerlink" href="#performance-profiling" title="Link to this heading"></a></h3>
+<p>Optimize training performance:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.training</span><span class="w"> </span><span class="kn">import</span> <span class="n">PerformanceProfiler</span>
+
+<span class="c1"># Profile training step</span>
+<span class="n">profiler</span> <span class="o">=</span> <span class="n">PerformanceProfiler</span><span class="p">()</span>
+
+<span class="k">with</span> <span class="n">profiler</span><span class="o">.</span><span class="n">profile</span><span class="p">():</span>
+    <span class="k">for</span> <span class="n">batch</span> <span class="ow">in</span> <span class="n">train_loader</span><span class="p">:</span>
+        <span class="n">loss</span> <span class="o">=</span> <span class="n">train_step</span><span class="p">(</span><span class="n">model</span><span class="p">,</span> <span class="n">batch</span><span class="p">)</span>
+
+<span class="c1"># Analyze results</span>
+<span class="n">profile_results</span> <span class="o">=</span> <span class="n">profiler</span><span class="o">.</span><span class="n">analyze</span><span class="p">()</span>
+
+<span class="c1"># Identify bottlenecks</span>
+<span class="n">bottlenecks</span> <span class="o">=</span> <span class="n">profile_results</span><span class="p">[</span><span class="s1">&#39;bottlenecks&#39;</span><span class="p">]</span>
+
+<span class="c1"># Generate optimization suggestions</span>
+<span class="n">suggestions</span> <span class="o">=</span> <span class="n">profiler</span><span class="o">.</span><span class="n">get_optimization_suggestions</span><span class="p">()</span>
+</pre></div>
+</div>
+</section>
+<section id="common-training-issues">
+<h3>Common Training Issues<a class="headerlink" href="#common-training-issues" title="Link to this heading"></a></h3>
+<p><strong>Gradient Explosion/Vanishing</strong></p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Gradient clipping</span>
+<span class="n">train_config</span> <span class="o">=</span> <span class="n">TrainingConfig</span><span class="p">(</span>
+    <span class="n">learning_strategy</span><span class="o">=</span><span class="s1">&#39;mle&#39;</span><span class="p">,</span>
+    <span class="n">gradient_clipping</span><span class="o">=</span><span class="mf">1.0</span><span class="p">,</span>
+    <span class="n">gradient_clip_algorithm</span><span class="o">=</span><span class="s1">&#39;norm&#39;</span>
+<span class="p">)</span>
+
+<span class="c1"># Gradient normalization</span>
+<span class="n">train_config</span><span class="o">.</span><span class="n">gradient_normalization</span> <span class="o">=</span> <span class="kc">True</span>
+</pre></div>
+</div>
+<p><strong>Slow Convergence</strong></p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Learning rate scheduling</span>
+<span class="n">train_config</span> <span class="o">=</span> <span class="n">TrainingConfig</span><span class="p">(</span>
+    <span class="n">learning_strategy</span><span class="o">=</span><span class="s1">&#39;mle&#39;</span><span class="p">,</span>
+    <span class="n">scheduler</span><span class="o">=</span><span class="n">SchedulerConfig</span><span class="p">(</span>
+        <span class="nb">type</span><span class="o">=</span><span class="s1">&#39;reduce_on_plateau&#39;</span><span class="p">,</span>
+        <span class="n">factor</span><span class="o">=</span><span class="mf">0.5</span><span class="p">,</span>
+        <span class="n">patience</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span>
+        <span class="n">min_lr</span><span class="o">=</span><span class="mf">1e-6</span>
+    <span class="p">)</span>
+<span class="p">)</span>
+
+<span class="c1"># Warmup</span>
+<span class="n">train_config</span><span class="o">.</span><span class="n">warmup_epochs</span> <span class="o">=</span> <span class="mi">5</span>
+<span class="n">train_config</span><span class="o">.</span><span class="n">warmup_factor</span> <span class="o">=</span> <span class="mf">0.1</span>
+</pre></div>
+</div>
+<p><strong>Memory Issues</strong></p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Memory optimization</span>
+<span class="n">train_config</span> <span class="o">=</span> <span class="n">TrainingConfig</span><span class="p">(</span>
+    <span class="n">learning_strategy</span><span class="o">=</span><span class="s1">&#39;mle&#39;</span><span class="p">,</span>
+    <span class="n">batch_size</span><span class="o">=</span><span class="mi">32</span><span class="p">,</span>  <span class="c1"># Reduce batch size</span>
+    <span class="n">accumulate_grad_batches</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span>  <span class="c1"># Maintain effective batch size</span>
+    <span class="n">gradient_checkpointing</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>  <span class="c1"># Trade compute for memory</span>
+    <span class="n">mixed_precision</span><span class="o">=</span><span class="kc">True</span>  <span class="c1"># Reduce memory usage</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="best-practices">
+<h2>Best Practices<a class="headerlink" href="#best-practices" title="Link to this heading"></a></h2>
+<section id="configuration-management">
+<h3>Configuration Management<a class="headerlink" href="#configuration-management" title="Link to this heading"></a></h3>
+<ol class="arabic simple">
+<li><p><strong>Version Control</strong>: Store configurations in version control</p></li>
+<li><p><strong>Environment Variables</strong>: Use environment variables for paths and secrets</p></li>
+<li><p><strong>Configuration Templates</strong>: Create reusable configuration templates</p></li>
+<li><p><strong>Validation</strong>: Always validate configurations before training</p></li>
+<li><p><strong>Documentation</strong>: Document configuration parameters and their effects</p></li>
+</ol>
+</section>
+<section id="training-workflow">
+<h3>Training Workflow<a class="headerlink" href="#training-workflow" title="Link to this heading"></a></h3>
+<ol class="arabic simple">
+<li><p><strong>Data Validation</strong>: Verify data quality and preprocessing</p></li>
+<li><p><strong>Model Validation</strong>: Test model architecture on small datasets</p></li>
+<li><p><strong>Hyperparameter Tuning</strong>: Systematic hyperparameter optimization</p></li>
+<li><p><strong>Monitoring</strong>: Comprehensive logging and monitoring</p></li>
+<li><p><strong>Reproducibility</strong>: Ensure experiments are reproducible</p></li>
+</ol>
+</section>
+<section id="performance-optimization">
+<h3>Performance Optimization<a class="headerlink" href="#performance-optimization" title="Link to this heading"></a></h3>
+<ol class="arabic simple">
+<li><p><strong>Profiling</strong>: Regular performance profiling</p></li>
+<li><p><strong>Batch Size</strong>: Optimize batch size for hardware</p></li>
+<li><p><strong>Mixed Precision</strong>: Use mixed precision when possible</p></li>
+<li><p><strong>Gradient Accumulation</strong>: Handle memory constraints</p></li>
+<li><p><strong>Distributed Training</strong>: Scale to multiple GPUs when needed</p></li>
+</ol>
+</section>
+</section>
+<section id="next-steps">
+<h2>Next Steps<a class="headerlink" href="#next-steps" title="Link to this heading"></a></h2>
+<p>Now that you understand training and configuration:</p>
+<ol class="arabic simple">
+<li><p><strong>Analysis Tools</strong>: Learn about analysis and visualization in <a class="reference internal" href="analysis_and_visualization.html"><span class="doc">Analysis and Visualization</span></a></p></li>
+<li><p><strong>API Reference</strong>: See detailed API documentation in <a class="reference internal" href="../api/index.html"><span class="doc">API Reference</span></a></p></li>
+<li><p><strong>Examples</strong>: Try practical training examples in <a class="reference internal" href="../examples/index.html"><span class="doc">Examples</span></a></p></li>
+<li><p><strong>Advanced Topics</strong>: Explore advanced techniques in <a class="reference internal" href="../advanced/index.html"><span class="doc">Advanced Topics</span></a></p></li>
+</ol>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, Kempner Institute.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

@@ -1,0 +1,461 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Datasets and Data Utilities &mdash; Dendritic Modeling Framework v0.1.0</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../_static/documentation_options.js?v=01f34227"></script>
+      <script src="../../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="author" title="About these documents" href="../../../about.html" />
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            Dendritic Modeling Framework
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../QUICK_START.html">Quick Start Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../CONFIGURATION_GUIDE.html">Configuration Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../FSDP_TRAINING_GUIDE.html">FSDP Training Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../sweeps.html">Sweeps Guide</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">Dendritic Modeling Framework</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Datasets and Data Utilities</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../../../_sources/source/advanced/analysis/synthetic_datasets.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="datasets-and-data-utilities">
+<span id="synthetic-datasets"></span><h1>Datasets and Data Utilities<a class="headerlink" href="#datasets-and-data-utilities" title="Link to this heading"></a></h1>
+<p>This document explains the datasets available in the dendritic modeling framework, including both standard datasets and specialized synthetic datasets designed to test specific computational properties of dendritic networks.</p>
+<section id="overview">
+<h2>Overview<a class="headerlink" href="#overview" title="Link to this heading"></a></h2>
+<p>The dendritic modeling framework supports various datasets for training and evaluating neural networks. These include standard benchmark datasets like MNIST and CIFAR-10, as well as a suite of synthetic datasets designed to test specific computational properties that are theoretically associated with dendritic processing.</p>
+</section>
+<section id="dataset-configuration">
+<h2>Dataset Configuration<a class="headerlink" href="#dataset-configuration" title="Link to this heading"></a></h2>
+<p>Datasets are configured in the <code class="docutils literal notranslate"><span class="pre">task</span></code> section of the configuration file:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">task</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">dataset</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mnist</span><span class="w">                    </span><span class="c1"># Dataset name</span>
+<span class="w">  </span><span class="nt">data_path</span><span class="p">:</span><span class="w">                        </span><span class="c1"># Optional path to dataset</span>
+<span class="w">  </span><span class="nt">parameters</span><span class="p">:</span><span class="w">                       </span><span class="c1"># Additional dataset parameters</span>
+<span class="w">    </span><span class="nt">train_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8000</span><span class="w">                </span><span class="c1"># For synthetic datasets</span>
+<span class="w">    </span><span class="nt">valid_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1000</span>
+<span class="w">    </span><span class="nt">test_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1000</span>
+<span class="w">    </span><span class="nt">image_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">16</span><span class="w">                  </span><span class="c1"># For image-based synthetic datasets</span>
+<span class="w">    </span><span class="nt">n_orient_classes</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8</span><span class="w">             </span><span class="c1"># For orientation_bars dataset</span>
+</pre></div>
+</div>
+</section>
+<section id="standard-datasets">
+<h2>Standard Datasets<a class="headerlink" href="#standard-datasets" title="Link to this heading"></a></h2>
+<p>The framework provides easy access to standard benchmark datasets:</p>
+<section id="mnist-dataset">
+<h3>MNIST Dataset<a class="headerlink" href="#mnist-dataset" title="Link to this heading"></a></h3>
+<p>The MNIST dataset consists of 28×28 grayscale images of handwritten digits (0-9):</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">task</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">dataset</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mnist</span>
+<span class="w">  </span><span class="nt">data_path</span><span class="p">:</span><span class="w">                        </span><span class="c1"># Optional, downloads automatically if not provided</span>
+</pre></div>
+</div>
+<p>The dataset is loaded using the <code class="docutils literal notranslate"><span class="pre">load_mnist_as_datasets</span></code> function, which returns training, validation, and test datasets:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">load_mnist_as_datasets</span><span class="p">(</span><span class="n">train_valid_split</span><span class="o">=</span><span class="mf">0.8</span><span class="p">,</span> <span class="n">data_path</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Load the MNIST dataset and split into train, validation, and test datasets.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    train_valid_split : float</span>
+<span class="sd">        Fraction of training data to use for training (vs. validation)</span>
+<span class="sd">    data_path : str or None</span>
+<span class="sd">        Path to dataset, downloads if None</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    dict</span>
+<span class="sd">        Dictionary with &#39;train&#39;, &#39;valid&#39;, and &#39;test&#39; datasets</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+</pre></div>
+</div>
+</section>
+<section id="cifar-10-dataset">
+<h3>CIFAR-10 Dataset<a class="headerlink" href="#cifar-10-dataset" title="Link to this heading"></a></h3>
+<p>The CIFAR-10 dataset consists of 32×32 RGB images from 10 classes:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">task</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">dataset</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">cifar10</span>
+<span class="w">  </span><span class="nt">data_path</span><span class="p">:</span><span class="w">                        </span><span class="c1"># Optional, downloads automatically if not provided</span>
+</pre></div>
+</div>
+<p>The dataset is loaded using the <code class="docutils literal notranslate"><span class="pre">load_cifar10_as_datasets</span></code> function.</p>
+</section>
+</section>
+<section id="modified-mnist-variants">
+<h2>Modified MNIST Variants<a class="headerlink" href="#modified-mnist-variants" title="Link to this heading"></a></h2>
+<p>The framework also provides several modified versions of MNIST for testing specific properties:</p>
+<section id="mnist-modulo-10">
+<h3>MNIST Modulo-10<a class="headerlink" href="#mnist-modulo-10" title="Link to this heading"></a></h3>
+<p>This dataset reorganizes MNIST into modular arithmetic classes:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">task</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">dataset</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mnist_modulo10</span>
+<span class="w">  </span><span class="nt">parameters</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">shuffle_iterations</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2</span><span class="w">           </span><span class="c1"># Number of shuffling iterations</span>
+</pre></div>
+</div>
+<p>The dataset is loaded using the <code class="docutils literal notranslate"><span class="pre">load_MNIST_modulo10</span></code> function.</p>
+</section>
+<section id="mnist-task-switch">
+<h3>MNIST Task Switch<a class="headerlink" href="#mnist-task-switch" title="Link to this heading"></a></h3>
+<p>This dataset reorganizes MNIST for task switching experiments:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">task</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">dataset</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mnist_switch2</span><span class="w">            </span><span class="c1"># Options: mnist_switch2, mnist_switch10</span>
+<span class="w">  </span><span class="nt">parameters</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">train_valid_split</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.8</span><span class="w">          </span><span class="c1"># Train/validation split ratio</span>
+</pre></div>
+</div>
+<p>The <code class="docutils literal notranslate"><span class="pre">load_MNIST_task_switch</span></code> function loads this dataset.</p>
+</section>
+</section>
+<section id="id1">
+<h2>Synthetic Datasets<a class="headerlink" href="#id1" title="Link to this heading"></a></h2>
+<p>The framework includes several synthetic datasets specifically designed to test dendritic computations:</p>
+<section id="line-detection-dataset">
+<h3>Line Detection Dataset<a class="headerlink" href="#line-detection-dataset" title="Link to this heading"></a></h3>
+<p>A simple line detection task:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">task</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">dataset</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">line</span>
+<span class="w">  </span><span class="nt">parameters</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">train_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8000</span>
+<span class="w">    </span><span class="nt">valid_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1000</span>
+<span class="w">    </span><span class="nt">test_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1000</span>
+<span class="w">    </span><span class="nt">image_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
+</pre></div>
+</div>
+<p>The <code class="docutils literal notranslate"><span class="pre">LineDataset</span></code> class implements this dataset:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span><span class="w"> </span><span class="nc">LineDataset</span><span class="p">(</span><span class="n">Dataset</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Dataset for line detection. Each sample is a small image that either</span>
+<span class="sd">    contains a horizontal or vertical line, or no line.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">n_samples</span><span class="o">=</span><span class="mi">10000</span><span class="p">,</span> <span class="n">image_size</span><span class="o">=</span><span class="mi">10</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">n_samples</span> <span class="o">=</span> <span class="n">n_samples</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">image_size</span> <span class="o">=</span> <span class="n">image_size</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_generate_data</span><span class="p">()</span>
+</pre></div>
+</div>
+</section>
+<section id="center-surround-detection">
+<h3>Center-Surround Detection<a class="headerlink" href="#center-surround-detection" title="Link to this heading"></a></h3>
+<p>A center-surround pattern detection task:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">task</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">dataset</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">center_surround</span>
+<span class="w">  </span><span class="nt">parameters</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">train_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8000</span>
+<span class="w">    </span><span class="nt">valid_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1000</span>
+<span class="w">    </span><span class="nt">test_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1000</span>
+<span class="w">    </span><span class="nt">image_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">15</span>
+</pre></div>
+</div>
+<p>The <code class="docutils literal notranslate"><span class="pre">CenterSurroundDataset</span></code> class implements this dataset:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span><span class="w"> </span><span class="nc">CenterSurroundDataset</span><span class="p">(</span><span class="n">Dataset</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Dataset for center-surround pattern detection. Each sample is a small image</span>
+<span class="sd">    that either contains a center-surround pattern or random noise.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">n_samples</span><span class="o">=</span><span class="mi">10000</span><span class="p">,</span> <span class="n">image_size</span><span class="o">=</span><span class="mi">15</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">n_samples</span> <span class="o">=</span> <span class="n">n_samples</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">image_size</span> <span class="o">=</span> <span class="n">image_size</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_generate_data</span><span class="p">()</span>
+</pre></div>
+</div>
+</section>
+<section id="orientation-bars-dataset">
+<h3>Orientation Bars Dataset<a class="headerlink" href="#orientation-bars-dataset" title="Link to this heading"></a></h3>
+<p>A dataset with oriented bars at different angles:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">task</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">dataset</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">orientation_bars</span>
+<span class="w">  </span><span class="nt">parameters</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">train_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8000</span>
+<span class="w">    </span><span class="nt">valid_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1000</span>
+<span class="w">    </span><span class="nt">test_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1000</span>
+<span class="w">    </span><span class="nt">image_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">16</span>
+<span class="w">    </span><span class="nt">n_orient_classes</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8</span><span class="w">             </span><span class="c1"># Number of orientation classes</span>
+</pre></div>
+</div>
+<p>The <code class="docutils literal notranslate"><span class="pre">OrientationBarsDataset</span></code> class implements this dataset:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span><span class="w"> </span><span class="nc">OrientationBarsDataset</span><span class="p">(</span><span class="n">Dataset</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Dataset with oriented bars at different angles. Each sample is a small image</span>
+<span class="sd">    containing a bar at one of n_orient_classes different orientations.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">n_samples</span><span class="o">=</span><span class="mi">10000</span><span class="p">,</span> <span class="n">image_size</span><span class="o">=</span><span class="mi">16</span><span class="p">,</span> <span class="n">n_orient_classes</span><span class="o">=</span><span class="mi">8</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">n_samples</span> <span class="o">=</span> <span class="n">n_samples</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">image_size</span> <span class="o">=</span> <span class="n">image_size</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">n_orient_classes</span> <span class="o">=</span> <span class="n">n_orient_classes</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_generate_data</span><span class="p">()</span>
+</pre></div>
+</div>
+</section>
+<section id="multi-xor-dataset">
+<h3>Multi-XOR Dataset<a class="headerlink" href="#multi-xor-dataset" title="Link to this heading"></a></h3>
+<p>A dataset for testing XOR-like logical operations:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">task</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">dataset</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">multi_xor</span>
+<span class="w">  </span><span class="nt">parameters</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">train_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8000</span>
+<span class="w">    </span><span class="nt">valid_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1000</span>
+<span class="w">    </span><span class="nt">test_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1000</span>
+<span class="w">    </span><span class="nt">n_bits</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8</span><span class="w">                      </span><span class="c1"># Number of bits for XOR operation</span>
+</pre></div>
+</div>
+<p>The <code class="docutils literal notranslate"><span class="pre">MultiXORDataset</span></code> class implements this dataset:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span><span class="w"> </span><span class="nc">MultiXORDataset</span><span class="p">(</span><span class="n">Dataset</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Dataset for testing XOR-like logical operations. Each sample is a bit string,</span>
+<span class="sd">    and the target is the XOR of all bits.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">n_samples</span><span class="o">=</span><span class="mi">10000</span><span class="p">,</span><span class="n">n_bits</span><span class="o">=</span><span class="mi">8</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">n_samples</span> <span class="o">=</span> <span class="n">n_samples</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">n_bits</span> <span class="o">=</span> <span class="n">n_bits</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_generate_data</span><span class="p">()</span>
+</pre></div>
+</div>
+</section>
+<section id="information-shunting-dataset">
+<h3>Information Shunting Dataset<a class="headerlink" href="#information-shunting-dataset" title="Link to this heading"></a></h3>
+<p>A dataset for testing shunting inhibition:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">task</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">dataset</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">info_shunting</span>
+<span class="w">  </span><span class="nt">parameters</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">train_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8000</span>
+<span class="w">    </span><span class="nt">valid_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1000</span>
+<span class="w">    </span><span class="nt">test_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1000</span>
+<span class="w">    </span><span class="nt">input_dim</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span><span class="w">                  </span><span class="c1"># Input dimension</span>
+</pre></div>
+</div>
+<p>The <code class="docutils literal notranslate"><span class="pre">InfoShuntingDataset</span></code> class implements this dataset:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span><span class="w"> </span><span class="nc">InfoShuntingDataset</span><span class="p">(</span><span class="n">Dataset</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Dataset for testing shunting inhibition. Contains samples where</span>
+<span class="sd">    some input dimensions should inhibit others.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">n_samples</span><span class="o">=</span><span class="mi">20000</span><span class="p">,</span> <span class="n">input_dim</span><span class="o">=</span><span class="mi">10</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">n_samples</span> <span class="o">=</span> <span class="n">n_samples</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">input_dim</span> <span class="o">=</span> <span class="n">input_dim</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_generate_data</span><span class="p">()</span>
+</pre></div>
+</div>
+</section>
+<section id="noise-resilience-testing">
+<h3>Noise Resilience Testing<a class="headerlink" href="#noise-resilience-testing" title="Link to this heading"></a></h3>
+<p>A dataset for testing resilience to noise:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">task</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">dataset</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">noise_resilience</span>
+<span class="w">  </span><span class="nt">parameters</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">train_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8000</span>
+<span class="w">    </span><span class="nt">valid_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1000</span>
+<span class="w">    </span><span class="nt">test_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1000</span>
+<span class="w">    </span><span class="nt">image_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
+<span class="w">    </span><span class="nt">noise_level</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.2</span><span class="w">               </span><span class="c1"># Level of noise to add</span>
+</pre></div>
+</div>
+<p>The <code class="docutils literal notranslate"><span class="pre">NoisyLineDataset</span></code> class implements this dataset.</p>
+</section>
+<section id="feature-selectivity-testing">
+<h3>Feature Selectivity Testing<a class="headerlink" href="#feature-selectivity-testing" title="Link to this heading"></a></h3>
+<p>Datasets for testing feature selectivity:</p>
+<ol class="arabic">
+<li><p><strong>Sparse MNIST</strong>: A sparse version of MNIST with thresholding</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span><span class="w"> </span><span class="nc">SparseMNISTDataset</span><span class="p">(</span><span class="n">Dataset</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A sparse version of MNIST created by thresholding.</span>
+<span class="sd">    Only values above threshold are kept, others set to 0.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">base_mnist</span><span class="p">,</span> <span class="n">threshold</span><span class="o">=</span><span class="mf">0.3</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">base_mnist</span> <span class="o">=</span> <span class="n">base_mnist</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">threshold</span> <span class="o">=</span> <span class="n">threshold</span>
+</pre></div>
+</div>
+</li>
+<li><p><strong>Contextual Figure-Ground MNIST</strong>: MNIST with contextual noise</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span><span class="w"> </span><span class="nc">ContextualFigureGroundMNIST</span><span class="p">(</span><span class="n">Dataset</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    MNIST with contextual noise added to test figure-ground separation.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">base_mnist</span><span class="p">,</span> <span class="n">noise_level</span><span class="o">=</span><span class="mf">0.1</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">base_mnist</span> <span class="o">=</span> <span class="n">base_mnist</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">noise_level</span> <span class="o">=</span> <span class="n">noise_level</span>
+</pre></div>
+</div>
+</li>
+</ol>
+</section>
+<section id="hierarchical-processing-testing">
+<h3>Hierarchical Processing Testing<a class="headerlink" href="#hierarchical-processing-testing" title="Link to this heading"></a></h3>
+<p>Datasets for testing hierarchical processing:</p>
+<ol class="arabic">
+<li><p><strong>Multi-Task Line Dataset</strong>: Multiple line detection tasks</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span><span class="w"> </span><span class="nc">MultiTaskLineDataset</span><span class="p">(</span><span class="n">Dataset</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Dataset with multiple line detection tasks of varying difficulty.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span><span class="n">total_size</span><span class="o">=</span><span class="mi">12000</span><span class="p">,</span><span class="n">image_size</span><span class="o">=</span><span class="mi">10</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">total_size</span> <span class="o">=</span> <span class="n">total_size</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">image_size</span> <span class="o">=</span> <span class="n">image_size</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_generate_data</span><span class="p">()</span>
+</pre></div>
+</div>
+</li>
+<li><p><strong>Compositional MNIST</strong>: Combining multiple MNIST digits</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span><span class="w"> </span><span class="nc">CompositionalMNIST</span><span class="p">(</span><span class="n">Dataset</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Dataset that combines multiple MNIST digits to test compositional processing.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">base_mnist</span><span class="p">,</span> <span class="n">n_samples</span><span class="o">=</span><span class="mi">20000</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">base_mnist</span> <span class="o">=</span> <span class="n">base_mnist</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">n_samples</span> <span class="o">=</span> <span class="n">n_samples</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_generate_data</span><span class="p">()</span>
+</pre></div>
+</div>
+</li>
+</ol>
+</section>
+</section>
+<section id="data-utilities">
+<h2>Data Utilities<a class="headerlink" href="#data-utilities" title="Link to this heading"></a></h2>
+<p>The framework provides several utility functions for data handling:</p>
+<section id="split-mnist-inputs">
+<h3>Split MNIST Inputs<a class="headerlink" href="#split-mnist-inputs" title="Link to this heading"></a></h3>
+<p>The <code class="docutils literal notranslate"><span class="pre">split_MNIST_inputs</span></code> function splits MNIST inputs by digit:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">split_MNIST_inputs</span><span class="p">(</span><span class="n">inputs</span><span class="p">,</span> <span class="n">labels</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Split MNIST inputs into a list where each element contains all samples for one digit.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    inputs : torch.Tensor</span>
+<span class="sd">        Input tensor [N, 784]</span>
+<span class="sd">    labels : torch.Tensor</span>
+<span class="sd">        Label tensor [N]</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    list</span>
+<span class="sd">        List of tensors, one per digit</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+</pre></div>
+</div>
+</section>
+<section id="unified-dataset-loading">
+<h3>Unified Dataset Loading<a class="headerlink" href="#unified-dataset-loading" title="Link to this heading"></a></h3>
+<p>The <code class="docutils literal notranslate"><span class="pre">get_unified_datasets</span></code> function provides a unified interface for loading datasets:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">get_unified_datasets</span><span class="p">(</span><span class="n">task_cfg</span><span class="p">,</span> <span class="n">train_cfg</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Load datasets based on configuration.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    task_cfg : dict</span>
+<span class="sd">        Task configuration with dataset name and parameters</span>
+<span class="sd">    train_cfg : dict</span>
+<span class="sd">        Training configuration with train_valid_split</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    dict</span>
+<span class="sd">        Dictionary with &#39;train&#39;, &#39;valid&#39;, and &#39;test&#39; datasets</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+</pre></div>
+</div>
+<p>This function examines the dataset name in <cite>task_cfg</cite> and calls the appropriate loading function.</p>
+</section>
+</section>
+<section id="best-practices">
+<h2>Best Practices<a class="headerlink" href="#best-practices" title="Link to this heading"></a></h2>
+<p>When working with datasets:</p>
+<ol class="arabic simple">
+<li><p><strong>Start with standard datasets</strong>: Begin with MNIST or CIFAR-10 for initial testing</p></li>
+<li><p><strong>Use synthetic datasets for specific properties</strong>: Use synthetic datasets to test specific computational properties</p></li>
+<li><p><strong>Create custom datasets</strong>: Extend the framework with custom datasets for specific research questions</p></li>
+<li><p><strong>Data preprocessing</strong>: Consider normalization and augmentation for improved performance</p></li>
+<li><p><strong>Balanced samples</strong>: Ensure balanced class distribution in validation and test sets</p></li>
+</ol>
+<p>Synthetic datasets are particularly valuable for understanding the specific computational advantages of dendritic networks compared to standard neural networks.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, Kempner Institute.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

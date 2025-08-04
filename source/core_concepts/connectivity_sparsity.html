@@ -1,0 +1,170 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Connectivity &amp; Synaptic Sparsity &mdash; Dendritic Modeling Framework v0.1.0</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=01f34227"></script>
+      <script src="../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="author" title="About these documents" href="../../about.html" />
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            Dendritic Modeling Framework
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../QUICK_START.html">Quick Start Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../CONFIGURATION_GUIDE.html">Configuration Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../FSDP_TRAINING_GUIDE.html">FSDP Training Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../sweeps.html">Sweeps Guide</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">Dendritic Modeling Framework</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Connectivity &amp; Synaptic Sparsity</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../../_sources/source/core_concepts/connectivity_sparsity.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="connectivity-synaptic-sparsity">
+<h1>Connectivity &amp; Synaptic Sparsity<a class="headerlink" href="#connectivity-synaptic-sparsity" title="Link to this heading"></a></h1>
+<p>The framework offers several <em>Top-K</em> layers that enforce controlled synaptic sparsity.  Each keeps only the <strong>K</strong> most important synapses per neuron, dramatically reducing parameter count and promoting biological realism.</p>
+<section id="layer-variants">
+<h2>Layer Variants<a class="headerlink" href="#layer-variants" title="Link to this heading"></a></h2>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 25.0%" />
+<col style="width: 40.0%" />
+<col style="width: 35.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Class</p></th>
+<th class="head"><p>Selection Strategy</p></th>
+<th class="head"><p>Typical Use-case</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><a href="#id1"><span class="problematic" id="id2">:pyclass:`dendritic_modeling.networks.architectures.excitation_inhibition.synapse.TopKLinear`</span></a></p></td>
+<td><p>Deterministic <strong>K</strong> highest weights per neuron (optionally with additive noise during training)</p></td>
+<td><p>Baseline controlled sparsity</p></td>
+</tr>
+<tr class="row-odd"><td><p><a href="#id3"><span class="problematic" id="id4">:pyclass:`dendritic_modeling.networks.architectures.excitation_inhibition.synapse.StochasticTopKLinear`</span></a></p></td>
+<td><p>Samples a Top-K set from a Boltzmann distribution over weight rank (temperature-controlled)</p></td>
+<td><p>Exploration of multiple subnetworks during training</p></td>
+</tr>
+<tr class="row-even"><td><p><a href="#id5"><span class="problematic" id="id6">:pyclass:`dendritic_modeling.networks.architectures.excitation_inhibition.synapse.VarianceTopKLinear`</span></a></p></td>
+<td><p>Combines weight magnitude with running activation variance (Hebbian-like importance)</p></td>
+<td><p>Data-driven pruning for sensory models</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="configuring-k">
+<h2>Configuring K<a class="headerlink" href="#configuring-k" title="Link to this heading"></a></h2>
+<p>Specify <strong>K</strong> per layer (and optional temperature/variance tracking) via the YAML config:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">core_network</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">EINet</span>
+<span class="w">  </span><span class="nt">params</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">layer_sizes</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">512</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">256</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">10</span><span class="p p-Indicator">]</span>
+<span class="w">    </span><span class="nt">synapse</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">stochastic_topk</span><span class="w">   </span><span class="c1"># {topk, stochastic_topk, variance_topk}</span>
+<span class="w">      </span><span class="nt">K</span><span class="p">:</span><span class="w">    </span><span class="p p-Indicator">[</span><span class="nv">50</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">30</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">null</span><span class="p p-Indicator">]</span><span class="w">    </span><span class="c1"># null → dense output layer</span>
+<span class="w">      </span><span class="nt">temperature</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.5</span><span class="w">        </span><span class="c1"># only used by stochastic_topk</span>
+</pre></div>
+</div>
+</section>
+<section id="runtime-adaptation">
+<h2>Runtime Adaptation<a class="headerlink" href="#runtime-adaptation" title="Link to this heading"></a></h2>
+<p>Call <a href="#id7"><span class="problematic" id="id8">:pymeth:`update_K()`</span></a> on any Top-K layer to adjust sparsity during training—for example, to implement gradual pruning:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">for</span> <span class="n">new_K</span> <span class="ow">in</span> <span class="p">[</span><span class="mi">100</span><span class="p">,</span> <span class="mi">80</span><span class="p">,</span> <span class="mi">60</span><span class="p">,</span> <span class="mi">40</span><span class="p">]:</span>
+    <span class="k">for</span> <span class="n">module</span> <span class="ow">in</span> <span class="n">model</span><span class="o">.</span><span class="n">modules</span><span class="p">():</span>
+        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">module</span><span class="p">,</span> <span class="s2">&quot;update_K&quot;</span><span class="p">):</span>
+            <span class="n">module</span><span class="o">.</span><span class="n">update_K</span><span class="p">(</span><span class="n">new_K</span><span class="p">)</span>
+</pre></div>
+</div>
+<section id="internals">
+<h3>Internals<a class="headerlink" href="#internals" title="Link to this heading"></a></h3>
+<p>All three variants inherit from <code class="docutils literal notranslate"><span class="pre">TopKLinear</span></code> and override <code class="docutils literal notranslate"><span class="pre">_select_mask</span></code> to build a binary weight mask.  Gradients flow through the <em>pre-masked</em> weight matrix, so pruning is differentiable via straight-through estimation.</p>
+</section>
+<section id="performance-tip">
+<h3>Performance Tip<a class="headerlink" href="#performance-tip" title="Link to this heading"></a></h3>
+<p>On CUDA, sparse matrix multiplications are internally dispatched to dense GEMM for small K; use batch size ≥ 64 to saturate the GPU.</p>
+</section>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, Kempner Institute.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

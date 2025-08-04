@@ -1,0 +1,193 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Analysis Tools &mdash; Dendritic Modeling Framework v0.1.0</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../_static/documentation_options.js?v=01f34227"></script>
+      <script src="../../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="author" title="About these documents" href="../../../about.html" />
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            Dendritic Modeling Framework
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../QUICK_START.html">Quick Start Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../CONFIGURATION_GUIDE.html">Configuration Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../FSDP_TRAINING_GUIDE.html">FSDP Training Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../sweeps.html">Sweeps Guide</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">Dendritic Modeling Framework</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Analysis Tools</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../../../_sources/source/advanced/analysis/index.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="analysis-tools">
+<span id="analysis"></span><h1>Analysis Tools<a class="headerlink" href="#analysis-tools" title="Link to this heading"></a></h1>
+<p>The Dendritic Modeling framework provides a comprehensive set of tools for analyzing trained models, understanding their behavior, and evaluating their performance. These tools can help you gain insights into how dendritic networks learn and process information.</p>
+<div class="toctree-wrapper compound">
+<p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="ablation_studies.html">Ablation Studies</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="ablation_studies.html#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ablation_studies.html#branch-ablation">Branch Ablation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ablation_studies.html#visualizing-ablation-results">Visualizing Ablation Results</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ablation_studies.html#combined-analysis">Combined Analysis</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ablation_studies.html#best-practices-for-ablation-studies">Best Practices for Ablation Studies</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ablation_studies.html#conclusion">Conclusion</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="branch_information.html">Branch Information Analysis</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="branch_information.html#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="branch_information.html#available-analysis-tools">Available Analysis Tools</a></li>
+<li class="toctree-l2"><a class="reference internal" href="branch_information.html#configuration-based-analysis">Configuration-Based Analysis</a></li>
+<li class="toctree-l2"><a class="reference internal" href="branch_information.html#interpreting-the-results">Interpreting the Results</a></li>
+<li class="toctree-l2"><a class="reference internal" href="branch_information.html#example-analysis">Example Analysis</a></li>
+<li class="toctree-l2"><a class="reference internal" href="branch_information.html#related-analysis-tools">Related Analysis Tools</a></li>
+<li class="toctree-l2"><a class="reference internal" href="branch_information.html#see-also">See Also</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="ablation_information_analysis.html">Ablation Studies and Information Analysis</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="ablation_information_analysis.html#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ablation_information_analysis.html#ablation-studies">Ablation Studies</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ablation_information_analysis.html#information-analysis">Information Analysis</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ablation_information_analysis.html#combining-ablation-and-information-analysis">Combining Ablation and Information Analysis</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ablation_information_analysis.html#visualizing-information-analysis-results">Visualizing Information Analysis Results</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ablation_information_analysis.html#best-practices-for-ablation-and-information-analysis">Best Practices for Ablation and Information Analysis</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ablation_information_analysis.html#complete-analysis-example">Complete Analysis Example</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="synthetic_datasets.html">Datasets and Data Utilities</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="synthetic_datasets.html#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="synthetic_datasets.html#dataset-configuration">Dataset Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="synthetic_datasets.html#standard-datasets">Standard Datasets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="synthetic_datasets.html#modified-mnist-variants">Modified MNIST Variants</a></li>
+<li class="toctree-l2"><a class="reference internal" href="synthetic_datasets.html#id1">Synthetic Datasets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="synthetic_datasets.html#data-utilities">Data Utilities</a></li>
+<li class="toctree-l2"><a class="reference internal" href="synthetic_datasets.html#best-practices">Best Practices</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="experiment_tracking.html">Experiment Tracking and Logging</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="experiment_tracking.html#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="experiment_tracking.html#weights-biases-integration">Weights &amp; Biases Integration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="experiment_tracking.html#local-csv-logging">Local CSV Logging</a></li>
+<li class="toctree-l2"><a class="reference internal" href="experiment_tracking.html#structure-of-the-logging-system">Structure of the Logging System</a></li>
+<li class="toctree-l2"><a class="reference internal" href="experiment_tracking.html#model-checkpointing">Model Checkpointing</a></li>
+<li class="toctree-l2"><a class="reference internal" href="experiment_tracking.html#visualization-generation">Visualization Generation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="experiment_tracking.html#custom-metrics-for-dendritic-networks">Custom Metrics for Dendritic Networks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="experiment_tracking.html#best-practices-for-tracking">Best Practices for Tracking</a></li>
+<li class="toctree-l2"><a class="reference internal" href="experiment_tracking.html#example-using-the-tracking-system">Example: Using the Tracking System</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="output_handling.html">Output Handling and Loss Functions</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="output_handling.html#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="output_handling.html#output-types">Output Types</a></li>
+<li class="toctree-l2"><a class="reference internal" href="output_handling.html#deterministic-vs-probabilistic-outputs">Deterministic vs. Probabilistic Outputs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="output_handling.html#probabilistic-output-layers">Probabilistic Output Layers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="output_handling.html#classification-with-probabilistic-outputs">Classification with Probabilistic Outputs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="output_handling.html#regression-with-probabilistic-outputs">Regression with Probabilistic Outputs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="output_handling.html#loss-functions">Loss Functions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="output_handling.html#negative-log-likelihood-nll-loss">Negative Log Likelihood (NLL) Loss</a></li>
+<li class="toctree-l2"><a class="reference internal" href="output_handling.html#mean-squared-error-mse-loss">Mean Squared Error (MSE) Loss</a></li>
+<li class="toctree-l2"><a class="reference internal" href="output_handling.html#binary-cross-entropy-bce-loss">Binary Cross Entropy (BCE) Loss</a></li>
+<li class="toctree-l2"><a class="reference internal" href="output_handling.html#combined-loss-functions">Combined Loss Functions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="output_handling.html#example-configurations">Example Configurations</a></li>
+<li class="toctree-l2"><a class="reference internal" href="output_handling.html#evaluation-metrics">Evaluation Metrics</a></li>
+<li class="toctree-l2"><a class="reference internal" href="output_handling.html#general-best-practices-for-output-handling">General Best Practices for Output Handling</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="ei_sweep_analysis.html">EI Sweep Analysis</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="ei_sweep_analysis.html#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ei_sweep_analysis.html#command-line-arguments">Command-Line Arguments</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ei_sweep_analysis.html#visualizations-explained">Visualizations Explained</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ei_sweep_analysis.html#output-files">Output Files</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ei_sweep_analysis.html#example-usage">Example Usage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ei_sweep_analysis.html#handling-missing-data">Handling Missing Data</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ei_sweep_analysis.html#tips-for-effective-analysis">Tips for Effective Analysis</a></li>
+<li class="toctree-l2"><a class="reference internal" href="ei_sweep_analysis.html#implementation-details">Implementation Details</a></li>
+</ul>
+</li>
+</ul>
+</div>
+</section>
+
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, Kempner Institute.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

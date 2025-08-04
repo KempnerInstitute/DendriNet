@@ -1,0 +1,243 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Installation Guide &mdash; Dendritic Modeling Framework v0.1.0</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=01f34227"></script>
+      <script src="_static/doctools.js?v=9bcbadda"></script>
+      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="author" title="About these documents" href="about.html" />
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            Dendritic Modeling Framework
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="QUICK_START.html">Quick Start Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="CONFIGURATION_GUIDE.html">Configuration Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="FSDP_TRAINING_GUIDE.html">FSDP Training Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sweeps.html">Sweeps Guide</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">Dendritic Modeling Framework</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Installation Guide</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/installation.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="installation-guide">
+<h1>Installation Guide<a class="headerlink" href="#installation-guide" title="Link to this heading"></a></h1>
+<p>This guide provides simple instructions for installing the Dendritic Modeling Framework using conda.</p>
+<section id="requirements">
+<h2>Requirements<a class="headerlink" href="#requirements" title="Link to this heading"></a></h2>
+<section id="system-requirements">
+<h3>System Requirements<a class="headerlink" href="#system-requirements" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p><strong>Operating System</strong>: Linux, macOS, or Windows</p></li>
+<li><p><strong>Python</strong>: 3.12</p></li>
+<li><p><strong>CUDA</strong> (optional): 11.0+ for GPU acceleration</p></li>
+<li><p><strong>Memory</strong>: 8GB RAM minimum (16GB+ recommended)</p></li>
+<li><p><strong>Storage</strong>: 2GB free space</p></li>
+</ul>
+</section>
+<section id="prerequisites">
+<h3>Prerequisites<a class="headerlink" href="#prerequisites" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p>Anaconda or Miniconda installed on your system</p></li>
+<li><p>Git for cloning the repository</p></li>
+</ul>
+</section>
+</section>
+<section id="quick-installation">
+<h2>Quick Installation<a class="headerlink" href="#quick-installation" title="Link to this heading"></a></h2>
+<section id="step-1-clone-the-repository">
+<h3>Step 1: Clone the Repository<a class="headerlink" href="#step-1-clone-the-repository" title="Link to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/KempnerInstitute/dendritic-modeling.git
+<span class="nb">cd</span><span class="w"> </span>dendritic-modeling
+</pre></div>
+</div>
+</section>
+<section id="step-2-create-conda-environment">
+<h3>Step 2: Create Conda Environment<a class="headerlink" href="#step-2-create-conda-environment" title="Link to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Create the environment from the provided environment.yml file</span>
+conda<span class="w"> </span>env<span class="w"> </span>create<span class="w"> </span>-f<span class="w"> </span>environment.yml
+
+<span class="c1"># Activate the environment</span>
+conda<span class="w"> </span>activate<span class="w"> </span>dendritic_env
+</pre></div>
+</div>
+</section>
+<section id="step-3-install-the-package">
+<h3>Step 3: Install the Package<a class="headerlink" href="#step-3-install-the-package" title="Link to this heading"></a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Install the package in development mode</span>
+pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>.
+</pre></div>
+</div>
+<p>That’s it! The framework is now installed and ready to use.</p>
+</section>
+</section>
+<section id="gpu-support">
+<h2>GPU Support<a class="headerlink" href="#gpu-support" title="Link to this heading"></a></h2>
+<p>The environment.yml file includes PyTorch with CUDA support. To verify GPU availability:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">cuda</span><span class="o">.</span><span class="n">is_available</span><span class="p">())</span>  <span class="c1"># Should print True if GPU is available</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">cuda</span><span class="o">.</span><span class="n">device_count</span><span class="p">())</span>  <span class="c1"># Number of GPUs</span>
+</pre></div>
+</div>
+<p>If you need a different CUDA version, modify the <code class="docutils literal notranslate"><span class="pre">pytorch-cuda</span></code> version in environment.yml before creating the environment:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">dependencies</span><span class="p">:</span>
+<span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pytorch-cuda=11.8</span><span class="w">  </span><span class="c1"># Change to your CUDA version</span>
+</pre></div>
+</div>
+</section>
+<section id="cluster-installation">
+<h2>Cluster Installation<a class="headerlink" href="#cluster-installation" title="Link to this heading"></a></h2>
+<p>For HPC clusters with module systems:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Load required modules (example)</span>
+module<span class="w"> </span>load<span class="w"> </span>anaconda3
+module<span class="w"> </span>load<span class="w"> </span>cuda/11.8
+
+<span class="c1"># Create and activate environment</span>
+conda<span class="w"> </span>env<span class="w"> </span>create<span class="w"> </span>-f<span class="w"> </span>environment.yml
+conda<span class="w"> </span>activate<span class="w"> </span>dendritic_env
+
+<span class="c1"># Install package</span>
+pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>.
+</pre></div>
+</div>
+</section>
+<section id="verification">
+<h2>Verification<a class="headerlink" href="#verification" title="Link to this heading"></a></h2>
+<p>Verify your installation:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Test import</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">dendritic_modeling</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">dm</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">dm</span><span class="o">.</span><span class="n">__version__</span><span class="p">)</span>
+
+<span class="c1"># Create a simple model</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks</span><span class="w"> </span><span class="kn">import</span> <span class="n">ExcitationInhibitionNetwork</span>
+
+<span class="n">model</span> <span class="o">=</span> <span class="n">ExcitationInhibitionNetwork</span><span class="p">(</span>
+    <span class="n">input_dim</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span>
+    <span class="n">transfer_params</span><span class="o">=</span><span class="p">{</span><span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;identity&quot;</span><span class="p">},</span>
+    <span class="n">excitatory_layer_sizes</span><span class="o">=</span><span class="p">[</span><span class="mi">64</span><span class="p">,</span> <span class="mi">32</span><span class="p">],</span>
+    <span class="n">inhibitory_layer_sizes</span><span class="o">=</span><span class="p">[</span><span class="mi">32</span><span class="p">,</span> <span class="mi">16</span><span class="p">],</span>
+    <span class="n">excitatory_branch_factors</span><span class="o">=</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span>
+    <span class="n">inhibitory_branch_factors</span><span class="o">=</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
+<span class="p">)</span>
+
+<span class="c1"># Test forward pass</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+<span class="n">x</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">randn</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">100</span><span class="p">)</span>
+<span class="n">output</span> <span class="o">=</span> <span class="n">model</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Output shape: </span><span class="si">{</span><span class="n">output</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<section id="common-issues">
+<h3>Common Issues<a class="headerlink" href="#common-issues" title="Link to this heading"></a></h3>
+<dl class="simple">
+<dt><strong>Import errors after installation</strong></dt><dd><ul class="simple">
+<li><p>Make sure you activated the conda environment: <code class="docutils literal notranslate"><span class="pre">conda</span> <span class="pre">activate</span> <span class="pre">dendritic_env</span></code></p></li>
+<li><p>Verify installation: <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">list</span> <span class="pre">|</span> <span class="pre">grep</span> <span class="pre">dendritic</span></code></p></li>
+</ul>
+</dd>
+<dt><strong>CUDA/GPU not detected</strong></dt><dd><ul class="simple">
+<li><p>Check CUDA installation: <code class="docutils literal notranslate"><span class="pre">nvidia-smi</span></code></p></li>
+<li><p>Ensure PyTorch CUDA version matches your system CUDA version</p></li>
+</ul>
+</dd>
+<dt><strong>Memory errors during training</strong></dt><dd><ul class="simple">
+<li><p>Reduce batch size in your configuration</p></li>
+<li><p>Use gradient accumulation for larger effective batch sizes</p></li>
+</ul>
+</dd>
+</dl>
+</section>
+</section>
+<section id="next-steps">
+<h2>Next Steps<a class="headerlink" href="#next-steps" title="Link to this heading"></a></h2>
+<ol class="arabic simple">
+<li><p>Follow the <a class="reference internal" href="tutorials.html"><span class="doc">Quick Start Tutorial</span></a> to run your first experiment</p></li>
+<li><p>Read about <span class="xref std std-doc">Network Architectures</span></p></li>
+<li><p>Learn about <span class="xref std std-doc">Training Strategies</span></p></li>
+<li><p>Explore <a class="reference internal" href="examples.html"><span class="doc">Example Configurations</span></a></p></li>
+</ol>
+<p>For help, please check our <a class="reference external" href="https://github.com/KempnerInstitute/dendritic-modeling/issues">GitHub Issues</a> or create a new issue with your question.</p>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, Kempner Institute.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
