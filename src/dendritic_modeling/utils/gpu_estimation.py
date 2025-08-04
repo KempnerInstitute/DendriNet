@@ -64,17 +64,9 @@ class GPURecommendation:
 class GPUMemoryEstimator:
     """Estimate GPU memory requirements for dendritic models."""
 
-    # GPU specifications
     GPU_SPECS = {
-        "H200": {"memory_gb": 141, "compute": "high"},
-        "H100": {"memory_gb": 80, "compute": "high"},
-        "A100-80GB": {"memory_gb": 80, "compute": "high"},
         "A100-40GB": {"memory_gb": 40, "compute": "high"},
-        "A40": {"memory_gb": 48, "compute": "medium"},
-        "V100-32GB": {"memory_gb": 32, "compute": "medium"},
-        "V100-16GB": {"memory_gb": 16, "compute": "medium"},
-        "A10": {"memory_gb": 24, "compute": "medium"},
-        "T4": {"memory_gb": 16, "compute": "low"},
+        "H100": {"memory_gb": 80, "compute": "high"},
     }
 
     def __init__(self, dtype: str = "fp16", optimizer: str = "adam"):
@@ -267,7 +259,7 @@ class GPUMemoryEstimator:
 
             # Add substantial overhead for gradient computation graphs in dendritic networks
             # Dendritic networks have complex backward passes with branch-wise operations
-            activation_memory_bytes *= 3.0
+            activation_memory_bytes *= 10.0  # Increased for dendritic branching overhead
 
         else:
             # Fallback: Analyze layer by layer
@@ -316,7 +308,7 @@ class GPUMemoryEstimator:
             if activation_memory_bytes == 0:
                 total_params = sum(p.numel() for p in model.parameters())
                 # For dendritic models, activations can be 10-20x parameters due to branching
-                activation_memory_bytes = total_params * self.bytes_per_param * 15
+                activation_memory_bytes = total_params * self.bytes_per_param * 60  # High multiplier for dendritic models
 
             # Add gradient graph overhead
             activation_memory_bytes *= 2.5
@@ -368,7 +360,7 @@ class GPUMemoryEstimator:
             # FSDP adds communication buffers and sharding metadata
             # Approximately 10-20% overhead
             base_memory = param_memory_gb + gradient_memory_gb + optimizer_memory_gb
-            fsdp_overhead_gb = base_memory * 0.15
+            fsdp_overhead_gb = base_memory * 0.5  # Increased overhead for communication/sharding
 
             # With FSDP, memory is sharded across GPUs
             param_memory_gb /= num_gpus
@@ -450,29 +442,19 @@ class GPUMemoryEstimator:
 
             recommendations.append(recommendation)
 
-        # Sort by efficiency (fewer GPUs is better, then by utilization)
         recommendations.sort(key=lambda r: (r.recommended_gpus, -r.utilization_percent))
 
         return recommendations
     
-    def get_optimal_gpu_config(self, single_gpu_breakdown, h100_memory, h200_memory):
+    def get_optimal_gpu_config(self, single_gpu_breakdown, h100_memory, a100_memory):
         """
         Determine optimal GPU configuration for FSDP training.
         
         Returns:
             dict: Optimal configuration with nodes, gpus_per_node, total_gpus, etc.
         """
-        # Check if single GPU is sufficient
-        if single_gpu_breakdown.total <= h200_memory:
-            return {
-                'single_gpu_fits': True,
-                'gpu_type': 'H200',
-                'nodes': 1,
-                'gpus_per_node': 1,
-                'total_gpus': 1,
-                'memory_per_gpu': single_gpu_breakdown.total
-            }
-        elif single_gpu_breakdown.total <= h100_memory:
+
+        if single_gpu_breakdown.total <= h100_memory:
             return {
                 'single_gpu_fits': True,
                 'gpu_type': 'H100',
@@ -481,8 +463,17 @@ class GPUMemoryEstimator:
                 'total_gpus': 1,
                 'memory_per_gpu': single_gpu_breakdown.total
             }
+        elif single_gpu_breakdown.total <= a100_memory:
+            return {
+                'single_gpu_fits': True,
+                'gpu_type': 'A100-40GB',
+                'nodes': 1,
+                'gpus_per_node': 1,
+                'total_gpus': 1,
+                'memory_per_gpu': single_gpu_breakdown.total
+            }
         
-        # Multi-GPU FSDP needed - test different configurations
+
         configurations = [
             # (total_gpus, nodes, gpus_per_node)
             (2, 1, 2),   # 2 GPUs, 1 node
@@ -493,19 +484,26 @@ class GPUMemoryEstimator:
         ]
         
         for total_gpus, nodes, gpus_per_node in configurations:
-            # Estimate memory per GPU with FSDP based on single GPU breakdown
-            # Scale down memory usage with FSDP (parameters, gradients, optimizer states get sharded)
+
             param_memory = single_gpu_breakdown.parameters / total_gpus
             grad_memory = single_gpu_breakdown.gradients / total_gpus
             optimizer_memory = single_gpu_breakdown.optimizer_states / total_gpus
-            # Activations and FSDP overhead don't scale as much
-            activation_memory = single_gpu_breakdown.activations * 0.8  # Some reduction with FSDP
-            fsdp_overhead = 0.1 * (param_memory + grad_memory)  # FSDP communication overhead
+            activation_memory = single_gpu_breakdown.activations * 0.8
+            fsdp_overhead = 0.1 * (param_memory + grad_memory)
             
             total_memory = param_memory + grad_memory + optimizer_memory + activation_memory + fsdp_overhead
             
-            # Check if fits on H100
-            if total_memory <= h100_memory:
+            if total_memory <= a100_memory:
+                return {
+                    'single_gpu_fits': False,
+                    'gpu_type': 'A100-40GB',
+                    'nodes': nodes,
+                    'gpus_per_node': gpus_per_node,
+                    'total_gpus': total_gpus,
+                    'memory_per_gpu': total_memory
+                }
+
+            elif total_memory <= h100_memory:
                 return {
                     'single_gpu_fits': False,
                     'gpu_type': 'H100',
@@ -514,21 +512,11 @@ class GPUMemoryEstimator:
                     'total_gpus': total_gpus,
                     'memory_per_gpu': total_memory
                 }
-            # Check if fits on H200
-            elif total_memory <= h200_memory:
-                return {
-                    'single_gpu_fits': False,
-                    'gpu_type': 'H200',
-                    'nodes': nodes,
-                    'gpus_per_node': gpus_per_node,
-                    'total_gpus': total_gpus,
-                    'memory_per_gpu': total_memory
-                }
         
-        # If nothing fits, return largest config
+
         return {
             'single_gpu_fits': False,
-            'gpu_type': 'H200',
+            'gpu_type': 'H100',
             'nodes': 8,
             'gpus_per_node': 4,
             'total_gpus': 32,
@@ -544,7 +532,7 @@ class GPUMemoryEstimator:
         config: Optional[Any] = None,
     ):
         """
-        Print a simplified GPU memory estimation report focused on H200/H100.
+        Print a simplified GPU memory estimation report.
 
         Args:
             model: PyTorch model
@@ -572,20 +560,16 @@ class GPUMemoryEstimator:
         )
         logger.info(f"4-GPU FSDP memory per GPU: {fsdp_4gpu.total:.2f} GB")
         
-        # Check H200/H100 compatibility
-        h200_memory = self.GPU_SPECS["H200"]["memory_gb"] * 0.85  # 85% usable
-        h100_memory = self.GPU_SPECS["H100"]["memory_gb"] * 0.85  # 85% usable
+        a100_memory = self.GPU_SPECS["A100-40GB"]["memory_gb"] * 0.85
+        h100_memory = self.GPU_SPECS["H100"]["memory_gb"] * 0.85
         
-        # Single GPU recommendations
-        if single_gpu_breakdown.total <= h200_memory:
-            logger.info("[FITS] Fits on single H200 (141GB)")
+        if single_gpu_breakdown.total <= a100_memory:
+            logger.info("[FITS] Fits on single A100-40GB (40GB)")
         elif single_gpu_breakdown.total <= h100_memory:
             logger.info("[FITS] Fits on single H100 (80GB)")
         else:
             logger.info("[NO FIT] Requires multi-GPU setup")
-            
-        # Multi-GPU recommendations with optimal configuration
-        optimal_config = self.get_optimal_gpu_config(single_gpu_breakdown, h100_memory, h200_memory)
+        optimal_config = self.get_optimal_gpu_config(single_gpu_breakdown, h100_memory, a100_memory)
         
         if optimal_config['single_gpu_fits']:
             logger.info(f"[FITS] Single {optimal_config['gpu_type']} sufficient")
@@ -738,5 +722,6 @@ def estimate_from_config(config_path: str, batch_size: Optional[int] = None):
     # Create estimator and print report
     estimator = GPUMemoryEstimator(dtype=dtype, optimizer=optimizer_type)
     estimator.print_estimation_report(model, batch_size, input_shape, config)
+    
 
     return estimator, model

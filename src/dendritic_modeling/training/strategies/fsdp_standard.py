@@ -330,11 +330,19 @@ class FSDPTrainer(Trainer):
                     # Run analysis if enabled and we have the manager
                     if self.analysis_manager is not None:
                         if isinstance(self.analysis_manager, AnalysisManager):
+                            logger.info(f"Running epoch analysis for epoch {epoch + 1}...")
                             self.analysis_manager.run_analysis(
                                 filename=f"epoch{epoch + 1}", training=True
                             )
+                            logger.info(f"Epoch analysis completed for epoch {epoch + 1}")
+                        else:
+                            logger.warning(f"Analysis manager is not AnalysisManager instance: {type(self.analysis_manager)}")
+                    else:
+                        logger.warning("Analysis manager is None")
                 except Exception as e:
-                    logger.warning(f"Analysis failed for epoch {epoch}: {e}")
+                    logger.warning(f"Analysis failed for epoch {epoch + 1}: {e}")
+                    import traceback
+                    logger.warning(f"Analysis error traceback: {traceback.format_exc()}")
 
             # Logging
             epoch_time = time.time() - epoch_start
@@ -412,6 +420,9 @@ class FSDPTrainer(Trainer):
         total_examples = 0
 
         for batch_idx, (x_batch, y_batch) in enumerate(train_loader):
+            # Clear GPU cache before each forward pass
+            torch.cuda.empty_cache()
+            
             x_batch = x_batch.to(self.device)
             y_batch = y_batch.to(self.device)
 

@@ -53,7 +53,7 @@ def validate_full_config(config: Dict, strict: bool = True) -> bool:
         logger.error("Model architecture validation failed - cannot continue")
         return False
     
-            logger.info("Model architecture validation passed")
+    logger.info("Model architecture validation passed")
     
     # 2. Training Stability Validation (warnings only unless strict=True)
     logger.info("Validating training stability...")

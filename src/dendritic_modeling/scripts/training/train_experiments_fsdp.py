@@ -60,6 +60,7 @@ from dendritic_modeling.datasets import get_unified_datasets
 from dendritic_modeling.models import Classifier, Regressor
 from dendritic_modeling.networks import Identity
 from dendritic_modeling.networks.architectures.factory import get_architecture
+from dendritic_modeling.scripts.training.train_encoder_network import load_train_encoder_network
 from dendritic_modeling.utils.general import set_seed, save_dict
 from dendritic_modeling.utils.gpu_estimation import GPUMemoryEstimator
 from dendritic_modeling.analysis import AnalysisManager
@@ -358,6 +359,27 @@ def main(config_path):
     # Setup data loaders
     train_loader, valid_loader, test_ds, train_ds, valid_ds = setup_data_loaders(config, rank, world_size)
     
+    # Only rank 0 needs to handle encoding for analysis
+    if rank == 0:
+        logger.info("Encoding datasets for analysis...")
+        # Get input dimension from sample data
+        sample_input = train_ds[0][0]
+        input_dim = sample_input.numel() if hasattr(sample_input, 'numel') else len(sample_input)
+        
+        (encoder_network, encoded_train_ds, encoded_valid_ds, encoded_test_ds) = load_train_encoder_network(
+            encoder_network=Identity(input_dim),
+            encoder_train_config=config.train.encoder,
+            train_ds=train_ds,
+            valid_ds=valid_ds,
+            test_ds=test_ds,
+            encoder_network_config=config.model.encoder_network,
+            task_config=config.task,
+        )
+    else:
+        encoded_train_ds = encoded_valid_ds = encoded_test_ds = None
+        # For non-rank 0 processes, create a dummy Identity
+        encoder_network = Identity(1)
+    
     # Generate detailed parameter summary with real sample input
     if rank == 0:  # Only on rank 0 to avoid duplicate output
         try:
@@ -393,14 +415,32 @@ def main(config_path):
     # Setup analysis manager (only on rank 0)
     analysis_manager = None
     if rank == 0:
+        logger.info("Setting up AnalysisManager...")
+        
+        # Set the model's encoder network
+        if isinstance(encoder_network, Identity):
+            model.encoder_network = encoder_network
+            logger.info("Set model encoder to Identity network")
+        else:
+            model.encoder_network = Identity(encoder_network.encoder.output_dim)
+            logger.info(f"Set model encoder to Identity with output_dim: {encoder_network.encoder.output_dim}")
+        
+        encoded_data = {
+            "train": encoded_train_ds,
+            "valid": encoded_valid_ds,
+            "test": encoded_test_ds,
+        }
         analysis_manager = AnalysisManager(
             model=model,
-            data={"train": train_ds, "valid": valid_ds, "test": test_ds},
+            data=encoded_data,
             analysis_config=config.analysis,
             save_root=run_save_path,
             device=f"cuda:{local_rank}",
             train_config=config.train,
         )
+        logger.info(f"AnalysisManager created: {type(analysis_manager)}")
+        logger.info(f"Performance analysis enabled: {config.analysis.performance_analysis.enabled}")
+        logger.info(f"Performance analysis training: {config.analysis.performance_analysis.training}")
     
     # Create FSDP trainer
     trainer = FSDPTrainer(
@@ -433,6 +473,13 @@ def main(config_path):
     # Train the model
     results = trainer.train(model, train_loader, valid_loader)
     
+    # Fix for Identity encoder
+    if rank == 0:
+        if isinstance(encoder_network, Identity):
+            model.encoder_network = encoder_network
+        else:
+            model.encoder_network = Identity(encoder_network.encoder.output_dim)
+    
     if rank == 0:
         logger.info("Training completed successfully!")
         logger.info(f"Final training loss: {results.get('final_train_loss', 'N/A')}")
@@ -445,6 +492,14 @@ def main(config_path):
         if analysis_manager:
             try:
                 logger.info("Running final analysis (includes performance metrics plotting)...")
+                
+                # Use unwrapped model for analysis if FSDP-wrapped
+                if hasattr(model, 'module'):
+                    unwrapped_model = model.module
+                    # Ensure the unwrapped model is on the correct device
+                    unwrapped_model = unwrapped_model.to(f"cuda:{local_rank}")
+                    analysis_manager.model = unwrapped_model
+                
                 analysis_manager.run_analysis(filename="final", training=False)
                 logger.info("Final analysis completed - figures saved to performance folder")
             except Exception as e:

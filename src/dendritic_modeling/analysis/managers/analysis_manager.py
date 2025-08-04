@@ -128,14 +128,20 @@ class AnalysisManager:
 
     def run_analysis(self, filename: str = "final", training: bool = False):
         """Run configured analyses and generate plots."""
+        self.logger.info(f"Starting analysis run - filename: {filename}, training: {training}")
+        
         # Run analyses and get results
         if self.config.performance_analysis.enabled and (
             (self.config.performance_analysis.training and training) or not training
         ):
+            self.logger.info(f"Running performance analysis - enabled: {self.config.performance_analysis.enabled}, training_mode: {self.config.performance_analysis.training}, is_training: {training}")
+            
             # Determine save path based on whether this is training or final analysis
             if training:
                 # Save epoch results in a subfolder
                 epoch_save_path = os.path.join(self.save_root, "performance", "epochs")
+                self.logger.info(f"Creating epochs directory: {epoch_save_path}")
+                os.makedirs(epoch_save_path, exist_ok=True)
             else:
                 # Save final results in main performance folder
                 epoch_save_path = os.path.join(self.save_root, "performance")
@@ -154,29 +160,41 @@ class AnalysisManager:
             if not training:
                 # Generate bar plots only for final results (when training=false)
                 if not self.config.performance_analysis.training:
-                    plot_performance_metrics(
-                        perf_results, save_path=os.path.join(self.save_root, "performance")
-                    )
+                    try:
+                        plot_performance_metrics(
+                            perf_results, save_path=os.path.join(self.save_root, "performance")
+                        )
+                    except Exception as e:
+                        self.logger.error(f"Error generating performance metrics plots: {e}")
                 
                 # Generate epoch evolution plots if training analysis was enabled
                 if self.config.performance_analysis.training:
-                    from dendritic_modeling.plotting.visualizations.performance_plots import PerformancePlotter
-                    plotter = PerformancePlotter()
-                    
-                    # Get pruning performance data if available
-                    pruning_performance = self.pruning_results
-                    final_epoch = None
-                    if (self.train_config and hasattr(self.train_config, 'main') and 
-                        hasattr(self.train_config.main, 'trainer') and
-                        hasattr(self.train_config.main.trainer, 'epochs')):
-                        final_epoch = self.train_config.main.trainer.epochs
-                    
-                    plotter.plot_performance_evolution(
-                        performance_dir=os.path.join(self.save_root, "performance", "epochs"),
-                        save_path=os.path.join(self.save_root, "performance"),
-                        pruning_performance=pruning_performance,
-                        final_epoch=final_epoch,
-                    )
+                    try:
+                        from dendritic_modeling.plotting.visualizations.performance_plots import PerformancePlotter
+                        plotter = PerformancePlotter()
+                        
+                        # Get pruning performance data if available
+                        pruning_performance = self.pruning_results
+                        final_epoch = None
+                        if (self.train_config and hasattr(self.train_config, 'main') and 
+                            hasattr(self.train_config.main, 'trainer') and
+                            hasattr(self.train_config.main.trainer, 'epochs')):
+                            final_epoch = self.train_config.main.trainer.epochs
+                        
+                        # Ensure performance directory exists
+                        performance_dir = os.path.join(self.save_root, "performance", "epochs")
+                        if os.path.exists(performance_dir):
+                            plotter.plot_performance_evolution(
+                                performance_dir=performance_dir,
+                                save_path=os.path.join(self.save_root, "performance"),
+                                pruning_performance=pruning_performance,
+                                final_epoch=final_epoch,
+                            )
+                        else:
+                            self.logger.warning(f"Performance directory {performance_dir} does not exist, skipping evolution plots")
+                    except Exception as e:
+                        self.logger.error(f"Error generating performance evolution plots: {e}")
+                        # Continue with other analyses even if plotting fails
 
         # Information Analysis
         if self.config.information_analysis.enabled and (
