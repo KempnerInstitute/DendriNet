@@ -1,0 +1,436 @@
+# ============================================================================
+# UNIFIED PARAMETER SWEEP CONFIGURATION
+# ============================================================================
+# This configuration file enables comprehensive parameter sweeps across multiple
+# dimensions of dendritic models. It supports EI ratios, branch architecture,
+# and general hyperparameter sweeps in a unified framework.
+#
+# USAGE:
+#   Generate sweep configurations:
+#   python src/dendritic_modeling/scripts/sweeps/sweep_manager.py configs/unified_all_sweeps_example.yaml
+#
+#   Generate and submit SLURM jobs:
+#   python src/dendritic_modeling/scripts/sweeps/sweep_manager.py configs/unified_all_sweeps_example.yaml --submit
+#
+#   Generate and submit in one command:
+#   python src/dendritic_modeling/scripts/sweeps/sweep_manager.py configs/unified_all_sweeps_example.yaml --run
+#
+#   Analyze completed sweep results:
+#   python src/dendritic_modeling/scripts/sweeps/result_analyzer.py /path/to/sweep/results/
+#
+# SWEEP TYPES SUPPORTED:
+#   - EI sweeps: Excitatory/Inhibitory synapse ratios and connectivity
+#   - Branch sweeps: Dendritic architecture patterns and branching factors
+#   - General sweeps: Any model/training hyperparameters
+#   - Mixed sweeps: Combine multiple sweep types simultaneously
+#   - Noise sweeps: Robustness testing with various noise types
+
+# Output and SLURM configuration
+output_dir: "results"
+slurm_config:
+  job_name: "unified_sweep"
+  account:  # Your SLURM account
+  partition: # Your SLURM partition  
+  time: "02:00:00"
+  nodes: 1
+  ntasks_per_node: 1
+  gpus_per_node: 1
+  cpus_per_task: 8
+  mem: 32GB
+  max_concurrent_jobs: 15  # Maximum number of array jobs to run simultaneously
+  modules_to_load:
+    - python/3.12.5-fasrc01
+    - cuda/12.4.1-fasrc01
+    - cudnn/8.9.2.26_cuda12-fasrc01
+  conda_env_path:     # Path to your conda environment
+  training_script: "src/dendritic_modeling/scripts/training/train_experiments.py"
+
+# Experiment settings
+experiment_settings:
+  seeds_per_condition: 2  # Number of seeds per parameter combination
+  base_seed: 42
+
+# ============================================================================
+# PARAMETER SWEEPS - Choose your parameters!
+# ============================================================================
+sweep_config:
+  # -------------------------
+  # -------------------------
+  model.core_network.parameters.ee_synapses_per_branch_per_layer: [[1],[2],[3],[5],[10]]
+  model.core_network.parameters.ie_synapses_per_branch_per_layer: [[1],[2],[3],[5],[10]]
+  model.core_network.parameters.use_shunting: [true, false]
+  
+
+  # model.core_network.parameters.layer_sizes: [[32, 16, 10], [64, 32, 10], [128, 64, 10]]
+  # model.encoder_network.parameters.hidden_sizes: [[32], [64], [128]]
+  
+  # Use [start, end, step] to generate ranges:
+  # some_parameter: [1, 10, 2]    # Creates [1, 3, 5, 7, 9]
+  # float_parameter: [0.1, 1.0, 0.1]  # Creates [0.1, 0.2, ..., 1.0]
+
+# ============================================================================
+# FILTER CONFIGURATION
+# ============================================================================
+filter_config:
+  # EI Filtering (optional)
+  mode: "ei-sum"  # Options: "all", "ei-sum", "e-const", "i-const", "ei-ratio"
+  value: 11       # ei-sum: E+I=11, e-const: E=11, i-const: I=11, ei-ratio: E/I=11
+  # tolerance: 0  # exact match (default: 1)
+  
+  # Branch Sweep (optional - can combine with EI filtering above)
+  # branch_sweep_mode: "uniform_sweep"         # Options: uniform_sweep, depth_sweep, width_sweep, pattern_sweep, custom_configs
+  # dendrite_tree_depth: [1, 4, 1]            # depths 1,2,3,4
+  # dendrite_branches_per_layer: [2, 8, 2]    # branches 2,4,6,8
+  
+  # See examples section at end of file for all options and combinations
+
+# ============================================================================
+# BASE TRAINING CONFIGURATION (Shared by all sweep variants)
+# ============================================================================
+base_config:
+  model:
+    task: classification
+    
+    # ==========================================
+    # ENCODER NETWORK (Input Processing Stage)
+    # ==========================================
+    encoder_network:
+      type: identity
+      parameters:
+        input_dim: null
+        input_shape: [3, 32, 32]
+        encoder_hidden_dims: [128, 64]
+        encoder_kernel_sizes: [3, 3]
+        encoder_strides: [2, 2]
+        latent_dim: null
+        latent_shape: null
+        decoder_hidden_dims: [64, 128]
+        activation: relu
+
+    # ==========================================
+    # CORE DENDRITIC NETWORK (Main Processing)
+    # ==========================================
+    core_network:
+      type: EINet
+      parameters:
+        # Transfer function parameters
+        transfer_params:
+          input_mode: 1
+          independent_pathways: false
+          excitatory_dim: null
+          inhibitory_dim: null
+          output_activation: null
+        
+        # Morphological architecture
+        excitatory_layer_sizes: [10]
+        inhibitory_layer_sizes: []
+        excitatory_branch_factors: [2, 2, 2, 2]
+        inhibitory_branch_factors: []
+        
+        # EI Synapse configuration (overridden by EI sweeps)
+        ee_synapses_per_branch_per_layer: [5]  # Default value
+        ei_synapses_per_branch_per_layer: [0]
+        ie_synapses_per_branch_per_layer: [5]  # Default value
+        ii_synapses_per_branch_per_layer: [0]
+        
+        # Morphological features
+        somatic_synapses: true
+        use_shunting: true               # Can be overridden by sweep_config
+        
+        # Implementation optimizations
+        adaptive_initialization: false
+        print_hooks: false
+
+    # ==========================================
+    # DECODER NETWORK (Output Stage)
+    # ==========================================
+    decoder_network:
+      type: MLP
+      parameters:
+        input_dim: null
+        hidden_dims: [32, 16]
+        activation: relu
+        output_dim: 10  
+
+# ============================================================================
+# TRAINING CONFIGURATION
+# ============================================================================
+train:
+  seed: 42  # Overridden by experiment_settings
+  train_valid_split: 0.8
+
+  main:
+    learning_strategy: standard # Supports regularization, pruning, and parameter group features
+                               # Options: "standard", "freeze_layers", "local_ca", etc.
+    weight_decay_rate: 0.01     # Use optimizer.weight_decay for internal optimizer creation
+    
+    param_groups:
+      lr: 0.001
+      split_params: true
+      topk_lr: 0.001
+      blocklinear_lr: 0.0001
+      reactivation_lr: 0.0001
+      decoder_lr: 0.0001
+
+    # ==========================================
+    # ADVANCED TRAINING FEATURES
+    # ==========================================
+    # Regularization, pruning, and flexible optimizer configuration
+    
+    # Internal optimizer configuration (alternative to external optimizer creation)
+    optimizer:
+      name: "adam"                    # Options: "adam", "sgd", "rmsprop", "adamw"
+      lr: 0.001                      # Learning rate
+      weight_decay: 0.0001           # Built-in L2 regularization (global)
+      momentum: 0.9                  # For SGD
+      betas: [0.9, 0.999]           # For Adam/AdamW
+      eps: 1e-8                      # For Adam/AdamW
+
+    # Regularization configuration
+    regularization:
+      l1_weight: 0.0                 # L1 regularization strength (0 to disable)
+      l2_weight: 0.0                 # L2 regularization strength (0 to disable, use optimizer.weight_decay instead)
+      selective:                     # Selective application
+        layers: []                   # List of layer indices (empty = all layers)
+        branches: []                 # List of branch names (empty = all branches)
+        weight_types: ["all"]        # Options: "all", "recurrent", "input", "output", "linear"
+
+    # Pruning configuration
+    pruning:
+      enabled: false                 # Enable pruning
+      threshold: 0.001               # Prune weights with abs(value) < threshold
+      selective:                     # Selective application
+        layers: []                   # List of layer indices (empty = all layers)
+        branches: []                 # List of branch names (empty = all branches)
+        weight_types: ["all"]        # Options: "all", "excitatory", "inhibitory", "recurrent", "input", "output", "linear"
+      re_evaluate_after: true        # Re-evaluate model after pruning
+      dynamic_pruning: false         # Whether to prune during training
+      pruning_frequency: 10          # Epochs between dynamic pruning (if enabled)
+
+    # Reporting configuration
+    reporting:
+      report_non_pruned: true        # Print detailed pruning report
+      save_pruning_stats: true       # Save pruning statistics to file
+      detailed_branch_report: true   # Include per-branch statistics
+
+    trainer:
+      loss_function: ce
+      epochs: 5
+      early_stopping: false
+      patience: 10
+      batch_size: 64
+      shuffle: true
+      grad_clip_value: 5.0
+      load_best_state_dict: true
+      plot_losses: true
+      save_path: null
+      suppress_prints: false
+      print_every: 10
+      use_amp: false
+      pretrain_epochs: 50
+      target_voltage: 0.5
+      kl_weight: 0.1
+      reverse_training: false
+      epochs_per_layer: 50
+      epochs_per_branch: 50
+      final_tune_epochs: 10
+
+# ============================================================================
+# TASK CONFIGURATION
+# ============================================================================
+task:
+  dataset: cifar10                     
+  data_path: ""
+  parameters:
+    flatten: true                       
+    normalize: false                    
+
+# ============================================================================
+# WANDB LOGGING
+# ============================================================================
+wandb:
+  use_wandb: false                     # Set to true for W&B logging
+  entity: ""                           # Your W&B entity
+  project: "dendritic-sweeps"          # W&B project name
+  group: "unified_sweep"               # W&B group name
+
+# ============================================================================
+# ANALYSIS CONFIGURATION  
+# ============================================================================
+analysis:
+  performance_analysis:
+    enabled: true
+    training: true
+    params:
+      accuracy: true
+      auc: true
+      categorical_loglikelihood: true
+      mse: false
+      cosine_similarity: false
+      
+  information_analysis:
+    enabled: true
+    training: false
+    params:
+      method: kraskov           # Options: "kraskov", "sklearn", "copula", "auto"
+      max_samples: null         # Limit samples for computation
+      n_neighbors: 10           # For kraskov k-NN estimator
+      n_bins: 20               # For sklearn histogram
+      copula_type: gaussian     # For copula method
+      compute_basic_mi: true    # I(E;C), I(I;C), I(Vout;C)
+      compute_pairwise_mi: true # I(E;I), I(E;Vout), I(I;Vout)
+      compute_conditional_mi: true # I(E;I|C), I(E;Vout|C), etc.
+      compute_pid: false        # Partial Information Decomposition
+      pid_binarize: true
+      pid_binarize_method: median # Options: "median", "mean", "quantile"
+      pid_binarize_threshold: 0.5
+      include_vinf: true        # Include soma activation
+      normalize_mi: false       # Normalize by entropy
+      verbose: false
+      compute_per_branch: true
+      branch_aggregation: mean  # Options: "mean", "max", "sum", "first", "none"
+
+  synapse_turnover_analysis:
+    enabled: true
+    training: true
+    snapshot_interval: 5  # frequency of snapshots
+    synaptic_analysis: true        # Enable synaptic connectivity analysis
+    save_synaptic_report: true     # Save synaptic analysis to file
+    
+  noise_perturbation_analysis:
+    enabled: true 
+    training: false
+    params:
+      uniform_noise: true
+      uniform_magnitudes: [0.1, 0.2]
+      gaussian_noise: true
+      gaussian_sdevs: [0.1, 0.2]
+      n_samples: 10
+      accuracy: true
+      auc: true
+      categorical_loglikelihood: true
+      mse: false
+      cosine_similarity: false
+
+  ablation_analysis:   ## needs test for the upstream values
+    enabled: true
+    training: false
+    params:
+      layer_ablation: true
+      compartment_ablation: false
+      ablate_all_synapses: true
+      ablate_excitation: true
+      ablate_inhibition: true
+      ablate_upstream: true
+      accuracy: true
+      auc: true
+      categorical_loglikelihood: true
+      mse: true
+      cosine_similarity: true
+
+  weight_analysis:
+    enabled: false
+    training: false
+    params:
+      synapse_weights: true
+      branch_weights: true
+
+  synaptic_activation_analysis:
+    enabled: false
+    training: false
+    params:
+      network_summary: true
+      layer_summary: true
+      branch_summary: true
+      raw_summary: true
+      logspace: false
+      downsample: true
+      samples: 5
+
+  branch_activation_analysis:
+    enabled: false
+    training: false
+    params:
+      synapse_activations: true
+      branch_activations: true
+      network_summary: true
+      layer_summary: true
+      branch_summary: true
+      raw_summary: true
+      logspace: false
+      downsample: true
+      samples: 5
+
+  single_layer_contribution:
+    enabled: false
+    training: false
+    params:
+      excitation_contribution: true
+      inhibition_contribution: true
+      both_contribution: true
+      accuracy: true
+      auc: true
+      categorical_loglikelihood: true
+      mse: true
+      cosine_similarity: true
+      
+  correlation_analysis:    ## needs to be tested
+    enabled: false
+    training: false
+    params:
+      compute_synaptic_correlations: true
+      compute_tuning_curves: true
+      
+      
+# ============================================================================
+# EXAMPLES - Complete sweep configurations
+# ============================================================================
+
+# EI Filtering Only
+# filter_config:
+#   mode: "ei-sum"
+#   value: 10
+#   tolerance: 0
+# Result: Only EI combinations where E+I=10
+
+# Branch Sweep Only  
+# filter_config:
+#   branch_sweep_mode: "pattern_sweep"
+#   dendrite_tree_depth: [2, 4, 1]
+#   base_branches: 3
+#   branch_patterns: ["uniform", "decreasing"]
+# Result: 3 depths × 2 patterns = 6 configurations
+
+# EI Filtering + Branch Sweep (COMBINED!)
+# filter_config:
+#   mode: "ei-sum"                        # Filter EI: E+I=10
+#   value: 10
+#   tolerance: 0
+#   branch_sweep_mode: "pattern_sweep"    # Plus branch patterns
+#   dendrite_tree_depth: [2, 3, 1]
+#   base_branches: 3
+#   branch_patterns: ["uniform", "decreasing"]
+# Result: 9 EI combos × 4 branch patterns = 36 configurations
+
+# Full Mixed Sweep
+# sweep_config:
+#   model.core_network.parameters.ee_synapses_per_branch_per_layer: [[1],[2],[3],[4],[5]]
+#   model.core_network.parameters.ie_synapses_per_branch_per_layer: [[1],[2],[3],[4],[5]]
+#   train.main.param_groups.lr: [0.001, 0.01]
+# filter_config:
+#   mode: "ei-sum"
+#   value: 6
+#   tolerance: 0
+#   branch_sweep_mode: "depth_sweep"
+#   dendrite_tree_depth: [1, 3, 1]
+#   uniform_branches_per_layer: 4
+# Result: 5 EI combos × 2 LR × 3 depths = 30 configurations
+
+# ============================================================================
+# OUTPUT CONFIGURATION
+# ============================================================================
+outputs:
+  run_name: unified_sweep
+  dir: results/
+  dataset_dir: ""                    
+
