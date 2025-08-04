@@ -1,83 +1,56 @@
 Dendritic Modeling Framework
 ============================
-*A Python framework for creating, training, and analyzing neural networks with dendritic-inspired architectures*
 
-.. image:: figures/png/dendritic_diagram.png
-   :width: 400
-   :alt: Dendritic neuron diagram
+PyTorch framework for biologically-inspired neural networks with dendritic computation and excitation-inhibition dynamics.
 
-This documentation provides comprehensive information about the dendritic modeling framework, its theoretical foundations, implementation details, and practical usage guides.
-
-The framework allows you to define and run experiments using a flexible YAML-based configuration system, making it easy to reproduce experiments and iterate quickly.
-
-.. toctree::
-   :maxdepth: 2
-   :caption: Introduction
-
-   about
-
-Getting Started
----------------
-
-.. toctree::
-   :maxdepth: 2
-   :caption: Contents
-
-   source/getting_started/index
-   source/user_guide/index
-
-Advanced Topics
---------------
-
-.. toctree::
-   :maxdepth: 2
-   :caption: Contents
-
-   source/advanced/network_structures/index
-   source/advanced/learning/index
-   source/advanced/visualization/index
-   source/advanced/analysis/index
-   source/advanced/configuration/index
-
-API Reference
-------------
-
-.. toctree::
-   :maxdepth: 2
-   :caption: Contents
-
-   source/api/index
-
-Deployment
-----------
-
-.. toctree::
-   :maxdepth: 2
-   :caption: Contents
-
-   source/deployment/index
-
-Development
+Architecture
 -----------
 
+Three-part model architecture:
+
+1. Encoder Network: Processes input data
+2. Core Network: Main computation (EINet, DendriNet, MLP)  
+3. Decoder Network: Maps to output space
+
+Core Networks:
+
+- EINet: Excitation-inhibition networks with dendritic computation
+- DendriNet: Hierarchical branching dendritic networks
+- MLP: Standard multi-layer perceptrons
+
+Training Options
+---------------
+
+Standard Training
+   Single-GPU training with analysis
+
+Enhanced Training
+   Multiple optimizers, regularization, pruning, and detailed analysis
+
+FSDP Training
+   Multi-GPU distributed training with automated resource estimation
+
+Parameter Sweeps
+   Systematic hyperparameter exploration
+
+Quick Start
+----------
+
+See :doc:`QUICK_START` for basic experiment examples.
+
+Documentation
+-------------
+
 .. toctree::
    :maxdepth: 2
-   :caption: Contents
 
-   source/development/index
+   QUICK_START
+   CONFIGURATION_GUIDE
+   FSDP_TRAINING_GUIDE
+   sweeps
 
-Reference
----------
-
-.. toctree::
-   :maxdepth: 2
-   :caption: Contents
-
-   source/reference/index
-
-Indices and tables
+Indices and Tables
 ==================
 
 * :ref:`genindex`
-* :ref:`modindex`
 * :ref:`search`
