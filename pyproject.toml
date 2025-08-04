@@ -6,50 +6,109 @@ build-backend = "setuptools.build_meta"
 name = "dendritic_modeling"
 version = "0.1.0"
 description = "package containing artificial neural networks emulating dendritic computation"
-license = { file = "LICENSE" }
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+    {name = "Dendritic Modeling Team", email = "hsafaai@fas.harvard.edu"}
+]
+requires-python = ">=3.8,<4.0"
+keywords = ["dendritic", "neural-networks", "pytorch", "machine-learning", "neuroscience"]
 classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "License :: OSI Approved :: MIT License",
 "Programming Language :: Python :: 3",
-"License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
 "Operating System :: OS Independent"
 ]
-
 dependencies = [
-    "torch",
-    "numpy",
-    "torchvision",
-    "torchinfo",
-    "matplotlib",
-    "wandb",
-    "pandas",
-    "omegaconf>=2.3.0",
-    "scikit-learn"
+    "torch>=2.0.0,<3.0.0",
+    "numpy>=1.21.0,<2.0.0",
+    "torchvision>=0.15.0,<1.0.0",
+    "torchinfo>=1.7.0",
+    "matplotlib>=3.5.0,<4.0.0",
+    "seaborn>=0.11.0,<1.0.0",
+    "wandb>=0.12.0",
+    "pandas>=1.3.0,<3.0.0",
+    "omegaconf>=2.1.0,<3.0.0",
+    "scikit-learn>=1.0.0",
+    "tensorflow>=2.16.0",
+    "tensorflow_probability",
+    "tf-keras",
+    "python-dateutil",
+    "PyYAML>=6.0",
+    "tqdm>=4.60.0",
+    "scipy>=1.7.0",
+    "h5py>=3.0.0",
+    "plotly>=5.0.0",
+    "tensorboard>=2.10.0",
+    "psutil>=5.8.0",
 ]
 
+[project.urls]
+"Bug Reports" = "https://github.com/kempner-institute/dendritic-modeling/issues"
+"Source" = "https://github.com/kempner-institute/dendritic-modeling"
+"Documentation" = "https://github.com/kempner-institute/dendritic-modeling/blob/main/README.md"
+
+[project.scripts]
+dendritic-train = "dendritic_modeling.scripts.training.train_experiments:main"
+dendritic-sweep = "dendritic_modeling.scripts.sweeps.unified.sweep_manager:main"
+dendritic-analyze = "dendritic_modeling.scripts.sweeps.result_analyzer:main"
+
 [tool.setuptools]
-package-dir = { "" = "src" }
-packages = ["dendritic_modeling"]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+dendritic_modeling = ["configs/*.yaml", "configs/**/*.yaml"]
 
 
 [project.optional-dependencies]
-dev = [
-    "ruff",
+# Testing dependencies for comprehensive test suite
+test = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "pytest-mock>=3.10.0",
+    "pytest-timeout>=2.1.0",
+    "pytest-xdist>=3.0.0",
+    "coverage[toml]>=6.5.0",
+    "networkx",  # For graph/network testing
+    "mock",  # Additional mocking utilities
+]
+
+# Code quality and linting
+lint = [
+    "ruff>=0.1.0",
     "mypy>=1.0,<1.4",
     "black>=23.1,<24.0",
     "isort>=5.12,<5.13",
-    "pytest",
-    "pytest-cov",
-    "pytest-sphinx",
+    "pre-commit>=3.0.0",
+]
+
+# Development dependencies (testing + linting + build tools)
+dev = [
+    "dendritic_modeling[test,lint]",
     "twine>=1.11.0",
     "setuptools",
     "wheel",
     "build",
-    "seaborn"
 ]
 
+# Training and analysis dependencies
 train = [
-
+    "jupyter",  # For training notebooks and analysis
+    "ipykernel",  # Jupyter kernel support
+    "plotly",  # Interactive plotting for analysis
+    "tensorboard",  # TensorFlow/PyTorch logging and visualization
 ]
 
+# Documentation dependencies
 docs = [
     "sphinx",
     "sphinx-rtd-theme",
@@ -59,9 +118,60 @@ docs = [
     "recommonmark",
     "sphinx-copybutton",
     "sphinxcontrib-bibtex",
-
 ]
 
+# All optional dependencies
 all = [
-    "dendritic_modeling[dev,train, docs]",
+    "dendritic_modeling[dev,train,docs]",
+]
+
+# Configuration for pytest
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "--strict-markers",
+    "--strict-config",
+    "--cov=dendritic_modeling",
+    "--cov-report=term-missing",
+    "--cov-report=html",
+    "--cov-fail-under=75",
+]
+markers = [
+    "slow: marks tests as slow (deselected by default)",
+    "integration: marks tests as integration tests",
+    "unit: marks tests as unit tests",
+    "requires_gpu: marks tests that require GPU",
+    "requires_data: marks tests that require external data",
+]
+filterwarnings = [
+    "ignore::UserWarning",
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+]
+
+# Configuration for coverage
+[tool.coverage.run]
+source = ["src/dendritic_modeling"]
+omit = [
+    "*/tests/*",
+    "*/test_*.py",
+    "*/__pycache__/*",
+    "*/.*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if settings.DEBUG",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == \\.__main\\__.:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
 ]

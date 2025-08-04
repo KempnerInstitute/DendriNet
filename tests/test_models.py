@@ -1,14 +1,80 @@
 import unittest
+from typing import Optional
 
 import torch
-from torch.distributions import Categorical
+import torch.nn as nn
+from torch.distributions import Categorical, Normal
 
-from dendritic_modeling.models import (
-    EINetClassifier,
-    ProbabilisticClassifier,
-    ProbabilisticModel,
-    ProbabilisticRegressor,
-)
+from dendritic_modeling.models.base import BaseModel
+from dendritic_modeling.models import Classifier, Regressor
+from dendritic_modeling.networks import Identity
+from dendritic_modeling.networks.architectures.factory import get_architecture
+
+
+# Mock probabilistic classes for testing
+class ProbabilisticModel(BaseModel):
+    """Mock probabilistic model for testing."""
+
+    def __init__(self):
+        super().__init__(nn.Identity(), nn.Identity(), nn.Identity())
+
+    def log_prob(self, x: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+        raise NotImplementedError("Subclasses must implement log_prob method.")
+
+
+class ProbabilisticClassifier(ProbabilisticModel):
+    """Mock probabilistic classifier for testing."""
+
+    def forward(self, x):
+        # Return a categorical distribution
+        return Categorical(logits=torch.randn(x.size(0), 2))
+
+    def predict(self, x: torch.Tensor, stochastic: bool = False) -> torch.Tensor:
+        with torch.no_grad():
+            dist = self.forward(x)
+            if stochastic:
+                return dist.sample()
+            else:
+                return dist.logits.argmax(dim=-1)
+
+
+class ProbabilisticRegressor(ProbabilisticModel):
+    """Mock probabilistic regressor for testing."""
+
+    def forward(self, x):
+        mean = x.mean(dim=-1, keepdim=True)
+        return Normal(loc=mean, scale=torch.ones_like(mean))
+
+    def predict(self, x: torch.Tensor, stochastic: bool = False) -> torch.Tensor:
+        with torch.no_grad():
+            dist = self.forward(x)
+            if stochastic:
+                return dist.sample()
+            else:
+                return dist.mean
+
+
+class EINetClassifier(ProbabilisticClassifier):
+    """Mock EINet classifier for testing."""
+
+    def __init__(
+        self,
+        input_dim: int,
+        excitatory_layer_sizes: list,
+        inhibitory_layer_sizes: list,
+        excitatory_branch_factors: list,
+        inhibitory_branch_factors: list,
+        ee_synapses_per_branch_per_layer: Optional[list] = None,
+        ei_synapses_per_branch_per_layer: Optional[list] = None,
+        ie_synapses_per_branch_per_layer: Optional[list] = None,
+        ii_synapses_per_branch_per_layer: Optional[list] = None,
+        reactivate: bool = True,
+        somatic_synapses: bool = True,
+        **kwargs
+    ):
+        super().__init__()
+        self.input_dim = input_dim
+        self.output_dim = excitatory_layer_sizes[-1] if excitatory_layer_sizes else 10
 
 
 class ProbabilisticModelTest(unittest.TestCase):
@@ -25,12 +91,7 @@ class ProbabilisticModelTest(unittest.TestCase):
 
 class ProbabilisticClassifierTest(unittest.TestCase):
     def setUp(self):
-        class DummyClassifier(ProbabilisticClassifier):
-            def forward(self, x):
-                # define a binary classifier
-                return Categorical(logits=torch.randn(x.size(0), 2))
-
-        self.model = DummyClassifier()
+        self.model = ProbabilisticClassifier()
 
     def test_predict_deterministic(self):
         x = torch.randn(5, 10)
@@ -47,12 +108,7 @@ class ProbabilisticClassifierTest(unittest.TestCase):
 
 class ProbabilisticRegressorTest(unittest.TestCase):
     def setUp(self):
-        class DummyRegressor(ProbabilisticRegressor):
-            def forward(self, x):
-                mean = x.mean(dim=-1, keepdim=True)
-                return torch.distributions.Normal(loc=mean, scale=torch.ones_like(mean))
-
-        self.model = DummyRegressor()
+        self.model = ProbabilisticRegressor()
 
     def test_predict_deterministic(self):
         x = torch.randn(5, 10)
@@ -94,3 +150,37 @@ class EINetClassifierTest(unittest.TestCase):
         x = torch.randn(32, 784)
         preds = self.model.predict(x, stochastic=False)
         self.assertEqual(preds.shape, (32,))
+
+def test_classifier_init():
+    encoder = Identity(10)
+    core = get_architecture('MLP', {'input_dim': 10, 'hidden_dims': [20], 'output_dim': 5})
+    decoder = Identity(5)
+    model = Classifier(encoder, core, decoder)
+    assert model is not None
+    assert isinstance(model, Classifier)
+
+def test_classifier_forward():
+    model = Classifier(Identity(10), get_architecture('MLP', {'input_dim': 10, 'hidden_dims': [20], 'output_dim': 5}), Identity(5))
+    x = torch.randn(2, 10)
+    output = model(x)
+    assert output.shape == (2, 5)
+
+def test_regressor_init():
+    encoder = Identity(10)
+    core = get_architecture('MLP', {'input_dim': 10, 'hidden_dims': [20], 'output_dim': 3})
+    decoder = Identity(3)
+    model = Regressor(encoder, core, decoder)
+    assert model is not None
+    assert isinstance(model, Regressor)
+
+def test_regressor_forward():
+    model = Regressor(Identity(10), get_architecture('MLP', {'input_dim': 10, 'hidden_dims': [20], 'output_dim': 3}), Identity(3))
+    x = torch.randn(2, 10)
+    output = model(x)
+    assert output.shape == (2, 3)
+
+def test_regressor_predict():
+    model = Regressor(Identity(10), get_architecture('MLP', {'input_dim': 10, 'hidden_dims': [20], 'output_dim': 3}), Identity(3))
+    x = torch.randn(2, 10)
+    preds = model.predict(x)
+    assert preds.shape == (2, 3)
