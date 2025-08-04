@@ -1,3 +1,12 @@
-.. _development_index:\n\nDevelopment\n==========\n\n.. toctree::\n   :maxdepth: 2\n   :caption: Contents:\n\n
-   configuration_system
+Development Guide
+================
+
+This section contains guides for developers who want to contribute to the Dendritic Modeling Framework.
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Development Documentation
+
    contributing
+   testing
+   configuration_system

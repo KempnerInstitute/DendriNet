@@ -19,10 +19,18 @@ dependencies = [
     "torchvision",
     "torchinfo",
     "matplotlib",
+    "seaborn",
     "wandb",
     "pandas",
     "omegaconf>=2.3.0",
-    "scikit-learn"
+    "scikit-learn",
+    "tensorflow>=2.16.0",
+    "tensorflow_probability",
+    "tf-keras",
+    "python-dateutil",
+    "PyYAML",
+    "tqdm",
+    "scipy",
 ]
 
 [tool.setuptools]
@@ -31,25 +39,45 @@ packages = ["dendritic_modeling"]
 
 
 [project.optional-dependencies]
-dev = [
-    "ruff",
+# Testing dependencies for comprehensive test suite
+test = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "pytest-mock>=3.10.0",
+    "pytest-timeout>=2.1.0",
+    "pytest-xdist>=3.0.0",
+    "coverage[toml]>=6.5.0",
+    "networkx",  # For graph/network testing
+    "mock",  # Additional mocking utilities
+]
+
+# Code quality and linting
+lint = [
+    "ruff>=0.1.0",
     "mypy>=1.0,<1.4",
     "black>=23.1,<24.0",
     "isort>=5.12,<5.13",
-    "pytest",
-    "pytest-cov",
-    "pytest-sphinx",
+    "pre-commit>=3.0.0",
+]
+
+# Development dependencies (testing + linting + build tools)
+dev = [
+    "dendritic_modeling[test,lint]",
     "twine>=1.11.0",
     "setuptools",
     "wheel",
     "build",
-    "seaborn"
 ]
 
+# Training and analysis dependencies
 train = [
-
+    "jupyter",  # For training notebooks and analysis
+    "ipykernel",  # Jupyter kernel support
+    "plotly",  # Interactive plotting for analysis
+    "tensorboard",  # TensorFlow/PyTorch logging and visualization
 ]
 
+# Documentation dependencies
 docs = [
     "sphinx",
     "sphinx-rtd-theme",
@@ -59,9 +87,60 @@ docs = [
     "recommonmark",
     "sphinx-copybutton",
     "sphinxcontrib-bibtex",
-
 ]
 
+# All optional dependencies
 all = [
-    "dendritic_modeling[dev,train, docs]",
+    "dendritic_modeling[dev,train,docs]",
+]
+
+# Configuration for pytest
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "--strict-markers",
+    "--strict-config",
+    "--cov=dendritic_modeling",
+    "--cov-report=term-missing",
+    "--cov-report=html",
+    "--cov-fail-under=75",
+]
+markers = [
+    "slow: marks tests as slow (deselected by default)",
+    "integration: marks tests as integration tests",
+    "unit: marks tests as unit tests",
+    "requires_gpu: marks tests that require GPU",
+    "requires_data: marks tests that require external data",
+]
+filterwarnings = [
+    "ignore::UserWarning",
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+]
+
+# Configuration for coverage
+[tool.coverage.run]
+source = ["src/dendritic_modeling"]
+omit = [
+    "*/tests/*",
+    "*/test_*.py",
+    "*/__pycache__/*",
+    "*/.*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if settings.DEBUG",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == \\.__main\\__.:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
 ]

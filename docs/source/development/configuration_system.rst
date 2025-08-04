@@ -25,7 +25,7 @@ You can run experiments using the provided training script with a configuration 
 
 .. code-block:: bash
 
-    python scripts/train_experiments.py configs/config_exp.yaml
+    python src/dendritic_modeling/scripts/train_experiments.py configs/config_exp.yaml
 
 Configuration Structure
 -----------------------
@@ -369,33 +369,7 @@ The ``generate_sweep_configs.py`` script can also generate SLURM job submission 
 
 This will create a ``run.sh`` file that submits all generated configuration files as a SLURM array job.
 
-.. figure:: figures/pdf/place_holder.pdf
-   :alt: Configuration System Diagram
-   :width: 600px
-   :align: center
-
-   Diagram showing how the configuration system integrates with different components. [PLACEHOLDER FOR DIAGRAM]
-
-Loading and Extending Configurations
-------------------------------------
-
-In custom scripts, you can load and modify configurations programmatically:
-
-.. code-block:: python
-
-    from dendritic_modeling.config import load_config
-
-    # Load configuration from file
-    config = load_config("configs/config_exp.yaml")
-
-    # Modify configuration
-    config.train.lr = 0.0005
-    config.model.network.parameters.excitatory_layer_sizes = [20]
-
-    # Use configuration in your script
-    # ...
-
-This allows for flexible experimentation while maintaining reproducibility.
+This allows for flexible configuration composition and runtime overrides.
 
 # Development parameters
 development_mode: false        # Enable development mode for extra logging

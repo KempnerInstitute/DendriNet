@@ -17,18 +17,17 @@ configs/*.txt
 src/data/*
 cifar-10-*
 wandb/*
-mnist*
 mnist*/*
 notebooks/*
 None/*
+dendritic_env/*
 #ndb/ Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 *$py.class
-
 # C extensions
 *.so
-
+outputs/*
 # Distribution / packaging
 .Python
 build/
@@ -187,3 +186,7 @@ cython_debug/
 .DS_Store
 .vscode/*
 outputs/*
+.data/*
+trained_encoder_networks/*
+.trained_encoder_networks/*
+encoder_networks/*
