@@ -38,9 +38,21 @@ import torch
 import torch.distributed as dist
 from torch.utils.data import DataLoader, DistributedSampler
 
-logger = logging.getLogger(__name__)
+from dendritic_modeling.analysis import AnalysisManager
+from dendritic_modeling.config import load_config
+from dendritic_modeling.datasets import get_unified_datasets
+from dendritic_modeling.models import Classifier, Regressor
+from dendritic_modeling.networks import Identity
+from dendritic_modeling.networks.architectures.factory import get_architecture
+from dendritic_modeling.scripts.training.train_encoder_network import (
+    load_train_encoder_network,
+)
+from dendritic_modeling.training.fsdp_utils import get_fsdp_config
+from dendritic_modeling.training.strategies.fsdp_standard import FSDPTrainer
+from dendritic_modeling.utils.general import save_dict, set_seed
 from dendritic_modeling.utils.logging_config import LoggerManager
 
+logger = logging.getLogger(__name__)
 logger_manager = LoggerManager()
 
 # WandB import (optional)
@@ -60,19 +72,6 @@ try:
 except ImportError:
     TORCHINFO_AVAILABLE = False
     logger.warning("torchinfo not available. Model summary will be skipped.")
-
-from dendritic_modeling.analysis import AnalysisManager
-from dendritic_modeling.config import load_config
-from dendritic_modeling.datasets import get_unified_datasets
-from dendritic_modeling.models import Classifier, Regressor
-from dendritic_modeling.networks import Identity
-from dendritic_modeling.networks.architectures.factory import get_architecture
-from dendritic_modeling.scripts.training.train_encoder_network import (
-    load_train_encoder_network,
-)
-from dendritic_modeling.training.fsdp_utils import get_fsdp_config
-from dendritic_modeling.training.strategies.fsdp_standard import FSDPTrainer
-from dendritic_modeling.utils.general import save_dict, set_seed
 
 
 def setup_wandb(config, rank, world_size):

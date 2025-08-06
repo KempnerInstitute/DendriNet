@@ -12,9 +12,10 @@ import torch
 import torch.nn.functional as functional
 from torch.nn.utils import clip_grad_value_
 
-logger = logging.getLogger(__name__)
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.training.strategies.standard import Trainer
+
+logger = logging.getLogger(__name__)
 
 
 def _initialize_local_heads(net_obj, model, device):

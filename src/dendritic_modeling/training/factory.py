@@ -10,7 +10,6 @@ from typing import Any, Optional
 
 import torch
 
-logger = logging.getLogger(__name__)
 from dendritic_modeling.config.training import (
     OptimizerConfig,
     PruningConfig,
@@ -25,6 +24,8 @@ from dendritic_modeling.training.strategies import (
     TwoStepTrainerWithKL,
     VoltageStabilizationTrainer,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def _extract_enhanced_configs(trainer_config_dict: dict[str, Any]) -> dict[str, Any]:

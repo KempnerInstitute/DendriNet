@@ -9,10 +9,11 @@ import logging
 
 import torch
 
-logger = logging.getLogger(__name__)
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.training.loss.functions import VoltageStabilizationLoss
 from dendritic_modeling.training.strategies.standard import Trainer
+
+logger = logging.getLogger(__name__)
 
 
 class VoltageStabilizationTrainer(Trainer):

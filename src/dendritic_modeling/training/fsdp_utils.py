@@ -20,12 +20,13 @@ from torch.distributed.fsdp import (
     StateDictType,
 )
 
-logger = logging.getLogger(__name__)
 from dendritic_modeling.networks.architectures.excitation_inhibition import (
     DendriticBranchLayer,
     ExcitationInhibitionLayer,
     ExcitationInhibitionNetwork,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def create_fsdp_wrap_policy(min_num_params: int = 1e6):

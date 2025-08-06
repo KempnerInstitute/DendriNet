@@ -21,7 +21,6 @@ import wandb
 from torch.cuda.amp import GradScaler, autocast
 from torch.utils.data import DataLoader
 
-logger = logging.getLogger(__name__)
 from dendritic_modeling.analysis.tools.synaptic_pruning import (
     SynapticPruningAnalyzer,
     integrate_pruning_with_turnover_analysis,
@@ -42,6 +41,8 @@ from dendritic_modeling.training.regularization import (
     PruningManager,
     RegularizationManager,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class Trainer:

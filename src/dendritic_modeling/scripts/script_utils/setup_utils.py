@@ -14,16 +14,16 @@ import torch
 import wandb
 from omegaconf import OmegaConf
 
-logger = logging.getLogger(__name__)
-from dendritic_modeling.utils.logging_config import LoggerManager
-
-logger_manager = LoggerManager()
 from dendritic_modeling.config import ModelConfig
 from dendritic_modeling.datasets import get_unified_datasets
 from dendritic_modeling.models import Classifier, Regressor
 from dendritic_modeling.networks import Identity
 from dendritic_modeling.networks.architectures.factory import get_architecture
 from dendritic_modeling.utils import set_seed
+from dendritic_modeling.utils.logging_config import LoggerManager
+
+logger = logging.getLogger(__name__)
+logger_manager = LoggerManager()
 
 
 def initialize_model(model_config: ModelConfig):

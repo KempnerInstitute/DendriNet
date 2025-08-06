@@ -12,8 +12,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-logger = logging.getLogger(__name__)
-
 from .plotting_utils import (
     convert_layer_names,
     create_figure,
@@ -22,6 +20,8 @@ from .plotting_utils import (
     save_plot,
     setup_basic_plot,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def plot_layer_contributions(results: dict[str, Any], **kwargs):

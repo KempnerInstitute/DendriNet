@@ -15,7 +15,6 @@ import torch.distributed as dist
 from torch.cuda.amp import GradScaler, autocast
 from torch.utils.data import DataLoader
 
-logger = logging.getLogger(__name__)
 from dendritic_modeling.analysis import AnalysisManager
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.training.fsdp_utils import (
@@ -24,6 +23,8 @@ from dendritic_modeling.training.fsdp_utils import (
     wrap_model_with_fsdp,
 )
 from dendritic_modeling.training.strategies.standard import Trainer
+
+logger = logging.getLogger(__name__)
 
 
 class FSDPTrainer(Trainer):

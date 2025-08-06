@@ -10,8 +10,6 @@ from typing import Any, Optional
 import matplotlib.pyplot as plt
 import numpy as np
 
-logger = logging.getLogger(__name__)
-
 # Import utilities
 from .plotting_utils import (
     add_error_bars,
@@ -25,6 +23,8 @@ from .plotting_utils import (
     save_plot,
     setup_basic_plot,
 )
+
+logger = logging.getLogger(__name__)
 
 # ============================================================================
 # Configuration

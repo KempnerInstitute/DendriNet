@@ -9,13 +9,14 @@ import logging
 # typing imports removed - not needed
 import torch
 
-logger = logging.getLogger(__name__)
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.networks import (
     DendriticBranchLayer,
     ExcitationInhibitionNetwork,
 )
 from dendritic_modeling.training.strategies.standard import Trainer
+
+logger = logging.getLogger(__name__)
 
 
 class LocalCreditAssignment(Trainer):

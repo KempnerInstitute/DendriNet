@@ -17,10 +17,6 @@ except ImportError:
 
 from omegaconf import OmegaConf
 
-logger = logging.getLogger(__name__)
-from dendritic_modeling.utils.logging_config import LoggerManager
-
-logger_manager = LoggerManager()
 from dendritic_modeling.config import (
     EncoderNetworkConfig,
     EncoderTrainConfig,
@@ -36,6 +32,10 @@ from dendritic_modeling.networks.architectures.classical.autoencoder import (
 from dendritic_modeling.networks.architectures.factory import get_architecture
 from dendritic_modeling.training import get_trainer
 from dendritic_modeling.utils import save_dict, set_seed
+from dendritic_modeling.utils.logging_config import LoggerManager
+
+logger = logging.getLogger(__name__)
+logger_manager = LoggerManager()
 
 
 def dict_to_hash_text(

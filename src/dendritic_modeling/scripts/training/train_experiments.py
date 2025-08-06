@@ -57,7 +57,6 @@ import torch
 import wandb
 from omegaconf import OmegaConf
 
-logger = logging.getLogger(__name__)
 from dendritic_modeling.analysis import AnalysisManager
 from dendritic_modeling.config import load_config
 from dendritic_modeling.models import BaseModel
@@ -76,6 +75,8 @@ from dendritic_modeling.utils.training_stability_validator import (
     suggest_optimal_config_for_model_size,
     validate_training_stability,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def run_analysis(

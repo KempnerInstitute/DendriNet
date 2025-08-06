@@ -38,9 +38,10 @@ import logging
 
 from omegaconf import OmegaConf
 
-logger = logging.getLogger(__name__)
 from dendritic_modeling.scripts.tools.generate_slurm_job import SlurmJobGenerator
 from dendritic_modeling.utils.gpu_estimation import estimate_from_config
+
+logger = logging.getLogger(__name__)
 
 
 class FSDPJobManager:
