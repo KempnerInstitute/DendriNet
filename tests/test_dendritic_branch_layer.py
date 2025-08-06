@@ -234,7 +234,9 @@ class TestDendriticBranchLayerAdditional:
 
     def test_parameter_count(self, sample_branch_layer):
         """Test the number of trainable parameters."""
-        total_params = sum(p.numel() for p in sample_branch_layer.parameters() if p.requires_grad)
+        total_params = sum(
+            p.numel() for p in sample_branch_layer.parameters() if p.requires_grad
+        )
         assert total_params > 0  # Should have some trainable parameters
 
 

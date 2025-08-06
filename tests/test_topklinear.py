@@ -65,15 +65,22 @@ class TestTopKLinear(unittest.TestCase):
         non_zero_counts = (pruned_weights > 0).sum(dim=1)
         # Allow for small deviations due to potential numerical precision issues
         # Most neurons should have exactly K, but we allow a small tolerance
-        self.assertTrue(torch.all(non_zero_counts <= K),
-                       f"Some neurons have more than K={K} non-zero weights: {non_zero_counts[non_zero_counts > K]}")
-        self.assertTrue(torch.all(non_zero_counts >= K-1),
-                       f"Some neurons have fewer than K-1={K-1} non-zero weights: {non_zero_counts[non_zero_counts < K-1]}")
+        self.assertTrue(
+            torch.all(non_zero_counts <= K),
+            f"Some neurons have more than K={K} non-zero weights: {non_zero_counts[non_zero_counts > K]}",
+        )
+        self.assertTrue(
+            torch.all(non_zero_counts >= K - 1),
+            f"Some neurons have fewer than K-1={K-1} non-zero weights: {non_zero_counts[non_zero_counts < K-1]}",
+        )
         # At least 95% of neurons should have exactly K weights
         exact_k_count = torch.sum(non_zero_counts == K).item()
         total_neurons = non_zero_counts.size(0)
-        self.assertGreaterEqual(exact_k_count / total_neurons, 0.95,
-                               f"Only {exact_k_count}/{total_neurons} ({100*exact_k_count/total_neurons:.1f}%) neurons have exactly K={K} weights")
+        self.assertGreaterEqual(
+            exact_k_count / total_neurons,
+            0.95,
+            f"Only {exact_k_count}/{total_neurons} ({100*exact_k_count/total_neurons:.1f}%) neurons have exactly K={K} weights",
+        )
 
     def test_edge_cases_empty_input(self):
         """Test with empty input data."""
