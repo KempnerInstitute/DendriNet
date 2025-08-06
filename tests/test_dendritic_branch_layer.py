@@ -1,3 +1,4 @@
+import pytest
 import unittest
 
 import torch
@@ -135,6 +136,106 @@ class TestDendriticBranchLayer(unittest.TestCase):
         self.assertEqual(
             pruned_weights[1].shape, (self.output_dim, self.inhibitory_input_dim)
         )
+
+
+@pytest.fixture
+def sample_inputs():
+    batch_size = 2
+    in_features = 4
+    x = torch.randn(batch_size, in_features)
+    return x
+
+
+@pytest.fixture
+def sample_branch_layer():
+    output_dim = 5
+    excitatory_input_dim = 10
+    excitatory_synapses_per_branch = 3
+    return DendriticBranchLayer(
+        output_dim,
+        excitatory_input_dim,
+        excitatory_synapses_per_branch,
+        reactivate=False,
+    )
+
+
+class TestDendriticBranchLayerAdditional:
+    """Additional tests for DendriticBranchLayer to improve coverage."""
+
+    def test_forward_with_zero_input(self, sample_branch_layer):
+        """Test forward pass with zero input."""
+        batch_size = 2
+        excitatory_input_dim = 10
+        x = torch.zeros(batch_size, excitatory_input_dim)
+        output = sample_branch_layer(x)
+        # output_dim is stored as an instance variable during init
+        expected_output_dim = 5  # From our fixture
+        assert output.shape == (batch_size, expected_output_dim)
+        assert output.dtype == torch.float32
+
+    def test_forward_with_negative_input(self, sample_branch_layer):
+        """Test forward pass with negative input values."""
+        batch_size = 2
+        excitatory_input_dim = 10
+        x = torch.full((batch_size, excitatory_input_dim), -1.0)
+        output = sample_branch_layer(x)
+        expected_output_dim = 5  # From our fixture
+        assert output.shape == (batch_size, expected_output_dim)
+        assert output.dtype == torch.float32
+
+    def test_get_mask_no_threshold(self, sample_branch_layer):
+        """Test get_mask method (no threshold parameter)."""
+        mask = sample_branch_layer.get_mask()
+        # For excitatory-only layer, should return a single tensor
+        assert isinstance(mask, torch.Tensor)
+        assert torch.all((mask == 0) | (mask == 1))
+
+    def test_get_pruned_weights_basic(self, sample_branch_layer):
+        """Test get_pruned_weights method."""
+        pruned_weights = sample_branch_layer.get_pruned_weights()
+        # For excitatory-only layer, should return a single tensor
+        assert isinstance(pruned_weights, torch.Tensor)
+        assert pruned_weights.dtype == torch.float32
+
+    def test_get_weights_basic(self, sample_branch_layer):
+        """Test get_weights returns correct type."""
+        weights = sample_branch_layer.get_weights()
+        # For excitatory-only layer, should return a single tensor
+        assert isinstance(weights, torch.Tensor)
+        assert weights.dtype == torch.float32
+
+    def test_get_log_weights(self, sample_branch_layer):
+        """Test get_log_weights method."""
+        log_weights = sample_branch_layer.get_log_weights()
+        assert isinstance(log_weights, torch.Tensor)
+        assert log_weights.dtype == torch.float32
+
+    def test_layer_with_both_excitatory_and_inhibitory(self):
+        """Test layer with both excitatory and inhibitory inputs."""
+        layer = DendriticBranchLayer(
+            output_dim=3,
+            excitatory_input_dim=8,
+            excitatory_synapses_per_branch=2,
+            inhibitory_input_dim=6,
+            inhibitory_synapses_per_branch=2,
+        )
+
+        # Test forward pass
+        batch_size = 2
+        x_exc = torch.randn(batch_size, 8)
+        x_inh = torch.randn(batch_size, 6)
+        output = layer(x_exc, x_inh)
+        assert output.shape == (batch_size, 3)
+
+        # Test get_weights returns tuple for both exc and inh
+        weights = layer.get_weights()
+        assert isinstance(weights, tuple)
+        assert len(weights) == 2
+
+    def test_parameter_count(self, sample_branch_layer):
+        """Test the number of trainable parameters."""
+        total_params = sum(p.numel() for p in sample_branch_layer.parameters() if p.requires_grad)
+        assert total_params > 0  # Should have some trainable parameters
 
 
 if __name__ == "__main__":
