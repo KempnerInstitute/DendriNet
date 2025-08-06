@@ -9,7 +9,7 @@ import json
 import logging
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 import torch
 
@@ -35,7 +35,7 @@ class AbstractAnalyzer(ABC):
         data: torch.utils.data.Dataset,
         device: str = "cpu",
         **kwargs
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Perform analysis on the given model and data.
         
@@ -50,7 +50,7 @@ class AbstractAnalyzer(ABC):
         """
         pass
     
-    def save_results(self, results: Dict[str, Any], path: str) -> None:
+    def save_results(self, results: dict[str, Any], path: str) -> None:
         """
         Save analysis results to a JSON file.
         

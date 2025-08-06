@@ -198,26 +198,23 @@ class AblationAnalyzer(AbstractAnalyzer):
             from dendritic_modeling.plotting.visualizations.general_analysis_plots import (
                 plot_ablation_results, plot_per_layer_ablation
             )
-            
+
             # Plot layer ablation results if available
-            if "layer" in results and results["layer"]:
+            if results.get("layer"):
                 # Create comprehensive per-layer plots
                 plot_per_layer_ablation(
                     results["layer"],
                     save_path=save_path,
                     filename_prefix="ablation_per_layer"
                 )
-                
 
-            
             # Plot compartment ablation results if available
-            if "compartment" in results and results["compartment"]:
+            if results.get("compartment"):
                 plot_ablation_results(
                     results["compartment"],
                     save_path=save_path,
                     filename=f"{filename}_compartment"
                 )
-                
         except ImportError as e:
             print(f"Warning: Ablation plotting functions not found: {e}")
         except Exception as e:
@@ -246,9 +243,6 @@ class AblationAnalyzer(AbstractAnalyzer):
         test_dataset = TensorDataset(inputs, labels)
 
         state_dict = deepcopy(model.state_dict())
-
-        # Wrapping dataset in DataLoader for batched evaluation if large
-        test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
         # Calculate baseline performance using correct function signatures
         baselines = {}
@@ -420,8 +414,8 @@ class AblationAnalyzer(AbstractAnalyzer):
 
         if save_path is not None:
             save_dict(results, save_path, filename)
-            
+
             # Generate ablation plots
             self._plot_ablation_results(results, save_path, filename)
-            
+
         return results

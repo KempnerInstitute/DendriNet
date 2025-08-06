@@ -56,9 +56,15 @@ class SlurmJobGenerator:
 
         # Check for both slurm_config and run_config for backwards compatibility
         self.run_config = self.config.get('slurm_config', self.config.get('run_config', {}))
-        self.project_dir = self.run_config.get('project_dir', '/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling')  # Configurable
+        
+        # Use current working directory as default project directory (more portable)
+        default_project_dir = os.getcwd()
+        self.project_dir = self.run_config.get('project_dir', default_project_dir)  # Configurable
         self.log_dir = self.run_config.get('log_dir', self.run_config.get('dir', 'results/') + '/logs')  # Configurable, default to dir/logs
-        self.data_path = self.config.task.get('data_path', '/n/netscratch/kempner_dev/hsafaai/data')  # From task config
+        
+        # Use relative data path by default for better portability
+        default_data_path = os.path.join(default_project_dir, 'data')
+        self.data_path = self.config.task.get('data_path', default_data_path)  # From task config
 
         task_config = self.config.get('task', {})
         self.dataset = task_config.get('name', 'cifar10')
