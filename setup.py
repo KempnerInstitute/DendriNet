@@ -15,4 +15,4 @@ from setuptools import setup
 
 # All configuration is now handled by pyproject.toml
 # This setup.py exists for backwards compatibility
-setup() 
+setup()

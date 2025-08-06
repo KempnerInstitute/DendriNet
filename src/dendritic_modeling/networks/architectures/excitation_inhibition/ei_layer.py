@@ -10,8 +10,9 @@ from typing import Optional
 import torch
 import torch.nn as nn
 
-from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.dendrinet import \
-    DendriNet
+from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.dendrinet import (
+    DendriNet,
+)
 
 
 class ExcitationInhibitionLayer(nn.Module):

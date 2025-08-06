@@ -12,10 +12,18 @@ import numpy as np
 from dendritic_modeling import logger
 
 # Import utilities
-from .plotting_utils import (add_error_bars, annotate_bars,
-                             convert_layer_names, create_figure,
-                             create_heatmap, create_subplots, get_color_scheme,
-                             handle_plot_error, save_plot, setup_basic_plot)
+from .plotting_utils import (
+    add_error_bars,
+    annotate_bars,
+    convert_layer_names,
+    create_figure,
+    create_heatmap,
+    create_subplots,
+    get_color_scheme,
+    handle_plot_error,
+    save_plot,
+    setup_basic_plot,
+)
 
 # ============================================================================
 # Configuration

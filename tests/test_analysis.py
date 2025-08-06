@@ -41,18 +41,23 @@ from unittest.mock import Mock
 
 import numpy as np
 
-from dendritic_modeling.analysis import (AnalysisManager,
-                                         BranchActivationAnalyzer,
-                                         PerformanceAnalyzer)
+from dendritic_modeling.analysis import (
+    AnalysisManager,
+    BranchActivationAnalyzer,
+    PerformanceAnalyzer,
+)
 from dendritic_modeling.analysis.core.ablation import AblationAnalyzer
 from dendritic_modeling.analysis.core.information import InformationAnalyzer
 from dendritic_modeling.analysis.tools import SynapticActivationAnalyzer
-from dendritic_modeling.config import (AblationAnalysisParams, AnalysisConfig,
-                                       BranchActivationAnalysisParams,
-                                       InformationAnalysisParams,
-                                       PerformanceAnalysisParams,
-                                       SynapticActivationAnalysisParams,
-                                       TransferFunctionParams)
+from dendritic_modeling.config import (
+    AblationAnalysisParams,
+    AnalysisConfig,
+    BranchActivationAnalysisParams,
+    InformationAnalysisParams,
+    PerformanceAnalysisParams,
+    SynapticActivationAnalysisParams,
+    TransferFunctionParams,
+)
 from dendritic_modeling.models import Classifier
 from dendritic_modeling.networks import ExcitationInhibitionNetwork, Identity
 

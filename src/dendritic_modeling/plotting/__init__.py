@@ -13,13 +13,23 @@ The reorganized structure provides better organization and maintainability.
 
 # Import from visualizations
 from .visualizations import (  # Analysis functions; Training functions
-    dendritic_activations_todict, einet_activations_todict,
-    plot_ablation_results, plot_active_synapses_per_branch,
-    plot_branch_sweep_results, plot_ei_sweep_results,
-    plot_information_analysis, plot_layer_contributions, plot_loss_curves,
-    plot_noise_sweep_branch_results, plot_noise_sweep_ei_results,
-    plot_per_layer_information, plot_performance_evolution,
-    plot_performance_metrics, plot_synapse_turnover, plot_weight_distributions)
+    dendritic_activations_todict,
+    einet_activations_todict,
+    plot_ablation_results,
+    plot_active_synapses_per_branch,
+    plot_branch_sweep_results,
+    plot_ei_sweep_results,
+    plot_information_analysis,
+    plot_layer_contributions,
+    plot_loss_curves,
+    plot_noise_sweep_branch_results,
+    plot_noise_sweep_ei_results,
+    plot_per_layer_information,
+    plot_performance_evolution,
+    plot_performance_metrics,
+    plot_synapse_turnover,
+    plot_weight_distributions,
+)
 
 # Note: PlotManager was removed as it was unused
 

@@ -6,13 +6,29 @@ dendritic, excitation-inhibition, and MLP-based models.
 """
 
 from dendritic_modeling.networks.architectures.classical import (
-    MLP, AlexNet, CNNDownsample, CNNUpsample, Identity, MatchedParamMLP)
+    MLP,
+    AlexNet,
+    CNNDownsample,
+    CNNUpsample,
+    Identity,
+    MatchedParamMLP,
+)
 from dendritic_modeling.networks.architectures.excitation_inhibition import (
-    BlockLinear, DeepstLinear, DendriNet, DendriticBranchLayer,
-    ExcitationInhibitionLayer, ExcitationInhibitionNetwork, GradientScaler,
-    IdentityInputTransform, IndexInputTransform, StochasticTopKLinear,
-    TopKLinear, TransferLayer, VarianceTopKLinear,
-    initialize_dendritic_branch_layer)
+    BlockLinear,
+    DeepstLinear,
+    DendriNet,
+    DendriticBranchLayer,
+    ExcitationInhibitionLayer,
+    ExcitationInhibitionNetwork,
+    GradientScaler,
+    IdentityInputTransform,
+    IndexInputTransform,
+    StochasticTopKLinear,
+    TopKLinear,
+    TransferLayer,
+    VarianceTopKLinear,
+    initialize_dendritic_branch_layer,
+)
 
 __all__ = [
     "AlexNet"

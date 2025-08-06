@@ -13,8 +13,7 @@ from typing import Any, Optional
 import torch
 import torch.nn as nn
 
-from dendritic_modeling.config.training import (PruningConfig,
-                                                RegularizationConfig)
+from dendritic_modeling.config.training import PruningConfig, RegularizationConfig
 
 
 class RegularizationManager:

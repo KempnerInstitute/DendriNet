@@ -4,7 +4,9 @@ import torch
 import torch.nn as nn
 
 from dendritic_modeling.networks.architectures.classical.cnn.cnn import (
-    CNNDownsample, CNNUpsample)
+    CNNDownsample,
+    CNNUpsample,
+)
 from dendritic_modeling.networks.architectures.classical.mlp.mlp import MLP
 from dendritic_modeling.networks.base import BaseNetwork
 

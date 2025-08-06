@@ -3,16 +3,25 @@ from typing import Any
 import torch.nn as nn
 
 from dendritic_modeling.networks.architectures.classical.autoencoder import (
-    CNNAutoencoder, CNNVariationalAutoencoder, MLPAutoencoder,
-    MLPVariationalAutoencoder)
+    CNNAutoencoder,
+    CNNVariationalAutoencoder,
+    MLPAutoencoder,
+    MLPVariationalAutoencoder,
+)
 from dendritic_modeling.networks.architectures.classical.cnn import (
-    AlexNet, CNNDownsample, CNNUpsample)
-from dendritic_modeling.networks.architectures.classical.identity import \
-    Identity
+    AlexNet,
+    CNNDownsample,
+    CNNUpsample,
+)
+from dendritic_modeling.networks.architectures.classical.identity import Identity
 from dendritic_modeling.networks.architectures.classical.mlp import (
-    MLP, EffectiveMatchedParamMLP, MatchedParamMLP)
-from dendritic_modeling.networks.architectures.excitation_inhibition import \
-    ExcitationInhibitionNetwork
+    MLP,
+    EffectiveMatchedParamMLP,
+    MatchedParamMLP,
+)
+from dendritic_modeling.networks.architectures.excitation_inhibition import (
+    ExcitationInhibitionNetwork,
+)
 
 
 def get_architecture(type: str, parameters: dict[str, Any]) -> nn.Module:

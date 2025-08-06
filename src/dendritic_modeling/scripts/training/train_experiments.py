@@ -61,14 +61,19 @@ from dendritic_modeling.config import load_config
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.networks import Identity
 from dendritic_modeling.scripts.script_utils.setup_utils import (
-    save_model, setup_environment)
-from dendritic_modeling.scripts.training.train_encoder_network import \
-    load_train_encoder_network
+    save_model,
+    setup_environment,
+)
+from dendritic_modeling.scripts.training.train_encoder_network import (
+    load_train_encoder_network,
+)
 from dendritic_modeling.training import CustomWeightDecayOptimizer, get_trainer
 from dendritic_modeling.utils import save_dict, validate_full_config
 from dendritic_modeling.utils.training_stability_validator import (
-    apply_automatic_safeguards, suggest_optimal_config_for_model_size,
-    validate_training_stability)
+    apply_automatic_safeguards,
+    suggest_optimal_config_for_model_size,
+    validate_training_stability,
+)
 
 
 def run_analysis(

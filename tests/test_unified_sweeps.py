@@ -12,18 +12,23 @@ import pytest
 from omegaconf import OmegaConf
 
 # Adjusted imports for unified sweeps
-from dendritic_modeling.scripts.sweeps.unified.sweep_types.general_sweep import \
-    GeneralSweepGenerator
+from dendritic_modeling.scripts.sweeps.unified.sweep_types.general_sweep import (
+    GeneralSweepGenerator,
+)
+
 
 # Mock classes for old sweep generators (tests are skipped anyway)
 class EISweepGenerator:
     pass
 
+
 class BranchSweepGenerator:
     pass
 
+
 class NoiseSweepGenerator:
     pass
+
 
 # Skip all tests in this module until they are updated for the new architecture
 pytestmark = pytest.mark.skip(

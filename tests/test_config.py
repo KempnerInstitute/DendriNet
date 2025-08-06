@@ -14,10 +14,18 @@ import unittest
 
 import yaml
 
-from dendritic_modeling.config import (AnalysisConfig, Config,
-                                       CoreNetworkConfig, EINetParameters,
-                                       ModelConfig, OutputsConfig, TaskConfig,
-                                       TrainConfig, WandbConfig, load_config)
+from dendritic_modeling.config import (
+    AnalysisConfig,
+    Config,
+    CoreNetworkConfig,
+    EINetParameters,
+    ModelConfig,
+    OutputsConfig,
+    TaskConfig,
+    TrainConfig,
+    WandbConfig,
+    load_config,
+)
 
 
 class TestConfigDataclasses(unittest.TestCase):

@@ -591,8 +591,9 @@ class CorrelationAnalyzer:
             save_path: Path to save plots
         """
         try:
-            from dendritic_modeling.plotting.visualizations.information_analysis import \
-                plot_information_analysis
+            from dendritic_modeling.plotting.visualizations.information_analysis import (
+                plot_information_analysis,
+            )
 
             # Use the comprehensive plotting system instead of duplicating code
             logger.info(

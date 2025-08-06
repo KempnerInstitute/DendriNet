@@ -6,12 +6,15 @@ import torch
 import torch.nn as nn
 
 from dendritic_modeling.datasets import load_mnist_modulo10
+
 # Import functions from their actual locations
 from dendritic_modeling.training.utils.evaluation import accuracy_score
 from dendritic_modeling.utils import Shaper
 from dendritic_modeling.utils.gpu_estimation import GPUMemoryEstimator
 from dendritic_modeling.utils.information.estimators import (
-    EstimatorConfig, InformationEstimatorFactory)
+    EstimatorConfig,
+    InformationEstimatorFactory,
+)
 
 
 class TestShaper(unittest.TestCase):

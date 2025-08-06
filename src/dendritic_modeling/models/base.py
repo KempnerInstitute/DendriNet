@@ -12,8 +12,11 @@ import torch
 import torch.nn as nn
 
 from dendritic_modeling.config import ParamGroupsConfig
-from dendritic_modeling.networks import (BaseNetwork, DendriticBranchLayer,
-                                         ExcitationInhibitionNetwork)
+from dendritic_modeling.networks import (
+    BaseNetwork,
+    DendriticBranchLayer,
+    ExcitationInhibitionNetwork,
+)
 
 
 class BaseModel(nn.Module):

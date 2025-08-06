@@ -42,8 +42,9 @@ sys.path.insert(0, str(project_root / "src"))
 # Use absolute imports to avoid relative import issues
 try:
     from dendritic_modeling.scripts.sweeps.unified.base_sweep import SweepJobManager
-    from dendritic_modeling.scripts.sweeps.unified.sweep_types.unified_sweep import \
-        UnifiedSweepGenerator
+    from dendritic_modeling.scripts.sweeps.unified.sweep_types.unified_sweep import (
+        UnifiedSweepGenerator,
+    )
 except ImportError:
     # Fallback for when run as script
     sys.path.insert(0, str(Path(__file__).parent))

@@ -8,12 +8,20 @@ Uses multivariate methods from information.py as the core computation engine.
 
 # Core computation functions (multivariate-aware)
 from dendritic_modeling.utils.information.nearest_neighbors import (
-    build_sr_matrix, compute_ei_mi, compute_mi_cc, compute_mi_cd,
-    compute_pairwise_sr, compute_pairwise_sr_with_mi,
-    compute_synaptic_information)
+    build_sr_matrix,
+    compute_ei_mi,
+    compute_mi_cc,
+    compute_mi_cd,
+    compute_pairwise_sr,
+    compute_pairwise_sr_with_mi,
+    compute_synaptic_information,
+)
+
 # PID utilities
-from dendritic_modeling.utils.information.pid import (check_pid_available,
-                                                      pid_synergy_redundancy)
+from dendritic_modeling.utils.information.pid import (
+    check_pid_available,
+    pid_synergy_redundancy,
+)
 
 __all__ = [
     "build_sr_matrix"

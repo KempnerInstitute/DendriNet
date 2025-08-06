@@ -10,12 +10,15 @@ from typing import Optional
 
 import torch
 
-from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.stochastic import \
-    StochasticTopKLinear
-from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.topk import \
-    TopKLinear
-from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.variance import \
-    VarianceTopKLinear
+from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.stochastic import (
+    StochasticTopKLinear,
+)
+from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.topk import (
+    TopKLinear,
+)
+from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.variance import (
+    VarianceTopKLinear,
+)
 
 # Registry of available TopK layer implementations
 SPARSE_LAYER_REGISTRY: dict[str, type[TopKLinear]] = {

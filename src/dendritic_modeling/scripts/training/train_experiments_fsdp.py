@@ -63,8 +63,9 @@ from dendritic_modeling.datasets import get_unified_datasets
 from dendritic_modeling.models import Classifier, Regressor
 from dendritic_modeling.networks import Identity
 from dendritic_modeling.networks.architectures.factory import get_architecture
-from dendritic_modeling.scripts.training.train_encoder_network import \
-    load_train_encoder_network
+from dendritic_modeling.scripts.training.train_encoder_network import (
+    load_train_encoder_network,
+)
 from dendritic_modeling.training.fsdp_utils import get_fsdp_config
 from dendritic_modeling.training.strategies.fsdp_standard import FSDPTrainer
 from dendritic_modeling.utils.general import save_dict, set_seed

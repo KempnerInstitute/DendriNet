@@ -10,8 +10,9 @@ from copy import deepcopy
 import torch
 import torch.nn as nn
 
-from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_layer import \
-    DendriticBranchLayer
+from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_layer import (
+    DendriticBranchLayer,
+)
 
 
 class DendriNet(nn.Module):

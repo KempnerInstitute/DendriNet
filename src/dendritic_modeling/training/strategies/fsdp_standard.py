@@ -17,9 +17,11 @@ from torch.utils.data import DataLoader
 from dendritic_modeling import logger
 from dendritic_modeling.analysis import AnalysisManager
 from dendritic_modeling.models import BaseModel
-from dendritic_modeling.training.fsdp_utils import (get_fsdp_config,
-                                                    save_fsdp_checkpoint,
-                                                    wrap_model_with_fsdp)
+from dendritic_modeling.training.fsdp_utils import (
+    get_fsdp_config,
+    save_fsdp_checkpoint,
+    wrap_model_with_fsdp,
+)
 from dendritic_modeling.training.strategies.standard import Trainer
 
 

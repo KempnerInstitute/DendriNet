@@ -26,18 +26,29 @@ Classifiers:
 
 # Core analyzers
 # Classifiers
-from .core import (AblationAnalyzer, BranchActivationAnalyzer,
-                   InformationAnalyzer)
+from .core import AblationAnalyzer, BranchActivationAnalyzer, InformationAnalyzer
+
 # Manager
 from .managers.analysis_manager import AnalysisManager
+
 # Metrics
-from .metrics import (NoisePerturbationAnalyzer, PerformanceAnalyzer,
-                      SingleLayerContributionAnalyzer,
-                      direction_selectivity_index, length_selectivity_index,
-                      orientation_selectivity_index, size_tuning_index)
+from .metrics import (
+    NoisePerturbationAnalyzer,
+    PerformanceAnalyzer,
+    SingleLayerContributionAnalyzer,
+    direction_selectivity_index,
+    length_selectivity_index,
+    orientation_selectivity_index,
+    size_tuning_index,
+)
+
 # Tools
-from .tools import (CorrelationAnalyzer, SynapticActivationAnalyzer,
-                    SynapticTurnoverAnalyzer, WeightAnalyzer)
+from .tools import (
+    CorrelationAnalyzer,
+    SynapticActivationAnalyzer,
+    SynapticTurnoverAnalyzer,
+    WeightAnalyzer,
+)
 
 __all__ = [
     # Core

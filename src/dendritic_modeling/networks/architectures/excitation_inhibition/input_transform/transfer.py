@@ -4,10 +4,12 @@ from typing import Any, Optional
 import torch
 from torch import nn
 
-from dendritic_modeling.networks.architectures.excitation_inhibition.input_transform.identity import \
-    IdentityInputTransform
-from dendritic_modeling.networks.architectures.excitation_inhibition.input_transform.index import \
-    IndexInputTransform
+from dendritic_modeling.networks.architectures.excitation_inhibition.input_transform.identity import (
+    IdentityInputTransform,
+)
+from dendritic_modeling.networks.architectures.excitation_inhibition.input_transform.index import (
+    IndexInputTransform,
+)
 
 logger = logging.getLogger(__name__)
 

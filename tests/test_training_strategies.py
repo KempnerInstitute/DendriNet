@@ -17,8 +17,10 @@ from dendritic_modeling.models import Classifier
 from dendritic_modeling.networks import ExcitationInhibitionNetwork, Identity
 from dendritic_modeling.training import Trainer, get_trainer
 from dendritic_modeling.training.strategies import (
-    TwoStepTrainer, TwoStepTrainerWithKL,
-    VoltageStabilizationTrainer)
+    TwoStepTrainer,
+    TwoStepTrainerWithKL,
+    VoltageStabilizationTrainer,
+)
 
 
 class TestTrainerFactory(unittest.TestCase):

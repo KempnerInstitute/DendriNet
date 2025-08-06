@@ -2,8 +2,7 @@ import unittest
 
 import torch
 
-from dendritic_modeling.networks import (StochasticTopKLinear,
-                                         VarianceTopKLinear)
+from dendritic_modeling.networks import StochasticTopKLinear, VarianceTopKLinear
 
 
 class TestStochasticTopKLinear(unittest.TestCase):

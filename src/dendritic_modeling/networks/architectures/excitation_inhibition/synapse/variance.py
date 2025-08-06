@@ -7,8 +7,9 @@ activation statistics and selects weights based on input variance.
 
 import torch
 
-from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.topk import \
-    TopKLinear
+from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.topk import (
+    TopKLinear,
+)
 
 
 class VarianceTopKLinear(TopKLinear):

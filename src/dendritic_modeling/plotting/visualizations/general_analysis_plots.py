@@ -13,9 +13,14 @@ import pandas as pd
 
 from dendritic_modeling import logger
 
-from .plotting_utils import (convert_layer_names, create_figure,
-                             create_subplots, handle_plot_error, save_plot,
-                             setup_basic_plot)
+from .plotting_utils import (
+    convert_layer_names,
+    create_figure,
+    create_subplots,
+    handle_plot_error,
+    save_plot,
+    setup_basic_plot,
+)
 
 
 def plot_layer_contributions(results: dict[str, Any], **kwargs):
@@ -1650,13 +1655,23 @@ def plot_active_synapses_summary_by_layer(
         sorted_layers = sorted(layers_summary.keys())
 
         # Extract data arrays
-        exc_means = [layers_summary[layer]["excitatory"]["mean"] for layer in sorted_layers]
-        exc_stds = [layers_summary[layer]["excitatory"]["std"] for layer in sorted_layers]
+        exc_means = [
+            layers_summary[layer]["excitatory"]["mean"] for layer in sorted_layers
+        ]
+        exc_stds = [
+            layers_summary[layer]["excitatory"]["std"] for layer in sorted_layers
+        ]
 
-        inh_means = [layers_summary[layer]["inhibitory"]["mean"] for layer in sorted_layers]
-        inh_stds = [layers_summary[layer]["inhibitory"]["std"] for layer in sorted_layers]
+        inh_means = [
+            layers_summary[layer]["inhibitory"]["mean"] for layer in sorted_layers
+        ]
+        inh_stds = [
+            layers_summary[layer]["inhibitory"]["std"] for layer in sorted_layers
+        ]
 
-        total_means = [layers_summary[layer]["total"]["mean"] for layer in sorted_layers]
+        total_means = [
+            layers_summary[layer]["total"]["mean"] for layer in sorted_layers
+        ]
         total_stds = [layers_summary[layer]["total"]["std"] for layer in sorted_layers]
 
         # Create the plot with 3 subplots

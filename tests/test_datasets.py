@@ -16,11 +16,13 @@ from unittest.mock import Mock, patch
 import torch
 from torch.utils.data import TensorDataset
 
-from dendritic_modeling.datasets import (get_data_directory,
-                                         get_unified_datasets,
-                                         load_cifar10_as_datasets,
-                                         load_mnist_as_datasets,
-                                         load_mnist_modulo10)
+from dendritic_modeling.datasets import (
+    get_data_directory,
+    get_unified_datasets,
+    load_cifar10_as_datasets,
+    load_mnist_as_datasets,
+    load_mnist_modulo10,
+)
 
 # Import synthetic datasets from experiments folder
 try:
@@ -33,16 +35,18 @@ try:
     if experiments_path not in sys.path:
         sys.path.insert(0, experiments_path)
 
-    from data_generation.synthetic_datasets import (CenterSurroundDataset,
-                                                    CompositionalMNIST,
-                                                    InfoShuntingDataset,
-                                                    LineDataset,
-                                                    MultiXORDataset,
-                                                    NoisyLineDataset,
-                                                    OrientationBarsDataset,
-                                                    OrthoNetDataset,
-                                                    PoissonGeneratorDataset,
-                                                    RandomFlipMNISTDataset)
+    from data_generation.synthetic_datasets import (
+        CenterSurroundDataset,
+        CompositionalMNIST,
+        InfoShuntingDataset,
+        LineDataset,
+        MultiXORDataset,
+        NoisyLineDataset,
+        OrientationBarsDataset,
+        OrthoNetDataset,
+        PoissonGeneratorDataset,
+        RandomFlipMNISTDataset,
+    )
 except ImportError:
     # If synthetic datasets are not available, create dummy classes for testing
     class DummyDataset:

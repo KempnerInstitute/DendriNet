@@ -10,12 +10,20 @@ from typing import Any, Optional
 import torch
 
 from dendritic_modeling import logger
-from dendritic_modeling.config.training import (OptimizerConfig, PruningConfig,
-                                                RegularizationConfig,
-                                                ReportingConfig)
+from dendritic_modeling.config.training import (
+    OptimizerConfig,
+    PruningConfig,
+    RegularizationConfig,
+    ReportingConfig,
+)
 from dendritic_modeling.training.strategies import (
-    LayerWiseTrainer, LocalCreditAssignment, Trainer, TwoStepTrainer,
-    TwoStepTrainerWithKL, VoltageStabilizationTrainer)
+    LayerWiseTrainer,
+    LocalCreditAssignment,
+    Trainer,
+    TwoStepTrainer,
+    TwoStepTrainerWithKL,
+    VoltageStabilizationTrainer,
+)
 
 
 def _extract_enhanced_configs(trainer_config_dict: dict[str, Any]) -> dict[str, Any]:
@@ -151,8 +159,7 @@ def get_trainer(
         # Note: FSDP requires additional setup (distributed init, special config)
         # This would need to be called from a distributed context
         from dendritic_modeling.training.fsdp_utils import get_fsdp_config
-        from dendritic_modeling.training.strategies.fsdp_standard import \
-            FSDPTrainer
+        from dendritic_modeling.training.strategies.fsdp_standard import FSDPTrainer
 
         trainer_config_dict["optimizer"] = optimizer
         if "fsdp_config" not in trainer_config_dict:

@@ -24,9 +24,12 @@ def generate_figures():
 
     try:
         # Run the figure generation script
-        result = subprocess.run([
-            sys.executable, str(script_path)
-        ], check=True, capture_output=True, text=True)
+        result = subprocess.run(
+            [sys.executable, str(script_path)],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
 
         print("Figures generated successfully!")
         return True
@@ -46,12 +49,12 @@ def build_docs():
 
     try:
         # Run sphinx-build
-        result = subprocess.run([
-            "sphinx-build",
-            "-b", "html",
-            ".",
-            "_build/html"
-        ], check=True, capture_output=True, text=True)
+        result = subprocess.run(
+            ["sphinx-build", "-b", "html", ".", "_build/html"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
 
         print("Documentation built successfully!")
         print("HTML documentation available at: _build/html/index.html")
@@ -73,6 +76,7 @@ def clean_docs():
     build_dir = Path("_build")
     if build_dir.exists():
         import shutil
+
         shutil.rmtree(build_dir)
         print("Cleaned _build directory")
     else:

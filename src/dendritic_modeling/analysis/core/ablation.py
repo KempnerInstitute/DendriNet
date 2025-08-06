@@ -17,8 +17,12 @@ from dendritic_modeling.models import BaseModel, Regressor
 from dendritic_modeling.networks import ExcitationInhibitionNetwork
 from dendritic_modeling.networks.architectures import DendriticBranchLayer
 from dendritic_modeling.training.utils.evaluation import (
-    evaluate_accuracy, evaluate_auc, evaluate_categorical_loglikelihood,
-    evaluate_cosine_similarity, evaluate_mse)
+    evaluate_accuracy,
+    evaluate_auc,
+    evaluate_categorical_loglikelihood,
+    evaluate_cosine_similarity,
+    evaluate_mse,
+)
 from dendritic_modeling.utils import save_dict
 
 
@@ -191,7 +195,9 @@ class AblationAnalyzer(AbstractAnalyzer):
         """Generate comprehensive ablation plots similar to information analysis."""
         try:
             from dendritic_modeling.plotting.visualizations.general_analysis_plots import (
-                plot_ablation_results, plot_per_layer_ablation)
+                plot_ablation_results,
+                plot_per_layer_ablation,
+            )
 
             # Plot layer ablation results if available
             if results.get("layer"):

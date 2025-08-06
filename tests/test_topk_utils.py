@@ -4,17 +4,20 @@ import unittest
 
 import torch
 
-from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.topk import \
-    TopKLinear
-from dendritic_modeling.utils.sparse_ops import (SPARSE_LAYER_REGISTRY,
-                                                 apply_sparse_mask,
-                                                 calculate_effective_sparsity,
-                                                 count_active_parameters,
-                                                 create_topk_mask,
-                                                 estimate_memory_usage,
-                                                 get_available_sparse_types,
-                                                 get_sparse_layer,
-                                                 register_sparse_layer)
+from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.topk import (
+    TopKLinear,
+)
+from dendritic_modeling.utils.sparse_ops import (
+    SPARSE_LAYER_REGISTRY,
+    apply_sparse_mask,
+    calculate_effective_sparsity,
+    count_active_parameters,
+    create_topk_mask,
+    estimate_memory_usage,
+    get_available_sparse_types,
+    get_sparse_layer,
+    register_sparse_layer,
+)
 
 
 class TestSparseOps(unittest.TestCase):
@@ -112,7 +115,8 @@ class TestSparseOps(unittest.TestCase):
         """Test registering a new TopK layer type."""
         from dendritic_modeling.utils.sparse_ops import (
             get_available_sparse_types,
-            get_sparse_layer)
+            get_sparse_layer,
+        )
 
         class CustomTopK(TopKLinear):
             pass
@@ -133,7 +137,7 @@ class TestSparseOps(unittest.TestCase):
 
     def test_register_duplicate_layer(self):
         """Test registering duplicate layer type raises error."""
-        from dendritic_modeling.utils.sparse_ops import (get_sparse_layer)
+        from dendritic_modeling.utils.sparse_ops import get_sparse_layer
 
         # Try to register an existing type - this should not raise an error
         # as the registry allows overwriting (which might be intended behavior)
@@ -158,10 +162,11 @@ class TestAbstractAnalyzer(unittest.TestCase):
         """Test that concrete analyzers inherit from AbstractAnalyzer."""
         from dendritic_modeling.analysis.core.ablation import AblationAnalyzer
         from dendritic_modeling.analysis.core.base import AbstractAnalyzer
-        from dendritic_modeling.analysis.core.information import \
-            InformationAnalyzer
+        from dendritic_modeling.analysis.core.information import InformationAnalyzer
         from dendritic_modeling.config.analysis import (
-            AblationAnalysisParams, InformationAnalysisParams)
+            AblationAnalysisParams,
+            InformationAnalysisParams,
+        )
 
         # Test AblationAnalyzer
         ablation_params = AblationAnalysisParams()

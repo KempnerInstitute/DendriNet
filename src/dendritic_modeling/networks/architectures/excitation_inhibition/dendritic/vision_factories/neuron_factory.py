@@ -7,9 +7,12 @@ import yaml
 
 from dendritic_modeling.networks.layers.dendritic_conv2d import DendriteConv2d
 
-from .vision_units import (create_center_surround_unit,
-                           create_end_stopped_unit, create_gabor_unit,
-                           create_motion_unit)
+from .vision_units import (
+    create_center_surround_unit,
+    create_end_stopped_unit,
+    create_gabor_unit,
+    create_motion_unit,
+)
 
 __all__ = ["build_neuron_from_yaml", "load_properties_config"]
 

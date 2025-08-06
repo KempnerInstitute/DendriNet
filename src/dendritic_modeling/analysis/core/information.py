@@ -16,13 +16,19 @@ import torch
 from dendritic_modeling.analysis.core.base import AbstractAnalyzer
 from dendritic_modeling.config import InformationAnalysisParams
 from dendritic_modeling.models import BaseModel
-from dendritic_modeling.networks import (DendriticBranchLayer,
-                                         ExcitationInhibitionNetwork)
+from dendritic_modeling.networks import (
+    DendriticBranchLayer,
+    ExcitationInhibitionNetwork,
+)
 from dendritic_modeling.utils import save_dict
 from dendritic_modeling.utils.information.estimators import (
-    EstimatorConfig, InformationEstimatorFactory)
-from dendritic_modeling.utils.information.pid import (check_pid_available,
-                                                      pid_synergy_redundancy)
+    EstimatorConfig,
+    InformationEstimatorFactory,
+)
+from dendritic_modeling.utils.information.pid import (
+    check_pid_available,
+    pid_synergy_redundancy,
+)
 
 
 class InformationAnalyzer(AbstractAnalyzer):

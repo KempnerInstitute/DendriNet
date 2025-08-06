@@ -11,14 +11,23 @@ import torch.nn as nn
 
 from dendritic_modeling.networks.activations import ActivationFactory
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.blocklinear import (
-    BlockLinear, EfficientBlockLinear)
-from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.gradient_scaling import \
-    GradientScaler
-from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.initialize import \
-    initialize_dendritic_branch_layer
+    BlockLinear,
+    EfficientBlockLinear,
+)
+from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.gradient_scaling import (
+    GradientScaler,
+)
+from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.initialize import (
+    initialize_dendritic_branch_layer,
+)
+
 # Import linear layer variants
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse import (
-    DeepstLinear, StochasticTopKLinear, TopKLinear, VarianceTopKLinear)
+    DeepstLinear,
+    StochasticTopKLinear,
+    TopKLinear,
+    VarianceTopKLinear,
+)
 
 
 class DendriticBranchLayer(nn.Module):

@@ -503,8 +503,9 @@ def get_unified_datasets(task_cfg, train_cfg, output_dir=None, outputs_cfg=None)
             if experiments_path not in sys.path:
                 sys.path.insert(0, experiments_path)
 
-            from data_generation.synthetic_datasets import \
-                get_unified_datasets as get_synthetic_datasets
+            from data_generation.synthetic_datasets import (
+                get_unified_datasets as get_synthetic_datasets,
+            )
 
             return get_synthetic_datasets(task_cfg, train_cfg, output_dir, outputs_cfg)
         except ImportError as e:

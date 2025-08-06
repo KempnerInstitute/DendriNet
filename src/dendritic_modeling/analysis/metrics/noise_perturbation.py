@@ -11,12 +11,18 @@ import torch
 from torch.utils.data import TensorDataset
 
 from dendritic_modeling.config import NoisePerturbationAnalysisParams
-from dendritic_modeling.datasets.augmentation.noise import (add_gaussian_noise,
-                                                            add_uniform_noise)
+from dendritic_modeling.datasets.augmentation.noise import (
+    add_gaussian_noise,
+    add_uniform_noise,
+)
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.training.utils.evaluation import (
-    evaluate_accuracy, evaluate_auc, evaluate_categorical_loglikelihood,
-    evaluate_cosine_similarity, evaluate_mse)
+    evaluate_accuracy,
+    evaluate_auc,
+    evaluate_categorical_loglikelihood,
+    evaluate_cosine_similarity,
+    evaluate_mse,
+)
 from dendritic_modeling.utils import save_dict
 
 

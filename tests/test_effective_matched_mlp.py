@@ -11,10 +11,12 @@ import unittest
 
 import torch
 
-from dendritic_modeling.networks.architectures.classical.mlp import \
-    EffectiveMatchedParamMLP
-from dendritic_modeling.networks.architectures.excitation_inhibition import \
-    ExcitationInhibitionNetwork
+from dendritic_modeling.networks.architectures.classical.mlp import (
+    EffectiveMatchedParamMLP,
+)
+from dendritic_modeling.networks.architectures.excitation_inhibition import (
+    ExcitationInhibitionNetwork,
+)
 from dendritic_modeling.networks.architectures.factory import get_architecture
 
 
@@ -97,8 +99,9 @@ class TestEffectiveMatchedParamMLP(unittest.TestCase):
 
     def test_comparison_with_regular_matched_mlp(self):
         """Test that EffectiveMatchedParamMLP has fewer params than regular MatchedParamMLP."""
-        from dendritic_modeling.networks.architectures.classical.mlp import \
-            MatchedParamMLP
+        from dendritic_modeling.networks.architectures.classical.mlp import (
+            MatchedParamMLP,
+        )
 
         # Create both MLPs
         effective_mlp = EffectiveMatchedParamMLP(**self.params)

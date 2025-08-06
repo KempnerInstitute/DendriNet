@@ -149,7 +149,6 @@ def test_training_speed_benchmark():
     """Benchmark test to ensure training speed meets minimum expectations."""
     import time
 
-
     from dendritic_modeling.training.strategies.standard import Trainer
 
     # Create a simple mock training scenario

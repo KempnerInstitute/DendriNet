@@ -9,8 +9,9 @@ import torch
 from torch import nn
 
 from dendritic_modeling.networks.activations.factory import ActivationFactory
-from dendritic_modeling.networks.architectures.excitation_inhibition import \
-    ExcitationInhibitionNetwork
+from dendritic_modeling.networks.architectures.excitation_inhibition import (
+    ExcitationInhibitionNetwork,
+)
 
 
 class MatchedParamMLP(nn.Module):

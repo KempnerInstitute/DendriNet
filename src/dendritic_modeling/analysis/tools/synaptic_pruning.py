@@ -12,11 +12,12 @@ from typing import Any, Optional
 
 import numpy as np
 
-from dendritic_modeling.analysis.tools.synaptic_turnover import \
-    SynapticTurnoverAnalyzer
+from dendritic_modeling.analysis.tools.synaptic_turnover import SynapticTurnoverAnalyzer
 from dendritic_modeling.models import BaseModel
-from dendritic_modeling.networks import (DendriticBranchLayer,
-                                         ExcitationInhibitionNetwork)
+from dendritic_modeling.networks import (
+    DendriticBranchLayer,
+    ExcitationInhibitionNetwork,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -528,8 +529,9 @@ class SynapticPruningAnalyzer(SynapticTurnoverAnalyzer):
             filename: Base filename for the plots
         """
         try:
-            from dendritic_modeling.plotting.visualizations.general_analysis_plots import \
-                plot_active_synapses_per_branch
+            from dendritic_modeling.plotting.visualizations.general_analysis_plots import (
+                plot_active_synapses_per_branch,
+            )
 
             if not self.pruning_events:
                 logger.warning("No pruning events recorded for plotting")
@@ -572,8 +574,9 @@ class SynapticPruningAnalyzer(SynapticTurnoverAnalyzer):
             filename: Base filename for the plots
         """
         try:
-            from dendritic_modeling.plotting.visualizations.general_analysis_plots import \
-                plot_active_synapses_summary_by_layer
+            from dendritic_modeling.plotting.visualizations.general_analysis_plots import (
+                plot_active_synapses_summary_by_layer,
+            )
 
             logger.info(
                 f"DEBUG: pruning_events count: {len(self.pruning_events) if self.pruning_events else 0}"

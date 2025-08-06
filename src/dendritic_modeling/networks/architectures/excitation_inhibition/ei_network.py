@@ -17,10 +17,12 @@ try:
 except ImportError:
     torch._dynamo = None
 
-from dendritic_modeling.networks.architectures.excitation_inhibition.ei_layer import \
-    ExcitationInhibitionLayer
-from dendritic_modeling.networks.architectures.excitation_inhibition.input_transform.transfer import \
-    TransferLayer
+from dendritic_modeling.networks.architectures.excitation_inhibition.ei_layer import (
+    ExcitationInhibitionLayer,
+)
+from dendritic_modeling.networks.architectures.excitation_inhibition.input_transform.transfer import (
+    TransferLayer,
+)
 
 
 class ExcitationInhibitionNetwork(nn.Module):

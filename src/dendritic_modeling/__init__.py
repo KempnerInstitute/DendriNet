@@ -20,8 +20,16 @@ For detailed documentation on each module, see the respective module docstrings.
 
 # Core imports
 from dendritic_modeling import datasets
-from dendritic_modeling import (analysis, config, models, networks, plotting,
-                                scripts, training, utils)
+from dendritic_modeling import (
+    analysis,
+    config,
+    models,
+    networks,
+    plotting,
+    scripts,
+    training,
+    utils,
+)
 
 # Set up the logging environment
 from dendritic_modeling.utils.logging_config import LoggerManager

@@ -17,13 +17,18 @@ except ImportError:
 from omegaconf import OmegaConf
 
 from dendritic_modeling import logger, logger_manager
-from dendritic_modeling.config import (EncoderNetworkConfig,
-                                       EncoderTrainConfig, TaskConfig,
-                                       TrainConfig, load_config)
+from dendritic_modeling.config import (
+    EncoderNetworkConfig,
+    EncoderTrainConfig,
+    TaskConfig,
+    TrainConfig,
+    load_config,
+)
 from dendritic_modeling.datasets import get_unified_datasets
 from dendritic_modeling.networks import BaseNetwork, Identity
-from dendritic_modeling.networks.architectures.classical.autoencoder import \
-    BaseAutoencoder
+from dendritic_modeling.networks.architectures.classical.autoencoder import (
+    BaseAutoencoder,
+)
 from dendritic_modeling.networks.architectures.factory import get_architecture
 from dendritic_modeling.training import get_trainer
 from dendritic_modeling.utils import save_dict, set_seed

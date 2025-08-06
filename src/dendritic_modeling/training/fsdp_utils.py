@@ -9,16 +9,16 @@ that cannot fit on a single GPU using PyTorch's Fully Sharded Data Parallel (Ful
 from typing import Any, Optional
 
 import torch
-from torch.distributed.fsdp import (BackwardPrefetch, CPUOffload,
-                                    FullStateDictConfig)
+from torch.distributed.fsdp import BackwardPrefetch, CPUOffload, FullStateDictConfig
 from torch.distributed.fsdp import FullyShardedDataParallel
-from torch.distributed.fsdp import (MixedPrecision, ShardingStrategy,
-                                    StateDictType)
+from torch.distributed.fsdp import MixedPrecision, ShardingStrategy, StateDictType
 
 from dendritic_modeling import logger
 from dendritic_modeling.networks.architectures.excitation_inhibition import (
-    DendriticBranchLayer, ExcitationInhibitionLayer,
-    ExcitationInhibitionNetwork)
+    DendriticBranchLayer,
+    ExcitationInhibitionLayer,
+    ExcitationInhibitionNetwork,
+)
 
 
 def create_fsdp_wrap_policy(min_num_params: int = 1e6):
@@ -251,7 +251,9 @@ def _apply_gradient_checkpointing(model: torch.nn.Module):
             # Wrap the forward method with checkpointing
             original_forward = module.forward
 
-            def checkpointed_forward(self, *args, orig_forward=original_forward, **kwargs):
+            def checkpointed_forward(
+                self, *args, orig_forward=original_forward, **kwargs
+            ):
                 return checkpoint(orig_forward, *args, **kwargs)
 
             # Bind the method to the instance
@@ -263,7 +265,9 @@ def _apply_gradient_checkpointing(model: torch.nn.Module):
             # Apply to large linear layers
             original_forward = module.forward
 
-            def checkpointed_forward(self, *args, orig_forward=original_forward, **kwargs):
+            def checkpointed_forward(
+                self, *args, orig_forward=original_forward, **kwargs
+            ):
                 return checkpoint(orig_forward, *args, **kwargs)
 
             import types
@@ -292,7 +296,9 @@ def save_fsdp_checkpoint(
     # Configure state dict saving
     save_policy = FullStateDictConfig(offload_to_cpu=True, rank0_only=True)
 
-    with FullyShardedDataParallel.state_dict_type(model, StateDictType.FULL_STATE_DICT, save_policy):
+    with FullyShardedDataParallel.state_dict_type(
+        model, StateDictType.FULL_STATE_DICT, save_policy
+    ):
         state_dict = model.state_dict()
 
         # Only save on rank 0

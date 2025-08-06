@@ -11,25 +11,29 @@ import os
 import numpy as np
 
 from dendritic_modeling.analysis.core.ablation import AblationAnalyzer
-from dendritic_modeling.analysis.core.branch_activation import \
-    BranchActivationAnalyzer
+from dendritic_modeling.analysis.core.branch_activation import BranchActivationAnalyzer
 from dendritic_modeling.analysis.core.information import InformationAnalyzer
-from dendritic_modeling.analysis.metrics.layer_contribution import \
-    SingleLayerContributionAnalyzer
-from dendritic_modeling.analysis.metrics.noise_perturbation import \
-    NoisePerturbationAnalyzer
+from dendritic_modeling.analysis.metrics.layer_contribution import (
+    SingleLayerContributionAnalyzer,
+)
+from dendritic_modeling.analysis.metrics.noise_perturbation import (
+    NoisePerturbationAnalyzer,
+)
 from dendritic_modeling.analysis.metrics.performance import PerformanceAnalyzer
-from dendritic_modeling.analysis.tools.correlation_analysis import \
-    CorrelationAnalyzer
-from dendritic_modeling.analysis.tools.synaptic_activation import \
-    SynapticActivationAnalyzer
-from dendritic_modeling.analysis.tools.synaptic_turnover import \
-    SynapticTurnoverAnalyzer
+from dendritic_modeling.analysis.tools.correlation_analysis import CorrelationAnalyzer
+from dendritic_modeling.analysis.tools.synaptic_activation import (
+    SynapticActivationAnalyzer,
+)
+from dendritic_modeling.analysis.tools.synaptic_turnover import SynapticTurnoverAnalyzer
 from dendritic_modeling.analysis.tools.weight import WeightAnalyzer
 from dendritic_modeling.plotting.visualizations.general_analysis_plots import (
-    plot_performance_metrics, plot_synapse_turnover, plot_weight_distributions)
-from dendritic_modeling.plotting.visualizations.information_analysis import \
-    plot_information_analysis
+    plot_performance_metrics,
+    plot_synapse_turnover,
+    plot_weight_distributions,
+)
+from dendritic_modeling.plotting.visualizations.information_analysis import (
+    plot_information_analysis,
+)
 
 
 class AnalysisManager:
@@ -179,8 +183,9 @@ class AnalysisManager:
                 # Generate epoch evolution plots if training analysis was enabled
                 if self.config.performance_analysis.training:
                     try:
-                        from dendritic_modeling.plotting.visualizations.performance_plots import \
-                            PerformancePlotter
+                        from dendritic_modeling.plotting.visualizations.performance_plots import (
+                            PerformancePlotter,
+                        )
 
                         plotter = PerformancePlotter()
 
@@ -235,8 +240,9 @@ class AnalysisManager:
 
                 # Also plot per-layer information if available
                 if "layer_statistics" in info_results:
-                    from dendritic_modeling.plotting.visualizations.information_analysis import \
-                        InformationAnalysisPlotter
+                    from dendritic_modeling.plotting.visualizations.information_analysis import (
+                        InformationAnalysisPlotter,
+                    )
 
                     plotter = InformationAnalysisPlotter()
                     plotter.plot_per_layer_information(
@@ -297,8 +303,9 @@ class AnalysisManager:
 
                     # Plot layer statistics if available
                     if "layer_statistics" in turnover_results:
-                        from dendritic_modeling.plotting.visualizations.general_analysis_plots import \
-                            plot_layer_synapse_statistics
+                        from dendritic_modeling.plotting.visualizations.general_analysis_plots import (
+                            plot_layer_synapse_statistics,
+                        )
 
                         plot_layer_synapse_statistics(
                             turnover_results["layer_statistics"],

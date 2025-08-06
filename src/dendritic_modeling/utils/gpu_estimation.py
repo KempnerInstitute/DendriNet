@@ -616,8 +616,7 @@ def estimate_from_config(config_path: str, batch_size: Optional[int] = None):
     from dendritic_modeling.datasets import get_unified_datasets
     from dendritic_modeling.models import Classifier, Regressor
     from dendritic_modeling.networks import Identity
-    from dendritic_modeling.networks.architectures.factory import \
-        get_architecture
+    from dendritic_modeling.networks.architectures.factory import get_architecture
 
     # Load configuration
     config = load_config(config_path)

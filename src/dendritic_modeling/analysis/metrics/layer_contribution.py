@@ -14,11 +14,17 @@ from torch.utils.data import TensorDataset
 
 from dendritic_modeling.config import SingleLayerContributionAnalysisParams
 from dendritic_modeling.models import BaseModel, Classifier
-from dendritic_modeling.networks import (DendriticBranchLayer,
-                                         ExcitationInhibitionNetwork)
+from dendritic_modeling.networks import (
+    DendriticBranchLayer,
+    ExcitationInhibitionNetwork,
+)
 from dendritic_modeling.training.utils.evaluation import (
-    evaluate_accuracy, evaluate_auc, evaluate_categorical_loglikelihood,
-    evaluate_cosine_similarity, evaluate_mse)
+    evaluate_accuracy,
+    evaluate_auc,
+    evaluate_categorical_loglikelihood,
+    evaluate_cosine_similarity,
+    evaluate_mse,
+)
 from dendritic_modeling.utils import save_dict
 
 
@@ -112,13 +118,16 @@ class SingleLayerContributionAnalyzer:
                 if contribution_type == "inhibition":
                     module.branch_excitation.pre_w.data.fill_(-1000)
 
-                def _evaluate_metric(metric_func: Callable, metric_key: str, cont_type: str = contribution_type, mod_name: str = module_name):
+                def _evaluate_metric(
+                    metric_func: Callable,
+                    metric_key: str,
+                    cont_type: str = contribution_type,
+                    mod_name: str = module_name,
+                ):
                     metric_score = metric_func(
                         model, test_ds=test_dataset, move_device=True
                     )[-1]
-                    results_dict[cont_type][mod_name][
-                        metric_key
-                    ] = metric_score
+                    results_dict[cont_type][mod_name][metric_key] = metric_score
 
                 if self.accuracy:
                     _evaluate_metric(

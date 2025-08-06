@@ -10,8 +10,9 @@ import math
 import torch
 import torch.nn as nn
 
-from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.topk import \
-    TOPK_INIT_METHODS
+from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.topk import (
+    TOPK_INIT_METHODS,
+)
 
 
 class DeepstLinear(nn.Module):

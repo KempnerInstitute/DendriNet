@@ -22,18 +22,25 @@ from torch.utils.data import DataLoader
 
 from dendritic_modeling import logger
 from dendritic_modeling.analysis.tools.synaptic_pruning import (
-    SynapticPruningAnalyzer, integrate_pruning_with_turnover_analysis)
-from dendritic_modeling.config.training import (OptimizerConfig, PruningConfig,
-                                                RegularizationConfig,
-                                                ReportingConfig)
+    SynapticPruningAnalyzer,
+    integrate_pruning_with_turnover_analysis,
+)
+from dendritic_modeling.config.training import (
+    OptimizerConfig,
+    PruningConfig,
+    RegularizationConfig,
+    ReportingConfig,
+)
 from dendritic_modeling.models import BaseModel
-from dendritic_modeling.plotting.visualizations.general_analysis_plots import \
-    plot_loss_curves as plot_training_loss_curves
-from dendritic_modeling.training.loss.functions import (LossFunction,
-                                                        get_loss_function)
+from dendritic_modeling.plotting.visualizations.general_analysis_plots import (
+    plot_loss_curves as plot_training_loss_curves,
+)
+from dendritic_modeling.training.loss.functions import LossFunction, get_loss_function
 from dendritic_modeling.training.optimizers.factory import create_optimizer
-from dendritic_modeling.training.regularization import (PruningManager,
-                                                        RegularizationManager)
+from dendritic_modeling.training.regularization import (
+    PruningManager,
+    RegularizationManager,
+)
 
 
 class Trainer:
@@ -669,8 +676,9 @@ class Trainer:
 
             # Generate independent performance comparison plot
             if self.save_path:
-                from dendritic_modeling.plotting.visualizations.general_analysis_plots import \
-                    plot_pruning_performance_comparison
+                from dendritic_modeling.plotting.visualizations.general_analysis_plots import (
+                    plot_pruning_performance_comparison,
+                )
 
                 performance_comparison = {
                     "before_pruning": self.pre_pruning_performance,
@@ -738,8 +746,9 @@ class Trainer:
                     )
 
             # Generate performance comparison plot
-            from dendritic_modeling.plotting.visualizations.general_analysis_plots import \
-                plot_pruning_performance_comparison
+            from dendritic_modeling.plotting.visualizations.general_analysis_plots import (
+                plot_pruning_performance_comparison,
+            )
 
             performance_plot = plot_pruning_performance_comparison(
                 performance_comparison,
