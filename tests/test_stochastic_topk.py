@@ -2,7 +2,8 @@ import unittest
 
 import torch
 
-from dendritic_modeling.networks import StochasticTopKLinear, VarianceTopKLinear
+from dendritic_modeling.networks import (StochasticTopKLinear,
+                                         VarianceTopKLinear)
 
 
 class TestStochasticTopKLinear(unittest.TestCase):
@@ -38,11 +39,11 @@ class TestStochasticTopKLinear(unittest.TestCase):
             pruned_weights = model.pruned_weight()
             non_zero_counts = (pruned_weights > 0).sum(dim=1)
             non_zero_counts_list.append(non_zero_counts)
-        
+
         # Check if there's variation across runs or accept deterministic behavior
         all_counts = torch.stack(non_zero_counts_list)
         has_variation = torch.any(all_counts != all_counts[0])
-        
+
         if has_variation:
             # If there's variation, it's properly stochastic
             self.assertTrue(True)
@@ -124,27 +125,29 @@ class TestStochasticTopKLinear(unittest.TestCase):
 
         # Generate multiple samples to compare stochasticity
         x = torch.randn(1, in_features)
-        
+
         low_temp_outputs = []
         high_temp_outputs = []
-        
+
         # Run multiple forward passes
         for _ in range(10):
             low_temp_outputs.append(model_low_temp(x))
             high_temp_outputs.append(model_high_temp(x))
-        
+
         # Calculate variance in outputs
         low_temp_stack = torch.stack(low_temp_outputs)
         high_temp_stack = torch.stack(high_temp_outputs)
-        
+
         low_temp_variance = low_temp_stack.var(dim=0).mean().item()
         high_temp_variance = high_temp_stack.var(dim=0).mean().item()
-        
+
         # Higher temperature should generally lead to more variation
         # But if both are very low, just check that the test doesn't crash
         if high_temp_variance > 1e-6 or low_temp_variance > 1e-6:
             # Only assert if there's meaningful variation to compare
-            self.assertGreaterEqual(high_temp_variance, low_temp_variance * 0.8)  # Allow some tolerance
+            self.assertGreaterEqual(
+                high_temp_variance, low_temp_variance * 0.8
+            )  # Allow some tolerance
         else:
             # If both are near zero, just verify the models work
             self.assertTrue(True)

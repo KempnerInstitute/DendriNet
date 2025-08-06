@@ -11,8 +11,10 @@ import unittest
 
 import torch
 
-from dendritic_modeling.networks.architectures.classical.mlp import EffectiveMatchedParamMLP
-from dendritic_modeling.networks.architectures.excitation_inhibition import ExcitationInhibitionNetwork
+from dendritic_modeling.networks.architectures.classical.mlp import \
+    EffectiveMatchedParamMLP
+from dendritic_modeling.networks.architectures.excitation_inhibition import \
+    ExcitationInhibitionNetwork
 from dendritic_modeling.networks.architectures.factory import get_architecture
 
 
@@ -39,16 +41,15 @@ class TestEffectiveMatchedParamMLP(unittest.TestCase):
         """Test that EffectiveMatchedParamMLP matches EINet's effective parameters."""
         # Create EINet with default transfer_params
         transfer_params = {
-            'input_mode': 0,
-            'independent_pathways': False,
-            'excitatory_dim': [],
-            'inhibitory_dim': [],
-            'output_activation': 'none'
+            "input_mode": 0,
+            "independent_pathways": False,
+            "excitatory_dim": [],
+            "inhibitory_dim": [],
+            "output_activation": "none",
         }
-        
+
         einet = ExcitationInhibitionNetwork(
-            transfer_params=transfer_params,
-            **self.params
+            transfer_params=transfer_params, **self.params
         )
         effective_params = einet.get_effective_params()
 
@@ -58,34 +59,34 @@ class TestEffectiveMatchedParamMLP(unittest.TestCase):
 
         # Check that MLP has at least as many params as EINet's effective count
         self.assertGreaterEqual(
-            mlp_params, 
-            effective_params, 
-            f"MLP params ({mlp_params}) should be >= EINet effective params ({effective_params})"
+            mlp_params,
+            effective_params,
+            f"MLP params ({mlp_params}) should be >= EINet effective params ({effective_params})",
         )
-        
+
         # Check that param counts are reasonably close (within 20%)
         ratio = abs(mlp_params - effective_params) / max(effective_params, 1)
         self.assertLess(
-            ratio, 
-            0.2, 
-            f"Param counts should be close: MLP={mlp_params}, EINet effective={effective_params}, ratio={ratio:.3f}"
+            ratio,
+            0.2,
+            f"Param counts should be close: MLP={mlp_params}, EINet effective={effective_params}, ratio={ratio:.3f}",
         )
 
     def test_forward_pass(self):
         """Test that EffectiveMatchedParamMLP forward pass works correctly."""
         mlp = EffectiveMatchedParamMLP(**self.params)
-        
+
         # Test forward pass with batch of inputs
         batch_size = 32
         input_dim = self.params["input_dim"]
         x = torch.randn(batch_size, input_dim)
-        
+
         output = mlp(x)
-        
+
         # Check output shape
         expected_output_shape = (batch_size, self.params["excitatory_layer_sizes"][-1])
         self.assertEqual(output.shape, expected_output_shape)
-        
+
         # Check that output is finite
         self.assertTrue(torch.isfinite(output).all())
 
@@ -96,22 +97,27 @@ class TestEffectiveMatchedParamMLP(unittest.TestCase):
 
     def test_comparison_with_regular_matched_mlp(self):
         """Test that EffectiveMatchedParamMLP has fewer params than regular MatchedParamMLP."""
-        from dendritic_modeling.networks.architectures.classical.mlp import MatchedParamMLP
-        
+        from dendritic_modeling.networks.architectures.classical.mlp import \
+            MatchedParamMLP
+
         # Create both MLPs
         effective_mlp = EffectiveMatchedParamMLP(**self.params)
         regular_mlp = MatchedParamMLP(**self.params)
-        
+
         # Count parameters
-        effective_params = sum(p.numel() for p in effective_mlp.parameters() if p.requires_grad)
-        regular_params = sum(p.numel() for p in regular_mlp.parameters() if p.requires_grad)
-        
+        effective_params = sum(
+            p.numel() for p in effective_mlp.parameters() if p.requires_grad
+        )
+        regular_params = sum(
+            p.numel() for p in regular_mlp.parameters() if p.requires_grad
+        )
+
         # EffectiveMatchedParamMLP should have fewer parameters than regular MatchedParamMLP
         # because it accounts for topk sparsity
         self.assertLess(
             effective_params,
             regular_params,
-            f"EffectiveMatchedParamMLP ({effective_params}) should have fewer params than MatchedParamMLP ({regular_params})"
+            f"EffectiveMatchedParamMLP ({effective_params}) should have fewer params than MatchedParamMLP ({regular_params})",
         )
 
     def test_small_network(self):
@@ -129,10 +135,10 @@ class TestEffectiveMatchedParamMLP(unittest.TestCase):
             "reactivate": False,
             "somatic_synapses": True,
         }
-        
+
         # Should not raise any errors
         mlp = EffectiveMatchedParamMLP(**small_params)
-        
+
         # Test forward pass
         x = torch.randn(5, 10)
         output = mlp(x)
@@ -140,4 +146,4 @@ class TestEffectiveMatchedParamMLP(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    unittest.main() 
+    unittest.main()

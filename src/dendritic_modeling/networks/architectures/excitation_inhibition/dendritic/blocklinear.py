@@ -162,7 +162,7 @@ class BlockLinear(nn.Module):
 
 
 class EfficientBlockLinear(BlockLinear):
-    """BlockLinear variant with *O(out_features × block_size)* memory.
+    """BlockLinear variant with *O(out_features x block_size)* memory.
 
     Forward pass reshapes the input into (B, out, block_size) and performs a
     weighted sum along the last dimension, eliminating the need to materialise
@@ -203,5 +203,4 @@ class EfficientBlockLinear(BlockLinear):
         return output
 
 
-__all__ = ["BlockLinear"]
-__all__.extend(["EfficientBlockLinear"])
+__all__ = ["BlockLinear", "EfficientBlockLinear"]

@@ -58,7 +58,7 @@ def estimate_ei_model_detailed(config: dict) -> dict[str, float]:
     total_params += transfer_input_params
     print("Transfer function (input -> transfer dims):")
     print(
-        f"  {input_dim} × ({e_transfer_dim} + {i_transfer_dim}) = {transfer_input_params:,}"
+        f"  {input_dim} x ({e_transfer_dim} + {i_transfer_dim}) = {transfer_input_params:,}"
     )
 
     # 2. Transfer to first layer
@@ -67,13 +67,13 @@ def estimate_ei_model_detailed(config: dict) -> dict[str, float]:
         transfer_to_e_params = e_transfer_dim * e_layers[0]
         transfer_to_layer_params += transfer_to_e_params
         print("Transfer -> E layer:")
-        print(f"  {e_transfer_dim} × {e_layers[0]} = {transfer_to_e_params:,}")
+        print(f"  {e_transfer_dim} x {e_layers[0]} = {transfer_to_e_params:,}")
 
     if i_layers and len(i_layers) > 0 and i_layers[0] > 0:
         transfer_to_i_params = i_transfer_dim * i_layers[0]
         transfer_to_layer_params += transfer_to_i_params
         print("Transfer -> I layer:")
-        print(f"  {i_transfer_dim} × {i_layers[0]} = {transfer_to_i_params:,}")
+        print(f"  {i_transfer_dim} x {i_layers[0]} = {transfer_to_i_params:,}")
 
     total_params += transfer_to_layer_params
 
@@ -88,7 +88,7 @@ def estimate_ei_model_detailed(config: dict) -> dict[str, float]:
         dendritic_params += ie_params
         print("I->E dendritic connections:")
         print(
-            f"  {e_layers[0]} neurons × {e_branches_per_neuron} branches × {ie_synapses[0]} synapses"
+            f"  {e_layers[0]} neurons x {e_branches_per_neuron} branches x {ie_synapses[0]} synapses"
         )
         print(f"  = {ie_params:,}")
 
@@ -99,7 +99,7 @@ def estimate_ei_model_detailed(config: dict) -> dict[str, float]:
     reactivation_params = total_neurons * 2
     total_params += reactivation_params
     print("Reactivation parameters:")
-    print(f"  {total_neurons} neurons × 2 = {reactivation_params:,}")
+    print(f"  {total_neurons} neurons x 2 = {reactivation_params:,}")
 
     # 5. Decoder parameters
     decoder_config = config["model"]["decoder_network"]["parameters"]
@@ -115,14 +115,14 @@ def estimate_ei_model_detailed(config: dict) -> dict[str, float]:
         layer_params = prev_dim * hidden_dim + hidden_dim  # weights + bias
         decoder_params += layer_params
         print(
-            f"  Layer {i+1}: {prev_dim} × {hidden_dim} + {hidden_dim} = {layer_params:,}"
+            f"  Layer {i+1}: {prev_dim} x {hidden_dim} + {hidden_dim} = {layer_params:,}"
         )
         prev_dim = hidden_dim
 
     # Output layer
     output_params = prev_dim * output_dim + output_dim
     decoder_params += output_params
-    print(f"  Output: {prev_dim} × {output_dim} + {output_dim} = {output_params:,}")
+    print(f"  Output: {prev_dim} x {output_dim} + {output_dim} = {output_params:,}")
 
     total_params += decoder_params
 

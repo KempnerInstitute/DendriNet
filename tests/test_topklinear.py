@@ -125,7 +125,7 @@ class TestTopKLinear(unittest.TestCase):
         K = 3
         batch_size = 4
 
-        model = TopKLinear(in_features, out_features, K, param_space='presigmoid')
+        model = TopKLinear(in_features, out_features, K, param_space="presigmoid")
         x = torch.randn(batch_size, in_features)
         output = model(x)
 

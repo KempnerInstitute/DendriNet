@@ -2,7 +2,8 @@ import unittest
 
 import torch
 
-from dendritic_modeling.networks import BlockLinear, DendriNet, DendriticBranchLayer
+from dendritic_modeling.networks import (BlockLinear, DendriNet,
+                                         DendriticBranchLayer)
 
 
 class TestDendriNet(unittest.TestCase):

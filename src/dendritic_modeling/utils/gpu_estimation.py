@@ -595,7 +595,7 @@ class GPUMemoryEstimator:
                 f"[RECOMMENDED] {optimal_config['total_gpus']}x {optimal_config['gpu_type']} FSDP"
             )
             logger.info(
-                f"[CONFIG] {optimal_config['nodes']} nodes × {optimal_config['gpus_per_node']} GPUs/node"
+                f"[CONFIG] {optimal_config['nodes']} nodes x {optimal_config['gpus_per_node']} GPUs/node"
             )
 
         logger.info("=" * 80)

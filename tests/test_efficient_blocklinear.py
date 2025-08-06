@@ -1,10 +1,9 @@
 import unittest
+
 import torch
 
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.blocklinear import (
-    BlockLinear,
-    EfficientBlockLinear,
-)
+    BlockLinear, EfficientBlockLinear)
 
 
 class TestEfficientBlockLinear(unittest.TestCase):

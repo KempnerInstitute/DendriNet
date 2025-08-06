@@ -141,7 +141,7 @@ class FSDPJobManager:
                 f"Single GPU memory: {estimation_results['memory_single_gpu']:.2f} GB"
             )
             logger.info(
-                f"Optimal config: {optimal_config['nodes']} nodes × {optimal_config['gpus_per_node']} GPUs"
+                f"Optimal config: {optimal_config['nodes']} nodes x {optimal_config['gpus_per_node']} GPUs"
             )
 
             return estimation_results
@@ -172,7 +172,7 @@ class FSDPJobManager:
             if estimation_results and "optimal_config" in estimation_results:
                 optimal_config = estimation_results["optimal_config"]
                 logger.info(
-                    f"Using optimal GPU config: {optimal_config['nodes']} nodes × {optimal_config['gpus_per_node']} GPUs"
+                    f"Using optimal GPU config: {optimal_config['nodes']} nodes x {optimal_config['gpus_per_node']} GPUs"
                 )
 
             # Apply additional overrides if provided

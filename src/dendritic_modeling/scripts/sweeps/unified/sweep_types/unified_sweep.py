@@ -248,7 +248,7 @@ class UnifiedSweepGenerator(BaseSweepGenerator):
             ] = branch_lists
 
         else:  # uniform_sweep (default) - old behavior
-            # Generate all combinations of depth × uniform branch count
+            # Generate all combinations of depth x uniform branch count
             depths = expand_ranges(filter_config.get("dendrite_tree_depth", [1, 3, 1]))
             branch_counts = expand_ranges(
                 filter_config.get("dendrite_branches_per_layer", [2, 4, 1])

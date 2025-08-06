@@ -16,45 +16,45 @@ from unittest.mock import Mock, patch
 import torch
 from torch.utils.data import TensorDataset
 
-from dendritic_modeling.datasets import (
-    get_data_directory,
-    get_unified_datasets,
-    load_cifar10_as_datasets,
-    load_mnist_as_datasets,
-    load_mnist_modulo10,
-)
-from torchvision.datasets import MNIST, CIFAR10
+from dendritic_modeling.datasets import (get_data_directory,
+                                         get_unified_datasets,
+                                         load_cifar10_as_datasets,
+                                         load_mnist_as_datasets,
+                                         load_mnist_modulo10)
 
 # Import synthetic datasets from experiments folder
 try:
-    import sys
     import os
-    experiments_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "experiments")
+    import sys
+
+    experiments_path = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "experiments"
+    )
     if experiments_path not in sys.path:
         sys.path.insert(0, experiments_path)
-    
-    from data_generation.synthetic_datasets import (
-        CenterSurroundDataset,
-        InfoShuntingDataset,
-        LineDataset,
-        MultiXORDataset,
-        NoisyLineDataset,
-        OrientationBarsDataset,
-        OrthoNetDataset,
-        PoissonGeneratorDataset,
-        RandomFlipMNISTDataset,
-        CompositionalMNIST,
-    )
+
+    from data_generation.synthetic_datasets import (CenterSurroundDataset,
+                                                    CompositionalMNIST,
+                                                    InfoShuntingDataset,
+                                                    LineDataset,
+                                                    MultiXORDataset,
+                                                    NoisyLineDataset,
+                                                    OrientationBarsDataset,
+                                                    OrthoNetDataset,
+                                                    PoissonGeneratorDataset,
+                                                    RandomFlipMNISTDataset)
 except ImportError:
     # If synthetic datasets are not available, create dummy classes for testing
     class DummyDataset:
         def __init__(self, *args, **kwargs):
             pass
+
         def __len__(self):
             return 10
+
         def __getitem__(self, idx):
             return torch.randn(10), torch.randint(0, 2, (1,)).item()
-    
+
     CenterSurroundDataset = DummyDataset
     InfoShuntingDataset = DummyDataset
     LineDataset = DummyDataset
@@ -200,12 +200,12 @@ class TestRealDatasets(unittest.TestCase):
         self.assertIsNotNone(train_ds)
         self.assertIsNotNone(valid_ds)
         self.assertIsNotNone(test_ds)
-        
+
         # Check dataset types and basic properties
         self.assertIsInstance(train_ds, TensorDataset)
         self.assertIsInstance(valid_ds, TensorDataset)
         self.assertIsInstance(test_ds, TensorDataset)
-        
+
         # Check that we have data
         self.assertGreater(len(train_ds), 0)
         self.assertGreater(len(test_ds), 0)
@@ -224,12 +224,12 @@ class TestRealDatasets(unittest.TestCase):
         self.assertIsNotNone(train_ds)
         self.assertIsNotNone(valid_ds)
         self.assertIsNotNone(test_ds)
-        
+
         # Check dataset types and basic properties
         self.assertIsInstance(train_ds, TensorDataset)
         self.assertIsInstance(valid_ds, TensorDataset)
         self.assertIsInstance(test_ds, TensorDataset)
-        
+
         # Check that we have data
         self.assertGreater(len(train_ds), 0)
         self.assertGreater(len(test_ds), 0)
@@ -359,7 +359,7 @@ class TestGetUnifiedDatasets(unittest.TestCase):
             "train_size": 25,
             "valid_size": 10,
             "test_size": 15,
-            "image_size": 16
+            "image_size": 16,
         }
         train_ds, valid_ds, test_ds = get_unified_datasets(
             self.task_cfg, self.train_cfg, output_dir=self.temp_dir

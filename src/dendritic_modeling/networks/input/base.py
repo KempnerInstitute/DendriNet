@@ -13,6 +13,7 @@ import torch.nn as nn
 
 from dendritic_modeling.networks.architectures.excitation_inhibition.input_transform.index import \
     IndexInputTransform
+from dendritic_modeling.networks.architectures.classical.mlp.mlp import MLP as MLPInputTransform
 
 logger = logging.getLogger(__name__)
 

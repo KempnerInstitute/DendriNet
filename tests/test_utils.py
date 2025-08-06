@@ -1,17 +1,17 @@
 import tempfile
 import unittest
 
+import numpy as np
 import torch
 import torch.nn as nn
 
 from dendritic_modeling.datasets import load_mnist_modulo10
-
 # Import functions from their actual locations
 from dendritic_modeling.training.utils.evaluation import accuracy_score
 from dendritic_modeling.utils import Shaper
-import numpy as np
-from dendritic_modeling.utils.information.estimators import InformationEstimatorFactory, EstimatorConfig
 from dendritic_modeling.utils.gpu_estimation import GPUMemoryEstimator
+from dendritic_modeling.utils.information.estimators import (
+    EstimatorConfig, InformationEstimatorFactory)
 
 
 class TestShaper(unittest.TestCase):
@@ -138,25 +138,30 @@ class TestLoadMNISTModulo10(unittest.TestCase):
 
 
 def test_mutual_information():
-    config = EstimatorConfig(method='kraskov', n_neighbors=3)
+    config = EstimatorConfig(method="kraskov", n_neighbors=3)
     estimator = InformationEstimatorFactory.create(config)
     x = np.random.rand(100)
     y = np.random.rand(100)  # Uncorrelated
-    mi = estimator.mutual_information(x.reshape(-1,1), y.reshape(-1,1))
-    assert isinstance(mi, (int, float)) and mi >= 0  # MI should be non-negative, can be int or float
+    mi = estimator.mutual_information(x.reshape(-1, 1), y.reshape(-1, 1))
+    assert (
+        isinstance(mi, (int, float)) and mi >= 0
+    )  # MI should be non-negative, can be int or float
+
 
 def test_conditional_mi():
-    config = EstimatorConfig(method='kraskov', n_neighbors=3)
+    config = EstimatorConfig(method="kraskov", n_neighbors=3)
     estimator = InformationEstimatorFactory.create(config)
     x = np.random.rand(100)
     y = x + np.random.rand(100) * 0.1
     z = np.random.rand(100)
-    cmi = estimator.conditional_mutual_information(x.reshape(-1,1), y.reshape(-1,1), z.reshape(-1,1))
+    cmi = estimator.conditional_mutual_information(
+        x.reshape(-1, 1), y.reshape(-1, 1), z.reshape(-1, 1)
+    )
     assert isinstance(cmi, float)
 
 
 def test_gpu_estimator():
-    estimator = GPUMemoryEstimator(dtype='fp16', optimizer='adam')
+    estimator = GPUMemoryEstimator(dtype="fp16", optimizer="adam")
     assert estimator.bytes_per_param == 2
 
 
