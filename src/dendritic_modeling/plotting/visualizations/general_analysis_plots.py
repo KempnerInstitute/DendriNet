@@ -200,9 +200,9 @@ def plot_per_layer_ablation(layer_results: dict[str, dict[str, dict]], **kwargs)
 
         # Create mapping from original technical names to display names
         all_depths = set()
-        for ablation_type, ablation_data in layer_results.items():
+        for _ablation_type, ablation_data in layer_results.items():
             if ablation_data:
-                for layer_name, layer_metrics in ablation_data.items():
+                for _layer_name, layer_metrics in ablation_data.items():
                     if "depth" in layer_metrics:
                         all_depths.add(layer_metrics["depth"])
 
@@ -224,7 +224,7 @@ def plot_per_layer_ablation(layer_results: dict[str, dict[str, dict]], **kwargs)
 
                 # Find the layer data for this depth
                 layer_metrics = None
-                for layer_name, metrics in ablation_data.items():
+                for _layer_name, metrics in ablation_data.items():
                     if metrics.get("depth") == depth:
                         layer_metrics = metrics
                         break
@@ -1386,7 +1386,7 @@ def plot_active_synapses_per_branch(
             ax.set_xlabel("Layer")
             ax.set_ylabel("Number of Active Synapses")
             if save_path and filename:
-                plotting_utils.save_plot(fig, save_path, filename)
+                save_plot(fig, save_path, filename)
             return fig
 
         # Organize data by layer and branch
@@ -1589,7 +1589,7 @@ def plot_active_synapses_summary_by_layer(
             ax.set_xlabel("Layer")
             ax.set_ylabel("Number of Active Synapses")
             if save_path and filename:
-                plotting_utils.save_plot(fig, save_path, filename)
+                save_plot(fig, save_path, filename)
             return fig
 
         # Organize data by layer
@@ -1650,14 +1650,14 @@ def plot_active_synapses_summary_by_layer(
         sorted_layers = sorted(layers_summary.keys())
 
         # Extract data arrays
-        exc_means = [layers_summary[l]["excitatory"]["mean"] for l in sorted_layers]
-        exc_stds = [layers_summary[l]["excitatory"]["std"] for l in sorted_layers]
+        exc_means = [layers_summary[layer]["excitatory"]["mean"] for layer in sorted_layers]
+        exc_stds = [layers_summary[layer]["excitatory"]["std"] for layer in sorted_layers]
 
-        inh_means = [layers_summary[l]["inhibitory"]["mean"] for l in sorted_layers]
-        inh_stds = [layers_summary[l]["inhibitory"]["std"] for l in sorted_layers]
+        inh_means = [layers_summary[layer]["inhibitory"]["mean"] for layer in sorted_layers]
+        inh_stds = [layers_summary[layer]["inhibitory"]["std"] for layer in sorted_layers]
 
-        total_means = [layers_summary[l]["total"]["mean"] for l in sorted_layers]
-        total_stds = [layers_summary[l]["total"]["std"] for l in sorted_layers]
+        total_means = [layers_summary[layer]["total"]["mean"] for layer in sorted_layers]
+        total_stds = [layers_summary[layer]["total"]["std"] for layer in sorted_layers]
 
         # Create the plot with 3 subplots
         fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(15, 5))

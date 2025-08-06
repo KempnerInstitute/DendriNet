@@ -13,7 +13,7 @@ import torch.nn as nn
 
 from dendritic_modeling.networks.architectures.excitation_inhibition.input_transform.index import \
     IndexInputTransform
-from dendritic_modeling.networks.architectures.classical.mlp.mlp import MLP as MLPInputTransform
+from dendritic_modeling.networks.architectures.classical.mlp.mlp import MLP
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +40,7 @@ class InputNetTransform(nn.Module):
         inhibitory_kernel_sizes: Optional[list[int]] = None,
         excitatory_strides: Optional[list[int]] = None,
         inhibitory_strides: Optional[list[int]] = None,
-        network_type: str = "MLPInputTransform",
+        network_type: str = "MLP",
     ):
         super().__init__()
         self.network_type = network_type
@@ -52,8 +52,8 @@ class InputNetTransform(nn.Module):
                 inhibitory_dim=inhibitory_dim,
             )
 
-        elif network_type == "MLPInputTransform":
-            self.input_transform = MLPInputTransform(
+        elif network_type == "MLP":
+            self.input_transform = MLP(
                 input_dim=input_dim, hidden_dims=hidden_dims, output_dim=output_dim
             )
             self.input_transform.set_readout(False)

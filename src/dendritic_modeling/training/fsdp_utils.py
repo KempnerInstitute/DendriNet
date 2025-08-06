@@ -1,9 +1,9 @@
 """
-FSDP Utilities for Large Dendritic Models
+FullyShardedDataParallel Utilities for Large Dendritic Models
 =========================================
 
 This module provides utilities for training extremely large dendritic models
-that cannot fit on a single GPU using PyTorch's Fully Sharded Data Parallel (FSDP).
+that cannot fit on a single GPU using PyTorch's Fully Sharded Data Parallel (FullyShardedDataParallel).
 """
 
 from typing import Any, Optional
@@ -11,7 +11,7 @@ from typing import Any, Optional
 import torch
 from torch.distributed.fsdp import (BackwardPrefetch, CPUOffload,
                                     FullStateDictConfig)
-from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
+from torch.distributed.fsdp import FullyShardedDataParallel
 from torch.distributed.fsdp import (MixedPrecision, ShardingStrategy,
                                     StateDictType)
 
@@ -23,7 +23,7 @@ from dendritic_modeling.networks.architectures.excitation_inhibition import (
 
 def create_fsdp_wrap_policy(min_num_params: int = 1e6):
     """
-    Create an auto-wrap policy for FSDP that intelligently wraps dendritic layers.
+    Create an auto-wrap policy for FullyShardedDataParallel that intelligently wraps dendritic layers.
 
     Args:
         min_num_params: Minimum number of parameters for a layer to be wrapped
@@ -56,18 +56,18 @@ def get_fsdp_config(
     fsdp_config_dict: Optional[dict[str, Any]] = None,
 ) -> dict[str, Any]:
     """
-    Get FSDP configuration based on model size and requirements.
+    Get FullyShardedDataParallel configuration based on model size and requirements.
 
     Args:
         model_size: "small", "large", or "xlarge"
         mixed_precision: Whether to use mixed precision training
         cpu_offload: Whether to offload parameters to CPU
-        sharding_strategy: FSDP sharding strategy
+        sharding_strategy: FullyShardedDataParallel sharding strategy
         reduce_communication_overhead: Whether to enable communication optimizations
-        fsdp_config_dict: Direct FSDP configuration from config file (overrides other params)
+        fsdp_config_dict: Direct FullyShardedDataParallel configuration from config file (overrides other params)
 
     Returns:
-        FSDP configuration dictionary
+        FullyShardedDataParallel configuration dictionary
     """
     # If a direct config dict is provided, use those values with fallbacks
     if fsdp_config_dict is not None:
@@ -177,7 +177,7 @@ def get_fsdp_config(
         except Exception:
             pass  # Ignore if not available
 
-    # Store gradient checkpointing flag for later use (not directly an FSDP param)
+    # Store gradient checkpointing flag for later use (not directly an FullyShardedDataParallel param)
     config["_gradient_checkpointing"] = gradient_checkpointing
 
     return config
@@ -186,27 +186,27 @@ def get_fsdp_config(
 def wrap_model_with_fsdp(
     model: torch.nn.Module,
     fsdp_config: Optional[dict[str, Any]] = None,
-) -> FSDP:
+) -> FullyShardedDataParallel:
     """
-    Wrap a dendritic model with FSDP.
+    Wrap a dendritic model with FullyShardedDataParallel.
 
     Args:
         model: The model to wrap
-        fsdp_config: FSDP configuration (uses defaults if None)
+        fsdp_config: FullyShardedDataParallel configuration (uses defaults if None)
 
     Returns:
-        FSDP-wrapped model
+        FullyShardedDataParallel-wrapped model
     """
     if fsdp_config is None:
         fsdp_config = get_fsdp_config()
 
-    # Extract gradient checkpointing flag (not an FSDP parameter)
+    # Extract gradient checkpointing flag (not an FullyShardedDataParallel parameter)
     gradient_checkpointing = fsdp_config.pop("_gradient_checkpointing", False)
 
     # Special handling for dendritic models
     if hasattr(model, "net") and isinstance(model.net, ExcitationInhibitionNetwork):
         logger.info(
-            "Detected E/I Network - applying FSDP with dendritic-aware wrapping"
+            "Detected E/I Network - applying FullyShardedDataParallel with dendritic-aware wrapping"
         )
 
         # Estimate model size
@@ -220,7 +220,7 @@ def wrap_model_with_fsdp(
     # Apply gradient checkpointing if enabled
     if gradient_checkpointing:
         logger.info("Enabling gradient checkpointing for memory savings")
-        # Apply gradient checkpointing to the model before FSDP wrapping
+        # Apply gradient checkpointing to the model before FullyShardedDataParallel wrapping
 
         # For dendritic models, apply checkpointing to major components
         if hasattr(model, "net"):
@@ -230,8 +230,8 @@ def wrap_model_with_fsdp(
             # Apply to the entire model
             _apply_gradient_checkpointing(model)
 
-    # Wrap the model with FSDP
-    fsdp_model = FSDP(model, **fsdp_config)
+    # Wrap the model with FullyShardedDataParallel
+    fsdp_model = FullyShardedDataParallel(model, **fsdp_config)
 
     return fsdp_model
 
@@ -251,8 +251,8 @@ def _apply_gradient_checkpointing(model: torch.nn.Module):
             # Wrap the forward method with checkpointing
             original_forward = module.forward
 
-            def checkpointed_forward(self, *args, **kwargs):
-                return checkpoint(original_forward, *args, **kwargs)
+            def checkpointed_forward(self, *args, orig_forward=original_forward, **kwargs):
+                return checkpoint(orig_forward, *args, **kwargs)
 
             # Bind the method to the instance
             import types
@@ -263,8 +263,8 @@ def _apply_gradient_checkpointing(model: torch.nn.Module):
             # Apply to large linear layers
             original_forward = module.forward
 
-            def checkpointed_forward(self, *args, **kwargs):
-                return checkpoint(original_forward, *args, **kwargs)
+            def checkpointed_forward(self, *args, orig_forward=original_forward, **kwargs):
+                return checkpoint(orig_forward, *args, **kwargs)
 
             import types
 
@@ -273,17 +273,17 @@ def _apply_gradient_checkpointing(model: torch.nn.Module):
 
 
 def save_fsdp_checkpoint(
-    model: FSDP,
+    model: FullyShardedDataParallel,
     optimizer: torch.optim.Optimizer,
     epoch: int,
     save_path: str,
     rank: int = 0,
 ):
     """
-    Save FSDP model checkpoint.
+    Save FullyShardedDataParallel model checkpoint.
 
     Args:
-        model: FSDP-wrapped model
+        model: FullyShardedDataParallel-wrapped model
         optimizer: Optimizer
         epoch: Current epoch
         save_path: Path to save checkpoint
@@ -292,7 +292,7 @@ def save_fsdp_checkpoint(
     # Configure state dict saving
     save_policy = FullStateDictConfig(offload_to_cpu=True, rank0_only=True)
 
-    with FSDP.state_dict_type(model, StateDictType.FULL_STATE_DICT, save_policy):
+    with FullyShardedDataParallel.state_dict_type(model, StateDictType.FULL_STATE_DICT, save_policy):
         state_dict = model.state_dict()
 
         # Only save on rank 0
@@ -303,19 +303,19 @@ def save_fsdp_checkpoint(
                 "optimizer_state_dict": optimizer.state_dict(),
             }
             torch.save(checkpoint, save_path)
-            logger.info(f"Saved FSDP checkpoint to {save_path}")
+            logger.info(f"Saved FullyShardedDataParallel checkpoint to {save_path}")
 
 
 def load_fsdp_checkpoint(
-    model: FSDP,
+    model: FullyShardedDataParallel,
     optimizer: torch.optim.Optimizer,
     checkpoint_path: str,
 ):
     """
-    Load FSDP model checkpoint.
+    Load FullyShardedDataParallel model checkpoint.
 
     Args:
-        model: FSDP-wrapped model
+        model: FullyShardedDataParallel-wrapped model
         optimizer: Optimizer
         checkpoint_path: Path to checkpoint
 
@@ -326,7 +326,7 @@ def load_fsdp_checkpoint(
     checkpoint = torch.load(checkpoint_path, map_location="cpu")
 
     # Configure state dict loading
-    with FSDP.state_dict_type(model, StateDictType.FULL_STATE_DICT):
+    with FullyShardedDataParallel.state_dict_type(model, StateDictType.FULL_STATE_DICT):
         model.load_state_dict(checkpoint["model_state_dict"])
 
     optimizer.load_state_dict(checkpoint["optimizer_state_dict"])

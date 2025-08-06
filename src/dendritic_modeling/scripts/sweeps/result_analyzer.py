@@ -43,6 +43,7 @@ import numpy as np
 import pandas as pd
 from matplotlib.ticker import ScalarFormatter
 from scipy.ndimage import gaussian_filter1d
+from omegaconf import OmegaConf
 
 # Try importing seaborn with compatibility handling
 try:
@@ -59,8 +60,6 @@ except AttributeError:
 # Add the project root to the path
 project_root = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(project_root / "src"))
-
-from omegaconf import OmegaConf
 
 # Define supported sweep types directly to avoid circular imports
 SUPPORTED_SWEEP_TYPES = ["unified", "ei", "branch", "noise", "general"]

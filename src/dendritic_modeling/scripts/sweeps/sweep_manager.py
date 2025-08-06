@@ -33,16 +33,15 @@ import sys
 from pathlib import Path
 from typing import Optional
 
+from omegaconf import OmegaConf
+
 # Add the project root to the path
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root / "src"))
 
-from omegaconf import OmegaConf
-
 # Use absolute imports to avoid relative import issues
 try:
-    from dendritic_modeling.scripts.sweeps.unified.base_sweep import (
-        BaseSweepAnalyzer, BaseSweepGenerator, SweepJobManager)
+    from dendritic_modeling.scripts.sweeps.unified.base_sweep import SweepJobManager
     from dendritic_modeling.scripts.sweeps.unified.sweep_types.unified_sweep import \
         UnifiedSweepGenerator
 except ImportError:

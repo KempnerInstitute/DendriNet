@@ -8,7 +8,7 @@ including support for FSDP distributed training.
 
 import math
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any, ClassVar, Optional
 
 import numpy as np
 import torch
@@ -65,7 +65,7 @@ class GPURecommendation:
 class GPUMemoryEstimator:
     """Estimate GPU memory requirements for dendritic models."""
 
-    GPU_SPECS = {
+    GPU_SPECS: ClassVar[dict[str, dict[str, Any]]] = {
         "A100-40GB": {"memory_gb": 40, "compute": "high"},
         "H100": {"memory_gb": 80, "compute": "high"},
     }
