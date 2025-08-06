@@ -2,217 +2,221 @@
 Tests for layer contribution analysis to improve coverage.
 """
 
-from unittest.mock import patch
+from unittest.mock import Mock
 
 import pytest
 import torch
-import torch.nn as nn
 
 from dendritic_modeling.analysis.metrics.layer_contribution import (
-    LayerContributionAnalyzer,
-    analyze_layer_importance,
-    compute_activation_based_importance,
-    compute_gradient_based_importance,
+    SingleLayerContributionAnalyzer,
 )
 
 
-class TestLayerContributionAnalyzer:
-    """Test LayerContributionAnalyzer class."""
+class TestSingleLayerContributionAnalyzer:
+    """Test SingleLayerContributionAnalyzer class."""
 
     @pytest.fixture
-    def simple_model(self):
-        """Create a simple model for testing."""
-        model = nn.Sequential(nn.Linear(10, 5), nn.ReLU(), nn.Linear(5, 2))
-        return model
+    def mock_params(self):
+        """Create mock parameters for testing."""
+
+        class MockParams:
+            excitation_contribution = True
+            inhibition_contribution = True
+            both_contribution = True
+            accuracy = True
+            auc = True
+            categorical_loglikelihood = True
+            mse = True
+            cosine_similarity = True
+
+        return MockParams()
 
     @pytest.fixture
-    def sample_data(self):
-        """Create sample data for testing."""
+    def minimal_params(self):
+        """Create minimal parameters for testing."""
+
+        class MinimalParams:
+            pass
+
+        return MinimalParams()
+
+    @pytest.fixture
+    def sample_dataset(self):
+        """Create sample TensorDataset for testing."""
         x = torch.randn(20, 10)
         y = torch.randint(0, 2, (20,))
-        return x, y
-
-    def test_analyzer_initialization(self, simple_model):
-        """Test analyzer initialization."""
-        analyzer = LayerContributionAnalyzer(simple_model)
-
-        assert analyzer.model == simple_model
-        assert hasattr(analyzer, "layer_names")
-        assert len(analyzer.layer_names) > 0
-
-    def test_analyze_gradient_importance(self, simple_model, sample_data):
-        """Test gradient-based importance analysis."""
-        analyzer = LayerContributionAnalyzer(simple_model)
-        x, y = sample_data
-
-        importance = analyzer.analyze_gradient_importance(x, y)
-
-        assert isinstance(importance, dict)
-        assert len(importance) > 0
-        for _layer_name, score in importance.items():
-            assert isinstance(score, (float, torch.Tensor))
-
-    def test_analyze_activation_importance(self, simple_model, sample_data):
-        """Test activation-based importance analysis."""
-        analyzer = LayerContributionAnalyzer(simple_model)
-        x, y = sample_data
-
-        importance = analyzer.analyze_activation_importance(x)
-
-        assert isinstance(importance, dict)
-        assert len(importance) > 0
-        for _layer_name, score in importance.items():
-            assert isinstance(score, (float, torch.Tensor))
-
-    def test_analyze_layer_removal_impact(self, simple_model, sample_data):
-        """Test layer removal impact analysis."""
-        analyzer = LayerContributionAnalyzer(simple_model)
-        x, y = sample_data
-
-        with patch.object(analyzer, "_evaluate_model_performance") as mock_eval:
-            mock_eval.return_value = 0.8
-
-            impact = analyzer.analyze_layer_removal_impact(x, y)
-
-            assert isinstance(impact, dict)
-            assert len(impact) >= 0  # May be empty if no removable layers
-
-    def test_get_layer_names(self, simple_model):
-        """Test getting layer names."""
-        analyzer = LayerContributionAnalyzer(simple_model)
-        names = analyzer.get_layer_names()
-
-        assert isinstance(names, list)
-        assert len(names) > 0
-        assert all(isinstance(name, str) for name in names)
-
-    def test_compute_layer_statistics(self, simple_model, sample_data):
-        """Test computing layer statistics."""
-        analyzer = LayerContributionAnalyzer(simple_model)
-        x, _ = sample_data
-
-        stats = analyzer.compute_layer_statistics(x)
-
-        assert isinstance(stats, dict)
-        for _layer_name, layer_stats in stats.items():
-            assert "mean_activation" in layer_stats
-            assert "std_activation" in layer_stats
-            assert "sparsity" in layer_stats
-
-
-class TestLayerContributionFunctions:
-    """Test standalone layer contribution functions."""
+        return torch.utils.data.TensorDataset(x, y)
 
     @pytest.fixture
-    def simple_model(self):
-        """Create a simple model for testing."""
-        return nn.Sequential(nn.Linear(10, 5), nn.ReLU(), nn.Linear(5, 2))
+    def mock_model(self):
+        """Create a mock model for testing."""
+        return Mock()
 
-    @pytest.fixture
-    def sample_data(self):
-        """Create sample data for testing."""
-        x = torch.randn(20, 10)
-        y = torch.randint(0, 2, (20,))
-        return x, y
+    def test_analyzer_initialization(self, mock_params):
+        """Test analyzer initialization with full parameters."""
+        analyzer = SingleLayerContributionAnalyzer(mock_params)
 
-    def test_analyze_layer_importance(self, simple_model, sample_data):
-        """Test the main analyze_layer_importance function."""
-        x, y = sample_data
+        assert analyzer.excitation_contribution
+        assert analyzer.inhibition_contribution
+        assert analyzer.both_contribution
+        assert analyzer.accuracy
+        assert analyzer.auc
+        assert analyzer.categorical_ll
+        assert analyzer.mse
+        assert analyzer.cosine_similarity
+        assert hasattr(analyzer, "logger")
 
-        importance = analyze_layer_importance(simple_model, x, y, method="gradient")
+    def test_analyzer_with_minimal_params(self, minimal_params):
+        """Test analyzer with minimal parameters."""
+        analyzer = SingleLayerContributionAnalyzer(minimal_params)
 
-        assert isinstance(importance, dict)
-        assert len(importance) > 0
+        # Should use default values (False)
+        assert not analyzer.excitation_contribution
+        assert not analyzer.inhibition_contribution
+        assert not analyzer.both_contribution
+        assert not analyzer.accuracy
+        assert not analyzer.auc
+        assert not analyzer.categorical_ll
+        assert not analyzer.mse
+        assert not analyzer.cosine_similarity
 
-    def test_analyze_layer_importance_activation_method(
-        self, simple_model, sample_data
-    ):
-        """Test analyze_layer_importance with activation method."""
-        x, y = sample_data
+    def test_analyzer_attributes(self, mock_params):
+        """Test analyzer has all expected attributes."""
+        analyzer = SingleLayerContributionAnalyzer(mock_params)
 
-        importance = analyze_layer_importance(simple_model, x, y, method="activation")
+        expected_attrs = [
+            "excitation_contribution",
+            "inhibition_contribution",
+            "both_contribution",
+            "accuracy",
+            "auc",
+            "categorical_ll",
+            "mse",
+            "cosine_similarity",
+            "logger",
+        ]
 
-        assert isinstance(importance, dict)
-        assert len(importance) > 0
+        for attr in expected_attrs:
+            assert hasattr(analyzer, attr)
 
-    def test_analyze_layer_importance_invalid_method(self, simple_model, sample_data):
-        """Test analyze_layer_importance with invalid method."""
-        x, y = sample_data
+    def test_analyzer_logger_setup(self, mock_params):
+        """Test that logger is properly set up."""
+        analyzer = SingleLayerContributionAnalyzer(mock_params)
 
-        with pytest.raises(ValueError):
-            analyze_layer_importance(simple_model, x, y, method="invalid")
+        assert analyzer.logger.name == "dendritic_modeling.analysis"
 
-    def test_compute_gradient_based_importance(self, simple_model, sample_data):
-        """Test gradient-based importance computation."""
-        x, y = sample_data
+    def test_analyze_method_exists(self, mock_params):
+        """Test that the analyze method exists."""
+        analyzer = SingleLayerContributionAnalyzer(mock_params)
 
-        importance = compute_gradient_based_importance(simple_model, x, y)
+        assert hasattr(analyzer, "analyze")
+        assert callable(analyzer.analyze)
 
-        assert isinstance(importance, dict)
-        assert len(importance) > 0
-        for score in importance.values():
-            assert isinstance(score, (float, torch.Tensor))
+    def test_private_evaluate_single_layer_exists(self, mock_params):
+        """Test that private evaluation method exists."""
+        analyzer = SingleLayerContributionAnalyzer(mock_params)
 
-    def test_compute_activation_based_importance(self, simple_model, sample_data):
-        """Test activation-based importance computation."""
-        x, _ = sample_data
+        assert hasattr(analyzer, "_evaluate_single_layer")
+        assert callable(analyzer._evaluate_single_layer)
 
-        importance = compute_activation_based_importance(simple_model, x)
+    def test_selective_parameter_access(self):
+        """Test accessing parameters that may not exist."""
 
-        assert isinstance(importance, dict)
-        assert len(importance) > 0
-        for score in importance.values():
-            assert isinstance(score, (float, torch.Tensor))
+        class PartialParams:
+            accuracy = True
+            # Missing other parameters
 
-    def test_compute_gradient_importance_with_loss_fn(self, simple_model, sample_data):
-        """Test gradient importance with custom loss function."""
-        x, y = sample_data
-        loss_fn = nn.CrossEntropyLoss()
+        params = PartialParams()
+        analyzer = SingleLayerContributionAnalyzer(params)
 
-        importance = compute_gradient_based_importance(
-            simple_model, x, y, loss_fn=loss_fn
-        )
+        assert analyzer.accuracy
+        assert not analyzer.auc  # Should default to False
+        assert not analyzer.mse  # Should default to False
 
-        assert isinstance(importance, dict)
-        assert len(importance) > 0
+    def test_boolean_parameter_handling(self, mock_params):
+        """Test that boolean parameters are handled correctly."""
+        analyzer = SingleLayerContributionAnalyzer(mock_params)
 
+        # All should be boolean values
+        assert isinstance(analyzer.excitation_contribution, bool)
+        assert isinstance(analyzer.inhibition_contribution, bool)
+        assert isinstance(analyzer.both_contribution, bool)
+        assert isinstance(analyzer.accuracy, bool)
+        assert isinstance(analyzer.auc, bool)
+        assert isinstance(analyzer.categorical_ll, bool)
+        assert isinstance(analyzer.mse, bool)
+        assert isinstance(analyzer.cosine_similarity, bool)
 
-class TestLayerContributionEdgeCases:
-    """Test edge cases for layer contribution analysis."""
+    def test_parameter_getattr_fallback(self):
+        """Test getattr with default values works correctly."""
 
-    def test_empty_model(self):
-        """Test with empty model."""
-        model = nn.Sequential()
+        class EmptyParams:
+            pass
 
-        with pytest.raises((ValueError, AttributeError)):
-            LayerContributionAnalyzer(model)
+        params = EmptyParams()
+        analyzer = SingleLayerContributionAnalyzer(params)
 
-    def test_single_layer_model(self):
-        """Test with single layer model."""
-        model = nn.Linear(10, 2)
-        analyzer = LayerContributionAnalyzer(model)
+        # All should be False due to getattr default
+        assert not analyzer.excitation_contribution
+        assert not analyzer.inhibition_contribution
+        assert not analyzer.both_contribution
 
-        assert len(analyzer.layer_names) == 1
+    def test_mixed_parameter_configuration(self):
+        """Test with mixed parameter configuration."""
 
-    def test_zero_input(self, tmp_path):
-        """Test with zero input."""
-        model = nn.Linear(10, 2)
-        analyzer = LayerContributionAnalyzer(model)
+        class MixedParams:
+            excitation_contribution = True
+            accuracy = True
+            mse = False
+            # Missing other parameters
 
-        x = torch.zeros(5, 10)
-        y = torch.zeros(5, dtype=torch.long)
+        params = MixedParams()
+        analyzer = SingleLayerContributionAnalyzer(params)
 
-        # Should not crash
-        importance = analyzer.analyze_gradient_importance(x, y)
-        assert isinstance(importance, dict)
+        assert analyzer.excitation_contribution
+        assert analyzer.accuracy
+        assert not analyzer.mse
+        assert not analyzer.inhibition_contribution  # Default
+        assert not analyzer.auc  # Default
 
-    def test_very_small_model(self):
-        """Test with very small input/output dimensions."""
-        model = nn.Linear(1, 1)
-        analyzer = LayerContributionAnalyzer(model)
+    def test_string_parameter_handling(self):
+        """Test handling of string parameters that should be boolean."""
 
-        x = torch.randn(1, 1)
-        y = torch.tensor([0])
+        class StringParams:
+            categorical_loglikelihood = "true"  # String instead of bool
 
-        importance = analyzer.analyze_gradient_importance(x, y)
-        assert isinstance(importance, dict)
+        params = StringParams()
+        analyzer = SingleLayerContributionAnalyzer(params)
+
+        # getattr should return the string, not convert to bool
+        assert analyzer.categorical_ll == "true"
+
+    def test_none_parameter_handling(self):
+        """Test handling of None parameters."""
+
+        class NoneParams:
+            accuracy = None
+            auc = True
+
+        params = NoneParams()
+        analyzer = SingleLayerContributionAnalyzer(params)
+
+        assert analyzer.accuracy is None
+        assert analyzer.auc
+        assert not analyzer.mse  # Default for missing param
+
+    def test_analyzer_initialization_edge_cases(self):
+        """Test analyzer initialization with edge case parameters."""
+
+        # Test with numeric values
+        class NumericParams:
+            accuracy = 1
+            auc = 0
+            mse = 1.0
+
+        params = NumericParams()
+        analyzer = SingleLayerContributionAnalyzer(params)
+
+        assert analyzer.accuracy == 1
+        assert analyzer.auc == 0
+        assert analyzer.mse == 1.0

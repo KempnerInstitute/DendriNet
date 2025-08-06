@@ -2,118 +2,236 @@
 Tests for plotting utilities to improve coverage.
 """
 
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
-import matplotlib.pyplot as plt
 import pytest
+import torch
 
 # Import plotting utilities
 from dendritic_modeling.plotting.core.utils import (
-    apply_plot_style,
-    create_figure_grid,
-    format_axis_labels,
-    save_plot,
+    dendritic_activations_todict,
+    einet_activations_todict,
+    visualize_graph,
 )
 
 
 class TestPlottingUtils:
     """Test plotting utility functions."""
 
-    def test_save_plot_png(self, tmp_path):
-        """Test saving plot as PNG."""
-        fig, ax = plt.subplots()
-        ax.plot([1, 2, 3], [1, 4, 9])
+    def test_visualize_graph_networkx_available(self):
+        """Test visualize_graph when NetworkX is available."""
+        with patch("dendritic_modeling.plotting.core.utils.NETWORKX_AVAILABLE", True):
+            with patch("dendritic_modeling.plotting.core.utils.nx") as mock_nx:
+                with patch("matplotlib.pyplot.figure") as mock_figure:
+                    mock_graph = MagicMock()
+                    mock_graph.nodes.return_value = [
+                        (1, {"node_type": "layer"}),
+                        (2, {"node_type": "branch"}),
+                    ]
+                    mock_nx.spring_layout.return_value = {1: (0, 0), 2: (1, 1)}
 
-        save_path = tmp_path / "test_plot.png"
-        save_plot(fig, str(save_path))
+                    # Should not raise exception
+                    visualize_graph(mock_graph, mode="info")
 
-        assert save_path.exists()
-        plt.close(fig)
+                    # The function calls figure multiple times, so just check it was called
+                    assert mock_figure.call_count >= 1
+                    mock_nx.spring_layout.assert_called_once()
 
-    def test_save_plot_pdf(self, tmp_path):
-        """Test saving plot as PDF."""
-        fig, ax = plt.subplots()
-        ax.plot([1, 2, 3], [1, 4, 9])
+    def test_visualize_graph_networkx_unavailable(self):
+        """Test visualize_graph when NetworkX is unavailable."""
+        with patch("dendritic_modeling.plotting.core.utils.NETWORKX_AVAILABLE", False):
+            with patch(
+                "dendritic_modeling.plotting.core.utils.logging"
+            ) as mock_logging:
+                mock_graph = MagicMock()
 
-        save_path = tmp_path / "test_plot.pdf"
-        save_plot(fig, str(save_path))
+                # Should log warning and return
+                result = visualize_graph(mock_graph, mode="info")
 
-        assert save_path.exists()
-        plt.close(fig)
+                assert result is None
+                mock_logging.warning.assert_called_once()
 
-    def test_create_figure_grid_single(self):
-        """Test creating a single subplot grid."""
-        fig, axes = create_figure_grid(1, 1, figsize=(8, 6))
+    def test_visualize_graph_none_graph(self):
+        """Test visualize_graph with None graph."""
+        with patch("dendritic_modeling.plotting.core.utils.NETWORKX_AVAILABLE", True):
+            with patch(
+                "dendritic_modeling.plotting.core.utils.logging"
+            ) as mock_logging:
 
-        assert fig is not None
-        assert axes is not None
-        assert fig.get_size_inches()[0] == 8
-        assert fig.get_size_inches()[1] == 6
-        plt.close(fig)
+                # Should log warning and return
+                result = visualize_graph(None, mode="info")
 
-    def test_create_figure_grid_multiple(self):
-        """Test creating multiple subplot grid."""
-        fig, axes = create_figure_grid(2, 3, figsize=(12, 8))
+                assert result is None
+                mock_logging.warning.assert_called_once()
 
-        assert fig is not None
-        assert axes.shape == (2, 3)
-        plt.close(fig)
+    def test_visualize_graph_different_modes(self):
+        """Test visualize_graph with different modes."""
+        with patch("dendritic_modeling.plotting.core.utils.NETWORKX_AVAILABLE", True):
+            with patch("dendritic_modeling.plotting.core.utils.nx") as mock_nx:
+                with patch("matplotlib.pyplot.figure") as mock_figure:
+                    mock_graph = MagicMock()
+                    mock_graph.nodes.return_value = [(1, {"node_type": "layer"})]
+                    mock_nx.spring_layout.return_value = {1: (0, 0)}
 
-    def test_format_axis_labels(self):
-        """Test formatting axis labels."""
-        fig, ax = plt.subplots()
+                    # Test different modes
+                    for mode in ["info", "simple", "detailed"]:
+                        visualize_graph(mock_graph, mode=mode)
 
-        format_axis_labels(ax, xlabel="X Axis", ylabel="Y Axis", title="Test Title")
+                    # Function calls figure multiple times per call, so just check it was called
+                    assert mock_figure.call_count >= 3
 
-        assert ax.get_xlabel() == "X Axis"
-        assert ax.get_ylabel() == "Y Axis"
-        assert ax.get_title() == "Test Title"
-        plt.close(fig)
+    def test_dendritic_activations_todict_basic(self):
+        """Test dendritic_activations_todict with basic inputs."""
+        # Create mock dendrinet
+        mock_dendrinet = MagicMock()
+        mock_dendrinet.branches = [MagicMock() for _ in range(3)]
 
-    def test_apply_plot_style_default(self):
-        """Test applying default plot style."""
-        with patch("matplotlib.pyplot.style.use") as mock_style:
-            apply_plot_style()
-            mock_style.assert_called_once()
+        # Create mock inputs
+        exc_input_list = [torch.randn(10, 5) for _ in range(2)]
+        inh_input_list = [torch.randn(10, 3) for _ in range(2)]
 
-    def test_apply_plot_style_custom(self):
-        """Test applying custom plot style."""
-        with patch("matplotlib.pyplot.style.use") as mock_style:
-            apply_plot_style("seaborn")
-            mock_style.assert_called_with("seaborn")
+        with patch.object(mock_dendrinet, "forward", return_value=torch.randn(10, 2)):
+            result = dendritic_activations_todict(
+                mock_dendrinet, exc_input_list, inh_input_list
+            )
+
+            assert isinstance(result, dict)
+
+    def test_dendritic_activations_todict_empty_inputs(self):
+        """Test dendritic_activations_todict with empty inputs."""
+        mock_dendrinet = MagicMock()
+        mock_dendrinet.branches = []
+
+        result = dendritic_activations_todict(mock_dendrinet, [], [])
+
+        assert isinstance(result, dict)
+
+    def test_dendritic_activations_todict_mismatched_inputs(self):
+        """Test dendritic_activations_todict with mismatched input lengths."""
+        mock_dendrinet = MagicMock()
+        mock_dendrinet.branches = [MagicMock()]
+
+        exc_input_list = [torch.randn(10, 5)]
+        inh_input_list = [torch.randn(10, 3), torch.randn(10, 3)]  # Different length
+
+        result = dendritic_activations_todict(
+            mock_dendrinet, exc_input_list, inh_input_list
+        )
+
+        assert isinstance(result, dict)
+
+    def test_einet_activations_todict_basic(self):
+        """Test einet_activations_todict with basic inputs."""
+        # Create mock einet
+        mock_einet = MagicMock()
+
+        # Create mock input list
+        input_list = [torch.randn(10, 20) for _ in range(3)]
+
+        with patch.object(mock_einet, "forward", return_value=torch.randn(10, 5)):
+            result = einet_activations_todict(mock_einet, input_list)
+
+            assert isinstance(result, dict)
+
+    def test_einet_activations_todict_empty_inputs(self):
+        """Test einet_activations_todict with empty inputs."""
+        mock_einet = MagicMock()
+
+        result = einet_activations_todict(mock_einet, [])
+
+        assert isinstance(result, dict)
+
+    def test_einet_activations_todict_single_input(self):
+        """Test einet_activations_todict with single input."""
+        mock_einet = MagicMock()
+        input_list = [torch.randn(5, 10)]
+
+        with patch.object(mock_einet, "forward", return_value=torch.randn(5, 3)):
+            result = einet_activations_todict(mock_einet, input_list)
+
+            assert isinstance(result, dict)
+
+    def test_einet_activations_todict_large_inputs(self):
+        """Test einet_activations_todict with large input list."""
+        mock_einet = MagicMock()
+        input_list = [torch.randn(2, 8) for _ in range(10)]
+
+        with patch.object(mock_einet, "forward", return_value=torch.randn(2, 4)):
+            result = einet_activations_todict(mock_einet, input_list)
+
+            assert isinstance(result, dict)
 
 
 class TestPlottingUtilsEdgeCases:
-    """Test edge cases and error handling for plotting utilities."""
+    """Test edge cases for plotting utilities."""
 
-    def test_save_plot_invalid_path(self):
-        """Test saving plot to invalid path."""
-        fig, ax = plt.subplots()
-        ax.plot([1, 2, 3], [1, 4, 9])
+    def test_visualize_graph_complex_structure(self):
+        """Test visualize_graph with complex graph structure."""
+        with patch("dendritic_modeling.plotting.core.utils.NETWORKX_AVAILABLE", True):
+            with patch("dendritic_modeling.plotting.core.utils.nx") as mock_nx:
+                with patch("matplotlib.pyplot.figure"):
+                    mock_graph = MagicMock()
+                    # Complex node structure
+                    mock_graph.nodes.return_value = [
+                        (1, {"node_type": "layer", "label": "input"}),
+                        (2, {"node_type": "branch", "label": "dendrite1"}),
+                        (3, {"node_type": "layer", "label": "output"}),
+                        (4, {"node_type": "unknown"}),  # Unknown type
+                        (5, {}),  # No node_type
+                    ]
+                    mock_nx.spring_layout.return_value = {
+                        i: (i, i) for i in range(1, 6)
+                    }
 
-        with pytest.raises((OSError, IOError)):
-            save_plot(fig, "/invalid/path/test.png")
+                    visualize_graph(mock_graph, mode="complex")
 
-        plt.close(fig)
+                    mock_nx.spring_layout.assert_called_once()
 
-    def test_create_figure_grid_zero_size(self):
-        """Test creating grid with zero size."""
-        with pytest.raises(ValueError):
-            create_figure_grid(0, 1)
+    def test_dendritic_activations_with_exceptions(self):
+        """Test dendritic_activations_todict with exceptions during execution."""
+        mock_dendrinet = MagicMock()
+        mock_dendrinet.layer_sizes = [10, 5]
+        mock_dendrinet.n_soma = 2
+        mock_dendrinet.n_branch_layers = 1
+        mock_dendrinet.branch_layers = [MagicMock()]
+        mock_dendrinet.branch_layers[0].side_effect = RuntimeError(
+            "Branch layer failed"
+        )
 
-    def test_format_axis_labels_none_values(self):
-        """Test formatting with None values."""
-        fig, ax = plt.subplots()
+        exc_input_list = [torch.randn(5, 10)]
+        inh_input_list = [torch.randn(5, 8)]
 
-        # Should not raise errors with None values
-        format_axis_labels(ax, xlabel=None, ylabel=None, title=None)
+        # Should propagate the RuntimeError from branch_layers
+        with pytest.raises(RuntimeError):
+            dendritic_activations_todict(mock_dendrinet, exc_input_list, inh_input_list)
 
-        plt.close(fig)
+    def test_einet_activations_with_none_inputs(self):
+        """Test einet_activations_todict with None in input list."""
+        mock_einet = MagicMock()
+        input_list = [torch.randn(3, 5), None, torch.randn(3, 5)]
 
-    def test_apply_plot_style_invalid_style(self):
-        """Test applying invalid plot style."""
-        with patch("matplotlib.pyplot.style.use") as mock_style:
-            mock_style.side_effect = OSError("Style not found")
+        # Function doesn't handle None values gracefully - will raise AttributeError
+        with pytest.raises(AttributeError):
+            einet_activations_todict(mock_einet, input_list)
 
-            # Should handle the error gracefully
-            apply_plot_style("nonexistent_style")
+    def test_dendritic_activations_different_tensor_shapes(self):
+        """Test dendritic_activations_todict with different tensor shapes."""
+        mock_dendrinet = MagicMock()
+        mock_dendrinet.branches = [MagicMock() for _ in range(2)]
+
+        # Different shapes
+        exc_input_list = [
+            torch.randn(5, 10),
+            torch.randn(3, 15),  # Different batch size and features
+        ]
+        inh_input_list = [
+            torch.randn(5, 8),
+            torch.randn(3, 12),  # Different batch size and features
+        ]
+
+        with patch.object(mock_dendrinet, "forward", return_value=torch.randn(5, 4)):
+            result = dendritic_activations_todict(
+                mock_dendrinet, exc_input_list, inh_input_list
+            )
+
+            assert isinstance(result, dict)
