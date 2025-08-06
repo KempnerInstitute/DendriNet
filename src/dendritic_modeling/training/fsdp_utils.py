@@ -9,9 +9,15 @@ that cannot fit on a single GPU using PyTorch's Fully Sharded Data Parallel (Ful
 from typing import Any, Optional
 
 import torch
-from torch.distributed.fsdp import BackwardPrefetch, CPUOffload, FullStateDictConfig
-from torch.distributed.fsdp import FullyShardedDataParallel
-from torch.distributed.fsdp import MixedPrecision, ShardingStrategy, StateDictType
+from torch.distributed.fsdp import (
+    BackwardPrefetch,
+    CPUOffload,
+    FullStateDictConfig,
+    FullyShardedDataParallel,
+    MixedPrecision,
+    ShardingStrategy,
+    StateDictType,
+)
 
 from dendritic_modeling import logger
 from dendritic_modeling.networks.architectures.excitation_inhibition import (

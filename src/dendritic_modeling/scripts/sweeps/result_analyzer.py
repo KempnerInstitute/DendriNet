@@ -42,8 +42,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from matplotlib.ticker import ScalarFormatter
-from scipy.ndimage import gaussian_filter1d
 from omegaconf import OmegaConf
+from scipy.ndimage import gaussian_filter1d
 
 # Try importing seaborn with compatibility handling
 try:

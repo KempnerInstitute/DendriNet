@@ -6,8 +6,8 @@ Simple script to generate documentation figures and build the documentation.
 """
 
 import os
-import sys
 import subprocess
+import sys
 from pathlib import Path
 
 

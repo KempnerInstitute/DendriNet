@@ -19,10 +19,10 @@ For detailed documentation on each module, see the respective module docstrings.
 """
 
 # Core imports
-from dendritic_modeling import datasets
 from dendritic_modeling import (
     analysis,
     config,
+    datasets,
     models,
     networks,
     plotting,
