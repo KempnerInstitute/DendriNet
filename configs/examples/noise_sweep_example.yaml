@@ -10,14 +10,14 @@ output_dir: "output"
 # SLURM cluster configuration
 slurm_config:
   job_name: "noise_sweep_run"
-  account: 
-  partition: 
+  account:
+  partition:
   time: "02:30:00"
   nodes: 1
   ntasks_per_node: 1
   gpus_per_node: 1
   cpus_per_task: 8
-  mem: "32GB" 
+  mem: "32GB"
   max_concurrent_jobs: 8           # Maximum number of array jobs to run simultaneously
   modules_to_load:
     - "python/3.12.5-fasrc01"
@@ -34,18 +34,18 @@ experiment_settings:
 # Noise parameters to sweep
 sweep_config:
   # Noise types
-  noise.type: 
+  noise.type:
     - "gaussian"                   # Gaussian additive noise
     - "uniform"                    # Uniform additive noise
     - "poisson"                    # Poisson spike noise
     - "frequency"                  # Frequency-based noise
-  
+
   # Noise intensity/level
   noise.level: [0.0, 0.05, 0.1, 0.2, 0.3, 0.5]  # From no noise to high noise
-  
+
   # Alternative: use noise.intensity (same as noise.level)
   # noise.intensity: [0.0, 0.1, 0.2, 0.3, 0.4, 0.5]
-  
+
   # Noise application mode
   noise.application_mode:
     - "network_wide"               # Apply noise to entire network
@@ -60,7 +60,7 @@ sweep_config:
 base_config:
   model:
     task: classification
-    
+
     # ==========================================
     # ENCODER NETWORK (Input Processing Stage)
     # ==========================================
@@ -72,7 +72,7 @@ base_config:
         encoder_hidden_dims: [128, 64]
         latent_dim: null
         activation: relu
-    
+
     # ==========================================
     # CORE NETWORK (Main Processing Stage)
     # ==========================================
@@ -86,46 +86,46 @@ base_config:
           excitatory_dim: null
           inhibitory_dim: null
           output_activation: null
-        
+
         # Moderate architecture for noise testing
         excitatory_layer_sizes: [128, 64, 32]
         inhibitory_layer_sizes: [64, 32, 16]
-        
+
         excitatory_branch_factors: [2, 2, 1]
         inhibitory_branch_factors: [1, 1, 1]
-        
+
         # Balanced EI connectivity
         ee_synapses_per_branch_per_layer: [15, 12, 8]
         ei_synapses_per_branch_per_layer: [12, 10, 6]
         ie_synapses_per_branch_per_layer: [8, 6, 4]
         ii_synapses_per_branch_per_layer: [6, 4, 3]
-        
+
         # Morphological features
         somatic_synapses: True
         use_shunting: True
-        
+
         # TopK sparsity parameters
         topk_init_method: xavier_normal
         topk_noise_level: 0.0
         topk_type: standard
         topk_temperature: 0.0
         topk_strategy: conductance_dynamic
-        
+
         # Reactivation parameters
         reactivate: true
         reactivation_type: param_tanh
         reactivation_init_m: 1.5
         reactivation_init_b: 0.5
         reactivation_strategy: inverse
-        
+
         # Block linear parameters
         blocklinear_strategy: conductance_dynamic
         efficient_blocklinear: false
-        
+
         # Implementation optimizations
         adaptive_initialization: false
         print_hooks: false
-    
+
     # ==========================================
     # DECODER NETWORK (Output Processing Stage)
     # ==========================================
@@ -136,36 +136,36 @@ base_config:
         hidden_dims: [32, 16]
         activation: relu
         output_dim: 10
-        
+
   # Noise configuration (will be overridden by sweep)
   noise:
     type: "gaussian"                 # Will be swept
     level: 0.1                       # Will be swept
     application_mode: "network_wide" # Will be swept
-    
+
     # Additional noise parameters (optional)
     # schedule: "constant"           # constant, annealing, adaptive
     # decay_factor: 0.99             # For annealing schedule
     # adaptive_threshold: 0.05       # For adaptive schedule
-    
+
 # ============================================================================
 # TRAINING CONFIGURATION
 # ============================================================================
 train:
   seed: 0
   train_valid_split: 0.8
-  
+
   # Performance optimization settings
   enable_amp: false
   enable_profiling: false
   enable_hooks: true
-  
+
   # Checkpointing
   checkpointing:
     enabled: false
     save_every_n_epochs: 10
     checkpoint_dir: "outputs/checkpoints/"
-  
+
   # Encoder training configuration
   encoder:
     load_save_root: null
@@ -184,12 +184,12 @@ train:
       suppress_prints: false
       print_every: 10
       use_amp: false
-  
+
   # Main network training
   main:
     learning_strategy: standard
     weight_decay_rate: 0.01
-    
+
     # Parameter groups with different learning rates
     param_groups:
       lr: 0.001
@@ -198,7 +198,7 @@ train:
       blocklinear_lr: 0.0001
       reactivation_lr: 0.0001
       decoder_lr: 0.0001
-    
+
     trainer:
       loss_function: ce
       epochs: 60                     # Noise may slow convergence
@@ -228,9 +228,9 @@ task:
 # WANDB LOGGING
 # ============================================================================
 wandb:
-  entity: 
-  project: 
-  group: 
+  entity:
+  project:
+  group:
   tags: []
   use_wandb: false
 
@@ -247,7 +247,7 @@ analysis:
       categorical_loglikelihood: true
       mse: false
       cosine_similarity: false
-      
+
   information_analysis:
     enabled: false                    # Enable for MI analysis (expensive)
     training: false
@@ -274,7 +274,7 @@ analysis:
     enabled: false                    # Enable for synaptic plasticity analysis
     training: true
     snapshot_interval: 5              # Frequency of snapshots
-    
+
   noise_perturbation_analysis:
     enabled: true                     # Highly relevant for noise sweeps
     training: false
@@ -289,7 +289,7 @@ analysis:
       categorical_loglikelihood: true
       mse: false
       cosine_similarity: false
-    
+
   ablation_analysis:
     enabled: false                    # Enable for component importance analysis
     training: false
@@ -305,14 +305,14 @@ analysis:
       categorical_loglikelihood: true
       mse: true
       cosine_similarity: true
-    
+
   weight_analysis:
     enabled: false                    # Enable for weight distribution analysis
     training: false
     params:
       synapse_weights: true
       branch_weights: true
-    
+
   synaptic_activation_analysis:
     enabled: false                    # Enable for synaptic activity analysis
     training: false
@@ -324,7 +324,7 @@ analysis:
       logspace: false
       downsample: true
       samples: 5
-    
+
   branch_activation_analysis:
     enabled: false                    # Enable for dendritic activity analysis
     training: false
@@ -338,7 +338,7 @@ analysis:
       logspace: false
       downsample: true
       samples: 5
-    
+
   single_layer_contribution:
     enabled: false                    # Enable for layer importance analysis
     training: false
@@ -351,7 +351,7 @@ analysis:
       categorical_loglikelihood: true
       mse: true
       cosine_similarity: true
-    
+
   correlation_analysis:
     enabled: false                    # Enable for correlation studies
     training: false

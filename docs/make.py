@@ -24,7 +24,7 @@ def generate_figures():
 
     try:
         # Run the figure generation script
-        result = subprocess.run(
+        subprocess.run(
             [sys.executable, str(script_path)],
             check=True,
             capture_output=True,
@@ -49,7 +49,7 @@ def build_docs():
 
     try:
         # Run sphinx-build
-        result = subprocess.run(
+        subprocess.run(
             ["sphinx-build", "-b", "html", ".", "_build/html"],
             check=True,
             capture_output=True,

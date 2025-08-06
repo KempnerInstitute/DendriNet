@@ -1,0 +1,9 @@
+# Ruff ignore file - exclude external dependencies and build artifacts
+external/
+.git/
+__pycache__/
+.venv/
+.pytest_cache/
+build/
+dist/
+*.egg-info/

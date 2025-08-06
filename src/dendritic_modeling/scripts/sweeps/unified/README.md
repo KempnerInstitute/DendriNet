@@ -9,7 +9,7 @@ Single YAML interface for all parameter sweeps in dendritic modeling experiments
 python src/dendritic_modeling/scripts/sweeps/sweep_manager.py \
     --config configs/unified_all_sweeps_example.yaml
 
-# Generate configs only  
+# Generate configs only
 python src/dendritic_modeling/scripts/sweeps/sweep_manager.py \
     --config configs/unified_all_sweeps_example.yaml --generate-only
 
@@ -38,17 +38,17 @@ Sweep any configuration parameter:
 sweep_config:
   # EI Parameters
   model.core_network.parameters.ee_synapses_per_branch_per_layer: [[1],[2],[3]]
-  model.core_network.parameters.ie_synapses_per_branch_per_layer: [[1],[2],[3]]  
+  model.core_network.parameters.ie_synapses_per_branch_per_layer: [[1],[2],[3]]
   model.core_network.parameters.use_shunting: [true, false]
-  
+
   # Training Parameters
   train.main.param_groups.lr: [0.001, 0.01, 0.1]
   train.main.trainer.batch_size: [32, 64, 128]
-  
+
   # Model Architecture
   model.core_network.parameters.layer_sizes: [[32,10], [64,32,10], [128,64,32,10]]
   model.encoder_network.parameters.hidden_sizes: [[32], [64], [128]]
-  
+
   # Use ranges: [start, end, step]
   some_parameter: [0.1, 1.0, 0.1]  # Creates [0.1, 0.2, ..., 1.0]
 ```
@@ -60,7 +60,7 @@ Constrain excitatory/inhibitory combinations:
 filter_config:
   mode: "ei-sum"      # E + I = value
   mode: "e-const"     # E = value (fixed excitatory)
-  mode: "i-const"     # I = value (fixed inhibitory)  
+  mode: "i-const"     # I = value (fixed inhibitory)
   mode: "ei-ratio"    # E/I = value (fixed ratio)
   value: 10           # Target value
   tolerance: 0        # Exact match (default: 1)
@@ -112,7 +112,7 @@ filter_config:
 
 Available patterns:
 - `uniform`: [4,4,4,4] - Same branches per layer
-- `decreasing`: [4,3,2,1] - Decreasing with depth  
+- `decreasing`: [4,3,2,1] - Decreasing with depth
 - `increasing`: [1,2,3,4] - Increasing with depth
 - `pyramid`: [1,2,2,1] - Pyramid shape
 
@@ -141,13 +141,13 @@ filter_config:
   mode: "ei-sum"
   value: 4
   tolerance: 0
-  
+
   # Branch Patterns: 2 depths × 2 patterns
   branch_sweep_mode: "pattern_sweep"
   dendrite_tree_depth: [2, 3, 1]
   base_branches: 3
   branch_patterns: ["uniform", "decreasing"]
-  
+
 # Result: 3 EI combos × 2 LR × 2 depths × 2 patterns = 24 configurations
 ```
 
@@ -251,7 +251,7 @@ python src/dendritic_modeling/scripts/sweeps/result_analyzer.py \
 ### Generated Plot Types
 Performance Analysis:
 - Metric vs E/I ratio plots (shunting vs non-shunting)
-- Parameter scaling analysis 
+- Parameter scaling analysis
 - Performance heatmaps (EE vs IE parameter space)
 
 Robustness Analysis:
@@ -267,7 +267,7 @@ Output Structure:
 ```
 results/unified_20240101120000/plots/
 ├── metric_vs_ei_ratio_plots/      # Performance trends
-├── metric_vs_parameter_plots/     # Scaling relationships  
+├── metric_vs_parameter_plots/     # Scaling relationships
 ├── noise_vs_ei_ratio_plots/       # Robustness analysis
 ├── performance_heatmaps/          # Parameter space visualization
 ├── ablation_analysis_plots/       # Component contributions
@@ -281,7 +281,7 @@ results/unified_20240101120000/plots/
 # Sweep management help
 python src/dendritic_modeling/scripts/sweeps/sweep_manager.py --help
 
-# Analysis help  
+# Analysis help
 python src/dendritic_modeling/scripts/sweeps/result_analyzer.py --help
 ```
 

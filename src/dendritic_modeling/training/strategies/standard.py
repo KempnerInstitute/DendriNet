@@ -735,9 +735,7 @@ class Trainer:
             if hasattr(self.analysis_manager, "performance_analyzer"):
                 try:
                     # Get latest performance metrics
-                    latest_performance = (
-                        self.analysis_manager.performance_analyzer.get_latest_performance()
-                    )
+                    latest_performance = self.analysis_manager.performance_analyzer.get_latest_performance()
                     if latest_performance:
                         for key, value in latest_performance.items():
                             if key not in performance_comparison["after_pruning"]:
@@ -1182,7 +1180,6 @@ class Trainer:
             and self.save_every_n_epochs > 0
             and self.epoch_counter % self.save_every_n_epochs == 0
         ):
-
             checkpoint = {
                 "epoch": self.epoch_counter,
                 "model_state_dict": model.state_dict(),

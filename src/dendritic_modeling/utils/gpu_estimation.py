@@ -495,7 +495,6 @@ class GPUMemoryEstimator:
         ]
 
         for total_gpus, nodes, gpus_per_node in configurations:
-
             param_memory = single_gpu_breakdown.parameters / total_gpus
             grad_memory = single_gpu_breakdown.gradients / total_gpus
             optimizer_memory = single_gpu_breakdown.optimizer_states / total_gpus

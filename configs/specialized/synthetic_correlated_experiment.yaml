@@ -13,40 +13,40 @@ model:
         excitatory_dim: 15  # First 15 dimensions for E pathway
         inhibitory_dim: 15  # Last 15 dimensions for I pathway
         # output_activation: sigmoid  # Options: sigmoid, relu, tanh, softplus, none (constrains transfer outputs)
-        
+
       # Network architecture
       excitatory_layer_sizes: [1]  # 1 excitatory neuron
       inhibitory_layer_sizes: [1]  # 1 inhibitory neuron (will process E inputs)
       excitatory_branch_factors: [1]  # No branching for single layer
       inhibitory_branch_factors: []  # No branching for single layer
-      
+
       # Synaptic connectivity
       ee_synapses_per_branch_per_layer: [10]   # E->E connections (max 1 since 1 E neuron)
-      ei_synapses_per_branch_per_layer: [1]   # E->I connections (max 1 since 1 E neuron)  
+      ei_synapses_per_branch_per_layer: [1]   # E->I connections (max 1 since 1 E neuron)
       ie_synapses_per_branch_per_layer: [10]   # I->E connections (max 1 since 1 I neuron)
       ii_synapses_per_branch_per_layer: [0]   # No I->I connections
       somatic_synapses: false
       use_shunting: true
-      
+
       # TopK parameters
       topk_init_method: xavier_normal
       topk_noise_level: 0.0
       topk_type: standard
       topk_temperature: 0.5
       topk_ultrafast: true
-      
+
       # Reactivation parameters
       reactivate: true
       reactivation_type: param_tanh
       reactivation_init_m: 1.5
       reactivation_init_b: 0.5
-      
+
       # Gradient scaling
       reactivation_strategy: inverse
       topk_strategy: conductance_dynamic
       blocklinear_strategy: conductance_dynamic
       print_hooks: false
-      
+
   decoder_network:
     type: MLP
     parameters:
@@ -57,7 +57,7 @@ model:
 train:
   seed: 42
   train_valid_split: 0.8
-  
+
   # Performance optimization settings
   enable_amp: false
   enable_profiling: false
@@ -69,7 +69,7 @@ train:
     enabled: true
     save_every_n_epochs: 10
     checkpoint_dir: "outputs/checkpoints/"
-  
+
   encoder:
     load_save_root: saved_models/encoder
     lr: 0.001
@@ -83,11 +83,11 @@ train:
       plot_losses: true
       suppress_prints: false
       print_every: 10
-  
+
   main:
     learning_strategy: standard  # Options: "standard", "enhanced" for advanced features
     weight_decay_rate: 0.01
-    
+
     param_groups:
       lr: 0.001
       split_params: true
@@ -101,23 +101,23 @@ train:
       name: "adam"
       lr: 0.001
       weight_decay: 0.01
-    
+
     regularization:
       l1_weight: 0.0            # Useful for synthetic data experiments
       l2_weight: 0.0
       selective:
         weight_types: ["all"]
-    
+
     pruning:
       enabled: false            # Can be useful for studying synthetic patterns
       threshold: 0.001
       re_evaluate_after: true
-    
+
     reporting:
       report_non_pruned: true
       save_pruning_stats: true
       detailed_branch_report: true
-    
+
     trainer:
       loss_function: cat_nll  # Cross entropy for classification
       epochs: 50
@@ -151,7 +151,7 @@ wandb:
   use_wandb: false
 
 # Note: visualization is not part of the main Config class
-    
+
 analysis:
   performance_analysis:
     enabled: true
@@ -273,4 +273,4 @@ analysis:
 outputs:
   run_name: synthetic_correlated_exp
   dir: ./results/synthetic_correlated
-  dataset_dir: ""                         # Optional: separate directory for shared datasets 
+  dataset_dir: ""                         # Optional: separate directory for shared datasets

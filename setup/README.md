@@ -8,4 +8,4 @@ This directory contains all installation and environment setup files:
 
 ## Usage
 
-For installation instructions, see the main [INSTALL.md](../INSTALL.md) file in the project root. 
+For installation instructions, see the main [INSTALL.md](../INSTALL.md) file in the project root.

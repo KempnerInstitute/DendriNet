@@ -4,12 +4,12 @@
 
 model:
   task: classification
-  
+
   encoder_network:
     type: identity
     parameters:
       input_shape: [3, 32, 32]
-  
+
   core_network:
     type: EINet
     parameters:
@@ -19,17 +19,17 @@ model:
         excitatory_dim: null
         inhibitory_dim: null
         output_activation: null
-      
+
       excitatory_layer_sizes: [1000, 1000]
       inhibitory_layer_sizes: [1000, 1000]
       excitatory_branch_factors: [3, 3, 3, 3]
       inhibitory_branch_factors: [3, 3, 3, 3]
-      
+
       ee_synapses_per_branch_per_layer: [50]
       ei_synapses_per_branch_per_layer: [50]
       ie_synapses_per_branch_per_layer: [50]
       ii_synapses_per_branch_per_layer: [50]
-      
+
       somatic_synapses: true
       use_shunting: true
       topk_init_method: xavier_normal
@@ -37,18 +37,18 @@ model:
       topk_type: standard
       topk_temperature: 0.0
       topk_strategy: none
-      
+
       reactivate: true
       reactivation_type: param_tanh
       reactivation_init_m: 1.5
       reactivation_init_b: 0.5
       reactivation_strategy: none
-      
+
       blocklinear_strategy: none
       efficient_blocklinear: true
       adaptive_initialization: true
       print_hooks: false
-  
+
   decoder_network:
     type: MLP
     parameters:
@@ -65,7 +65,7 @@ model:
 train:
   seed: 0
   train_valid_split: 0.8
-  
+
   encoder:
     load_save_root: null
     lr: 0.001
@@ -82,11 +82,11 @@ train:
       save_path: null
       suppress_prints: false
       print_every: 10
-  
+
   main:
     learning_strategy: standard
     weight_decay_rate: 0.01
-    
+
     param_groups:
       lr: 0.001
       split_params: true
@@ -94,7 +94,7 @@ train:
       blocklinear_lr: 0.00005
       reactivation_lr: 0.0001
       decoder_lr: 0.0001
-    
+
     trainer:
       loss_function: ce
       epochs: 100
@@ -108,7 +108,7 @@ train:
       save_path: null
       suppress_prints: false
       print_every: 5
-    
+
     regularization:
       l1_weight: 0.001
       l2_weight: 0.01
@@ -130,7 +130,7 @@ train:
         decoder:
           l1_weight: 0.002
           l2_weight: 0.02
-    
+
     pruning:
       enabled: false
       threshold: 0.001
@@ -141,19 +141,19 @@ train:
       re_evaluate_after: true
       dynamic_pruning: false
       pruning_frequency: 10
-    
+
     reporting:
       report_non_pruned: false
       save_pruning_stats: false
       detailed_branch_report: false
       redo_analysis_after_pruning: false
-  
+
   run_name: experiment
   enable_amp: false
   enable_profiling: false
   profiling_output_dir: outputs/profiling/
   enable_hooks: true
-  
+
   # ==========================================
   # FSDP CONFIGURATION
   # ==========================================
@@ -170,7 +170,7 @@ train:
     use_orig_params: true
     backward_prefetch: BACKWARD_POST
     gradient_checkpointing: false
-  
+
   # ==========================================
   # CHECKPOINTING
   # ==========================================
@@ -209,22 +209,22 @@ analysis:
       categorical_loglikelihood: true
       mse: false
       cosine_similarity: false
-  
+
   synapse_turnover_analysis:
     enabled: false
     training: false
     snapshot_interval: 10
     synaptic_analysis: false
     save_synaptic_report: false
-  
+
   noise_perturbation_analysis:
     enabled: false
     training: false
-  
+
   single_layer_contribution:
     enabled: false
     training: false
-  
+
   ablation_analysis:
     enabled: false
     training: false
@@ -240,19 +240,19 @@ analysis:
       categorical_loglikelihood: true
       mse: false
       cosine_similarity: false
-  
+
   weight_analysis:
     enabled: false
     training: false
-  
+
   synaptic_activation_analysis:
     enabled: false
     training: false
-  
+
   branch_activation_analysis:
     enabled: false
     training: false
-  
+
   information_analysis:
     enabled: false
     training: false
@@ -271,7 +271,7 @@ analysis:
       verbose: false
       compute_per_branch: false
       branch_aggregation: mean
-  
+
   correlation_analysis:
     enabled: false
     training: false
@@ -295,16 +295,16 @@ slurm_config:
   # Basic resource configuration
   gpu_per_node: 1
   account:  # Your SLURM account
-  
+
   # Environment setup
   conda_env_path:   # Path to your conda environment
   modules_to_load: []
-  
+
   # Directory configuration
   project_dir:  # Your project directory
   log_dir: results/fsdp_experiments/logs
   dir: results/fsdp_experiments/
-  
+
   # Optional overrides (script will auto-determine these based on model requirements)
   # training_script: src/dendritic_modeling/scripts/training/train_experiments_fsdp.py
 

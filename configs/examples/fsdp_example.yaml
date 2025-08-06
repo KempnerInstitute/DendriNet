@@ -15,7 +15,7 @@
 
 model:
   task: classification
-  
+
   # Encoder network for preprocessing
   encoder_network:
     type: identity  # No preprocessing for direct FSDP training
@@ -31,39 +31,39 @@ model:
         input_mode: 1
         independent_pathways: true
         output_activation: none
-        
+
       # Large morphological architecture for FSDP
       excitatory_layer_sizes: [100, 80, 60, 40]    # Large layers for multi-GPU
       inhibitory_layer_sizes: [25, 20, 15, 10]     # Corresponding inhibitory layers
       excitatory_branch_factors: [8, 8, 6, 4]      # More branches for complexity
       inhibitory_branch_factors: [4, 4, 3, 2]      # Inhibitory branches
-      
+
       # Rich connectivity for large model
       ee_synapses_per_branch_per_layer: [16]       # More synapses per branch
       ei_synapses_per_branch_per_layer: [8]        # E-to-I connections
       ie_synapses_per_branch_per_layer: [4]        # I-to-E connections
       ii_synapses_per_branch_per_layer: [2]        # I-to-I connections
-      
+
       # Morphological features
       somatic_synapses: true
       use_shunting: true
-      
+
       # TopK parameters
       topk_type: standard
       topk_init_method: xavier_normal
       topk_noise_level: 0.0
-      
+
       # Reactivation
       reactivate: true
       reactivation_type: param_tanh
       reactivation_init_m: 1.5
       reactivation_init_b: 0.5
-      
+
       # Gradient scaling
       reactivation_strategy: inverse
       topk_strategy: conductance_dynamic
       blocklinear_strategy: conductance_dynamic
-      
+
       # Implementation optimizations
       efficient_blocklinear: true
       adaptive_initialization: true
@@ -80,12 +80,12 @@ model:
       dropout_rate: 0.0
 
 train:
-  
+
   # ==========================================
   # FSDP-SPECIFIC SETTINGS
   # ==========================================
   use_fsdp: true              # Enable FSDP
-  
+
   # FSDP configuration
   fsdp_config:
     mixed_precision: true     # Use mixed precision with FSDP
@@ -93,12 +93,12 @@ train:
     cpu_offload: false        # Keep on GPU for speed (set true if memory constrained)
     sharding_strategy: "full" # "full" or "grad_op" sharding
     min_num_params: 1000000   # Minimum parameters to shard a module
-  
+
   # Performance optimizations for large scale
   enable_amp: true            # Mixed precision (works with FSDP)
   enable_profiling: false     # Disable profiling for max performance
   enable_hooks: true          # Keep analysis capability for research insights
-  
+
   # Encoder training (skip for identity encoder)
   encoder:
     load_save_root: saved_models/encoder
@@ -113,12 +113,12 @@ train:
       plot_losses: true
       suppress_prints: false
       print_every: 10
-  
+
   # Training parameters optimized for large models
   main:
     learning_strategy: standard  # Options: "standard", "enhanced" (enhanced may add memory overhead)
     weight_decay_rate: 0.1
-    
+
     # Parameter groups with different learning rates
     param_groups:
       lr: 0.0005              # Default learning rate
@@ -133,20 +133,20 @@ train:
       name: "adamw"           # AdamW recommended for large models
       lr: 0.0005
       weight_decay: 0.1
-    
+
     regularization:
       l1_weight: 0.0          # Use sparingly with large models
       l2_weight: 0.0          # Prefer optimizer weight_decay
-    
+
     pruning:
       enabled: false          # Consider for model compression after training
       threshold: 0.001
-    
+
     reporting:
       report_non_pruned: false      # Disabled to reduce memory overhead
       save_pruning_stats: false
       detailed_branch_report: false # Disabled for large models
-    
+
     trainer:
       loss_function: cat_nll  # Loss function for classification
       epochs: 50              # Fewer epochs for large model experimentation
@@ -159,17 +159,17 @@ train:
       plot_losses: true
       suppress_prints: false
       print_every: 5          # More frequent logging for monitoring
-  
+
   # Checkpointing is crucial for long FSDP runs
   checkpointing:
     enabled: true
     save_every_n_epochs: 5    # More frequent checkpoints
     checkpoint_dir: "outputs/fsdp_checkpoints/"
     keep_last_n: 3           # Keep fewer checkpoints to save space
-  
+
   # save_model: true     # Not a valid TrainConfig parameter
   # save_results: true   # Not a valid TrainConfig parameter
-  
+
   # Note: suppress_prints is not a valid TrainConfig parameter
   # Logging configuration is handled in trainer configs above
 
@@ -188,7 +188,7 @@ wandb:
   entity: "your-wandb-entity"
   tags: ["fsdp", "large-model", "ei-network", "cifar100"]
   # notes: "Large EI network trained with FSDP on multiple GPUs"  # Not a valid WandbConfig parameter
-  
+
   log_freq: 50               # Less frequent logging to reduce overhead
   log_gradients: false       # Disable gradient logging for performance
   log_parameters: false      # Disable parameter logging for performance
@@ -205,7 +205,7 @@ analysis:
       categorical_loglikelihood: true
       mse: false
       cosine_similarity: false
-  
+
   information_analysis:
     enabled: true
     training: false
@@ -227,11 +227,11 @@ analysis:
       verbose: false
       compute_per_branch: true
       branch_aggregation: mean
-  
+
   synapse_turnover_analysis:
     enabled: false
     training: false
-    
+
   noise_perturbation_analysis:
     enabled: false
     training: false
@@ -246,7 +246,7 @@ analysis:
       categorical_loglikelihood: true
       mse: true
       cosine_similarity: true
-  
+
   # Disable expensive analysis for large models
   ablation_analysis:
     enabled: false
@@ -263,14 +263,14 @@ analysis:
       categorical_loglikelihood: true
       mse: true
       cosine_similarity: true
-  
+
   weight_analysis:
     enabled: false
     training: false
     params:
       synapse_weights: true
       branch_weights: true
-      
+
   synaptic_activation_analysis:
     enabled: false
     training: false
@@ -282,7 +282,7 @@ analysis:
       logspace: false
       downsample: true
       samples: 5
-      
+
   branch_activation_analysis:
     enabled: false
     training: false
@@ -296,7 +296,7 @@ analysis:
       logspace: false
       downsample: true
       samples: 5
-      
+
   single_layer_contribution:
     enabled: false
     training: false
@@ -309,7 +309,7 @@ analysis:
       categorical_loglikelihood: true
       mse: true
       cosine_similarity: true
-      
+
   correlation_analysis:
     enabled: false
     training: false
@@ -322,4 +322,3 @@ outputs:
   run_name: "fsdp_large_ei_cifar100"
   dir: "./outputs/fsdp_runs/"  # Separate directory for FSDP runs
   dataset_dir: ""                         # Optional: separate directory for shared datasets
-  

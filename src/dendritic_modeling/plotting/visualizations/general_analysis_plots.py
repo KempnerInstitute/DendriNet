@@ -146,7 +146,9 @@ def plot_ablation_results(results: dict, **kwargs):
                     (
                         next(iter(result.values()))
                         if isinstance(result, dict) and result
-                        else result if isinstance(result, (int, float)) else 0
+                        else result
+                        if isinstance(result, (int, float))
+                        else 0
                     )
                     for result in results.values()
                 ]
@@ -255,7 +257,6 @@ def plot_per_layer_ablation(layer_results: dict[str, dict[str, dict]], **kwargs)
                 any(metric_type in layer["metrics"] for layer in layers)
                 for layers in layer_data_by_depth.values()
             ):
-
                 fig, ax = create_figure(figsize=(14, 8))
 
                 # Plot data for each ablation type
@@ -1370,7 +1371,6 @@ def plot_active_synapses_per_branch(
         matplotlib Figure object
     """
     try:
-
         # Extract data from connectivity stats
         layer_stats = connectivity_stats.get("layer_stats", {})
         branch_stats = connectivity_stats.get("branch_stats", {})
@@ -1569,7 +1569,6 @@ def plot_active_synapses_summary_by_layer(
         matplotlib Figure object
     """
     try:
-
         # Extract data from connectivity stats
         layer_stats = connectivity_stats.get("layer_stats", {})
 

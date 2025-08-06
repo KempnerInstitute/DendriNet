@@ -2260,7 +2260,6 @@ class UnifiedResultAnalyzer:
                     (first_layer, ax1, f"First Layer (Layer {first_layer})"),
                     (last_layer, ax2, f"Last Layer (Layer {last_layer})"),
                 ]:
-
                     # Track y-axis range for this subplot
                     y_values = []
 

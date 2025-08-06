@@ -96,7 +96,7 @@ jobs:
           echo " coverage.xml missing - tests may have failed"
           exit 1
         fi
-        
+
     - name: Comment coverage on PR
       if: github.event_name == 'pull_request' && matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
       uses: orgoro/coverage@v3
@@ -173,7 +173,7 @@ jobs:
       uses: pypa/gh-action-pip-audit@v1.0.8
       with:
         inputs: requirements.txt
-        # Ignore torch vulnerability GHSA-887c-mr87-cxwp as it's a local DoS 
+        # Ignore torch vulnerability GHSA-887c-mr87-cxwp as it's a local DoS
         # that doesn't affect our use case
         ignore-vulns: |
           GHSA-887c-mr87-cxwp
@@ -225,4 +225,4 @@ jobs:
         CUDA_VISIBLE_DEVICES: ""
       run: |
         # Run only fast performance tests on PR
-        python -m pytest tests/ -m "not slow" --benchmark-skip 
+        python -m pytest tests/ -m "not slow" --benchmark-skip

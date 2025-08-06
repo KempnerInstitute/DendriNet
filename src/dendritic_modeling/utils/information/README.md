@@ -33,7 +33,7 @@ print(analyzer.get_summary(results))
 
 ### 1. Basic Mutual Information with C
 - `I(E;C)` - MI between excitatory inputs and class labels
-- `I(I;C)` - MI between inhibitory inputs and class labels  
+- `I(I;C)` - MI between inhibitory inputs and class labels
 - `I(Vout;C)` - MI between branch outputs and class labels
 - `I(Vinf;C)` - MI between soma activation and class labels (optional)
 - `I(E,I;C)` - Joint MI between E&I and class labels
@@ -193,7 +193,7 @@ for method in methods:
     config = ConfigBuilder().with_method(method).build()
     analyzer = InformationAnalyzer(config)
     results_by_method[method] = analyzer.analyze(E, I, Vout, C)
-    
+
 # Compare results
 for method, results in results_by_method.items():
     print(f"{method}: I(E;C) = {results['basic_mi']['I(E;C)']:.4f}")
@@ -256,14 +256,14 @@ class MyCustomEstimator(BaseInformationEstimator):
     def mutual_information(self, x, y):
         # Your implementation
         pass
-    
+
     def conditional_mutual_information(self, x, y, z):
         # Your implementation
         pass
 
 # Register it
 InformationEstimatorFactory.register_estimator(
-    EstimationMethod.CUSTOM, 
+    EstimationMethod.CUSTOM,
     MyCustomEstimator
 )
 ```
@@ -281,7 +281,7 @@ for dataset in datasets:
         dataset.E, dataset.I, dataset.Vout, dataset.C
     )
     results_list.append(results)
-    
+
 # Aggregate results
 aggregate_results(results_list)
 ```
@@ -335,4 +335,4 @@ If you see "PID package not available", ensure the external PID library is insta
 ### Memory issues
 - Process data in smaller batches
 - Use single-feature arrays when possible
-- Consider downsampling for large datasets 
+- Consider downsampling for large datasets

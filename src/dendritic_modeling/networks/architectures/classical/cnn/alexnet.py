@@ -15,7 +15,6 @@ from dendritic_modeling.networks.base import BaseNetwork
 
 
 class AlexNet(BaseNetwork):
-
     def __init__(self, output_dim: Optional[int] = None, **kwargs):
         super().__init__()
 

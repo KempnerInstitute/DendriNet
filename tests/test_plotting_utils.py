@@ -57,7 +57,6 @@ class TestPlottingUtils:
             with patch(
                 "dendritic_modeling.plotting.core.utils.logging"
             ) as mock_logging:
-
                 # Should log warning and return
                 result = visualize_graph(None, mode="info")
 

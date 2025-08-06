@@ -205,9 +205,9 @@ class PruningManager:
                         "pruned": 0,
                     }
 
-                pruning_stats["layer_stats"][layer_key][
-                    "total_before"
-                ] += original_count
+                pruning_stats["layer_stats"][layer_key]["total_before"] += (
+                    original_count
+                )
                 pruning_stats["layer_stats"][layer_key]["remaining"] += remaining_count
                 pruning_stats["layer_stats"][layer_key]["pruned"] += pruned_count
 
@@ -221,12 +221,12 @@ class PruningManager:
                             "pruned": 0,
                         }
 
-                    pruning_stats["branch_stats"][branch_name][
-                        "total_before"
-                    ] += original_count
-                    pruning_stats["branch_stats"][branch_name][
-                        "remaining"
-                    ] += remaining_count
+                    pruning_stats["branch_stats"][branch_name]["total_before"] += (
+                        original_count
+                    )
+                    pruning_stats["branch_stats"][branch_name]["remaining"] += (
+                        remaining_count
+                    )
                     pruning_stats["branch_stats"][branch_name]["pruned"] += pruned_count
 
                 # Weight type statistics
@@ -238,15 +238,15 @@ class PruningManager:
                         "pruned": 0,
                     }
 
-                pruning_stats["weight_type_stats"][weight_type][
-                    "total_before"
-                ] += original_count
-                pruning_stats["weight_type_stats"][weight_type][
-                    "remaining"
-                ] += remaining_count
-                pruning_stats["weight_type_stats"][weight_type][
-                    "pruned"
-                ] += pruned_count
+                pruning_stats["weight_type_stats"][weight_type]["total_before"] += (
+                    original_count
+                )
+                pruning_stats["weight_type_stats"][weight_type]["remaining"] += (
+                    remaining_count
+                )
+                pruning_stats["weight_type_stats"][weight_type]["pruned"] += (
+                    pruned_count
+                )
 
                 pruning_stats["total_params_after"] += remaining_count
                 pruning_stats["pruned_params"] += pruned_count

@@ -269,18 +269,20 @@ class TestWrapModelWithFSDP:
         assert wrapped_model == simple_model
 
     @patch("dendritic_modeling.training.fsdp_utils.FullyShardedDataParallel")
-    def test_wrap_model_no_distributed(
-        self, mock_fsdp, simple_model, mock_fsdp_config
-    ):
+    def test_wrap_model_no_distributed(self, mock_fsdp, simple_model, mock_fsdp_config):
         """Test model wrapping when distributed is not initialized."""
         # FullyShardedDataParallel will raise ValueError if distributed is not initialized
-        mock_fsdp.side_effect = ValueError("Default process group has not been initialized")
-        
+        mock_fsdp.side_effect = ValueError(
+            "Default process group has not been initialized"
+        )
+
         # Make sure config doesn't have gradient_checkpointing key
         if "gradient_checkpointing" in mock_fsdp_config:
             del mock_fsdp_config["gradient_checkpointing"]
 
-        with pytest.raises(ValueError, match="Default process group has not been initialized"):
+        with pytest.raises(
+            ValueError, match="Default process group has not been initialized"
+        ):
             wrap_model_with_fsdp(simple_model, mock_fsdp_config)
 
     @patch("torch.distributed.is_initialized")
@@ -311,13 +313,13 @@ class TestWrapModelWithFSDP:
     ):
         """Test basic model wrapping functionality."""
         mock_fsdp.return_value = simple_model
-        
+
         # Make sure config doesn't have gradient_checkpointing key
         if "gradient_checkpointing" in mock_fsdp_config:
             del mock_fsdp_config["gradient_checkpointing"]
 
         result = wrap_model_with_fsdp(simple_model, mock_fsdp_config)
-        
+
         # Should return the wrapped model
         assert result == simple_model
         # FullyShardedDataParallel should be called
@@ -331,14 +333,9 @@ class TestApplyGradientCheckpointing:
         """Test applying gradient checkpointing to model."""
         model = nn.Sequential(nn.Linear(10, 5), nn.ReLU(), nn.Linear(5, 2))
 
-        with patch("dendritic_modeling.training.fsdp_utils.logger") as mock_logger:
-            _apply_gradient_checkpointing(model)
-
-            # The function uses logger.debug for logging, not logger.info
-            # And only logs if there are suitable modules to checkpoint
-            # For a simple Sequential model without dendritic layers, no logging occurs
-            # This is expected behavior
-            pass  # Test passes if no exception is raised
+        # For a simple Sequential model without dendritic layers, no logging occurs
+        # This is expected behavior - test passes if no exception is raised
+        _apply_gradient_checkpointing(model)
 
     def test_apply_gradient_checkpointing_with_large_linear(self):
         """Test applying gradient checkpointing to model with large linear layers."""
@@ -349,7 +346,9 @@ class TestApplyGradientCheckpointing:
             _apply_gradient_checkpointing(model)
 
             # Should log debug message for large linear layer
-            assert mock_logger.debug.called, "Expected logger.debug to be called for large linear layer"
+            assert (
+                mock_logger.debug.called
+            ), "Expected logger.debug to be called for large linear layer"
 
     def test_apply_gradient_checkpointing_nested_model(self):
         """Test gradient checkpointing on nested model."""
@@ -360,12 +359,10 @@ class TestApplyGradientCheckpointing:
             }
         )
 
-        with patch("dendritic_modeling.training.fsdp_utils.logger") as mock_logger:
-            _apply_gradient_checkpointing(model)
-
-            # No logging expected for regular modules without dendritic layers
-            # The function only logs for dendritic layers or large linear layers
-            pass  # Test passes if no exception is raised
+        # No logging expected for regular modules without dendritic layers
+        # The function only logs for dendritic layers or large linear layers
+        # Test passes if no exception is raised
+        _apply_gradient_checkpointing(model)
 
 
 @pytest.mark.skip(reason="FSDP checkpointing requires complex PyTorch FSDP setup")
@@ -461,7 +458,9 @@ class TestFSDPCheckpointing:
 
             with patch("torch.load", return_value=checkpoint_data):
                 loaded_data = load_fsdp_checkpoint(
-                    mock_fsdp_model, None, checkpoint_path  # No optimizer
+                    mock_fsdp_model,
+                    None,
+                    checkpoint_path,  # No optimizer
                 )
 
                 mock_fsdp_model.load_state_dict.assert_called_once()
@@ -569,7 +568,8 @@ class TestMemoryEstimation:
     def test_get_recommended_gpu_count_minimum(self):
         """Test GPU count recommendation with minimum."""
         gpu_count = get_recommended_gpu_count(
-            memory_per_gpu_gb=32.0, total_memory_gb=8.0  # Less than per-GPU memory
+            memory_per_gpu_gb=32.0,
+            total_memory_gb=8.0,  # Less than per-GPU memory
         )
 
         assert gpu_count == 2  # Function returns minimum of 2 GPUs
@@ -577,7 +577,8 @@ class TestMemoryEstimation:
     def test_get_recommended_gpu_count_fractional(self):
         """Test GPU count recommendation with fractional result."""
         gpu_count = get_recommended_gpu_count(
-            memory_per_gpu_gb=24.0, total_memory_gb=100.0  # 100/24 = 4.17
+            memory_per_gpu_gb=24.0,
+            total_memory_gb=100.0,  # 100/24 = 4.17
         )
 
         assert gpu_count == 8  # 100/(24*0.9) = 4.6, rounds up to 8

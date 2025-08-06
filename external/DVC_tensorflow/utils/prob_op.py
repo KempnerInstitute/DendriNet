@@ -675,7 +675,7 @@ def kde(data, n=2**14, MIN=None, MAX=None):
 
     # Smooth the DCT of initial data using t_star
     a_t = a * tf.exp(
-        -tf.range(n, dtype=a2.dtype) ** 2
+        -(tf.range(n, dtype=a2.dtype) ** 2)
         * tf.constant(np.pi, dtype=a2.dtype) ** 2
         * t_star
         / 2

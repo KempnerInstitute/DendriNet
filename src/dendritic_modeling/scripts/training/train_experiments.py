@@ -296,9 +296,9 @@ def main(config_path: str, args=None):
 
     # Store original pruning config and temporarily disable it for initial training
     original_pruning_config = main_trainer_config_dict.get("pruning", {})
-    main_trainer_config_dict["pruning"] = (
-        {}
-    )  # Temporarily disable pruning for initial training
+    main_trainer_config_dict[
+        "pruning"
+    ] = {}  # Temporarily disable pruning for initial training
 
     main_trainer = get_trainer(
         strategy=main_train_config.learning_strategy,

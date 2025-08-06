@@ -303,16 +303,16 @@ dl dd {
         font-size: 0.8em;
         padding: 0.75rem;
     }
-    
+
     table.docutils {
         font-size: 0.9em;
     }
-    
+
     table.docutils th,
     table.docutils td {
         padding: 0.5rem;
     }
-    
+
     .figure img {
         max-width: 100%;
     }
@@ -449,25 +449,25 @@ table.docutils {
     .copybtn {
         display: none !important;
     }
-    
+
     .bd-main {
         margin-left: 0 !important;
     }
-    
+
     .highlight pre {
         white-space: pre-wrap;
         word-wrap: break-word;
     }
-    
+
     a {
         color: var(--dendritic-dark) !important;
         text-decoration: none !important;
     }
-    
+
     /* Print URLs after links */
     a[href^="http"]:after {
         content: " (" attr(href) ")";
         font-size: 0.8em;
         color: #666;
     }
-} 
+}

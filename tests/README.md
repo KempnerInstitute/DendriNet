@@ -117,7 +117,7 @@ Tests are marked with pytest markers for selective running:
 # Run only unit tests
 python -m pytest -m unit
 
-# Run only integration tests  
+# Run only integration tests
 python -m pytest -m integration
 
 # Skip slow tests
@@ -132,7 +132,7 @@ python -m pytest -m "not requires_data"
 
 Available markers:
 - `unit`: Unit tests
-- `integration`: Integration tests  
+- `integration`: Integration tests
 - `slow`: Slow-running tests
 - `requires_gpu`: Tests requiring GPU
 - `requires_data`: Tests requiring external data
@@ -142,7 +142,7 @@ Available markers:
 ### Writing New Tests
 
 1. Choose the appropriate test file based on the module you're testing
-2. Follow naming conventions: 
+2. Follow naming conventions:
    - Test files: `test_<module_name>.py`
    - Test classes: `Test<ClassName>`
    - Test methods: `test_<functionality>`
@@ -153,15 +153,15 @@ class TestYourComponent(unittest.TestCase):
     def setUp(self):
         """Set up test fixtures before each test method."""
         pass
-    
+
     def tearDown(self):
         """Clean up after each test method."""
         pass
-    
+
     def test_basic_functionality(self):
         """Test basic functionality with clear docstring."""
         # Arrange
-        # Act  
+        # Act
         # Assert
         pass
 ```
@@ -332,4 +332,4 @@ When contributing tests:
 
 ---
 
-For questions about the test suite, please refer to the documentation or create an issue in the repository. 
+For questions about the test suite, please refer to the documentation or create an issue in the repository.
