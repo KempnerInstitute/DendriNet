@@ -16,8 +16,6 @@ from unittest.mock import patch
 import pytest
 import torch
 
-from dendritic_modeling.analysis.core.information import InformationAnalyzer
-
 try:
     import os
     import sys
@@ -43,9 +41,8 @@ from unittest.mock import Mock
 
 import numpy as np
 
-from dendritic_modeling.analysis import (AblationAnalyzer, AnalysisManager,
+from dendritic_modeling.analysis import (AnalysisManager,
                                          BranchActivationAnalyzer,
-                                         InformationAnalyzer,
                                          PerformanceAnalyzer)
 from dendritic_modeling.analysis.core.ablation import AblationAnalyzer
 from dendritic_modeling.analysis.core.information import InformationAnalyzer

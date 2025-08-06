@@ -15,6 +15,16 @@ from omegaconf import OmegaConf
 from dendritic_modeling.scripts.sweeps.unified.sweep_types.general_sweep import \
     GeneralSweepGenerator
 
+# Mock classes for old sweep generators (tests are skipped anyway)
+class EISweepGenerator:
+    pass
+
+class BranchSweepGenerator:
+    pass
+
+class NoiseSweepGenerator:
+    pass
+
 # Skip all tests in this module until they are updated for the new architecture
 pytestmark = pytest.mark.skip(
     reason="Tests need to be updated for new unified sweep architecture"
@@ -197,8 +207,8 @@ def test_noise_generate_configs(base_config):
     assert "noise_config" in configs[0]._sweep_metadata
 
 
-def test_general_generate_configs(base_config):
-    """Test general sweep configuration generation."""
+def test_general_generate_configs_basic_params(base_config):
+    """Test general sweep configuration generation with basic parameters."""
     generator = GeneralSweepGenerator()
 
     base_config.sweep_config = {

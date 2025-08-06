@@ -369,7 +369,7 @@ def plot_pruning_performance_comparison(
                             values.append(val)
                 if values:  # Only include if we have at least one valid value
                     numeric_metrics.append(metric)
-            except:
+            except (KeyError, TypeError, ValueError):
                 continue
 
         if not numeric_metrics:

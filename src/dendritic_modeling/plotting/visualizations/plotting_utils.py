@@ -132,7 +132,7 @@ def convert_layer_names(
                     indexed_layers.append((999, name))
             else:
                 indexed_layers.append((999, name))
-        except:
+        except (ValueError, IndexError, AttributeError):
             indexed_layers.append((999, name))
 
     # Sort by index (reverse order so highest index = soma, lowest = distal)
@@ -224,6 +224,6 @@ def handle_plot_error(
             )
             ax.set_title(f"{func_name} - Error")
             return fig, ax
-        except:
+        except Exception:  # Broad exception for matplotlib/plotting errors
             return None
     return None

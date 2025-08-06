@@ -575,7 +575,7 @@ class UnifiedResultAnalyzer:
                                         )
                                     else:
                                         depth = 0  # Default depth
-                                except:
+                                except (ValueError, IndexError):
                                     depth = 0
 
                                 # Extract layer-specific MI metrics
@@ -654,7 +654,7 @@ class UnifiedResultAnalyzer:
                     ):
                         for ablation_type, layer_data in content_dict["layer"].items():
                             if isinstance(layer_data, dict):
-                                for layer_name, layer_metrics in layer_data.items():
+                                for _layer_name, layer_metrics in layer_data.items():
                                     if isinstance(layer_metrics, dict):
                                         # Extract depth information
                                         depth = layer_metrics.get("depth", 0)
@@ -1697,7 +1697,7 @@ class UnifiedResultAnalyzer:
                                     "ei_ratio": row.get("ei_ratio", 0),
                                 }
                             )
-                    except:
+                    except (KeyError, ValueError, TypeError):
                         continue
 
         if not layer_data:
@@ -2052,7 +2052,7 @@ class UnifiedResultAnalyzer:
                                     "ivc_value": row[col],
                                 }
                             )
-                except:
+                except (KeyError, ValueError, TypeError):
                     continue
 
             if not layer_data:
@@ -2174,7 +2174,7 @@ class UnifiedResultAnalyzer:
                         .replace("_mean", "")
                     )
                     depths.add(depth)
-                except:
+                except (ValueError, IndexError):
                     continue
 
             depths = sorted(depths)
