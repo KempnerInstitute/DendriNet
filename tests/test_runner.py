@@ -9,6 +9,7 @@ This script provides a unified interface for running tests with various configur
 """
 
 import argparse
+import importlib.util
 import os
 import subprocess
 import sys
@@ -176,25 +177,16 @@ def check_dependencies():
     }
 
     # Check pytest
-    try:
-        import pytest
+    if importlib.util.find_spec("pytest") is not None:
         dependencies["pytest"] = True
-    except ImportError:
-        pass
 
     # Check coverage
-    try:
-        import coverage
+    if importlib.util.find_spec("coverage") is not None:
         dependencies["coverage"] = True
-    except ImportError:
-        pass
 
-    # Check pytest-cov (direct import)
-    try:
-        import pytest_cov
+    # Check pytest-cov
+    if importlib.util.find_spec("pytest_cov") is not None:
         dependencies["pytest-cov"] = True
-    except ImportError:
-        pass
 
     return dependencies
 
