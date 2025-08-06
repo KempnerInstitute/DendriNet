@@ -17,7 +17,6 @@ from dendritic_modeling.training.strategies.two_step import (
     TwoStepTrainerWithKL,
 )
 
-
 __all__ = [
     "LayerWiseTrainer",
     "LocalCreditAssignment",

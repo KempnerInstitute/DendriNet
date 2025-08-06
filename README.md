@@ -94,7 +94,7 @@ python src/dendritic_modeling/scripts/sweeps/result_analyzer.py --results-dir ou
 
 Generates comprehensive analysis:
 - Performance trends vs E/I ratios
-- Dendritic architecture comparisons  
+- Dendritic architecture comparisons
 - Noise robustness analysis
 - Layer-specific information theory analysis (I(E;C), I(I;E|C), etc.)
 

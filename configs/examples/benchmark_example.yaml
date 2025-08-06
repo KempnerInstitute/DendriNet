@@ -1,13 +1,13 @@
 
 model:
   task: classification
-  
+
   # No encoder for pure benchmarking
   encoder_network:
     type: identity
     parameters:
       input_shape: [1, 28, 28]  # MNIST input
-  
+
   # Core EI network optimized for benchmarking
   core_network:
     type: EINet
@@ -17,39 +17,39 @@ model:
         input_mode: 1
         independent_pathways: true
         output_activation: none
-        
+
       # Larger architecture for meaningful benchmark
       excitatory_layer_sizes: [50, 40, 30]        # Large layers for benchmark
       inhibitory_layer_sizes: [15, 12, 8]         # Corresponding inhibitory layers
       excitatory_branch_factors: [6, 6, 4]        # More branches for complexity
       inhibitory_branch_factors: [3, 3, 2]        # Inhibitory branches
-      
+
       # Rich connectivity for benchmarking
       ee_synapses_per_branch_per_layer: [12]      # More synapses per branch
       ei_synapses_per_branch_per_layer: [6]       # E-to-I connections
       ie_synapses_per_branch_per_layer: [3]       # I-to-E connections
       ii_synapses_per_branch_per_layer: [2]       # I-to-I connections
-      
+
       # Morphological features
       somatic_synapses: true
       use_shunting: true
-      
+
       # TopK parameters
       topk_type: standard
       topk_init_method: xavier_normal
       topk_noise_level: 0.0
-      
+
       # Reactivation
       reactivate: true
       reactivation_type: param_tanh
       reactivation_init_m: 1.5
       reactivation_init_b: 0.5
-      
+
       # Gradient scaling
       reactivation_strategy: inverse
       topk_strategy: conductance_dynamic
       blocklinear_strategy: conductance_dynamic
-      
+
       # Implementation optimizations
       efficient_blocklinear: true
       adaptive_initialization: true
@@ -66,17 +66,17 @@ model:
       dropout_rate: 0.0
 
 train:
-  
+
   # ==========================================
   # MAXIMUM PERFORMANCE SETTINGS
   # ==========================================
-  
+
   # All performance optimizations enabled
   enable_amp: true              # Mixed precision for speed
   enable_profiling: false       # Disabled - adds overhead
   enable_hooks: false           # Disabled for maximum speed
   use_fsdp: false              # Single GPU benchmark
-  
+
   # Skip encoder training for benchmarking
   encoder:
     load_save_root: saved_models/encoder
@@ -91,12 +91,12 @@ train:
       plot_losses: false
       suppress_prints: true
       print_every: 50
-  
+
   # Optimized training parameters
   main:
     learning_strategy: standard  # Supports regularization and pruning features
     weight_decay_rate: 0.1
-    
+
     # Advanced training features (disabled by default for benchmarking)
     optimizer:
       name: "adam"
@@ -111,7 +111,7 @@ train:
       report_non_pruned: false    # Disabled for benchmarking
       save_pruning_stats: false
       detailed_branch_report: false
-    
+
     # Parameter groups optimized for speed
     param_groups:
       lr: 0.001                 # Default learning rate
@@ -120,7 +120,7 @@ train:
       blocklinear_lr: 0.001    # Learning rate for BlockLinear layers
       reactivation_lr: 0.001   # Learning rate for reactivation layers
       decoder_lr: 0.001        # Learning rate for decoder network
-    
+
     trainer:
       loss_function: cat_nll    # Loss function for classification
       epochs: 20                # Fewer epochs for throughput testing
@@ -133,15 +133,15 @@ train:
       plot_losses: false        # Disabled for performance
       suppress_prints: true
       print_every: 50           # Very infrequent printing
-  
+
   # No checkpointing to avoid I/O overhead
   checkpointing:
     enabled: false
-  
+
   # No model saving during benchmark (these are not valid TrainConfig parameters)
   # save_model: false
   # save_results: false
-  
+
   # Note: suppress_prints is not a valid TrainConfig parameter
   # Minimal logging configured in trainer configs above
 
@@ -179,7 +179,7 @@ analysis:
       categorical_loglikelihood: true
       mse: false
       cosine_similarity: false
-  
+
   information_analysis:
     enabled: false
     training: false
@@ -201,11 +201,11 @@ analysis:
       verbose: false
       compute_per_branch: true
       branch_aggregation: mean
-  
+
   synapse_turnover_analysis:
     enabled: false
     training: false
-    
+
   noise_perturbation_analysis:
     enabled: false
     training: false
@@ -220,7 +220,7 @@ analysis:
       categorical_loglikelihood: true
       mse: true
       cosine_similarity: true
-  
+
   ablation_analysis:
     enabled: false
     training: false
@@ -236,14 +236,14 @@ analysis:
       categorical_loglikelihood: true
       mse: true
       cosine_similarity: true
-  
+
   weight_analysis:
     enabled: false
     training: false
     params:
       synapse_weights: true
       branch_weights: true
-      
+
   synaptic_activation_analysis:
     enabled: false
     training: false
@@ -255,7 +255,7 @@ analysis:
       logspace: false
       downsample: true
       samples: 5
-      
+
   branch_activation_analysis:
     enabled: false
     training: false
@@ -269,7 +269,7 @@ analysis:
       logspace: false
       downsample: true
       samples: 5
-      
+
   single_layer_contribution:
     enabled: false
     training: false
@@ -282,7 +282,7 @@ analysis:
       categorical_loglikelihood: true
       mse: true
       cosine_similarity: true
-      
+
   correlation_analysis:
     enabled: false
     training: false
@@ -295,4 +295,3 @@ outputs:
   run_name: "benchmark_performance_test"
   dir: "./outputs/benchmarks/"
   dataset_dir: ""                         # Optional: separate directory for shared datasets
-  

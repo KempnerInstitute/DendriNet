@@ -1,4 +1,4 @@
-from math import erf, exp, sqrt, log
+from math import erf, exp, log, sqrt
 
 import torch
 from scipy.stats import norm

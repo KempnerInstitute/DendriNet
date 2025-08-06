@@ -9,6 +9,7 @@ This script provides a unified interface for running tests with various configur
 """
 
 import argparse
+import importlib.util
 import os
 import subprocess
 import sys
@@ -176,31 +177,16 @@ def check_dependencies():
     }
 
     # Check pytest
-    try:
-        # import pytest  # Available for import check
+    if importlib.util.find_spec("pytest") is not None:
         dependencies["pytest"] = True
-    except ImportError:
-        pass
 
     # Check coverage
-    try:
-        # import coverage  # Available for import check
+    if importlib.util.find_spec("coverage") is not None:
         dependencies["coverage"] = True
-    except ImportError:
-        pass
 
-    # Check pytest-cov (indirectly)
-    if dependencies["pytest"]:
-        try:
-            result = subprocess.run(
-                ["python", "-m", "pytest", "--cov", "--help"],
-                capture_output=True,
-                timeout=5,
-            )
-            if result.returncode == 0:
-                dependencies["pytest-cov"] = True
-        except (subprocess.TimeoutExpired, FileNotFoundError):
-            pass
+    # Check pytest-cov
+    if importlib.util.find_spec("pytest_cov") is not None:
+        dependencies["pytest-cov"] = True
 
     return dependencies
 

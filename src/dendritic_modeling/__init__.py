@@ -18,6 +18,19 @@ Package Structure:
 For detailed documentation on each module, see the respective module docstrings.
 """
 
+# Core imports
+from dendritic_modeling import (
+    analysis,
+    config,
+    datasets,
+    models,
+    networks,
+    plotting,
+    scripts,
+    training,
+    utils,
+)
+
 # Set up the logging environment
 from dendritic_modeling.utils.logging_config import LoggerManager
 
@@ -26,20 +39,6 @@ logger = logger_manager.get_logger()
 
 # Version information
 __version__ = "0.1.0"
-
-# Core imports for convenience
-from dendritic_modeling import (  # noqa: E402
-    analysis,
-    config,
-    datasets,
-    models,
-    networks,
-    plotting,
-    scripts,
-
-    training,
-    utils,
-)
 
 __all__ = [
     "__version__"
@@ -51,7 +50,6 @@ __all__ = [
     "networks"
     "plotting"
     "scripts"
-
     "training"
     "utils"
 ]

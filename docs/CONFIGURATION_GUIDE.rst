@@ -110,7 +110,7 @@ FSDP Training
        epochs: 100
        batch_size: 32  # Smaller for FSDP
        learning_rate: 0.001
-   
+
    fsdp:
      enabled: true
      sharding_strategy: FULL_SHARD

@@ -5,22 +5,25 @@ This module contains helper functions for setting up the training environment,
 including model initialization, dataset loading, and logging configuration.
 """
 
-import os
 import logging
-from datetime import datetime
+import os
 from dataclasses import asdict
+from datetime import datetime
 
 import torch
 import wandb
 from omegaconf import OmegaConf
 
-from dendritic_modeling import logger, logger_manager
 from dendritic_modeling.config import ModelConfig
 from dendritic_modeling.datasets import get_unified_datasets
-from dendritic_modeling.models import BaseModel, Classifier, Regressor
+from dendritic_modeling.models import Classifier, Regressor
 from dendritic_modeling.networks import Identity
 from dendritic_modeling.networks.architectures.factory import get_architecture
 from dendritic_modeling.utils import set_seed
+from dendritic_modeling.utils.logging_config import LoggerManager
+
+logger = logging.getLogger(__name__)
+logger_manager = LoggerManager()
 
 
 def initialize_model(model_config: ModelConfig):
@@ -72,7 +75,7 @@ def setup_environment(
 ):
     """
     Set up the environment for training.
-    
+
     Returns:
         Tuple of (run_save_path, train_ds, valid_ds, test_ds, model, encoder_network)
     """
@@ -85,21 +88,21 @@ def setup_environment(
         if run_config and hasattr(run_config, "dir")
         else outputs_config.dir
     )
-    
+
     # Check if we're in a sweep context by looking for sweep-specific directory patterns
     # Sweep directories typically end with config_X where X is a number
-    is_sweep_context = (
-        output_dir and
+    is_sweep_context = output_dir and (
+        # Check if path ends with config_X pattern (sweep context)
         (
-            # Check if path ends with config_X pattern (sweep context)
-            (str(output_dir).split('/')[-1].startswith("config_") and 
-             str(output_dir).split('/')[-1].replace("config_", "").isdigit()) or
-            # Or if "sweep" or "unified_" is in the path
-            "sweep" in str(output_dir).lower() or
-            "unified_" in str(output_dir)
+            str(output_dir).split("/")[-1].startswith("config_")
+            and str(output_dir).split("/")[-1].replace("config_", "").isdigit()
         )
+        or
+        # Or if "sweep" or "unified_" is in the path
+        "sweep" in str(output_dir).lower()
+        or "unified_" in str(output_dir)
     )
-    
+
     if is_sweep_context:
         # We're in a sweep - use the provided directory directly
         run_save_path = output_dir
@@ -139,16 +142,16 @@ def setup_environment(
 
     # Get datasets using a shared dataset directory (not the individual run directory)
     # This prevents each config from saving its own copy of the dataset
-    if hasattr(outputs_config, 'dataset_dir') and outputs_config.dataset_dir:
+    if hasattr(outputs_config, "dataset_dir") and outputs_config.dataset_dir:
         # Use explicitly configured dataset directory
         shared_dataset_dir = outputs_config.dataset_dir
-    elif hasattr(outputs_config, 'dir') and outputs_config.dir:
+    elif hasattr(outputs_config, "dir") and outputs_config.dir:
         # Use outputs directory as fallback
         shared_dataset_dir = outputs_config.dir
     else:
         # Use parent of output_dir as final fallback
         shared_dataset_dir = os.path.dirname(output_dir)
-    
+
     unified_datasets = get_unified_datasets(
         task_cfg=task_config,
         train_cfg=train_config,
@@ -183,4 +186,4 @@ def load_model(model: torch.nn.Module, load_path: str):
     """Load a model from the specified path."""
     model.load_state_dict(torch.load(load_path))
     logger.info(f"Loaded model from {load_path}")
-    return model 
+    return model

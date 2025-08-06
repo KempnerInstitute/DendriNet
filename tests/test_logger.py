@@ -18,7 +18,7 @@ class TestLoggerManager(unittest.TestCase):
         """Test logging message output."""
         logger = LoggerManager().get_logger()
         # Use the logger name rather than root
-        with self.assertLogs(logger.name, level='INFO') as cm:
+        with self.assertLogs(logger.name, level="INFO") as cm:
             logger.info("Test message")
         self.assertIn("Test message", str(cm.output))
 

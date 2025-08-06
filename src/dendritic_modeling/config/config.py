@@ -7,11 +7,10 @@ It loads and saves configurations using OmegaConf.
 """
 
 from dataclasses import dataclass, field
-from typing import Optional, List, Dict
+from functools import lru_cache
+from typing import Optional
 
 from omegaconf import OmegaConf
-
-from functools import lru_cache
 
 from dendritic_modeling.config.analysis import AnalysisConfig
 from dendritic_modeling.config.base import BaseConfig
@@ -24,7 +23,7 @@ class WandbConfig(BaseConfig):
     entity: Optional[str] = None
     project: str = "dendritic-modeling"
     group: str = "debug"
-    tags: List[str] = field(default_factory=lambda: ["debug"])
+    tags: list[str] = field(default_factory=lambda: ["debug"])
     use_wandb: bool = False
     # Enhanced logging options
     enabled: bool = True

@@ -591,21 +591,25 @@ class CorrelationAnalyzer:
             save_path: Path to save plots
         """
         try:
-            from dendritic_modeling.plotting.visualizations.information_analysis import plot_information_analysis
-            
+            from dendritic_modeling.plotting.visualizations.information_analysis import (
+                plot_information_analysis,
+            )
+
             # Use the comprehensive plotting system instead of duplicating code
-            logger.info(f"Generating information analysis plots with accuracy: {accuracy:.3f}")
-            
+            logger.info(
+                f"Generating information analysis plots with accuracy: {accuracy:.3f}"
+            )
+
             # Add accuracy to results for display
             enhanced_results = information_results.copy()
             enhanced_results["accuracy"] = accuracy
-            
+
             plot_information_analysis(
                 enhanced_results,
                 save_path=save_path,
-                filename_prefix="correlation_analysis_info"
+                filename_prefix="correlation_analysis_info",
             )
-            
+
         except Exception as e:
             logger.warning(f"Could not generate information plots: {e}")
             print(f"Error plotting information analysis: {e}")

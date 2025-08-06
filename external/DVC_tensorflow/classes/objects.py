@@ -212,9 +212,9 @@ class vine_obj_bin:
             interp_cdf, mar_s1, mar_p1 = kernel_cdf(ccc, ccc, ex_u)
 
             self.Mar_G.append([mar_s1, mar_p1])
-            self.theta[
-                :, 0, i
-            ] = interp_cdf.numpy()  # interp1d_np(ccc, mar_s1, mar_p1).numpy()
+            self.theta[:, 0, i] = (
+                interp_cdf.numpy()
+            )  # interp1d_np(ccc, mar_s1, mar_p1).numpy()
             del ccc, mar_p1, mar_s1
 
         ######################################### FITTING #######################################################
@@ -698,9 +698,9 @@ class vine_obj_bin:
                                     opt = optimization(grid_dict, data_dict, par_dict)
                                     #            print('opt',opt)
 
-                                    opt_bw[
-                                        :, batch_len * j : batch_len * (j + 1)
-                                    ] = opt.numpy()  # [...,tf.newaxis]
+                                    opt_bw[:, batch_len * j : batch_len * (j + 1)] = (
+                                        opt.numpy()
+                                    )  # [...,tf.newaxis]
 
                                 opt_bw = tf.convert_to_tensor(opt_bw)
 
@@ -1516,9 +1516,9 @@ class vine_obj_bin:
                                     ###
                                     #                                 print('flip')
                                     #                                 print('bin-',bb,',bef: ',vv_bin)
-                                    self.theta_flip[
-                                        mask[0], tr + 1, ind_edge
-                                    ] = copulaccdf(cop_p, vv_bin)
+                                    self.theta_flip[mask[0], tr + 1, ind_edge] = (
+                                        copulaccdf(cop_p, vv_bin)
+                                    )
                                 #                                 print('bin-',bb,': ',self.theta_flip[mask[0],tr+1,ind_edge])
                                 else:
                                     vv = np.flip(self.data_u[:, :, ind_edge], 1)
@@ -1815,10 +1815,10 @@ class vine_obj_bin:
                                 #                             print('bin-',bb,': ',interp_cdf)
 
                                 if self.flip_flag[tr][i] == True:
-                                    self.theta_flip[
-                                        mask, tr + 1, ind_edge
-                                    ] = tf.reshape(
-                                        interp_cdf, [tf.shape(interp_cdf)[0], 1]
+                                    self.theta_flip[mask, tr + 1, ind_edge] = (
+                                        tf.reshape(
+                                            interp_cdf, [tf.shape(interp_cdf)[0], 1]
+                                        )
                                     )
                                 else:
                                     self.theta[mask, tr + 1, ind_edge] = tf.reshape(
@@ -1867,9 +1867,9 @@ class vine_obj_bin:
                 self.margin[i].ker, points[:, i], self.grid_u.ex
             )
             if len(interp_cdf_poi.shape) == 1:
-                self.Fp[
-                    :, 0, i
-                ] = interp_cdf_poi  # Assuming you want to assign the first column of interp_cdf_poi
+                self.Fp[:, 0, i] = (
+                    interp_cdf_poi  # Assuming you want to assign the first column of interp_cdf_poi
+                )
             else:
                 self.Fp[:, 0, i] = interp_cdf_poi[
                     :, 0
@@ -2123,9 +2123,9 @@ class vine_obj_bin:
                                         )
                                     vv_bin = vv_bin_new
                                     ###
-                                    self.Fp_flip[
-                                        mask[0], tr + 1, ind_edge
-                                    ] = np.squeeze(copulaccdf(cop_p, vv_bin))
+                                    self.Fp_flip[mask[0], tr + 1, ind_edge] = (
+                                        np.squeeze(copulaccdf(cop_p, vv_bin))
+                                    )
                                 else:
                                     vv = np.flip(self.points_u[:, :, j], 1)
                                     if (
@@ -2440,9 +2440,9 @@ class vine_obj_bin:
                                 ## Update logf
                                 logftr = tf.math.log(pd_points)
 
-                                self.logf[
-                                    tf.squeeze(mask1), ind_edge, tr + 1
-                                ] = tf.squeeze(logftr).numpy()
+                                self.logf[tf.squeeze(mask1), ind_edge, tr + 1] = (
+                                    tf.squeeze(logftr).numpy()
+                                )
 
                                 ## Update Fp
                                 interp_cdf_poi, mar_s1, mar_p1 = kernel_cdf(

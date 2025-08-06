@@ -5,8 +5,8 @@ This module contains classes for evaluating model performance including
 accuracy, categorical log-likelihood, and mean squared error.
 """
 
-from typing import Callable, Optional
 import os
+from typing import Callable, Optional
 
 # Disable Dynamo to fix fake tensor device issues during analysis
 os.environ["TORCHDYNAMO_DISABLE"] = "1"
@@ -24,7 +24,6 @@ from dendritic_modeling.training.utils.evaluation import (
     evaluate_mse,
 )
 from dendritic_modeling.utils import save_dict
-
 
 
 class PerformanceAnalyzer:
@@ -124,4 +123,5 @@ class PerformanceAnalyzer:
 
         if save_path is not None:
             save_dict(results, save_path, filename)
-        return results
+        else:
+            return results

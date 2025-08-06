@@ -1,4 +1,4 @@
-from typing import Dict, Any, Union
+from typing import Any
 
 import torch.nn as nn
 
@@ -14,13 +14,17 @@ from dendritic_modeling.networks.architectures.classical.cnn import (
     CNNUpsample,
 )
 from dendritic_modeling.networks.architectures.classical.identity import Identity
-from dendritic_modeling.networks.architectures.classical.mlp import MLP, MatchedParamMLP, EffectiveMatchedParamMLP
+from dendritic_modeling.networks.architectures.classical.mlp import (
+    MLP,
+    EffectiveMatchedParamMLP,
+    MatchedParamMLP,
+)
 from dendritic_modeling.networks.architectures.excitation_inhibition import (
     ExcitationInhibitionNetwork,
 )
 
 
-def get_architecture(type: str, parameters: Dict[str, Any]) -> nn.Module:
+def get_architecture(type: str, parameters: dict[str, Any]) -> nn.Module:
     type = type.lower()
     if type == "alexnet":
         return AlexNet(**parameters)

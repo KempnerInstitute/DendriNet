@@ -26,11 +26,7 @@ Classifiers:
 
 # Core analyzers
 # Classifiers
-from .core import (
-    AblationAnalyzer,
-    BranchActivationAnalyzer,
-    InformationAnalyzer,
-)
+from .core import AblationAnalyzer, BranchActivationAnalyzer, InformationAnalyzer
 
 # Manager
 from .managers.analysis_manager import AnalysisManager

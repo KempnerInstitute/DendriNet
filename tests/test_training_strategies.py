@@ -17,7 +17,6 @@ from dendritic_modeling.models import Classifier
 from dendritic_modeling.networks import ExcitationInhibitionNetwork, Identity
 from dendritic_modeling.training import Trainer, get_trainer
 from dendritic_modeling.training.strategies import (
-    LocalCreditAssignment,
     TwoStepTrainer,
     TwoStepTrainerWithKL,
     VoltageStabilizationTrainer,
@@ -70,7 +69,9 @@ class TestTrainerFactory(unittest.TestCase):
     def test_get_trainer_voltage_stabilization(self):
         """Test getting voltage stabilization trainer."""
         trainer_config = {"loss_function": "cross_entropy", "epochs": 10}
-        trainer = get_trainer("voltage_stablization", self.optimizer, trainer_config)  # Note: typo in factory is 'stablization'
+        trainer = get_trainer(
+            "voltage_stablization", self.optimizer, trainer_config
+        )  # Note: typo in factory is 'stablization'
         self.assertIsInstance(trainer, VoltageStabilizationTrainer)
 
     def test_get_trainer_freeze_branches(self):

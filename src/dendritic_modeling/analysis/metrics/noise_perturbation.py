@@ -97,7 +97,7 @@ class NoisePerturbationAnalyzer:
             metric_result = metric_func(
                 model, test_ds=noisy_test_ds, reduce_dim=1, move_device=False
             )[-1]
-            
+
             # Handle both tensor and scalar results
             if isinstance(metric_result, torch.Tensor):
                 metric_list = metric_result.cpu().tolist()

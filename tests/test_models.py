@@ -5,8 +5,8 @@ import torch
 import torch.nn as nn
 from torch.distributions import Categorical, Normal
 
-from dendritic_modeling.models.base import BaseModel
 from dendritic_modeling.models import Classifier, Regressor
+from dendritic_modeling.models.base import BaseModel
 from dendritic_modeling.networks import Identity
 from dendritic_modeling.networks.architectures.factory import get_architecture
 
@@ -70,7 +70,7 @@ class EINetClassifier(ProbabilisticClassifier):
         ii_synapses_per_branch_per_layer: Optional[list] = None,
         reactivate: bool = True,
         somatic_synapses: bool = True,
-        **kwargs
+        **kwargs,
     ):
         super().__init__()
         self.input_dim = input_dim
@@ -151,36 +151,63 @@ class EINetClassifierTest(unittest.TestCase):
         preds = self.model.predict(x, stochastic=False)
         self.assertEqual(preds.shape, (32,))
 
+
 def test_classifier_init():
     encoder = Identity(10)
-    core = get_architecture('MLP', {'input_dim': 10, 'hidden_dims': [20], 'output_dim': 5})
+    core = get_architecture(
+        "MLP", {"input_dim": 10, "hidden_dims": [20], "output_dim": 5}
+    )
     decoder = Identity(5)
     model = Classifier(encoder, core, decoder)
     assert model is not None
     assert isinstance(model, Classifier)
 
+
 def test_classifier_forward():
-    model = Classifier(Identity(10), get_architecture('MLP', {'input_dim': 10, 'hidden_dims': [20], 'output_dim': 5}), Identity(5))
+    model = Classifier(
+        Identity(10),
+        get_architecture(
+            "MLP", {"input_dim": 10, "hidden_dims": [20], "output_dim": 5}
+        ),
+        Identity(5),
+    )
     x = torch.randn(2, 10)
     output = model(x)
     assert output.shape == (2, 5)
 
+
 def test_regressor_init():
     encoder = Identity(10)
-    core = get_architecture('MLP', {'input_dim': 10, 'hidden_dims': [20], 'output_dim': 3})
+    core = get_architecture(
+        "MLP", {"input_dim": 10, "hidden_dims": [20], "output_dim": 3}
+    )
     decoder = Identity(3)
     model = Regressor(encoder, core, decoder)
     assert model is not None
     assert isinstance(model, Regressor)
 
+
 def test_regressor_forward():
-    model = Regressor(Identity(10), get_architecture('MLP', {'input_dim': 10, 'hidden_dims': [20], 'output_dim': 3}), Identity(3))
+    model = Regressor(
+        Identity(10),
+        get_architecture(
+            "MLP", {"input_dim": 10, "hidden_dims": [20], "output_dim": 3}
+        ),
+        Identity(3),
+    )
     x = torch.randn(2, 10)
     output = model(x)
     assert output.shape == (2, 3)
 
+
 def test_regressor_predict():
-    model = Regressor(Identity(10), get_architecture('MLP', {'input_dim': 10, 'hidden_dims': [20], 'output_dim': 3}), Identity(3))
+    model = Regressor(
+        Identity(10),
+        get_architecture(
+            "MLP", {"input_dim": 10, "hidden_dims": [20], "output_dim": 3}
+        ),
+        Identity(3),
+    )
     x = torch.randn(2, 10)
     preds = model.predict(x)
     assert preds.shape == (2, 3)

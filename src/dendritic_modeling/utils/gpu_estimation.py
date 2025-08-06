@@ -6,13 +6,15 @@ This module provides comprehensive GPU memory estimation for dendritic neural ne
 including support for FSDP distributed training.
 """
 
+import logging
 import math
-from typing import Dict, List, Tuple, Optional, Any
-import torch
-import numpy as np
 from dataclasses import dataclass
+from typing import Any, ClassVar, Optional
 
-from dendritic_modeling import logger
+import numpy as np
+import torch
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -64,7 +66,7 @@ class GPURecommendation:
 class GPUMemoryEstimator:
     """Estimate GPU memory requirements for dendritic models."""
 
-    GPU_SPECS = {
+    GPU_SPECS: ClassVar[dict[str, dict[str, Any]]] = {
         "A100-40GB": {"memory_gb": 40, "compute": "high"},
         "H100": {"memory_gb": 80, "compute": "high"},
     }
@@ -103,7 +105,7 @@ class GPUMemoryEstimator:
         }
         return optimizer_multipliers.get(optimizer.lower(), 2.0)
 
-    def estimate_model_parameters(self, model: torch.nn.Module) -> Dict[str, int]:
+    def estimate_model_parameters(self, model: torch.nn.Module) -> dict[str, int]:
         """
         Count parameters by layer type.
 
@@ -116,7 +118,7 @@ class GPUMemoryEstimator:
         param_counts = {}
         total_params = 0
 
-        for name, module in model.named_modules():
+        for _name, module in model.named_modules():
             # Skip compound modules
             if len(list(module.children())) > 0:
                 continue
@@ -152,7 +154,7 @@ class GPUMemoryEstimator:
         return param_counts
 
     def estimate_activation_memory(
-        self, model: torch.nn.Module, batch_size: int, input_shape: Tuple[int, ...]
+        self, model: torch.nn.Module, batch_size: int, input_shape: tuple[int, ...]
     ) -> float:
         """
         Estimate activation memory for dendritic networks.
@@ -174,7 +176,7 @@ class GPUMemoryEstimator:
         is_einet = False
         einet_config = None
 
-        for name, module in model.named_modules():
+        for _name, module in model.named_modules():
             if "ExcitationInhibitionNetwork" in type(module).__name__:
                 is_einet = True
                 # Extract configuration from the network
@@ -259,11 +261,13 @@ class GPUMemoryEstimator:
 
             # Add substantial overhead for gradient computation graphs in dendritic networks
             # Dendritic networks have complex backward passes with branch-wise operations
-            activation_memory_bytes *= 10.0  # Increased for dendritic branching overhead
+            activation_memory_bytes *= (
+                10.0  # Increased for dendritic branching overhead
+            )
 
         else:
             # Fallback: Analyze layer by layer
-            for name, module in model.named_modules():
+            for _name, module in model.named_modules():
                 # Skip compound modules
                 if len(list(module.children())) > 0:
                     continue
@@ -308,7 +312,9 @@ class GPUMemoryEstimator:
             if activation_memory_bytes == 0:
                 total_params = sum(p.numel() for p in model.parameters())
                 # For dendritic models, activations can be 10-20x parameters due to branching
-                activation_memory_bytes = total_params * self.bytes_per_param * 60  # Multiplier for dendritic models
+                activation_memory_bytes = (
+                    total_params * self.bytes_per_param * 60
+                )  # Multiplier for dendritic models
 
             # Add gradient graph overhead
             activation_memory_bytes *= 2.5
@@ -319,7 +325,7 @@ class GPUMemoryEstimator:
         self,
         model: torch.nn.Module,
         batch_size: int,
-        input_shape: Tuple[int, ...],
+        input_shape: tuple[int, ...],
         use_fsdp: bool = False,
         num_gpus: int = 1,
     ) -> MemoryBreakdown:
@@ -360,7 +366,9 @@ class GPUMemoryEstimator:
             # FSDP adds communication buffers and sharding metadata
             # Approximately 10-20% overhead
             base_memory = param_memory_gb + gradient_memory_gb + optimizer_memory_gb
-            fsdp_overhead_gb = base_memory * 0.5  # Increased overhead for communication/sharding
+            fsdp_overhead_gb = (
+                base_memory * 0.5
+            )  # Increased overhead for communication/sharding
 
             # With FSDP, memory is sharded across GPUs
             param_memory_gb /= num_gpus
@@ -390,7 +398,7 @@ class GPUMemoryEstimator:
 
     def get_gpu_recommendations(
         self, memory_breakdown: MemoryBreakdown, safety_factor: float = 0.85
-    ) -> List[GPURecommendation]:
+    ) -> list[GPURecommendation]:
         """
         Get GPU recommendations based on memory requirements.
 
@@ -412,7 +420,9 @@ class GPUMemoryEstimator:
 
             # Multi-GPU scenario (with FSDP)
             if usable_memory <= 0 or memory_breakdown.total <= 0:
-                print(f" Invalid memory values: total={memory_breakdown.total:.2f}GB, usable={usable_memory:.2f}GB")
+                print(
+                    f" Invalid memory values: total={memory_breakdown.total:.2f}GB, usable={usable_memory:.2f}GB"
+                )
                 min_gpus_needed = 1  # Default to 1 GPU if calculation fails
             else:
                 min_gpus_needed = math.ceil(memory_breakdown.total / usable_memory)
@@ -425,7 +435,9 @@ class GPUMemoryEstimator:
             # Memory per GPU with FSDP
             if recommended_gpus > 0:
                 memory_per_gpu = memory_breakdown.total / recommended_gpus
-                utilization = (memory_per_gpu / gpu_memory) * 100 if gpu_memory > 0 else 0
+                utilization = (
+                    (memory_per_gpu / gpu_memory) * 100 if gpu_memory > 0 else 0
+                )
             else:
                 memory_per_gpu = memory_breakdown.total
                 utilization = 0
@@ -445,90 +457,93 @@ class GPUMemoryEstimator:
         recommendations.sort(key=lambda r: (r.recommended_gpus, -r.utilization_percent))
 
         return recommendations
-    
+
     def get_optimal_gpu_config(self, single_gpu_breakdown, h100_memory, a100_memory):
         """
         Determine optimal GPU configuration for FSDP training.
-        
+
         Returns:
             dict: Optimal configuration with nodes, gpus_per_node, total_gpus, etc.
         """
 
         if single_gpu_breakdown.total <= h100_memory:
             return {
-                'single_gpu_fits': True,
-                'gpu_type': 'H100',
-                'nodes': 1,
-                'gpus_per_node': 1,
-                'total_gpus': 1,
-                'memory_per_gpu': single_gpu_breakdown.total
+                "single_gpu_fits": True,
+                "gpu_type": "H100",
+                "nodes": 1,
+                "gpus_per_node": 1,
+                "total_gpus": 1,
+                "memory_per_gpu": single_gpu_breakdown.total,
             }
         elif single_gpu_breakdown.total <= a100_memory:
             return {
-                'single_gpu_fits': True,
-                'gpu_type': 'A100-40GB',
-                'nodes': 1,
-                'gpus_per_node': 1,
-                'total_gpus': 1,
-                'memory_per_gpu': single_gpu_breakdown.total
+                "single_gpu_fits": True,
+                "gpu_type": "A100-40GB",
+                "nodes": 1,
+                "gpus_per_node": 1,
+                "total_gpus": 1,
+                "memory_per_gpu": single_gpu_breakdown.total,
             }
-        
 
         configurations = [
             # (total_gpus, nodes, gpus_per_node)
-            (2, 1, 2),   # 2 GPUs, 1 node
-            (4, 1, 4),   # 4 GPUs, 1 node
-            (8, 2, 4),   # 8 GPUs, 2 nodes
+            (2, 1, 2),  # 2 GPUs, 1 node
+            (4, 1, 4),  # 4 GPUs, 1 node
+            (8, 2, 4),  # 8 GPUs, 2 nodes
             (16, 4, 4),  # 16 GPUs, 4 nodes
             (32, 8, 4),  # 32 GPUs, 8 nodes
         ]
-        
-        for total_gpus, nodes, gpus_per_node in configurations:
 
+        for total_gpus, nodes, gpus_per_node in configurations:
             param_memory = single_gpu_breakdown.parameters / total_gpus
             grad_memory = single_gpu_breakdown.gradients / total_gpus
             optimizer_memory = single_gpu_breakdown.optimizer_states / total_gpus
             activation_memory = single_gpu_breakdown.activations * 0.8
             fsdp_overhead = 0.1 * (param_memory + grad_memory)
-            
-            total_memory = param_memory + grad_memory + optimizer_memory + activation_memory + fsdp_overhead
-            
+
+            total_memory = (
+                param_memory
+                + grad_memory
+                + optimizer_memory
+                + activation_memory
+                + fsdp_overhead
+            )
+
             if total_memory <= a100_memory:
                 return {
-                    'single_gpu_fits': False,
-                    'gpu_type': 'A100-40GB',
-                    'nodes': nodes,
-                    'gpus_per_node': gpus_per_node,
-                    'total_gpus': total_gpus,
-                    'memory_per_gpu': total_memory
+                    "single_gpu_fits": False,
+                    "gpu_type": "A100-40GB",
+                    "nodes": nodes,
+                    "gpus_per_node": gpus_per_node,
+                    "total_gpus": total_gpus,
+                    "memory_per_gpu": total_memory,
                 }
 
             elif total_memory <= h100_memory:
                 return {
-                    'single_gpu_fits': False,
-                    'gpu_type': 'H100',
-                    'nodes': nodes,
-                    'gpus_per_node': gpus_per_node,
-                    'total_gpus': total_gpus,
-                    'memory_per_gpu': total_memory
+                    "single_gpu_fits": False,
+                    "gpu_type": "H100",
+                    "nodes": nodes,
+                    "gpus_per_node": gpus_per_node,
+                    "total_gpus": total_gpus,
+                    "memory_per_gpu": total_memory,
                 }
-        
 
         return {
-            'single_gpu_fits': False,
-            'gpu_type': 'H100',
-            'nodes': 8,
-            'gpus_per_node': 4,
-            'total_gpus': 32,
-            'memory_per_gpu': total_memory,
-            'warning': 'Model may be too large - consider optimization'
+            "single_gpu_fits": False,
+            "gpu_type": "H100",
+            "nodes": 8,
+            "gpus_per_node": 4,
+            "total_gpus": 32,
+            "memory_per_gpu": total_memory,
+            "warning": "Model may be too large - consider optimization",
         }
 
     def print_estimation_report(
         self,
         model: torch.nn.Module,
         batch_size: int,
-        input_shape: Tuple[int, ...],
+        input_shape: tuple[int, ...],
         config: Optional[Any] = None,
     ):
         """
@@ -542,43 +557,49 @@ class GPUMemoryEstimator:
         """
         # Get total parameters
         total_params = sum(p.numel() for p in model.parameters())
-        
+
         # Single GPU estimation
         single_gpu_breakdown = self.estimate_memory_breakdown(
             model, batch_size, input_shape, use_fsdp=False
         )
-        
+
         logger.info("=" * 80)
         logger.info("GPU MEMORY ESTIMATION")
         logger.info("=" * 80)
         logger.info(f"Model: {total_params:,} parameters")
         logger.info(f"Single GPU memory: {single_gpu_breakdown.total:.2f} GB")
-        
+
         # Test 4-GPU FSDP (common setup)
         fsdp_4gpu = self.estimate_memory_breakdown(
             model, batch_size, input_shape, use_fsdp=True, num_gpus=4
         )
         logger.info(f"4-GPU FSDP memory per GPU: {fsdp_4gpu.total:.2f} GB")
-        
+
         a100_memory = self.GPU_SPECS["A100-40GB"]["memory_gb"] * 0.85
         h100_memory = self.GPU_SPECS["H100"]["memory_gb"] * 0.85
-        
+
         if single_gpu_breakdown.total <= a100_memory:
             logger.info("[FITS] Fits on single A100-40GB (40GB)")
         elif single_gpu_breakdown.total <= h100_memory:
             logger.info("[FITS] Fits on single H100 (80GB)")
         else:
             logger.info("[NO FIT] Requires multi-GPU setup")
-        optimal_config = self.get_optimal_gpu_config(single_gpu_breakdown, h100_memory, a100_memory)
-        
-        if optimal_config['single_gpu_fits']:
+        optimal_config = self.get_optimal_gpu_config(
+            single_gpu_breakdown, h100_memory, a100_memory
+        )
+
+        if optimal_config["single_gpu_fits"]:
             logger.info(f"[FITS] Single {optimal_config['gpu_type']} sufficient")
         else:
-            logger.info(f"[RECOMMENDED] {optimal_config['total_gpus']}x {optimal_config['gpu_type']} FSDP")
-            logger.info(f"[CONFIG] {optimal_config['nodes']} nodes × {optimal_config['gpus_per_node']} GPUs/node")
-            
+            logger.info(
+                f"[RECOMMENDED] {optimal_config['total_gpus']}x {optimal_config['gpu_type']} FSDP"
+            )
+            logger.info(
+                f"[CONFIG] {optimal_config['nodes']} nodes x {optimal_config['gpus_per_node']} GPUs/node"
+            )
+
         logger.info("=" * 80)
-        
+
         return optimal_config
 
 
@@ -592,10 +613,10 @@ def estimate_from_config(config_path: str, batch_size: Optional[int] = None):
         batch_size: Override batch size (uses config value if None)
     """
     from dendritic_modeling.config import load_config
+    from dendritic_modeling.datasets import get_unified_datasets
     from dendritic_modeling.models import Classifier, Regressor
     from dendritic_modeling.networks import Identity
     from dendritic_modeling.networks.architectures.factory import get_architecture
-    from dendritic_modeling.datasets import get_unified_datasets
 
     # Load configuration
     config = load_config(config_path)
@@ -620,16 +641,16 @@ def estimate_from_config(config_path: str, batch_size: Optional[int] = None):
             train_cfg=config.train,
             output_dir=config.outputs.dir,
         )
-        
+
         # Get sample input shape from real data
         sample_input = train_ds[0][0]  # First sample, input only
         input_shape = sample_input.shape  # This is the real shape from dataset
-        
+
         print(f"Using real dataset input shape: {input_shape}")
-        
+
     except Exception as e:
         print(f"Failed to load dataset, falling back to hardcoded shapes: {e}")
-        
+
         # Fallback to hardcoded input dimensions if dataset loading fails
         if config.task.dataset == "mnist":
             input_shape = (784,)  # Flattened
@@ -722,6 +743,5 @@ def estimate_from_config(config_path: str, batch_size: Optional[int] = None):
     # Create estimator and print report
     estimator = GPUMemoryEstimator(dtype=dtype, optimizer=optimizer_type)
     estimator.print_estimation_report(model, batch_size, input_shape, config)
-    
 
     return estimator, model

@@ -9,4 +9,3 @@ from .base import InputNetTransform
 from .sigmoid import SigmoidOutputNetwork
 
 __all__ = ["InputNetTransform", "SigmoidOutputNetwork"]
- 

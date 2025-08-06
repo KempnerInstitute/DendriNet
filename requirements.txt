@@ -61,4 +61,4 @@ tqdm>=4.60.0                    # Progress bars
 # Note: Some packages may require additional system dependencies:
 # - CUDA toolkit for GPU support (install separately)
 # - HDF5 development libraries for h5py
-# - System-level packages for visualization (e.g., libgl1-mesa-glx) 
+# - System-level packages for visualization (e.g., libgl1-mesa-glx)

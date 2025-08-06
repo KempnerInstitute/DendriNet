@@ -11,11 +11,10 @@ from typing import Optional
 import torch
 import torch.nn as nn
 
+from dendritic_modeling.networks.architectures.classical.mlp.mlp import MLP
 from dendritic_modeling.networks.architectures.excitation_inhibition.input_transform.index import (
     IndexInputTransform,
 )
-
-
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +41,7 @@ class InputNetTransform(nn.Module):
         inhibitory_kernel_sizes: Optional[list[int]] = None,
         excitatory_strides: Optional[list[int]] = None,
         inhibitory_strides: Optional[list[int]] = None,
-        network_type: str = "MLPInputTransform",
+        network_type: str = "MLP",
     ):
         super().__init__()
         self.network_type = network_type
@@ -54,8 +53,8 @@ class InputNetTransform(nn.Module):
                 inhibitory_dim=inhibitory_dim,
             )
 
-        elif network_type == "MLPInputTransform":
-            self.input_transform = MLPInputTransform(
+        elif network_type == "MLP":
+            self.input_transform = MLP(
                 input_dim=input_dim, hidden_dims=hidden_dims, output_dim=output_dim
             )
             self.input_transform.set_readout(False)
@@ -78,7 +77,7 @@ class InputNetTransform(nn.Module):
             )
 
         elif network_type == "CNNInputTransform":
-            # CNN-based input transformation requires implementation of CNNInputTransform class  
+            # CNN-based input transformation requires implementation of CNNInputTransform class
             raise NotImplementedError(
                 "CNNInputTransform not implemented. To use CNN-based input transformation, "
                 "implement the CNNInputTransform class in networks.architectures.classical.cnn.cnn"

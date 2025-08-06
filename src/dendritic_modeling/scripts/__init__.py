@@ -5,8 +5,8 @@ This module contains main training and experiment scripts.
 """
 
 from dendritic_modeling.scripts.training.train_experiments import (
-    run_analysis,
     main as train_experiments_main,
+    run_analysis,
 )
 
 __all__ = [

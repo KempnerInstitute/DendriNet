@@ -644,11 +644,7 @@ def kde(data, n=2**14, MIN=None, MAX=None):
         N = tf.cast(N, a2.dtype)
         I = tf.cast(I, a2.dtype)
         # a2 = tf.cast(a2, a2.dtype)
-        f = (
-            2
-            * np.pi ** (2 * l)
-            * tf.reduce_sum(I**l * a2 * tf.exp(-I * np.pi**2 * t))
-        )
+        f = 2 * np.pi ** (2 * l) * tf.reduce_sum(I**l * a2 * tf.exp(-I * np.pi**2 * t))
         for s in tf.range(l - 1, 1, -1):
             s = tf.cast(s, a2.dtype)
             pi_tf = tf.constant(np.pi, dtype=a2.dtype)
@@ -679,7 +675,7 @@ def kde(data, n=2**14, MIN=None, MAX=None):
 
     # Smooth the DCT of initial data using t_star
     a_t = a * tf.exp(
-        -tf.range(n, dtype=a2.dtype) ** 2
+        -(tf.range(n, dtype=a2.dtype) ** 2)
         * tf.constant(np.pi, dtype=a2.dtype) ** 2
         * t_star
         / 2

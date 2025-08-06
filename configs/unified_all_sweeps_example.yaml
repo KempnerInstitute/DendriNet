@@ -30,7 +30,7 @@ output_dir: "results"
 slurm_config:
   job_name: "unified_sweep"
   account:   # Your SLURM account
-  partition: # Your SLURM partition  
+  partition: # Your SLURM partition
   time: "02:00:00"
   nodes: 1
   ntasks_per_node: 1
@@ -59,11 +59,11 @@ sweep_config:
   model.core_network.parameters.ee_synapses_per_branch_per_layer: [[1],[2],[3],[5],[10]]
   model.core_network.parameters.ie_synapses_per_branch_per_layer: [[1],[2],[3],[5],[10]]
   model.core_network.parameters.use_shunting: [true, false]
-  
+
 
   # model.core_network.parameters.layer_sizes: [[32, 16, 10], [64, 32, 10], [128, 64, 10]]
   # model.encoder_network.parameters.hidden_sizes: [[32], [64], [128]]
-  
+
   # Use [start, end, step] to generate ranges:
   # some_parameter: [1, 10, 2]    # Creates [1, 3, 5, 7, 9]
   # float_parameter: [0.1, 1.0, 0.1]  # Creates [0.1, 0.2, ..., 1.0]
@@ -76,12 +76,12 @@ filter_config:
   mode: "ei-sum"  # Options: "all", "ei-sum", "e-const", "i-const", "ei-ratio"
   value: 11       # ei-sum: E+I=11, e-const: E=11, i-const: I=11, ei-ratio: E/I=11
   # tolerance: 0  # exact match (default: 1)
-  
+
   # Branch Sweep (optional - can combine with EI filtering above)
   # branch_sweep_mode: "uniform_sweep"         # Options: uniform_sweep, depth_sweep, width_sweep, pattern_sweep, custom_configs
   # dendrite_tree_depth: [1, 4, 1]            # depths 1,2,3,4
   # dendrite_branches_per_layer: [2, 8, 2]    # branches 2,4,6,8
-  
+
   # See examples section at end of file for all options and combinations
 
 # ============================================================================
@@ -90,7 +90,7 @@ filter_config:
 base_config:
   model:
     task: classification
-    
+
     # ==========================================
     # ENCODER NETWORK (Input Processing Stage)
     # ==========================================
@@ -120,23 +120,23 @@ base_config:
           excitatory_dim: null
           inhibitory_dim: null
           output_activation: null
-        
+
         # Morphological architecture
         excitatory_layer_sizes: [10]
         inhibitory_layer_sizes: []
         excitatory_branch_factors: [2, 2, 2, 2]
         inhibitory_branch_factors: []
-        
+
         # EI Synapse configuration (overridden by EI sweeps)
         ee_synapses_per_branch_per_layer: [5]  # Default value
         ei_synapses_per_branch_per_layer: [0]
         ie_synapses_per_branch_per_layer: [5]  # Default value
         ii_synapses_per_branch_per_layer: [0]
-        
+
         # Morphological features
         somatic_synapses: true
         use_shunting: true               # Can be overridden by sweep_config
-        
+
         # Implementation optimizations
         adaptive_initialization: false
         print_hooks: false
@@ -150,7 +150,7 @@ base_config:
         input_dim: null
         hidden_dims: [32, 16]
         activation: relu
-        output_dim: 10  
+        output_dim: 10
 
 # ============================================================================
 # TRAINING CONFIGURATION
@@ -163,7 +163,7 @@ train:
     learning_strategy: standard # Supports regularization, pruning, and parameter group features
                                # Options: "standard", "freeze_layers", "local_ca", etc.
     weight_decay_rate: 0.01     # Use optimizer.weight_decay for internal optimizer creation
-    
+
     param_groups:
       lr: 0.001
       split_params: true
@@ -176,7 +176,7 @@ train:
     # ADVANCED TRAINING FEATURES
     # ==========================================
     # Regularization, pruning, and flexible optimizer configuration
-    
+
     # Internal optimizer configuration (alternative to external optimizer creation)
     optimizer:
       name: "adam"                    # Options: "adam", "sgd", "rmsprop", "adamw"
@@ -239,11 +239,11 @@ train:
 # TASK CONFIGURATION
 # ============================================================================
 task:
-  dataset: cifar10                     
+  dataset: cifar10
   data_path: ""
   parameters:
-    flatten: true                       
-    normalize: false                    
+    flatten: true
+    normalize: false
 
 # ============================================================================
 # WANDB LOGGING
@@ -255,7 +255,7 @@ wandb:
   group: "unified_sweep"               # W&B group name
 
 # ============================================================================
-# ANALYSIS CONFIGURATION  
+# ANALYSIS CONFIGURATION
 # ============================================================================
 analysis:
   performance_analysis:
@@ -267,7 +267,7 @@ analysis:
       categorical_loglikelihood: true
       mse: false
       cosine_similarity: false
-      
+
   information_analysis:
     enabled: true
     training: false
@@ -296,9 +296,9 @@ analysis:
     snapshot_interval: 5  # frequency of snapshots
     synaptic_analysis: true        # Enable synaptic connectivity analysis
     save_synaptic_report: true     # Save synaptic analysis to file
-    
+
   noise_perturbation_analysis:
-    enabled: true 
+    enabled: true
     training: false
     params:
       uniform_noise: true
@@ -373,15 +373,15 @@ analysis:
       categorical_loglikelihood: true
       mse: true
       cosine_similarity: true
-      
+
   correlation_analysis:    ## needs to be tested
     enabled: false
     training: false
     params:
       compute_synaptic_correlations: true
       compute_tuning_curves: true
-      
-      
+
+
 # ============================================================================
 # EXAMPLES - Complete sweep configurations
 # ============================================================================
@@ -393,7 +393,7 @@ analysis:
 #   tolerance: 0
 # Result: Only EI combinations where E+I=10
 
-# Branch Sweep Only  
+# Branch Sweep Only
 # filter_config:
 #   branch_sweep_mode: "pattern_sweep"
 #   dendrite_tree_depth: [2, 4, 1]
@@ -432,5 +432,4 @@ analysis:
 outputs:
   run_name: unified_sweep
   dir: results/
-  dataset_dir: ""                    
-
+  dataset_dir: ""

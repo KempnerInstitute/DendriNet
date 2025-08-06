@@ -57,4 +57,3 @@ The documentation includes a comprehensive quickstart guide that demonstrates:
 2. Running your first experiment with `config_exp.yaml`
 3. Understanding the output and results
 4. Customizing configurations
-

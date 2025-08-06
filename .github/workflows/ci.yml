@@ -15,10 +15,7 @@ jobs:
       matrix:
         os: [ubuntu-latest]
         python-version: ["3.9", "3.10", "3.11", "3.12"]
-        include:
-          # Test on macOS with latest Python
-          - os: macos-latest
-            python-version: "3.11"
+        # Removed macOS testing since we're using SLURM (Linux-based)
 
     steps:
     - name: Checkout code
@@ -38,15 +35,9 @@ jobs:
           ${{ runner.os }}-pip-
 
     - name: Install system dependencies (Ubuntu)
-      if: matrix.os == 'ubuntu-latest'
       run: |
         sudo apt-get update
         sudo apt-get install -y libbz2-dev
-
-    - name: Install system dependencies (macOS)
-      if: matrix.os == 'macos-latest'
-      run: |
-        brew install bzip2
 
     - name: Install Python dependencies
       run: |
@@ -92,6 +83,19 @@ jobs:
           pytest-results.xml
           htmlcov/
           coverage.xml
+
+    - name: Check coverage file exists
+      if: github.event_name == 'pull_request' && matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
+      run: |
+        echo "Checking for coverage.xml file..."
+        ls -la coverage.xml || echo " coverage.xml not found"
+        if [ -f coverage.xml ]; then
+          echo " coverage.xml found!"
+          echo "File size: $(du -h coverage.xml)"
+        else
+          echo " coverage.xml missing - tests may have failed"
+          exit 1
+        fi
 
     - name: Comment coverage on PR
       if: github.event_name == 'pull_request' && matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
@@ -169,7 +173,7 @@ jobs:
       uses: pypa/gh-action-pip-audit@v1.0.8
       with:
         inputs: requirements.txt
-        # Ignore torch vulnerability GHSA-887c-mr87-cxwp as it's a local DoS 
+        # Ignore torch vulnerability GHSA-887c-mr87-cxwp as it's a local DoS
         # that doesn't affect our use case
         ignore-vulns: |
           GHSA-887c-mr87-cxwp
@@ -221,4 +225,4 @@ jobs:
         CUDA_VISIBLE_DEVICES: ""
       run: |
         # Run only fast performance tests on PR
-        python -m pytest tests/ -m "not slow" --benchmark-skip 
+        python -m pytest tests/ -m "not slow" --benchmark-skip

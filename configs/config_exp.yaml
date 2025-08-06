@@ -42,8 +42,8 @@ model:
 
       # Transfer function parameters
       transfer_params:
-        input_mode: 1               
-        independent_pathways: false  
+        input_mode: 1
+        independent_pathways: false
         excitatory_dim: null        # Dimensions for excitatory pathways (input_mode 1)
         inhibitory_dim: null        # Dimensions for inhibitory pathways (input_mode 1)
         output_activation: null     # Options: "sigmoid", "relu", "tanh", "softplus", null
@@ -55,7 +55,7 @@ model:
       inhibitory_layer_sizes: []         # Neurons per inhibitory layer
       excitatory_branch_factors: [2,2,2,2]       # Branches per excitatory neuron (fixed: should match layer count)
       inhibitory_branch_factors: []       # Branches per inhibitory neuron (fixed: was empty)
-      
+
       # Synaptic connectivity patterns
       ee_synapses_per_branch_per_layer: [100]   # Excitatory-to-excitatory synapses
       ei_synapses_per_branch_per_layer: [0]   # No E→I connections since no inhibitory neurons exist
@@ -74,7 +74,7 @@ model:
       topk_type: standard              # Options: "standard", "stochastic", "variance", "deepst"
       topk_temperature: 0.0              # Stochastic selection sharpness (0.1-1.0)
       topk_strategy: conductance_dynamic # TopK gradient scaling strategy
-      
+
       # ==========================================
       # REACTIVATION PARAMETERS
       # ==========================================
@@ -89,13 +89,13 @@ model:
       # ==========================================
       blocklinear_strategy: conductance_dynamic # BlockLinear gradient scaling
       efficient_blocklinear: false        # Use memory-efficient implementation
-      
+
       # ==========================================
       # IMPLEMENTATION OPTIMIZATIONS
       # ==========================================
       adaptive_initialization: false      # Network-aware weight scaling
       print_hooks: false                 # Print gradient statistics in hooks
-      
+
       # ==========================================
       # DEEPST SPECIFIC PARAMETERS
       # ==========================================
@@ -121,7 +121,7 @@ model:
       hidden_dims: [32, 16]     # Hidden layer dimensions
       activation: relu          # Activation function
       output_dim: 10          # Will be set automatically
-      
+
 # ============================================================================
 # TRAINING CONFIGURATION - VALIDATED PARAMETERS ONLY
 # ============================================================================
@@ -136,7 +136,7 @@ train:
   enable_profiling: false       # Enable PyTorch profiler
   profiling_output_dir: "results/profiling/"
   enable_hooks: true            # Enable hooks for analysis (set false for max speed)
-  
+
   # FSDP (Fully Sharded Data Parallel) Configuration
   use_fsdp: false               # Enable FSDP for large models (>100M parameters)
   fsdp_config: null             # FSDP configuration (null to disable, detailed config below when enabled)
@@ -197,7 +197,7 @@ train:
     learning_strategy: standard # Options: "standard", "freeze_layers", "local_ca", etc.
                                # Supports regularization, pruning, and parameter group features
     weight_decay_rate: 0.01     # Use optimizer.weight_decay for internal optimizer creation
-    
+
     # Parameter groups with different learning rates
     param_groups:
       lr: 0.001                 # Default learning rate
@@ -234,7 +234,7 @@ train:
     # ==========================================
     # Regularization, pruning, and flexible optimizer configuration
     # All features default to disabled, so no impact unless explicitly enabled
-    
+
     # Internal optimizer configuration (alternative to external optimizer creation)
     # Note: When provided, respects param_groups learning rates above
     # optimizer:
@@ -253,7 +253,7 @@ train:
         layers: []                   # List of layer indices (empty = all layers)
         branches: []                 # List of branch names (empty = all branches)
         weight_types: ["all"]        # Options: "all", "recurrent", "input", "output", "linear"
-        
+
       # Parameter group specific regularization
       split_params: true             # Split parameters into groups for differential regularization
       param_group_weights:
@@ -270,7 +270,7 @@ train:
         decoder:                    # Decoder network
           l1_weight: 0.0          # No L1 for decoder
           l2_weight: 0.0          # No L2 for decoder
-          
+
     # Pruning configuration
     pruning:
       enabled: false                 # Enable pruning
@@ -296,10 +296,10 @@ train:
 task:
   # Validated dataset options (from datasets/__init__.py and synthetic_datasets.py)
   dataset: cifar10
-  # Options: 
+  # Options:
   # - Standard: "mnist", "cifar10", "imagenet"
   # - Modified MNIST: "mnist_modulo10", "random_flip_mnist"
-  
+
   data_path: ""  # Custom data path
 
   # Dataset-specific parameters
@@ -315,7 +315,7 @@ task:
     # image_size: 16           # For image-based synthetic datasets
     # n_orient_classes: 8      # For orientation_bars
     # n_bits: 8               # For multi_xor
-    
+
     # # Generated dataset parameters
     # base_dataset: mnist      # For poisson_generator
     # rate_multiplier: 1       # For poisson_generator
@@ -329,9 +329,9 @@ task:
 # WANDB LOGGING - VALIDATED PARAMETERS ONLY
 # ============================================================================
 wandb:
-  entity: 
-  project: 
-  group: 
+  entity:
+  project:
+  group:
   tags: []
   use_wandb: false
 
@@ -348,7 +348,7 @@ analysis:
       categorical_loglikelihood: true
       mse: false
       cosine_similarity: false
-      
+
   information_analysis:
     enabled: true
     training: false
@@ -377,9 +377,9 @@ analysis:
     snapshot_interval: 5  # frequency of snapshots
     synaptic_analysis: true        # Enable synaptic connectivity analysis
     save_synaptic_report: true     # Save synaptic analysis to file
-    
+
   noise_perturbation_analysis:
-    enabled: true 
+    enabled: true
     training: false
     params:
       uniform_noise: true
@@ -454,14 +454,14 @@ analysis:
       categorical_loglikelihood: true
       mse: true
       cosine_similarity: true
-      
+
   correlation_analysis:    ## needs to be tested
     enabled: false
     training: false
     params:
       compute_synaptic_correlations: true
       compute_tuning_curves: true
-      
+
 # ============================================================================
 # OUTPUT CONFIGURATION
 # ============================================================================

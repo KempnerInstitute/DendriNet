@@ -162,7 +162,7 @@ class BlockLinear(nn.Module):
 
 
 class EfficientBlockLinear(BlockLinear):
-    """BlockLinear variant with *O(out_features × block_size)* memory.
+    """BlockLinear variant with *O(out_features x block_size)* memory.
 
     Forward pass reshapes the input into (B, out, block_size) and performs a
     weighted sum along the last dimension, eliminating the need to materialise
@@ -182,11 +182,18 @@ class EfficientBlockLinear(BlockLinear):
         if x.shape[1] != expected_dim:
             # Try to provide more context about where this error is occurring
             import traceback
-            tb_str = ''.join(traceback.format_stack()[-3:-1])  # Get last few stack frames
-            print(f"Error computing metric: Input feature dimension {x.shape[1]} does not match expected {expected_dim} (= out_features*block_size)")
-            print(f"This suggests data is flowing incorrectly through the network. Stack trace:")
+
+            tb_str = "".join(
+                traceback.format_stack()[-3:-1]
+            )  # Get last few stack frames
+            print(
+                f"Error computing metric: Input feature dimension {x.shape[1]} does not match expected {expected_dim} (= out_features*block_size)"
+            )
+            print(
+                "This suggests data is flowing incorrectly through the network. Stack trace:"
+            )
             print(tb_str)
-            
+
             # Return zeros instead of crashing to allow analysis to continue
             return torch.zeros(B, self.out_features, device=x.device, dtype=x.dtype)
 
@@ -196,5 +203,4 @@ class EfficientBlockLinear(BlockLinear):
         return output
 
 
-__all__ = ["BlockLinear"]
-__all__.extend(["EfficientBlockLinear"])
+__all__ = ["BlockLinear", "EfficientBlockLinear"]

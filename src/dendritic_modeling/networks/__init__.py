@@ -47,10 +47,7 @@ from dendritic_modeling.networks.architectures.classical.autoencoder.vae import 
     MLPVariationalAutoencoder,
 )
 from dendritic_modeling.networks.base import BaseNetwork
-from dendritic_modeling.networks.input import (
-    InputNetTransform,
-    SigmoidOutputNetwork,
-)
+from dendritic_modeling.networks.input import InputNetTransform, SigmoidOutputNetwork
 
 __all__ = [
     "ActivationFactory"

@@ -6,7 +6,7 @@ Model Architecture Validator for Dendritic Networks
 This module validates the structural/architectural parameters of dendritic models
 BEFORE model creation. It ensures:
 - Layer dimensions are compatible
-- Synapse counts match layer configurations  
+- Synapse counts match layer configurations
 - TopK constraints are satisfied
 - Branch factors are consistent
 - Transfer learning dimensions align
@@ -16,7 +16,6 @@ This is separate from training stability validation and runs during model setup.
 """
 
 import logging
-from typing import Dict, List
 
 logger = logging.getLogger(__name__)
 
@@ -26,39 +25,41 @@ class ModelArchitectureValidator:
 
     def __init__(self, config):
         self.config = config
-        
+
         # Convert config to dict if it's a Config object
-        if hasattr(config, '__dict__'):
-            config_dict = config.__dict__ if hasattr(config, '__dict__') else {}
+        if hasattr(config, "__dict__"):
+            config_dict = config.__dict__ if hasattr(config, "__dict__") else {}
         else:
             config_dict = config
 
         # Try different paths for network config
-        if hasattr(config, 'model') and hasattr(config.model, 'core_network'):
-            self.network_config = getattr(config.model.core_network, 'parameters', {})
-            if hasattr(self.network_config, '__dict__'):
+        if hasattr(config, "model") and hasattr(config.model, "core_network"):
+            self.network_config = getattr(config.model.core_network, "parameters", {})
+            if hasattr(self.network_config, "__dict__"):
                 self.network_config = self.network_config.__dict__
         elif "model" in config_dict and "core_network" in config_dict["model"]:
-            self.network_config = config_dict["model"]["core_network"].get("parameters", {})
-        elif hasattr(config, 'network'):
-            self.network_config = getattr(config, 'network', {})
-            if hasattr(self.network_config, '__dict__'):
+            self.network_config = config_dict["model"]["core_network"].get(
+                "parameters", {}
+            )
+        elif hasattr(config, "network"):
+            self.network_config = getattr(config, "network", {})
+            if hasattr(self.network_config, "__dict__"):
                 self.network_config = self.network_config.__dict__
         elif "network" in config_dict:
             self.network_config = config_dict.get("network", {})
         else:
             self.network_config = {}
 
-        self.errors: List[str] = []
-        self.warnings: List[str] = []
-    
+        self.errors: list[str] = []
+        self.warnings: list[str] = []
+
     def _get_config_value(self, key: str, default=None):
         """Safely get configuration value from Config object or dict."""
         if hasattr(self.config, key):
             return getattr(self.config, key, default)
-        elif hasattr(self.config, 'get'):
+        elif hasattr(self.config, "get"):
             return self.config.get(key, default)
-        elif hasattr(self.config, '__dict__') and key in self.config.__dict__:
+        elif hasattr(self.config, "__dict__") and key in self.config.__dict__:
             return self.config.__dict__[key]
         else:
             return default
@@ -97,20 +98,20 @@ class ModelArchitectureValidator:
         # Get input dimension from task config (preferred) or data config (fallback)
         task_config = self._get_config_value("task", {})
         data_config = self._get_config_value("data", {})
-        
+
         # Handle task_config if it's a Config object
-        if hasattr(task_config, 'dataset'):
-            dataset_name = getattr(task_config, 'dataset', "")
-        elif hasattr(task_config, 'get'):
+        if hasattr(task_config, "dataset"):
+            dataset_name = getattr(task_config, "dataset", "")
+        elif hasattr(task_config, "get"):
             dataset_name = task_config.get("dataset", "")
         else:
             dataset_name = ""
-            
+
         # Fallback to data_config
         if not dataset_name:
-            if hasattr(data_config, 'dataset_name'):
-                dataset_name = getattr(data_config, 'dataset_name', "")
-            elif hasattr(data_config, 'get'):
+            if hasattr(data_config, "dataset_name"):
+                dataset_name = getattr(data_config, "dataset_name", "")
+            elif hasattr(data_config, "get"):
                 dataset_name = data_config.get("dataset_name", "")
             else:
                 dataset_name = ""
@@ -131,10 +132,10 @@ class ModelArchitectureValidator:
             # Try to get input_dim from various sources
             task_params = self.config.get("task", {}).get("parameters", {})
             self.input_dim = (
-                self.network_config.get("input_dim") or
-                task_params.get("input_dim") or
-                self.transfer_params.get("excitatory_dim") or
-                64  # Reasonable default for unknown datasets
+                self.network_config.get("input_dim")
+                or task_params.get("input_dim")
+                or self.transfer_params.get("excitatory_dim")
+                or 64  # Reasonable default for unknown datasets
             )
 
         self.excitatory_layer_sizes = self.network_config.get(
@@ -174,7 +175,7 @@ class ModelArchitectureValidator:
         """Check input_mode and independent_pathways consistency"""
         if self.input_mode == 0 and self.independent_pathways:
             self.errors.append("input_mode=0 requires independent_pathways=False")
-        
+
     def check_layer_dimensions(self):
         """Check layer size consistency"""
         exc_layers = len(self.excitatory_layer_sizes)
@@ -213,9 +214,9 @@ class ModelArchitectureValidator:
         """Check synapses per branch constraints"""
         # Determine expected lengths (empty lists will be extended with default=1)
         expected_len = self.num_layers
-        
+
         # Check if there are any inhibitory neurons in the network
-        has_inhibitory_neurons = any(size for size in self.inhibitory_layer_sizes if size and size > 0)
+        any(size for size in self.inhibitory_layer_sizes if size and size > 0)
 
         # Check each synapse type
         for layer_idx in range(expected_len):
@@ -311,7 +312,9 @@ class ModelArchitectureValidator:
                 else:
                     # Subsequent layers get inhibitory input from previous layer's inhibitory neurons
                     if layer_idx - 1 < len(self.inhibitory_layer_sizes):
-                        inhibitory_source_dim = self.inhibitory_layer_sizes[layer_idx - 1]
+                        inhibitory_source_dim = self.inhibitory_layer_sizes[
+                            layer_idx - 1
+                        ]
                     else:
                         inhibitory_source_dim = 0
 
@@ -422,14 +425,16 @@ class ModelArchitectureValidator:
 
     def check_empty_lists(self):
         """Check for empty synapse lists and validate they're appropriate for the configuration"""
-        has_inhibitory_neurons = any(size for size in self.inhibitory_layer_sizes if size and size > 0)
-        
+        has_inhibitory_neurons = any(
+            size for size in self.inhibitory_layer_sizes if size and size > 0
+        )
+
         # EE synapses are always required
         if not self.ee_synapses:
             self.errors.append(
                 "ee_synapses_per_branch_per_layer cannot be empty - excitatory connections are required"
             )
-        
+
         # EI synapses: only allow empty if no inhibitory neurons exist
         if not self.ei_synapses:
             if has_inhibitory_neurons:
@@ -437,7 +442,7 @@ class ModelArchitectureValidator:
                     "ei_synapses_per_branch_per_layer cannot be empty when inhibitory neurons exist"
                 )
             # If no inhibitory neurons, empty ei_synapses is valid (no E→I connections needed)
-        
+
         # IE synapses: check based on input_mode and layer configuration
         if not self.ie_synapses:
             if self.input_mode == 1:
@@ -451,7 +456,7 @@ class ModelArchitectureValidator:
                     "ie_synapses_per_branch_per_layer cannot be empty when inhibitory neurons exist"
                 )
             # If no inhibitory input available, empty ie_synapses is valid
-        
+
         # II synapses: only allow empty if no inhibitory neurons exist
         if not self.ii_synapses:
             if has_inhibitory_neurons:
@@ -517,12 +522,12 @@ class ModelArchitectureValidator:
             logger.info("Configuration validation passed with warnings")
 
 
-def validate_model_architecture(config: Dict) -> bool:
+def validate_model_architecture(config: dict) -> bool:
     """Validate model architecture configuration.
-    
+
     Args:
         config: Configuration dictionary
-        
+
     Returns:
         bool: True if architecture is valid
     """
@@ -531,6 +536,6 @@ def validate_model_architecture(config: Dict) -> bool:
 
 
 # Legacy function name for backward compatibility
-def validate_config(config: Dict) -> bool:
+def validate_config(config: dict) -> bool:
     """Legacy function name - use validate_model_architecture instead."""
     return validate_model_architecture(config)

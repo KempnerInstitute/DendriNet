@@ -51,11 +51,13 @@ class SingleLayerContributionAnalyzer:
     ) -> dict:
         """Evaluate each dendritic layer in isolation"""
         results_dict = {"excitation": {}, "inhibition": {}, "all": {}}
-        
+
         # Check if model is a Classifier to skip inappropriate metrics
         is_classifier = isinstance(model, Classifier)
         if is_classifier:
-            self.logger.info("Detected Classifier model - skipping MSE and cosine similarity metrics")
+            self.logger.info(
+                "Detected Classifier model - skipping MSE and cosine similarity metrics"
+            )
 
         state_dict = deepcopy(model.state_dict())
 
@@ -116,14 +118,21 @@ class SingleLayerContributionAnalyzer:
                 if contribution_type == "inhibition":
                     module.branch_excitation.pre_w.data.fill_(-1000)
 
-                def _evaluate_metric(metric_func: Callable, metric_key: str):
-                    metric_score = metric_func(model, test_ds=test_dataset, move_device=True)[
-                        -1
-                    ]
-                    results_dict[contribution_type][module_name][metric_key] = metric_score
+                def _evaluate_metric(
+                    metric_func: Callable,
+                    metric_key: str,
+                    cont_type: str = contribution_type,
+                    mod_name: str = module_name,
+                ):
+                    metric_score = metric_func(
+                        model, test_ds=test_dataset, move_device=True
+                    )[-1]
+                    results_dict[cont_type][mod_name][metric_key] = metric_score
 
                 if self.accuracy:
-                    _evaluate_metric(metric_func=evaluate_accuracy, metric_key="accuracy")
+                    _evaluate_metric(
+                        metric_func=evaluate_accuracy, metric_key="accuracy"
+                    )
                 if self.auc:
                     _evaluate_metric(metric_func=evaluate_auc, metric_key="auc")
                 if self.categorical_ll:
@@ -135,14 +144,19 @@ class SingleLayerContributionAnalyzer:
                 if self.mse and not is_classifier:
                     _evaluate_metric(metric_func=evaluate_mse, metric_key="mse")
                 elif self.mse and is_classifier:
-                    self.logger.info(f"Skipping MSE evaluation for Classifier model at {module_name}")
-                    
+                    self.logger.info(
+                        f"Skipping MSE evaluation for Classifier model at {module_name}"
+                    )
+
                 if self.cosine_similarity and not is_classifier:
                     _evaluate_metric(
-                        metric_func=evaluate_cosine_similarity, metric_key="cosine similarity"
+                        metric_func=evaluate_cosine_similarity,
+                        metric_key="cosine similarity",
                     )
                 elif self.cosine_similarity and is_classifier:
-                    self.logger.info(f"Skipping cosine similarity evaluation for Classifier model at {module_name}")
+                    self.logger.info(
+                        f"Skipping cosine similarity evaluation for Classifier model at {module_name}"
+                    )
 
                 model.load_state_dict(state_dict)
 

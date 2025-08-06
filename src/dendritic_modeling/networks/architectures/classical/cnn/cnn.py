@@ -17,7 +17,6 @@ from dendritic_modeling.networks.base import BaseNetwork
 
 
 class CNNDownsample(BaseNetwork):
-
     def __init__(
         self,
         input_shape: tuple[int, int, int],  # (channels, height, width)

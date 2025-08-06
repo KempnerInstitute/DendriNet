@@ -6,15 +6,14 @@ disabling or ablating different network components to understand their contribut
 """
 
 from copy import deepcopy
-from typing import Optional, Callable
+from typing import Callable, Optional
 
 import torch
-from torch.utils.data import TensorDataset, DataLoader
+from torch.utils.data import TensorDataset
 
 from dendritic_modeling.analysis.core.base import AbstractAnalyzer
 from dendritic_modeling.config.analysis import AblationAnalysisParams
-from dendritic_modeling.models import BaseModel
-from dendritic_modeling.models import Regressor
+from dendritic_modeling.models import BaseModel, Regressor
 from dendritic_modeling.networks import ExcitationInhibitionNetwork
 from dendritic_modeling.networks.architectures import DendriticBranchLayer
 from dendritic_modeling.training.utils.evaluation import (
@@ -186,9 +185,9 @@ class AblationAnalyzer(AbstractAnalyzer):
         if self.mse:
             results_dict[ablation_type][module_name]["mse drop"] = mse_list
         if self.cosine_similarity:
-            results_dict[ablation_type][module_name][
-                "cosine similarity drop"
-            ] = cosine_similarity_list
+            results_dict[ablation_type][module_name]["cosine similarity drop"] = (
+                cosine_similarity_list
+            )
 
         return results_dict
 
@@ -196,28 +195,26 @@ class AblationAnalyzer(AbstractAnalyzer):
         """Generate comprehensive ablation plots similar to information analysis."""
         try:
             from dendritic_modeling.plotting.visualizations.general_analysis_plots import (
-                plot_ablation_results, plot_per_layer_ablation
+                plot_ablation_results,
+                plot_per_layer_ablation,
             )
-            
+
             # Plot layer ablation results if available
-            if "layer" in results and results["layer"]:
+            if results.get("layer"):
                 # Create comprehensive per-layer plots
                 plot_per_layer_ablation(
                     results["layer"],
                     save_path=save_path,
-                    filename_prefix="ablation_per_layer"
+                    filename_prefix="ablation_per_layer",
                 )
-                
 
-            
             # Plot compartment ablation results if available
-            if "compartment" in results and results["compartment"]:
+            if results.get("compartment"):
                 plot_ablation_results(
                     results["compartment"],
                     save_path=save_path,
-                    filename=f"{filename}_compartment"
+                    filename=f"{filename}_compartment",
                 )
-                
         except ImportError as e:
             print(f"Warning: Ablation plotting functions not found: {e}")
         except Exception as e:
@@ -246,9 +243,6 @@ class AblationAnalyzer(AbstractAnalyzer):
         test_dataset = TensorDataset(inputs, labels)
 
         state_dict = deepcopy(model.state_dict())
-
-        # Wrapping dataset in DataLoader for batched evaluation if large
-        test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
 
         # Calculate baseline performance using correct function signatures
         baselines = {}
@@ -420,8 +414,8 @@ class AblationAnalyzer(AbstractAnalyzer):
 
         if save_path is not None:
             save_dict(results, save_path, filename)
-            
+
             # Generate ablation plots
             self._plot_ablation_results(results, save_path, filename)
-            
-        return results
+        else:
+            return results

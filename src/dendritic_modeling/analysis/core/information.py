@@ -13,6 +13,7 @@ from typing import Any, Optional, Union
 import numpy as np
 import torch
 
+from dendritic_modeling.analysis.core.base import AbstractAnalyzer
 from dendritic_modeling.config import InformationAnalysisParams
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.networks import (
@@ -28,7 +29,6 @@ from dendritic_modeling.utils.information.pid import (
     check_pid_available,
     pid_synergy_redundancy,
 )
-from dendritic_modeling.analysis.core.base import AbstractAnalyzer
 
 
 class InformationAnalyzer(AbstractAnalyzer):
@@ -74,10 +74,18 @@ class InformationAnalyzer(AbstractAnalyzer):
         self.compute_per_branch = getattr(params, "compute_per_branch", False)
         self.branch_aggregation = getattr(params, "branch_aggregation", "mean")
 
-        self.methods = getattr(params, 'methods', ['kraskov'])  # list of methods: copula, kraskov, pid
-        self.compute_types = getattr(params, 'compute_types', ['basic_mi', 'pairwise_mi', 'conditional_mi', 'class_mi'])  # new
-        self.target_dimensions = getattr(params, 'target_dimensions', None)  # for dimensional MI, e.g., list of dims
-        self.normalize = getattr(params, 'normalize', False)  # general normalize
+        self.methods = getattr(
+            params, "methods", ["kraskov"]
+        )  # list of methods: copula, kraskov, pid
+        self.compute_types = getattr(
+            params,
+            "compute_types",
+            ["basic_mi", "pairwise_mi", "conditional_mi", "class_mi"],
+        )  # new
+        self.target_dimensions = getattr(
+            params, "target_dimensions", None
+        )  # for dimensional MI, e.g., list of dims
+        self.normalize = getattr(params, "normalize", False)  # general normalize
 
         if self.verbose:
             self.logger.setLevel(logging.DEBUG)
@@ -92,7 +100,9 @@ class InformationAnalyzer(AbstractAnalyzer):
                 copula_type=self.copula_type,
                 verbose=self.verbose,
             )
-            self.estimators[method] = InformationEstimatorFactory.create(estimator_config)
+            self.estimators[method] = InformationEstimatorFactory.create(
+                estimator_config
+            )
 
         # Check if PID is available
         self.pid_available = False
@@ -124,7 +134,9 @@ class InformationAnalyzer(AbstractAnalyzer):
         metrics["I(Vout;C)"] = self.estimators[self.method].mutual_information(Vout, C)
         # I(Vinf;C) if available
         if Vinf is not None and self.include_vinf:
-            metrics["I(Vinf;C)"] = self.estimators[self.method].mutual_information(Vinf, C)
+            metrics["I(Vinf;C)"] = self.estimators[self.method].mutual_information(
+                Vinf, C
+            )
         # Joint MI: I(E,I;C)
         EI = np.hstack([E, I_var])
         metrics["I(E,I;C)"] = self.estimators[self.method].mutual_information(EI, C)
@@ -151,14 +163,22 @@ class InformationAnalyzer(AbstractAnalyzer):
         # I(E;Vout)
         metrics["I(E;Vout)"] = self.estimators[self.method].mutual_information(E, Vout)
         # I(I;Vout)
-        metrics["I(I;Vout)"] = self.estimators[self.method].mutual_information(I_var, Vout)
+        metrics["I(I;Vout)"] = self.estimators[self.method].mutual_information(
+            I_var, Vout
+        )
         if Vinf is not None and self.include_vinf:
             # I(E;Vinf)
-            metrics["I(E;Vinf)"] = self.estimators[self.method].mutual_information(E, Vinf)
+            metrics["I(E;Vinf)"] = self.estimators[self.method].mutual_information(
+                E, Vinf
+            )
             # I(I;Vinf)
-            metrics["I(I;Vinf)"] = self.estimators[self.method].mutual_information(I_var, Vinf)
+            metrics["I(I;Vinf)"] = self.estimators[self.method].mutual_information(
+                I_var, Vinf
+            )
             # I(Vout;Vinf)
-            metrics["I(Vout;Vinf)"] = self.estimators[self.method].mutual_information(Vout, Vinf)
+            metrics["I(Vout;Vinf)"] = self.estimators[self.method].mutual_information(
+                Vout, Vinf
+            )
         return metrics
 
     def _compute_conditional_mi(
@@ -172,26 +192,26 @@ class InformationAnalyzer(AbstractAnalyzer):
         """Compute conditional mutual information given C."""
         metrics = {}
         # I(E;I|C)
-        metrics["I(E;I|C)"] = self.estimators[self.method].conditional_mutual_information(
-            E, I_var, C.reshape(-1, 1)
-        )
+        metrics["I(E;I|C)"] = self.estimators[
+            self.method
+        ].conditional_mutual_information(E, I_var, C.reshape(-1, 1))
         # I(E;Vout|C)
-        metrics["I(E;Vout|C)"] = self.estimators[self.method].conditional_mutual_information(
-            E, Vout, C.reshape(-1, 1)
-        )
+        metrics["I(E;Vout|C)"] = self.estimators[
+            self.method
+        ].conditional_mutual_information(E, Vout, C.reshape(-1, 1))
         # I(I;Vout|C)
-        metrics["I(I;Vout|C)"] = self.estimators[self.method].conditional_mutual_information(
-            I_var, Vout, C.reshape(-1, 1)
-        )
+        metrics["I(I;Vout|C)"] = self.estimators[
+            self.method
+        ].conditional_mutual_information(I_var, Vout, C.reshape(-1, 1))
         if Vinf is not None and self.include_vinf:
             # I(E;Vinf|C)
-            metrics["I(E;Vinf|C)"] = self.estimators[self.method].conditional_mutual_information(
-                E, Vinf, C.reshape(-1, 1)
-            )
+            metrics["I(E;Vinf|C)"] = self.estimators[
+                self.method
+            ].conditional_mutual_information(E, Vinf, C.reshape(-1, 1))
             # I(I;Vinf|C)
-            metrics["I(I;Vinf|C)"] = self.estimators[self.method].conditional_mutual_information(
-                I_var, Vinf, C.reshape(-1, 1)
-            )
+            metrics["I(I;Vinf|C)"] = self.estimators[
+                self.method
+            ].conditional_mutual_information(I_var, Vinf, C.reshape(-1, 1))
         return metrics
 
     def _compute_pid(
@@ -229,13 +249,13 @@ class InformationAnalyzer(AbstractAnalyzer):
                 pid_results[pid_key] = {
                     "synergy": synergy,
                     "redundancy": redundancy,
-                    f"unique_{source1_name}": self.estimators[self.method].mutual_information(
-                        source1_array, target_array
-                    )
+                    f"unique_{source1_name}": self.estimators[
+                        self.method
+                    ].mutual_information(source1_array, target_array)
                     - redundancy,
-                    f"unique_{source2_name}": self.estimators[self.method].mutual_information(
-                        source2_array, target_array
-                    )
+                    f"unique_{source2_name}": self.estimators[
+                        self.method
+                    ].mutual_information(source2_array, target_array)
                     - redundancy,
                 }
             except Exception as e:
@@ -334,16 +354,23 @@ class InformationAnalyzer(AbstractAnalyzer):
 
         return "\n".join(summary_lines)
 
-    def compute_general_class_mi(self, activations: np.ndarray, labels: np.ndarray, dims: Optional[list[int]] = None) -> dict:
+    def compute_general_class_mi(
+        self,
+        activations: np.ndarray,
+        labels: np.ndarray,
+        dims: Optional[list[int]] = None,
+    ) -> dict:
         """Compute MI between activations (optionally specific dims) and class labels using all methods."""
         results = {}
         acts = activations if dims is None else activations[:, dims]
         for method, estimator in self.estimators.items():
             mi = estimator.mutual_information(acts, labels.reshape(-1, 1))
-            results[f'{method}_mi_class'] = mi
+            results[f"{method}_mi_class"] = mi
             if self.normalize:
                 h_labels = estimator.entropy(labels.reshape(-1, 1))
-                results[f'{method}_normalized_mi_class'] = mi / h_labels if h_labels > 0 else 0
+                results[f"{method}_normalized_mi_class"] = (
+                    mi / h_labels if h_labels > 0 else 0
+                )
         return results
 
     def compute_metrics(
@@ -413,10 +440,14 @@ class InformationAnalyzer(AbstractAnalyzer):
             self.logger.info("Computing PID metrics...")
             results["pid"] = self._compute_pid(E, I_var, Vout, C)
 
-        if 'class_mi' in self.compute_types:
-            results['class_mi'] = self.compute_general_class_mi(Vout, C, self.target_dimensions)  # example on Vout
-        if 'pid' in self.methods:
-            results['pid'] = self._compute_pid(E, I_var, Vout, C)  # use base estimator for sub-MIs if needed
+        if "class_mi" in self.compute_types:
+            results["class_mi"] = self.compute_general_class_mi(
+                Vout, C, self.target_dimensions
+            )  # example on Vout
+        if "pid" in self.methods:
+            results["pid"] = self._compute_pid(
+                E, I_var, Vout, C
+            )  # use base estimator for sub-MIs if needed
         # Ensemble results from multiple methods if needed
 
         return results
@@ -470,10 +501,12 @@ class InformationAnalyzer(AbstractAnalyzer):
 
         return averaged_results
 
-    def _compute_layer_statistics(self, results_list: list[dict[str, Any]]) -> dict[str, float]:
+    def _compute_layer_statistics(
+        self, results_list: list[dict[str, Any]]
+    ) -> dict[str, float]:
         """Compute mean and std of MI results across multiple branches for a given layer."""
         layer_stats = {}
-        
+
         # Handle nested structure
         if "basic_mi" in results_list[0]:
             # Process basic MI metrics
@@ -482,21 +515,21 @@ class InformationAnalyzer(AbstractAnalyzer):
                     values = [r["basic_mi"][key] for r in results_list]
                     layer_stats[f"{key}_mean"] = np.mean(values)
                     layer_stats[f"{key}_std"] = np.std(values)
-            
+
             # Process pairwise MI metrics
             if "pairwise_mi" in results_list[0]:
                 for key in results_list[0]["pairwise_mi"].keys():
                     values = [r["pairwise_mi"][key] for r in results_list]
                     layer_stats[f"{key}_mean"] = np.mean(values)
                     layer_stats[f"{key}_std"] = np.std(values)
-            
+
             # Process conditional MI metrics
             if "conditional_mi" in results_list[0]:
                 for key in results_list[0]["conditional_mi"].keys():
                     values = [r["conditional_mi"][key] for r in results_list]
                     layer_stats[f"{key}_mean"] = np.mean(values)
                     layer_stats[f"{key}_std"] = np.std(values)
-        
+
         return layer_stats
 
     def attach_forward_hooks(self, model: BaseModel):
@@ -656,7 +689,7 @@ class InformationAnalyzer(AbstractAnalyzer):
 
                     # Store per-branch results for this layer
                     layer_branch_results = []
-                    
+
                     # Process each branch individually
                     for branch_idx in range(n_branches):
                         # Extract data for this specific branch
@@ -673,10 +706,12 @@ class InformationAnalyzer(AbstractAnalyzer):
                         all_results.append(branch_results)
                         layer_branch_results.append(branch_results)
                         branch_names.append(f"{layer_name}_branch_{branch_idx}")
-                    
+
                     # Compute layer statistics
                     if layer_branch_results:
-                        layer_stats = self._compute_layer_statistics(layer_branch_results)
+                        layer_stats = self._compute_layer_statistics(
+                            layer_branch_results
+                        )
                         layer_results[layer_name] = layer_stats
 
                 # Average the results across branches
@@ -684,7 +719,9 @@ class InformationAnalyzer(AbstractAnalyzer):
                     results = self._average_mi_results(all_results)
                     results["branch_names"] = branch_names
                     results["num_branches"] = len(all_results)
-                    results["layer_statistics"] = layer_results  # Add per-layer statistics
+                    results["layer_statistics"] = (
+                        layer_results  # Add per-layer statistics
+                    )
                 else:
                     self.logger.warning("No branch results to average")
                     return
@@ -843,7 +880,8 @@ class InformationAnalyzer(AbstractAnalyzer):
                 summary_path = os.path.join(save_path, f"{filename}_summary.txt")
                 with open(summary_path, "w") as f:
                     f.write(summary)
-            return results
+            else:
+                return results
 
         except Exception as e:
             self.logger.error(f"Error in information analysis: {e}")
@@ -853,4 +891,6 @@ class InformationAnalyzer(AbstractAnalyzer):
         return self.estimators[self.method].mutual_information(activations, labels)
 
     def compute_conditional_mi(self, activations, labels, condition):
-        return self.estimators[self.method].conditional_mutual_information(activations, labels, condition)
+        return self.estimators[self.method].conditional_mutual_information(
+            activations, labels, condition
+        )

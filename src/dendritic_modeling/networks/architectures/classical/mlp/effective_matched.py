@@ -34,20 +34,20 @@ class EffectiveMatchedParamMLP(nn.Module):
         reactivate=False,
         somatic_synapses=True,
         activation: str = "relu",
-        **kwargs  # Accept but ignore other EINet parameters
+        **kwargs,  # Accept but ignore other EINet parameters
     ):
         if ii_synapses_per_branch_per_layer is None:
             ii_synapses_per_branch_per_layer = []
         super().__init__()
 
         # Create default transfer_params if not provided in kwargs
-        if 'transfer_params' not in kwargs:
-            kwargs['transfer_params'] = {
-                'input_mode': 0,
-                'independent_pathways': False,
-                'excitatory_dim': [],
-                'inhibitory_dim': [],
-                'output_activation': 'none'
+        if "transfer_params" not in kwargs:
+            kwargs["transfer_params"] = {
+                "input_mode": 0,
+                "independent_pathways": False,
+                "excitatory_dim": [],
+                "inhibitory_dim": [],
+                "output_activation": "none",
             }
 
         # Create EINet to get effective parameter count and number of layers
@@ -77,7 +77,9 @@ class EffectiveMatchedParamMLP(nn.Module):
         def get_param_count(hidden_width):
             """Calculate total parameters for given hidden width."""
             params = input_dim * hidden_width  # First layer
-            params += hidden_width * hidden_width * (n_branch_layers - 1)  # Hidden layers
+            params += (
+                hidden_width * hidden_width * (n_branch_layers - 1)
+            )  # Hidden layers
             params += hidden_width * excitatory_layer_sizes[-1]  # Output layer
             return params
 
@@ -126,7 +128,9 @@ class EffectiveMatchedParamMLP(nn.Module):
             layers.extend(
                 [
                     fc_linear,
-                    activation_factory.create(act_type=activation, output_dim=hidden_width),
+                    activation_factory.create(
+                        act_type=activation, output_dim=hidden_width
+                    ),
                 ]
             )
 
@@ -138,4 +142,4 @@ class EffectiveMatchedParamMLP(nn.Module):
         return self.hidden(x)
 
 
-__all__ = ["EffectiveMatchedParamMLP"] 
+__all__ = ["EffectiveMatchedParamMLP"]

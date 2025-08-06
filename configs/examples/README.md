@@ -17,7 +17,7 @@ python src/dendritic_modeling/scripts/sweeps/sweep_manager.py \
 
 `unified_all_sweeps_example.yaml` - Complete example with all options:
 - EI filtering modes
-- Branch sweep patterns  
+- Branch sweep patterns
 - Mixed sweep combinations
 - SLURM settings
 - All configuration sections

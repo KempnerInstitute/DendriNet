@@ -82,6 +82,9 @@ coverage.xml
 .pytest_cache/
 cover/
 
+# Filesystem mount points - prevent accidental inclusion of cluster filesystem
+n/
+
 # Translations
 *.mo
 *.pot

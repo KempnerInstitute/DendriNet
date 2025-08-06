@@ -5,13 +5,16 @@ This module contains training strategies that train network layers sequentially,
 either from soma to input or from input to soma.
 """
 
+import logging
+
 # typing imports removed - not needed
 import torch
 
-from dendritic_modeling import logger
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.networks import ExcitationInhibitionNetwork
 from dendritic_modeling.training.strategies.standard import Trainer
+
+logger = logging.getLogger(__name__)
 
 
 class LayerWiseTrainer(Trainer):

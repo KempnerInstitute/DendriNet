@@ -77,4 +77,4 @@ pre-commit install
 
 **Get Help:**
 - Check [GitHub Issues](https://github.com/KempnerInstitute/dendritic_modeling/issues)
-- Verify your environment: `conda list` and `pip list` 
+- Verify your environment: `conda list` and `pip list`

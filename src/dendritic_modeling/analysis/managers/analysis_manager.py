@@ -26,18 +26,22 @@ from dendritic_modeling.analysis.tools.synaptic_activation import (
 )
 from dendritic_modeling.analysis.tools.synaptic_turnover import SynapticTurnoverAnalyzer
 from dendritic_modeling.analysis.tools.weight import WeightAnalyzer
-from dendritic_modeling.plotting.visualizations.information_analysis import plot_information_analysis
 from dendritic_modeling.plotting.visualizations.general_analysis_plots import (
     plot_performance_metrics,
     plot_synapse_turnover,
     plot_weight_distributions,
+)
+from dendritic_modeling.plotting.visualizations.information_analysis import (
+    plot_information_analysis,
 )
 
 
 class AnalysisManager:
     """Manager for running multiple analyses on models."""
 
-    def __init__(self, model, data, analysis_config, save_root, device='cpu', train_config=None):
+    def __init__(
+        self, model, data, analysis_config, save_root, device="cpu", train_config=None
+    ):
         """Initialize with model, data, and configs."""
         self.model = model
         self.data = data
@@ -48,7 +52,7 @@ class AnalysisManager:
         os.makedirs(self.save_root, exist_ok=True)
         # Note: Logging should be configured externally at the application startup.
         self.logger = logging.getLogger(__name__)
-        
+
         # Store pruning results if available
         self.pruning_results = None
 
@@ -68,11 +72,10 @@ class AnalysisManager:
         if self.config.synapse_turnover_analysis.enabled:
             # Get snapshot interval from config (default to every 5 epochs for efficiency)
             snapshot_interval = getattr(
-                self.config.synapse_turnover_analysis, 'snapshot_interval', 5
+                self.config.synapse_turnover_analysis, "snapshot_interval", 5
             )
             self.syn_turnover_analyzer = SynapticTurnoverAnalyzer(
-                model=model, 
-                snapshot_interval=snapshot_interval
+                model=model, snapshot_interval=snapshot_interval
             )
             self.logger.info(
                 f"Synaptic turnover analyzer initialized with snapshot interval: {snapshot_interval} epochs"
@@ -130,16 +133,20 @@ class AnalysisManager:
         """Run configured analyses and generate plots."""
         # Only log for final analysis, not every training epoch
         if not training:
-            self.logger.info(f"Starting analysis run - filename: {filename}, training: {training}")
-        
+            self.logger.info(
+                f"Starting analysis run - filename: {filename}, training: {training}"
+            )
+
         # Run analyses and get results
         if self.config.performance_analysis.enabled and (
             (self.config.performance_analysis.training and training) or not training
         ):
             # Only log for final analysis, not every training epoch
             if not training:
-                self.logger.info(f"Running performance analysis - enabled: {self.config.performance_analysis.enabled}, training_mode: {self.config.performance_analysis.training}, is_training: {training}")
-            
+                self.logger.info(
+                    f"Running performance analysis - enabled: {self.config.performance_analysis.enabled}, training_mode: {self.config.performance_analysis.training}, is_training: {training}"
+                )
+
             # Determine save path based on whether this is training or final analysis
             if training:
                 # Save epoch results in a subfolder
@@ -148,7 +155,7 @@ class AnalysisManager:
             else:
                 # Save final results in main performance folder
                 epoch_save_path = os.path.join(self.save_root, "performance")
-            
+
             perf_results = self.performance_analyzer.analyze(
                 model=self.model,
                 train_ds=self.data["train"],
@@ -158,34 +165,45 @@ class AnalysisManager:
                 save_path=epoch_save_path,
                 filename=filename,
             )
-            
+
             # Only generate plots when training is complete
             if not training:
                 # Generate bar plots only for final results (when training=false)
                 if not self.config.performance_analysis.training:
                     try:
                         plot_performance_metrics(
-                            perf_results, save_path=os.path.join(self.save_root, "performance")
+                            perf_results,
+                            save_path=os.path.join(self.save_root, "performance"),
                         )
                     except Exception as e:
-                        self.logger.error(f"Error generating performance metrics plots: {e}")
-                
+                        self.logger.error(
+                            f"Error generating performance metrics plots: {e}"
+                        )
+
                 # Generate epoch evolution plots if training analysis was enabled
                 if self.config.performance_analysis.training:
                     try:
-                        from dendritic_modeling.plotting.visualizations.performance_plots import PerformancePlotter
+                        from dendritic_modeling.plotting.visualizations.performance_plots import (
+                            PerformancePlotter,
+                        )
+
                         plotter = PerformancePlotter()
-                        
+
                         # Get pruning performance data if available
                         pruning_performance = self.pruning_results
                         final_epoch = None
-                        if (self.train_config and hasattr(self.train_config, 'main') and 
-                            hasattr(self.train_config.main, 'trainer') and
-                            hasattr(self.train_config.main.trainer, 'epochs')):
+                        if (
+                            self.train_config
+                            and hasattr(self.train_config, "main")
+                            and hasattr(self.train_config.main, "trainer")
+                            and hasattr(self.train_config.main.trainer, "epochs")
+                        ):
                             final_epoch = self.train_config.main.trainer.epochs
-                        
+
                         # Ensure performance directory exists
-                        performance_dir = os.path.join(self.save_root, "performance", "epochs")
+                        performance_dir = os.path.join(
+                            self.save_root, "performance", "epochs"
+                        )
                         if os.path.exists(performance_dir):
                             plotter.plot_performance_evolution(
                                 performance_dir=performance_dir,
@@ -194,9 +212,13 @@ class AnalysisManager:
                                 final_epoch=final_epoch,
                             )
                         else:
-                            self.logger.warning(f"Performance directory {performance_dir} does not exist, skipping evolution plots")
+                            self.logger.warning(
+                                f"Performance directory {performance_dir} does not exist, skipping evolution plots"
+                            )
                     except Exception as e:
-                        self.logger.error(f"Error generating performance evolution plots: {e}")
+                        self.logger.error(
+                            f"Error generating performance evolution plots: {e}"
+                        )
                         # Continue with other analyses even if plotting fails
 
         # Information Analysis
@@ -210,20 +232,23 @@ class AnalysisManager:
                 save_path=os.path.join(self.save_root, "information_analysis"),
                 filename=filename,
             )
-            if not training:
+            if not training and info_results:
                 plot_information_analysis(
                     info_results,
                     save_path=os.path.join(self.save_root, "information_analysis"),
                 )
-                
+
                 # Also plot per-layer information if available
-                if "layer_statistics" in info_results:
-                    from dendritic_modeling.plotting.visualizations.information_analysis import InformationAnalysisPlotter
+                if info_results and "layer_statistics" in info_results:
+                    from dendritic_modeling.plotting.visualizations.information_analysis import (
+                        InformationAnalysisPlotter,
+                    )
+
                     plotter = InformationAnalysisPlotter()
                     plotter.plot_per_layer_information(
                         info_results["layer_statistics"],
                         save_path=os.path.join(self.save_root, "information_analysis"),
-                        filename_prefix="per_layer"
+                        filename_prefix="per_layer",
                     )
 
         # Synaptic Turnover Analysis
@@ -247,7 +272,7 @@ class AnalysisManager:
                             save_path=None,
                             filename=filename,
                         )
-                
+
                 # Now analyze the turnover between all collected snapshots
                 turnover_results = self.syn_turnover_analyzer.analyze(
                     model=self.model,
@@ -255,30 +280,39 @@ class AnalysisManager:
                     save_path=None,  # Don't save to file yet, get results
                     filename=filename,
                 )
-                
+
                 # Save the results
                 if turnover_results is not None:
                     self.syn_turnover_analyzer.analyze(
                         model=self.model,
                         training=False,  # Analyze mode
-                        save_path=os.path.join(self.save_root, "synapse_turnover_analysis"),
+                        save_path=os.path.join(
+                            self.save_root, "synapse_turnover_analysis"
+                        ),
                         filename=filename,
                     )
-                    
+
                     # Generate plots
                     plot_synapse_turnover(
                         turnover_results,
-                        save_path=os.path.join(self.save_root, "synapse_turnover_analysis"),
-                        filename="synapse_turnover"
+                        save_path=os.path.join(
+                            self.save_root, "synapse_turnover_analysis"
+                        ),
+                        filename="synapse_turnover",
                     )
-                    
+
                     # Plot layer statistics if available
                     if "layer_statistics" in turnover_results:
-                        from dendritic_modeling.plotting.visualizations.general_analysis_plots import plot_layer_synapse_statistics
+                        from dendritic_modeling.plotting.visualizations.general_analysis_plots import (
+                            plot_layer_synapse_statistics,
+                        )
+
                         plot_layer_synapse_statistics(
                             turnover_results["layer_statistics"],
-                            save_path=os.path.join(self.save_root, "synapse_turnover_analysis"),
-                            filename="layer_synapse_statistics"
+                            save_path=os.path.join(
+                                self.save_root, "synapse_turnover_analysis"
+                            ),
+                            filename="layer_synapse_statistics",
                         )
                 else:
                     self.logger.warning("No turnover results to plot")
