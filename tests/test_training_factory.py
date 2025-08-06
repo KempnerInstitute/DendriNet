@@ -2,22 +2,23 @@
 Tests for training factory module to improve coverage.
 """
 
+from unittest.mock import Mock, patch
+
 import pytest
 import torch
 import torch.nn as nn
-from unittest.mock import Mock, patch
 
-from dendritic_modeling.training.factory import (
-    _extract_enhanced_configs,
-    get_trainer,
-    transfer_mlp_weights_to_input_net,
-    extract_weights_from_simple_mlp,
-)
 from dendritic_modeling.config.training import (
     OptimizerConfig,
     PruningConfig,
     RegularizationConfig,
     ReportingConfig,
+)
+from dendritic_modeling.training.factory import (
+    _extract_enhanced_configs,
+    extract_weights_from_simple_mlp,
+    get_trainer,
+    transfer_mlp_weights_to_input_net,
 )
 
 

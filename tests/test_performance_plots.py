@@ -2,19 +2,20 @@
 Tests for plotting visualizations performance_plots module to improve coverage.
 """
 
-import pytest
-import tempfile
-import os
 import json
+import os
+import tempfile
 from unittest.mock import patch
+
 import matplotlib.pyplot as plt
 import numpy as np
+import pytest
 
+from dendritic_modeling.plotting.visualizations.base import PlotConfig
 from dendritic_modeling.plotting.visualizations.performance_plots import (
     PerformancePlotter,
     SweepResultsPlotter,
 )
-from dendritic_modeling.plotting.visualizations.base import PlotConfig
 
 
 class TestPerformancePlotter:

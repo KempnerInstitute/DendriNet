@@ -6,9 +6,9 @@ import pytest
 import torch
 
 from dendritic_modeling.utils.math.auc import (
-    roc_auc_score,
     _binary_roc_auc_pytorch,
     _multiclass_roc_auc_pytorch,
+    roc_auc_score,
 )
 
 

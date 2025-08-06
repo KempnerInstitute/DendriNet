@@ -3,11 +3,12 @@ Consolidated tests for networks input base module.
 Combines original and extended tests for comprehensive coverage.
 """
 
+import os
+import tempfile
+
 import pytest
 import torch
 import torch.nn as nn
-import tempfile
-import os
 
 from dendritic_modeling.networks.input.base import InputNetTransform
 

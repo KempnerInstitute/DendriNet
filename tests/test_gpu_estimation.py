@@ -2,18 +2,18 @@
 Tests for utils gpu_estimation module to improve coverage.
 """
 
-import pytest
-import tempfile
-import os
 import json
+import os
+import tempfile
 
+import pytest
 import torch
 import torch.nn as nn
 
 from dendritic_modeling.utils.gpu_estimation import (
-    MemoryBreakdown,
-    GPURecommendation,
     GPUMemoryEstimator,
+    GPURecommendation,
+    MemoryBreakdown,
     estimate_from_config,
 )
 

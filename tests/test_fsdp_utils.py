@@ -2,22 +2,23 @@
 Tests for training FSDP utils module to improve coverage.
 """
 
+import os
+import tempfile
+from unittest.mock import Mock, patch
+
 import pytest
 import torch
 import torch.nn as nn
-from unittest.mock import Mock, patch
-import tempfile
-import os
 
 from dendritic_modeling.training.fsdp_utils import (
-    create_fsdp_wrap_policy,
-    get_fsdp_config,
-    wrap_model_with_fsdp,
     _apply_gradient_checkpointing,
-    save_fsdp_checkpoint,
-    load_fsdp_checkpoint,
+    create_fsdp_wrap_policy,
     estimate_memory_requirements,
+    get_fsdp_config,
     get_recommended_gpu_count,
+    load_fsdp_checkpoint,
+    save_fsdp_checkpoint,
+    wrap_model_with_fsdp,
 )
 
 

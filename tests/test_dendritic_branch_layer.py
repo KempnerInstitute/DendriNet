@@ -1,6 +1,6 @@
-import pytest
 import unittest
 
+import pytest
 import torch
 
 from dendritic_modeling.networks import BlockLinear, DendriticBranchLayer, TopKLinear

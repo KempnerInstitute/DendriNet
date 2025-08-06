@@ -6,12 +6,12 @@ import pytest
 import torch.nn as nn
 import torch.optim as optim
 
+from dendritic_modeling.config.training import OptimizerConfig
 from dendritic_modeling.training.optimizers.factory import (
     create_optimizer,
     create_parameter_groups,
     validate_optimizer_config,
 )
-from dendritic_modeling.config.training import OptimizerConfig
 
 
 class TestCreateOptimizer:

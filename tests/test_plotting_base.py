@@ -2,16 +2,17 @@
 Tests for plotting base module to improve coverage.
 """
 
-import matplotlib.pyplot as plt
-import tempfile
 import os
+import tempfile
+
+import matplotlib.pyplot as plt
 
 from dendritic_modeling.plotting.visualizations.base import (
-    PlotConfig,
     BasePlotter,
     ComparisonPlotter,
-    TimeSeriesPlotter,
     DistributionPlotter,
+    PlotConfig,
+    TimeSeriesPlotter,
 )
 
 

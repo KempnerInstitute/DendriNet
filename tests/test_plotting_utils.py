@@ -2,16 +2,17 @@
 Tests for plotting utilities to improve coverage.
 """
 
-import pytest
-import matplotlib.pyplot as plt
 from unittest.mock import patch
+
+import matplotlib.pyplot as plt
+import pytest
 
 # Import plotting utilities
 from dendritic_modeling.plotting.core.utils import (
-    save_plot,
+    apply_plot_style,
     create_figure_grid,
     format_axis_labels,
-    apply_plot_style,
+    save_plot,
 )
 
 

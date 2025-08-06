@@ -2,16 +2,16 @@
 Tests for scripts sweeps unified base_sweep module to improve coverage.
 """
 
-import pytest
-import tempfile
 import os
+import tempfile
 from datetime import datetime
 
+import pytest
 from omegaconf import DictConfig, OmegaConf
 
 from dendritic_modeling.scripts.sweeps.unified.base_sweep import (
-    BaseSweepGenerator,
     BaseSweepAnalyzer,
+    BaseSweepGenerator,
     SweepJobManager,
 )
 

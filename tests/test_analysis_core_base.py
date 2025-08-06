@@ -2,16 +2,16 @@
 Tests for analysis core base module to improve coverage.
 """
 
-import pytest
-import tempfile
-import os
 import json
 import logging
-from unittest.mock import Mock, patch
+import os
+import tempfile
 from pathlib import Path
+from unittest.mock import Mock, patch
 
-import torch
 import numpy as np
+import pytest
+import torch
 
 from dendritic_modeling.analysis.core.base import AbstractAnalyzer
 from dendritic_modeling.models.base import BaseModel

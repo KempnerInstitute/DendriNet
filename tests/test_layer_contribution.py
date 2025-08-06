@@ -2,16 +2,17 @@
 Tests for layer contribution analysis to improve coverage.
 """
 
+from unittest.mock import patch
+
 import pytest
 import torch
 import torch.nn as nn
-from unittest.mock import patch
 
 from dendritic_modeling.analysis.metrics.layer_contribution import (
     LayerContributionAnalyzer,
     analyze_layer_importance,
-    compute_gradient_based_importance,
     compute_activation_based_importance,
+    compute_gradient_based_importance,
 )
 
 

@@ -2,20 +2,21 @@
 Tests for training regularization module to improve coverage.
 """
 
+import json
+import os
+import tempfile
+
 import pytest
 import torch
 import torch.nn as nn
-import tempfile
-import os
-import json
 
+from dendritic_modeling.config.training import PruningConfig, RegularizationConfig
 from dendritic_modeling.training.regularization import (
-    RegularizationManager,
     PruningManager,
-    create_sparsity_mask,
+    RegularizationManager,
     apply_sparsity_masks,
+    create_sparsity_mask,
 )
-from dendritic_modeling.config.training import RegularizationConfig, PruningConfig
 
 
 class TestRegularizationManager:
