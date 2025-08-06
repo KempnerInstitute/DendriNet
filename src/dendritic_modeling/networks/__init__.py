@@ -7,50 +7,23 @@ architectures, activations, and input transforms.
 
 # Activations
 from dendritic_modeling.networks.activations import (
-    ActivationFactory,
-    ParametricActivation,
-    ParametricLinearSigmoid,
-    ParametricLinearTanh,
-    ParametricLinearTanhTransition,
-    ParametricTanh,
-    ParametricTanhOnlyM,
-)
+    ActivationFactory, ParametricActivation, ParametricLinearSigmoid,
+    ParametricLinearTanh, ParametricLinearTanhTransition, ParametricTanh,
+    ParametricTanhOnlyM)
 from dendritic_modeling.networks.architectures import (
-    MLP,
-    AlexNet,
-    BlockLinear,
-    CNNDownsample,
-    CNNUpsample,
-    DeepstLinear,
-    DendriNet,
-    DendriticBranchLayer,
-    ExcitationInhibitionLayer,
-    ExcitationInhibitionNetwork,
-    GradientScaler,
-    Identity,
-    IdentityInputTransform,
-    IndexInputTransform,
-    MatchedParamMLP,
-    StochasticTopKLinear,
-    TopKLinear,
-    TransferLayer,
-    VarianceTopKLinear,
-    initialize_dendritic_branch_layer,
-)
+    MLP, AlexNet, BlockLinear, CNNDownsample, CNNUpsample, DeepstLinear,
+    DendriNet, DendriticBranchLayer, ExcitationInhibitionLayer,
+    ExcitationInhibitionNetwork, GradientScaler, Identity,
+    IdentityInputTransform, IndexInputTransform, MatchedParamMLP,
+    StochasticTopKLinear, TopKLinear, TransferLayer, VarianceTopKLinear,
+    initialize_dendritic_branch_layer)
 from dendritic_modeling.networks.architectures.classical.autoencoder.base import (
-    BaseAutoencoder,
-    CNNAutoencoder,
-    MLPAutoencoder,
-)
+    BaseAutoencoder, CNNAutoencoder, MLPAutoencoder)
 from dendritic_modeling.networks.architectures.classical.autoencoder.vae import (
-    CNNVariationalAutoencoder,
-    MLPVariationalAutoencoder,
-)
+    CNNVariationalAutoencoder, MLPVariationalAutoencoder)
 from dendritic_modeling.networks.base import BaseNetwork
-from dendritic_modeling.networks.input import (
-    InputNetTransform,
-    SigmoidOutputNetwork,
-)
+from dendritic_modeling.networks.input import (InputNetTransform,
+                                               SigmoidOutputNetwork)
 
 __all__ = [
     "ActivationFactory"

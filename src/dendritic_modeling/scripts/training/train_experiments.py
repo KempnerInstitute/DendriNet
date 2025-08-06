@@ -36,49 +36,39 @@ os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"  # Disable oneDNN optimizations warnin
 
 # Core imports
 import argparse
-import sys
 import warnings
 from dataclasses import asdict
-from datetime import datetime
 
 # Optional imports (with fallbacks)
 try:
     import torchinfo
+
     TORCHINFO_AVAILABLE = True
 except ImportError:
     TORCHINFO_AVAILABLE = False
-    warnings.warn("torchinfo not available. Model summary will be skipped.")
-
+    warnings.warn(
+        "torchinfo not available. Model summary will be skipped.", stacklevel=2
+    )
 
 
 import torch
 import wandb
 from omegaconf import OmegaConf
 
-from dendritic_modeling import logger, logger_manager
+from dendritic_modeling import logger
 from dendritic_modeling.analysis import AnalysisManager
-from dendritic_modeling.config import (
-    ModelConfig,
-    load_config,
-)
-from dendritic_modeling.datasets import get_unified_datasets
-from dendritic_modeling.models import BaseModel, Classifier, Regressor
+from dendritic_modeling.config import load_config
+from dendritic_modeling.models import BaseModel
 from dendritic_modeling.networks import Identity
-from dendritic_modeling.networks.architectures.factory import get_architecture
-from dendritic_modeling.scripts.training.train_encoder_network import load_train_encoder_network
-from dendritic_modeling.scripts.script_utils.setup_utils import setup_environment, save_model, load_model, initialize_model
+from dendritic_modeling.scripts.script_utils.setup_utils import (
+    save_model, setup_environment)
+from dendritic_modeling.scripts.training.train_encoder_network import \
+    load_train_encoder_network
 from dendritic_modeling.training import CustomWeightDecayOptimizer, get_trainer
-from dendritic_modeling.utils import save_dict, validate_full_config, set_seed
-from dendritic_modeling.plotting.visualizations.information_analysis import plot_information_analysis
-from dendritic_modeling.plotting.visualizations.general_analysis_plots import plot_synapse_turnover
+from dendritic_modeling.utils import save_dict, validate_full_config
 from dendritic_modeling.utils.training_stability_validator import (
-    validate_training_stability,
-    suggest_optimal_config_for_model_size,
-    apply_automatic_safeguards
-)
-
-
-
+    apply_automatic_safeguards, suggest_optimal_config_for_model_size,
+    validate_training_stability)
 
 
 def run_analysis(
@@ -95,9 +85,12 @@ def run_analysis(
     logger.info("Running analyses...")
     if analysis_manager is not None:
         # Set pruning results if available
-        if training_results and ('pre_pruning_performance' in training_results or 'post_pruning_performance' in training_results):
+        if training_results and (
+            "pre_pruning_performance" in training_results
+            or "post_pruning_performance" in training_results
+        ):
             analysis_manager.set_pruning_results(training_results)
-        
+
         analysis_manager.run_analysis(filename="final", training=training)
         logger.info("Analysis completed")
 
@@ -122,9 +115,11 @@ def main(config_path: str, args=None):
     logger.info("Applying configuration safeguards...")
     validation_passed = validate_training_stability(config)
     if not validation_passed:
-        logger.error("Configuration validation failed. Please address the errors above.")
+        logger.error(
+            "Configuration validation failed. Please address the errors above."
+        )
         raise ValueError("Invalid configuration - critical errors detected")
-    
+
     # Apply automatic safeguards
     apply_automatic_safeguards(config)
     logger.info("Configuration safeguards applied")
@@ -236,22 +231,22 @@ def main(config_path: str, args=None):
 
     # Add enhanced configurations for pruning, regularization, reporting, and parameter groups
     # These configurations are needed for the trainer factory to enable advanced features
-    if hasattr(main_train_config, 'param_groups'):
+    if hasattr(main_train_config, "param_groups"):
         main_trainer_config_dict["param_groups"] = OmegaConf.to_container(
             main_train_config.param_groups, resolve=True
         )
-    
-    if hasattr(main_train_config, 'regularization'):
+
+    if hasattr(main_train_config, "regularization"):
         main_trainer_config_dict["regularization"] = OmegaConf.to_container(
             main_train_config.regularization, resolve=True
         )
-    
-    if hasattr(main_train_config, 'pruning'):
+
+    if hasattr(main_train_config, "pruning"):
         main_trainer_config_dict["pruning"] = OmegaConf.to_container(
             main_train_config.pruning, resolve=True
         )
-    
-    if hasattr(main_train_config, 'reporting'):
+
+    if hasattr(main_train_config, "reporting"):
         main_trainer_config_dict["reporting"] = OmegaConf.to_container(
             main_train_config.reporting, resolve=True
         )
@@ -267,18 +262,20 @@ def main(config_path: str, args=None):
         main_trainer_config_dict["checkpoint_dir"] = run_save_path
 
     # Add profiling configuration if specified
-    enable_profiling = getattr(config.train, 'enable_profiling', False)
+    enable_profiling = getattr(config.train, "enable_profiling", False)
     if enable_profiling:
         main_trainer_config_dict["enable_profiling"] = True
-        main_trainer_config_dict["profiling_output_dir"] = os.path.join(run_save_path, "profiling")
+        main_trainer_config_dict["profiling_output_dir"] = os.path.join(
+            run_save_path, "profiling"
+        )
         logger.info("Profiling enabled for this training run")
-    
+
     # Add AMP configuration
-    enable_amp = getattr(config.train, 'enable_amp', False)
+    enable_amp = getattr(config.train, "enable_amp", False)
     main_trainer_config_dict["enable_amp"] = enable_amp
-    
+
     # Add hooks configuration
-    enable_hooks = getattr(config.train, 'enable_hooks', True)
+    enable_hooks = getattr(config.train, "enable_hooks", True)
     main_trainer_config_dict["enable_hooks"] = enable_hooks
 
     optimizer = CustomWeightDecayOptimizer(
@@ -291,8 +288,10 @@ def main(config_path: str, args=None):
 
     # Store original pruning config and temporarily disable it for initial training
     original_pruning_config = main_trainer_config_dict.get("pruning", {})
-    main_trainer_config_dict["pruning"] = {}  # Temporarily disable pruning for initial training
-    
+    main_trainer_config_dict["pruning"] = (
+        {}
+    )  # Temporarily disable pruning for initial training
+
     main_trainer = get_trainer(
         strategy=main_train_config.learning_strategy,
         optimizer=optimizer,
@@ -309,31 +308,40 @@ def main(config_path: str, args=None):
     if wandb.run is not None:
         wandb.log({"nparams": nparams})
     save_dict({"nparams": nparams}, run_save_path, "nparams")
-    
+
     # Provide configuration suggestions based on model size
     suggestions = suggest_optimal_config_for_model_size(nparams)
     if suggestions:
-        logger.info(f"=== MODEL SIZE RECOMMENDATIONS (Model has {nparams:,} parameters) ===")
+        logger.info(
+            f"=== MODEL SIZE RECOMMENDATIONS (Model has {nparams:,} parameters) ==="
+        )
         for key, value in suggestions.items():
-            current_value = getattr(config.train, key, "Not set") if hasattr(config.train, key) else "Not available"
+            current_value = (
+                getattr(config.train, key, "Not set")
+                if hasattr(config.train, key)
+                else "Not available"
+            )
             if current_value != value:
                 logger.info(f"  Consider: {key} = {value} (current: {current_value})")
         logger.info("=" * 50)
 
     # Only run analysis if any analysis is enabled (excluding training-only analysis)
-    any_analysis_enabled = any([
-        analysis_config.performance_analysis.enabled,
-        analysis_config.information_analysis.enabled,
-        analysis_config.synapse_turnover_analysis.enabled,
-        analysis_config.noise_perturbation_analysis.enabled,
-        analysis_config.single_layer_contribution.enabled,
-        analysis_config.ablation_analysis.enabled,
-        analysis_config.weight_analysis.enabled,
-        analysis_config.synaptic_activation_analysis.enabled,
-        analysis_config.branch_activation_analysis.enabled,
-        hasattr(analysis_config, 'correlation_analysis') and analysis_config.correlation_analysis.enabled,
-    ])
-    
+    any_analysis_enabled = any(
+        [
+            analysis_config.performance_analysis.enabled,
+            analysis_config.information_analysis.enabled,
+            analysis_config.synapse_turnover_analysis.enabled,
+            analysis_config.noise_perturbation_analysis.enabled,
+            analysis_config.single_layer_contribution.enabled,
+            analysis_config.ablation_analysis.enabled,
+            analysis_config.weight_analysis.enabled,
+            analysis_config.synaptic_activation_analysis.enabled,
+            analysis_config.branch_activation_analysis.enabled,
+            hasattr(analysis_config, "correlation_analysis")
+            and analysis_config.correlation_analysis.enabled,
+        ]
+    )
+
     # Run original analysis BEFORE pruning
     if any_analysis_enabled:
         logger.info("Running original analysis before pruning...")
@@ -355,23 +363,23 @@ def main(config_path: str, args=None):
         logger.info("Applying pruning as separate step...")
         # Restore pruning config and create new trainer for pruning
         main_trainer_config_dict["pruning"] = original_pruning_config
-        main_trainer_config_dict["reporting"] = main_trainer_config_dict.get("reporting", {})
-        
+        main_trainer_config_dict["reporting"] = main_trainer_config_dict.get(
+            "reporting", {}
+        )
+
         pruning_trainer = get_trainer(
             strategy=main_train_config.learning_strategy,
             optimizer=optimizer,
             trainer_config_dict=main_trainer_config_dict,
             analysis_manager=analysis_manager,
         )
-        
+
         # Initialize trainer attributes (device, etc.) without training
         pruning_trainer._initialize_attributes(model, main_train_config.trainer.epochs)
-        
+
         # Apply pruning and evaluate
         pruning_results = pruning_trainer._apply_pruning_and_evaluate(
-            model=model,
-            train_data=encoded_train_ds,
-            valid_data=encoded_valid_ds
+            model=model, train_data=encoded_train_ds, valid_data=encoded_valid_ds
         )
         training_results.update(pruning_results)  # Merge results
         logger.info("Pruning completed")

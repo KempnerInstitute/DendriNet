@@ -16,7 +16,8 @@ from typing import Any, ClassVar, Optional, Union
 
 import numpy as np
 from scipy import stats
-from sklearn.feature_selection import mutual_info_classif, mutual_info_regression
+from sklearn.feature_selection import (mutual_info_classif,
+                                       mutual_info_regression)
 from sklearn.metrics import mutual_info_score
 
 from dendritic_modeling.utils.information import compute_mi_cc, compute_mi_cd

@@ -4,14 +4,12 @@ Standard dataset loading utilities for dendritic modeling.
 This module contains functions for loading and preprocessing standard datasets
 like MNIST, CIFAR-10, and ImageNet.
 """
-import os
-from typing import Optional
 
-import numpy as np
+import os
+
 import torch
-from torch.utils.data import Dataset, TensorDataset, random_split
+from torch.utils.data import TensorDataset
 from torchvision import datasets, transforms
-from torchvision.datasets import MNIST
 
 
 # Create a centralized function to get or create a data directory
@@ -493,14 +491,23 @@ def get_unified_datasets(task_cfg, train_cfg, output_dir=None, outputs_cfg=None)
         try:
             # Add experiments directory to path
             experiments_path = os.path.join(
-                os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))),
-                "experiments"
+                os.path.dirname(
+                    os.path.dirname(
+                        os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                    )
+                ),
+                "experiments",
             )
             import sys
+
             if experiments_path not in sys.path:
                 sys.path.insert(0, experiments_path)
-            
-            from data_generation.synthetic_datasets import get_unified_datasets as get_synthetic_datasets
+
+            from data_generation.synthetic_datasets import \
+                get_unified_datasets as get_synthetic_datasets
+
             return get_synthetic_datasets(task_cfg, train_cfg, output_dir, outputs_cfg)
         except ImportError as e:
-            raise ValueError(f"Unknown dataset name: {dataset_name}. Synthetic datasets not available: {e}") 
+            raise ValueError(
+                f"Unknown dataset name: {dataset_name}. Synthetic datasets not available: {e}"
+            )

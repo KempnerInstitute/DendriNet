@@ -1,13 +1,10 @@
 """Core plotting utilities and helper functions."""
 
-from .utils import (
-    visualize_graph,
-    dendritic_activations_todict,
-    einet_activations_todict,
-)
+from .utils import (dendritic_activations_todict, einet_activations_todict,
+                    visualize_graph)
 
 __all__ = [
-    "visualize_graph",
     "dendritic_activations_todict",
     "einet_activations_todict",
-] 
+    "visualize_graph",
+]

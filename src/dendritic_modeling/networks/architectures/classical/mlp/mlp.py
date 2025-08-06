@@ -21,7 +21,7 @@ class MLP(BaseNetwork):
         hidden_dims: list[int],
         activation: str = "relu",
         output_dim: Optional[int] = None,
-        **kwargs
+        **kwargs,
     ):
         super().__init__()
 

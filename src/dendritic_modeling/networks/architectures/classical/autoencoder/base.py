@@ -4,9 +4,7 @@ import torch
 import torch.nn as nn
 
 from dendritic_modeling.networks.architectures.classical.cnn.cnn import (
-    CNNDownsample,
-    CNNUpsample,
-)
+    CNNDownsample, CNNUpsample)
 from dendritic_modeling.networks.architectures.classical.mlp.mlp import MLP
 from dendritic_modeling.networks.base import BaseNetwork
 
@@ -36,7 +34,7 @@ class MLPAutoencoder(BaseAutoencoder):
         latent_dim: int,
         decoder_hidden_dims: list[int],
         activation: str = "relu",
-        **kwargs
+        **kwargs,
     ):
         super().__init__()
 
@@ -83,7 +81,7 @@ class CNNAutoencoder(BaseAutoencoder):
         latent_shape: tuple[int, int, int],
         decoder_hidden_dims: list[int],
         activation: str = "relu",
-        **kwargs
+        **kwargs,
     ):
         super().__init__()
         encoder_hidden_dims = deepcopy(encoder_hidden_dims)

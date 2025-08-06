@@ -13,9 +13,9 @@ Example:
     torchrun --nproc_per_node=4 train_experiments_fsdp.py configs/large_model_config.yaml
 """
 
-import os
 import argparse
 import logging
+import os
 from dataclasses import asdict
 from datetime import datetime
 
@@ -23,10 +23,10 @@ os.environ.setdefault("TORCH_NCCL_ASYNC_ERROR_HANDLING", "1")
 os.environ.setdefault("NCCL_TIMEOUT", "1800")  # 30 minutes timeout
 os.environ.setdefault("TORCH_NCCL_BLOCKING_WAIT", "1")
 os.environ.setdefault("NCCL_DEBUG", "INFO")
-os.environ.setdefault("NCCL_SOCKET_FAMILY", "AF_INET")  # Force IPv4 to fix socket errors
 os.environ.setdefault(
-    "NCCL_SOCKET_IFNAME", "ib0,eth0"
-)  
+    "NCCL_SOCKET_FAMILY", "AF_INET"
+)  # Force IPv4 to fix socket errors
+os.environ.setdefault("NCCL_SOCKET_IFNAME", "ib0,eth0")
 os.environ.setdefault("NCCL_IB_DISABLE", "0")  # Enable InfiniBand if available
 os.environ.setdefault("NCCL_NET_GDR_LEVEL", "2")  # Enable GPU Direct RDMA
 
@@ -42,6 +42,7 @@ from dendritic_modeling import logger, logger_manager
 # WandB import (optional)
 try:
     import wandb
+
     WANDB_AVAILABLE = True
 except ImportError:
     WANDB_AVAILABLE = False
@@ -50,24 +51,23 @@ except ImportError:
 # torchinfo import (optional)
 try:
     import torchinfo
+
     TORCHINFO_AVAILABLE = True
 except ImportError:
     TORCHINFO_AVAILABLE = False
     logger.warning("torchinfo not available. Model summary will be skipped.")
 
+from dendritic_modeling.analysis import AnalysisManager
 from dendritic_modeling.config import load_config
 from dendritic_modeling.datasets import get_unified_datasets
 from dendritic_modeling.models import Classifier, Regressor
 from dendritic_modeling.networks import Identity
 from dendritic_modeling.networks.architectures.factory import get_architecture
-from dendritic_modeling.scripts.training.train_encoder_network import load_train_encoder_network
-from dendritic_modeling.utils.general import set_seed, save_dict
-from dendritic_modeling.utils.gpu_estimation import GPUMemoryEstimator
-from dendritic_modeling.analysis import AnalysisManager
+from dendritic_modeling.scripts.training.train_encoder_network import \
+    load_train_encoder_network
 from dendritic_modeling.training.fsdp_utils import get_fsdp_config
 from dendritic_modeling.training.strategies.fsdp_standard import FSDPTrainer
-from dendritic_modeling.training import CustomWeightDecayOptimizer
-from dendritic_modeling.plotting.visualizations.information_analysis import plot_information_analysis
+from dendritic_modeling.utils.general import save_dict, set_seed
 
 
 def setup_wandb(config, rank, world_size):
@@ -159,7 +159,7 @@ def print_model_parameter_summary(model, sample_input=None):
     logger.info("Network architecture summary before training:")
     try:
         if TORCHINFO_AVAILABLE and sample_input is not None:
-            summary = torchinfo.summary(
+            torchinfo.summary(
                 model,
                 input_size=(100, *sample_input.shape),
                 col_names=["input_size", "output_size", "num_params"],
@@ -170,16 +170,20 @@ def print_model_parameter_summary(model, sample_input=None):
             logger.info("Model summary generated (see console output)")
         else:
             if not TORCHINFO_AVAILABLE:
-                logger.warning("torchinfo is not available. Model summary not generated.")
+                logger.warning(
+                    "torchinfo is not available. Model summary not generated."
+                )
             else:
                 logger.warning("No sample input provided. Using basic parameter count.")
-            
+
             # Basic parameter breakdown
             total_params = sum(p.numel() for p in model.parameters())
-            trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+            trainable_params = sum(
+                p.numel() for p in model.parameters() if p.requires_grad
+            )
             logger.info(f"Total parameters: {total_params:,}")
             logger.info(f"Trainable parameters: {trainable_params:,}")
-            
+
     except Exception as e:
         logger.error(f"Failed to generate model summary before training: {e}")
         # Fallback to basic count
@@ -263,7 +267,7 @@ def create_large_model(config):
     trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     logger.info(f"Model created with {total_params:,} total parameters")
     logger.info(f"Trainable parameters: {trainable_params:,}")
-    
+
     return model
 
 
@@ -275,43 +279,37 @@ def setup_data_loaders(config, rank, world_size):
         train_cfg=config.train,
         output_dir=config.outputs.dir,
     )
-    
+
     # Create distributed samplers
     train_sampler = DistributedSampler(
-        train_ds, 
-        num_replicas=world_size, 
-        rank=rank,
-        shuffle=True
+        train_ds, num_replicas=world_size, rank=rank, shuffle=True
     )
-    
+
     valid_sampler = DistributedSampler(
-        valid_ds, 
-        num_replicas=world_size, 
-        rank=rank,
-        shuffle=False
+        valid_ds, num_replicas=world_size, rank=rank, shuffle=False
     )
-    
+
     # Create data loaders
     batch_size = config.train.main.trainer.batch_size
-    
+
     train_loader = DataLoader(
         train_ds,
         batch_size=batch_size,
         sampler=train_sampler,
         num_workers=4,
         pin_memory=True,
-        persistent_workers=True
+        persistent_workers=True,
     )
-    
+
     valid_loader = DataLoader(
         valid_ds,
         batch_size=batch_size,
         sampler=valid_sampler,
         num_workers=4,
         pin_memory=True,
-        persistent_workers=True
+        persistent_workers=True,
     )
-    
+
     return train_loader, valid_loader, test_ds, train_ds, valid_ds
 
 
@@ -319,22 +317,22 @@ def main(config_path):
     """Main FSDP training function."""
     # Setup distributed environment
     rank, local_rank, world_size = setup_distributed()
-    
+
     if rank == 0:
         logger.info(f"Starting FSDP training on {world_size} GPUs")
-    
+
     # Load config
     config = load_config(config_path)
-    
+
     # Set seed
     set_seed(config.train.seed)
-    
+
     # Setup output directory (only on rank 0)
     if rank == 0:
         run_id = f"{config.train.run_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         run_save_path = os.path.join(config.outputs.dir, run_id)
         os.makedirs(run_save_path, exist_ok=True)
-        
+
         # Set up logging
         logger_manager.set_log_directory(run_save_path)
         log_file = os.path.join(run_save_path, "train.log")
@@ -344,42 +342,50 @@ def main(config_path):
         )
         logger.addHandler(file_handler)
         logger.info(f"Logging to {log_file}")
-        
+
         # Save config
         save_dict(asdict(config), run_save_path, "config.json")
     else:
         run_save_path = None
-    
+
     # Setup WandB (only rank 0)
     wandb_run = setup_wandb(config, rank, world_size) if rank == 0 else None
-    
+
     # Create model
     model = create_large_model(config)
-    
+
     # Setup data loaders
-    train_loader, valid_loader, test_ds, train_ds, valid_ds = setup_data_loaders(config, rank, world_size)
-    
+    train_loader, valid_loader, test_ds, train_ds, valid_ds = setup_data_loaders(
+        config, rank, world_size
+    )
+
     # Only rank 0 needs to handle encoding for analysis
     if rank == 0:
         logger.info("Encoding datasets for analysis...")
         # Get input dimension from sample data
         sample_input = train_ds[0][0]
-        input_dim = sample_input.numel() if hasattr(sample_input, 'numel') else len(sample_input)
-        
-        (encoder_network, encoded_train_ds, encoded_valid_ds, encoded_test_ds) = load_train_encoder_network(
-            encoder_network=Identity(input_dim),
-            encoder_train_config=config.train.encoder,
-            train_ds=train_ds,
-            valid_ds=valid_ds,
-            test_ds=test_ds,
-            encoder_network_config=config.model.encoder_network,
-            task_config=config.task,
+        input_dim = (
+            sample_input.numel()
+            if hasattr(sample_input, "numel")
+            else len(sample_input)
+        )
+
+        (encoder_network, encoded_train_ds, encoded_valid_ds, encoded_test_ds) = (
+            load_train_encoder_network(
+                encoder_network=Identity(input_dim),
+                encoder_train_config=config.train.encoder,
+                train_ds=train_ds,
+                valid_ds=valid_ds,
+                test_ds=test_ds,
+                encoder_network_config=config.model.encoder_network,
+                task_config=config.task,
+            )
         )
     else:
         encoded_train_ds = encoded_valid_ds = encoded_test_ds = None
         # For non-rank 0 processes, create a dummy Identity
         encoder_network = Identity(1)
-    
+
     # Generate detailed parameter summary with real sample input
     if rank == 0:  # Only on rank 0 to avoid duplicate output
         try:
@@ -388,43 +394,47 @@ def main(config_path):
         except Exception as e:
             logger.warning(f"Could not generate model summary with sample input: {e}")
             print_model_parameter_summary(model)  # Fallback without sample input
-    
+
     # Create FSDP config from config file or defaults
     trainer_config = config.train.main.trainer
-    
+
     # Use FSDP config from config file if available
-    if hasattr(config.train, 'fsdp_config') and config.train.fsdp_config is not None:
+    if hasattr(config.train, "fsdp_config") and config.train.fsdp_config is not None:
         logger.info("Using FSDP configuration from config file")
         fsdp_config = get_fsdp_config(fsdp_config_dict=config.train.fsdp_config)
     else:
         # Fall back to legacy method
         logger.info("Using default FSDP configuration")
         fsdp_config = get_fsdp_config(
-            mixed_precision=getattr(trainer_config, 'use_mixed_precision', False),  # Disable FSDP mixed precision for stability
-            cpu_offload=getattr(trainer_config, 'cpu_offload', False),
-            sharding_strategy="FULL_SHARD"
+            mixed_precision=getattr(
+                trainer_config, "use_mixed_precision", False
+            ),  # Disable FSDP mixed precision for stability
+            cpu_offload=getattr(trainer_config, "cpu_offload", False),
+            sharding_strategy="FULL_SHARD",
         )
-    
+
     # Create optimizer config
     optimizer_config = {
         "lr": config.train.main.param_groups.lr,
         "weight_decay": config.train.main.weight_decay_rate,
-        "split_params": getattr(config.train.main.param_groups, 'split_params', False),
+        "split_params": getattr(config.train.main.param_groups, "split_params", False),
     }
-    
+
     # Setup analysis manager (only on rank 0)
     analysis_manager = None
     if rank == 0:
         logger.info("Setting up AnalysisManager...")
-        
+
         # Set the model's encoder network
         if isinstance(encoder_network, Identity):
             model.encoder_network = encoder_network
             logger.info("Set model encoder to Identity network")
         else:
             model.encoder_network = Identity(encoder_network.encoder.output_dim)
-            logger.info(f"Set model encoder to Identity with output_dim: {encoder_network.encoder.output_dim}")
-        
+            logger.info(
+                f"Set model encoder to Identity with output_dim: {encoder_network.encoder.output_dim}"
+            )
+
         encoded_data = {
             "train": encoded_train_ds,
             "valid": encoded_valid_ds,
@@ -439,85 +449,97 @@ def main(config_path):
             train_config=config.train,
         )
         logger.info(f"AnalysisManager created: {type(analysis_manager)}")
-        logger.info(f"Performance analysis enabled: {config.analysis.performance_analysis.enabled}")
-        logger.info(f"Performance analysis training: {config.analysis.performance_analysis.training}")
-    
+        logger.info(
+            f"Performance analysis enabled: {config.analysis.performance_analysis.enabled}"
+        )
+        logger.info(
+            f"Performance analysis training: {config.analysis.performance_analysis.training}"
+        )
+
     # Create FSDP trainer
     trainer = FSDPTrainer(
         rank=rank,
         world_size=world_size,
         fsdp_config=fsdp_config,
         checkpoint_dir=run_save_path if rank == 0 else None,
-        save_every_n_epochs=getattr(trainer_config, 'save_every_n_epochs', None),
+        save_every_n_epochs=getattr(trainer_config, "save_every_n_epochs", None),
         optimizer_config=optimizer_config,
         analysis_manager=analysis_manager,
         wandb_run=wandb_run,
         epochs=trainer_config.epochs,
-        loss_function=getattr(trainer_config, 'loss_function', 'cat_nll'),
-        grad_clip_value=getattr(trainer_config, 'grad_clip_value', 5.0),
-        use_amp=getattr(config.train, 'enable_amp', False),
-        early_stopping=getattr(trainer_config, 'early_stopping', False),
-        patience=getattr(trainer_config, 'patience', 10),
-        print_every=getattr(trainer_config, 'print_every', 1),
+        loss_function=getattr(trainer_config, "loss_function", "cat_nll"),
+        grad_clip_value=getattr(trainer_config, "grad_clip_value", 5.0),
+        use_amp=getattr(config.train, "enable_amp", False),
+        early_stopping=getattr(trainer_config, "early_stopping", False),
+        patience=getattr(trainer_config, "patience", 10),
+        print_every=getattr(trainer_config, "print_every", 1),
         save_checkpoints=True,
         # Add plotting functionality similar to regular trainer
-        plot_losses=getattr(trainer_config, 'plot_losses', False),
+        plot_losses=getattr(trainer_config, "plot_losses", False),
         save_path=run_save_path if rank == 0 else None,
     )
-    
+
     if rank == 0:
         logger.info("Starting FSDP training...")
-        logger.info(f"Plot losses enabled: {getattr(trainer_config, 'plot_losses', False)}")
+        logger.info(
+            f"Plot losses enabled: {getattr(trainer_config, 'plot_losses', False)}"
+        )
         logger.info(f"Save path for plots: {run_save_path}")
-    
+
     # Train the model
     results = trainer.train(model, train_loader, valid_loader)
-    
+
     # Fix for Identity encoder
     if rank == 0:
         if isinstance(encoder_network, Identity):
             model.encoder_network = encoder_network
         else:
             model.encoder_network = Identity(encoder_network.encoder.output_dim)
-    
+
     if rank == 0:
         logger.info("Training completed successfully!")
         logger.info(f"Final training loss: {results.get('final_train_loss', 'N/A')}")
         logger.info(f"Final validation loss: {results.get('final_valid_loss', 'N/A')}")
-        
+
         # Save final results
         save_dict(results, run_save_path, "training_results.json")
-        
+
         # Run final analysis - this will automatically handle performance analysis and figure generation
         if analysis_manager:
             try:
-                logger.info("Running final analysis (includes performance metrics plotting)...")
-                
+                logger.info(
+                    "Running final analysis (includes performance metrics plotting)..."
+                )
+
                 # Use unwrapped model for analysis if FSDP-wrapped
-                if hasattr(model, 'module'):
+                if hasattr(model, "module"):
                     unwrapped_model = model.module
                     # Ensure the unwrapped model is on the correct device
                     unwrapped_model = unwrapped_model.to(f"cuda:{local_rank}")
                     analysis_manager.model = unwrapped_model
-                
+
                 analysis_manager.run_analysis(filename="final", training=False)
-                logger.info("Final analysis completed - figures saved to performance folder")
+                logger.info(
+                    "Final analysis completed - figures saved to performance folder"
+                )
             except Exception as e:
                 logger.error(f"Final analysis failed: {e}")
-    
+
     # Clean up distributed
     if wandb_run:
         wandb_run.finish()
-    
+
     dist.destroy_process_group()
-    
+
     if rank == 0:
         logger.info("FSDP training script completed successfully")
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="FSDP training for large dendritic models")
+    parser = argparse.ArgumentParser(
+        description="FSDP training for large dendritic models"
+    )
     parser.add_argument("config", help="Path to the configuration YAML file")
     args = parser.parse_args()
-    
+
     main(args.config)

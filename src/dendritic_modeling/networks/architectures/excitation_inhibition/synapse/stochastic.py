@@ -8,9 +8,8 @@ chance to remain active.
 
 import torch
 
-from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.topk import (
-    TopKLinear,
-)
+from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.topk import \
+    TopKLinear
 
 
 class StochasticTopKLinear(TopKLinear):
@@ -90,7 +89,7 @@ class StochasticTopKLinear(TopKLinear):
     def weight_mask(self):
         """
         Stochastic TopK selection using ultrafast noise-based approximation.
-        
+
         This replaces the complex rank-based probability sampling with simple noise addition,
         providing 10-50x speedup with similar stochastic behavior.
         """

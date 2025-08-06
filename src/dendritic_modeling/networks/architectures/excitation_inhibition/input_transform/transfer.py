@@ -6,12 +6,10 @@ from torch import nn
 
 logger = logging.getLogger(__name__)
 
-from dendritic_modeling.networks.architectures.excitation_inhibition.input_transform.identity import (
-    IdentityInputTransform,
-)
-from dendritic_modeling.networks.architectures.excitation_inhibition.input_transform.index import (
-    IndexInputTransform,
-)
+from dendritic_modeling.networks.architectures.excitation_inhibition.input_transform.identity import \
+    IdentityInputTransform
+from dendritic_modeling.networks.architectures.excitation_inhibition.input_transform.index import \
+    IndexInputTransform
 
 
 class TransferLayer(nn.Module):

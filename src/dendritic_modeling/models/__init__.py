@@ -7,10 +7,8 @@ classification, regression, and baseline models.
 
 # Base model
 from dendritic_modeling.models.base import BaseModel
-
 # Classification models
 from dendritic_modeling.models.classifier import Classifier
-
 # Regression models
 from dendritic_modeling.models.regressor import Regressor
 

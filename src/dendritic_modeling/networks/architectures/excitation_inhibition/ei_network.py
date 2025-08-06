@@ -17,13 +17,10 @@ try:
 except ImportError:
     torch._dynamo = None
 
-from dendritic_modeling.networks.architectures.excitation_inhibition.ei_layer import (
-    ExcitationInhibitionLayer,
-)
-from dendritic_modeling.networks.architectures.excitation_inhibition.input_transform.transfer import (
-    TransferLayer,
-)
-from dendritic_modeling.networks.base import BaseNetwork
+from dendritic_modeling.networks.architectures.excitation_inhibition.ei_layer import \
+    ExcitationInhibitionLayer
+from dendritic_modeling.networks.architectures.excitation_inhibition.input_transform.transfer import \
+    TransferLayer
 
 
 class ExcitationInhibitionNetwork(nn.Module):
@@ -232,26 +229,26 @@ class ExcitationInhibitionNetwork(nn.Module):
 
         # Extend lists if needed - use exactly what's specified, no smart defaulting
         num_layers = len(excitatory_layer_sizes) - 1
-        
+
         # Only extend lists if they have values to repeat, otherwise error
         while len(ee_syn) < num_layers:
             if ee_syn:
                 ee_syn.append(ee_syn[-1])
             else:
                 raise ValueError("ee_synapses_per_branch_per_layer cannot be empty")
-        
+
         while len(ei_syn) < num_layers:
             if ei_syn:
                 ei_syn.append(ei_syn[-1])
             else:
                 raise ValueError("ei_synapses_per_branch_per_layer cannot be empty")
-                
+
         while len(ie_syn) < num_layers:
             if ie_syn:
                 ie_syn.append(ie_syn[-1])
             else:
                 raise ValueError("ie_synapses_per_branch_per_layer cannot be empty")
-                
+
         while len(ii_syn) < num_layers:
             if ii_syn:
                 ii_syn.append(ii_syn[-1])
@@ -283,10 +280,10 @@ class ExcitationInhibitionNetwork(nn.Module):
                     i + 1 < len(inhibitory_layer_sizes)
                     and inhibitory_layer_sizes[i + 1] is not None
                 ):
-                    excitatory_inhibitory_input_dim = inhibitory_layer_sizes[i + 1]
+                    inhibitory_layer_sizes[i + 1]
                 else:
                     # For input_mode=1, there are no inhibitory neurons
-                    excitatory_inhibitory_input_dim = None
+                    pass
             else:
                 # Subsequent layers receive outputs from previous layer
                 layer_excitatory_input_dim = excitatory_layer_sizes[i]
@@ -301,10 +298,10 @@ class ExcitationInhibitionNetwork(nn.Module):
                     i + 1 < len(inhibitory_layer_sizes)
                     and inhibitory_layer_sizes[i + 1] is not None
                 ):
-                    excitatory_inhibitory_input_dim = inhibitory_layer_sizes[i + 1]
+                    inhibitory_layer_sizes[i + 1]
                 else:
                     # For input_mode=1, there are no inhibitory neurons
-                    excitatory_inhibitory_input_dim = None
+                    pass
 
             # Get n_inhibitory_cells for this layer
             n_inhibitory_cells = (
@@ -357,13 +354,15 @@ class ExcitationInhibitionNetwork(nn.Module):
 
         # Create ModuleList with the layers
         self.layers = nn.ModuleList(layers)
-        
+
         # Enable JIT compilation for better performance (PyTorch 2.0+)
         try:
             if torch._dynamo is not None:
                 # Increase recompile limit to reduce warnings
                 torch._dynamo.config.recompile_limit = 100
-                torch._dynamo.config.force_parameter_static_shapes = False  # Allow dynamic params
+                torch._dynamo.config.force_parameter_static_shapes = (
+                    False  # Allow dynamic params
+                )
             self.forward = torch.compile(self.forward, dynamic=True)
         except (AttributeError, ImportError):
             # torch.compile not available in older PyTorch versions
@@ -418,52 +417,102 @@ class ExcitationInhibitionNetwork(nn.Module):
     def get_effective_params(self) -> int:
         """Calculate the effective number of parameters after topk sparsity."""
         effective = 0
-        
+
         for layer in self.layers:
             # Process excitatory cells
-            if hasattr(layer, 'excitatory_cells') and layer.excitatory_cells is not None:
+            if (
+                hasattr(layer, "excitatory_cells")
+                and layer.excitatory_cells is not None
+            ):
                 excitatory_cells = layer.excitatory_cells
                 for branch_layer in excitatory_cells.branch_layers:
                     # Excitatory branch (TopKLinear)
-                    if hasattr(branch_layer, 'branch_excitation') and branch_layer.branch_excitation is not None:
-                        if hasattr(branch_layer.branch_excitation, 'K'):
-                            effective += branch_layer.branch_excitation.out_features * branch_layer.branch_excitation.K
-                    
+                    if (
+                        hasattr(branch_layer, "branch_excitation")
+                        and branch_layer.branch_excitation is not None
+                    ):
+                        if hasattr(branch_layer.branch_excitation, "K"):
+                            effective += (
+                                branch_layer.branch_excitation.out_features
+                                * branch_layer.branch_excitation.K
+                            )
+
                     # Inhibitory branch (if present)
-                    if hasattr(branch_layer, 'branch_inhibition') and branch_layer.branch_inhibition is not None:
-                        if hasattr(branch_layer.branch_inhibition, 'K'):
-                            effective += branch_layer.branch_inhibition.out_features * branch_layer.branch_inhibition.K
-                    
+                    if (
+                        hasattr(branch_layer, "branch_inhibition")
+                        and branch_layer.branch_inhibition is not None
+                    ):
+                        if hasattr(branch_layer.branch_inhibition, "K"):
+                            effective += (
+                                branch_layer.branch_inhibition.out_features
+                                * branch_layer.branch_inhibition.K
+                            )
+
                     # Branches to output (BlockLinear - dense, so full params)
-                    if hasattr(branch_layer, 'branches_to_output') and branch_layer.branches_to_output is not None:
-                        effective += sum(p.numel() for p in branch_layer.branches_to_output.parameters())
-                    
+                    if (
+                        hasattr(branch_layer, "branches_to_output")
+                        and branch_layer.branches_to_output is not None
+                    ):
+                        effective += sum(
+                            p.numel()
+                            for p in branch_layer.branches_to_output.parameters()
+                        )
+
                     # Reactivation (if present)
-                    if hasattr(branch_layer, 'reactivation') and not isinstance(branch_layer.reactivation, nn.Identity):
-                        effective += sum(p.numel() for p in branch_layer.reactivation.parameters())
+                    if hasattr(branch_layer, "reactivation") and not isinstance(
+                        branch_layer.reactivation, nn.Identity
+                    ):
+                        effective += sum(
+                            p.numel() for p in branch_layer.reactivation.parameters()
+                        )
 
             # Process inhibitory cells
-            if hasattr(layer, 'inhibitory_cells') and layer.inhibitory_cells is not None:
+            if (
+                hasattr(layer, "inhibitory_cells")
+                and layer.inhibitory_cells is not None
+            ):
                 inhibitory_cells = layer.inhibitory_cells
                 for branch_layer in inhibitory_cells.branch_layers:
                     # Excitatory branch (TopKLinear)
-                    if hasattr(branch_layer, 'branch_excitation') and branch_layer.branch_excitation is not None:
-                        if hasattr(branch_layer.branch_excitation, 'K'):
-                            effective += branch_layer.branch_excitation.out_features * branch_layer.branch_excitation.K
-                    
+                    if (
+                        hasattr(branch_layer, "branch_excitation")
+                        and branch_layer.branch_excitation is not None
+                    ):
+                        if hasattr(branch_layer.branch_excitation, "K"):
+                            effective += (
+                                branch_layer.branch_excitation.out_features
+                                * branch_layer.branch_excitation.K
+                            )
+
                     # Inhibitory branch (if present)
-                    if hasattr(branch_layer, 'branch_inhibition') and branch_layer.branch_inhibition is not None:
-                        if hasattr(branch_layer.branch_inhibition, 'K'):
-                            effective += branch_layer.branch_inhibition.out_features * branch_layer.branch_inhibition.K
-                    
+                    if (
+                        hasattr(branch_layer, "branch_inhibition")
+                        and branch_layer.branch_inhibition is not None
+                    ):
+                        if hasattr(branch_layer.branch_inhibition, "K"):
+                            effective += (
+                                branch_layer.branch_inhibition.out_features
+                                * branch_layer.branch_inhibition.K
+                            )
+
                     # Branches to output (BlockLinear - dense, so full params)
-                    if hasattr(branch_layer, 'branches_to_output') and branch_layer.branches_to_output is not None:
-                        effective += sum(p.numel() for p in branch_layer.branches_to_output.parameters())
-                    
+                    if (
+                        hasattr(branch_layer, "branches_to_output")
+                        and branch_layer.branches_to_output is not None
+                    ):
+                        effective += sum(
+                            p.numel()
+                            for p in branch_layer.branches_to_output.parameters()
+                        )
+
                     # Reactivation (if present)
-                    if hasattr(branch_layer, 'reactivation') and not isinstance(branch_layer.reactivation, nn.Identity):
-                        effective += sum(p.numel() for p in branch_layer.reactivation.parameters())
-        
+                    if hasattr(branch_layer, "reactivation") and not isinstance(
+                        branch_layer.reactivation, nn.Identity
+                    ):
+                        effective += sum(
+                            p.numel() for p in branch_layer.reactivation.parameters()
+                        )
+
         return effective
 
 

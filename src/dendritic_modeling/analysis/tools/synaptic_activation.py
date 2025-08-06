@@ -11,10 +11,8 @@ import torch
 
 from dendritic_modeling.config import SynapticActivationAnalysisParams
 from dendritic_modeling.models import BaseModel
-from dendritic_modeling.networks import (
-    DendriticBranchLayer,
-    ExcitationInhibitionNetwork,
-)
+from dendritic_modeling.networks import (DendriticBranchLayer,
+                                         ExcitationInhibitionNetwork)
 from dendritic_modeling.utils import save_dict
 
 

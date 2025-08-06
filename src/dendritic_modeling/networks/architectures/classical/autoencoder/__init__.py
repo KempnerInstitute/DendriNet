@@ -1,13 +1,8 @@
 from dendritic_modeling.networks.architectures.classical.autoencoder.base import (
-    BaseAutoencoder,
-    CNNAutoencoder,
-    MLPAutoencoder,
-)
+    BaseAutoencoder, CNNAutoencoder, MLPAutoencoder)
 from dendritic_modeling.networks.architectures.classical.autoencoder.vae import (
-    BaseVariationalAutoencoder,
-    CNNVariationalAutoencoder,
-    MLPVariationalAutoencoder,
-)
+    BaseVariationalAutoencoder, CNNVariationalAutoencoder,
+    MLPVariationalAutoencoder)
 
 __all__ = [
     "BaseAutoencoder"

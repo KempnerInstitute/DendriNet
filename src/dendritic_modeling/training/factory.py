@@ -5,42 +5,41 @@ Factory functions for creating training strategies and utility functions
 for MLP training and weight transfer.
 """
 
-from typing import Optional, Dict, Any, Union
+from typing import Any, Optional
 
 import torch
 
 from dendritic_modeling import logger
+from dendritic_modeling.config.training import (OptimizerConfig, PruningConfig,
+                                                RegularizationConfig,
+                                                ReportingConfig)
 from dendritic_modeling.training.strategies import (
-    LayerWiseTrainer,
-    LocalCreditAssignment,
-    Trainer,
-    TwoStepTrainer,
-    TwoStepTrainerWithKL,
-    VoltageStabilizationTrainer,
-)
-from dendritic_modeling.config.training import (
-    OptimizerConfig, RegularizationConfig, PruningConfig, ReportingConfig
-)
+    LayerWiseTrainer, LocalCreditAssignment, Trainer, TwoStepTrainer,
+    TwoStepTrainerWithKL, VoltageStabilizationTrainer)
 
 
-def _extract_enhanced_configs(trainer_config_dict: Dict[str, Any]) -> Dict[str, Any]:
+def _extract_enhanced_configs(trainer_config_dict: dict[str, Any]) -> dict[str, Any]:
     """
     Extract enhanced configuration objects from trainer config dict.
-    
+
     Args:
         trainer_config_dict: Configuration dictionary
-        
+
     Returns:
         Dictionary containing enhanced config objects
     """
     enhanced_configs = {}
-    
+
     # Extract optimizer config
-    if "optimizer" in trainer_config_dict and isinstance(trainer_config_dict["optimizer"], dict):
-        enhanced_configs["optimizer_config"] = OptimizerConfig(**trainer_config_dict["optimizer"])
+    if "optimizer" in trainer_config_dict and isinstance(
+        trainer_config_dict["optimizer"], dict
+    ):
+        enhanced_configs["optimizer_config"] = OptimizerConfig(
+            **trainer_config_dict["optimizer"]
+        )
         # Don't pass the dict version to avoid conflicts
         trainer_config_dict.pop("optimizer", None)
-    
+
     # Extract regularization config
     if "regularization" in trainer_config_dict:
         reg_config = trainer_config_dict.pop("regularization")
@@ -48,23 +47,29 @@ def _extract_enhanced_configs(trainer_config_dict: Dict[str, Any]) -> Dict[str, 
             # Handle nested SelectiveConfig properly
             if "selective" in reg_config and isinstance(reg_config["selective"], dict):
                 from dendritic_modeling.config.training import SelectiveConfig
+
                 reg_config["selective"] = SelectiveConfig(**reg_config["selective"])
-            enhanced_configs["regularization_config"] = RegularizationConfig(**reg_config)
+            enhanced_configs["regularization_config"] = RegularizationConfig(
+                **reg_config
+            )
         else:
             enhanced_configs["regularization_config"] = reg_config
-    
+
     # Extract pruning config
     if "pruning" in trainer_config_dict:
         prune_config = trainer_config_dict.pop("pruning")
         if isinstance(prune_config, dict):
             # Handle nested SelectiveConfig properly
-            if "selective" in prune_config and isinstance(prune_config["selective"], dict):
+            if "selective" in prune_config and isinstance(
+                prune_config["selective"], dict
+            ):
                 from dendritic_modeling.config.training import SelectiveConfig
+
                 prune_config["selective"] = SelectiveConfig(**prune_config["selective"])
             enhanced_configs["pruning_config"] = PruningConfig(**prune_config)
         else:
             enhanced_configs["pruning_config"] = prune_config
-    
+
     # Extract reporting config
     if "reporting" in trainer_config_dict:
         report_config = trainer_config_dict.pop("reporting")
@@ -72,19 +77,19 @@ def _extract_enhanced_configs(trainer_config_dict: Dict[str, Any]) -> Dict[str, 
             enhanced_configs["reporting_config"] = ReportingConfig(**report_config)
         else:
             enhanced_configs["reporting_config"] = report_config
-    
+
     # Extract param_groups config (preserve original parameter grouping behavior)
     if "param_groups" in trainer_config_dict:
         param_groups_config = trainer_config_dict.pop("param_groups")
         enhanced_configs["param_groups_config"] = param_groups_config
-    
+
     return enhanced_configs
 
 
 def get_trainer(
     strategy: str,
     optimizer: torch.optim.Optimizer,
-    trainer_config_dict: Dict[str, Any],
+    trainer_config_dict: dict[str, Any],
     analysis_manager: Optional[object] = None,
 ) -> Trainer:
     """
@@ -105,26 +110,28 @@ def get_trainer(
     if strategy == "standard":
         # Extract enhanced config objects if present
         enhanced_configs = _extract_enhanced_configs(trainer_config_dict)
-        
+
         # Add optimizer and enhanced configs to trainer config
         trainer_config_dict["optimizer"] = optimizer
         trainer_config_dict.update(enhanced_configs)
-        
+
         return Trainer(**trainer_config_dict)
-        
+
     elif strategy == "enhanced":
         # For backward compatibility: redirect to standard with warning
-        logger.warning("learning_strategy 'enhanced' is deprecated. All features are now available in 'standard' strategy.")
-        
+        logger.warning(
+            "learning_strategy 'enhanced' is deprecated. All features are now available in 'standard' strategy."
+        )
+
         # Extract enhanced config objects
         enhanced_configs = _extract_enhanced_configs(trainer_config_dict)
-        
+
         # Add optimizer and enhanced configs to trainer config
         trainer_config_dict["optimizer"] = optimizer
         trainer_config_dict.update(enhanced_configs)
-        
+
         return Trainer(**trainer_config_dict)
-        
+
     elif strategy == "freeze_layers":
         trainer_config_dict["optimizer"] = optimizer
         return LayerWiseTrainer(**trainer_config_dict)
@@ -143,8 +150,9 @@ def get_trainer(
     elif strategy == "fsdp" or strategy == "fsdp_standard":
         # Note: FSDP requires additional setup (distributed init, special config)
         # This would need to be called from a distributed context
-        from dendritic_modeling.training.strategies.fsdp_standard import FSDPTrainer
         from dendritic_modeling.training.fsdp_utils import get_fsdp_config
+        from dendritic_modeling.training.strategies.fsdp_standard import \
+            FSDPTrainer
 
         trainer_config_dict["optimizer"] = optimizer
         if "fsdp_config" not in trainer_config_dict:

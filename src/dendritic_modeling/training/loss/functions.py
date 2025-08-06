@@ -6,9 +6,8 @@ from torch.distributions import Categorical, Normal
 
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.networks import DendriticBranchLayer
-from dendritic_modeling.networks.architectures.classical.autoencoder import (
-    BaseVariationalAutoencoder,
-)
+from dendritic_modeling.networks.architectures.classical.autoencoder import \
+    BaseVariationalAutoencoder
 
 
 class LossFunction(nn.Module):

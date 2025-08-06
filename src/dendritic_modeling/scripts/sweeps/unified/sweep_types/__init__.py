@@ -6,10 +6,8 @@ from .unified_sweep import UnifiedSweepGenerator
 
 # Legacy sweep types (deprecated - use unified_sweep instead)
 # from .ei_sweep import EISweepGenerator  # DEPRECATED
-# from .branch_sweep import BranchSweepGenerator  # DEPRECATED  
+# from .branch_sweep import BranchSweepGenerator  # DEPRECATED
 # from .noise_sweep import NoiseSweepGenerator  # DEPRECATED
 # from .general_sweep import GeneralSweepGenerator  # DEPRECATED
 
-__all__ = [
-    "UnifiedSweepGenerator"
-] 
+__all__ = ["UnifiedSweepGenerator"]

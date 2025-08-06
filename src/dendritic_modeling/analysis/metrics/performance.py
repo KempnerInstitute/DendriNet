@@ -5,8 +5,8 @@ This module contains classes for evaluating model performance including
 accuracy, categorical log-likelihood, and mean squared error.
 """
 
-from typing import Callable, Optional
 import os
+from typing import Callable, Optional
 
 # Disable Dynamo to fix fake tensor device issues during analysis
 os.environ["TORCHDYNAMO_DISABLE"] = "1"
@@ -17,14 +17,9 @@ from torch.utils.data import TensorDataset
 from dendritic_modeling.config import PerformanceAnalysisParams
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.training.utils.evaluation import (
-    evaluate_accuracy,
-    evaluate_auc,
-    evaluate_categorical_loglikelihood,
-    evaluate_cosine_similarity,
-    evaluate_mse,
-)
+    evaluate_accuracy, evaluate_auc, evaluate_categorical_loglikelihood,
+    evaluate_cosine_similarity, evaluate_mse)
 from dendritic_modeling.utils import save_dict
-
 
 
 class PerformanceAnalyzer:

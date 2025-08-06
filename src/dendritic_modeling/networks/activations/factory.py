@@ -7,12 +7,8 @@ This module provides a factory for building different activation/reactivation mo
 import torch.nn as nn
 
 from dendritic_modeling.networks.activations.parametric import (
-    ParametricLinearSigmoid,
-    ParametricLinearTanh,
-    ParametricLinearTanhTransition,
-    ParametricTanh,
-    ParametricTanhOnlyM,
-)
+    ParametricLinearSigmoid, ParametricLinearTanh,
+    ParametricLinearTanhTransition, ParametricTanh, ParametricTanhOnlyM)
 
 
 class ActivationFactory:

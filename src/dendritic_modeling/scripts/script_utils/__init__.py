@@ -1,1 +1,1 @@
-# Utils package for dendritic modeling scripts 
+# Utils package for dendritic modeling scripts

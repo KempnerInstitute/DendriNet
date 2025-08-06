@@ -11,11 +11,8 @@ from typing import Optional
 import torch
 import torch.nn as nn
 
-from dendritic_modeling.networks.architectures.excitation_inhibition.input_transform.index import (
-    IndexInputTransform,
-)
-
-
+from dendritic_modeling.networks.architectures.excitation_inhibition.input_transform.index import \
+    IndexInputTransform
 
 logger = logging.getLogger(__name__)
 
@@ -78,7 +75,7 @@ class InputNetTransform(nn.Module):
             )
 
         elif network_type == "CNNInputTransform":
-            # CNN-based input transformation requires implementation of CNNInputTransform class  
+            # CNN-based input transformation requires implementation of CNNInputTransform class
             raise NotImplementedError(
                 "CNNInputTransform not implemented. To use CNN-based input transformation, "
                 "implement the CNNInputTransform class in networks.architectures.classical.cnn.cnn"

@@ -13,8 +13,8 @@ import torch.nn.functional as functional
 from torch.distributions import Categorical
 
 from dendritic_modeling.models import Classifier, Regressor
-from dendritic_modeling.utils.math.auc import roc_auc_score
 from dendritic_modeling.utils.general import save_dict
+from dendritic_modeling.utils.math.auc import roc_auc_score
 
 
 def _compute_metric_score(
@@ -42,10 +42,13 @@ def _compute_metric_score(
         Computed metric tensor
     """
     # Early skip for inappropriate metrics on Classifier models
-    if isinstance(model, Classifier) and computation_func.__name__ in ['_compute_mse', '_compute_cosine_similarity']:
+    if isinstance(model, Classifier) and computation_func.__name__ in [
+        "_compute_mse",
+        "_compute_cosine_similarity",
+    ]:
         print(f"Skipping {computation_func.__name__} for Classifier model")
-        return torch.tensor(float('nan'))
-        
+        return torch.tensor(float("nan"))
+
     if move_device:
         model = model.to(device)
         inputs = inputs.to(device)
@@ -434,8 +437,8 @@ def _compute_mse(
     reduce_dim: int = 0,
 ) -> torch.Tensor:
     # Early exit for Classifier models (safety check)
-    if hasattr(regressor, '__class__') and 'Classifier' in str(type(regressor)):
-        return torch.tensor(float('nan'))
+    if hasattr(regressor, "__class__") and "Classifier" in str(type(regressor)):
+        return torch.tensor(float("nan"))
     return torch.mean((regressor.predict(inputs) - labels) ** 2, dim=reduce_dim)
 
 
@@ -526,8 +529,8 @@ def _compute_cosine_similarity(
     reduce_dim: int = 0,
 ) -> torch.Tensor:
     # Early exit for Classifier models (safety check)
-    if hasattr(regressor, '__class__') and 'Classifier' in str(type(regressor)):
-        return torch.tensor(float('nan'))
+    if hasattr(regressor, "__class__") and "Classifier" in str(type(regressor)):
+        return torch.tensor(float("nan"))
     return torch.mean(
         functional.cosine_similarity(regressor.predict(inputs), labels, dim=-1),
         dim=reduce_dim,

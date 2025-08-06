@@ -28,18 +28,9 @@ logger = logger_manager.get_logger()
 __version__ = "0.1.0"
 
 # Core imports for convenience
-from dendritic_modeling import (  # noqa: E402
-    analysis,
-    config,
-    datasets,
-    models,
-    networks,
-    plotting,
-    scripts,
-
-    training,
-    utils,
-)
+from dendritic_modeling import datasets  # noqa: E402
+from dendritic_modeling import (analysis, config, models, networks, plotting,
+                                scripts, training, utils)
 
 __all__ = [
     "__version__"
@@ -51,7 +42,6 @@ __all__ = [
     "networks"
     "plotting"
     "scripts"
-
     "training"
     "utils"
 ]

@@ -4,23 +4,20 @@ Plotting utilities and helper functions.
 This module provides common plotting utilities used across different visualization modules.
 """
 
-import csv
 import logging
-import os
 
 import matplotlib.pyplot as plt
-import numpy as np
 import torch
 
 # Optional networkx import for network utilities
 try:
     import networkx as nx
+
     NETWORKX_AVAILABLE = True
 except ImportError:
     NETWORKX_AVAILABLE = False
     nx = None
 
-from dendritic_modeling import logger
 
 def visualize_graph(G, mode="info"):
     """
@@ -83,6 +80,7 @@ def visualize_graph(G, mode="info"):
 # ============================================================================
 # Data Extraction Functions (moved from analysis.py)
 # ============================================================================
+
 
 def dendritic_activations_todict(
     dendrinet,
@@ -153,8 +151,7 @@ def einet_activations_todict(einet, input_list):
     Returns:
         Dictionary containing activations organized by layer and cell type
     """
-    import torch
-    
+
     device = "cuda" if torch.cuda.is_available() else "cpu"
     einet = einet.to(device)
 

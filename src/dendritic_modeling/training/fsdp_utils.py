@@ -6,24 +6,19 @@ This module provides utilities for training extremely large dendritic models
 that cannot fit on a single GPU using PyTorch's Fully Sharded Data Parallel (FSDP).
 """
 
+from typing import Any, Optional
+
 import torch
-from torch.distributed.fsdp import (
-    FullyShardedDataParallel as FSDP,
-    FullStateDictConfig,
-    StateDictType,
-    ShardingStrategy,
-    BackwardPrefetch,
-    MixedPrecision,
-    CPUOffload,
-)
-from typing import Optional, Dict, Any, List
+from torch.distributed.fsdp import (BackwardPrefetch, CPUOffload,
+                                    FullStateDictConfig)
+from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
+from torch.distributed.fsdp import (MixedPrecision, ShardingStrategy,
+                                    StateDictType)
 
 from dendritic_modeling import logger
 from dendritic_modeling.networks.architectures.excitation_inhibition import (
-    DendriticBranchLayer,
-    ExcitationInhibitionLayer,
-    ExcitationInhibitionNetwork,
-)
+    DendriticBranchLayer, ExcitationInhibitionLayer,
+    ExcitationInhibitionNetwork)
 
 
 def create_fsdp_wrap_policy(min_num_params: int = 1e6):
@@ -58,8 +53,8 @@ def get_fsdp_config(
     cpu_offload: bool = False,
     sharding_strategy: str = "FULL_SHARD",
     reduce_communication_overhead: bool = True,
-    fsdp_config_dict: Optional[Dict[str, Any]] = None,
-) -> Dict[str, Any]:
+    fsdp_config_dict: Optional[dict[str, Any]] = None,
+) -> dict[str, Any]:
     """
     Get FSDP configuration based on model size and requirements.
 
@@ -79,7 +74,9 @@ def get_fsdp_config(
         mixed_precision = fsdp_config_dict.get("mixed_precision", mixed_precision)
         cpu_offload = fsdp_config_dict.get("cpu_offload", cpu_offload)
         sharding_strategy = fsdp_config_dict.get("sharding_strategy", sharding_strategy)
-        reduce_communication_overhead = fsdp_config_dict.get("reduce_communication_overhead", reduce_communication_overhead)
+        reduce_communication_overhead = fsdp_config_dict.get(
+            "reduce_communication_overhead", reduce_communication_overhead
+        )
         min_num_params = fsdp_config_dict.get("min_num_params", None)
         sync_module_states = fsdp_config_dict.get("sync_module_states", True)
         use_orig_params = fsdp_config_dict.get("use_orig_params", True)
@@ -96,7 +93,7 @@ def get_fsdp_config(
         limit_all_gathers = True
         forward_prefetch = True
         gradient_checkpointing = False
-    
+
     # Sharding strategies
     strategy_map = {
         "FULL_SHARD": ShardingStrategy.FULL_SHARD,
@@ -104,9 +101,11 @@ def get_fsdp_config(
         "NO_SHARD": ShardingStrategy.NO_SHARD,
         "HYBRID_SHARD": ShardingStrategy.HYBRID_SHARD,  # Reduces communication overhead
     }
-    
+
     if reduce_communication_overhead and sharding_strategy == "FULL_SHARD":
-        logger.info("HYBRID_SHARD auto-upgrade disabled - using FULL_SHARD with communication optimizations")
+        logger.info(
+            "HYBRID_SHARD auto-upgrade disabled - using FULL_SHARD with communication optimizations"
+        )
 
     # Mixed precision configuration
     mp_config = None
@@ -125,13 +124,13 @@ def get_fsdp_config(
     # Auto-wrap policy based on model size or explicit min_num_params
     if min_num_params is not None:
         # Use explicit value from config
-        min_params = min_num_params
+        pass
     elif model_size == "xlarge":
-        min_params = 100_000  # Wrap layers with >100K params
+        pass  # Wrap layers with >100K params
     elif model_size == "large":
-        min_params = 1_000_000  # Wrap layers with >1M params
+        pass  # Wrap layers with >1M params
     else:
-        min_params = 10_000_000  # Wrap layers with >10M params
+        pass  # Wrap layers with >10M params
 
     auto_wrap_policy = None  # Disable auto-wrapping to fix parameter corruption
 
@@ -141,7 +140,9 @@ def get_fsdp_config(
         "BACKWARD_POST": BackwardPrefetch.BACKWARD_POST,
         None: BackwardPrefetch.BACKWARD_PRE,  # Default
     }
-    backward_prefetch_enum = backward_prefetch_map.get(backward_prefetch, BackwardPrefetch.BACKWARD_PRE)
+    backward_prefetch_enum = backward_prefetch_map.get(
+        backward_prefetch, BackwardPrefetch.BACKWARD_PRE
+    )
 
     # Communication optimization settings
     config = {
@@ -154,21 +155,25 @@ def get_fsdp_config(
         "sync_module_states": sync_module_states,
         "use_orig_params": use_orig_params,  # Important for dendritic models
     }
-    
+
     # Add communication optimizations if enabled
     if reduce_communication_overhead:
-        config.update({
-            "limit_all_gathers": limit_all_gathers,  # Reduce memory pressure during communication
-            "forward_prefetch": forward_prefetch,   # Prefetch parameters for forward pass
-        })
-        
+        config.update(
+            {
+                "limit_all_gathers": limit_all_gathers,  # Reduce memory pressure during communication
+                "forward_prefetch": forward_prefetch,  # Prefetch parameters for forward pass
+            }
+        )
+
         # Additional optimizations for newer PyTorch versions
         try:
             # These may not be available in older versions
-            config.update({
-                "ignored_modules": [],  # Can specify modules to not shard
-                "param_init_fn": None,  # Custom parameter initialization
-            })
+            config.update(
+                {
+                    "ignored_modules": [],  # Can specify modules to not shard
+                    "param_init_fn": None,  # Custom parameter initialization
+                }
+            )
         except Exception:
             pass  # Ignore if not available
 
@@ -180,7 +185,7 @@ def get_fsdp_config(
 
 def wrap_model_with_fsdp(
     model: torch.nn.Module,
-    fsdp_config: Optional[Dict[str, Any]] = None,
+    fsdp_config: Optional[dict[str, Any]] = None,
 ) -> FSDP:
     """
     Wrap a dendritic model with FSDP.
@@ -216,8 +221,7 @@ def wrap_model_with_fsdp(
     if gradient_checkpointing:
         logger.info("Enabling gradient checkpointing for memory savings")
         # Apply gradient checkpointing to the model before FSDP wrapping
-        from torch.utils.checkpoint import checkpoint
-        
+
         # For dendritic models, apply checkpointing to major components
         if hasattr(model, "net"):
             # Apply to the core network
@@ -235,33 +239,35 @@ def wrap_model_with_fsdp(
 def _apply_gradient_checkpointing(model: torch.nn.Module):
     """
     Apply gradient checkpointing to suitable modules in the model.
-    
+
     Args:
         model: Model to apply checkpointing to
     """
     from torch.utils.checkpoint import checkpoint
-    
+
     # Apply checkpointing to large linear layers and dendritic components
     for name, module in model.named_modules():
         if isinstance(module, (DendriticBranchLayer, ExcitationInhibitionLayer)):
             # Wrap the forward method with checkpointing
             original_forward = module.forward
-            
+
             def checkpointed_forward(self, *args, **kwargs):
                 return checkpoint(original_forward, *args, **kwargs)
-            
+
             # Bind the method to the instance
             import types
+
             module.forward = types.MethodType(checkpointed_forward, module)
             logger.debug(f"Applied gradient checkpointing to {name}")
         elif isinstance(module, torch.nn.Linear) and module.in_features > 1000:
             # Apply to large linear layers
             original_forward = module.forward
-            
+
             def checkpointed_forward(self, *args, **kwargs):
                 return checkpoint(original_forward, *args, **kwargs)
-            
+
             import types
+
             module.forward = types.MethodType(checkpointed_forward, module)
             logger.debug(f"Applied gradient checkpointing to large linear layer {name}")
 
@@ -329,11 +335,11 @@ def load_fsdp_checkpoint(
 
 
 def estimate_memory_requirements(
-    num_neurons: List[int],
-    num_synapses_per_neuron: List[int],
-    num_branches: List[int],
+    num_neurons: list[int],
+    num_synapses_per_neuron: list[int],
+    num_branches: list[int],
     dtype: torch.dtype = torch.float32,
-) -> Dict[str, float]:
+) -> dict[str, float]:
     """
     Estimate memory requirements for a dendritic model.
 

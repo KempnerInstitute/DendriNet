@@ -17,18 +17,13 @@ except ImportError:
 from omegaconf import OmegaConf
 
 from dendritic_modeling import logger, logger_manager
-from dendritic_modeling.config import (
-    EncoderNetworkConfig,
-    EncoderTrainConfig,
-    TaskConfig,
-    TrainConfig,
-    load_config,
-)
+from dendritic_modeling.config import (EncoderNetworkConfig,
+                                       EncoderTrainConfig, TaskConfig,
+                                       TrainConfig, load_config)
 from dendritic_modeling.datasets import get_unified_datasets
 from dendritic_modeling.networks import BaseNetwork, Identity
-from dendritic_modeling.networks.architectures.classical.autoencoder import (
-    BaseAutoencoder,
-)
+from dendritic_modeling.networks.architectures.classical.autoencoder import \
+    BaseAutoencoder
 from dendritic_modeling.networks.architectures.factory import get_architecture
 from dendritic_modeling.training import get_trainer
 from dendritic_modeling.utils import save_dict, set_seed
@@ -242,73 +237,79 @@ def encoder_network_analysis(
 ):
     """
     Analyze encoder network performance and characteristics.
-    
+
     Args:
         encoder_network: Trained encoder network
         train_ds: Training dataset
-        valid_ds: Validation dataset 
+        valid_ds: Validation dataset
         test_ds: Test dataset
         load_save_path: Path to save analysis results
     """
     logger.info("Running encoder network analysis")
-    
+
     try:
         # Basic encoder analysis - can be expanded based on encoder type
-        if hasattr(encoder_network, 'encode'):
+        if hasattr(encoder_network, "encode"):
             # For autoencoder-type networks
             logger.info("Analyzing autoencoder performance")
-            
+
             # Sample some data for analysis
             sample_data = []
             for i, (data, _) in enumerate(test_ds):
                 sample_data.append(data)
                 if i >= 10:  # Analyze first 10 samples
                     break
-            
+
             if sample_data:
                 import torch
+
                 sample_batch = torch.stack(sample_data)
-                
+
                 # Get encoded representations
                 with torch.no_grad():
                     encoded = encoder_network.encode(sample_batch)
-                    if hasattr(encoder_network, 'decode'):
+                    if hasattr(encoder_network, "decode"):
                         reconstructed = encoder_network.decode(encoded)
-                        
+
                         # Calculate reconstruction error
-                        mse_error = torch.mean((sample_batch - reconstructed) ** 2).item()
+                        mse_error = torch.mean(
+                            (sample_batch - reconstructed) ** 2
+                        ).item()
                         logger.info(f"Mean reconstruction error: {mse_error:.4f}")
-                    
+
                     # Log encoding statistics
                     logger.info(f"Encoded representation shape: {encoded.shape}")
                     logger.info(f"Encoded mean: {torch.mean(encoded).item():.4f}")
                     logger.info(f"Encoded std: {torch.std(encoded).item():.4f}")
-        
-        elif hasattr(encoder_network, 'forward'):
+
+        elif hasattr(encoder_network, "forward"):
             # For general transformation networks
             logger.info("Analyzing transformation network")
-            
+
             # Basic forward pass analysis
             sample_data = []
             for i, (data, _) in enumerate(test_ds):
                 sample_data.append(data)
                 if i >= 5:
                     break
-            
+
             if sample_data:
                 import torch
+
                 sample_batch = torch.stack(sample_data)
-                
+
                 with torch.no_grad():
                     output = encoder_network(sample_batch)
                     logger.info(f"Output shape: {output.shape}")
-                    logger.info(f"Output range: [{torch.min(output).item():.4f}, {torch.max(output).item():.4f}]")
-        
+                    logger.info(
+                        f"Output range: [{torch.min(output).item():.4f}, {torch.max(output).item():.4f}]"
+                    )
+
         else:
             logger.info("Identity encoder - no analysis needed")
-            
+
         logger.info("Encoder network analysis completed")
-        
+
     except Exception as e:
         logger.error(f"Error during encoder analysis: {e}")
         logger.info("Encoder analysis failed but continuing...")

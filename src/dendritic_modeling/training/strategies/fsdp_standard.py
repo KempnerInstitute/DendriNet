@@ -7,31 +7,20 @@ for scaling to very large models across multiple GPUs and nodes.
 
 import os
 import time
-from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Any, Optional
 
 import torch
 import torch.distributed as dist
-import torch.nn as nn
-from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
-from torch.distributed.fsdp.fully_sharded_data_parallel import StateDictType
-from torch.distributed.fsdp.wrap import (
-    enable_wrap,
-    wrap,
-)
+from torch.cuda.amp import GradScaler, autocast
 from torch.utils.data import DataLoader
-from torch.cuda.amp import autocast, GradScaler
 
 from dendritic_modeling import logger
 from dendritic_modeling.analysis import AnalysisManager
 from dendritic_modeling.models import BaseModel
-from dendritic_modeling.training.fsdp_utils import (
-    wrap_model_with_fsdp,
-    save_fsdp_checkpoint,
-    get_fsdp_config,
-)
+from dendritic_modeling.training.fsdp_utils import (get_fsdp_config,
+                                                    save_fsdp_checkpoint,
+                                                    wrap_model_with_fsdp)
 from dendritic_modeling.training.strategies.standard import Trainer
-from dendritic_modeling.plotting.visualizations.general_analysis_plots import plot_loss_curves
 
 
 class FSDPTrainer(Trainer):
@@ -90,15 +79,15 @@ class FSDPTrainer(Trainer):
         dummy_optimizer = torch.optim.SGD([torch.zeros(1)], lr=0.01)
         if self.rank == 0:
             logger.info(f"Initializing FSDPTrainer with kwargs: {kwargs}")
-        
+
         # Store checkpoint_dir before parent call (parent might override it)
         checkpoint_dir_backup = self.checkpoint_dir
-        
+
         # Handle AMP parameter name mismatch between FSDP and standard trainer
         fsdp_kwargs = kwargs.copy()
-        if 'use_amp' in fsdp_kwargs:
-            fsdp_kwargs['enable_amp'] = fsdp_kwargs.pop('use_amp')
-        
+        if "use_amp" in fsdp_kwargs:
+            fsdp_kwargs["enable_amp"] = fsdp_kwargs.pop("use_amp")
+
         super().__init__(optimizer=dummy_optimizer, **fsdp_kwargs)
         # Restore checkpoint_dir after parent call
         self.checkpoint_dir = checkpoint_dir_backup
@@ -115,9 +104,9 @@ class FSDPTrainer(Trainer):
             self.loss_fn = torch.nn.MSELoss()
         else:
             raise ValueError(f"Unknown loss function: {loss_fn_name}")
-            
+
         # Mixed Precision Training Support
-        self.use_amp = kwargs.get('use_amp', False)
+        self.use_amp = kwargs.get("use_amp", False)
         if self.use_amp:
             try:
                 # autocast and GradScaler already imported at top
@@ -126,7 +115,9 @@ class FSDPTrainer(Trainer):
                     logger.info("Mixed precision training enabled for FSDP")
             except ImportError:
                 if self.rank == 0:
-                    logger.warning("AMP not available, falling back to standard precision")
+                    logger.warning(
+                        "AMP not available, falling back to standard precision"
+                    )
                 self.use_amp = False
 
     def _wrap_model(self, model: BaseModel) -> BaseModel:
@@ -233,11 +224,15 @@ class FSDPTrainer(Trainer):
         other_params = [p for p in all_params if id(p) not in used_params]
         if other_params:
             param_groups.append(
-                {"params": other_params, "lr": (self.optimizer_config or {}).get("lr", 0.001)}
+                {
+                    "params": other_params,
+                    "lr": (self.optimizer_config or {}).get("lr", 0.001),
+                }
             )
 
         return torch.optim.Adam(
-            param_groups, weight_decay=(self.optimizer_config or {}).get("weight_decay", 0.0)
+            param_groups,
+            weight_decay=(self.optimizer_config or {}).get("weight_decay", 0.0),
         )
 
     def train(
@@ -245,7 +240,7 @@ class FSDPTrainer(Trainer):
         model: BaseModel,
         train_loader: DataLoader,
         valid_loader: Optional[DataLoader] = None,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Train model using FSDP with pre-created DataLoaders.
 
@@ -332,20 +327,29 @@ class FSDPTrainer(Trainer):
                         if isinstance(self.analysis_manager, AnalysisManager):
                             # Only log analysis runs every 10 epochs to reduce verbosity
                             if epoch % 10 == 0:
-                                logger.info(f"Running epoch analysis for epoch {epoch + 1}...")
+                                logger.info(
+                                    f"Running epoch analysis for epoch {epoch + 1}..."
+                                )
                             self.analysis_manager.run_analysis(
                                 filename=f"epoch{epoch + 1}", training=True
                             )
                             if epoch % 10 == 0:
-                                logger.info(f"Epoch analysis completed for epoch {epoch + 1}")
+                                logger.info(
+                                    f"Epoch analysis completed for epoch {epoch + 1}"
+                                )
                         else:
-                            logger.warning(f"Analysis manager is not AnalysisManager instance: {type(self.analysis_manager)}")
+                            logger.warning(
+                                f"Analysis manager is not AnalysisManager instance: {type(self.analysis_manager)}"
+                            )
                     else:
                         logger.warning("Analysis manager is None")
                 except Exception as e:
                     logger.warning(f"Analysis failed for epoch {epoch + 1}: {e}")
                     import traceback
-                    logger.warning(f"Analysis error traceback: {traceback.format_exc()}")
+
+                    logger.warning(
+                        f"Analysis error traceback: {traceback.format_exc()}"
+                    )
 
             # Logging
             epoch_time = time.time() - epoch_start
@@ -422,10 +426,10 @@ class FSDPTrainer(Trainer):
         total_correct = 0
         total_examples = 0
 
-        for batch_idx, (x_batch, y_batch) in enumerate(train_loader):
+        for _batch_idx, (x_batch, y_batch) in enumerate(train_loader):
             # Clear GPU cache before each forward pass
             torch.cuda.empty_cache()
-            
+
             x_batch = x_batch.to(self.device)
             y_batch = y_batch.to(self.device)
 
@@ -442,7 +446,9 @@ class FSDPTrainer(Trainer):
                 # Gradient clipping
                 if self.grad_clip_value is not None:
                     self.scaler.unscale_(self.optimizer)
-                    torch.nn.utils.clip_grad_norm_(model.parameters(), self.grad_clip_value)
+                    torch.nn.utils.clip_grad_norm_(
+                        model.parameters(), self.grad_clip_value
+                    )
 
                 # Optimizer step with scaling
                 self.scaler.step(self.optimizer)
@@ -458,7 +464,9 @@ class FSDPTrainer(Trainer):
 
                 # Gradient clipping
                 if self.grad_clip_value is not None:
-                    torch.nn.utils.clip_grad_norm_(model.parameters(), self.grad_clip_value)
+                    torch.nn.utils.clip_grad_norm_(
+                        model.parameters(), self.grad_clip_value
+                    )
 
                 # Optimizer step
                 self.optimizer.step()
