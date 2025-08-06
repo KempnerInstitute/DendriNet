@@ -15,10 +15,7 @@ jobs:
       matrix:
         os: [ubuntu-latest]
         python-version: ["3.9", "3.10", "3.11", "3.12"]
-        include:
-          # Test on macOS with latest Python
-          - os: macos-latest
-            python-version: "3.11"
+        # Removed macOS testing since we're using SLURM (Linux-based)
 
     steps:
     - name: Checkout code
@@ -38,15 +35,9 @@ jobs:
           ${{ runner.os }}-pip-
 
     - name: Install system dependencies (Ubuntu)
-      if: matrix.os == 'ubuntu-latest'
       run: |
         sudo apt-get update
         sudo apt-get install -y libbz2-dev
-
-    - name: Install system dependencies (macOS)
-      if: matrix.os == 'macos-latest'
-      run: |
-        brew install bzip2
 
     - name: Install Python dependencies
       run: |

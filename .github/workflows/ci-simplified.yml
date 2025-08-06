@@ -58,7 +58,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Simplified matrix: test on essential Python versions only
+        # Simplified matrix: test on essential Python versions only (Linux only for SLURM compatibility)
         include:
           - os: ubuntu-latest
             python-version: "3.10"  # Minimum supported
@@ -66,9 +66,6 @@ jobs:
             python-version: "3.11"  # Primary development version
           - os: ubuntu-latest
             python-version: "3.12"  # Latest stable
-          # Only test macOS on primary version
-          - os: macos-latest
-            python-version: "3.11"
 
     steps:
     - name: Checkout code
@@ -89,12 +86,8 @@ jobs:
 
     - name: Install system dependencies
       run: |
-        if [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
-          sudo apt-get update
-          sudo apt-get install -y libbz2-dev
-        elif [ "${{ matrix.os }}" = "macos-latest" ]; then
-          brew install bzip2
-        fi
+        sudo apt-get update
+        sudo apt-get install -y libbz2-dev
 
     - name: Install Python dependencies
       run: |
