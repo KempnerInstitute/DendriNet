@@ -177,30 +177,24 @@ def check_dependencies():
 
     # Check pytest
     try:
-        # import pytest  # Available for import check
+        import pytest
         dependencies["pytest"] = True
     except ImportError:
         pass
 
     # Check coverage
     try:
-        # import coverage  # Available for import check
+        import coverage
         dependencies["coverage"] = True
     except ImportError:
         pass
 
-    # Check pytest-cov (indirectly)
-    if dependencies["pytest"]:
-        try:
-            result = subprocess.run(
-                ["python", "-m", "pytest", "--cov", "--help"],
-                capture_output=True,
-                timeout=5,
-            )
-            if result.returncode == 0:
-                dependencies["pytest-cov"] = True
-        except (subprocess.TimeoutExpired, FileNotFoundError):
-            pass
+    # Check pytest-cov (direct import)
+    try:
+        import pytest_cov
+        dependencies["pytest-cov"] = True
+    except ImportError:
+        pass
 
     return dependencies
 
