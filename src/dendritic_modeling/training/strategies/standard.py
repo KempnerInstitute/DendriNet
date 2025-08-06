@@ -6,6 +6,7 @@ strategies. It provides standard training loops, optimization, and optional
 advanced features like regularization and pruning.
 """
 
+import logging
 import os
 import time
 import traceback
@@ -20,7 +21,7 @@ import wandb
 from torch.cuda.amp import GradScaler, autocast
 from torch.utils.data import DataLoader
 
-from dendritic_modeling import logger
+logger = logging.getLogger(__name__)
 from dendritic_modeling.analysis.tools.synaptic_pruning import (
     SynapticPruningAnalyzer,
     integrate_pruning_with_turnover_analysis,

@@ -5,11 +5,12 @@ Factory functions for creating training strategies and utility functions
 for MLP training and weight transfer.
 """
 
+import logging
 from typing import Any, Optional
 
 import torch
 
-from dendritic_modeling import logger
+logger = logging.getLogger(__name__)
 from dendritic_modeling.config.training import (
     OptimizerConfig,
     PruningConfig,

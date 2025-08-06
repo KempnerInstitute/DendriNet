@@ -5,6 +5,7 @@ This module provides FSDP-based distributed training functionality
 for scaling to very large models across multiple GPUs and nodes.
 """
 
+import logging
 import os
 import time
 from typing import Any, Optional
@@ -14,7 +15,7 @@ import torch.distributed as dist
 from torch.cuda.amp import GradScaler, autocast
 from torch.utils.data import DataLoader
 
-from dendritic_modeling import logger
+logger = logging.getLogger(__name__)
 from dendritic_modeling.analysis import AnalysisManager
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.training.fsdp_utils import (

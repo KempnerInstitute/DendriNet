@@ -2,6 +2,7 @@
 
 import glob
 import json
+import logging
 import os
 import re
 from collections import defaultdict
@@ -11,7 +12,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-from dendritic_modeling import logger
+logger = logging.getLogger(__name__)
 
 from .plotting_utils import (
     convert_layer_names,

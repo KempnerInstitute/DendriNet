@@ -4,13 +4,14 @@ Base classes for plotting functionality.
 This module provides base classes and common utilities for all plotting operations.
 """
 
+import logging
 import os
 from typing import Any, Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
 
-from dendritic_modeling import logger
+logger = logging.getLogger(__name__)
 
 
 class PlotConfig:

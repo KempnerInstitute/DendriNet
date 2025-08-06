@@ -14,7 +14,10 @@ import torch
 import wandb
 from omegaconf import OmegaConf
 
-from dendritic_modeling import logger, logger_manager
+logger = logging.getLogger(__name__)
+from dendritic_modeling.utils.logging_config import LoggerManager
+
+logger_manager = LoggerManager()
 from dendritic_modeling.config import ModelConfig
 from dendritic_modeling.datasets import get_unified_datasets
 from dendritic_modeling.models import Classifier, Regressor

@@ -33,11 +33,15 @@ os.environ.setdefault("NCCL_NET_GDR_LEVEL", "2")  # Enable GPU Direct RDMA
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "2"
 os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
 
+
 import torch
 import torch.distributed as dist
 from torch.utils.data import DataLoader, DistributedSampler
 
-from dendritic_modeling import logger, logger_manager
+logger = logging.getLogger(__name__)
+from dendritic_modeling.utils.logging_config import LoggerManager
+
+logger_manager = LoggerManager()
 
 # WandB import (optional)
 try:

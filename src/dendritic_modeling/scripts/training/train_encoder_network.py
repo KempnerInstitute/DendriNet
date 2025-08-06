@@ -14,9 +14,13 @@ except ImportError:
     TORCHINFO_AVAILABLE = False
     torchinfo = None
 
+
 from omegaconf import OmegaConf
 
-from dendritic_modeling import logger, logger_manager
+logger = logging.getLogger(__name__)
+from dendritic_modeling.utils.logging_config import LoggerManager
+
+logger_manager = LoggerManager()
 from dendritic_modeling.config import (
     EncoderNetworkConfig,
     EncoderTrainConfig,

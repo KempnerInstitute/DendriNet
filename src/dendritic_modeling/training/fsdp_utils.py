@@ -6,6 +6,7 @@ This module provides utilities for training extremely large dendritic models
 that cannot fit on a single GPU using PyTorch's Fully Sharded Data Parallel (FullyShardedDataParallel).
 """
 
+import logging
 from typing import Any, Optional
 
 import torch
@@ -19,7 +20,7 @@ from torch.distributed.fsdp import (
     StateDictType,
 )
 
-from dendritic_modeling import logger
+logger = logging.getLogger(__name__)
 from dendritic_modeling.networks.architectures.excitation_inhibition import (
     DendriticBranchLayer,
     ExcitationInhibitionLayer,

@@ -6,6 +6,7 @@ This module provides comprehensive GPU memory estimation for dendritic neural ne
 including support for FSDP distributed training.
 """
 
+import logging
 import math
 from dataclasses import dataclass
 from typing import Any, ClassVar, Optional
@@ -13,7 +14,7 @@ from typing import Any, ClassVar, Optional
 import numpy as np
 import torch
 
-from dendritic_modeling import logger
+logger = logging.getLogger(__name__)
 
 
 @dataclass

@@ -34,9 +34,11 @@ from typing import Any, Optional
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
+import logging
+
 from omegaconf import OmegaConf
 
-from dendritic_modeling import logger
+logger = logging.getLogger(__name__)
 from dendritic_modeling.scripts.tools.generate_slurm_job import SlurmJobGenerator
 from dendritic_modeling.utils.gpu_estimation import estimate_from_config
 

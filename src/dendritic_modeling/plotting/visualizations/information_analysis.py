@@ -4,12 +4,13 @@ Clean modular information analysis plotting for dendritic modeling.
 This module provides specialized plotting classes for information-theoretic analysis.
 """
 
+import logging
 from typing import Any, Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
 
-from dendritic_modeling import logger
+logger = logging.getLogger(__name__)
 
 # Import utilities
 from .plotting_utils import (

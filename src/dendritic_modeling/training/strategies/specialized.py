@@ -5,9 +5,11 @@ This module implements specialized training approaches including voltage stabili
 and other advanced training techniques for dendritic networks.
 """
 
+import logging
+
 import torch
 
-from dendritic_modeling import logger
+logger = logging.getLogger(__name__)
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.training.loss.functions import VoltageStabilizationLoss
 from dendritic_modeling.training.strategies.standard import Trainer

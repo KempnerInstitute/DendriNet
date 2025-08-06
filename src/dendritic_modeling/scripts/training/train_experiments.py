@@ -51,11 +51,13 @@ except ImportError:
     )
 
 
+import logging
+
 import torch
 import wandb
 from omegaconf import OmegaConf
 
-from dendritic_modeling import logger
+logger = logging.getLogger(__name__)
 from dendritic_modeling.analysis import AnalysisManager
 from dendritic_modeling.config import load_config
 from dendritic_modeling.models import BaseModel
