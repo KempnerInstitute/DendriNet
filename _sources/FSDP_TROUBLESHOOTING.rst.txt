@@ -18,7 +18,7 @@ When to Use FSDP
 -----------------
 
 - Model doesn't fit on single GPU
-- Multiple GPUs available 
+- Multiple GPUs available
 - Large datasets requiring distributed training
 
 When to Use Single GPU
