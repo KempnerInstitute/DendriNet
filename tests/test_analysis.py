@@ -33,7 +33,7 @@ except ImportError:
 
     def generate_synthetic_data(num_samples=100, num_features=10):
         data = torch.randn(num_samples, num_features)
-        labels = torch.randint(0, 2, (num_samples,))
+        labels = torch.randint(0, 4, (num_samples,))
         return TensorDataset(data, labels)
 
 
@@ -92,7 +92,7 @@ class TestPerformanceAnalyzer(unittest.TestCase):
 
         # Create test data
         self.test_data = torch.utils.data.TensorDataset(
-            torch.randn(100, 10), torch.randint(0, 2, (100,))
+            torch.randn(100, 10), torch.randint(0, 4, (100,))
         )
 
     def test_analyzer_initialization(self):
@@ -186,7 +186,7 @@ class TestAblationAnalyzer(unittest.TestCase):
 
         # Create test dataset
         self.test_data = torch.utils.data.TensorDataset(
-            torch.randn(50, 10), torch.randint(0, 2, (50,))
+            torch.randn(50, 10), torch.randint(0, 4, (50,))
         )
 
     def test_analyzer_initialization(self):
@@ -249,7 +249,7 @@ class TestInformationAnalyzer(unittest.TestCase):
 
         # Create test data
         self.test_data = torch.utils.data.TensorDataset(
-            torch.randn(30, 8), torch.randint(0, 2, (30,))
+            torch.randn(30, 8), torch.randint(0, 4, (30,))
         )
 
     def test_analyzer_initialization(self):
@@ -310,7 +310,7 @@ class TestActivationAnalyzers(unittest.TestCase):
 
         # Create test data
         self.test_data = torch.utils.data.TensorDataset(
-            torch.randn(30, 8), torch.randint(0, 2, (30,))
+            torch.randn(30, 8), torch.randint(0, 4, (30,))
         )
 
     def test_synaptic_activation_analyzer(self):
@@ -366,13 +366,13 @@ class TestAnalysisManager(unittest.TestCase):
 
         # Create test data
         train_data = torch.utils.data.TensorDataset(
-            torch.randn(30, 8), torch.randint(0, 2, (30,))
+            torch.randn(30, 8), torch.randint(0, 4, (30,))
         )
         valid_data = torch.utils.data.TensorDataset(
-            torch.randn(20, 8), torch.randint(0, 2, (20,))
+            torch.randn(20, 8), torch.randint(0, 4, (20,))
         )
         test_data = torch.utils.data.TensorDataset(
-            torch.randn(25, 8), torch.randint(0, 2, (25,))
+            torch.randn(25, 8), torch.randint(0, 4, (25,))
         )
 
         self.data = {"train": train_data, "valid": valid_data, "test": test_data}

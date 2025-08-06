@@ -880,7 +880,8 @@ class InformationAnalyzer(AbstractAnalyzer):
                 summary_path = os.path.join(save_path, f"{filename}_summary.txt")
                 with open(summary_path, "w") as f:
                     f.write(summary)
-            return results
+            else:
+                return results
 
         except Exception as e:
             self.logger.error(f"Error in information analysis: {e}")

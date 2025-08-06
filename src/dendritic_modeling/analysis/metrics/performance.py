@@ -123,4 +123,5 @@ class PerformanceAnalyzer:
 
         if save_path is not None:
             save_dict(results, save_path, filename)
-        return results
+        else:
+            return results

@@ -232,14 +232,14 @@ class AnalysisManager:
                 save_path=os.path.join(self.save_root, "information_analysis"),
                 filename=filename,
             )
-            if not training:
+            if not training and info_results:
                 plot_information_analysis(
                     info_results,
                     save_path=os.path.join(self.save_root, "information_analysis"),
                 )
 
                 # Also plot per-layer information if available
-                if "layer_statistics" in info_results:
+                if info_results and "layer_statistics" in info_results:
                     from dendritic_modeling.plotting.visualizations.information_analysis import (
                         InformationAnalysisPlotter,
                     )

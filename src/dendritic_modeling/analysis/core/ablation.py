@@ -417,5 +417,5 @@ class AblationAnalyzer(AbstractAnalyzer):
 
             # Generate ablation plots
             self._plot_ablation_results(results, save_path, filename)
-
-        return results
+        else:
+            return results
