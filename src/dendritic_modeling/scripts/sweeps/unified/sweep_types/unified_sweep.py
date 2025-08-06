@@ -113,7 +113,7 @@ class UnifiedSweepGenerator(BaseSweepGenerator):
 
         elif mode == "ei-sum":
             target_sum = value if value is not None else 10
-            tolerance = filter_config.get("tolerance", 1)
+            tolerance = filter_config.get("tolerance", 0)  # Changed default from 1 to 0
             return [
                 (ee, ie)
                 for ee in ee_values
@@ -393,6 +393,16 @@ class UnifiedSweepGenerator(BaseSweepGenerator):
             "analysis": base_config.get("analysis", {}),
             "outputs": base_config.get("outputs", {}),
         }
+
+        # Ensure shared dataset directory for sweep runs
+        # This prevents each config from creating its own copy of the dataset
+        if "outputs" in base_train_config:
+            outputs_config = base_train_config["outputs"]
+            # If dataset_dir is empty or not set, use the base output directory
+            if not outputs_config.get("dataset_dir"):
+                base_dir = outputs_config.get("dir", "results")
+                # Use the base directory (not individual config dirs) for shared datasets
+                outputs_config["dataset_dir"] = base_dir
 
         # Expand sweep parameters (handle ranges like [start, end, step])
         param_values = {}

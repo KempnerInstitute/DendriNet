@@ -1,6 +1,27 @@
 # ============================================================================
 # FSDP EXPERIMENT CONFIGURATION
 # ============================================================================
+# This configuration file is designed for large dendritic models that require
+# multi-GPU distributed training using PyTorch's Fully Sharded Data Parallel (FSDP).
+#
+# USAGE:
+#   Multi-GPU FSDP training:
+#   python src/dendritic_modeling/scripts/training/train_experiments_fsdp.py configs/config_exp_fsdp.yaml
+#
+#   FSDP training typically requires:
+#   - Multiple GPUs (2+ recommended)
+#   - Large models (>1B parameters)
+#   - CUDA-enabled environment
+#   - Sufficient GPU memory
+#
+# REQUIREMENTS:
+#   - PyTorch with FSDP support
+#   - CUDA toolkit and drivers
+#   - Multiple GPUs for optimal performance
+#
+# NOTE: For single-GPU experiments, use config_exp.yaml instead.
+# NOTE: For parameter sweeps, use unified_all_sweeps_example.yaml instead.
+# ============================================================================
 
 model:
   task: classification

@@ -6,14 +6,11 @@
 # and general hyperparameter sweeps in a unified framework.
 #
 # USAGE:
-#   Generate sweep configurations:
-#   python src/dendritic_modeling/scripts/sweeps/sweep_manager.py configs/unified_all_sweeps_example.yaml
+#   Generate sweep configurations only (no job submission):
+#   python src/dendritic_modeling/scripts/sweeps/sweep_manager.py --config configs/unified_all_sweeps_example.yaml --generate-only
 #
-#   Generate and submit SLURM jobs:
-#   python src/dendritic_modeling/scripts/sweeps/sweep_manager.py configs/unified_all_sweeps_example.yaml --submit
-#
-#   Generate and submit in one command:
-#   python src/dendritic_modeling/scripts/sweeps/sweep_manager.py configs/unified_all_sweeps_example.yaml --run
+#   Generate sweep configurations and create SLURM job scripts:
+#   python src/dendritic_modeling/scripts/sweeps/sweep_manager.py --config configs/unified_all_sweeps_example.yaml
 #
 #   Analyze completed sweep results:
 #   python src/dendritic_modeling/scripts/sweeps/result_analyzer.py /path/to/sweep/results/
@@ -24,9 +21,12 @@
 #   - General sweeps: Any model/training hyperparameters
 #   - Mixed sweeps: Combine multiple sweep types simultaneously
 #   - Noise sweeps: Robustness testing with various noise types
+#
+# NOTE: Individual sweep configurations are trained using:
+#   python src/dendritic_modeling/scripts/training/train_experiments.py <config_path>
 
 # Output and SLURM configuration
-output_dir: "results"
+output_dir:
 slurm_config:
   job_name: "unified_sweep"
   account:   # Your SLURM account
@@ -42,13 +42,13 @@ slurm_config:
     - python/3.12.5-fasrc01
     - cuda/12.4.1-fasrc01
     - cudnn/8.9.2.26_cuda12-fasrc01
-  conda_env_path:     # Path to your conda environment
+  conda_env_path:      # Path to your conda environment
   training_script: "src/dendritic_modeling/scripts/training/train_experiments.py"
 
 # Experiment settings
 experiment_settings:
   seeds_per_condition: 2  # Number of seeds per parameter combination
-  base_seed: 42
+  base_seed: 0
 
 # ============================================================================
 # PARAMETER SWEEPS - Choose your parameters!
@@ -56,8 +56,8 @@ experiment_settings:
 sweep_config:
   # -------------------------
   # -------------------------
-  model.core_network.parameters.ee_synapses_per_branch_per_layer: [[1],[2],[3],[5],[10]]
-  model.core_network.parameters.ie_synapses_per_branch_per_layer: [[1],[2],[3],[5],[10]]
+  model.core_network.parameters.ee_synapses_per_branch_per_layer: [[1],[2],[3],[4],[5]]
+  model.core_network.parameters.ie_synapses_per_branch_per_layer: [[1],[2],[3],[4],[5]]
   model.core_network.parameters.use_shunting: [true, false]
 
 
@@ -74,8 +74,8 @@ sweep_config:
 filter_config:
   # EI Filtering (optional)
   mode: "ei-sum"  # Options: "all", "ei-sum", "e-const", "i-const", "ei-ratio"
-  value: 11       # ei-sum: E+I=11, e-const: E=11, i-const: I=11, ei-ratio: E/I=11
-  # tolerance: 0  # exact match (default: 1)
+  value: 6       # ei-sum: E+I=6, e-const: E=6, i-const: I=6, ei-ratio: E/I=6
+  # tolerance: 0   # exact match (default: 0 for exact matching)
 
   # Branch Sweep (optional - can combine with EI filtering above)
   # branch_sweep_mode: "uniform_sweep"         # Options: uniform_sweep, depth_sweep, width_sweep, pattern_sweep, custom_configs
@@ -124,13 +124,13 @@ base_config:
         # Morphological architecture
         excitatory_layer_sizes: [10]
         inhibitory_layer_sizes: []
-        excitatory_branch_factors: [2, 2, 2, 2]
+        excitatory_branch_factors: [3,3]
         inhibitory_branch_factors: []
 
         # EI Synapse configuration (overridden by EI sweeps)
-        ee_synapses_per_branch_per_layer: [5]  # Default value
+        ee_synapses_per_branch_per_layer: [40]  # Default value
         ei_synapses_per_branch_per_layer: [0]
-        ie_synapses_per_branch_per_layer: [5]  # Default value
+        ie_synapses_per_branch_per_layer: [10]  # Default value
         ii_synapses_per_branch_per_layer: [0]
 
         # Morphological features
@@ -148,7 +148,7 @@ base_config:
       type: MLP
       parameters:
         input_dim: null
-        hidden_dims: [32, 16]
+        hidden_dims: [16]
         activation: relu
         output_dim: 10
 
@@ -162,7 +162,7 @@ train:
   main:
     learning_strategy: standard # Supports regularization, pruning, and parameter group features
                                # Options: "standard", "freeze_layers", "local_ca", etc.
-    weight_decay_rate: 0.01     # Use optimizer.weight_decay for internal optimizer creation
+    weight_decay_rate: 0.01     # Weight decay rate used by CustomWeightDecayOptimizer
 
     param_groups:
       lr: 0.001
@@ -175,25 +175,33 @@ train:
     # ==========================================
     # ADVANCED TRAINING FEATURES
     # ==========================================
-    # Regularization, pruning, and flexible optimizer configuration
-
-    # Internal optimizer configuration (alternative to external optimizer creation)
-    optimizer:
-      name: "adam"                    # Options: "adam", "sgd", "rmsprop", "adamw"
-      lr: 0.001                      # Learning rate
-      weight_decay: 0.0001           # Built-in L2 regularization (global)
-      momentum: 0.9                  # For SGD
-      betas: [0.9, 0.999]           # For Adam/AdamW
-      eps: 1e-8                      # For Adam/AdamW
+    # Note: Optimizer is created manually in training scripts using param_groups above
 
     # Regularization configuration
     regularization:
-      l1_weight: 0.0                 # L1 regularization strength (0 to disable)
-      l2_weight: 0.0                 # L2 regularization strength (0 to disable, use optimizer.weight_decay instead)
-      selective:                     # Selective application
-        layers: []                   # List of layer indices (empty = all layers)
-        branches: []                 # List of branch names (empty = all branches)
-        weight_types: ["all"]        # Options: "all", "recurrent", "input", "output", "linear"
+      l1_weight: 0.0               # Global L1 regularization strength (used when split_params=false)
+      l2_weight: 0.0               # Global L2 regularization strength (used when split_params=false)
+      selective:                   # Selective application
+        layers: []                 # List of layer indices (empty = all layers)
+        branches: []               # List of branch names (empty = all branches)
+        weight_types: ["all"]      # Options: "all", "recurrent", "input", "output", "linear"
+
+      # Parameter group specific regularization
+      split_params: true           # Split parameters into groups for differential regularization
+      param_group_weights:
+        # Apply different regularization to different parameter groups (when split_params=true)
+        topk:                      # TopK layers
+          l1_weight: 0.0           # L1 for TopK layers
+          l2_weight: 0.0           # L2 for TopK layers
+        blocklinear:               # BlockLinear layers
+          l1_weight: 0.0           # No L1 for BlockLinear
+          l2_weight: 0.0           # No L2 for BlockLinear
+        reactivation:              # Reactivation layers
+          l1_weight: 0.0           # No L1 for reactivation
+          l2_weight: 0.0           # No L2 for reactivation
+        decoder:                   # Decoder network
+          l1_weight: 0.0           # No L1 for decoder
+          l2_weight: 0.0           # No L2 for decoder
 
     # Pruning configuration
     pruning:
@@ -202,20 +210,21 @@ train:
       selective:                     # Selective application
         layers: []                   # List of layer indices (empty = all layers)
         branches: []                 # List of branch names (empty = all branches)
-        weight_types: ["all"]        # Options: "all", "excitatory", "inhibitory", "recurrent", "input", "output", "linear"
-      re_evaluate_after: true        # Re-evaluate model after pruning
+        weight_types: ["excitatory", "inhibitory"]  # Options: "all", "excitatory", "inhibitory", "recurrent", "input", "output", "linear"
+      re_evaluate_after: false       # Re-evaluate model after pruning
       dynamic_pruning: false         # Whether to prune during training
       pruning_frequency: 10          # Epochs between dynamic pruning (if enabled)
 
     # Reporting configuration
     reporting:
       report_non_pruned: true        # Print detailed pruning report
-      save_pruning_stats: true       # Save pruning statistics to file
+      save_pruning_stats: false      # Save pruning statistics to file
       detailed_branch_report: true   # Include per-branch statistics
+      redo_analysis_after_pruning: false  # Redo all analyses after pruning for comparison
 
     trainer:
       loss_function: ce
-      epochs: 5
+      epochs: 200
       early_stopping: false
       patience: 10
       batch_size: 64
@@ -432,4 +441,4 @@ analysis:
 outputs:
   run_name: unified_sweep
   dir: results/
-  dataset_dir: ""
+  dataset_dir: "results/"  # Shared dataset directory for all sweep configs

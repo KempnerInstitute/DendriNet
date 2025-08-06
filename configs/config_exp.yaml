@@ -2,15 +2,23 @@
 # ============================================================================
 # STANDARD DENDRITIC MODELING EXPERIMENT CONFIGURATION
 # ============================================================================
-# This is the main configuration file for running standard dendritic modeling
+# This is the main configuration file for running single dendritic modeling
 # experiments on single GPUs with moderate-sized models.
 #
 # USAGE:
-#   Standard Training:
+#   Standard single-GPU training:
 #   python src/dendritic_modeling/scripts/training/train_experiments.py configs/config_exp.yaml
 #
-#   Or with command line overrides:
-#   python src/dendritic_modeling/scripts/training/train_experiments.py configs/config_exp.yaml --epochs 100
+#   With command line overrides:
+#   python src/dendritic_modeling/scripts/training/train_experiments.py configs/config_exp.yaml --output_dir /path/to/results --run_name my_experiment
+#
+#   Available command line options:
+#   --output_dir: Override output directory
+#   --run_name: Override experiment name
+#   --learning_strategy: Override learning strategy (mle, freeze_branches, two_step, etc.)
+#
+# NOTE: For large models requiring multi-GPU/FSDP training, use config_exp_fsdp.yaml instead.
+# NOTE: For parameter sweeps, use unified_all_sweeps_example.yaml instead.
 
 model:
   task: classification  # Options: "classification", "regression"
