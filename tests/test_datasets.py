@@ -50,14 +50,42 @@ try:
 except ImportError:
     # If synthetic datasets are not available, create dummy classes for testing
     class DummyDataset:
-        def __init__(self, *args, **kwargs):
-            pass
+        def __init__(self, n_samples=10, *args, **kwargs):
+            self.n_samples = n_samples
+            # Store additional parameters for specific dataset behaviors - only set if explicitly provided
+            if 'image_size' in kwargs:
+                self.image_size = kwargs['image_size']
+            if 'input_dim' in kwargs:
+                self.input_dim = kwargs['input_dim']
+            if 'n_bits' in kwargs:
+                self.n_bits = kwargs['n_bits']
 
         def __len__(self):
-            return 10
+            return self.n_samples
 
         def __getitem__(self, idx):
-            return torch.randn(10), torch.randint(0, 2, (1,)).item()
+            # Return tensor size and appropriate data based on dataset type
+            if hasattr(self, 'image_size'):
+                # Image datasets use image_size squared with continuous data and 3 classes
+                data_size = self.image_size ** 2
+                sample = torch.randn(data_size)
+                label = torch.randint(0, 3, (1,))
+            elif hasattr(self, 'input_dim'):
+                # InfoShuntingDataset: continuous input, binary labels
+                data_size = self.input_dim
+                sample = torch.randn(data_size)
+                label = torch.randint(0, 2, (1,))
+            elif hasattr(self, 'n_bits'):
+                # MultiXORDataset: binary input, binary labels
+                data_size = self.n_bits
+                sample = torch.randint(0, 2, (data_size,)).float()  # Binary data as float
+                label = torch.randint(0, 2, (1,))
+            else:
+                # Default fallback
+                data_size = 10
+                sample = torch.randn(data_size)
+                label = torch.randint(0, 3, (1,))
+            return sample, label
 
     CenterSurroundDataset = DummyDataset
     InfoShuntingDataset = DummyDataset

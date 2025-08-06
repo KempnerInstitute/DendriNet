@@ -9,21 +9,7 @@ from dendritic_modeling.training.factory import get_trainer
 from dendritic_modeling.training.strategies.fsdp_standard import FSDPTrainer
 
 
-@pytest.fixture
-def simple_model():
-    encoder = Identity(10)
-    core = get_architecture(
-        "MLP", {"input_dim": 10, "hidden_dims": [5], "output_dim": 2}
-    )
-    decoder = Identity(2)
-    return Classifier(encoder, core, decoder)
-
-
-@pytest.fixture
-def sample_data():
-    x = torch.randn(20, 10)
-    y = torch.randint(0, 2, (20,))
-    return TensorDataset(x, y)
+# Fixtures moved to conftest.py for shared access across test files
 
 
 def test_standard_trainer(simple_model, sample_data):
