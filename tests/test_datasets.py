@@ -55,21 +55,21 @@ except ImportError:
             if args and isinstance(args[0], int):
                 # Called as DummyDataset(n_samples, ...)
                 self.n_samples = args[0]
-            elif 'base_inputs' in kwargs and hasattr(kwargs['base_inputs'], '__len__'):
+            elif "base_inputs" in kwargs and hasattr(kwargs["base_inputs"], "__len__"):
                 # Called as DummyDataset(base_inputs=data, ...) - use data length
-                self.n_samples = len(kwargs['base_inputs'])
-                self.base_inputs = kwargs['base_inputs']
-                self.base_labels = kwargs.get('base_labels', None)
-            elif args and hasattr(args[0], '__len__') and len(args[0]) > 0:
+                self.n_samples = len(kwargs["base_inputs"])
+                self.base_inputs = kwargs["base_inputs"]
+                self.base_labels = kwargs.get("base_labels", None)
+            elif args and hasattr(args[0], "__len__") and len(args[0]) > 0:
                 # Called as DummyDataset(mnist_data, n_samples=10) - for CompositionalMNIST
                 self.mnist_data = args[0]
-                self.n_samples = kwargs.get('n_samples', len(args[0]))
-            elif 'n_samples' in kwargs:
+                self.n_samples = kwargs.get("n_samples", len(args[0]))
+            elif "n_samples" in kwargs:
                 # Called as DummyDataset(..., n_samples=10)
-                self.n_samples = kwargs.get('n_samples', 10)
+                self.n_samples = kwargs.get("n_samples", 10)
             elif args:
                 # Called as DummyDataset(data, n_samples=10) - ignore data, use n_samples
-                self.n_samples = kwargs.get('n_samples', 10)
+                self.n_samples = kwargs.get("n_samples", 10)
             else:
                 # Default case
                 self.n_samples = 10
@@ -100,7 +100,9 @@ except ImportError:
         def __getitem__(self, idx):
             # Set seed for deterministic behavior if provided
             if hasattr(self, "seed") and self.seed is not None:
-                torch.manual_seed(self.seed + idx)  # Use seed + idx for different samples
+                torch.manual_seed(
+                    self.seed + idx
+                )  # Use seed + idx for different samples
 
             # Handle datasets with base_inputs (e.g., PoissonGeneratorDataset)
             if hasattr(self, "base_inputs") and self.base_inputs is not None:
@@ -117,7 +119,9 @@ except ImportError:
             # Handle CompositionalMNIST datasets
             if hasattr(self, "mnist_data") and self.mnist_data is not None:
                 # Simulate concatenated MNIST images (28*28*2 = 1568)
-                sample = torch.randn(28 * 28 * 2)  # Two 28x28 images flattened and concatenated
+                sample = torch.randn(
+                    28 * 28 * 2
+                )  # Two 28x28 images flattened and concatenated
                 # Label should be in range 0-99 (digit1*10 + digit2)
                 label = torch.randint(0, 100, (1,))
                 return sample, label
@@ -406,13 +410,17 @@ class TestGetUnifiedDatasets(unittest.TestCase):
 
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
-    @unittest.skip("Synthetic datasets require experiments folder - integration test needed")
+    @unittest.skip(
+        "Synthetic datasets require experiments folder - integration test needed"
+    )
     def test_synthetic_datasets(self):
         """Test loading of synthetic datasets - currently skipped due to missing data_generation module."""
         # This test requires the experiments/data_generation module which is not available in CI
         # The synthetic dataset functionality should be tested in integration tests
 
-    @unittest.skip("Synthetic datasets require experiments folder - integration test needed")
+    @unittest.skip(
+        "Synthetic datasets require experiments folder - integration test needed"
+    )
     def test_custom_parameters(self):
         """Test loading with custom parameters - currently skipped due to missing data_generation module."""
         # This test requires the experiments/data_generation module which is not available in CI
@@ -512,7 +520,9 @@ class TestSpecializedDatasets(unittest.TestCase):
         self.assertGreaterEqual(label.item(), 0)
         self.assertLessEqual(label.item(), 99)
 
-    @unittest.skip("RandomFlipMNISTDataset requires complex MNIST mocking - integration test needed")
+    @unittest.skip(
+        "RandomFlipMNISTDataset requires complex MNIST mocking - integration test needed"
+    )
     def test_random_flip_mnist_dataset(self):
         """Test RandomFlipMNISTDataset functionality - currently skipped due to complex mocking requirements."""
         # This test requires complex mocking of MNIST dataset loading
