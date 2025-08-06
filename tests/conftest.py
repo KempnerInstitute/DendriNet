@@ -38,5 +38,5 @@ def sample_analyzer():
     return {
         "layer_ablation": True,
         "compartment_ablation": False,
-        "branch_ablation": False
+        "branch_ablation": False,
     }

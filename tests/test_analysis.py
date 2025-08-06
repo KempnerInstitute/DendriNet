@@ -421,12 +421,13 @@ def test_ablation_analyzer():
     assert analyzer.compartment_ablation
 
 
-@pytest.mark.skip(reason="AblationAnalyzer requires complex ExcitationInhibitionNetwork setup - integration test needed")
+@pytest.mark.skip(
+    reason="AblationAnalyzer requires complex ExcitationInhibitionNetwork setup - integration test needed"
+)
 def test_ablation_analyze():
     """Test ablation analyzer - currently skipped due to complex model requirements."""
     # This test requires a properly configured ExcitationInhibitionNetwork with DendriticBranchLayers
     # The full setup is complex and should be handled in integration tests
-    pass
 
 
 def test_information_analyzer():

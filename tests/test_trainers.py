@@ -1,13 +1,7 @@
-import pytest
 import torch
-from torch.utils.data import TensorDataset
 
-from dendritic_modeling.models import Classifier
-from dendritic_modeling.networks import Identity
-from dendritic_modeling.networks.architectures.factory import get_architecture
 from dendritic_modeling.training.factory import get_trainer
 from dendritic_modeling.training.strategies.fsdp_standard import FSDPTrainer
-
 
 # Fixtures moved to conftest.py for shared access across test files
 
