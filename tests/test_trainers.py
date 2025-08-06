@@ -1,3 +1,4 @@
+import pytest
 import torch
 
 from dendritic_modeling.training.factory import get_trainer
@@ -20,6 +21,19 @@ def test_standard_trainer(simple_model, sample_data):
 
 
 def test_fsdp_trainer_init(simple_model):
+    # Skip if CUDA is not available or if CUDA drivers are not working
+    if not torch.cuda.is_available():
+        pytest.skip("CUDA not available")
+
+    try:
+        # Test if we can actually set a CUDA device (this will fail in CI without drivers)
+        torch.cuda.set_device(0)
+    except RuntimeError as e:
+        if "Found no NVIDIA driver" in str(e):
+            pytest.skip("NVIDIA drivers not available")
+        else:
+            raise
+
     torch.optim.Adam(simple_model.parameters())
     fsdp_config = {"sharding_strategy": "FULL_SHARD"}
     trainer = FSDPTrainer(
