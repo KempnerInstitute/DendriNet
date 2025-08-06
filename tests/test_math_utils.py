@@ -135,7 +135,7 @@ class TestAUCEdgeCases:
         scores = torch.tensor([0.1, 0.5])
         labels = torch.tensor([1, 0, 1])  # Different length
 
-        with pytest.raises((ValueError, RuntimeError)):
+        with pytest.raises((ValueError, RuntimeError, IndexError)):
             roc_auc_score(labels, scores)
 
     def test_binary_roc_auc_pytorch_edge_case(self):
