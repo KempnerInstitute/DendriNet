@@ -101,7 +101,7 @@ except ImportError:
             # Set seed for deterministic behavior if provided
             if hasattr(self, "seed") and self.seed is not None:
                 torch.manual_seed(self.seed + idx)  # Use seed + idx for different samples
-            
+
             # Handle datasets with base_inputs (e.g., PoissonGeneratorDataset)
             if hasattr(self, "base_inputs") and self.base_inputs is not None:
                 sample = self.base_inputs[idx].clone()
@@ -113,7 +113,7 @@ except ImportError:
                 else:
                     label = torch.randint(0, 2, (1,))
                 return sample, label
-            
+
             # Handle CompositionalMNIST datasets
             if hasattr(self, "mnist_data") and self.mnist_data is not None:
                 # Simulate concatenated MNIST images (28*28*2 = 1568)
@@ -121,7 +121,7 @@ except ImportError:
                 # Label should be in range 0-99 (digit1*10 + digit2)
                 label = torch.randint(0, 100, (1,))
                 return sample, label
-            
+
             # Return tensor size and appropriate data based on dataset type
             if hasattr(self, "image_size"):
                 # Image datasets use image_size squared with continuous data and 3 classes
@@ -411,14 +411,12 @@ class TestGetUnifiedDatasets(unittest.TestCase):
         """Test loading of synthetic datasets - currently skipped due to missing data_generation module."""
         # This test requires the experiments/data_generation module which is not available in CI
         # The synthetic dataset functionality should be tested in integration tests
-        pass
 
     @unittest.skip("Synthetic datasets require experiments folder - integration test needed")
     def test_custom_parameters(self):
         """Test loading with custom parameters - currently skipped due to missing data_generation module."""
         # This test requires the experiments/data_generation module which is not available in CI
         # The synthetic dataset functionality should be tested in integration tests
-        pass
 
     @patch("dendritic_modeling.datasets.standard_datasets.load_mnist_as_datasets")
     def test_mnist_dataset(self, mock_load_mnist):
@@ -519,7 +517,6 @@ class TestSpecializedDatasets(unittest.TestCase):
         """Test RandomFlipMNISTDataset functionality - currently skipped due to complex mocking requirements."""
         # This test requires complex mocking of MNIST dataset loading
         # The functionality should be tested in integration tests
-        pass
 
 
 if __name__ == "__main__":
