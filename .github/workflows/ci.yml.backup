@@ -1,0 +1,237 @@
+name: CI Tests
+
+on:
+  pull_request:
+    branches: [ main, master, develop ]
+  push:
+    branches: [ main, master, develop ]
+  workflow_dispatch:  # Allow manual triggering
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        python-version: ["3.9", "3.10", "3.11", "3.12"]
+        include:
+          # Test on macOS with latest Python
+          - os: macos-latest
+            python-version: "3.11"
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Cache pip dependencies
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt', '**/pyproject.toml') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+
+    - name: Install system dependencies (Ubuntu)
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libbz2-dev
+
+    - name: Install system dependencies (macOS)
+      if: matrix.os == 'macos-latest'
+      run: |
+        brew install bzip2
+
+    - name: Install Python dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e .[dev]
+        pip install pytest pytest-cov pytest-xdist
+
+    - name: Verify installation
+      run: |
+        python -c "import dendritic_modeling; print('Package installed successfully')"
+        python tests/test_runner.py --check-deps
+
+    - name: Run tests with pytest
+      env:
+        PYTHONPATH: ${{ github.workspace }}/src
+        MPLBACKEND: Agg  # Use non-interactive matplotlib backend
+        CUDA_VISIBLE_DEVICES: ""  # Force CPU-only for reproducible tests
+      run: |
+        python -m pytest tests/ \
+          --cov=src/dendritic_modeling \
+          --cov-report=xml \
+          --cov-report=html \
+          --cov-report=term-missing \
+          --junitxml=pytest-results.xml \
+          --maxfail=5 \
+          -v
+
+    - name: Upload coverage to Codecov
+      if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
+      uses: codecov/codecov-action@v4
+      with:
+        file: ./coverage.xml
+        flags: unittests
+        name: codecov-umbrella
+        fail_ci_if_error: false
+
+    - name: Upload test results
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-results-${{ matrix.os }}-${{ matrix.python-version }}
+        path: |
+          pytest-results.xml
+          htmlcov/
+          coverage.xml
+
+    - name: Check coverage file exists
+      if: github.event_name == 'pull_request' && matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
+      run: |
+        echo "Checking for coverage.xml file..."
+        ls -la coverage.xml || echo " coverage.xml not found"
+        if [ -f coverage.xml ]; then
+          echo " coverage.xml found!"
+          echo "File size: $(du -h coverage.xml)"
+        else
+          echo " coverage.xml missing - tests may have failed"
+          exit 1
+        fi
+        
+    - name: Comment coverage on PR
+      if: github.event_name == 'pull_request' && matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
+      uses: orgoro/coverage@v3
+      with:
+        coverageFile: coverage.xml
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+  test-custom-runner:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.11"
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e .[dev]
+        pip install pytest pytest-cov
+
+    - name: Test with custom runner
+      env:
+        PYTHONPATH: ${{ github.workspace }}/src
+        MPLBACKEND: Agg
+        CUDA_VISIBLE_DEVICES: ""
+      run: |
+        python tests/test_runner.py --test-type coverage --verbosity 1
+
+  lint-and-format:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.11"
+
+    - name: Install linting dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install ruff black isort mypy
+
+    - name: Run ruff (linting)
+      run: |
+        ruff check src/ tests/ --output-format=github
+
+    - name: Check code formatting with black
+      run: |
+        black --check --diff src/ tests/
+
+    - name: Check import sorting with isort
+      run: |
+        isort --check-only --diff src/ tests/
+
+    - name: Type checking with mypy
+      continue-on-error: true  # Don't fail CI on type errors initially
+      run: |
+        mypy src/dendritic_modeling --ignore-missing-imports
+
+  security-scan:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Run security scan
+      continue-on-error: true  # Don't fail CI on security warnings
+      uses: pypa/gh-action-pip-audit@v1.0.8
+      with:
+        inputs: requirements.txt
+        # Ignore torch vulnerability GHSA-887c-mr87-cxwp as it's a local DoS 
+        # that doesn't affect our use case
+        ignore-vulns: |
+          GHSA-887c-mr87-cxwp
+
+  build-docs:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.11"
+
+    - name: Install doc dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e .[docs]
+
+    - name: Build documentation
+      run: |
+        cd docs
+        make html
+        echo "Documentation built successfully!"
+
+  performance-test:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.11"
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e .[dev]
+        pip install pytest-benchmark
+
+    - name: Run performance tests
+      env:
+        PYTHONPATH: ${{ github.workspace }}/src
+        CUDA_VISIBLE_DEVICES: ""
+      run: |
+        # Run only fast performance tests on PR
+        python -m pytest tests/ -m "not slow" --benchmark-skip 

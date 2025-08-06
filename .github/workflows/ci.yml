@@ -93,6 +93,19 @@ jobs:
           htmlcov/
           coverage.xml
 
+    - name: Check coverage file exists
+      if: github.event_name == 'pull_request' && matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
+      run: |
+        echo "Checking for coverage.xml file..."
+        ls -la coverage.xml || echo " coverage.xml not found"
+        if [ -f coverage.xml ]; then
+          echo " coverage.xml found!"
+          echo "File size: $(du -h coverage.xml)"
+        else
+          echo " coverage.xml missing - tests may have failed"
+          exit 1
+        fi
+        
     - name: Comment coverage on PR
       if: github.event_name == 'pull_request' && matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
       uses: orgoro/coverage@v3

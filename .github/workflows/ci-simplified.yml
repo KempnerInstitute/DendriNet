@@ -130,6 +130,27 @@ jobs:
         name: codecov-umbrella
         fail_ci_if_error: false
 
+    - name: Check coverage file exists
+      if: github.event_name == 'pull_request' && matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
+      run: |
+        echo "Checking for coverage.xml file..."
+        ls -la coverage.xml || echo " coverage.xml not found"
+        if [ -f coverage.xml ]; then
+          echo " coverage.xml found!"
+          echo "File size: $(du -h coverage.xml)"
+          head -n 5 coverage.xml || echo "Could not read file contents"
+        else
+          echo " coverage.xml missing - tests may have failed"
+          exit 1
+        fi
+      
+    - name: Comment coverage on PR
+      if: github.event_name == 'pull_request' && matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
+      uses: orgoro/coverage@v3
+      with:
+        coverageFile: coverage.xml
+        token: ${{ secrets.GITHUB_TOKEN }}
+
     - name: Upload test results
       if: always()
       uses: actions/upload-artifact@v4
@@ -171,10 +192,3 @@ jobs:
         cd docs
         make html
         echo "Documentation built successfully!"
-
-    - name: Comment coverage on PR
-      if: github.event_name == 'pull_request'
-      uses: orgoro/coverage@v3
-      with:
-        coverageFile: coverage.xml
-        token: ${{ secrets.GITHUB_TOKEN }}
