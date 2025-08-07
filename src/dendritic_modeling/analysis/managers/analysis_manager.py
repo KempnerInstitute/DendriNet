@@ -44,7 +44,7 @@ class AnalysisManager:
         analysis_config: AnalysisConfig,
         save_root: Optional[str] = None,
         device: str = "cpu",
-        train_config: Optional[dict] = None,
+        train_config: Optional[Dict] = None,
     ):
         self.model = model
         self.data = data

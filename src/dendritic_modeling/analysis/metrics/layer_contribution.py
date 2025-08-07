@@ -9,10 +9,10 @@ import logging
 from copy import deepcopy
 from typing import Optional, Callable, List
 import torch
+from torch.utils.data import TensorDataset
 import matplotlib.pyplot as plt
 import numpy as np
 import os
-from torch.utils.data import TensorDataset
 
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.networks import (
