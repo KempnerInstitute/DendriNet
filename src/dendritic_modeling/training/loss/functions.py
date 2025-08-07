@@ -122,7 +122,7 @@ class VAE_ELBOLoss(LossFunction):
             "but got " + str(type(model))
         
         z_mu, z_sigma = model.encoder.latent_distribution(x)
-        z = torch.sigmoid(Normal(z_mu, z_sigma).sample())
+        z = torch.sigmoid(Normal(z_mu, z_sigma).rsample())
         x_reconstructed: torch.Tensor = model.decoder(z)
 
         mse = torch.mean(

@@ -29,13 +29,28 @@ def plot_layer_ablation(
         fig_list = []
     
     metric_mapping = {
-        "accuracy": "Accuracy",
-        "log likelihood": "Log Likelihood"
+        "accuracy drop": "Accuracy Drop",
+        "auc drop": "AUC Drop",
+        "log likelihood drop": "Log Likelihood Drop",
+        "mse drop": "MSE Drop",
+        "cosine similarity drop": "Cosine Similarity Drop"
     }
+
+    def has_key_nested(dictionary, key):
+        """
+        Check if key exists at any level in a nested dictionary
+        """
+        if isinstance(dictionary, dict):
+            if key in dictionary:
+                return True
+            return any(has_key_nested(value, key) for value in dictionary.values())
+        elif isinstance(dictionary, (list, tuple)):
+            return any(has_key_nested(item, key) for item in dictionary)
+        return False
 
     metrics = []
     for metric in metric_mapping.keys():
-        if metric in layer_results:
+        if has_key_nested(layer_results, metric):
             metrics.append(metric)
     
     synapse_ablation_types = []
