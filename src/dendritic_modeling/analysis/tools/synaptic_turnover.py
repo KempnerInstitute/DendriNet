@@ -9,12 +9,13 @@ from copy import deepcopy
 from typing import Optional, Tuple
 import torch
 from dendritic_modeling.models import BaseModel
-import matplotlib.pyplot as plt
-import numpy as np
-import os
 from dendritic_modeling.networks import ExcitationInhibitionNetwork
 from dendritic_modeling.networks import DendriticBranchLayer
 from dendritic_modeling.utils import save_dict
+
+import matplotlib.pyplot as plt
+import numpy as np
+import os
 
 
 class SynapticTurnoverAnalyzer:

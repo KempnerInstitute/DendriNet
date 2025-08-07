@@ -92,7 +92,7 @@ def plot_layer_ablation(
         
         if save_path is not None:
             plot_path = os.path.join(
-                save_path, f"{filename}_synapse_ablation_{metric}.png"
+                save_path, f"{filename}_{metric}.png"
             )
             fig.savefig(plot_path, dpi=300, bbox_inches="tight")
             plt.close()

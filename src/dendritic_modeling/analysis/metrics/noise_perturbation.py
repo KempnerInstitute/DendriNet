@@ -8,9 +8,6 @@ including uniform and Gaussian noise perturbations.
 from typing import Optional, Callable, Dict, List
 import torch
 from torch.utils.data import TensorDataset
-import matplotlib.pyplot as plt
-import numpy as np
-import os
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.training.utils.evaluation import (
     evaluate_accuracy,
@@ -25,6 +22,10 @@ from dendritic_modeling.datasets.augmentation.noise import (
 )
 from dendritic_modeling.utils import save_dict
 from dendritic_modeling.config import NoisePerturbationAnalysisParams
+
+import matplotlib.pyplot as plt
+import numpy as np
+import os
 
 
 class NoisePerturbationAnalyzer:
