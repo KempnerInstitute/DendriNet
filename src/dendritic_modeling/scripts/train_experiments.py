@@ -369,7 +369,8 @@ def main(config_path: str, args=None):
         train_config=train_config
     )
 
-    model.encoder_network = Identity(encoder_network.encoder.output_dim)
+    if not isinstance(encoder_network, Identity):
+        model.encoder_network = Identity(encoder_network.encoder.output_dim)
 
     main_net_save_path = os.path.join(run_save_path, "_main_network")
     os.makedirs(main_net_save_path, exist_ok=True)
@@ -417,7 +418,8 @@ def main(config_path: str, args=None):
         analysis_manager=analysis_manager
     )
 
-    model.encoder_network = encoder_network.encoder
+    if not isinstance(encoder_network, Identity):
+        model.encoder_network = encoder_network.encoder
     save_model(model, run_save_path, "final_model.pt")
 
     if (
