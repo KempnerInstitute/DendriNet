@@ -9,6 +9,9 @@ from copy import deepcopy
 from typing import Optional, Tuple
 import torch
 from dendritic_modeling.models import BaseModel
+import matplotlib.pyplot as plt
+import numpy as np
+import os
 from dendritic_modeling.networks import ExcitationInhibitionNetwork
 from dendritic_modeling.networks import DendriticBranchLayer
 from dendritic_modeling.utils import save_dict
@@ -197,5 +200,38 @@ class SynapticTurnoverAnalyzer:
 
             if save_path is not None:
                 save_dict(turnover_dict, save_path, filename)
+                plot_synaptic_turnover(turnover_dict, save_path, filename)
             else:
-                return turnover_dict 
+                return turnover_dict
+            
+
+def plot_synaptic_turnover(turnover_dict: dict, save_path: str, filename: str):
+    """
+    Plot synaptic turnover statistics.
+    
+    Args:
+        turnover_dict: Dictionary containing turnover statistics
+        save_path: Path to save the plot
+        filename: Filename for the plot
+    """
+    exc_active = np.array(turnover_dict["exc"]["active"])
+    exc_stable = np.array(turnover_dict["exc"]["stable"])
+    exc_transient = np.array(turnover_dict["exc"]["transient"])
+    exc_turnover = exc_transient / exc_active
+
+    inh_active = np.array(turnover_dict["inh"]["active"])
+    inh_stable = np.array(turnover_dict["inh"]["stable"])
+    inh_transient = np.array(turnover_dict["inh"]["transient"])
+    inh_turnover = inh_transient / inh_active
+    
+    epochs = list(range(1, len(exc_active) + 1))
+
+    fig, ax = plt.subplots(figsize=(10, 6))
+    ax.plot(epochs, exc_turnover, c="blue", label="exc")
+    ax.plot(epochs, inh_turnover, c="orange", label="inh")
+    ax.set_xlabel("Epoch")
+    ax.set_ylabel("Turnover Ratio")
+    ax.set_title("Synaptic Turnover Ratio vs Epoch")
+    ax.legend()
+    fig.savefig(os.path.join(save_path, f"{filename}.png"))
+    plt.close(fig)

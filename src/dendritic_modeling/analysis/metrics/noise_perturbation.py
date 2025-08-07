@@ -5,9 +5,12 @@ This module contains classes for evaluating model robustness under various noise
 including uniform and Gaussian noise perturbations.
 """
 
-from typing import Optional, Callable
+from typing import Optional, Callable, Dict, List
 import torch
 from torch.utils.data import TensorDataset
+import matplotlib.pyplot as plt
+import numpy as np
+import os
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.training.utils.evaluation import (
     evaluate_accuracy,
@@ -197,5 +200,60 @@ class NoisePerturbationAnalyzer:
 
         if save_path is not None:
             save_dict(noise_results, save_path, filename)
+            plot_noise_perturbation(noise_results, save_path, filename)
         else:
-            return noise_results 
+            return noise_results
+        
+
+METRIC_MAPPING = {
+    "accuracy": "Accuracy",
+    "auc": "AUC",
+    "categorical_ll": "Log-Likelihood",
+    "mse": "Mean Squared Error",
+    "cosine_similarity": "Cosine Similarity",
+}
+
+
+def plot_noise_perturbation(
+    noise_results: Dict[str, Dict[str, Dict[str, List[float]]]],
+    save_path: str,
+    filename: str
+):
+    """
+    Plot noise perturbation analysis results.
+    
+    Args:
+        noise_results: Dictionary containing noise robustness results
+        save_path: Path to save plots
+        filename: Filename for saved plots
+    """
+    metrics = list(list(list(noise_results.values())[0].values())[0].keys()) # list of metrics
+
+    for metric in metrics:
+        for noise_type in noise_results.keys():
+            noise_levels = []
+            means = []
+            sdevs = []
+            for noise_level in noise_results[noise_type].keys():
+                noise_levels.append(float(noise_level))
+                
+                data = np.array(noise_results[noise_type][noise_level][metric])
+                means.append(np.mean(data).item())
+                sdevs.append(np.std(data).item())
+            
+            noise_levels = np.array(noise_levels)
+            ix = np.argsort(noise_levels)
+            noise_levels = noise_levels[ix]
+            means = np.array(means)[ix]
+            sdevs = np.array(sdevs)[ix]
+
+            fig, ax = plt.subplots(figsize=(10, 8))
+            ax.plot(noise_levels, means)
+            ax.fill_between(noise_levels, means - sdevs, means + sdevs, alpha=0.2)
+            ax.set_xlabel("Noise Level")
+            ax.set_ylabel(METRIC_MAPPING[metric])
+            ax.set_title(f"{METRIC_MAPPING[metric]} vs {noise_type.capitalize()} Noise")
+            ax.grid(True)
+
+            fig.savefig(os.path.join(save_path, f"{filename}_{metric}_{noise_type}.png"))
+            plt.close(fig)

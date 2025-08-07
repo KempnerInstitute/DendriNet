@@ -209,77 +209,86 @@ def plot_layer_contribution(
     Plot layer ablation results showing accuracy/log-likelihood decrease vs depth.
     
     Args:
-        results: Dictionary containing ablation results by type and layer
+        layer_results: Dictionary containing ablation results by type and layer
         save_path: Path to save plots. If None, returns list of figures
         filename: Base filename for saved plots
         
     Returns:
-        List of matplotlib figures if save_path is None
+        List of figures if save_path is None, otherwise None
     """
-    logger = logging.getLogger(__name__)
+    if save_path is None:
+        fig_list = []
     
-    if not results:
-        logger.warning("No results to plot")
-        return None if save_path else []
+    metric_mapping = {
+        "accuracy": "Accuracy",
+        "auc": "AUC",
+        "log likelihood": "Log Likelihood",
+        "mse": "MSE",
+        "cosine similarity": "Cosine Similarity"
+    }
+
+    def has_key_nested(dictionary, key):
+        """
+        Check if key exists at any level in a nested dictionary
+        """
+        if isinstance(dictionary, dict):
+            if key in dictionary:
+                return True
+            return any(has_key_nested(value, key) for value in dictionary.values())
+        elif isinstance(dictionary, (list, tuple)):
+            return any(has_key_nested(item, key) for item in dictionary)
+        return False
+
+    metrics = []
+    for metric in metric_mapping.keys():
+        if has_key_nested(results, metric):
+            metrics.append(metric)
+
+    synapse_ablation_types = []
+    if "excitation" in results:
+        synapse_ablation_types.append("excitation")
+    if "inhibition" in results:
+        synapse_ablation_types.append("inhibition")
+    if "both" in results:
+        synapse_ablation_types.append("both")
     
-    figures = []
-    
-    # Plot each contribution type
-    for contrib_type, contrib_data in results.items():
-        if not contrib_data:
-            continue
-            
-        fig, axes = plt.subplots(2, 2, figsize=(15, 12))
-        fig.suptitle(f'Layer Contribution Analysis - {contrib_type.title()}', fontsize=16)
-        
-        # Extract layer names and depths
-        layer_names = list(contrib_data.keys())
-        layer_depths = [int(name.split('.')[-1]) if '.' in name else 0 for name in layer_names]
-        
-        # Sort by depth
-        sorted_indices = np.argsort(layer_depths)
-        sorted_names = [layer_names[i] for i in sorted_indices]
-        sorted_depths = [layer_depths[i] for i in sorted_indices]
-        
-        # Extract metrics for each layer
-        metrics = ['accuracy', 'log_likelihood', 'auc', 'mse']
-        metric_titles = ['Accuracy Drop', 'Log-Likelihood Drop', 'AUC Drop', 'MSE Drop']
-        
-        for idx, (metric, title) in enumerate(zip(metrics, metric_titles)):
-            ax = axes[idx // 2, idx % 2]
-            
-            values = []
-            for name in sorted_names:
-                if metric in contrib_data[name]:
-                    values.append(contrib_data[name][metric])
-                else:
-                    values.append(0.0)
-            
-            if any(v != 0 for v in values):
-                ax.plot(sorted_depths, values, 'o-', linewidth=2, markersize=6)
-                ax.set_xlabel('Layer Depth')
-                ax.set_ylabel(title)
-                ax.set_title(f'{title} vs Layer Depth')
-                ax.grid(True, alpha=0.3)
+    for metric in metrics:
+        res = {}
+        for ablation_type in synapse_ablation_types:
+            data_dict = {"depth": [], "performance": []}
+            type_dict: dict = results[ablation_type]
+            for layer_dict in type_dict.values():
+                data_dict["depth"].append(layer_dict["depth"])
+                data_dict["performance"].append(layer_dict[metric])
+            res[ablation_type] = data_dict
                 
-                # Add value labels on points
-                for x, y in zip(sorted_depths, values):
-                    ax.annotate(f'{y:.3f}', (x, y), textcoords="offset points", 
-                              xytext=(0,10), ha='center', fontsize=8)
-            else:
-                ax.text(0.5, 0.5, f'No {metric} data available', 
-                       transform=ax.transAxes, ha='center', va='center')
-                ax.set_title(f'{title} vs Layer Depth')
+        fig, ax = plt.subplots(figsize=(10, 8))
+        n_ablation_types = len(synapse_ablation_types)
+        depths = res[synapse_ablation_types[0]]["depth"]
+        width = 0.25
+        for i, ablation_type in enumerate(synapse_ablation_types):
+            x = np.array(depths) + width * (i - (n_ablation_types - 1) / 2)
+            ax.bar(
+                x,
+                res[ablation_type]["performance"],
+                width=width,
+                label=ablation_type
+            )
+        ax.set_xticks(depths)
+        ax.set_xlabel("Depth")
+        ax.set_ylabel(f"{metric_mapping[metric]}")
+        ax.set_title(f"{metric_mapping[metric]} vs. Depth")
+        ax.legend()
+        ax.grid(True, axis="y", alpha=0.3)
         
-        plt.tight_layout()
-        
-        if save_path:
-            plot_filename = f"{filename}_{contrib_type}_layer_contribution.png"
-            plot_path = os.path.join(save_path, plot_filename)
-            fig.savefig(plot_path, dpi=300, bbox_inches='tight')
-            logger.info(f"Saved layer contribution plot: {plot_path}")
-            plt.close(fig)
+        if save_path is not None:
+            plot_path = os.path.join(
+                save_path, f"{filename}_{metric}.png"
+            )
+            fig.savefig(plot_path, dpi=300, bbox_inches="tight")
+            plt.close()
         else:
-            figures.append(fig)
+            fig_list.append(fig)
     
-    return None if save_path else figures
+    if save_path is None:
+        return fig_list
