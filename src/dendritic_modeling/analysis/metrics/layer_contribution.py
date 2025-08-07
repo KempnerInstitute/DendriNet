@@ -7,8 +7,11 @@ model performance by testing each layer in isolation and measuring its individua
 
 import logging
 from copy import deepcopy
-from typing import Optional, Callable
+from typing import Optional, Callable, List
 import torch
+import matplotlib.pyplot as plt
+import numpy as np
+import os
 from torch.utils.data import TensorDataset
 
 from dendritic_modeling.models import BaseModel
@@ -187,5 +190,96 @@ class SingleLayerContributionAnalyzer:
         
         if save_path is not None:
             save_dict(results, save_path, filename)
+            plot_layer_contribution(
+                results=results,
+                save_path=save_path,
+                filename=filename
+            )
         else:
             return results
+
+
+
+def plot_layer_contribution(
+    results: dict,
+    save_path: Optional[str] = None,
+    filename: str = "final"
+) -> Optional[List[plt.Figure]]:
+    """
+    Plot layer ablation results showing accuracy/log-likelihood decrease vs depth.
+    
+    Args:
+        results: Dictionary containing ablation results by type and layer
+        save_path: Path to save plots. If None, returns list of figures
+        filename: Base filename for saved plots
+        
+    Returns:
+        List of matplotlib figures if save_path is None
+    """
+    logger = logging.getLogger(__name__)
+    
+    if not results:
+        logger.warning("No results to plot")
+        return None if save_path else []
+    
+    figures = []
+    
+    # Plot each contribution type
+    for contrib_type, contrib_data in results.items():
+        if not contrib_data:
+            continue
+            
+        fig, axes = plt.subplots(2, 2, figsize=(15, 12))
+        fig.suptitle(f'Layer Contribution Analysis - {contrib_type.title()}', fontsize=16)
+        
+        # Extract layer names and depths
+        layer_names = list(contrib_data.keys())
+        layer_depths = [int(name.split('.')[-1]) if '.' in name else 0 for name in layer_names]
+        
+        # Sort by depth
+        sorted_indices = np.argsort(layer_depths)
+        sorted_names = [layer_names[i] for i in sorted_indices]
+        sorted_depths = [layer_depths[i] for i in sorted_indices]
+        
+        # Extract metrics for each layer
+        metrics = ['accuracy', 'log_likelihood', 'auc', 'mse']
+        metric_titles = ['Accuracy Drop', 'Log-Likelihood Drop', 'AUC Drop', 'MSE Drop']
+        
+        for idx, (metric, title) in enumerate(zip(metrics, metric_titles)):
+            ax = axes[idx // 2, idx % 2]
+            
+            values = []
+            for name in sorted_names:
+                if metric in contrib_data[name]:
+                    values.append(contrib_data[name][metric])
+                else:
+                    values.append(0.0)
+            
+            if any(v != 0 for v in values):
+                ax.plot(sorted_depths, values, 'o-', linewidth=2, markersize=6)
+                ax.set_xlabel('Layer Depth')
+                ax.set_ylabel(title)
+                ax.set_title(f'{title} vs Layer Depth')
+                ax.grid(True, alpha=0.3)
+                
+                # Add value labels on points
+                for x, y in zip(sorted_depths, values):
+                    ax.annotate(f'{y:.3f}', (x, y), textcoords="offset points", 
+                              xytext=(0,10), ha='center', fontsize=8)
+            else:
+                ax.text(0.5, 0.5, f'No {metric} data available', 
+                       transform=ax.transAxes, ha='center', va='center')
+                ax.set_title(f'{title} vs Layer Depth')
+        
+        plt.tight_layout()
+        
+        if save_path:
+            plot_filename = f"{filename}_{contrib_type}_layer_contribution.png"
+            plot_path = os.path.join(save_path, plot_filename)
+            fig.savefig(plot_path, dpi=300, bbox_inches='tight')
+            logger.info(f"Saved layer contribution plot: {plot_path}")
+            plt.close(fig)
+        else:
+            figures.append(fig)
+    
+    return None if save_path else figures

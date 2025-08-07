@@ -22,6 +22,7 @@ from dendritic_modeling.training.utils.evaluation import (
     evaluate_cosine_similarity
 )
 from dendritic_modeling.utils import save_dict
+from dendritic_modeling.plotting.ablation_plots import plot_layer_ablation
 
 
 class AblationAnalyzer:
@@ -189,8 +190,6 @@ class AblationAnalyzer:
             results_dict[ablation_type][module_name]["cosine similarity drop"] = cosine_similarity_list
 
         return results_dict
-    
-
 
     def analyze(
         self,
@@ -368,8 +367,6 @@ class AblationAnalyzer:
         if save_path is not None:
             save_dict(results, save_path, filename)
             if self.layer_ablation:
-                # Import plotting function
-                from dendritic_modeling.plotting.ablation_plots import plot_layer_ablation
                 plot_layer_ablation(
                     layer_results=layer_results,
                     save_path=save_path,
