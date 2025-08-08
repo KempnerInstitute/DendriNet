@@ -52,7 +52,7 @@ def plot_layer_ablation(
     for metric in metric_mapping.keys():
         if has_key_nested(layer_results, metric):
             metrics.append(metric)
-    
+
     synapse_ablation_types = []
     if "excitation" in layer_results:
         synapse_ablation_types.append("excitation")
@@ -70,7 +70,7 @@ def plot_layer_ablation(
                 data_dict["depth"].append(layer_dict["depth"])
                 data_dict["decrease"].append(layer_dict[metric])
             results[ablation_type] = data_dict
-        
+                
         fig, ax = plt.subplots(figsize=(10, 8))
         n_ablation_types = len(synapse_ablation_types)
         depths = results[synapse_ablation_types[0]]["depth"]

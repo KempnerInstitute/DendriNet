@@ -30,12 +30,12 @@ from dendritic_modeling.analysis.tools.correlation_analysis import CorrelationAn
 class AnalysisManager:
     """
     Coordinates and orchestrates all analysis tools for dendritic modeling.
-
+    
     This class manages the initialization and execution of various analysis tools
     based on configuration settings, providing a unified interface for running
     comprehensive model analysis.
     """
-
+    
     def __init__(
         self,
         model: BaseModel,
@@ -117,7 +117,7 @@ class AnalysisManager:
     def run_analysis(self, filename: str = "final", training: bool = False):
         """
         Run all enabled analysis tools.
-
+        
         Args:
             filename: Base filename for saving analysis results
             training: Whether this is being called during training (affects which analyses run)
@@ -245,7 +245,7 @@ class AnalysisManager:
                 dataset=self.data["test"],
                 device=self.device
             )
-
+            
             # Get information results if available
             information_results = None
             accuracy = None
@@ -265,7 +265,7 @@ class AnalysisManager:
                 accuracy = self.model.last_test_accuracy
             elif hasattr(self, 'last_test_accuracy'):
                 accuracy = self.last_test_accuracy
-
+            
             correlation_analyzer.analyze(
                 save_dir=os.path.join(self.save_root, "correlation_analysis"),
                 information_results=information_results,
