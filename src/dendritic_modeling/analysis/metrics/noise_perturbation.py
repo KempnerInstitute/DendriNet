@@ -5,46 +5,44 @@ This module contains classes for evaluating model robustness under various noise
 including uniform and Gaussian noise perturbations.
 """
 
-from typing import Optional, Callable, Dict, List
+from typing import Callable, Optional
+
 import torch
 from torch.utils.data import TensorDataset
+
+from dendritic_modeling.config import NoisePerturbationAnalysisParams
+from dendritic_modeling.datasets.augmentation.noise import (
+    add_gaussian_noise,
+    add_uniform_noise,
+)
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.training.utils.evaluation import (
     evaluate_accuracy,
     evaluate_auc,
     evaluate_categorical_loglikelihood,
-    evaluate_mse,
     evaluate_cosine_similarity,
-)
-from dendritic_modeling.datasets.augmentation.noise import (
-    add_gaussian_noise,
-    add_uniform_noise,
+    evaluate_mse,
 )
 from dendritic_modeling.utils import save_dict
-from dendritic_modeling.config import NoisePerturbationAnalysisParams
-
-import matplotlib.pyplot as plt
-import numpy as np
-import os
 
 
 class NoisePerturbationAnalyzer:
     """
     Analyzer for evaluating model robustness under noise perturbations.
-    
+
     Supports uniform and Gaussian noise at various magnitudes, evaluating
     accuracy and categorical log-likelihood on perturbed test data.
     """
-    
+
     def __init__(self, params: NoisePerturbationAnalysisParams):
         """
         Initialize the noise perturbation analyzer.
-        
+
         Args:
             uniform_noise: Whether to evaluate uniform noise robustness
-            uniform_magnitudes: List of uniform noise magnitudes to test
+            uniform_magnitudes: list of uniform noise magnitudes to test
             gaussian_noise: Whether to evaluate Gaussian noise robustness
-            gaussian_sdevs: List of Gaussian noise standard deviations to test
+            gaussian_sdevs: list of Gaussian noise standard deviations to test
             n_samples: Number of noise samples to generate per test point
             accuracy: Whether to compute accuracy on noisy data
             categorical_loglikelihood: Whether to compute categorical log-likelihood on noisy data
@@ -70,14 +68,14 @@ class NoisePerturbationAnalyzer:
     ):
         """
         Analyze model robustness under noise perturbations.
-        
+
         Args:
             model: The model to evaluate
             test_dataset: Test dataset to perturb with noise
             device: Device to run evaluation on
             save_path: Path to save results (optional)
             filename: Filename for saved results
-            
+
         Returns:
             Dictionary containing noise robustness results if save_path is None, otherwise None
         """
@@ -94,15 +92,18 @@ class NoisePerturbationAnalyzer:
             noise_level: float,
             metric_func: Callable,
             metric_key: str,
-            noisy_test_ds: torch.utils.data.Dataset
+            noisy_test_ds: torch.utils.data.Dataset,
         ):
-            metric_tensor: torch.Tensor = metric_func(
-                model,
-                test_ds=noisy_test_ds,
-                reduce_dim=1,
-                move_device=False
+            metric_result = metric_func(
+                model, test_ds=noisy_test_ds, reduce_dim=1, move_device=False
             )[-1]
-            metric_list = metric_tensor.cpu().tolist()
+
+            # Handle both tensor and scalar results
+            if isinstance(metric_result, torch.Tensor):
+                metric_list = metric_result.cpu().tolist()
+            else:
+                # Handle scalar (float) results
+                metric_list = float(metric_result)
             noise_results[noise_type][f"{noise_level}"][metric_key] = metric_list
 
         if self.uniform_noise:
@@ -117,7 +118,7 @@ class NoisePerturbationAnalyzer:
                         noise_level=mag,
                         metric_func=evaluate_accuracy,
                         metric_key="accuracy",
-                        noisy_test_ds=noisy_test_ds
+                        noisy_test_ds=noisy_test_ds,
                     )
                 if self.auc:
                     _evaluate_metric(
@@ -125,7 +126,7 @@ class NoisePerturbationAnalyzer:
                         noise_level=mag,
                         metric_func=evaluate_auc,
                         metric_key="auc",
-                        noisy_test_ds=noisy_test_ds
+                        noisy_test_ds=noisy_test_ds,
                     )
                 if self.categorical_ll:
                     _evaluate_metric(
@@ -133,7 +134,7 @@ class NoisePerturbationAnalyzer:
                         noise_level=mag,
                         metric_func=evaluate_categorical_loglikelihood,
                         metric_key="categorical_ll",
-                        noisy_test_ds=noisy_test_ds
+                        noisy_test_ds=noisy_test_ds,
                     )
                 if self.mse:
                     _evaluate_metric(
@@ -141,7 +142,7 @@ class NoisePerturbationAnalyzer:
                         noise_level=mag,
                         metric_func=evaluate_mse,
                         metric_key="mse",
-                        noisy_test_ds=noisy_test_ds
+                        noisy_test_ds=noisy_test_ds,
                     )
                 if self.cosine_similarity:
                     _evaluate_metric(
@@ -149,7 +150,7 @@ class NoisePerturbationAnalyzer:
                         noise_level=mag,
                         metric_func=evaluate_cosine_similarity,
                         metric_key="cosine_similarity",
-                        noisy_test_ds=noisy_test_ds
+                        noisy_test_ds=noisy_test_ds,
                     )
 
         if self.gaussian_noise:
@@ -164,7 +165,7 @@ class NoisePerturbationAnalyzer:
                         noise_level=sdev,
                         metric_func=evaluate_accuracy,
                         metric_key="accuracy",
-                        noisy_test_ds=noisy_test_ds
+                        noisy_test_ds=noisy_test_ds,
                     )
                 if self.auc:
                     _evaluate_metric(
@@ -172,7 +173,7 @@ class NoisePerturbationAnalyzer:
                         noise_level=sdev,
                         metric_func=evaluate_auc,
                         metric_key="auc",
-                        noisy_test_ds=noisy_test_ds
+                        noisy_test_ds=noisy_test_ds,
                     )
                 if self.categorical_ll:
                     _evaluate_metric(
@@ -180,7 +181,7 @@ class NoisePerturbationAnalyzer:
                         noise_level=sdev,
                         metric_func=evaluate_categorical_loglikelihood,
                         metric_key="categorical_ll",
-                        noisy_test_ds=noisy_test_ds
+                        noisy_test_ds=noisy_test_ds,
                     )
                 if self.mse:
                     _evaluate_metric(
@@ -188,7 +189,7 @@ class NoisePerturbationAnalyzer:
                         noise_level=sdev,
                         metric_func=evaluate_mse,
                         metric_key="mse",
-                        noisy_test_ds=noisy_test_ds
+                        noisy_test_ds=noisy_test_ds,
                     )
                 if self.cosine_similarity:
                     _evaluate_metric(
@@ -196,67 +197,10 @@ class NoisePerturbationAnalyzer:
                         noise_level=sdev,
                         metric_func=evaluate_cosine_similarity,
                         metric_key="cosine_similarity",
-                        noisy_test_ds=noisy_test_ds
+                        noisy_test_ds=noisy_test_ds,
                     )
 
         if save_path is not None:
             save_dict(noise_results, save_path, filename)
-            plot_noise_perturbation(noise_results, save_path, filename)
         else:
             return noise_results
-        
-
-METRIC_MAPPING = {
-    "accuracy": "Accuracy",
-    "auc": "AUC",
-    "categorical_ll": "Log-Likelihood",
-    "mse": "Mean Squared Error",
-    "cosine_similarity": "Cosine Similarity",
-}
-
-
-def plot_noise_perturbation(
-    noise_results: Dict[str, Dict[str, Dict[str, List[float]]]],
-    save_path: str,
-    filename: str
-):
-    """
-    Plot noise perturbation analysis results.
-    
-    Args:
-        noise_results: Dictionary containing noise robustness results
-        save_path: Path to save plots
-        filename: Filename for saved plots
-    """
-    metrics = list(list(list(noise_results.values())[0].values())[0].keys()) # list of metrics
-
-    for metric in metrics:
-        for noise_type in noise_results.keys():
-            noise_levels = []
-            means = []
-            sdevs = []
-            for noise_level in noise_results[noise_type].keys():
-                noise_levels.append(float(noise_level))
-                
-                data = np.array(noise_results[noise_type][noise_level][metric])
-                means.append(np.mean(data).item())
-                sdevs.append(np.std(data).item())
-            
-            noise_levels = np.array(noise_levels)
-            ix = np.argsort(noise_levels)
-            noise_levels = noise_levels[ix]
-            means = np.array(means)[ix]
-            sdevs = np.array(sdevs)[ix]
-
-            fig, ax = plt.subplots(figsize=(10, 8))
-            ax.plot(noise_levels, means)
-            ax.fill_between(noise_levels, means - sdevs, means + sdevs, alpha=0.2)
-            ax.set_xlabel("Noise Level")
-            ax.set_ylabel(METRIC_MAPPING[metric])
-            ax.set_title(f"{METRIC_MAPPING[metric]} vs {noise_type.capitalize()} Noise")
-            ax.grid(True)
-
-            fig.savefig(os.path.join(save_path, f"{filename}_{metric}_{noise_type}.png"))
-            plt.close(fig)
-            
-        
