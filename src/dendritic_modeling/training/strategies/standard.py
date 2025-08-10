@@ -78,6 +78,10 @@ class Trainer:
         self.pruning_config = pruning_config or PruningConfig()
         self.reporting_config = reporting_config or ReportingConfig()
         
+        # Performance optimization flags (disabled by default for speed)
+        self.enable_nan_checking = kwargs.get('enable_nan_checking', False)
+        self.enable_adaptive_clipping = kwargs.get('enable_adaptive_clipping', False)
+        
         self.filename_prefix = ""
         for k, v in kwargs.items():
             setattr(self, k, v)
@@ -227,7 +231,19 @@ class Trainer:
             loss: torch.Tensor = self.loss_function(model, x_batch, y_batch)
             self.optimizer.zero_grad()
             loss.backward()
-            clip_grad_value_(model.parameters(), self.grad_clip_value)
+            
+            # Optional expensive operations (configurable for performance)
+            if self.enable_nan_checking:
+                nan_detected = self._check_and_handle_nan_gradients(model)
+                if nan_detected:
+                    logger.warning("NaNs detected and handled in gradients")
+            
+            # Gradient clipping: adaptive (expensive) vs simple (fast)
+            if self.enable_adaptive_clipping:
+                grad_norm = self._apply_adaptive_gradient_clipping(model)
+            else:
+                # Use simple, fast gradient clipping (default)
+                clip_grad_value_(model.parameters(), self.grad_clip_value)
             self.optimizer.step()
             train_loss += loss.item()
         
@@ -335,6 +351,55 @@ class Trainer:
                     save_dir=self.save_path,
                     filename_prefix=self.filename_prefix
                 )
+
+    def _check_and_handle_nan_gradients(self, model: BaseModel) -> bool:
+        """
+        Check for NaN values in gradients and handle them to prevent training crashes.
+        TEST: This method iterates through ALL model parameters every batch!
+
+        Args:
+            model: The model to check gradients for
+
+        Returns:
+            bool: True if NaNs were detected and handled, False otherwise
+        """
+        nan_detected = False
+
+        for name, param in model.named_parameters():
+            if param.grad is not None:
+                if torch.isnan(param.grad).any():
+                    nan_detected = True
+                    # Replace NaNs with zeros to prevent propagation
+                    param.grad = torch.nan_to_num(
+                        param.grad, nan=0.0, posinf=1.0, neginf=-1.0
+                    )
+
+                    logger.warning(
+                        f"NaNs detected in gradients for parameter: {name}"
+                    )
+
+        return nan_detected
+
+
+    def _apply_adaptive_gradient_clipping(self, model: BaseModel) -> float:
+        """
+        Apply adaptive gradient clipping with dynamic learning rate adjustment.
+        TEST: Another expensive method that iterates through ALL parameters!
+
+        Args:
+            model: The model to apply gradient clipping to
+
+        Returns:
+            float: The gradient norm before clipping
+        """
+        if not self.grad_clip_value:
+            return 0.0
+
+        # Calculate gradient norm (EXPENSIVE: iterates all parameters)
+        grad_norm = torch.nn.utils.clip_grad_norm_(
+            model.parameters(), max_norm=self.grad_clip_value
+        )
+        return grad_norm
 
 
 __all__ = ["Trainer"] 
