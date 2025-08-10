@@ -19,6 +19,7 @@ import torch.utils.data
 import wandb
 from torch.cuda.amp import GradScaler, autocast
 from torch.nn.utils import clip_grad_value_
+from torch.cuda.amp import GradScaler, autocast
 from torch.utils.data import DataLoader
 
 from dendritic_modeling.training.loss.functions import get_loss_function
@@ -81,6 +82,62 @@ class Trainer:
         # Performance optimization flags (disabled by default for speed)
         self.enable_nan_checking = kwargs.get('enable_nan_checking', False)
         self.enable_adaptive_clipping = kwargs.get('enable_adaptive_clipping', False)
+        
+        # TEST 4A: Mixed Precision Training Support (potentially expensive)
+        self.enable_amp = kwargs.get("enable_amp", torch.cuda.is_available())
+        if self.enable_amp and torch.cuda.is_available():
+            try:
+                from torch.cuda.amp import GradScaler
+                self.scaler = GradScaler()
+                logger.info("Mixed precision training enabled")
+            except ImportError:
+                logger.warning("AMP not available, falling back to standard precision")
+                self.enable_amp = False
+        else:
+            self.enable_amp = False
+            
+        # TEST 4B: Profiling Support (potentially expensive initialization)
+        self.enable_profiling = kwargs.get("enable_profiling", False)
+        self.profiler = None
+
+        if self.enable_profiling:
+            # Auto-disable profiling for small-scale/CPU runs to improve speed
+            if not torch.cuda.is_available():
+                logger.info("Profiling auto-disabled for CPU run to improve speed")
+                self.enable_profiling = False
+            elif self.batch_size < 32:
+                logger.info(
+                    "Profiling auto-disabled for small batch size to reduce overhead"
+                )
+                self.enable_profiling = False
+            else:
+                try:
+                    import torch.profiler as torch_profiler
+                    profiling_output_dir = kwargs.get(
+                        "profiling_output_dir", "outputs/profiling/"
+                    )
+                    os.makedirs(profiling_output_dir, exist_ok=True)
+
+                    self.profiler = torch_profiler.profile(
+                        activities=[
+                            torch_profiler.ProfilerActivity.CPU,
+                            torch_profiler.ProfilerActivity.CUDA,
+                        ],
+                        schedule=torch_profiler.schedule(
+                            wait=1, warmup=1, active=3, repeat=2
+                        ),
+                        on_trace_ready=torch_profiler.tensorboard_trace_handler(
+                            profiling_output_dir
+                        ),
+                        record_shapes=True,
+                        with_stack=True,
+                    )
+                    logger.info(
+                        f"Profiling enabled - output directory: {profiling_output_dir}"
+                    )
+                except ImportError:
+                    logger.warning("torch.profiler not available, profiling disabled")
+                    self.enable_profiling = False
         
         self.filename_prefix = ""
         for k, v in kwargs.items():
@@ -224,27 +281,54 @@ class Trainer:
         model.train()
         train_loss = 0
         for x_batch, y_batch in train_loader:
-            x_batch: torch.Tensor
-            y_batch: torch.Tensor
-            x_batch = x_batch.to(self.device)
-            y_batch = y_batch.to(self.device)
-            loss: torch.Tensor = self.loss_function(model, x_batch, y_batch)
-            self.optimizer.zero_grad()
-            loss.backward()
-            
-            # Optional expensive operations (configurable for performance)
-            if self.enable_nan_checking:
-                nan_detected = self._check_and_handle_nan_gradients(model)
-                if nan_detected:
-                    logger.warning("NaNs detected and handled in gradients")
-            
-            # Gradient clipping: adaptive (expensive) vs simple (fast)
-            if self.enable_adaptive_clipping:
-                grad_norm = self._apply_adaptive_gradient_clipping(model)
+            x_batch, y_batch = x_batch.to(self.device), y_batch.to(self.device)
+
+            # TEST 4A: Mixed Precision vs Standard Training
+            if self.enable_amp:
+                # Mixed precision forward pass
+                with autocast():
+                    loss = self.loss_function(model, x_batch, y_batch)
+
+                self.optimizer.zero_grad()
+                self.scaler.scale(loss).backward()
+
+                # Optional expensive operations (configurable for performance)
+                if self.enable_nan_checking:
+                    nan_detected = self._check_and_handle_nan_gradients(model)
+                    if nan_detected:
+                        logger.warning("NaNs detected and handled in gradients during AMP training")
+
+                # Gradient clipping with AMP
+                if self.grad_clip_value:
+                    # Unscale gradients before clipping
+                    self.scaler.unscale_(self.optimizer)
+                    if self.enable_adaptive_clipping:
+                        self._apply_adaptive_gradient_clipping(model)
+                    else:
+                        clip_grad_value_(model.parameters(), self.grad_clip_value)
+
+                self.scaler.step(self.optimizer)
+                self.scaler.update()
             else:
-                # Use simple, fast gradient clipping (default)
-                clip_grad_value_(model.parameters(), self.grad_clip_value)
-            self.optimizer.step()
+                # Standard precision training
+                loss = self.loss_function(model, x_batch, y_batch)
+                self.optimizer.zero_grad()
+                loss.backward()
+                
+                # Optional expensive operations (configurable for performance)
+                if self.enable_nan_checking:
+                    nan_detected = self._check_and_handle_nan_gradients(model)
+                    if nan_detected:
+                        logger.warning("NaNs detected and handled in gradients")
+                
+                # Gradient clipping: adaptive (expensive) vs simple (fast)
+                if self.enable_adaptive_clipping:
+                    grad_norm = self._apply_adaptive_gradient_clipping(model)
+                else:
+                    # Use simple, fast gradient clipping (default)
+                    clip_grad_value_(model.parameters(), self.grad_clip_value)
+                self.optimizer.step()
+            
             train_loss += loss.item()
         
         train_loss /= len(train_loader)
