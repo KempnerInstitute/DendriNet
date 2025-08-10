@@ -178,7 +178,10 @@ analysis:
       gaussian_sdevs: [0.1, 0.2]
       n_samples: 10
       accuracy: true
+      auc: true                        # Added from iss294
       categorical_loglikelihood: true
+      mse: false                       # Added from iss294  
+      cosine_similarity: false         # Added from iss294
   ablation_analysis:
     enabled: true
     training: false
@@ -190,7 +193,10 @@ analysis:
       ablate_inhibition: true
       ablate_upstream: true
       accuracy: true
+      auc: true                        # Added from iss294
       categorical_loglikelihood: true
+      mse: true                        # Added from iss294
+      cosine_similarity: true          # Added from iss294
   weight_analysis:
     enabled: true
     training: false
