@@ -234,10 +234,10 @@ analysis:
     training: false
     params:
       # Estimation method for mutual information computation
-      method: "copula"  # Changed to "copula" for copula-based estimation
+      method: "kraskov"  # Use kraskov (k-NN) for better accuracy
       
       # Maximum number of samples to use (for faster computation)
-      max_samples: 100  # Use only 1000 samples instead of all 10000
+      max_samples: null  # Use all samples for better accuracy
       
       # Method-specific parameters
       n_neighbors: 10       # For Kraskov k-NN estimator (higher = more accurate but slower)
@@ -246,8 +246,8 @@ analysis:
       
       # Which information metrics to compute
       compute_basic_mi: true       # Basic MI: I(E;C), I(I;C), I(Vout;C), I(Vinf;C), I(E,I;C)
-      compute_pairwise_mi: false   # DISABLED for speed - Pairwise MI: I(E;I), I(E;Vout), I(I;Vout), I(E;Vinf), I(I;Vinf), I(Vout;Vinf)
-      compute_conditional_mi: false # DISABLED for speed - Conditional MI: I(E;I|C), I(E;Vout|C), I(I;Vout|C), I(E;Vinf|C), I(I;Vinf|C)
+      compute_pairwise_mi: true    # ENABLED - Pairwise MI: I(E;I), I(E;Vout), I(I;Vout), I(E;Vinf), I(I;Vinf), I(Vout;Vinf)
+      compute_conditional_mi: false # Keep disabled for speed - Conditional MI: I(E;I|C), I(E;Vout|C), I(I;Vout|C), I(E;Vinf|C), I(I;Vinf|C)
       compute_pid: false           # Partial Information Decomposition (requires external library)
       
       # PID-specific options (only used if compute_pid is true)
@@ -261,7 +261,7 @@ analysis:
       verbose: false        # Print detailed progress during computation
 
       compute_per_branch: true
-      branch_aggregation: none
+      branch_aggregation: mean  # Use mean aggregation like iss294
 
 outputs:
   run_name: exp_run
