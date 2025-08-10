@@ -165,6 +165,9 @@ analysis:
   synapse_turnover_analysis:
     enabled: true  # Whether to enable synapse turnover analysis
     training: true  # Whether to enable synapse turnover analysis during training
+    snapshot_interval: 5  # frequency of snapshots (from iss294)
+    synaptic_analysis: true        # Enable synaptic connectivity analysis (from iss294)
+    save_synaptic_report: true     # Save synaptic analysis to file (from iss294)
   noise_perturbation_analysis:
     enabled: true
     training: false
