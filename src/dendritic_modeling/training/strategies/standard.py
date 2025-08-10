@@ -22,6 +22,12 @@ from torch.nn.utils import clip_grad_value_
 from torch.utils.data import DataLoader
 
 from dendritic_modeling.training.loss.functions import get_loss_function
+from dendritic_modeling.config.training import (
+    OptimizerConfig,
+    PruningConfig,
+    RegularizationConfig,
+    ReportingConfig,
+)
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.plotting import plot_loss_curves
 from dendritic_modeling.training.loss.functions import LossFunction
@@ -61,6 +67,16 @@ class Trainer:
         self.suppress_prints = suppress_prints
         self.print_every = print_every
         self.analysis_manager = analysis_manager
+
+        # TEST 1B: Add expensive config instantiation from iss294
+        regularization_config = kwargs.get('regularization_config')
+        pruning_config = kwargs.get('pruning_config') 
+        reporting_config = kwargs.get('reporting_config')
+        
+        # Initialize enhanced feature configs with safe defaults (EXPENSIVE?)
+        self.regularization_config = regularization_config or RegularizationConfig()
+        self.pruning_config = pruning_config or PruningConfig()
+        self.reporting_config = reporting_config or ReportingConfig()
         
         self.filename_prefix = ""
         for k, v in kwargs.items():
