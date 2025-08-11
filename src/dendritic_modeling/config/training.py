@@ -128,10 +128,17 @@ class MainTrainConfig(BaseConfig):
 
 @dataclass
 class TrainConfig(BaseConfig):
+    learning_strategy: str = "standard"  # Training strategy
     seed: int = 0
     train_valid_split: float = 0.8
+    optim_dict: Optional[dict[str, Any]] = None  # Optimizer configuration dict
+    weight_decay_rate: float = 0.01  # Weight decay rate
+    # Legacy config structure (for backward compatibility)
     encoder: EncoderTrainConfig = field(default_factory=EncoderTrainConfig)
     main: MainTrainConfig = field(default_factory=MainTrainConfig)
+    # New 245MR-compatible trainer structure  
+    encoder_net_trainer: Optional[TrainerConfig] = None
+    main_trainer: Optional[TrainerConfig] = None
     run_name: str = "experiment"
     # Performance features
     enable_amp: bool = False

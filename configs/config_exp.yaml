@@ -95,7 +95,7 @@ train:
 
   main_trainer:
     # for all learning strategies:
-    loss_function: categorical_nll
+    loss_function: ce
     epochs: 10
     early_stopping: false
     patience: 10
