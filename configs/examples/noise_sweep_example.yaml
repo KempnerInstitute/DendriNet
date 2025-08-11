@@ -168,7 +168,7 @@ train:
 
   # Encoder training configuration
   encoder:
-    load_save_root: null
+    load_save_root: ./.trained_encoder_networks/  # Hash-based encoder model cache directory
     lr: 0.001
     trainer:
       loss_function: mse
