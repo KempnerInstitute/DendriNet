@@ -228,6 +228,82 @@ Parameter Sweep
      mode: "ei-sum"
      value: 4
 
+Information Analysis
+--------------------
+
+The framework provides flexible information-theoretic analysis with configurable computation levels.
+
+Computation Levels
+~~~~~~~~~~~~~~~~~~
+
+.. code-block:: yaml
+
+   analysis:
+     information_analysis:
+       params:
+         computation_level: "branch"  # Options: "branch", "layer", "network"
+         branch_aggregation: "mean"   # Options: "mean", "max", "sum", "multivariate"
+
+- ``branch``: Compute information for individual branches (most granular)
+- ``layer``: Aggregate branches within each layer then compute information
+- ``network``: Aggregate all branches across the network then compute information
+
+Branch Aggregation
+~~~~~~~~~~~~~~~~~~
+
+When using ``layer`` or ``network`` computation levels:
+
+- ``mean``: Average branch activations
+- ``max``: Maximum activation across branches
+- ``sum``: Sum of branch activations
+- ``multivariate``: Use raw multi-dimensional branch data for joint information computation
+
+Training Optimization
+---------------------
+
+Configure performance and debugging options for training.
+
+Trainer Structure
+~~~~~~~~~~~~~~~~~
+
+.. code-block:: yaml
+
+   train:
+     encoder_net_trainer:
+       loss_function: mse
+       epochs: 50
+       batch_size: 128
+     main_trainer:
+       loss_function: ce
+       epochs: 100
+       batch_size: 64
+       enable_nan_checking: false
+       enable_adaptive_clipping: false
+
+Performance Options
+~~~~~~~~~~~~~~~~~~~
+
+.. code-block:: yaml
+
+   train:
+     main_trainer:
+       enable_nan_checking: false      # Enable NaN detection (expensive)
+       enable_adaptive_clipping: false # Enable adaptive gradient clipping (expensive)
+       use_amp: false                  # Enable automatic mixed precision
+
+Encoder Network Caching
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+Hash-based caching automatically reuses trained encoder networks with identical configurations.
+
+.. code-block:: yaml
+
+   train:
+     encoder:
+       load_save_root: ./.trained_encoder_networks/
+
+Models are saved to ``{load_save_root}/{config_hash}/best_model.pt`` and automatically loaded when configurations match.
+
 Troubleshooting
 ---------------
 
