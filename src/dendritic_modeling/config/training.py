@@ -130,8 +130,12 @@ class MainTrainConfig(BaseConfig):
 class TrainConfig(BaseConfig):
     seed: int = 0
     train_valid_split: float = 0.8
+    # Legacy config structure (for backward compatibility)
     encoder: EncoderTrainConfig = field(default_factory=EncoderTrainConfig)
     main: MainTrainConfig = field(default_factory=MainTrainConfig)
+    # New 245MR-compatible trainer structure  
+    encoder_net_trainer: Optional[TrainerConfig] = None
+    main_trainer: Optional[TrainerConfig] = None
     run_name: str = "experiment"
     # Performance features
     enable_amp: bool = False
