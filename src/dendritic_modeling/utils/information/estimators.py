@@ -8,12 +8,13 @@ and related metrics using different estimation methods:
 - PID (Partial Information Decomposition)
 """
 
-from abc import ABC, abstractmethod
-from typing import Dict, List, Optional, Union, Any
-import numpy as np
 import logging
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
+from typing import Any, ClassVar, Dict, List, Optional, Union
+
+import numpy as np
 
 from sklearn.metrics import mutual_info_score
 from sklearn.feature_selection import mutual_info_regression, mutual_info_classif
@@ -355,8 +356,8 @@ class CopulaEstimator(BaseInformationEstimator):
 
 class InformationEstimatorFactory:
     """Factory for creating information estimators based on configuration."""
-    
-    _estimators = {
+
+    _estimators: ClassVar[Dict[EstimationMethod, type]] = {
         EstimationMethod.KRASKOV: KraskovEstimator,
         EstimationMethod.SKLEARN: SklearnEstimator,
         EstimationMethod.COPULA: CopulaEstimator,

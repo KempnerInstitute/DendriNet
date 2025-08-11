@@ -52,8 +52,14 @@ class InformationAnalysisParams(BaseConfig):
     normalize_mi: bool = False  # Normalize by entropy
     verbose: bool = False
 
-    compute_per_branch: bool = True
-    branch_aggregation: str = "mean"
+    # Computation Level Control - determines the granularity of information analysis
+    computation_level: str = "layer"  # Options: "branch", "layer", "aggregate"
+                                      # "branch": Individual branches (most granular and accurate)
+                                      # "layer": Layer-level aggregation (treats each layer as a unit)
+                                      # "aggregate": Full network aggregation (most efficient)
+    
+    # Branch aggregation method - only used when computation_level is "layer" or "aggregate"
+    branch_aggregation: str = "mean"  # Options: "mean", "max", "sum"
 
 @dataclass
 class InformationAnalysisConfig(BaseConfig):
