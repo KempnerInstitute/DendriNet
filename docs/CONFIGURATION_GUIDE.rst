@@ -242,7 +242,7 @@ Computation Levels
      information_analysis:
        params:
          computation_level: "branch"  # Options: "branch", "layer", "network"
-         branch_aggregation: "mean"   # Options: "mean", "max", "sum", "multivariate"
+         branch_aggregation: "mean"   # Options: "mean", "multivariate", "sample"
 
 - ``branch``: Compute information for individual branches (most granular)
 - ``layer``: Aggregate branches within each layer then compute information
@@ -253,10 +253,9 @@ Branch Aggregation
 
 When using ``layer`` or ``network`` computation levels:
 
-- ``mean``: Average branch activations
-- ``max``: Maximum activation across branches
-- ``sum``: Sum of branch activations
+- ``mean``: Average branch activations to create scalar values
 - ``multivariate``: Use raw multi-dimensional branch data for joint information computation
+- ``sample``: Treat each branch as a separate observation by flattening branch dimension into sample dimension
 
 Training Optimization
 ---------------------

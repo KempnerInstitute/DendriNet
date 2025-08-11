@@ -437,7 +437,7 @@ analysis:
                                    # "network": Full network aggregation (most efficient)
       
       # Branch aggregation method - only used when computation_level is "layer" or "network"
-      branch_aggregation: mean     # Options: "mean", "max", "sum"
+      branch_aggregation: mean     # Options: "mean", "multivariate", "sample"
 
   synapse_turnover_analysis:
     enabled: true

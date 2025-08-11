@@ -729,27 +729,21 @@ class InformationAnalyzer(AbstractAnalyzer):
                         E_layer = E_layer.reshape(-1, 1)
                         I_layer = I_layer.reshape(-1, 1)
                         Vout_layer = Vout_layer.reshape(-1, 1)
-                    elif self.branch_aggregation == "max":
-                        E_layer = E_layer_data.max(dim=1)[0].detach().cpu().numpy()
-                        I_layer = I_layer_data.max(dim=1)[0].detach().cpu().numpy()
-                        Vout_layer = Vout_layer_data.max(dim=1)[0].detach().cpu().numpy()
-                        # Reshape to 2D for MI computation
-                        E_layer = E_layer.reshape(-1, 1)
-                        I_layer = I_layer.reshape(-1, 1)
-                        Vout_layer = Vout_layer.reshape(-1, 1)
-                    elif self.branch_aggregation == "sum":
-                        E_layer = E_layer_data.sum(dim=1).detach().cpu().numpy()
-                        I_layer = I_layer_data.sum(dim=1).detach().cpu().numpy()
-                        Vout_layer = Vout_layer_data.sum(dim=1).detach().cpu().numpy()
-                        # Reshape to 2D for MI computation
-                        E_layer = E_layer.reshape(-1, 1)
-                        I_layer = I_layer.reshape(-1, 1)
-                        Vout_layer = Vout_layer.reshape(-1, 1)
                     elif self.branch_aggregation == "multivariate":
                         # Multivariate: Keep all branches as multivariate input (no aggregation)
                         E_layer = E_layer_data.detach().cpu().numpy()  # [n_samples, n_branches]
                         I_layer = I_layer_data.detach().cpu().numpy()   # [n_samples, n_branches] 
                         Vout_layer = Vout_layer_data.detach().cpu().numpy()  # [n_samples, n_branches]
+                    elif self.branch_aggregation == "sample":
+                        # Sample: Treat each branch as a separate observation/sample
+                        # Flatten [n_samples, n_branches] -> [n_samples * n_branches, 1]
+                        E_layer = E_layer_data.detach().cpu().numpy().flatten().reshape(-1, 1)
+                        I_layer = I_layer_data.detach().cpu().numpy().flatten().reshape(-1, 1)
+                        Vout_layer = Vout_layer_data.detach().cpu().numpy().flatten().reshape(-1, 1)
+                        # Need to replicate C for each branch
+                        n_samples, n_branches = E_layer_data.shape
+                        C_expanded = np.repeat(C, n_branches, axis=0)  # Expand C to match new sample count
+                        C = C_expanded  # Update C for this layer computation
                     else:
                         # Default to mean
                         E_layer = E_layer_data.mean(dim=1).detach().cpu().numpy()
@@ -795,14 +789,17 @@ class InformationAnalyzer(AbstractAnalyzer):
                             layer_E = layer_data["excitation"].mean(dim=1, keepdim=True)  # [n_samples, 1]
                             layer_I = layer_data["inhibition"].mean(dim=1, keepdim=True)
                             layer_Vout = layer_data["output"].mean(dim=1, keepdim=True)
-                        elif self.branch_aggregation == "max":
-                            layer_E = layer_data["excitation"].max(dim=1, keepdim=True)[0]
-                            layer_I = layer_data["inhibition"].max(dim=1, keepdim=True)[0]
-                            layer_Vout = layer_data["output"].max(dim=1, keepdim=True)[0]
-                        elif self.branch_aggregation == "sum":
-                            layer_E = layer_data["excitation"].sum(dim=1, keepdim=True)
-                            layer_I = layer_data["inhibition"].sum(dim=1, keepdim=True)
-                            layer_Vout = layer_data["output"].sum(dim=1, keepdim=True)
+                        elif self.branch_aggregation == "multivariate":
+                            # For network level with multivariate, keep branches separate for each layer
+                            layer_E = layer_data["excitation"]  # [n_samples, n_branches]
+                            layer_I = layer_data["inhibition"]  # [n_samples, n_branches]
+                            layer_Vout = layer_data["output"]   # [n_samples, n_branches]
+                        elif self.branch_aggregation == "sample":
+                            # For network level with sample, flatten each layer's branches into samples
+                            n_samples, n_branches = layer_data["excitation"].shape
+                            layer_E = layer_data["excitation"].view(n_samples * n_branches, 1)
+                            layer_I = layer_data["inhibition"].view(n_samples * n_branches, 1)
+                            layer_Vout = layer_data["output"].view(n_samples * n_branches, 1)
                         else:
                             # Default to mean
                             layer_E = layer_data["excitation"].mean(dim=1, keepdim=True)
@@ -819,13 +816,31 @@ class InformationAnalyzer(AbstractAnalyzer):
                     )
                     return
 
-                # Now concatenate across layers (all tensors are [n_samples, 1])
-                E = torch.cat(layer_excitation, dim=1).detach().cpu().numpy()  # [n_samples, n_layers]
-                I_var = torch.cat(layer_inhibition, dim=1).detach().cpu().numpy()
-                Vout = torch.cat(layer_output, dim=1).detach().cpu().numpy()
+                # Handle concatenation based on aggregation method
+                if self.branch_aggregation == "sample":
+                    # For sample aggregation, concatenate along sample dimension (axis=0)
+                    E = torch.cat(layer_excitation, dim=0).detach().cpu().numpy()  # [n_samples * n_branches * n_layers, 1]
+                    I_var = torch.cat(layer_inhibition, dim=0).detach().cpu().numpy()
+                    Vout = torch.cat(layer_output, dim=0).detach().cpu().numpy()
+                    # Expand C to match the new sample count
+                    total_samples = E.shape[0]
+                    original_samples = C.shape[0]
+                    expansion_factor = total_samples // original_samples
+                    C = np.repeat(C, expansion_factor, axis=0)
+                elif self.branch_aggregation == "multivariate":
+                    # For multivariate, concatenate along feature dimension (axis=1) 
+                    E = torch.cat(layer_excitation, dim=1).detach().cpu().numpy()  # [n_samples, n_branches * n_layers]
+                    I_var = torch.cat(layer_inhibition, dim=1).detach().cpu().numpy()
+                    Vout = torch.cat(layer_output, dim=1).detach().cpu().numpy()
+                else:
+                    # For mean/max/sum, concatenate across layers (all tensors are [n_samples, 1])
+                    E = torch.cat(layer_excitation, dim=1).detach().cpu().numpy()  # [n_samples, n_layers]
+                    I_var = torch.cat(layer_inhibition, dim=1).detach().cpu().numpy()
+                    Vout = torch.cat(layer_output, dim=1).detach().cpu().numpy()
+                
                 self.logger.info(
                     "Aggregated data shapes - "
-                    f"E: {E.shape}, I: {I_var.shape}, Vout: {Vout.shape}"
+                    f"E: {E.shape}, I: {I_var.shape}, Vout: {Vout.shape}, C: {C.shape}"
                 )
 
                 # Get soma activation (Vinf) if available for aggregate mode

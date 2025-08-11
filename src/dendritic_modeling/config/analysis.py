@@ -58,7 +58,7 @@ class InformationAnalysisParams(BaseConfig):
                                        # "aggregate": Full network aggregation (most efficient)
     
     # Branch aggregation method - only used when computation_level is "layer" or "aggregate"
-    branch_aggregation: str = "mean"  # Options: "mean", "max", "sum"
+    branch_aggregation: str = "mean"  # Options: "mean", "multivariate", "sample"
 
 
 @dataclass
