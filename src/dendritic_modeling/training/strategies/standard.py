@@ -32,7 +32,9 @@ from dendritic_modeling.config.training import (
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.plotting import plot_loss_curves
 from dendritic_modeling.training.loss.functions import LossFunction
-from dendritic_modeling import logger
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class Trainer:
