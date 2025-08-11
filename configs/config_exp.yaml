@@ -92,7 +92,7 @@ train:
     plot_losses: true
     suppress_prints: false
     print_every: 10
-  
+
   main_trainer:
     # for all learning strategies:
     loss_function: categorical_nll
@@ -106,6 +106,9 @@ train:
     plot_losses: true
     suppress_prints: false
     print_every: 10
+    # Performance optimization flags (disabled by default for speed)
+    enable_nan_checking: false      # Enable NaN detection during training (expensive)
+    enable_adaptive_clipping: false # Enable adaptive gradient clipping (expensive)
     # for learning strategies other than standard:
     pretrain_epochs: 10
     target_voltage: 0.5
