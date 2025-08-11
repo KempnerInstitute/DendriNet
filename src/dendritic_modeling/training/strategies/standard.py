@@ -65,6 +65,7 @@ class Trainer:
         save_every_n_epochs: Optional[int] = None,
         checkpoint_dir: Optional[str] = None,
         enable_adaptive_clipping: bool = False,
+        enable_nan_checking: bool = False,
         disable_hooks_with_amp: bool = False,
         # NEW: Optional enhanced features (all default to disabled)
         optimizer_config: Optional[OptimizerConfig] = None,
@@ -206,6 +207,7 @@ class Trainer:
 
         # Adaptive gradient clipping
         self._enable_adaptive_clipping = enable_adaptive_clipping
+        self._enable_nan_checking = enable_nan_checking
         if self._enable_adaptive_clipping:
             logger.info("Adaptive gradient clipping enabled")
             # Store original learning rates for adaptive adjustment
@@ -930,18 +932,20 @@ class Trainer:
                 self.optimizer.zero_grad()
                 self.scaler.scale(loss).backward()
 
-                # Check for NaNs in gradients after backward pass
-                nan_detected = self._check_and_handle_nan_gradients(model)
-                if nan_detected:
-                    logger.warning(
-                        "NaNs detected and handled in gradients during AMP training"
-                    )
+                # Check for NaNs in gradients after backward pass (optional)
+                if self._enable_nan_checking:
+                    nan_detected = self._check_and_handle_nan_gradients(model)
+                    if nan_detected:
+                        logger.warning(
+                            "NaNs detected and handled in gradients during AMP training"
+                        )
 
                 if self.grad_clip_value:
                     # Unscale gradients before clipping
                     self.scaler.unscale_(self.optimizer)
-                    # Apply adaptive gradient clipping
-                    self._apply_adaptive_gradient_clipping(model)
+                    # Apply adaptive gradient clipping (optional)
+                    if self._enable_adaptive_clipping:
+                        self._apply_adaptive_gradient_clipping(model)
 
                 self.scaler.step(self.optimizer)
                 self.scaler.update()
@@ -952,15 +956,17 @@ class Trainer:
                 self.optimizer.zero_grad()
                 loss.backward()
 
-                # Check for NaNs in gradients after backward pass
-                nan_detected = self._check_and_handle_nan_gradients(model)
-                if nan_detected:
-                    logger.warning(
-                        "NaNs detected and handled in gradients during standard training"
-                    )
+                # Check for NaNs in gradients after backward pass (optional)
+                if self._enable_nan_checking:
+                    nan_detected = self._check_and_handle_nan_gradients(model)
+                    if nan_detected:
+                        logger.warning(
+                            "NaNs detected and handled in gradients during standard training"
+                        )
 
-                # Apply adaptive gradient clipping
-                self._apply_adaptive_gradient_clipping(model)
+                # Apply adaptive gradient clipping (optional)
+                if self._enable_adaptive_clipping:
+                    self._apply_adaptive_gradient_clipping(model)
                 self.optimizer.step()
 
             train_loss += loss.item()
