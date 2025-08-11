@@ -296,8 +296,15 @@ analysis:
       include_vinf: true        # Include soma activation
       normalize_mi: false       # Normalize by entropy
       verbose: false
-      compute_per_branch: true
-      branch_aggregation: mean  # Options: "mean", "max", "sum", "first", "none"
+      
+      # Computation Level Control - determines the granularity of information analysis
+      computation_level: branch    # Options: "branch", "layer", "network"
+                                   # "branch": Individual branches (most granular and accurate)
+                                   # "layer": Layer-level aggregation (treats each layer as a unit)  
+                                   # "network": Full network aggregation (most efficient)
+      
+      # Branch aggregation method - only used when computation_level is "layer" or "network"
+      branch_aggregation: mean     # Options: "mean", "max", "sum"
 
   synapse_turnover_analysis:
     enabled: true

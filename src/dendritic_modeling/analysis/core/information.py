@@ -66,43 +66,33 @@ class InformationAnalyzer(AbstractAnalyzer):
         self.pid_binarize_threshold = getattr(params, "pid_binarize_threshold", 0.5)
 
         self.include_vinf = getattr(
-            params, "include_vinf", True
-        )  # Default to True for backward compatibility
+            params, "include_vinf", False
+        )  # Default to False to match 245MR behavior
         self.normalize_mi = getattr(params, "normalize_mi", False)
         self.verbose = getattr(params, "verbose", False)
 
-        self.compute_per_branch = getattr(params, "compute_per_branch", False)
+        # Computation level control - determines the granularity of information analysis
+        # "branch": Individual branches (most granular and accurate)
+        # "layer": Layer-level aggregation (treats each layer as a unit)
+        # "network": Full network aggregation (most efficient)
+        self.computation_level = getattr(params, "computation_level", "branch")
+        
+        # Branch aggregation method - only used when computation_level is "layer" or "network"
+        # Options: "mean", "max", "sum", "multivariate" (all branches as multivariate input)
         self.branch_aggregation = getattr(params, "branch_aggregation", "mean")
-
-        self.methods = getattr(
-            params, "methods", ["kraskov"]
-        )  # list of methods: copula, kraskov, pid
-        self.compute_types = getattr(
-            params,
-            "compute_types",
-            ["basic_mi", "pairwise_mi", "conditional_mi", "class_mi"],
-        )  # new
-        self.target_dimensions = getattr(
-            params, "target_dimensions", None
-        )  # for dimensional MI, e.g., list of dims
-        self.normalize = getattr(params, "normalize", False)  # general normalize
 
         if self.verbose:
             self.logger.setLevel(logging.DEBUG)
 
-        # Create estimators for each method
-        self.estimators = {}
-        for method in self.methods:
-            estimator_config = EstimatorConfig(
-                method=method,
-                n_neighbors=self.n_neighbors,
-                n_bins=self.n_bins,
-                copula_type=self.copula_type,
-                verbose=self.verbose,
-            )
-            self.estimators[method] = InformationEstimatorFactory.create(
-                estimator_config
-            )
+        # Create estimator
+        estimator_config = EstimatorConfig(
+            method=self.method,
+            n_neighbors=self.n_neighbors,
+            n_bins=self.n_bins,
+            copula_type=self.copula_type,
+            verbose=self.verbose,
+        )
+        self.estimator = InformationEstimatorFactory.create(estimator_config)
 
         # Check if PID is available
         self.pid_available = False
@@ -127,22 +117,20 @@ class InformationAnalyzer(AbstractAnalyzer):
         """Compute mutual information between each variable and C."""
         metrics = {}
         # I(E;C)
-        metrics["I(E;C)"] = self.estimators[self.method].mutual_information(E, C)
+        metrics["I(E;C)"] = self.estimator.mutual_information(E, C)
         # I(I;C)
-        metrics["I(I;C)"] = self.estimators[self.method].mutual_information(I_var, C)
+        metrics["I(I;C)"] = self.estimator.mutual_information(I_var, C)
         # I(Vout;C)
-        metrics["I(Vout;C)"] = self.estimators[self.method].mutual_information(Vout, C)
+        metrics["I(Vout;C)"] = self.estimator.mutual_information(Vout, C)
         # I(Vinf;C) if available
         if Vinf is not None and self.include_vinf:
-            metrics["I(Vinf;C)"] = self.estimators[self.method].mutual_information(
-                Vinf, C
-            )
+            metrics["I(Vinf;C)"] = self.estimator.mutual_information(Vinf, C)
         # Joint MI: I(E,I;C)
         EI = np.hstack([E, I_var])
-        metrics["I(E,I;C)"] = self.estimators[self.method].mutual_information(EI, C)
+        metrics["I(E,I;C)"] = self.estimator.mutual_information(EI, C)
         # Optionally normalize by entropy
         if self.normalize_mi:
-            H_C = self.estimators[self.method].entropy(C.reshape(-1, 1))
+            H_C = self.estimator.entropy(C.reshape(-1, 1))
             # Create a list of keys to avoid modifying dict during iteration
             keys_to_normalize = list(metrics.keys())
             for key in keys_to_normalize:
@@ -159,24 +147,24 @@ class InformationAnalyzer(AbstractAnalyzer):
         """Compute pairwise mutual information between variables."""
         metrics = {}
         # I(E;I)
-        metrics["I(E;I)"] = self.estimators[self.method].mutual_information(E, I_var)
+        metrics["I(E;I)"] = self.estimator.mutual_information(E, I_var)
         # I(E;Vout)
-        metrics["I(E;Vout)"] = self.estimators[self.method].mutual_information(E, Vout)
+        metrics["I(E;Vout)"] = self.estimator.mutual_information(E, Vout)
         # I(I;Vout)
-        metrics["I(I;Vout)"] = self.estimators[self.method].mutual_information(
+        metrics["I(I;Vout)"] = self.estimator.mutual_information(
             I_var, Vout
         )
         if Vinf is not None and self.include_vinf:
             # I(E;Vinf)
-            metrics["I(E;Vinf)"] = self.estimators[self.method].mutual_information(
+            metrics["I(E;Vinf)"] = self.estimator.mutual_information(
                 E, Vinf
             )
             # I(I;Vinf)
-            metrics["I(I;Vinf)"] = self.estimators[self.method].mutual_information(
+            metrics["I(I;Vinf)"] = self.estimator.mutual_information(
                 I_var, Vinf
             )
             # I(Vout;Vinf)
-            metrics["I(Vout;Vinf)"] = self.estimators[self.method].mutual_information(
+            metrics["I(Vout;Vinf)"] = self.estimator.mutual_information(
                 Vout, Vinf
             )
         return metrics
@@ -440,16 +428,6 @@ class InformationAnalyzer(AbstractAnalyzer):
             self.logger.info("Computing PID metrics...")
             results["pid"] = self._compute_pid(E, I_var, Vout, C)
 
-        if "class_mi" in self.compute_types:
-            results["class_mi"] = self.compute_general_class_mi(
-                Vout, C, self.target_dimensions
-            )  # example on Vout
-        if "pid" in self.methods:
-            results["pid"] = self._compute_pid(
-                E, I_var, Vout, C
-            )  # use base estimator for sub-MIs if needed
-        # Ensemble results from multiple methods if needed
-
         return results
 
     def _average_mi_results(
@@ -667,8 +645,8 @@ class InformationAnalyzer(AbstractAnalyzer):
 
             self.data_dict: dict[str, dict[str, torch.Tensor]]
 
-            if self.compute_per_branch:
-                # Option 1: Compute MI for each branch separately and take the mean
+            if self.computation_level == "branch":
+                # Individual branch analysis: Compute MI for each branch separately and average
                 self.logger.info("Computing MI for each branch separately...")
 
                 all_results = []
@@ -722,144 +700,135 @@ class InformationAnalyzer(AbstractAnalyzer):
                     results["layer_statistics"] = (
                         layer_results  # Add per-layer statistics
                     )
+                    results["computation_level"] = "branch"
                 else:
                     self.logger.warning("No branch results to average")
                     return
 
-            else:
-                # Option 2: Average branch activations first, then compute MI
+            elif self.computation_level == "layer":
+                # Layer-level analysis: treat each layer as a unit
+                self.logger.info("Computing MI at layer level...")
+                
+                all_results = []
+                layer_names = []
+                
+                for layer_name, layer_data in self.data_dict.items():
+                    if "excitation" not in layer_data:
+                        continue
+                        
+                    # Aggregate all branches within this layer using branch_aggregation
+                    E_layer_data = layer_data["excitation"]  # Shape: [n_samples, n_branches]
+                    I_layer_data = layer_data["inhibition"]
+                    Vout_layer_data = layer_data["output"]
+                    
+                    if self.branch_aggregation == "mean":
+                        E_layer = E_layer_data.mean(dim=1).detach().cpu().numpy()  # [n_samples,]
+                        I_layer = I_layer_data.mean(dim=1).detach().cpu().numpy()
+                        Vout_layer = Vout_layer_data.mean(dim=1).detach().cpu().numpy()
+                        # Reshape to 2D for MI computation
+                        E_layer = E_layer.reshape(-1, 1)
+                        I_layer = I_layer.reshape(-1, 1)
+                        Vout_layer = Vout_layer.reshape(-1, 1)
+                    elif self.branch_aggregation == "max":
+                        E_layer = E_layer_data.max(dim=1)[0].detach().cpu().numpy()
+                        I_layer = I_layer_data.max(dim=1)[0].detach().cpu().numpy()
+                        Vout_layer = Vout_layer_data.max(dim=1)[0].detach().cpu().numpy()
+                        # Reshape to 2D for MI computation
+                        E_layer = E_layer.reshape(-1, 1)
+                        I_layer = I_layer.reshape(-1, 1)
+                        Vout_layer = Vout_layer.reshape(-1, 1)
+                    elif self.branch_aggregation == "sum":
+                        E_layer = E_layer_data.sum(dim=1).detach().cpu().numpy()
+                        I_layer = I_layer_data.sum(dim=1).detach().cpu().numpy()
+                        Vout_layer = Vout_layer_data.sum(dim=1).detach().cpu().numpy()
+                        # Reshape to 2D for MI computation
+                        E_layer = E_layer.reshape(-1, 1)
+                        I_layer = I_layer.reshape(-1, 1)
+                        Vout_layer = Vout_layer.reshape(-1, 1)
+                    elif self.branch_aggregation == "multivariate":
+                        # Multivariate: Keep all branches as multivariate input (no aggregation)
+                        E_layer = E_layer_data.detach().cpu().numpy()  # [n_samples, n_branches]
+                        I_layer = I_layer_data.detach().cpu().numpy()   # [n_samples, n_branches] 
+                        Vout_layer = Vout_layer_data.detach().cpu().numpy()  # [n_samples, n_branches]
+                    else:
+                        # Default to mean
+                        E_layer = E_layer_data.mean(dim=1).detach().cpu().numpy()
+                        I_layer = I_layer_data.mean(dim=1).detach().cpu().numpy()
+                        Vout_layer = Vout_layer_data.mean(dim=1).detach().cpu().numpy()
+                        # Reshape to 2D for MI computation
+                        E_layer = E_layer.reshape(-1, 1)
+                        I_layer = I_layer.reshape(-1, 1)
+                        Vout_layer = Vout_layer.reshape(-1, 1)
+                    
+                    # Compute MI for this layer
+                    layer_results = self.compute_metrics(
+                        E_layer, I_layer, Vout_layer, C, None
+                    )
+                    all_results.append(layer_results)
+                    layer_names.append(layer_name)
+                
+                # Average the results across layers
+                if all_results:
+                    results = self._average_mi_results(all_results)
+                    results["layer_names"] = layer_names
+                    results["num_layers"] = len(all_results)
+                    results["computation_level"] = "layer"
+                else:
+                    self.logger.warning("No layer results to average")
+                    return
+                        
+            else:  # computation_level == "network"
+                # Full network aggregation: properly handle different-sized tensors
                 self.logger.info(
-                    f"Aggregating branches using method: {self.branch_aggregation}"
+                    f"Aggregating branches using method: {self.branch_aggregation} (full network aggregation)"
                 )
 
-                # Collect all branch data
-                excitation_list: list[torch.Tensor] = []
-                inhibition_list: list[torch.Tensor] = []
-                output_list: list[torch.Tensor] = []
+                # Collect aggregated data from each layer
+                layer_excitation = []
+                layer_inhibition = []
+                layer_output = []
 
-                for branch_data in self.data_dict.values():
-                    if "excitation" in branch_data:
-                        excitation_list.append(branch_data["excitation"])
-                    if "inhibition" in branch_data:
-                        inhibition_list.append(branch_data["inhibition"])
-                    if "output" in branch_data:
-                        output_list.append(branch_data["output"])
+                for layer_data in self.data_dict.values():
+                    if "excitation" in layer_data:
+                        # Aggregate within each layer first
+                        if self.branch_aggregation == "mean":
+                            layer_E = layer_data["excitation"].mean(dim=1, keepdim=True)  # [n_samples, 1]
+                            layer_I = layer_data["inhibition"].mean(dim=1, keepdim=True)
+                            layer_Vout = layer_data["output"].mean(dim=1, keepdim=True)
+                        elif self.branch_aggregation == "max":
+                            layer_E = layer_data["excitation"].max(dim=1, keepdim=True)[0]
+                            layer_I = layer_data["inhibition"].max(dim=1, keepdim=True)[0]
+                            layer_Vout = layer_data["output"].max(dim=1, keepdim=True)[0]
+                        elif self.branch_aggregation == "sum":
+                            layer_E = layer_data["excitation"].sum(dim=1, keepdim=True)
+                            layer_I = layer_data["inhibition"].sum(dim=1, keepdim=True)
+                            layer_Vout = layer_data["output"].sum(dim=1, keepdim=True)
+                        else:
+                            # Default to mean
+                            layer_E = layer_data["excitation"].mean(dim=1, keepdim=True)
+                            layer_I = layer_data["inhibition"].mean(dim=1, keepdim=True)
+                            layer_Vout = layer_data["output"].mean(dim=1, keepdim=True)
+                        
+                        layer_excitation.append(layer_E)
+                        layer_inhibition.append(layer_I)
+                        layer_output.append(layer_Vout)
 
-                if not excitation_list:
+                if not layer_excitation:
                     self.logger.warning(
                         "No excitatory activations collected. Skipping information analysis."
                     )
                     return
 
-                # Aggregate activations based on method
-                if self.branch_aggregation == "mean":
-                    # Average across branches
-                    E = (
-                        torch.stack(excitation_list, dim=0)
-                        .mean(dim=0)
-                        .detach()
-                        .cpu()
-                        .numpy()
-                    )
-                    I_var = (
-                        torch.stack(inhibition_list, dim=0)
-                        .mean(dim=0)
-                        .detach()
-                        .cpu()
-                        .numpy()
-                    )
-                    Vout = (
-                        torch.stack(output_list, dim=0)
-                        .mean(dim=0)
-                        .detach()
-                        .cpu()
-                        .numpy()
-                    )
-                elif self.branch_aggregation == "max":
-                    # Max pooling across branches
-                    E = (
-                        torch.stack(excitation_list, dim=0)
-                        .max(dim=0)[0]
-                        .detach()
-                        .cpu()
-                        .numpy()
-                    )
-                    I_var = (
-                        torch.stack(inhibition_list, dim=0)
-                        .max(dim=0)[0]
-                        .detach()
-                        .cpu()
-                        .numpy()
-                    )
-                    Vout = (
-                        torch.stack(output_list, dim=0)
-                        .max(dim=0)[0]
-                        .detach()
-                        .cpu()
-                        .numpy()
-                    )
-                elif self.branch_aggregation == "sum":
-                    # Sum across branches
-                    E = (
-                        torch.stack(excitation_list, dim=0)
-                        .sum(dim=0)
-                        .detach()
-                        .cpu()
-                        .numpy()
-                    )
-                    I_var = (
-                        torch.stack(inhibition_list, dim=0)
-                        .sum(dim=0)
-                        .detach()
-                        .cpu()
-                        .numpy()
-                    )
-                    Vout = (
-                        torch.stack(output_list, dim=0)
-                        .sum(dim=0)
-                        .detach()
-                        .cpu()
-                        .numpy()
-                    )
-                elif self.branch_aggregation == "first":
-                    # Only use first branch
-                    E = excitation_list[0].detach().cpu().numpy()
-                    I_var = inhibition_list[0].detach().cpu().numpy()
-                    Vout = output_list[0].detach().cpu().numpy()
-                else:
-                    self.logger.warning(
-                        f"Unknown branch aggregation method: "
-                        f"{self.branch_aggregation}. "
-                        "Using mean."
-                    )
-                    E = (
-                        torch.stack(excitation_list, dim=0)
-                        .mean(dim=0)
-                        .detach()
-                        .cpu()
-                        .numpy()
-                    )
-                    I_var = (
-                        torch.stack(inhibition_list, dim=0)
-                        .mean(dim=0)
-                        .detach()
-                        .cpu()
-                        .numpy()
-                    )
-                    Vout = (
-                        torch.stack(output_list, dim=0)
-                        .mean(dim=0)
-                        .detach()
-                        .cpu()
-                        .numpy()
-                    )
-
+                # Now concatenate across layers (all tensors are [n_samples, 1])
+                E = torch.cat(layer_excitation, dim=1).detach().cpu().numpy()  # [n_samples, n_layers]
+                I_var = torch.cat(layer_inhibition, dim=1).detach().cpu().numpy()
+                Vout = torch.cat(layer_output, dim=1).detach().cpu().numpy()
                 self.logger.info(
                     "Aggregated data shapes - "
                     f"E: {E.shape}, I: {I_var.shape}, Vout: {Vout.shape}"
                 )
 
-                # Get soma activation (Vinf) if available
+                # Get soma activation (Vinf) if available for aggregate mode
                 Vinf = None
                 # For now, we'll use the final model output as Vinf
                 with torch.no_grad():
@@ -871,7 +840,7 @@ class InformationAnalyzer(AbstractAnalyzer):
                 # Run information analysis on aggregated data
                 results = self.compute_metrics(E, I_var, Vout, C, Vinf)
                 results["aggregation_method"] = self.branch_aggregation
-                results["num_branches_aggregated"] = len(excitation_list)
+                results["computation_level"] = "network"
 
             # Save results
             if save_path is not None:
@@ -888,9 +857,9 @@ class InformationAnalyzer(AbstractAnalyzer):
             traceback.print_exc()
 
     def compute_class_mi(self, activations, labels):
-        return self.estimators[self.method].mutual_information(activations, labels)
+        return self.estimator.mutual_information(activations, labels)
 
     def compute_conditional_mi(self, activations, labels, condition):
-        return self.estimators[self.method].conditional_mutual_information(
+        return self.estimator.conditional_mutual_information(
             activations, labels, condition
         )
