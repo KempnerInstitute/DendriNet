@@ -129,6 +129,9 @@ train:
       save_path: null
       suppress_prints: false
       print_every: 5
+      # Performance optimization flags (disabled by default for speed)
+      enable_nan_checking: false      # Enable NaN detection during training (expensive)
+      enable_adaptive_clipping: false # Enable adaptive gradient clipping (expensive)
 
     regularization:
       l1_weight: 0.001

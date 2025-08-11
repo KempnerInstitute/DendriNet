@@ -236,6 +236,9 @@ train:
       suppress_prints: false
       print_every: 10
       use_amp: false
+      # Performance optimization flags (disabled by default for speed)
+      enable_nan_checking: false      # Enable NaN detection during training (expensive)
+      enable_adaptive_clipping: false # Enable adaptive gradient clipping (expensive)
       pretrain_epochs: 50
       target_voltage: 0.5
       kl_weight: 0.1
