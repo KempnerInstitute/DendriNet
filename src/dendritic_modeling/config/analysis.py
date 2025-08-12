@@ -52,13 +52,25 @@ class InformationAnalysisParams(BaseConfig):
     verbose: bool = False
 
     # Computation Level Control - determines the granularity of information analysis
-    computation_level: str = "branch"  # Options: "branch", "layer", "aggregate"
+    computation_level: str = "branch"  # Options: "branch", "layer", "network"
                                        # "branch": Individual branches (most granular and accurate)
                                        # "layer": Layer-level aggregation (treats each layer as a unit)
-                                       # "aggregate": Full network aggregation (most efficient)
+                                       # "network": Full network aggregation (most efficient)
     
-    # Branch aggregation method - only used when computation_level is "layer" or "aggregate"
+    # Branch aggregation method - only used when computation_level is "layer" or "network"
     branch_aggregation: str = "mean"  # Options: "mean", "multivariate", "sample"
+    
+    # Neuron selection - determines which neurons to include in analysis
+    neuron_selection: str = "all"  # Options: "all", "excitatory", "inhibitory"
+                                   # "all": Use both excitatory and inhibitory neurons
+                                   # "excitatory": Use only excitatory neurons
+                                   # "inhibitory": Use only inhibitory neurons
+    
+    # Per-neuron analysis - return information values per individual neuron
+    per_neuron_analysis: bool = False  # If True, compute MI for each neuron separately
+    
+    # EI-specific analysis - analyze excitatory and inhibitory networks separately
+    ei_specific_analysis: bool = False  # If True, compute separate E and I network MI
 
 
 @dataclass

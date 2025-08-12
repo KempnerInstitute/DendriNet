@@ -340,6 +340,13 @@ analysis:
       
       # Branch aggregation method - only used when computation_level is "layer" or "network"
       branch_aggregation: mean       # Options: "mean", "multivariate", "sample"
+      
+      # Neuron selection - determines which neurons to include in analysis
+      neuron_selection: all          # Options: "all", "excitatory", "inhibitory"
+      
+      # Enhanced analysis modes
+      per_neuron_analysis: false     # If true, compute MI for each neuron separately  
+      ei_specific_analysis: false    # If true, analyze E and I networks separately
 
   correlation_analysis:
     enabled: false

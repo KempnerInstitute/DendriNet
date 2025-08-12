@@ -72,6 +72,7 @@ Enhanced features include:
 - Synaptic turnover analysis with active synapse tracking
 - Advanced reporting with branch-level statistics
 - Configurable information analysis with computation levels (branch/layer/network)
+- Enhanced EI network analysis with neuron selection and per-neuron computation
 - Multivariate aggregation for joint information computation
 - Hash-based encoder network caching for efficiency
 - Optional training optimizations (NaN detection, adaptive clipping)
@@ -98,6 +99,8 @@ Generates comprehensive analysis:
 - Dendritic architecture comparisons
 - Noise robustness analysis
 - Configurable information theory analysis at branch, layer, or network levels
+- Enhanced EI network analysis with separate excitatory/inhibitory computation
+- Per-neuron information analysis for detailed neural-level insights
 - Multivariate joint information computation with flexible aggregation methods
 
 See [`src/dendritic_modeling/scripts/sweeps/README.md`](src/dendritic_modeling/scripts/sweeps/README.md) for details.

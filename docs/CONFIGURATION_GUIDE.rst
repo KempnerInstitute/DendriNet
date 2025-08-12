@@ -257,6 +257,40 @@ When using ``layer`` or ``network`` computation levels:
 - ``multivariate``: Use raw multi-dimensional branch data for joint information computation
 - ``sample``: Treat each branch as a separate observation by flattening branch dimension into sample dimension
 
+Enhanced EI Network Analysis
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The framework provides enhanced analysis specifically designed for excitation-inhibition networks.
+
+.. code-block:: yaml
+
+   analysis:
+     information_analysis:
+       params:
+         # Neuron selection
+         neuron_selection: "all"          # Options: "all", "excitatory", "inhibitory"
+         
+         # Enhanced analysis modes
+         per_neuron_analysis: false       # Compute MI for each neuron individually
+         ei_specific_analysis: false      # Analyze E and I networks separately
+
+Neuron Selection Options:
+
+- ``all``: Use both excitatory and inhibitory neurons (default)
+- ``excitatory``: Analyze only excitatory neurons and their synapses
+- ``inhibitory``: Analyze only inhibitory neurons and their synapses
+
+Per-Neuron Analysis:
+
+When enabled, computes mutual information for each individual neuron separately, providing detailed per-neuron MI statistics and averaged results across all neurons.
+
+EI-Specific Analysis:
+
+When enabled, performs three separate analyses:
+- Excitatory network only (inhibitory inputs set to zero)
+- Inhibitory network only (excitatory inputs set to zero)  
+- Combined E+I network (standard analysis)
+
 Training Optimization
 ---------------------
 
