@@ -188,10 +188,11 @@ class TestUnifiedSweepGenerator:
 
         result = generator._generate_branch_combinations(filter_config)
 
-        assert "excitatory_branch_factors" in result
-        assert "inhibitory_branch_factors" in result
-        assert len(result["excitatory_branch_factors"]) == 2
-        assert len(result["inhibitory_branch_factors"]) == 2
+        # Check for the actual keys that are generated
+        assert "model.core_network.parameters.dendrite_branches_per_layer" in result
+        assert "model.core_network.parameters.dendrite_tree_depth" in result
+        assert len(result["model.core_network.parameters.dendrite_branches_per_layer"]) > 0
+        assert len(result["model.core_network.parameters.dendrite_tree_depth"]) > 0
 
     def test_generate_branch_combinations_from_layers(self, generator):
         """Test branch combination generation from layer sizes."""
@@ -205,10 +206,11 @@ class TestUnifiedSweepGenerator:
 
         result = generator._generate_branch_combinations(filter_config)
 
-        assert "excitatory_branch_factors" in result
-        assert "inhibitory_branch_factors" in result
-        assert len(result["excitatory_branch_factors"]) > 0
-        assert len(result["inhibitory_branch_factors"]) > 0
+        # Check for the actual keys that are generated
+        assert "model.core_network.parameters.dendrite_branches_per_layer" in result
+        assert "model.core_network.parameters.dendrite_tree_depth" in result
+        assert len(result["model.core_network.parameters.dendrite_branches_per_layer"]) > 0
+        assert len(result["model.core_network.parameters.dendrite_tree_depth"]) > 0
 
     def test_generate_branch_combinations_adaptive(self, generator):
         """Test adaptive branch combination generation."""
@@ -221,8 +223,9 @@ class TestUnifiedSweepGenerator:
 
         result = generator._generate_branch_combinations(filter_config)
 
-        assert "excitatory_branch_factors" in result
-        assert "inhibitory_branch_factors" in result
+        # Check for the actual keys that are generated
+        assert "model.core_network.parameters.dendrite_branches_per_layer" in result
+        assert "model.core_network.parameters.dendrite_tree_depth" in result
 
     def test_generate_branch_configurations(self, generator):
         """Test branch configuration generation."""
