@@ -436,7 +436,7 @@ class TestUnifiedSweepGenerator:
                 print(f"Generated layer sizes: {layer_sizes}")
                 # Should have some layer sizes (either swept or base)
                 # Could be list or OmegaConf ListConfig
-                assert hasattr(layer_sizes, '__len__')  # Has length
+                assert hasattr(layer_sizes, "__len__")  # Has length
                 assert len(layer_sizes) > 0
 
             # Should have some epoch value (either swept or base)
