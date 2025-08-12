@@ -278,7 +278,7 @@ class TestUnifiedSweepGenerator:
 
         # Should have at least one config
         assert len(configs) >= 1
-        
+
         # If multiple configs, check that seeds are different (optional test)
         if len(configs) > 1:
             seeds = [config.experiment.seed for config in configs if "experiment" in config]
