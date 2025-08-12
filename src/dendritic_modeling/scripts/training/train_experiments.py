@@ -231,29 +231,20 @@ def main(config_path: str, args=None):
     main_net_save_path = os.path.join(run_save_path, "main_network")
     os.makedirs(main_net_save_path, exist_ok=True)
 
-    # Use the new top-level main_trainer config structure (compatible with 245MR)
-    if hasattr(train_config, "main_trainer"):
-        # New structure: use train_config.main_trainer directly
-        main_trainer_config_dict = OmegaConf.to_container(
-            train_config.main_trainer, resolve=True
-        )
-        main_trainer_config_dict["save_path"] = main_net_save_path
-        main_train_config = train_config.main  # Still need this for other configs
-    else:
-        # Fallback to old structure for backward compatibility
-        main_train_config = train_config.main
-        main_train_config.trainer.save_path = main_net_save_path
-        main_trainer_config_dict = OmegaConf.to_container(
-            main_train_config.trainer, resolve=True
-        )
+    # Use 245MR-compatible structure with advanced features preserved
+    main_train_config = train_config.main
+    main_train_config.trainer.save_path = main_net_save_path
+    main_trainer_config_dict = OmegaConf.to_container(
+        main_train_config.trainer, resolve=True
+    )
 
-    # Add enhanced configurations for pruning, regularization, reporting, and parameter groups
-    # These configurations are needed for the trainer factory to enable advanced features
-    if hasattr(main_train_config, "param_groups"):
-        main_trainer_config_dict["param_groups"] = OmegaConf.to_container(
-            main_train_config.param_groups, resolve=True
-        )
+    # Add all advanced configuration features from 294 branch
+    # Parameter groups (always present in 245MR-style)
+    main_trainer_config_dict["param_groups"] = OmegaConf.to_container(
+        main_train_config.param_groups, resolve=True
+    )
 
+    # Advanced 294 features added to the main config
     if hasattr(main_train_config, "regularization"):
         main_trainer_config_dict["regularization"] = OmegaConf.to_container(
             main_train_config.regularization, resolve=True
@@ -269,30 +260,20 @@ def main(config_path: str, args=None):
             main_train_config.reporting, resolve=True
         )
 
-    # Add checkpoint configuration if specified
-    if hasattr(train_config, "main_trainer"):
-        # New structure: check main_trainer directly
-        if (
-            hasattr(train_config.main_trainer, "save_every_n_epochs")
-            and train_config.main_trainer.save_every_n_epochs is not None
-        ):
-            main_trainer_config_dict["save_every_n_epochs"] = (
-                train_config.main_trainer.save_every_n_epochs
-            )
-            main_trainer_config_dict["checkpoint_dir"] = run_save_path
-    else:
-        # Old structure: check main_train_config.trainer
-        if (
-            hasattr(main_train_config.trainer, "save_every_n_epochs")
-            and main_train_config.trainer.save_every_n_epochs is not None
-        ):
-            main_trainer_config_dict["save_every_n_epochs"] = (
-                main_train_config.trainer.save_every_n_epochs
-            )
+    if hasattr(main_train_config, "optimizer"):
+        main_trainer_config_dict["optimizer"] = OmegaConf.to_container(
+            main_train_config.optimizer, resolve=True
+        )
+
+    # Add advanced 294 features from train config if present
+    if hasattr(train_config, "checkpointing") and train_config.checkpointing.get("enabled", False):
+        save_every_n_epochs = train_config.checkpointing.get("save_every_n_epochs")
+        if save_every_n_epochs is not None:
+            main_trainer_config_dict["save_every_n_epochs"] = save_every_n_epochs
             main_trainer_config_dict["checkpoint_dir"] = run_save_path
 
     # Add profiling configuration if specified
-    enable_profiling = getattr(config.train, "enable_profiling", False)
+    enable_profiling = getattr(train_config, "enable_profiling", False)
     if enable_profiling:
         main_trainer_config_dict["enable_profiling"] = True
         main_trainer_config_dict["profiling_output_dir"] = os.path.join(
@@ -301,11 +282,11 @@ def main(config_path: str, args=None):
         logger.info("Profiling enabled for this training run")
 
     # Add AMP configuration
-    enable_amp = getattr(config.train, "enable_amp", False)
+    enable_amp = getattr(train_config, "enable_amp", False)
     main_trainer_config_dict["enable_amp"] = enable_amp
 
     # Add hooks configuration
-    enable_hooks = getattr(config.train, "enable_hooks", True)
+    enable_hooks = getattr(train_config, "enable_hooks", True)
     main_trainer_config_dict["enable_hooks"] = enable_hooks
 
     optimizer = CustomWeightDecayOptimizer(
