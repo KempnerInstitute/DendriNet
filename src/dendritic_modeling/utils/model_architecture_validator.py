@@ -533,9 +533,3 @@ def validate_model_architecture(config: dict) -> bool:
     """
     validator = ModelArchitectureValidator(config)
     return validator.validate()
-
-
-# Legacy function name for backward compatibility
-def validate_config(config: dict) -> bool:
-    """Legacy function name - use validate_model_architecture instead."""
-    return validate_model_architecture(config)

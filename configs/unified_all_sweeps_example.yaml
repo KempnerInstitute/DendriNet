@@ -26,11 +26,11 @@
 #   python src/dendritic_modeling/scripts/training/train_experiments.py <config_path>
 
 # Output and SLURM configuration
-output_dir:
+output_dir: './results/unified_sweep'
 slurm_config:
   job_name: "unified_sweep"
   account:   # Your SLURM account
-  partition: # Your SLURM partition
+  partition:  # Your SLURM partition
   time: "02:00:00"
   nodes: 1
   ntasks_per_node: 1
@@ -42,7 +42,7 @@ slurm_config:
     - python/3.12.5-fasrc01
     - cuda/12.4.1-fasrc01
     - cudnn/8.9.2.26_cuda12-fasrc01
-  conda_env_path:      # Path to your conda environment
+  conda_env_path:  
   training_script: "src/dendritic_modeling/scripts/training/train_experiments.py"
 
 # Experiment settings
@@ -153,85 +153,103 @@ base_config:
         output_dim: 10
 
 # ============================================================================
-# TRAINING CONFIGURATION
+# TRAINING CONFIGURATION - VALIDATED PARAMETERS ONLY
 # ============================================================================
 train:
-  seed: 42  # Overridden by experiment_settings
+  seed: 42
   train_valid_split: 0.8
 
 
 
+  # ==========================================
+  # PERFORMANCE OPTIMIZATION SETTINGS
+  # ==========================================
+  enable_amp: false             # Enable automatic mixed precision
+  enable_profiling: false       # Enable PyTorch profiler
+  profiling_output_dir: "results/profiling/"
+  enable_hooks: true            # Enable hooks for analysis (set false for max speed)
+
+  # FSDP (Fully Sharded Data Parallel) Configuration
+  use_fsdp: false               # Enable FSDP for large models (>100M parameters)
+  fsdp_config: null             # FSDP configuration (null to disable, detailed config below when enabled)
+  # When use_fsdp: true, uncomment and configure the following:
+  # fsdp_config:
+  #   sharding_strategy: "FULL_SHARD"      # Options: "FULL_SHARD", "SHARD_GRAD_OP", "NO_SHARD", "HYBRID_SHARD"
+  #   mixed_precision: true                # Use FP16 for parameters, gradients, and buffers
+  #   cpu_offload: false                   # Offload parameters to CPU (slower but saves GPU memory)
+  #   min_num_params: 1000000             # Wrap layers with more than this many parameters
+  #   reduce_communication_overhead: true  # Enable communication optimizations
+  #   limit_all_gathers: true             # Reduce memory pressure during communication
+  #   forward_prefetch: true              # Prefetch parameters for forward pass
+  #   sync_module_states: true            # Synchronize module states across ranks
+  #   use_orig_params: true              # Important for dendritic models
+  #   backward_prefetch: "BACKWARD_PRE"   # Options: "BACKWARD_PRE", "BACKWARD_POST", null
+  #   gradient_checkpointing: false       # Trade compute for memory (slower but uses less memory)
+
+  # ==========================================
+  # CHECKPOINTING
+  # ==========================================
+  checkpointing:
+    enabled: false
+    save_every_n_epochs: 10
+    checkpoint_dir: "results/checkpoints/"
+
+  # ==========================================
+  # ENCODER TRAINING CONFIGURATION
+  # ==========================================
+  encoder:
+    load_save_root: ./.trained_encoder_networks/  # Hash-based encoder model cache directory
+    lr: 0.001
+    trainer:
+      loss_function: mse        # Loss function for encoder
+      epochs: 50               # Encoder pre-training epochs
+      early_stopping: false    # Early stopping
+      patience: 10             # Patience
+      batch_size: 128          # Batch size
+      shuffle: true            # Shuffle data
+      grad_clip_value: 5.0     # Gradient clipping
+      load_best_state_dict: true
+      plot_losses: false
+      save_path: null
+      suppress_prints: false
+      print_every: 10
+      use_amp: false
+      # Performance optimization flags (disabled by default for speed)
+      enable_nan_checking: false      # Enable NaN detection during training (expensive)
+      enable_adaptive_clipping: false # Enable adaptive gradient clipping (expensive)
+      pretrain_epochs: 50
+      target_voltage: 0.5
+      kl_weight: 0.1
+      reverse_training: false
+      epochs_per_layer: 50
+      epochs_per_branch: 50
+      final_tune_epochs: 10
+
+  # ==========================================
+  # MAIN NETWORK TRAINING
+  # ==========================================
   main:
-    learning_strategy: standard # Supports regularization, pruning, and parameter group features
-                               # Options: "standard", "freeze_layers", "local_ca", etc.
-    weight_decay_rate: 0.01     # Weight decay rate used by CustomWeightDecayOptimizer
+    learning_strategy: standard # Options: "standard", "freeze_layers", "local_ca", etc.
+                               # Supports regularization, pruning, and parameter group features
+    weight_decay_rate: 0.01     # Use optimizer.weight_decay for internal optimizer creation
 
+    # Parameter groups with different learning rates
     param_groups:
-      lr: 0.001
-      split_params: true
-      topk_lr: 0.001
-      blocklinear_lr: 0.0001
-      reactivation_lr: 0.0001
-      decoder_lr: 0.0001
-
-    # ==========================================
-    # ADVANCED TRAINING FEATURES
-    # ==========================================
-    # Note: Optimizer is created manually in training scripts using param_groups above
-
-    # Regularization configuration
-    regularization:
-      l1_weight: 0.0               # Global L1 regularization strength (used when split_params=false)
-      l2_weight: 0.0               # Global L2 regularization strength (used when split_params=false)
-      selective:                   # Selective application
-        layers: []                 # List of layer indices (empty = all layers)
-        branches: []               # List of branch names (empty = all branches)
-        weight_types: ["all"]      # Options: "all", "recurrent", "input", "output", "linear"
-
-      # Parameter group specific regularization
-      split_params: true           # Split parameters into groups for differential regularization
-      param_group_weights:
-        # Apply different regularization to different parameter groups (when split_params=true)
-        topk:                      # TopK layers
-          l1_weight: 0.0           # L1 for TopK layers
-          l2_weight: 0.0           # L2 for TopK layers
-        blocklinear:               # BlockLinear layers
-          l1_weight: 0.0           # No L1 for BlockLinear
-          l2_weight: 0.0           # No L2 for BlockLinear
-        reactivation:              # Reactivation layers
-          l1_weight: 0.0           # No L1 for reactivation
-          l2_weight: 0.0           # No L2 for reactivation
-        decoder:                   # Decoder network
-          l1_weight: 0.0           # No L1 for decoder
-          l2_weight: 0.0           # No L2 for decoder
-
-    # Pruning configuration
-    pruning:
-      enabled: false                 # Enable pruning
-      threshold: 0.001               # Prune weights with abs(value) < threshold
-      selective:                     # Selective application
-        layers: []                   # List of layer indices (empty = all layers)
-        branches: []                 # List of branch names (empty = all branches)
-        weight_types: ["excitatory", "inhibitory"]  # Options: "all", "excitatory", "inhibitory", "recurrent", "input", "output", "linear"
-      re_evaluate_after: false       # Re-evaluate model after pruning
-      dynamic_pruning: false         # Whether to prune during training
-      pruning_frequency: 10          # Epochs between dynamic pruning (if enabled)
-
-    # Reporting configuration
-    reporting:
-      report_non_pruned: true        # Print detailed pruning report
-      save_pruning_stats: false      # Save pruning statistics to file
-      detailed_branch_report: true   # Include per-branch statistics
-      redo_analysis_after_pruning: false  # Redo all analyses after pruning for comparison
+      lr: 0.001                 # Default learning rate
+      split_params: true        # Split parameters into groups
+      topk_lr: 0.001           # Learning rate for TopK layers
+      blocklinear_lr: 0.0001   # Learning rate for BlockLinear layers
+      reactivation_lr: 0.0001  # Learning rate for reactivation layers
+      decoder_lr: 0.0001       # Learning rate for decoder network
 
     trainer:
-      loss_function: ce
-      epochs: 200
-      early_stopping: false
-      patience: 10
-      batch_size: 64
-      shuffle: true
-      grad_clip_value: 5.0
+      loss_function: ce        # Loss function
+      epochs: 50               # Main training epochs
+      early_stopping: false    # Early stopping
+      patience: 10             # Patience
+      batch_size: 128          # Batch size
+      shuffle: true            # Shuffle data
+      grad_clip_value: 5.0     # Gradient clipping
       load_best_state_dict: true
       plot_losses: true
       save_path: null
@@ -249,12 +267,73 @@ train:
       epochs_per_branch: 50
       final_tune_epochs: 10
 
+    # ==========================================
+    # ADVANCED TRAINING FEATURES
+    # ==========================================
+    # Regularization, pruning, and flexible optimizer configuration
+    # All features default to disabled, so no impact unless explicitly enabled
+
+    # Internal optimizer configuration (alternative to external optimizer creation)
+    # Note: When provided, respects param_groups learning rates above
+    # optimizer:
+    #   name: "adam"                    # Options: "adam", "sgd", "rmsprop", "adamw"
+    #   lr: 0.001                      # Learning rate (used when param_groups.split_params=false)
+    #   weight_decay: 0.0001           # Built-in L2 regularization (global)
+    #   momentum: 0.9                  # For SGD
+    #   betas: [0.9, 0.999]           # For Adam/AdamW
+    #   eps: 1e-8                      # For Adam/AdamW
+
+    # Regularization configuration
+    regularization:
+      l1_weight: 0.0               # Global L1 regularization strength (used when split_params=false)
+      l2_weight: 0.0                # Global L2 regularization strength (used when split_params=false)
+      selective:                     # Selective application
+        layers: []                   # List of layer indices (empty = all layers)
+        branches: []                 # List of branch names (empty = all branches)
+        weight_types: ["all"]        # Options: "all", "recurrent", "input", "output", "linear"
+
+      # Parameter group specific regularization
+      split_params: true             # Split parameters into groups for differential regularization
+      param_group_weights:
+        # Apply different regularization to different parameter groups (when split_params=true)
+        topk:                       # TopK layers
+          l1_weight: 0.0          # L1 for TopK layers
+          l2_weight: 0.0          # L2 for TopK layers
+        blocklinear:                # BlockLinear layers
+          l1_weight: 0.0            # No L1 for BlockLinear
+          l2_weight: 0.0          # No L2 for BlockLinear
+        reactivation:               # Reactivation layers
+          l1_weight: 0.0         # No L1 for reactivation
+          l2_weight: 0.0            # No L2 for reactivation
+        decoder:                    # Decoder network
+          l1_weight: 0.0          # No L1 for decoder
+          l2_weight: 0.0          # No L2 for decoder
+
+    # Pruning configuration
+    pruning:
+      enabled: false                 # Enable pruning
+      threshold: 2               # Prune weights with abs(value) < threshold
+      selective:                     # Selective application
+        layers: []                   # List of layer indices (empty = all layers)
+        branches: []                 # List of branch names (empty = all branches)
+        weight_types: ["excitatory", "inhibitory"]        # Options: "all", "excitatory", "inhibitory", "recurrent", "input", "output", "linear"
+      re_evaluate_after: false        # Re-evaluate model after pruning
+      dynamic_pruning: false         # Whether to prune during training
+      pruning_frequency: 10          # Epochs between dynamic pruning (if enabled)
+
+    # Reporting configuration
+    reporting:
+      report_non_pruned: true        # Print detailed pruning report
+      save_pruning_stats: false       # Save pruning statistics to file
+      detailed_branch_report: true   # Include per-branch statistics
+      redo_analysis_after_pruning: false  # Redo all analyses after pruning for comparison
+
 # ============================================================================
 # TASK CONFIGURATION
 # ============================================================================
 task:
   dataset: cifar10
-  data_path: ""
+  data_path: "data"
   parameters:
     flatten: true
     normalize: false

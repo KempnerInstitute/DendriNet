@@ -19,7 +19,6 @@ from .logging_config import get_logger, setup_logging
 
 # Math utilities
 from .math import roc_auc_score
-from .model_architecture_validator import validate_config  # Legacy compatibility
 from .model_architecture_validator import (
     ModelArchitectureValidator,
     validate_model_architecture,
@@ -32,10 +31,9 @@ from .sparse_ops import (
     get_sparse_layer,
     parallel_topk_selection,
 )
-from .training_stability_validator import (  # Legacy compatibility
+from .training_stability_validator import (
     apply_automatic_safeguards,
     suggest_optimal_config_for_model_size,
-    validate_optimization_combinations,
     validate_training_stability,
 )
 
@@ -55,11 +53,9 @@ __all__ = [
     "setup_logging",
     "suggest_optimal_config_for_model_size",
     "validate_architecture_only",
-    "validate_config",
     # New validation functions
     "validate_full_config",
     "validate_model_architecture",
-    "validate_optimization_combinations",
     "validate_training_only",
     "validate_training_stability",
     # Note: Backward compatibility imports commented out due to circular imports

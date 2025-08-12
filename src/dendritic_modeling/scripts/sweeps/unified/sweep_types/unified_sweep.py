@@ -71,7 +71,7 @@ class UnifiedSweepGenerator(BaseSweepGenerator):
     Filter modes:
     - default: Generate all combinations
     - branch_sweep: Generate systematic branch architecture combinations
-    - ei-sum, ei-ratio, e-const, i-const: EI filtering modes (legacy)
+    - ei-sum, ei-ratio, e-const, i-const: EI filtering modes
     """
 
     def __init__(self):

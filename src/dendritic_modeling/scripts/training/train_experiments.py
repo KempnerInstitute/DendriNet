@@ -266,7 +266,9 @@ def main(config_path: str, args=None):
         )
 
     # Add advanced 294 features from train config if present
-    if hasattr(train_config, "checkpointing") and train_config.checkpointing.get("enabled", False):
+    if hasattr(train_config, "checkpointing") and train_config.checkpointing.get(
+        "enabled", False
+    ):
         save_every_n_epochs = train_config.checkpointing.get("save_every_n_epochs")
         if save_every_n_epochs is not None:
             main_trainer_config_dict["save_every_n_epochs"] = save_every_n_epochs
