@@ -13,6 +13,9 @@ import pytest
 import torch
 import torch.nn as nn
 
+from dendritic_modeling.networks.architectures.classical.autoencoder.vae import (
+    BaseVariationalAutoencoder,
+)
 from dendritic_modeling.training.loss.functions import (
     BCELoss,
     CategoricalNLLLoss,
@@ -273,9 +276,6 @@ class TestVaeElboLoss:
     @pytest.fixture
     def vae_model(self):
         """Create a mock VAE model."""
-        from dendritic_modeling.networks.architectures.classical.autoencoder.vae import (
-            BaseVariationalAutoencoder,
-        )
 
         # Create a proper mock that inherits from BaseVariationalAutoencoder
         class MockVAE(BaseVariationalAutoencoder):

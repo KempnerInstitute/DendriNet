@@ -2,10 +2,7 @@
 Test new parameters added for enhanced analysis and trainer configurations.
 """
 
-import os
-import sys
-
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
+# Test imports - assuming proper PYTHONPATH or pip install -e .
 
 from dendritic_modeling.analysis.core.information import InformationAnalyzer
 from dendritic_modeling.config.analysis import InformationAnalysisParams

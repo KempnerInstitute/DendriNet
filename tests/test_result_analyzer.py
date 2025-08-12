@@ -10,12 +10,12 @@ import tempfile
 from pathlib import Path
 from unittest.mock import Mock, patch
 
+# Mock matplotlib to avoid display issues in tests
+import matplotlib
 import pandas as pd
 import pytest
 
-# Mock matplotlib to avoid display issues in tests
-with patch("matplotlib.pyplot.show"):
-    pass
+matplotlib.use("Agg")  # Use non-interactive backend
 
 from dendritic_modeling.scripts.sweeps.result_analyzer import (
     UnifiedResultAnalyzer,

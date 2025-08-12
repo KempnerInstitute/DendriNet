@@ -521,7 +521,7 @@ class TestUnifiedSweepIntegration:
                 "sweep_config": {
                     "model.network.excitatory_layer_sizes": [[8, 16], [16, 32]],
                     "model.network.inhibitory_layer_sizes": [[4, 8], [8, 16]],
-                    "train.main.trainer.learning_rate": [0.001, 0.005, 0.002],  # Range
+                    "train.main.trainer.learning_rate": [0.001, 0.005, 0.01],  # Range
                     "train.main.trainer.batch_size": [32, 64],
                 },
                 "filter_config": {
