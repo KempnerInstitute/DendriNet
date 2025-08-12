@@ -323,8 +323,6 @@ class Trainer:
         valid_loss = 0
         with torch.no_grad():
             for x_batch, y_batch in valid_loader:
-                x_batch: torch.Tensor
-                y_batch: torch.Tensor
                 x_batch = x_batch.to(self.device)
                 y_batch = y_batch.to(self.device)
                 loss: torch.Tensor = self.loss_function(model, x_batch, y_batch)

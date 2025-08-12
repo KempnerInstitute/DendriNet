@@ -131,8 +131,8 @@ class TestUnifiedResultAnalyzer:
         try:
             params_df = analyzer.collect_params_data(str(temp_results_dir))
             assert isinstance(params_df, pd.DataFrame)
-        except Exception:
-            # Method might not work with our mock structure, which is fine
+        except (ValueError, KeyError, FileNotFoundError, TypeError):
+            # Method might not work with our mock structure, which is fine for this test
             pass
 
     def test_collect_results(self, analyzer, temp_results_dir):
@@ -141,8 +141,8 @@ class TestUnifiedResultAnalyzer:
             params_df, results_df = analyzer.collect_results(str(temp_results_dir))
             assert isinstance(params_df, pd.DataFrame)
             assert isinstance(results_df, pd.DataFrame)
-        except Exception:
-            # Method might not work with our mock structure, which is fine
+        except (ValueError, KeyError, FileNotFoundError, TypeError):
+            # Method might not work with our mock structure, which is fine for this test
             pass
 
     def test_clean_results_data(self, analyzer):
