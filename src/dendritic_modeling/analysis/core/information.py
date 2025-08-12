@@ -93,7 +93,9 @@ class InformationAnalyzer(AbstractAnalyzer):
         if self.verbose:
             self.logger.setLevel(logging.DEBUG)
 
-        # Create estimator
+        # Create estimators for each method
+        self.estimators = {}
+        # For now, just use the single method specified, but keep the dict structure for compatibility
         estimator_config = EstimatorConfig(
             method=self.method,
             n_neighbors=self.n_neighbors,
@@ -101,7 +103,7 @@ class InformationAnalyzer(AbstractAnalyzer):
             copula_type=self.copula_type,
             verbose=self.verbose,
         )
-        self.estimator = InformationEstimatorFactory.create(estimator_config)
+        self.estimators[self.method] = InformationEstimatorFactory.create(estimator_config)
 
         # Check if PID is available
         self.pid_available = False
