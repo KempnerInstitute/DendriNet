@@ -191,7 +191,9 @@ class TestUnifiedSweepGenerator:
         # Check for the actual keys that are generated
         assert "model.core_network.parameters.dendrite_branches_per_layer" in result
         assert "model.core_network.parameters.dendrite_tree_depth" in result
-        assert len(result["model.core_network.parameters.dendrite_branches_per_layer"]) > 0
+        assert (
+            len(result["model.core_network.parameters.dendrite_branches_per_layer"]) > 0
+        )
         assert len(result["model.core_network.parameters.dendrite_tree_depth"]) > 0
 
     def test_generate_branch_combinations_from_layers(self, generator):
@@ -209,7 +211,9 @@ class TestUnifiedSweepGenerator:
         # Check for the actual keys that are generated
         assert "model.core_network.parameters.dendrite_branches_per_layer" in result
         assert "model.core_network.parameters.dendrite_tree_depth" in result
-        assert len(result["model.core_network.parameters.dendrite_branches_per_layer"]) > 0
+        assert (
+            len(result["model.core_network.parameters.dendrite_branches_per_layer"]) > 0
+        )
         assert len(result["model.core_network.parameters.dendrite_tree_depth"]) > 0
 
     def test_generate_branch_combinations_adaptive(self, generator):
