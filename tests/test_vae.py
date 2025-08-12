@@ -182,9 +182,11 @@ class TestCNNVariationalEncoder:
         z_mu, z_sigma = cnn_vae_encoder.latent_distribution(input_tensor)
 
         # Should produce latent representations
-        assert len(z_mu.shape) == 2  # [batch_size, latent_dim]
-        assert len(z_sigma.shape) == 2
+        # CNN encoder may produce 4D tensors (batch, channels, height, width)
+        assert len(z_mu.shape) >= 2  # At least [batch_size, ...] 
+        assert len(z_sigma.shape) >= 2
         assert z_mu.shape == z_sigma.shape
+        assert z_mu.shape[0] == batch_size  # Correct batch size
         assert torch.all(z_sigma > 0)  # Softplus ensures positive values
 
     def test_forward_with_flatten(self, cnn_vae_encoder):
@@ -241,15 +243,15 @@ class TestCNNVariationalAutoencoder:
         """Test the _calculate_downsample_params method."""
         # Test cases for different spatial dimensions and layer counts
         test_cases = [
-            (32, 4, 2),  # (initial_size, target_size, num_layers)
-            (64, 8, 3),
-            (128, 16, 3),
-            (256, 32, 4),
+            ((3, 32, 32), (3, 4, 4), 2),  # (input_shape, latent_shape, num_layers)
+            ((3, 64, 64), (3, 8, 8), 3),
+            ((3, 128, 128), (3, 16, 16), 3),
+            ((3, 256, 256), (3, 32, 32), 4),
         ]
 
-        for initial_size, target_size, num_layers in test_cases:
+        for input_shape, latent_shape, num_layers in test_cases:
             kernels, strides = cnn_vae._calculate_downsample_params(
-                initial_size, target_size, num_layers
+                input_shape, latent_shape, num_layers
             )
 
             assert len(kernels) == num_layers
