@@ -128,20 +128,20 @@ class InformationAnalyzer(AbstractAnalyzer):
         """Compute mutual information between each variable and C."""
         metrics = {}
         # I(E;C)
-        metrics["I(E;C)"] = self.estimator.mutual_information(E, C)
+        metrics["I(E;C)"] = self.estimators[self.method].mutual_information(E, C)
         # I(I;C)
-        metrics["I(I;C)"] = self.estimator.mutual_information(I_var, C)
+        metrics["I(I;C)"] = self.estimators[self.method].mutual_information(I_var, C)
         # I(Vout;C)
-        metrics["I(Vout;C)"] = self.estimator.mutual_information(Vout, C)
+        metrics["I(Vout;C)"] = self.estimators[self.method].mutual_information(Vout, C)
         # I(Vinf;C) if available
         if Vinf is not None and self.include_vinf:
-            metrics["I(Vinf;C)"] = self.estimator.mutual_information(Vinf, C)
+            metrics["I(Vinf;C)"] = self.estimators[self.method].mutual_information(Vinf, C)
         # Joint MI: I(E,I;C)
         EI = np.hstack([E, I_var])
-        metrics["I(E,I;C)"] = self.estimator.mutual_information(EI, C)
+        metrics["I(E,I;C)"] = self.estimators[self.method].mutual_information(EI, C)
         # Optionally normalize by entropy
         if self.normalize_mi:
-            H_C = self.estimator.entropy(C.reshape(-1, 1))
+            H_C = self.estimators[self.method].entropy(C.reshape(-1, 1))
             # Create a list of keys to avoid modifying dict during iteration
             keys_to_normalize = list(metrics.keys())
             for key in keys_to_normalize:
@@ -158,18 +158,18 @@ class InformationAnalyzer(AbstractAnalyzer):
         """Compute pairwise mutual information between variables."""
         metrics = {}
         # I(E;I)
-        metrics["I(E;I)"] = self.estimator.mutual_information(E, I_var)
+        metrics["I(E;I)"] = self.estimators[self.method].mutual_information(E, I_var)
         # I(E;Vout)
-        metrics["I(E;Vout)"] = self.estimator.mutual_information(E, Vout)
+        metrics["I(E;Vout)"] = self.estimators[self.method].mutual_information(E, Vout)
         # I(I;Vout)
-        metrics["I(I;Vout)"] = self.estimator.mutual_information(I_var, Vout)
+        metrics["I(I;Vout)"] = self.estimators[self.method].mutual_information(I_var, Vout)
         if Vinf is not None and self.include_vinf:
             # I(E;Vinf)
-            metrics["I(E;Vinf)"] = self.estimator.mutual_information(E, Vinf)
+            metrics["I(E;Vinf)"] = self.estimators[self.method].mutual_information(E, Vinf)
             # I(I;Vinf)
-            metrics["I(I;Vinf)"] = self.estimator.mutual_information(I_var, Vinf)
+            metrics["I(I;Vinf)"] = self.estimators[self.method].mutual_information(I_var, Vinf)
             # I(Vout;Vinf)
-            metrics["I(Vout;Vinf)"] = self.estimator.mutual_information(Vout, Vinf)
+            metrics["I(Vout;Vinf)"] = self.estimators[self.method].mutual_information(Vout, Vinf)
         return metrics
 
     def _compute_conditional_mi(
@@ -1193,9 +1193,9 @@ class InformationAnalyzer(AbstractAnalyzer):
             traceback.print_exc()
 
     def compute_class_mi(self, activations, labels):
-        return self.estimator.mutual_information(activations, labels)
+        return self.estimators[self.method].mutual_information(activations, labels)
 
     def compute_conditional_mi(self, activations, labels, condition):
-        return self.estimator.conditional_mutual_information(
+        return self.estimators[self.method].conditional_mutual_information(
             activations, labels, condition
         )
