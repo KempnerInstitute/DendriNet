@@ -257,7 +257,4 @@ def apply_automatic_safeguards(config) -> None:
                 logger.info("Auto-enabled hook disabling with AMP for compatibility")
 
 
-# Legacy function name for backward compatibility
-def validate_optimization_combinations(config) -> bool:
-    """Legacy function name - use validate_training_stability instead."""
-    return validate_training_stability(config)
+

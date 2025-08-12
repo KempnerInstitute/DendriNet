@@ -8,49 +8,26 @@ like MNIST, CIFAR-10, and ImageNet.
 import os
 
 import torch
-from torch.utils.data import TensorDataset
+from torch.utils.data import TensorDataset, Dataset
 from torchvision import datasets, transforms
 
 
-# Create a centralized function to get or create a data directory
-def get_data_directory(
-    data_type, custom_path=None, output_dir=None, task_data_path=None, outputs_dir=None
-):
+def get_data_directory(data_type, task_data_path=None):
     """
     Get or create a data directory for the specified data type.
 
-    Priority order:
-    1. task_data_path (from task.data_path config)
-    2. outputs_dir (from outputs.dir config)
-    3. custom_path (legacy parameter)
-    4. output_dir (legacy parameter)
-    5. Default 'data' directory
-
     Args:
         data_type (str): Type of data (e.g., 'mnist', 'cifar')
-        custom_path (str, optional): Custom path provided by the user (legacy)
-        output_dir (str, optional): Output directory from config to store datasets (legacy)
-        task_data_path (str, optional): Path from task.data_path config (highest priority)
-        outputs_dir (str, optional): Directory from outputs.dir config (second priority)
+        task_data_path (str, optional): Path from task.data_path config
 
     Returns:
         str: Path to the data directory
     """
-    # Priority 1: task.data_path
     if task_data_path and task_data_path.strip():
         data_path = os.path.join(task_data_path, "datasets", data_type)
-    # Priority 2: outputs.dir
-    elif outputs_dir and outputs_dir.strip():
-        data_path = os.path.join(outputs_dir, "datasets", data_type)
-    # Priority 3: custom_path (legacy)
-    elif custom_path:
-        data_path = os.path.join(custom_path, data_type)
-    # Priority 4: output_dir (legacy)
-    elif output_dir:
-        data_path = os.path.join(output_dir, "datasets", data_type)
     else:
-        # Priority 5: Default fallback to 'data' directory
-        data_path = os.path.join("data", data_type)
+        # Default fallback to './data' directory
+        data_path = os.path.join("./data", data_type)
 
     # Ensure the directory exists
     os.makedirs(data_path, exist_ok=True)
@@ -62,25 +39,21 @@ def load_mnist_as_datasets(
     train_valid_split=0.8,
     flatten=False,
     normalize=False,
-    data_path=None,
-    output_dir=None,
     task_data_path=None,
-    outputs_dir=None,
 ):
     """
     Load the MNIST dataset and split into train, validation, and test sets.
 
     Args:
         train_valid_split (float): Proportion of training data to use for training (vs validation)
-        data_path (str, optional): Path to the data directory
-        output_dir (str, optional): Output directory from config to store datasets
+        flatten (bool): Whether to flatten the images
+        normalize (bool): Whether to normalize the images
+        task_data_path (str, optional): Path from task.data_path config
 
     Returns:
         tuple: (train_dataset, valid_dataset, test_dataset)
     """
-    mnist_dir = get_data_directory(
-        "mnist", data_path, output_dir, task_data_path, outputs_dir
-    )
+    mnist_dir = get_data_directory("mnist", task_data_path)
 
     tf_list = [transforms.ToTensor()]
     if normalize:
@@ -137,19 +110,26 @@ def load_mnist_modulo10(
     train_valid_split=1,
     flatten=False,
     normalize=False,
-    cache_dir=None,
-    output_dir=None,
     task_data_path=None,
-    outputs_dir=None,
 ):
+    """
+    Load MNIST dataset with modulo 10 operation on labels.
+
+    Args:
+        shuffle_iterations (int): Number of shuffle iterations
+        train_valid_split (float): Proportion of training data to use for training
+        flatten (bool): Whether to flatten the images
+        normalize (bool): Whether to normalize the images
+        task_data_path (str, optional): Path from task.data_path config
+
+    Returns:
+        dict: Dictionary containing train, valid, and test datasets
+    """
     train_ds, valid_ds, test_ds = load_mnist_as_datasets(
         train_valid_split=train_valid_split,
         flatten=flatten,
         normalize=normalize,
-        data_path=cache_dir,  # Legacy parameter
-        output_dir=output_dir,  # Legacy parameter
         task_data_path=task_data_path,
-        outputs_dir=outputs_dir,
     )
     data = {"train": train_ds, "valid": valid_ds, "test": test_ds}
 
@@ -188,18 +168,16 @@ def load_cifar10_as_datasets(
     train_valid_split=1.0,
     flatten=False,
     normalize=False,
-    data_path=None,
-    output_dir=None,
     task_data_path=None,
-    outputs_dir=None,
 ):
     """
     Load the CIFAR-10 dataset and split into train, validation, and test sets.
 
     Args:
         train_valid_split (float): Proportion of training data to use for training (vs validation)
-        data_path (str, optional): Path to the data directory
-        output_dir (str, optional): Output directory from config to store datasets
+        flatten (bool): Whether to flatten the images
+        normalize (bool): Whether to normalize the images
+        task_data_path (str, optional): Path from task.data_path config
 
     Returns:
         tuple: (train_dataset, valid_dataset, test_dataset)
@@ -212,9 +190,7 @@ def load_cifar10_as_datasets(
 
     transform = transforms.Compose(tf_list)
 
-    cifar_dir = get_data_directory(
-        "cifar", data_path, output_dir, task_data_path, outputs_dir
-    )
+    cifar_dir = get_data_directory("cifar", task_data_path)
 
     train_dataset = datasets.CIFAR10(
         root=cifar_dir, train=True, download=True, transform=transform
@@ -263,14 +239,81 @@ def load_cifar10_as_datasets(
     return train_ds, valid_ds, test_ds
 
 
+class PoissonGeneratorDataset(Dataset):
+    """Dataset that applies Poisson noise to base dataset samples."""
+    
+    def __init__(
+        self,
+        base_inputs: torch.Tensor,
+        base_labels: torch.Tensor,
+        rate_multiplier: float = 1.0
+    ):
+        self.base_inputs = base_inputs
+        self.base_labels = base_labels
+        self.rate_multiplier = rate_multiplier
+
+    def __len__(self):
+        return len(self.base_inputs)
+    
+    def __getitem__(self, idx):
+        input = self.base_inputs[idx]
+        label = self.base_labels[idx]
+        scaled_input = input * self.rate_multiplier
+        noisy_scaled_input = torch.poisson(scaled_input)
+        noisy_input = noisy_scaled_input / self.rate_multiplier
+        return noisy_input, label
+
+
+def load_poisson_generator_datasets(
+    base_dataset: str,
+    rate_multiplier: float = 1,
+    train_valid_split: float = 0.8,
+    flatten: bool = False,
+    task_data_path: str = None
+):
+    """
+    Generate a dataset of Poisson-distributed samples from a base dataset.
+
+    Args:
+        base_dataset (str): The base dataset to sample from
+        rate_multiplier (float): The rate multiplier for the Poisson distribution
+        train_valid_split (float): The proportion of samples to use for training vs validation
+        flatten (bool): Whether to flatten the samples
+        task_data_path (str, optional): Path from task.data_path config
+
+    Returns:
+        tuple: (train_dataset, valid_dataset, test_dataset)
+    """
+    # Load the base dataset
+    if base_dataset == "mnist":
+        train_ds, valid_ds, test_ds = load_mnist_as_datasets(
+            train_valid_split=train_valid_split,
+            flatten=flatten,
+            normalize=False,
+            task_data_path=task_data_path
+        )    
+    elif base_dataset == "cifar10":
+        train_ds, valid_ds, test_ds = load_cifar10_as_datasets(
+            train_valid_split=train_valid_split,
+            flatten=flatten,
+            normalize=False,
+            task_data_path=task_data_path
+        )
+    else:
+        raise ValueError(f"Unknown base dataset: {base_dataset}")
+    
+    train_ds = PoissonGeneratorDataset(*train_ds[:], rate_multiplier=rate_multiplier)
+    valid_ds = PoissonGeneratorDataset(*valid_ds[:], rate_multiplier=rate_multiplier)
+    test_ds = PoissonGeneratorDataset(*test_ds[:], rate_multiplier=rate_multiplier)
+
+    return train_ds, valid_ds, test_ds
+
+
 def load_imagenet_as_datasets(
     train_valid_split=0.8,
     flatten=False,
     normalize=False,
-    data_path=None,
-    output_dir=None,
     task_data_path=None,
-    outputs_dir=None,
 ):
     """
     Load the ImageNet dataset and split into train, validation, and test sets.
@@ -279,10 +322,7 @@ def load_imagenet_as_datasets(
         train_valid_split (float): Proportion of training data to use for training (vs validation)
         flatten (bool): Whether to flatten the images
         normalize (bool): Whether to normalize the images
-        data_path (str, optional): Path to the data directory (legacy)
-        output_dir (str, optional): Output directory from config to store datasets (legacy)
         task_data_path (str, optional): Path from task.data_path config
-        outputs_dir (str, optional): Directory from outputs.dir config
 
     Returns:
         tuple: (train_dataset, valid_dataset, test_dataset)
@@ -293,9 +333,7 @@ def load_imagenet_as_datasets(
         imagenet_dir = task_data_path
     else:
         # Use the standard get_data_directory function
-        imagenet_dir = get_data_directory(
-            "imagenet", data_path, output_dir, task_data_path, outputs_dir
-        )
+        imagenet_dir = get_data_directory("imagenet", task_data_path)
 
     # ImageNet preprocessing
     tf_list = [transforms.ToTensor()]
@@ -395,8 +433,8 @@ def get_unified_datasets(task_cfg, train_cfg, output_dir=None, outputs_cfg=None)
     Args:
         task_cfg: Task configuration
         train_cfg: Training configuration
-        output_dir: Output directory from config to store datasets (legacy)
-        outputs_cfg: Outputs configuration containing dir
+        output_dir: Deprecated parameter (ignored)
+        outputs_cfg: Deprecated parameter (ignored)
 
     Returns:
         tuple: (train_dataset, valid_dataset, test_dataset)
@@ -410,43 +448,23 @@ def get_unified_datasets(task_cfg, train_cfg, output_dir=None, outputs_cfg=None)
         task_data_path = getattr(task_cfg, "data_path", None)
         p = task_cfg.parameters
 
-    # Extract outputs directory from outputs config
-    try:
-        outputs_dir = outputs_cfg.get("dir", None) if outputs_cfg else None
-    except (TypeError, AttributeError):
-        outputs_dir = getattr(outputs_cfg, "dir", None) if outputs_cfg else None
-
     # If task_data_path is empty string, set it to None
     if task_data_path == "":
         task_data_path = None
 
-    # If outputs_dir is empty string, set it to None
-    if outputs_dir == "":
-        outputs_dir = None
-
-    # Legacy fallback: If both task_data_path and outputs_dir are None, and output_dir is not provided,
-    # use the outputs directory in project root instead of current working directory
-    if task_data_path is None and outputs_dir is None and output_dir is None:
-        project_root = os.path.dirname(
-            os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        )
-        outputs_dir = os.path.join(project_root, "outputs")
-        os.makedirs(outputs_dir, exist_ok=True)
-
     train_valid_split = getattr(train_cfg, "train_valid_split", 1.0)
     flatten = p.get("flatten", True)
     normalize = p.get("normalize", False)
-
+    base_dataset = p.get("base_dataset", "mnist")
+    rate_multiplier = p.get("rate_multiplier", 1)
+    
     # Handle standard datasets directly
     if dataset_name == "mnist":
         train_ds, valid_ds, test_ds = load_mnist_as_datasets(
             train_valid_split=train_valid_split,
             flatten=flatten,
             normalize=normalize,
-            data_path=None,  # Legacy parameter
-            output_dir=output_dir,  # Legacy parameter
             task_data_path=task_data_path,
-            outputs_dir=outputs_dir,
         )
         return train_ds, valid_ds, test_ds
     elif dataset_name == "cifar10":
@@ -454,30 +472,29 @@ def get_unified_datasets(task_cfg, train_cfg, output_dir=None, outputs_cfg=None)
             train_valid_split=train_valid_split,
             flatten=flatten,
             normalize=normalize,
-            data_path=None,  # Legacy parameter
-            output_dir=output_dir,  # Legacy parameter
             task_data_path=task_data_path,
-            outputs_dir=outputs_dir,
+        )
+    elif dataset_name == "poisson_generator":
+        return load_poisson_generator_datasets(
+            base_dataset=base_dataset,
+            rate_multiplier=rate_multiplier,
+            train_valid_split=train_valid_split,
+            flatten=flatten,
+            task_data_path=task_data_path,
         )
     elif dataset_name == "imagenet":
         return load_imagenet_as_datasets(
             train_valid_split=train_valid_split,
             flatten=flatten,
             normalize=normalize,
-            data_path=None,  # Legacy parameter
-            output_dir=output_dir,  # Legacy parameter
             task_data_path=task_data_path,
-            outputs_dir=outputs_dir,
         )
     elif dataset_name == "mnist_modulo10":
         data = load_mnist_modulo10(
             train_valid_split=train_valid_split,
             flatten=flatten,
             normalize=normalize,
-            cache_dir=None,  # Legacy parameter
-            output_dir=output_dir,  # Legacy parameter
             task_data_path=task_data_path,
-            outputs_dir=outputs_dir,
         )
         train_ds = data["train"]
         if "valid" in data:
