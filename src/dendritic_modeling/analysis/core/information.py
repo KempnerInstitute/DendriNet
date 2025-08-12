@@ -74,14 +74,23 @@ class InformationAnalyzer(AbstractAnalyzer):
         self.verbose = getattr(params, "verbose", False)
 
         # Computation level control - determines the granularity of information analysis
-        # "branch": Individual branches (most granular and accurate)
-        # "layer": Layer-level aggregation (treats each layer as a unit)
-        # "network": Full network aggregation (most efficient)
-        self.computation_level = getattr(params, "computation_level", "layer")
+        # "single_branch": Individual branches (most granular and accurate)
+        # "layer_branch": Layer-level aggregation (treats each layer as a unit)
+        # "all_branch": Full network aggregation (most efficient)
+        self.computation_level = getattr(params, "computation_level", "layer_branch")
         
-        # Branch aggregation method - only used when computation_level is "layer" or "network"
-        # Options: "mean", "max", "sum", "multivariate" (all branches as multivariate input)
+        # Branch aggregation method - only used when computation_level is "layer_branch" or "all_branch"
+        # Options: "mean", "multivariate", "sample"
         self.branch_aggregation = getattr(params, "branch_aggregation", "mean")
+        
+        # Per-neuron analysis - return information values per individual neuron
+        self.per_neuron_analysis = getattr(params, "per_neuron_analysis", False)
+        
+        # Per-EI-network analysis - analyze excitatory and inhibitory networks separately
+        self.per_einet_analysis = getattr(params, "per_einet_analysis", False)
+        
+        # Per-layer analysis - compute enhanced analysis for each layer separately
+        self.per_layer_analysis = getattr(params, "per_layer_analysis", False)
         
         if self.verbose:
             self.logger.setLevel(logging.DEBUG)
@@ -546,7 +555,7 @@ class InformationAnalyzer(AbstractAnalyzer):
 
             self.data_dict: Dict[str, Dict[str, torch.Tensor]]
             
-            if self.computation_level == "branch":
+            if self.computation_level == "single_branch":
                 # Individual branch analysis: Compute MI for each branch separately and average
                 self.logger.info("Computing MI for each branch separately...")
                 
@@ -574,7 +583,7 @@ class InformationAnalyzer(AbstractAnalyzer):
                     results = self._average_mi_results(all_results)
                     results["branch_names"] = branch_names
                     results["num_branches"] = len(all_results)
-                    results["computation_level"] = "branch"
+                    results["computation_level"] = "single_branch"
                 else:
                     self.logger.warning("No branch results to average")
                     return
@@ -608,27 +617,26 @@ class InformationAnalyzer(AbstractAnalyzer):
                     E = torch.stack(excitation_list, dim=0).mean(dim=0).detach().cpu().numpy()
                     I = torch.stack(inhibition_list, dim=0).mean(dim=0).detach().cpu().numpy()
                     Vout = torch.stack(output_list, dim=0).mean(dim=0).detach().cpu().numpy()
-                elif self.branch_aggregation == "max":
-                    # Max pooling across branches
-                    E = torch.stack(excitation_list, dim=0).max(dim=0)[0].detach().cpu().numpy()
-                    I = torch.stack(inhibition_list, dim=0).max(dim=0)[0].detach().cpu().numpy()
-                    Vout = torch.stack(output_list, dim=0).max(dim=0)[0].detach().cpu().numpy()
-                elif self.branch_aggregation == "sum":
-                    # Sum across branches
-                    E = torch.stack(excitation_list, dim=0).sum(dim=0).detach().cpu().numpy()
-                    I = torch.stack(inhibition_list, dim=0).sum(dim=0).detach().cpu().numpy()
-                    Vout = torch.stack(output_list, dim=0).sum(dim=0).detach().cpu().numpy()
-                elif self.branch_aggregation == "first":
-                    # Only use first branch
-                    E = excitation_list[0].detach().cpu().numpy()
-                    I = inhibition_list[0].detach().cpu().numpy()
-                    Vout = output_list[0].detach().cpu().numpy()
                 elif self.branch_aggregation == "multivariate":
                     # Multivariate: Keep all branches as multivariate input (no aggregation)
                     # Stack all branch tensors along a new dimension to create multivariate input
                     E = torch.stack(excitation_list, dim=-1).detach().cpu().numpy()  # [n_samples, n_branches]
                     I = torch.stack(inhibition_list, dim=-1).detach().cpu().numpy()   # [n_samples, n_branches]
                     Vout = torch.stack(output_list, dim=-1).detach().cpu().numpy()     # [n_samples, n_branches]
+                elif self.branch_aggregation == "sample":
+                    # Sample: Treat each branch as a separate observation/sample
+                    # Stack and flatten to [n_samples * n_branches, 1]
+                    E_stacked = torch.stack(excitation_list, dim=-1)  # [n_samples, n_branches]
+                    I_stacked = torch.stack(inhibition_list, dim=-1)   # [n_samples, n_branches]
+                    Vout_stacked = torch.stack(output_list, dim=-1)    # [n_samples, n_branches]
+                    
+                    E = E_stacked.detach().cpu().numpy().flatten().reshape(-1, 1)
+                    I = I_stacked.detach().cpu().numpy().flatten().reshape(-1, 1)
+                    Vout = Vout_stacked.detach().cpu().numpy().flatten().reshape(-1, 1)
+                    
+                    # Need to replicate C for each branch
+                    n_samples, n_branches = E_stacked.shape
+                    C = np.repeat(C, n_branches, axis=0)  # Expand C to match new sample count
                 else:
                     self.logger.warning(
                         f"Unknown branch aggregation method: "

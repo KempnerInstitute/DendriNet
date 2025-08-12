@@ -272,8 +272,14 @@ analysis:
       normalize_mi: false    # Normalize MI values by entropy H(C)
       verbose: false        # Print detailed progress during computation
 
-      compute_per_branch: true
-      branch_aggregation: mean  # Use mean aggregation like iss294
+      # Enhanced Information Analysis Configuration
+      computation_level: layer_branch   # Options: "single_branch", "layer_branch", "all_branch"
+      branch_aggregation: mean           # Options: "mean", "multivariate", "sample"
+      
+      # Enhanced analysis modes
+      per_neuron_analysis: false   # Compute MI for each neuron individually  
+      per_einet_analysis: false    # Analyze E and I networks separately
+      per_layer_analysis: false    # Compute enhanced analysis per layer
 
 outputs:
   run_name: exp_run
