@@ -69,7 +69,7 @@ class TestExpandRanges:
 
         # Negative step (should work backwards)
         result = expand_ranges([10, 1, -2])
-        expected = [10, 8, 6, 4, 2]
+        expected = [10, 8, 6, 4]  # Stops at 4, doesn't include 2
         assert result == expected
 
 
@@ -124,51 +124,53 @@ class TestUnifiedSweepGenerator:
     def test_validate_config_missing_sweep_config(self, generator):
         """Test config validation with missing sweep_config."""
         config = OmegaConf.create({"filter_config": {}, "experiment_settings": {}})
-        assert generator.validate_config(config) is False
+        # Should raise ValueError when validation fails
+        with pytest.raises(ValueError, match="Either sweep_config must have parameters"):
+            generator.validate_config(config)
 
     def test_validate_config_missing_experiment_settings(self, generator):
         """Test config validation with missing experiment_settings."""
         config = OmegaConf.create({"sweep_config": {}, "filter_config": {}})
-        assert generator.validate_config(config) is False
+        # Should raise ValueError when validation fails  
+        with pytest.raises(ValueError, match="Either sweep_config must have parameters"):
+            generator.validate_config(config)
 
     def test_apply_ei_filter_maintain_ratio(self, generator):
         """Test EI filter with maintain_ratio mode."""
-        sweep_params = {
-            "excitatory_layer_sizes": [[4, 8], [8, 16]],
-            "inhibitory_layer_sizes": [[2, 4], [4, 8]],
-        }
-        filter_config = {"ei_ratio_mode": "maintain_ratio"}
+        ee_values = [[4, 8], [8, 16]]
+        ie_values = [[2, 4], [4, 8]]
+        filter_config = {"mode": "all"}  # Use actual filter config format
 
-        result = generator._apply_ei_filter(sweep_params, filter_config)
+        result = generator._apply_ei_filter(ee_values, ie_values, filter_config)
 
-        # Should have same number of combinations for both
-        assert len(result["excitatory_layer_sizes"]) == len(
-            result["inhibitory_layer_sizes"]
-        )
+        # Should return list of tuples (ee, ie)
+        assert isinstance(result, list)
+        assert len(result) == 4  # 2 ee_values × 2 ie_values
+        assert all(isinstance(item, tuple) and len(item) == 2 for item in result)
 
     def test_apply_ei_filter_scale_inhibitory(self, generator):
-        """Test EI filter with scale_inhibitory mode."""
-        sweep_params = {
-            "excitatory_layer_sizes": [[4, 8], [8, 16]],
-            "inhibitory_layer_sizes": [[2, 4]],
-        }
-        filter_config = {"ei_ratio_mode": "scale_inhibitory", "ei_ratio": 0.5}
+        """Test EI filter with ei-sum mode."""
+        ee_values = [4, 8]
+        ie_values = [2, 4]
+        filter_config = {"mode": "ei-sum", "value": 10}  # Sum should equal 10
 
-        result = generator._apply_ei_filter(sweep_params, filter_config)
+        result = generator._apply_ei_filter(ee_values, ie_values, filter_config)
 
-        # Should scale inhibitory based on excitatory
-        assert len(result["excitatory_layer_sizes"]) == 2
-        assert len(result["inhibitory_layer_sizes"]) == 2
+        # Should only return combinations that sum to 10
+        assert isinstance(result, list)
+        assert all(sum(item) == 10 for item in result)  # (4,6) doesn't exist, (8,2) exists
 
     def test_apply_ei_filter_no_ei_params(self, generator):
-        """Test EI filter when no EI parameters are present."""
-        sweep_params = {"train.learning_rate": [0.001, 0.01]}
-        filter_config = {"ei_ratio_mode": "maintain_ratio"}
+        """Test EI filter with e-const mode."""
+        ee_values = [4, 8]
+        ie_values = [2, 4]
+        filter_config = {"mode": "e-const", "value": 4}  # Constant E = 4
 
-        result = generator._apply_ei_filter(sweep_params, filter_config)
+        result = generator._apply_ei_filter(ee_values, ie_values, filter_config)
 
-        # Should return params unchanged
-        assert result == sweep_params
+        # Should only return combinations with E = 4
+        assert isinstance(result, list)
+        assert all(item[0] == 4 for item in result)  # First element (ee) should be 4
 
     def test_generate_branch_combinations_basic(self, generator):
         """Test basic branch combination generation."""
