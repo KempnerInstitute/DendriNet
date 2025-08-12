@@ -131,7 +131,7 @@ class TestUnifiedSweepGenerator:
     def test_validate_config_missing_experiment_settings(self, generator):
         """Test config validation with missing experiment_settings."""
         config = OmegaConf.create({"sweep_config": {}, "filter_config": {}})
-        # Should raise ValueError when validation fails  
+        # Should raise ValueError when validation fails
         with pytest.raises(ValueError, match="Either sweep_config must have parameters"):
             generator.validate_config(config)
 
@@ -145,7 +145,7 @@ class TestUnifiedSweepGenerator:
 
         # Should return list of tuples (ee, ie)
         assert isinstance(result, list)
-        assert len(result) == 4  # 2 ee_values × 2 ie_values
+        assert len(result) == 4  # 2 ee_values x 2 ie_values
         assert all(isinstance(item, tuple) and len(item) == 2 for item in result)
 
     def test_apply_ei_filter_scale_inhibitory(self, generator):
