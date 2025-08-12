@@ -267,29 +267,25 @@ The framework provides enhanced analysis specifically designed for excitation-in
    analysis:
      information_analysis:
        params:
-         # Neuron selection
-         neuron_selection: "all"          # Options: "all", "excitatory", "inhibitory"
-         
          # Enhanced analysis modes
          per_neuron_analysis: false       # Compute MI for each neuron individually
-         ei_specific_analysis: false      # Analyze E and I networks separately
-
-Neuron Selection Options:
-
-- ``all``: Use both excitatory and inhibitory neurons (default)
-- ``excitatory``: Analyze only excitatory neurons and their synapses
-- ``inhibitory``: Analyze only inhibitory neurons and their synapses
+         per_einet_analysis: false        # Analyze E and I networks separately
+         per_layer_analysis: false        # Compute enhanced analysis per layer
 
 Per-Neuron Analysis:
 
 When enabled, computes mutual information for each individual neuron separately, providing detailed per-neuron MI statistics and averaged results across all neurons.
 
-EI-Specific Analysis:
+Per-EI-Network Analysis:
 
 When enabled, performs three separate analyses:
 - Excitatory network only (inhibitory inputs set to zero)
 - Inhibitory network only (excitatory inputs set to zero)  
 - Combined E+I network (standard analysis)
+
+Per-Layer Analysis:
+
+When enabled, computes enhanced analysis (per-neuron and per-EI-network) for each layer separately in multilayer networks, providing layer-specific insights into information processing.
 
 Training Optimization
 ---------------------

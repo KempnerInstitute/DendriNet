@@ -71,8 +71,8 @@ Enhanced features include:
 - Weight pruning with magnitude thresholds
 - Synaptic turnover analysis with active synapse tracking
 - Advanced reporting with branch-level statistics
-- Configurable information analysis with computation levels (branch/layer/network)
-- Enhanced EI network analysis with neuron selection and per-neuron computation
+- Configurable information analysis with computation levels (single_branch/layer_branch/all_branch)
+- Enhanced EI network analysis with per-neuron, per-EI-network, and per-layer computation
 - Multivariate aggregation for joint information computation
 - Hash-based encoder network caching for efficiency
 - Optional training optimizations (NaN detection, adaptive clipping)
@@ -99,7 +99,7 @@ Generates comprehensive analysis:
 - Dendritic architecture comparisons
 - Noise robustness analysis
 - Configurable information theory analysis at branch, layer, or network levels
-- Enhanced EI network analysis with separate excitatory/inhibitory computation
+- Enhanced EI network analysis with separate excitatory/inhibitory and per-layer computation
 - Per-neuron information analysis for detailed neural-level insights
 - Multivariate joint information computation with flexible aggregation methods
 

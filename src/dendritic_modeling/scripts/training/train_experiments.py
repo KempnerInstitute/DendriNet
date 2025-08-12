@@ -270,14 +270,26 @@ def main(config_path: str, args=None):
         )
 
     # Add checkpoint configuration if specified
-    if (
-        hasattr(main_train_config.trainer, "save_every_n_epochs")
-        and main_train_config.trainer.save_every_n_epochs is not None
-    ):
-        main_trainer_config_dict["save_every_n_epochs"] = (
-            main_train_config.trainer.save_every_n_epochs
-        )
-        main_trainer_config_dict["checkpoint_dir"] = run_save_path
+    if hasattr(train_config, 'main_trainer'):
+        # New structure: check main_trainer directly
+        if (
+            hasattr(train_config.main_trainer, "save_every_n_epochs")
+            and train_config.main_trainer.save_every_n_epochs is not None
+        ):
+            main_trainer_config_dict["save_every_n_epochs"] = (
+                train_config.main_trainer.save_every_n_epochs
+            )
+            main_trainer_config_dict["checkpoint_dir"] = run_save_path
+    else:
+        # Old structure: check main_train_config.trainer
+        if (
+            hasattr(main_train_config.trainer, "save_every_n_epochs")
+            and main_train_config.trainer.save_every_n_epochs is not None
+        ):
+            main_trainer_config_dict["save_every_n_epochs"] = (
+                main_train_config.trainer.save_every_n_epochs
+            )
+            main_trainer_config_dict["checkpoint_dir"] = run_save_path
 
     # Add profiling configuration if specified
     enable_profiling = getattr(config.train, "enable_profiling", False)

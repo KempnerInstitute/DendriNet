@@ -75,20 +75,22 @@ class InformationAnalyzer(AbstractAnalyzer):
         # "branch": Individual branches (most granular and accurate)
         # "layer": Layer-level aggregation (treats each layer as a unit)
         # "network": Full network aggregation (most efficient)
-        self.computation_level = getattr(params, "computation_level", "branch")
+        self.computation_level = getattr(params, "computation_level", "single_branch")
         
-        # Branch aggregation method - only used when computation_level is "layer" or "network"
+        # Branch aggregation method - only used when computation_level is "layer_branch" or "all_branch"
         # Options: "mean", "multivariate", "sample"
         self.branch_aggregation = getattr(params, "branch_aggregation", "mean")
         
-        # Neuron selection - determines which neurons to include in analysis
-        self.neuron_selection = getattr(params, "neuron_selection", "all")
+
         
         # Per-neuron analysis - return information values per individual neuron
         self.per_neuron_analysis = getattr(params, "per_neuron_analysis", False)
         
-        # EI-specific analysis - analyze excitatory and inhibitory networks separately
-        self.ei_specific_analysis = getattr(params, "ei_specific_analysis", False)
+        # Per-EI-network analysis - analyze excitatory and inhibitory networks separately
+        self.per_einet_analysis = getattr(params, "per_einet_analysis", False)
+        
+        # Per-layer analysis - compute enhanced analysis for each layer separately
+        self.per_layer_analysis = getattr(params, "per_layer_analysis", False)
 
         if self.verbose:
             self.logger.setLevel(logging.DEBUG)
@@ -563,25 +565,38 @@ class InformationAnalyzer(AbstractAnalyzer):
         for handle in handles:
             handle.remove()
     
-    def filter_neuron_data(self, excitation_data: torch.Tensor, inhibition_data: torch.Tensor):
-        """Filter data based on neuron_selection parameter.
+    def ensure_inhibitory_data(self, excitation_data: torch.Tensor, inhibition_data: torch.Tensor):
+        """Ensure inhibitory data is available, replacing with zeros if missing.
         
         Args:
             excitation_data: Shape [n_samples, n_branches] - excitatory activations
-            inhibition_data: Shape [n_samples, n_branches] - inhibitory activations
+            inhibition_data: Shape [n_samples, n_branches] - inhibitory activations (can be None)
             
         Returns:
-            Filtered data based on neuron_selection setting
+            Tuple of (excitation_data, inhibition_data) with guaranteed inhibitory data
         """
-        if self.neuron_selection == "excitatory":
-            # Use only excitatory data, set inhibition to zeros or exclude it
-            return excitation_data, torch.zeros_like(excitation_data)
-        elif self.neuron_selection == "inhibitory":
-            # Use only inhibitory data, set excitation to zeros or exclude it
-            return torch.zeros_like(inhibition_data), inhibition_data
-        else:  # "all"
-            # Use both excitatory and inhibitory data
-            return excitation_data, inhibition_data
+        # Handle case where inhibitory data might be missing/None
+        if inhibition_data is None:
+            inhibition_data = torch.zeros_like(excitation_data)
+            self.logger.warning("Inhibitory data is missing - using zeros for inhibitory activations")
+        
+        return excitation_data, inhibition_data
+    
+    def has_inhibitory_data(self, layer_data_dict: dict) -> bool:
+        """Check if the network has valid inhibitory data.
+        
+        Args:
+            layer_data_dict: Dictionary containing layer data from all layers
+            
+        Returns:
+            True if inhibitory data exists and is not all zeros
+        """
+        for layer_data in layer_data_dict.values():
+            if "inhibition" in layer_data and layer_data["inhibition"] is not None:
+                # Check if inhibitory data is not all zeros
+                if torch.any(layer_data["inhibition"] != 0):
+                    return True
+        return False
     
     def compute_per_neuron_mi(self, E_data: np.ndarray, I_data: np.ndarray, Vout_data: np.ndarray, C: np.ndarray):
         """Compute MI for each neuron separately.
@@ -634,23 +649,90 @@ class InformationAnalyzer(AbstractAnalyzer):
         """
         self.logger.info("Computing MI separately for excitatory and inhibitory networks...")
         
-        # Compute MI for excitatory network only
+        results = {}
+        
+        # Always compute excitatory network MI
         e_results = self.compute_metrics(E_data, np.zeros_like(I_data), Vout_data, C, None)
         e_results["network_type"] = "excitatory"
+        results["excitatory_results"] = e_results
         
-        # Compute MI for inhibitory network only  
-        i_results = self.compute_metrics(np.zeros_like(E_data), I_data, Vout_data, C, None)
-        i_results["network_type"] = "inhibitory"
+        # Check if inhibitory data is meaningful (not all zeros)
+        has_inhibitory = np.any(I_data != 0)
         
-        # Compute MI for combined E+I network (current default)
-        combined_results = self.compute_metrics(E_data, I_data, Vout_data, C, None)
-        combined_results["network_type"] = "combined"
+        if has_inhibitory:
+            # Compute MI for inhibitory network only  
+            i_results = self.compute_metrics(np.zeros_like(E_data), I_data, Vout_data, C, None)
+            i_results["network_type"] = "inhibitory"
+            results["inhibitory_results"] = i_results
+            
+            # Compute MI for combined E+I network (current default)
+            combined_results = self.compute_metrics(E_data, I_data, Vout_data, C, None)
+            combined_results["network_type"] = "combined"
+            results["combined_results"] = combined_results
+            
+            self.logger.info("Computed MI for excitatory, inhibitory, and combined networks")
+        else:
+            # No inhibitory data available
+            self.logger.warning("No inhibitory data detected - skipping inhibitory and combined network analysis")
+            results["inhibitory_results"] = None
+            results["combined_results"] = e_results  # Use excitatory results as combined
+            results["inhibitory_data_available"] = False
         
-        return {
-            "excitatory_results": e_results,
-            "inhibitory_results": i_results, 
-            "combined_results": combined_results
-        }
+        results["inhibitory_data_available"] = has_inhibitory
+        return results
+    
+    def compute_per_layer_enhanced_analysis(self, C: np.ndarray):
+        """Compute enhanced analysis (per-neuron and EI-specific) for each layer separately.
+        
+        Args:
+            C: Class labels for all samples
+            
+        Returns:
+            Dictionary with per-layer enhanced analysis results
+        """
+        self.logger.info("Computing per-layer enhanced analysis...")
+        
+        per_layer_results = {}
+        
+        for layer_name, layer_data in self.data_dict.items():
+            if "excitation" not in layer_data:
+                continue
+                
+            self.logger.info(f"Processing enhanced analysis for layer: {layer_name}")
+            
+            # Ensure inhibitory data is available for this layer
+            E_filtered, I_filtered = self.ensure_inhibitory_data(
+                layer_data["excitation"], layer_data["inhibition"]
+            )
+            
+            E_layer = E_filtered.detach().cpu().numpy()
+            I_layer = I_filtered.detach().cpu().numpy()
+            Vout_layer = layer_data["output"].detach().cpu().numpy()
+            
+            layer_results = {}
+            
+            # Add per-neuron analysis for this layer
+            if self.per_neuron_analysis:
+                per_neuron_results = self.compute_per_neuron_mi(E_layer, I_layer, Vout_layer, C)
+                layer_results["per_neuron_analysis"] = per_neuron_results
+            
+            # Add EI-network analysis for this layer
+            if self.per_einet_analysis:
+                ei_specific_results = self.compute_ei_specific_mi(E_layer, I_layer, Vout_layer, C)
+                layer_results["per_einet_analysis"] = ei_specific_results
+            
+            # Add layer metadata
+            layer_results["layer_name"] = layer_name
+            layer_results["layer_shape"] = {
+                "excitation": E_layer.shape,
+                "inhibition": I_layer.shape,
+                "output": Vout_layer.shape
+            }
+            layer_results["has_inhibitory_data"] = np.any(I_layer != 0)
+            
+            per_layer_results[layer_name] = layer_results
+        
+        return per_layer_results
 
     def analyze(
         self,
@@ -743,7 +825,7 @@ class InformationAnalyzer(AbstractAnalyzer):
 
             self.data_dict: dict[str, dict[str, torch.Tensor]]
 
-            if self.computation_level == "branch":
+            if self.computation_level == "single_branch":
                 # Individual branch analysis: Compute MI for each branch separately and average
                 self.logger.info("Computing MI for each branch separately...")
 
@@ -760,8 +842,8 @@ class InformationAnalyzer(AbstractAnalyzer):
                     I_all_branches_raw = layer_data["inhibition"]
                     Vout_all_branches = layer_data["output"].detach().cpu().numpy()
 
-                    # Apply neuron selection filter
-                    E_all_branches_filtered, I_all_branches_filtered = self.filter_neuron_data(
+                    # Ensure inhibitory data is available
+                    E_all_branches_filtered, I_all_branches_filtered = self.ensure_inhibitory_data(
                         E_all_branches_raw, I_all_branches_raw
                     )
                     
@@ -806,12 +888,12 @@ class InformationAnalyzer(AbstractAnalyzer):
                     results["layer_statistics"] = (
                         layer_results  # Add per-layer statistics
                     )
-                    results["computation_level"] = "branch"
+                    results["computation_level"] = "single_branch"
                 else:
                     self.logger.warning("No branch results to average")
                     return
 
-            elif self.computation_level == "layer":
+            elif self.computation_level == "layer_branch":
                 # Layer-level analysis: treat each layer as a unit
                 self.logger.info("Computing MI at layer level...")
                 
@@ -827,8 +909,8 @@ class InformationAnalyzer(AbstractAnalyzer):
                     I_layer_data_raw = layer_data["inhibition"]
                     Vout_layer_data = layer_data["output"]
                     
-                    # Apply neuron selection filter
-                    E_layer_data, I_layer_data = self.filter_neuron_data(
+                    # Ensure inhibitory data is available
+                    E_layer_data, I_layer_data = self.ensure_inhibitory_data(
                         E_layer_data_raw, I_layer_data_raw
                     )
                     
@@ -877,12 +959,12 @@ class InformationAnalyzer(AbstractAnalyzer):
                     results = self._average_mi_results(all_results)
                     results["layer_names"] = layer_names
                     results["num_layers"] = len(all_results)
-                    results["computation_level"] = "layer"
+                    results["computation_level"] = "layer_branch"
                 else:
                     self.logger.warning("No layer results to average")
                     return
                         
-            else:  # computation_level == "network"
+            else:  # computation_level == "all_branch"
                 # Full network aggregation: properly handle different-sized tensors
                 self.logger.info(
                     f"Aggregating branches using method: {self.branch_aggregation} (full network aggregation)"
@@ -966,47 +1048,55 @@ class InformationAnalyzer(AbstractAnalyzer):
                 # Run information analysis on aggregated data
                 results = self.compute_metrics(E, I_var, Vout, C, Vinf)
                 results["aggregation_method"] = self.branch_aggregation
-                results["computation_level"] = "network"
+                results["computation_level"] = "all_branch"
 
             # Add enhanced analysis results if requested
-            if self.per_neuron_analysis or self.ei_specific_analysis:
+            if self.per_neuron_analysis or self.per_einet_analysis or self.per_layer_analysis:
                 self.logger.info("Running enhanced analysis modes...")
                 
-                # Collect all data for enhanced analysis
-                all_E_data = []
-                all_I_data = []
-                all_Vout_data = []
+                # Add per-layer analysis if requested
+                if self.per_layer_analysis:
+                    per_layer_results = self.compute_per_layer_enhanced_analysis(C)
+                    results["per_layer_analysis"] = per_layer_results
                 
-                for layer_data in self.data_dict.values():
-                    if "excitation" in layer_data:
-                        # Apply neuron selection filter
-                        E_filtered, I_filtered = self.filter_neuron_data(
-                            layer_data["excitation"], layer_data["inhibition"]
-                        )
-                        all_E_data.append(E_filtered.detach().cpu().numpy())
-                        all_I_data.append(I_filtered.detach().cpu().numpy())
-                        all_Vout_data.append(layer_data["output"].detach().cpu().numpy())
-                
-                # Concatenate data across layers (network-level view)
-                if all_E_data:
-                    E_all = np.concatenate(all_E_data, axis=1)  # [n_samples, total_neurons]
-                    I_all = np.concatenate(all_I_data, axis=1)
-                    Vout_all = np.concatenate(all_Vout_data, axis=1)
+                # Network-level enhanced analysis (existing functionality)
+                if self.per_neuron_analysis or self.per_einet_analysis:
+                    # Collect all data for enhanced analysis
+                    all_E_data = []
+                    all_I_data = []
+                    all_Vout_data = []
                     
-                    # Add per-neuron analysis results
-                    if self.per_neuron_analysis:
-                        per_neuron_results = self.compute_per_neuron_mi(E_all, I_all, Vout_all, C)
-                        results["per_neuron_analysis"] = per_neuron_results
+                    for layer_data in self.data_dict.values():
+                        if "excitation" in layer_data:
+                            # Ensure inhibitory data is available
+                            E_filtered, I_filtered = self.ensure_inhibitory_data(
+                                layer_data["excitation"], layer_data["inhibition"]
+                            )
+                            all_E_data.append(E_filtered.detach().cpu().numpy())
+                            all_I_data.append(I_filtered.detach().cpu().numpy())
+                            all_Vout_data.append(layer_data["output"].detach().cpu().numpy())
                     
-                    # Add EI-specific analysis results
-                    if self.ei_specific_analysis:
-                        ei_specific_results = self.compute_ei_specific_mi(E_all, I_all, Vout_all, C)
-                        results["ei_specific_analysis"] = ei_specific_results
+                    # Concatenate data across layers (network-level view)
+                    if all_E_data:
+                        E_all = np.concatenate(all_E_data, axis=1)  # [n_samples, total_neurons]
+                        I_all = np.concatenate(all_I_data, axis=1)
+                        Vout_all = np.concatenate(all_Vout_data, axis=1)
+                        
+                        # Add per-neuron analysis results
+                        if self.per_neuron_analysis:
+                            per_neuron_results = self.compute_per_neuron_mi(E_all, I_all, Vout_all, C)
+                            results["per_neuron_analysis"] = per_neuron_results
+                        
+                        # Add EI-network analysis results
+                        if self.per_einet_analysis:
+                            ei_specific_results = self.compute_ei_specific_mi(E_all, I_all, Vout_all, C)
+                            results["per_einet_analysis"] = ei_specific_results
             
             # Add metadata about analysis configuration
-            results["neuron_selection"] = self.neuron_selection
             results["per_neuron_analysis_enabled"] = self.per_neuron_analysis
-            results["ei_specific_analysis_enabled"] = self.ei_specific_analysis
+            results["per_einet_analysis_enabled"] = self.per_einet_analysis
+            results["per_layer_analysis_enabled"] = self.per_layer_analysis
+            results["has_inhibitory_data"] = self.has_inhibitory_data(self.data_dict)
 
             # Save results
             if save_path is not None:
