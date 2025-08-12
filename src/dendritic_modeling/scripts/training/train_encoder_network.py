@@ -195,10 +195,10 @@ def load_train_encoder_network(
 
             os.makedirs(load_save_path, exist_ok=True)
             # Use the new top-level encoder_net_trainer config structure (compatible with 245MR)
-            if hasattr(train_config, 'encoder_net_trainer'):
-                # New structure: use train_config.encoder_net_trainer directly
+            if hasattr(encoder_train_config, 'encoder_net_trainer'):
+                # New structure: use encoder_train_config.encoder_net_trainer directly
                 encoder_trainer_config_dict = OmegaConf.to_container(
-                    train_config.encoder_net_trainer, resolve=True
+                    encoder_train_config.encoder_net_trainer, resolve=True
                 )
                 encoder_trainer_config_dict["save_path"] = load_save_path
             else:

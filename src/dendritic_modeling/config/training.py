@@ -97,6 +97,9 @@ class TrainerConfig(BaseConfig):
     print_every: int = 10
     # Mixed precision training
     use_amp: bool = False
+    # Training optimization flags (performance vs accuracy trade-offs)
+    enable_nan_checking: bool = False
+    enable_adaptive_clipping: bool = False
     # for learning strategies other than standard:
     pretrain_epochs: int = 50
     target_voltage: float = 0.5
@@ -133,7 +136,7 @@ class TrainConfig(BaseConfig):
     # Legacy config structure (for backward compatibility)
     encoder: EncoderTrainConfig = field(default_factory=EncoderTrainConfig)
     main: MainTrainConfig = field(default_factory=MainTrainConfig)
-    # New 245MR-compatible trainer structure  
+    # New 245MR-compatible trainer structure
     encoder_net_trainer: Optional[TrainerConfig] = None
     main_trainer: Optional[TrainerConfig] = None
     run_name: str = "experiment"
