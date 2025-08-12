@@ -2,15 +2,23 @@
 # ============================================================================
 # STANDARD DENDRITIC MODELING EXPERIMENT CONFIGURATION
 # ============================================================================
-# This is the main configuration file for running standard dendritic modeling
+# This is the main configuration file for running single dendritic modeling
 # experiments on single GPUs with moderate-sized models.
 #
 # USAGE:
-#   Standard Training:
+#   Standard single-GPU training:
 #   python src/dendritic_modeling/scripts/training/train_experiments.py configs/config_exp.yaml
 #
-#   Or with command line overrides:
-#   python src/dendritic_modeling/scripts/training/train_experiments.py configs/config_exp.yaml --epochs 100
+#   With command line overrides:
+#   python src/dendritic_modeling/scripts/training/train_experiments.py configs/config_exp.yaml --output_dir /path/to/results --run_name my_experiment
+#
+#   Available command line options:
+#   --output_dir: Override output directory
+#   --run_name: Override experiment name
+#   --learning_strategy: Override learning strategy (mle, freeze_branches, two_step, etc.)
+#
+# NOTE: For large models requiring multi-GPU/FSDP training, use config_exp_fsdp.yaml instead.
+# NOTE: For parameter sweeps, use unified_all_sweeps_example.yaml instead.
 
 model:
   task: classification  # Options: "classification", "regression"
@@ -130,6 +138,53 @@ train:
   train_valid_split: 0.8
 
   # ==========================================
+  # TOP-LEVEL TRAINER CONFIGURATIONS (Compatible with 245MR structure)
+  # ==========================================
+  
+  # Input network training configuration (simple, no advanced options)
+  encoder_net_trainer:
+    # for all learning strategies:
+    loss_function: mse
+    epochs: 50
+    early_stopping: false
+    patience: 10
+    batch_size: 128
+    shuffle: true
+    grad_clip_value: 5.0
+    load_best_state_dict: true
+    plot_losses: false
+    suppress_prints: false
+    print_every: 10
+  
+  # Main network training configuration (with advanced iss294 options)
+  main_trainer:
+    # for all learning strategies:
+    loss_function: ce
+    epochs: 50
+    early_stopping: false
+    patience: 10
+    batch_size: 128
+    shuffle: true
+    grad_clip_value: 5.0
+    load_best_state_dict: true
+    plot_losses: false
+    save_path: null
+    suppress_prints: false
+    print_every: 10
+    use_amp: false
+    # Performance optimization flags (disabled by default for speed)
+    enable_nan_checking: false      # Enable NaN detection during training (expensive)
+    enable_adaptive_clipping: false # Enable adaptive gradient clipping (expensive)
+    # for learning strategies other than standard:
+    pretrain_epochs: 50
+    target_voltage: 0.5
+    kl_weight: 0.1
+    reverse_training: false
+    epochs_per_layer: 50
+    epochs_per_branch: 50
+    final_tune_epochs: 10
+
+  # ==========================================
   # PERFORMANCE OPTIMIZATION SETTINGS
   # ==========================================
   enable_amp: false             # Enable automatic mixed precision
@@ -166,7 +221,7 @@ train:
   # ENCODER TRAINING CONFIGURATION
   # ==========================================
   encoder:
-    load_save_root: null
+    load_save_root: ./.trained_encoder_networks/  # Hash-based encoder model cache directory
     lr: 0.001
     trainer:
       loss_function: mse        # Loss function for encoder
@@ -182,6 +237,9 @@ train:
       suppress_prints: false
       print_every: 10
       use_amp: false
+      # Performance optimization flags (disabled by default for speed)
+      enable_nan_checking: false      # Enable NaN detection during training (expensive)
+      enable_adaptive_clipping: false # Enable adaptive gradient clipping (expensive)
       pretrain_epochs: 50
       target_voltage: 0.5
       kl_weight: 0.1
@@ -221,6 +279,9 @@ train:
       suppress_prints: false
       print_every: 10
       use_amp: false
+      # Performance optimization flags (disabled by default for speed)
+      enable_nan_checking: false      # Enable NaN detection during training (expensive)
+      enable_adaptive_clipping: false # Enable adaptive gradient clipping (expensive)
       pretrain_epochs: 50
       target_voltage: 0.5
       kl_weight: 0.1
@@ -368,8 +429,21 @@ analysis:
       include_vinf: true        # Include soma activation
       normalize_mi: false       # Normalize by entropy
       verbose: false
-      compute_per_branch: true
-      branch_aggregation: mean  # Options: "mean", "max", "sum", "first", "none"
+     
+      # Computation Level Control - determines the granularity of information analysis
+      computation_level: layer_branch   # Options: "single_branch", "layer_branch", "all_branch"
+                                     # "single_branch": Individual branches (most granular and accurate)
+                                     # "layer_branch": Layer-level aggregation (treats each layer as a unit)  
+                                     # "all_branch": Full network aggregation (most efficient)
+      
+      # Branch aggregation method - only used when computation_level is "layer_branch" or "all_branch"
+      branch_aggregation: mean     # Options: "mean", "multivariate", "sample"
+      
+      
+      # Enhanced analysis modes
+      per_neuron_analysis: false   # If true, compute MI for each neuron separately  
+      per_einet_analysis: false    # If true, analyze E and I networks separately
+      per_layer_analysis: false    # If true, compute enhanced analysis per layer
 
   synapse_turnover_analysis:
     enabled: true

@@ -65,15 +65,17 @@ Use advanced training with pruning, regularization, and synaptic analysis:
 
 python src/dendritic_modeling/scripts/training/train_experiments.py configs/config_exp.yaml
 ```
-
 Enhanced features include:
 - Automatic GPU allocation with optimal node distribution
 - Multi-node distributed training with improved synchronization
-- Multiple optimizers (Adam, SGD, RMSprop, AdamW)
-- L1/L2 regularization with selective application
 - Weight pruning with magnitude thresholds
 - Synaptic turnover analysis with active synapse tracking
 - Advanced reporting with branch-level statistics
+- Configurable information analysis with computation levels (single_branch/layer_branch/all_branch)
+- Enhanced EI network analysis with per-neuron, per-EI-network, and per-layer computation
+- Multivariate aggregation for joint information computation
+- Hash-based encoder network caching for efficiency
+- Optional training optimizations (NaN detection, adaptive clipping)
 
 See [ENHANCED_TRAINING_GUIDE.md](ENHANCED_TRAINING_GUIDE.md) for detailed usage and [VALIDATION_AND_FSDP_GUIDE.md](VALIDATION_AND_FSDP_GUIDE.md) for validation and FSDP configuration.
 
@@ -96,7 +98,10 @@ Generates comprehensive analysis:
 - Performance trends vs E/I ratios
 - Dendritic architecture comparisons
 - Noise robustness analysis
-- Layer-specific information theory analysis (I(E;C), I(I;E|C), etc.)
+- Configurable information theory analysis at branch, layer, or network levels
+- Enhanced EI network analysis with separate excitatory/inhibitory and per-layer computation
+- Per-neuron information analysis for detailed neural-level insights
+- Multivariate joint information computation with flexible aggregation methods
 
 See [`src/dendritic_modeling/scripts/sweeps/README.md`](src/dendritic_modeling/scripts/sweeps/README.md) for details.
 
@@ -108,10 +113,10 @@ For detailed usage, configuration options, and advanced features, see the [full 
 
 - Models: Classifier and Regressor with encoder-core-decoder architecture
 - Networks: EINet (excitation-inhibition), DendriNet (dendritic branching), and classical networks
-- Training: Standard & enhanced training, auto-scaling FSDP for large models, pruning, regularization
+- Training: Dual trainer structure (encoder/main), auto-scaling FSDP, pruning, regularization, hash-based caching
 - Validation: Unified configuration validation with model architecture and training stability checks
 - GPU Estimation: Automatic resource allocation with A100/H100 optimization and optimal node distribution
-- Analysis: Information theory, synaptic turnover, correlation studies, and 65+ visualization plots
+- Analysis: Multi-level information theory, synaptic turnover, correlation studies, and 65+ visualization plots
 - Sweeps: Automated parameter exploration with intelligent result analysis
 
 ## License

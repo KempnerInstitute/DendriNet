@@ -852,9 +852,7 @@ class UnifiedResultAnalyzer:
         # Update network category based on use_shunting
         if "use_shunting" in clean_df.columns:
             clean_df.loc[clean_df["use_shunting"], "network_category"] = "shunting"
-            clean_df.loc[not clean_df["use_shunting"], "network_category"] = (
-                "no_shunting"
-            )
+            clean_df.loc[~clean_df["use_shunting"], "network_category"] = "no_shunting"
 
         # Print diagnostics about the cleaned data
         print(f"\nCleaned data summary: {len(clean_df)} rows")

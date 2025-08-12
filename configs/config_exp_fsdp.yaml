@@ -1,6 +1,27 @@
 # ============================================================================
 # FSDP EXPERIMENT CONFIGURATION
 # ============================================================================
+# This configuration file is designed for large dendritic models that require
+# multi-GPU distributed training using PyTorch's Fully Sharded Data Parallel (FSDP).
+#
+# USAGE:
+#   Multi-GPU FSDP training:
+#   python src/dendritic_modeling/scripts/training/train_experiments_fsdp.py configs/config_exp_fsdp.yaml
+#
+#   FSDP training typically requires:
+#   - Multiple GPUs (2+ recommended)
+#   - Large models (>1B parameters)
+#   - CUDA-enabled environment
+#   - Sufficient GPU memory
+#
+# REQUIREMENTS:
+#   - PyTorch with FSDP support
+#   - CUDA toolkit and drivers
+#   - Multiple GPUs for optimal performance
+#
+# NOTE: For single-GPU experiments, use config_exp.yaml instead.
+# NOTE: For parameter sweeps, use unified_all_sweeps_example.yaml instead.
+# ============================================================================
 
 model:
   task: classification
@@ -66,8 +87,46 @@ train:
   seed: 0
   train_valid_split: 0.8
 
+  # ==========================================
+  # TOP-LEVEL TRAINER CONFIGURATIONS
+  # ==========================================
+  
+  # Input network training configuration (simple, no advanced options)
+  encoder_net_trainer:
+    # for all learning strategies:
+    loss_function: mse
+    epochs: 50
+    early_stopping: false
+    patience: 10
+    batch_size: 128
+    shuffle: true
+    grad_clip_value: 1.0
+    load_best_state_dict: true
+    plot_losses: true
+    suppress_prints: false
+    print_every: 5
+  
+  # Main network training configuration (with advanced iss294 options)
+  main_trainer:
+    # for all learning strategies:
+    loss_function: ce
+    epochs: 50
+    early_stopping: false
+    patience: 10
+    batch_size: 128
+    shuffle: true
+    grad_clip_value: 1.0
+    load_best_state_dict: true
+    plot_losses: true
+    save_path: null
+    suppress_prints: false
+    print_every: 5
+    # Performance optimization flags (disabled by default for speed)
+    enable_nan_checking: false      # Enable NaN detection during training (expensive)
+    enable_adaptive_clipping: false # Enable adaptive gradient clipping (expensive)
+
   encoder:
-    load_save_root: null
+    load_save_root: ./.trained_encoder_networks/  # Hash-based encoder model cache directory
     lr: 0.001
     trainer:
       loss_function: mse
@@ -108,6 +167,9 @@ train:
       save_path: null
       suppress_prints: false
       print_every: 5
+      # Performance optimization flags (disabled by default for speed)
+      enable_nan_checking: false      # Enable NaN detection during training (expensive)
+      enable_adaptive_clipping: false # Enable adaptive gradient clipping (expensive)
 
     regularization:
       l1_weight: 0.001
@@ -269,8 +331,20 @@ analysis:
       include_vinf: true
       normalize_mi: false
       verbose: false
-      compute_per_branch: false
-      branch_aggregation: mean
+      
+      # Computation Level Control - determines the granularity of information analysis
+      computation_level: layer_branch # Options: "single_branch", "layer_branch", "all_branch"
+                                     # "single_branch": Individual branches (most granular and accurate)
+                                     # "layer_branch": Layer-level aggregation (treats each layer as a unit)
+                                     # "all_branch": Full network aggregation (most efficient)
+      
+      # Branch aggregation method - only used when computation_level is "layer_branch" or "all_branch"
+      branch_aggregation: mean       # Options: "mean", "multivariate", "sample"
+      
+      # Enhanced analysis modes
+      per_neuron_analysis: false     # If true, compute MI for each neuron separately  
+      per_einet_analysis: false      # If true, analyze E and I networks separately
+      per_layer_analysis: false      # If true, compute enhanced analysis per layer
 
   correlation_analysis:
     enabled: false

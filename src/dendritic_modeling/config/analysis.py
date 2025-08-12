@@ -51,8 +51,25 @@ class InformationAnalysisParams(BaseConfig):
     normalize_mi: bool = False  # Normalize by entropy
     verbose: bool = False
 
-    compute_per_branch: bool = True
-    branch_aggregation: str = "mean"
+    # Computation Level Control - determines the granularity of information analysis
+    computation_level: str = (
+        "single_branch"  # Options: "single_branch", "layer_branch", "all_branch"
+    )
+    # "single_branch": Individual branches (most granular and accurate)
+    # "layer_branch": Layer-level aggregation (treats each layer as a unit)
+    # "all_branch": Full network aggregation (most efficient)
+
+    # Branch aggregation method - only used when computation_level is "layer_branch" or "all_branch"
+    branch_aggregation: str = "mean"  # Options: "mean", "multivariate", "sample"
+
+    # Per-neuron analysis - return information values per individual neuron
+    per_neuron_analysis: bool = False  # If True, compute MI for each neuron separately
+
+    # Per-EI-network analysis - analyze excitatory and inhibitory networks separately
+    per_einet_analysis: bool = False  # If True, compute separate E and I network MI
+
+    # Per-layer analysis - compute enhanced analysis for each layer separately
+    per_layer_analysis: bool = False  # If True, compute per-layer enhanced analysis
 
 
 @dataclass

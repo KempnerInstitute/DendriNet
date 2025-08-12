@@ -41,7 +41,7 @@ class VariationalEncoder(BaseNetwork):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         z_mu, z_sigma = self.latent_distribution(x)
-        z = torch.sigmoid(Normal(z_mu, z_sigma).sample())
+        z = torch.sigmoid(Normal(z_mu, z_sigma).rsample())
         return z
 
 
@@ -129,7 +129,7 @@ class CNNVariationalEncoder(BaseNetwork):
     def forward(self, x: torch.Tensor, flatten: bool = True) -> torch.Tensor:
         """Sample from the latent distribution and return spatial latent tensor."""
         z_mu, z_sigma = self.latent_distribution(x)
-        z = torch.sigmoid(Normal(z_mu, z_sigma).sample())
+        z = torch.sigmoid(Normal(z_mu, z_sigma).rsample())
         if flatten:
             z = torch.flatten(z, start_dim=-3)
         return z

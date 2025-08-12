@@ -231,11 +231,21 @@ def main(config_path: str, args=None):
     main_net_save_path = os.path.join(run_save_path, "main_network")
     os.makedirs(main_net_save_path, exist_ok=True)
 
-    main_train_config = train_config.main
-    main_train_config.trainer.save_path = main_net_save_path
-    main_trainer_config_dict = OmegaConf.to_container(
-        main_train_config.trainer, resolve=True
-    )
+    # Use the new top-level main_trainer config structure (compatible with 245MR)
+    if hasattr(train_config, "main_trainer"):
+        # New structure: use train_config.main_trainer directly
+        main_trainer_config_dict = OmegaConf.to_container(
+            train_config.main_trainer, resolve=True
+        )
+        main_trainer_config_dict["save_path"] = main_net_save_path
+        main_train_config = train_config.main  # Still need this for other configs
+    else:
+        # Fallback to old structure for backward compatibility
+        main_train_config = train_config.main
+        main_train_config.trainer.save_path = main_net_save_path
+        main_trainer_config_dict = OmegaConf.to_container(
+            main_train_config.trainer, resolve=True
+        )
 
     # Add enhanced configurations for pruning, regularization, reporting, and parameter groups
     # These configurations are needed for the trainer factory to enable advanced features
@@ -260,14 +270,26 @@ def main(config_path: str, args=None):
         )
 
     # Add checkpoint configuration if specified
-    if (
-        hasattr(main_train_config.trainer, "save_every_n_epochs")
-        and main_train_config.trainer.save_every_n_epochs is not None
-    ):
-        main_trainer_config_dict["save_every_n_epochs"] = (
-            main_train_config.trainer.save_every_n_epochs
-        )
-        main_trainer_config_dict["checkpoint_dir"] = run_save_path
+    if hasattr(train_config, "main_trainer"):
+        # New structure: check main_trainer directly
+        if (
+            hasattr(train_config.main_trainer, "save_every_n_epochs")
+            and train_config.main_trainer.save_every_n_epochs is not None
+        ):
+            main_trainer_config_dict["save_every_n_epochs"] = (
+                train_config.main_trainer.save_every_n_epochs
+            )
+            main_trainer_config_dict["checkpoint_dir"] = run_save_path
+    else:
+        # Old structure: check main_train_config.trainer
+        if (
+            hasattr(main_train_config.trainer, "save_every_n_epochs")
+            and main_train_config.trainer.save_every_n_epochs is not None
+        ):
+            main_trainer_config_dict["save_every_n_epochs"] = (
+                main_train_config.trainer.save_every_n_epochs
+            )
+            main_trainer_config_dict["checkpoint_dir"] = run_save_path
 
     # Add profiling configuration if specified
     enable_profiling = getattr(config.train, "enable_profiling", False)
@@ -296,9 +318,9 @@ def main(config_path: str, args=None):
 
     # Store original pruning config and temporarily disable it for initial training
     original_pruning_config = main_trainer_config_dict.get("pruning", {})
-    main_trainer_config_dict[
-        "pruning"
-    ] = {}  # Temporarily disable pruning for initial training
+    main_trainer_config_dict["pruning"] = (
+        {}
+    )  # Temporarily disable pruning for initial training
 
     main_trainer = get_trainer(
         strategy=main_train_config.learning_strategy,

@@ -6,3 +6,9 @@
     added slurm generation for fsdp and distributed training
     added new sweep workflow
 -- August 2025 --> added regularization and prunning
+    enhanced information analysis and training optimization
+    Added computation_level parameter (branch/layer/network)
+    Added multivariate aggregation option for information analysis
+    Added configurable training optimization parameters (NaN detection, adaptive clipping)
+    Added hash-based encoder network caching
+    Added encoder_net_trainer/main_trainer

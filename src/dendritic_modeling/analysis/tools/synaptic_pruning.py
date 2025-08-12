@@ -159,12 +159,12 @@ class SynapticPruningAnalyzer(SynapticTurnoverAnalyzer):
                             "active": exc_active,
                         }
 
-                        stats["connection_type_stats"]["excitatory"]["total"] += (
-                            exc_total
-                        )
-                        stats["connection_type_stats"]["excitatory"]["active"] += (
-                            exc_active
-                        )
+                        stats["connection_type_stats"]["excitatory"][
+                            "total"
+                        ] += exc_total
+                        stats["connection_type_stats"]["excitatory"][
+                            "active"
+                        ] += exc_active
 
                 # Get inhibitory mask from branch_inhibition if it exists
                 if (
@@ -180,12 +180,12 @@ class SynapticPruningAnalyzer(SynapticTurnoverAnalyzer):
                             "active": inh_active,
                         }
 
-                        stats["connection_type_stats"]["inhibitory"]["total"] += (
-                            inh_total
-                        )
-                        stats["connection_type_stats"]["inhibitory"]["active"] += (
-                            inh_active
-                        )
+                        stats["connection_type_stats"]["inhibitory"][
+                            "total"
+                        ] += inh_total
+                        stats["connection_type_stats"]["inhibitory"][
+                            "active"
+                        ] += inh_active
 
                 # Aggregate branch stats
                 branch_total = (

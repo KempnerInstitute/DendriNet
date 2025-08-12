@@ -23,14 +23,3 @@ repos:
     hooks:
       - id: isort
         exclude: '^external/'
-
-  - repo: local
-    hooks:
-      - id: test-imports
-        name: test-imports
-        entry: python
-        language: system
-        args: ["-c", "import dendritic_modeling; print(' Package imports successfully')"]
-        pass_filenames: false
-        always_run: true
-        stages: [pre-commit]

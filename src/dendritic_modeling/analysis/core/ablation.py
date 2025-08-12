@@ -185,9 +185,9 @@ class AblationAnalyzer(AbstractAnalyzer):
         if self.mse:
             results_dict[ablation_type][module_name]["mse drop"] = mse_list
         if self.cosine_similarity:
-            results_dict[ablation_type][module_name]["cosine similarity drop"] = (
-                cosine_similarity_list
-            )
+            results_dict[ablation_type][module_name][
+                "cosine similarity drop"
+            ] = cosine_similarity_list
 
         return results_dict
 
