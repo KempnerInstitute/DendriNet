@@ -18,7 +18,6 @@ from torch.cuda.amp import autocast
 from torch.nn.utils import clip_grad_value_
 from torch.utils.data import DataLoader
 
-from dendritic_modeling.training.loss.functions import get_loss_function
 from dendritic_modeling.config.training import (
     PruningConfig,
     RegularizationConfig,
@@ -26,7 +25,7 @@ from dendritic_modeling.config.training import (
 )
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.plotting import plot_loss_curves
-from dendritic_modeling.training.loss.functions import LossFunction
+from dendritic_modeling.training.loss.functions import LossFunction, get_loss_function
 
 logger = logging.getLogger(__name__)
 

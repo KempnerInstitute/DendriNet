@@ -2,14 +2,14 @@
 Test new parameters added for enhanced analysis and trainer configurations.
 """
 
-import sys
 import os
+import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
+from dendritic_modeling.analysis.core.information import InformationAnalyzer
 from dendritic_modeling.config.analysis import InformationAnalysisParams
 from dendritic_modeling.config.training import TrainConfig, TrainerConfig
-from dendritic_modeling.analysis.core.information import InformationAnalyzer
 
 
 class TestNewAnalysisParameters:
