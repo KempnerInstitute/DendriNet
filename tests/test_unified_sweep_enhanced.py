@@ -437,7 +437,7 @@ class TestUnifiedSweepGenerator:
                 # Should have some layer sizes (either swept or base)
                 assert isinstance(layer_sizes, list)
                 assert len(layer_sizes) > 0
-            
+
             # Should have some epoch value (either swept or base)
             if hasattr(config.train.main.trainer, 'epochs'):
                 epochs = config.train.main.trainer.epochs
@@ -634,12 +634,12 @@ class TestUnifiedSweepIntegration:
             print(f"Learning rate sweep working: {learning_rates}")
         else:
             print(f"Single learning rate: {learning_rates} - may need debugging")
-            
+
         if len(batch_sizes) > 1:
             print(f"Batch size sweep working: {batch_sizes}")
         else:
             print(f"Single batch size: {batch_sizes} - may need debugging")
-            
+
         # At least one of each parameter should be present
         assert len(learning_rates) >= 1
         assert len(batch_sizes) >= 1

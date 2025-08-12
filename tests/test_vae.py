@@ -183,7 +183,7 @@ class TestCNNVariationalEncoder:
 
         # Should produce latent representations
         # CNN encoder may produce 4D tensors (batch, channels, height, width)
-        assert len(z_mu.shape) >= 2  # At least [batch_size, ...] 
+        assert len(z_mu.shape) >= 2  # At least [batch_size, ...]
         assert len(z_sigma.shape) >= 2
         assert z_mu.shape == z_sigma.shape
         assert z_mu.shape[0] == batch_size  # Correct batch size
