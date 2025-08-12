@@ -171,8 +171,8 @@ class TestCNNVariationalEncoder:
     def test_initialization(self, cnn_vae_encoder, cnn_downsample):
         """Test CNNVariationalEncoder initialization."""
         assert cnn_vae_encoder.net == cnn_downsample
-        assert isinstance(cnn_vae_encoder.fc_mean, nn.Sequential)
-        assert isinstance(cnn_vae_encoder.fc_std, nn.Sequential)
+        assert isinstance(cnn_vae_encoder.conv_mean, nn.Conv2d)
+        assert isinstance(cnn_vae_encoder.conv_std, nn.Sequential)
 
     def test_latent_distribution(self, cnn_vae_encoder):
         """Test latent distribution computation for CNN encoder."""
