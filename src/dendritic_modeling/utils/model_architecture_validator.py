@@ -533,6 +533,3 @@ def validate_model_architecture(config: dict) -> bool:
     """
     validator = ModelArchitectureValidator(config)
     return validator.validate()
-
-
-

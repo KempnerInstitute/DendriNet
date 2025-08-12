@@ -6,9 +6,10 @@ like MNIST, CIFAR-10, and ImageNet.
 """
 
 import os
+from typing import Optional
 
 import torch
-from torch.utils.data import TensorDataset, Dataset
+from torch.utils.data import Dataset, TensorDataset
 from torchvision import datasets, transforms
 
 
@@ -241,12 +242,12 @@ def load_cifar10_as_datasets(
 
 class PoissonGeneratorDataset(Dataset):
     """Dataset that applies Poisson noise to base dataset samples."""
-    
+
     def __init__(
         self,
         base_inputs: torch.Tensor,
         base_labels: torch.Tensor,
-        rate_multiplier: float = 1.0
+        rate_multiplier: float = 1.0,
     ):
         self.base_inputs = base_inputs
         self.base_labels = base_labels
@@ -254,7 +255,7 @@ class PoissonGeneratorDataset(Dataset):
 
     def __len__(self):
         return len(self.base_inputs)
-    
+
     def __getitem__(self, idx):
         input = self.base_inputs[idx]
         label = self.base_labels[idx]
@@ -269,7 +270,7 @@ def load_poisson_generator_datasets(
     rate_multiplier: float = 1,
     train_valid_split: float = 0.8,
     flatten: bool = False,
-    task_data_path: str = None
+    task_data_path: Optional[str] = None,
 ):
     """
     Generate a dataset of Poisson-distributed samples from a base dataset.
@@ -290,18 +291,18 @@ def load_poisson_generator_datasets(
             train_valid_split=train_valid_split,
             flatten=flatten,
             normalize=False,
-            task_data_path=task_data_path
-        )    
+            task_data_path=task_data_path,
+        )
     elif base_dataset == "cifar10":
         train_ds, valid_ds, test_ds = load_cifar10_as_datasets(
             train_valid_split=train_valid_split,
             flatten=flatten,
             normalize=False,
-            task_data_path=task_data_path
+            task_data_path=task_data_path,
         )
     else:
         raise ValueError(f"Unknown base dataset: {base_dataset}")
-    
+
     train_ds = PoissonGeneratorDataset(*train_ds[:], rate_multiplier=rate_multiplier)
     valid_ds = PoissonGeneratorDataset(*valid_ds[:], rate_multiplier=rate_multiplier)
     test_ds = PoissonGeneratorDataset(*test_ds[:], rate_multiplier=rate_multiplier)
@@ -457,7 +458,7 @@ def get_unified_datasets(task_cfg, train_cfg, output_dir=None, outputs_cfg=None)
     normalize = p.get("normalize", False)
     base_dataset = p.get("base_dataset", "mnist")
     rate_multiplier = p.get("rate_multiplier", 1)
-    
+
     # Handle standard datasets directly
     if dataset_name == "mnist":
         train_ds, valid_ds, test_ds = load_mnist_as_datasets(

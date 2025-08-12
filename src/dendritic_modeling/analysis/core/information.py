@@ -103,7 +103,9 @@ class InformationAnalyzer(AbstractAnalyzer):
             copula_type=self.copula_type,
             verbose=self.verbose,
         )
-        self.estimators[self.method] = InformationEstimatorFactory.create(estimator_config)
+        self.estimators[self.method] = InformationEstimatorFactory.create(
+            estimator_config
+        )
 
         # Check if PID is available
         self.pid_available = False
@@ -135,7 +137,9 @@ class InformationAnalyzer(AbstractAnalyzer):
         metrics["I(Vout;C)"] = self.estimators[self.method].mutual_information(Vout, C)
         # I(Vinf;C) if available
         if Vinf is not None and self.include_vinf:
-            metrics["I(Vinf;C)"] = self.estimators[self.method].mutual_information(Vinf, C)
+            metrics["I(Vinf;C)"] = self.estimators[self.method].mutual_information(
+                Vinf, C
+            )
         # Joint MI: I(E,I;C)
         EI = np.hstack([E, I_var])
         metrics["I(E,I;C)"] = self.estimators[self.method].mutual_information(EI, C)
@@ -162,14 +166,22 @@ class InformationAnalyzer(AbstractAnalyzer):
         # I(E;Vout)
         metrics["I(E;Vout)"] = self.estimators[self.method].mutual_information(E, Vout)
         # I(I;Vout)
-        metrics["I(I;Vout)"] = self.estimators[self.method].mutual_information(I_var, Vout)
+        metrics["I(I;Vout)"] = self.estimators[self.method].mutual_information(
+            I_var, Vout
+        )
         if Vinf is not None and self.include_vinf:
             # I(E;Vinf)
-            metrics["I(E;Vinf)"] = self.estimators[self.method].mutual_information(E, Vinf)
+            metrics["I(E;Vinf)"] = self.estimators[self.method].mutual_information(
+                E, Vinf
+            )
             # I(I;Vinf)
-            metrics["I(I;Vinf)"] = self.estimators[self.method].mutual_information(I_var, Vinf)
+            metrics["I(I;Vinf)"] = self.estimators[self.method].mutual_information(
+                I_var, Vinf
+            )
             # I(Vout;Vinf)
-            metrics["I(Vout;Vinf)"] = self.estimators[self.method].mutual_information(Vout, Vinf)
+            metrics["I(Vout;Vinf)"] = self.estimators[self.method].mutual_information(
+                Vout, Vinf
+            )
         return metrics
 
     def _compute_conditional_mi(
