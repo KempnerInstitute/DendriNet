@@ -232,7 +232,7 @@ def main(config_path: str, args=None):
     os.makedirs(main_net_save_path, exist_ok=True)
 
     # Use the new top-level main_trainer config structure (compatible with 245MR)
-    if hasattr(train_config, 'main_trainer'):
+    if hasattr(train_config, "main_trainer"):
         # New structure: use train_config.main_trainer directly
         main_trainer_config_dict = OmegaConf.to_container(
             train_config.main_trainer, resolve=True
@@ -270,7 +270,7 @@ def main(config_path: str, args=None):
         )
 
     # Add checkpoint configuration if specified
-    if hasattr(train_config, 'main_trainer'):
+    if hasattr(train_config, "main_trainer"):
         # New structure: check main_trainer directly
         if (
             hasattr(train_config.main_trainer, "save_every_n_epochs")
@@ -318,9 +318,9 @@ def main(config_path: str, args=None):
 
     # Store original pruning config and temporarily disable it for initial training
     original_pruning_config = main_trainer_config_dict.get("pruning", {})
-    main_trainer_config_dict[
-        "pruning"
-    ] = {}  # Temporarily disable pruning for initial training
+    main_trainer_config_dict["pruning"] = (
+        {}
+    )  # Temporarily disable pruning for initial training
 
     main_trainer = get_trainer(
         strategy=main_train_config.learning_strategy,

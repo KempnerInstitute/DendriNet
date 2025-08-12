@@ -66,9 +66,9 @@ class Trainer:
         self.analysis_manager = analysis_manager
 
         # TEST 1B: Add expensive config instantiation from iss294
-        regularization_config = kwargs.get('regularization_config')
-        pruning_config = kwargs.get('pruning_config')
-        reporting_config = kwargs.get('reporting_config')
+        regularization_config = kwargs.get("regularization_config")
+        pruning_config = kwargs.get("pruning_config")
+        reporting_config = kwargs.get("reporting_config")
 
         # Initialize enhanced feature configs with safe defaults (EXPENSIVE?)
         self.regularization_config = regularization_config or RegularizationConfig()
@@ -76,14 +76,15 @@ class Trainer:
         self.reporting_config = reporting_config or ReportingConfig()
 
         # Performance optimization flags (disabled by default for speed)
-        self.enable_nan_checking = kwargs.get('enable_nan_checking', False)
-        self.enable_adaptive_clipping = kwargs.get('enable_adaptive_clipping', False)
+        self.enable_nan_checking = kwargs.get("enable_nan_checking", False)
+        self.enable_adaptive_clipping = kwargs.get("enable_adaptive_clipping", False)
 
         # TEST 4A: Mixed Precision Training Support (potentially expensive)
         self.enable_amp = kwargs.get("enable_amp", torch.cuda.is_available())
         if self.enable_amp and torch.cuda.is_available():
             try:
                 from torch.cuda.amp import GradScaler
+
                 self.scaler = GradScaler()
                 logger.info("Mixed precision training enabled")
             except ImportError:
@@ -109,6 +110,7 @@ class Trainer:
             else:
                 try:
                     import torch.profiler as torch_profiler
+
                     profiling_output_dir = kwargs.get(
                         "profiling_output_dir", "outputs/profiling/"
                     )
@@ -140,25 +142,15 @@ class Trainer:
             setattr(self, k, v)
 
     def _dataloaders(
-        self,
-        train_data: torch.utils.data.Dataset,
-        valid_data: torch.utils.data.Dataset
+        self, train_data: torch.utils.data.Dataset, valid_data: torch.utils.data.Dataset
     ) -> tuple[DataLoader, DataLoader]:
         train_loader = DataLoader(
-            train_data,
-            batch_size=self.batch_size,
-            shuffle=self.shuffle
+            train_data, batch_size=self.batch_size, shuffle=self.shuffle
         )
-        valid_loader = DataLoader(
-            valid_data,
-            batch_size=self.batch_size,
-            shuffle=False
-        )
+        valid_loader = DataLoader(valid_data, batch_size=self.batch_size, shuffle=False)
         return train_loader, valid_loader
 
-    def _initialize_attributes(
-        self, model: BaseModel, total_epochs: int
-    ) -> None:
+    def _initialize_attributes(self, model: BaseModel, total_epochs: int) -> None:
         if not hasattr(self, "device"):
             self.device = "cuda" if torch.cuda.is_available() else "cpu"
             model.to(self.device)
@@ -180,7 +172,7 @@ class Trainer:
         self,
         model: BaseModel,
         train_data: torch.utils.data.Dataset,
-        valid_data: torch.utils.data.Dataset
+        valid_data: torch.utils.data.Dataset,
     ) -> dict:
         train_loader, valid_loader = self._dataloaders(train_data, valid_data)
 
@@ -197,12 +189,11 @@ class Trainer:
             train_losses=train_losses,
             valid_losses=valid_losses,
             logger_info="[Standard] ",
-            wandb_info={}
+            wandb_info={},
         )
 
         logger.info(
-            f"Best epoch: {self.best_epoch}, "
-            f"Best loss: {self.best_loss:.4f}"
+            f"Best epoch: {self.best_epoch}, " f"Best loss: {self.best_loss:.4f}"
         )
         if self.load_best_state_dict:
             model.load_state_dict(self.best_state_dict)
@@ -229,7 +220,7 @@ class Trainer:
         train_losses: list[float],
         valid_losses: list[float],
         logger_info: str = "",
-        wandb_info: dict | None = None
+        wandb_info: dict | None = None,
     ) -> tuple[list[float], list[float]]:
         if wandb_info is None:
             wandb_info = {}
@@ -241,7 +232,7 @@ class Trainer:
                 train_losses=train_losses,
                 valid_losses=valid_losses,
                 logger_info=logger_info,
-                wandb_info=wandb_info
+                wandb_info=wandb_info,
             )
 
             if self._check_early_stopping():
@@ -257,7 +248,7 @@ class Trainer:
         train_losses: list[float],
         valid_losses: list[float],
         logger_info: str = "",
-        wandb_info: dict | None = None
+        wandb_info: dict | None = None,
     ) -> tuple[list[float], list[float]]:
         if wandb_info is None:
             wandb_info = {}
@@ -273,11 +264,7 @@ class Trainer:
         self._tracking(train_loss, valid_loss, logger_info, wandb_info)
         return train_losses, valid_losses
 
-    def _epoch_train(
-        self,
-        model: BaseModel,
-        train_loader: DataLoader
-    ) -> float:
+    def _epoch_train(self, model: BaseModel, train_loader: DataLoader) -> float:
         model.train()
         train_loss = 0
         for x_batch, y_batch in train_loader:
@@ -296,7 +283,9 @@ class Trainer:
                 if self.enable_nan_checking:
                     nan_detected = self._check_and_handle_nan_gradients(model)
                     if nan_detected:
-                        logger.warning("NaNs detected and handled in gradients during AMP training")
+                        logger.warning(
+                            "NaNs detected and handled in gradients during AMP training"
+                        )
 
                 # Gradient clipping with AMP
                 if self.grad_clip_value:
@@ -334,11 +323,7 @@ class Trainer:
         train_loss /= len(train_loader)
         return train_loss
 
-    def _epoch_valid(
-        self,
-        model: BaseModel,
-        valid_loader: DataLoader
-    ) -> float:
+    def _epoch_valid(self, model: BaseModel, valid_loader: DataLoader) -> float:
         model.eval()
         valid_loss = 0
         with torch.no_grad():
@@ -353,11 +338,7 @@ class Trainer:
         valid_loss /= len(valid_loader)
         return valid_loss
 
-    def _update_best(
-        self,
-        model: BaseModel,
-        valid_loss: float
-    ) -> None:
+    def _update_best(self, model: BaseModel, valid_loss: float) -> None:
         if valid_loss < self.best_loss:
             self.best_loss = valid_loss
             self.best_epoch = self.epoch_counter
@@ -367,9 +348,8 @@ class Trainer:
                 torch.save(
                     self.best_state_dict,
                     os.path.join(
-                        self.save_path,
-                        f"{self.filename_prefix}best_model.pt"
-                    )
+                        self.save_path, f"{self.filename_prefix}best_model.pt"
+                    ),
                 )
         else:
             self.patience_counter += 1
@@ -378,10 +358,10 @@ class Trainer:
         if self.analysis_manager is not None:
             # Conditional import to avoid circular dependency
             from dendritic_modeling.analysis import AnalysisManager
+
             if isinstance(self.analysis_manager, AnalysisManager):
                 self.analysis_manager.run_analysis(
-                    filename=f"epoch{self.epoch_counter}",
-                    training=True
+                    filename=f"epoch{self.epoch_counter}", training=True
                 )
 
     def _tracking(
@@ -389,20 +369,19 @@ class Trainer:
         train_loss: float,
         valid_loss: float,
         logger_info: str = "",
-        wandb_info: dict | None = None
+        wandb_info: dict | None = None,
     ) -> None:
         if wandb_info is None:
             wandb_info = {}
         elapsed = time.time() - self.start_time
-        if (
-            not self.suppress_prints
-            and (self.epoch_counter % self.print_every == 0)
-        ):
-            logger_info = logger_info + \
-                f"epoch={self.epoch_counter}/{self.total_epochs}, " + \
-                f"train_loss={train_loss:.4f}, " + \
-                f"valid_loss={valid_loss:.4f}, " + \
-                f"elapsed={elapsed:.1f}s"
+        if not self.suppress_prints and (self.epoch_counter % self.print_every == 0):
+            logger_info = (
+                logger_info
+                + f"epoch={self.epoch_counter}/{self.total_epochs}, "
+                + f"train_loss={train_loss:.4f}, "
+                + f"valid_loss={valid_loss:.4f}, "
+                + f"elapsed={elapsed:.1f}s"
+            )
             logger.info(logger_info)
 
         if wandb.run is not None:
@@ -416,17 +395,14 @@ class Trainer:
         if self.early_stopping and self.patience_counter >= self.patience:
             if not self.suppress_prints:
                 logger.info(
-                    f"Early stopping triggered "
-                    f"after {self.epoch_counter} epochs."
+                    f"Early stopping triggered " f"after {self.epoch_counter} epochs."
                 )
             return True
         else:
             return False
 
     def _loss_plotting(
-        self,
-        train_losses: list[float],
-        valid_losses: list[float]
+        self, train_losses: list[float], valid_losses: list[float]
     ) -> None:
         if self.plot_losses and len(train_losses) > 1:
             if self.save_path and os.path.exists(self.save_path):
@@ -435,7 +411,7 @@ class Trainer:
                     valid_losses=valid_losses,
                     loss_name=self.loss_function._loss_name,
                     save_dir=self.save_path,
-                    filename_prefix=self.filename_prefix
+                    filename_prefix=self.filename_prefix,
                 )
 
     def _check_and_handle_nan_gradients(self, model: BaseModel) -> bool:
@@ -460,12 +436,9 @@ class Trainer:
                         param.grad, nan=0.0, posinf=1.0, neginf=-1.0
                     )
 
-                    logger.warning(
-                        f"NaNs detected in gradients for parameter: {name}"
-                    )
+                    logger.warning(f"NaNs detected in gradients for parameter: {name}")
 
         return nan_detected
-
 
     def _apply_adaptive_gradient_clipping(self, model: BaseModel) -> float:
         """

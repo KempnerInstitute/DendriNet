@@ -52,15 +52,15 @@ class InformationAnalysisParams(BaseConfig):
     verbose: bool = False
 
     # Computation Level Control - determines the granularity of information analysis
-    computation_level: str = "single_branch"  # Options: "single_branch", "layer_branch", "all_branch"
-                                           # "single_branch": Individual branches (most granular and accurate)
-                                           # "layer_branch": Layer-level aggregation (treats each layer as a unit)
-                                           # "all_branch": Full network aggregation (most efficient)
+    computation_level: str = (
+        "single_branch"  # Options: "single_branch", "layer_branch", "all_branch"
+    )
+    # "single_branch": Individual branches (most granular and accurate)
+    # "layer_branch": Layer-level aggregation (treats each layer as a unit)
+    # "all_branch": Full network aggregation (most efficient)
 
     # Branch aggregation method - only used when computation_level is "layer_branch" or "all_branch"
     branch_aggregation: str = "mean"  # Options: "mean", "multivariate", "sample"
-
-
 
     # Per-neuron analysis - return information values per individual neuron
     per_neuron_analysis: bool = False  # If True, compute MI for each neuron separately

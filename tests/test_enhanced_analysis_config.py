@@ -2,10 +2,10 @@
 Test new parameters added for enhanced analysis and trainer configurations.
 """
 
-
 import sys
 import os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from dendritic_modeling.config.analysis import InformationAnalysisParams
 from dendritic_modeling.config.training import TrainConfig, TrainerConfig
@@ -36,9 +36,7 @@ class TestNewAnalysisParameters:
     def test_enhanced_analysis_parameters(self):
         """Test that enhanced analysis parameters work."""
         params = InformationAnalysisParams(
-            per_neuron_analysis=True,
-            per_einet_analysis=True,
-            per_layer_analysis=True
+            per_neuron_analysis=True, per_einet_analysis=True, per_layer_analysis=True
         )
         analyzer = InformationAnalyzer(params)
 
@@ -64,9 +62,7 @@ class TestNewTrainerParameters:
     def test_training_optimization_flags(self):
         """Test that training optimization flags work."""
         trainer = TrainerConfig(
-            enable_nan_checking=True,
-            enable_adaptive_clipping=True,
-            use_amp=True
+            enable_nan_checking=True, enable_adaptive_clipping=True, use_amp=True
         )
 
         assert trainer.enable_nan_checking is True
@@ -76,20 +72,15 @@ class TestNewTrainerParameters:
     def test_dual_trainer_structure(self):
         """Test that the dual trainer structure works."""
         main_trainer = TrainerConfig(
-            enable_nan_checking=True,
-            enable_adaptive_clipping=True,
-            use_amp=True
+            enable_nan_checking=True, enable_adaptive_clipping=True, use_amp=True
         )
 
         encoder_trainer = TrainerConfig(
-            enable_nan_checking=False,
-            enable_adaptive_clipping=False,
-            use_amp=False
+            enable_nan_checking=False, enable_adaptive_clipping=False, use_amp=False
         )
 
         config = TrainConfig(
-            main_trainer=main_trainer,
-            encoder_net_trainer=encoder_trainer
+            main_trainer=main_trainer, encoder_net_trainer=encoder_trainer
         )
 
         assert config.main_trainer.enable_nan_checking is True
@@ -113,13 +104,13 @@ def test_backward_compatibility():
     analyzer = InformationAnalyzer(params)
 
     # Should have sensible defaults
-    assert hasattr(analyzer, 'computation_level')
-    assert hasattr(analyzer, 'branch_aggregation')
-    assert hasattr(analyzer, 'per_neuron_analysis')
-    assert hasattr(analyzer, 'per_einet_analysis')
-    assert hasattr(analyzer, 'per_layer_analysis')
+    assert hasattr(analyzer, "computation_level")
+    assert hasattr(analyzer, "branch_aggregation")
+    assert hasattr(analyzer, "per_neuron_analysis")
+    assert hasattr(analyzer, "per_einet_analysis")
+    assert hasattr(analyzer, "per_layer_analysis")
 
     # Test that old-style TrainerConfig still works
     trainer = TrainerConfig()
-    assert hasattr(trainer, 'enable_nan_checking')
-    assert hasattr(trainer, 'enable_adaptive_clipping')
+    assert hasattr(trainer, "enable_nan_checking")
+    assert hasattr(trainer, "enable_adaptive_clipping")
