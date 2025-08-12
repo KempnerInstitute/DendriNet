@@ -2,7 +2,9 @@
 Test new parameters added for enhanced analysis and trainer configurations.
 """
 
-# Test imports - assuming proper PYTHONPATH or pip install -e .
+# Test setup requirements:
+# - Ensure package is installed in editable mode: pip install -e .
+# - Or ensure PYTHONPATH includes the project root directory
 
 from dendritic_modeling.analysis.core.information import InformationAnalyzer
 from dendritic_modeling.config.analysis import InformationAnalysisParams

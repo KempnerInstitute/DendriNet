@@ -63,7 +63,9 @@ class TestVariationalEncoder:
         output = vae_encoder(input_tensor)
 
         assert output.shape == (batch_size, 16)
-        assert torch.all(output >= 0) and torch.all(output <= 1)  # Sigmoid output
+        # The VariationalEncoder.forward() uses torch.sigmoid() on the sampled latent vector
+        # so output should be bounded between 0 and 1
+        assert torch.all(output >= 0) and torch.all(output <= 1)
 
     def test_different_latent_dims(self, encoder_net):
         """Test with different latent dimensions."""
@@ -196,7 +198,8 @@ class TestCNNVariationalEncoder:
         output = cnn_vae_encoder(input_tensor, flatten=True)
 
         assert len(output.shape) == 2  # Should be flattened
-        assert torch.all(output >= 0) and torch.all(output <= 1)  # Sigmoid output
+        # VariationalEncoder.forward() applies torch.sigmoid() to sampled latent vector
+        assert torch.all(output >= 0) and torch.all(output <= 1)
 
     def test_forward_without_flatten(self, cnn_vae_encoder):
         """Test forward pass without flattening."""
@@ -206,7 +209,8 @@ class TestCNNVariationalEncoder:
         output = cnn_vae_encoder(input_tensor, flatten=False)
 
         assert len(output.shape) >= 3  # Should maintain spatial dimensions
-        assert torch.all(output >= 0) and torch.all(output <= 1)  # Sigmoid output
+        # VariationalEncoder.forward() applies torch.sigmoid() to sampled latent vector
+        assert torch.all(output >= 0) and torch.all(output <= 1)
 
 
 class TestCNNVariationalAutoencoder:

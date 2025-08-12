@@ -68,7 +68,7 @@ class Trainer:
         pruning_config = kwargs.get("pruning_config")
         reporting_config = kwargs.get("reporting_config")
 
-        # Initialize enhanced feature configs with safe defaults (EXPENSIVE?)
+        # Initialize enhanced feature configs with safe defaults
         self.regularization_config = regularization_config or RegularizationConfig()
         self.pruning_config = pruning_config or PruningConfig()
         self.reporting_config = reporting_config or ReportingConfig()
@@ -449,7 +449,7 @@ class Trainer:
         if not self.grad_clip_value:
             return 0.0
 
-        # Calculate gradient norm (EXPENSIVE: iterates all parameters)
+        # Calculate gradient norm for adaptive clipping (iterates all parameters)
         grad_norm = torch.nn.utils.clip_grad_norm_(
             model.parameters(), max_norm=self.grad_clip_value
         )
