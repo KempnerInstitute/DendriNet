@@ -6,7 +6,6 @@ including parameter expansion, configuration validation, EI filtering,
 branch combination generation, and config generation.
 """
 
-
 import pytest
 from omegaconf import DictConfig, OmegaConf
 

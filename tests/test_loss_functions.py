@@ -300,7 +300,7 @@ class TestVaeElboLoss:
         mu = torch.zeros(2, 5)
         sigma = torch.ones(2, 5)
 
-                # Manually compute KL divergence
+        # Manually compute KL divergence
         kl_div = 0.5 * torch.sum(mu**2 + sigma**2 - torch.log(sigma**2) - 1, dim=1)
 
         # Test that our implementation gives similar results
