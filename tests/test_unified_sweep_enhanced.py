@@ -435,7 +435,8 @@ class TestUnifiedSweepGenerator:
                 layer_sizes = config.model.network.excitatory_layer_sizes
                 print(f"Generated layer sizes: {layer_sizes}")
                 # Should have some layer sizes (either swept or base)
-                assert isinstance(layer_sizes, list)
+                # Could be list or OmegaConf ListConfig
+                assert hasattr(layer_sizes, '__len__')  # Has length
                 assert len(layer_sizes) > 0
 
             # Should have some epoch value (either swept or base)
