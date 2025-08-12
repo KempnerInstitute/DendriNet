@@ -431,7 +431,7 @@ class TestUnifiedSweepGenerator:
         # Check that nested parameter paths were correctly set
         for config in configs:
             # Check if sweep is working - if not, accept base config values
-            if hasattr(config.model.network, 'excitatory_layer_sizes'):
+            if hasattr(config.model.network, "excitatory_layer_sizes"):
                 layer_sizes = config.model.network.excitatory_layer_sizes
                 print(f"Generated layer sizes: {layer_sizes}")
                 # Should have some layer sizes (either swept or base)
@@ -439,7 +439,7 @@ class TestUnifiedSweepGenerator:
                 assert len(layer_sizes) > 0
 
             # Should have some epoch value (either swept or base)
-            if hasattr(config.train.main.trainer, 'epochs'):
+            if hasattr(config.train.main.trainer, "epochs"):
                 epochs = config.train.main.trainer.epochs
                 print(f"Generated epochs: {epochs}")
                 assert isinstance(epochs, int)
@@ -499,9 +499,13 @@ class TestUnifiedSweepIntegration:
             # Check if experiment section exists (may be optional)
             if "experiment" in config:
                 assert isinstance(config.experiment.seed, int)
-                print(f"Generated config with experiment seed: {config.experiment.seed}")
+                print(
+                    f"Generated config with experiment seed: {config.experiment.seed}"
+                )
             else:
-                print("Generated config without experiment section - may need debugging")
+                print(
+                    "Generated config without experiment section - may need debugging"
+                )
 
     def test_branch_sweep_integration(self):
         """Test a realistic branch parameter sweep."""
@@ -556,7 +560,9 @@ class TestUnifiedSweepIntegration:
         if len(branch_configs) > 1:
             print(f"Branch sweep working: {branch_configs}")
         else:
-            print(f"Single branch config used: {branch_configs} - branch sweep may need debugging")
+            print(
+                f"Single branch config used: {branch_configs} - branch sweep may need debugging"
+            )
         assert len(branch_configs) >= 1  # At least one branch configuration
 
     def test_comprehensive_sweep(self):
