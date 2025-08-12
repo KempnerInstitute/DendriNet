@@ -153,6 +153,8 @@ class TestUnifiedResultAnalyzer:
                 "accuracy": [0.85, 0.90, 0.88],
                 "loss": [[0.5], [0.3], [0.4]],  # List values to test cleaning
                 "config_name": ["config_1", "config_2", "config_3"],
+                "ee_value": [1.0, 1.5, 1.2],  # Required columns
+                "ie_value": [0.5, 0.7, 0.6],
             }
         )
 
@@ -163,14 +165,15 @@ class TestUnifiedResultAnalyzer:
 
     def test_aggregate_results(self, analyzer):
         """Test results aggregation."""
-        # Create mock cleaned results
+        # Create mock cleaned results with proper grouping columns
         mock_df = pd.DataFrame(
             {
                 "accuracy": [0.85, 0.90, 0.88, 0.86, 0.91, 0.89],
                 "loss": [0.5, 0.3, 0.4, 0.48, 0.28, 0.38],
-                "excitatory_neurons": [8, 16, 8, 8, 16, 8],
-                "inhibitory_neurons": [4, 8, 4, 4, 8, 4],
+                "excitatory_layer_sizes_0": [8, 16, 8, 8, 16, 8],
+                "inhibitory_layer_sizes_0": [4, 8, 4, 4, 8, 4],
                 "seed": [1, 1, 2, 3, 2, 3],
+                "config_path": ["a", "b", "a", "a", "b", "a"],  # Grouping column
             }
         )
 
@@ -295,6 +298,8 @@ class TestResultAnalyzerIntegration:
                 "excitatory_layer_sizes_0": [8, 16],
                 "inhibitory_layer_sizes_0": [4, 8],
                 "seed": [42, 43],
+                "ee_value": [1.0, 1.5],  # Required columns
+                "ie_value": [0.5, 0.7],
             }
         )
 

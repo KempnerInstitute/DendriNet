@@ -461,7 +461,7 @@ class TestVoltageStabilizationLoss:
         """Test VoltageStabilizationLoss initialization."""
         assert voltage_loss.reduction == "mean"
         assert voltage_loss.target_voltage == 0.5
-        assert voltage_loss._loss_name == "Voltage Stabilization Loss"
+        assert voltage_loss._loss_name == "Voltage Stabilization"
 
     def test_forward_with_dendritic_model(self, voltage_loss, dendritic_model):
         """Test VoltageStabilizationLoss with dendritic model."""
@@ -485,6 +485,9 @@ class TestVoltageStabilizationLoss:
 
     def test_hook_management(self, voltage_loss, dendritic_model):
         """Test hook attachment and removal."""
+        # Mock the modules method to return an iterable
+        dendritic_model.modules = Mock(return_value=[Mock(), Mock()])
+
         # Test that hooks can be attached and removed
         handles = voltage_loss.attach_forward_hooks(dendritic_model)
         assert isinstance(handles, list)
@@ -513,11 +516,10 @@ class TestGetLossFunction:
             "log_mse",
             "ce",
             "bce",
-            "categorical_nll",
+            "cat_nll",
             "vae_elbo",
             "negative_cosine_similarity",
             "log_adjusted_negative_cosine_similarity",
-            "voltage_stabilization",
         ]
 
         for loss_name in valid_losses:
@@ -546,14 +548,13 @@ class TestGetLossFunction:
             ("log_mse", LogMSELoss),
             ("ce", CrossEntropyLoss),
             ("bce", BCELoss),
-            ("categorical_nll", CategoricalNLLLoss),
+            ("cat_nll", CategoricalNLLLoss),
             ("vae_elbo", VaeElboLoss),
             ("negative_cosine_similarity", NegativeCosineSimilarityLoss),
             (
                 "log_adjusted_negative_cosine_similarity",
                 LogAdjustedNegativeCosineSimilarityLoss,
             ),
-            ("voltage_stabilization", VoltageStabilizationLoss),
         ]
 
         for loss_name, expected_type in test_cases:

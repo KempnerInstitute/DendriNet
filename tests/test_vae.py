@@ -157,12 +157,10 @@ class TestCNNVariationalEncoder:
     def cnn_downsample(self):
         """Create a CNNDownsample network for testing."""
         return CNNDownsample(
-            in_channels=3,
-            out_channels=128,
-            kernels=[3, 3, 3],
-            strides=[2, 2, 2],
-            paddings=[1, 1, 1],
-            input_spatial_dim=(32, 32),
+            input_shape=(3, 32, 32),  # (channels, height, width)
+            hidden_dims=[32, 64, 128],  # Channel sizes for conv layers
+            kernel_sizes=[3, 3, 3],  # Kernel sizes
+            strides=[2, 2, 2],  # Strides
         )
 
     @pytest.fixture
@@ -219,11 +217,10 @@ class TestCNNVariationalAutoencoder:
     def cnn_vae(self):
         """Create a CNNVariationalAutoencoder for testing."""
         return CNNVariationalAutoencoder(
-            in_channels=3,
-            latent_dim=128,
-            input_spatial_dim=(32, 32),
-            encoder_channels=[32, 64, 128],
-            decoder_channels=[128, 64, 32],
+            input_shape=(3, 32, 32),  # (channels, height, width)
+            encoder_hidden_dims=[32, 64],  # Hidden dimensions for encoder
+            latent_shape=(64, 8, 8),  # (channels, height, width) for latent
+            decoder_hidden_dims=[64, 32],  # Hidden dimensions for decoder
         )
 
     def test_initialization(self, cnn_vae):
@@ -264,25 +261,23 @@ class TestCNNVariationalAutoencoder:
         """Test different CNN VAE architectures."""
         configs = [
             {
-                "in_channels": 1,
-                "latent_dim": 64,
-                "input_spatial_dim": (28, 28),
-                "encoder_channels": [16, 32],
-                "decoder_channels": [32, 16],
+                "input_shape": (1, 28, 28),
+                "encoder_hidden_dims": [16],
+                "latent_shape": (32, 7, 7),
+                "decoder_hidden_dims": [16],
             },
             {
-                "in_channels": 3,
-                "latent_dim": 256,
-                "input_spatial_dim": (64, 64),
-                "encoder_channels": [32, 64, 128, 256],
-                "decoder_channels": [256, 128, 64, 32],
+                "input_shape": (3, 64, 64),
+                "encoder_hidden_dims": [32, 64, 128],
+                "latent_shape": (256, 8, 8),
+                "decoder_hidden_dims": [128, 64, 32],
             },
         ]
 
         for config in configs:
             vae = CNNVariationalAutoencoder(**config)
-            h, w = config["input_spatial_dim"]
-            input_tensor = torch.randn(1, config["in_channels"], h, w)
+            c, h, w = config["input_shape"]
+            input_tensor = torch.randn(1, c, h, w)
             output = vae(input_tensor)
             assert output.shape == input_tensor.shape
 
@@ -300,11 +295,10 @@ class TestCNNVariationalAutoencoder:
         """Test edge cases and error conditions."""
         # Test with minimum viable configuration
         min_vae = CNNVariationalAutoencoder(
-            in_channels=1,
-            latent_dim=8,
-            input_spatial_dim=(8, 8),
-            encoder_channels=[4],
-            decoder_channels=[4],
+            input_shape=(1, 8, 8),
+            encoder_hidden_dims=[4],
+            latent_shape=(8, 2, 2),
+            decoder_hidden_dims=[4],
         )
 
         input_tensor = torch.randn(1, 1, 8, 8)
@@ -338,11 +332,10 @@ class TestVAEIntegration:
     def test_cnn_vae_training_compatibility(self):
         """Test that CNN VAE works in training mode."""
         vae = CNNVariationalAutoencoder(
-            in_channels=3,
-            latent_dim=64,
-            input_spatial_dim=(32, 32),
-            encoder_channels=[16, 32],
-            decoder_channels=[32, 16],
+            input_shape=(3, 32, 32),
+            encoder_hidden_dims=[16],
+            latent_shape=(32, 8, 8),
+            decoder_hidden_dims=[16],
         )
 
         vae.train()
