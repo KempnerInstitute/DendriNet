@@ -281,7 +281,9 @@ class TestUnifiedSweepGenerator:
 
         # If multiple configs, check that seeds are different (optional test)
         if len(configs) > 1:
-            seeds = [config.experiment.seed for config in configs if "experiment" in config]
+            seeds = [
+                config.experiment.seed for config in configs if "experiment" in config
+            ]
             print(f"Generated {len(configs)} configs with seeds: {seeds}")
         else:
             print(f"Generated {len(configs)} config - sweep may need debugging")
@@ -318,7 +320,9 @@ class TestUnifiedSweepGenerator:
         if len(set(learning_rates)) > 1:
             print(f"Range expansion working: {set(learning_rates)}")
         else:
-            print(f"Single learning rate used: {set(learning_rates)} - range expansion may need debugging")
+            print(
+                f"Single learning rate used: {set(learning_rates)} - range expansion may need debugging"
+            )
         assert len(learning_rates) > 0  # At least one learning rate should be present
 
     def test_generate_configs_with_ei_filter(self, generator, base_model_config):
