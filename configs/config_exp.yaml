@@ -55,19 +55,19 @@ model:
         excitatory_dim: null        # Dimensions for excitatory pathways (input_mode 1)
         inhibitory_dim: null        # Dimensions for inhibitory pathways (input_mode 1)
         output_activation: null     # Options: "sigmoid", "relu", "tanh", "softplus", null
-
+        
       # ==========================================
       # MORPHOLOGICAL ARCHITECTURE
       # ==========================================
-      excitatory_layer_sizes: [10]         # Neurons per excitatory layer
+      excitatory_layer_sizes: [20]         # Neurons per excitatory layer
       inhibitory_layer_sizes: []         # Neurons per inhibitory layer
-      excitatory_branch_factors: [2,2,2,2]       # Branches per excitatory neuron (fixed: should match layer count)
+      excitatory_branch_factors: [3,3]       # Branches per excitatory neuron (fixed: should match layer count)
       inhibitory_branch_factors: []       # Branches per inhibitory neuron (fixed: was empty)
 
       # Synaptic connectivity patterns
-      ee_synapses_per_branch_per_layer: [100]   # Excitatory-to-excitatory synapses
+      ee_synapses_per_branch_per_layer: [10]   # Excitatory-to-excitatory synapses
       ei_synapses_per_branch_per_layer: [0]   # No E→I connections since no inhibitory neurons exist
-      ie_synapses_per_branch_per_layer: [100]   # Input→E inhibitory synapses (input_mode=1 provides inhibitory signals)
+      ie_synapses_per_branch_per_layer: [1]   # Input→E inhibitory synapses (input_mode=1 provides inhibitory signals)
       ii_synapses_per_branch_per_layer: [0]   # No I→I connections since no inhibitory neurons exist
 
       # Morphological features
@@ -126,7 +126,7 @@ model:
     type: MLP  # Options: "MLP", "identity"
     parameters:
       input_dim: null           # Will be set automatically
-      hidden_dims: [32, 16]     # Hidden layer dimensions
+      hidden_dims: [16]     # Hidden layer dimensions
       activation: relu          # Activation function
       output_dim: 10          # Will be set automatically
 
@@ -134,55 +134,10 @@ model:
 # TRAINING CONFIGURATION - VALIDATED PARAMETERS ONLY
 # ============================================================================
 train:
-  seed: 0
+  seed: 42
   train_valid_split: 0.8
 
-  # ==========================================
-  # TOP-LEVEL TRAINER CONFIGURATIONS (Compatible with 245MR structure)
-  # ==========================================
-  
-  # Input network training configuration (simple, no advanced options)
-  encoder_net_trainer:
-    # for all learning strategies:
-    loss_function: mse
-    epochs: 50
-    early_stopping: false
-    patience: 10
-    batch_size: 128
-    shuffle: true
-    grad_clip_value: 5.0
-    load_best_state_dict: true
-    plot_losses: false
-    suppress_prints: false
-    print_every: 10
-  
-  # Main network training configuration (with advanced iss294 options)
-  main_trainer:
-    # for all learning strategies:
-    loss_function: ce
-    epochs: 50
-    early_stopping: false
-    patience: 10
-    batch_size: 128
-    shuffle: true
-    grad_clip_value: 5.0
-    load_best_state_dict: true
-    plot_losses: false
-    save_path: null
-    suppress_prints: false
-    print_every: 10
-    use_amp: false
-    # Performance optimization flags (disabled by default for speed)
-    enable_nan_checking: false      # Enable NaN detection during training (expensive)
-    enable_adaptive_clipping: false # Enable adaptive gradient clipping (expensive)
-    # for learning strategies other than standard:
-    pretrain_epochs: 50
-    target_voltage: 0.5
-    kl_weight: 0.1
-    reverse_training: false
-    epochs_per_layer: 50
-    epochs_per_branch: 50
-    final_tune_epochs: 10
+
 
   # ==========================================
   # PERFORMANCE OPTIMIZATION SETTINGS
@@ -437,7 +392,7 @@ analysis:
                                      # "all_branch": Full network aggregation (most efficient)
       
       # Branch aggregation method - only used when computation_level is "layer_branch" or "all_branch"
-      branch_aggregation: mean     # Options: "mean", "multivariate", "sample"
+      branch_aggregation: multivariate     # Options: "mean", "multivariate", "sample"
       
       
       # Enhanced analysis modes

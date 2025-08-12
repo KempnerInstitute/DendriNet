@@ -159,52 +159,7 @@ train:
   seed: 42  # Overridden by experiment_settings
   train_valid_split: 0.8
 
-  # ==========================================
-  # TOP-LEVEL TRAINER CONFIGURATIONS (Compatible with 245MR structure)
-  # ==========================================
-  
-  # Input network training configuration (simple, no advanced options)
-  encoder_net_trainer:
-    # for all learning strategies:
-    loss_function: mse
-    epochs: 50
-    early_stopping: false
-    patience: 10
-    batch_size: 64
-    shuffle: true
-    grad_clip_value: 5.0
-    load_best_state_dict: true
-    plot_losses: true
-    suppress_prints: false
-    print_every: 10
-  
-  # Main network training configuration (with advanced iss294 options)
-  main_trainer:
-    # for all learning strategies:
-    loss_function: ce
-    epochs: 50
-    early_stopping: false
-    patience: 10
-    batch_size: 64
-    shuffle: true
-    grad_clip_value: 5.0
-    load_best_state_dict: true
-    plot_losses: true
-    save_path: null
-    suppress_prints: false
-    print_every: 10
-    use_amp: false
-    # Performance optimization flags (disabled by default for speed)
-    enable_nan_checking: false      # Enable NaN detection during training (expensive)
-    enable_adaptive_clipping: false # Enable adaptive gradient clipping (expensive)
-    # for learning strategies other than standard:
-    pretrain_epochs: 50
-    target_voltage: 0.5
-    kl_weight: 0.1
-    reverse_training: false
-    epochs_per_layer: 50
-    epochs_per_branch: 50
-    final_tune_epochs: 10
+
 
   main:
     learning_strategy: standard # Supports regularization, pruning, and parameter group features
@@ -319,7 +274,7 @@ wandb:
 analysis:
   performance_analysis:
     enabled: true
-    training: true
+    training: false
     params:
       accuracy: true
       auc: true
