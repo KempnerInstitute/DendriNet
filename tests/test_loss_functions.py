@@ -273,24 +273,35 @@ class TestVaeElboLoss:
     @pytest.fixture
     def vae_model(self):
         """Create a mock VAE model."""
-        model = Mock()
+        from dendritic_modeling.networks.architectures.classical.autoencoder.vae import (
+            BaseVariationalAutoencoder,
+        )
+
+        # Create a proper mock that inherits from BaseVariationalAutoencoder
+        class MockVAE(BaseVariationalAutoencoder):
+            def __init__(self):
+                # Initialize without calling super().__init__() to avoid complexity
+                pass
+
+        model = MockVAE()
         model.encoder = Mock()
         model.encoder.latent_distribution = Mock(
-            return_value=(torch.randn(2, 10), torch.ones(2, 10))  # mu  # sigma
+            return_value=(torch.randn(2, 10), torch.ones(2, 10))  # mu, sigma
         )
-        model.return_value = torch.randn(2, 20)  # reconstruction
+        model.decoder = Mock(return_value=torch.randn(2, 20))
         return model
 
     def test_initialization(self, vae_loss):
         """Test VaeElboLoss initialization."""
         assert vae_loss.reduction == "mean"
-        assert vae_loss._loss_name == "VAE ELBO Loss"
+        assert vae_loss._loss_name == "VAE ELBO"
 
     def test_forward(self, vae_loss, vae_model):
         """Test VaeElboLoss forward pass."""
         x = torch.randn(2, 20)
+        y = torch.randn(2, 20)  # Target for reconstruction
 
-        loss = vae_loss(vae_model, x)
+        loss = vae_loss(vae_model, x, y)
 
         assert isinstance(loss, torch.Tensor)
         assert loss.dim() == 0  # Scalar
