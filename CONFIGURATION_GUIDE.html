@@ -67,6 +67,18 @@
 <li class="toctree-l3"><a class="reference internal" href="#parameter-sweep">Parameter Sweep</a></li>
 </ul>
 </li>
+<li class="toctree-l2"><a class="reference internal" href="#information-analysis">Information Analysis</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#computation-levels">Computation Levels</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#branch-aggregation">Branch Aggregation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#enhanced-ei-network-analysis">Enhanced EI Network Analysis</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#training-optimization">Training Optimization</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#trainer-structure">Trainer Structure</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#performance-options">Performance Options</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#encoder-network-caching">Encoder Network Caching</a></li>
+</ul>
+</li>
 <li class="toctree-l2"><a class="reference internal" href="#troubleshooting">Troubleshooting</a></li>
 </ul>
 </li>
@@ -304,6 +316,96 @@
 <span class="w">  </span><span class="nt">value</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">4</span>
 </pre></div>
 </div>
+</section>
+</section>
+<section id="information-analysis">
+<h2>Information Analysis<a class="headerlink" href="#information-analysis" title="Link to this heading"></a></h2>
+<p>The framework provides flexible information-theoretic analysis with configurable computation levels.</p>
+<section id="computation-levels">
+<h3>Computation Levels<a class="headerlink" href="#computation-levels" title="Link to this heading"></a></h3>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">analysis</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">information_analysis</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">params</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">computation_level</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;branch&quot;</span><span class="w">  </span><span class="c1"># Options: &quot;branch&quot;, &quot;layer&quot;, &quot;network&quot;</span>
+<span class="w">      </span><span class="nt">branch_aggregation</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;mean&quot;</span><span class="w">   </span><span class="c1"># Options: &quot;mean&quot;, &quot;multivariate&quot;, &quot;sample&quot;</span>
+</pre></div>
+</div>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">branch</span></code>: Compute information for individual branches (most granular)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">layer</span></code>: Aggregate branches within each layer then compute information</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">network</span></code>: Aggregate all branches across the network then compute information</p></li>
+</ul>
+</section>
+<section id="branch-aggregation">
+<h3>Branch Aggregation<a class="headerlink" href="#branch-aggregation" title="Link to this heading"></a></h3>
+<p>When using <code class="docutils literal notranslate"><span class="pre">layer</span></code> or <code class="docutils literal notranslate"><span class="pre">network</span></code> computation levels:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">mean</span></code>: Average branch activations to create scalar values</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">multivariate</span></code>: Use raw multi-dimensional branch data for joint information computation</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">sample</span></code>: Treat each branch as a separate observation by flattening branch dimension into sample dimension</p></li>
+</ul>
+</section>
+<section id="enhanced-ei-network-analysis">
+<h3>Enhanced EI Network Analysis<a class="headerlink" href="#enhanced-ei-network-analysis" title="Link to this heading"></a></h3>
+<p>The framework provides enhanced analysis specifically designed for excitation-inhibition networks.</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">analysis</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">information_analysis</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">params</span><span class="p">:</span>
+<span class="w">      </span><span class="c1"># Enhanced analysis modes</span>
+<span class="w">      </span><span class="nt">per_neuron_analysis</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span><span class="w">       </span><span class="c1"># Compute MI for each neuron individually</span>
+<span class="w">      </span><span class="nt">per_einet_analysis</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span><span class="w">        </span><span class="c1"># Analyze E and I networks separately</span>
+<span class="w">      </span><span class="nt">per_layer_analysis</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span><span class="w">        </span><span class="c1"># Compute enhanced analysis per layer</span>
+</pre></div>
+</div>
+<p>Per-Neuron Analysis:</p>
+<p>When enabled, computes mutual information for each individual neuron separately, providing detailed per-neuron MI statistics and averaged results across all neurons.</p>
+<p>Per-EI-Network Analysis:</p>
+<p>When enabled, performs three separate analyses:
+- Excitatory network only (inhibitory inputs set to zero)
+- Inhibitory network only (excitatory inputs set to zero)
+- Combined E+I network (standard analysis)</p>
+<p>Per-Layer Analysis:</p>
+<p>When enabled, computes enhanced analysis (per-neuron and per-EI-network) for each layer separately in multilayer networks, providing layer-specific insights into information processing.</p>
+</section>
+</section>
+<section id="training-optimization">
+<h2>Training Optimization<a class="headerlink" href="#training-optimization" title="Link to this heading"></a></h2>
+<p>Configure performance and debugging options for training.</p>
+<section id="trainer-structure">
+<h3>Trainer Structure<a class="headerlink" href="#trainer-structure" title="Link to this heading"></a></h3>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">train</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">encoder_net_trainer</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">loss_function</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mse</span>
+<span class="w">    </span><span class="nt">epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">50</span>
+<span class="w">    </span><span class="nt">batch_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">128</span>
+<span class="w">  </span><span class="nt">main_trainer</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">loss_function</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ce</span>
+<span class="w">    </span><span class="nt">epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">100</span>
+<span class="w">    </span><span class="nt">batch_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">64</span>
+<span class="w">    </span><span class="nt">enable_nan_checking</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+<span class="w">    </span><span class="nt">enable_adaptive_clipping</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+</pre></div>
+</div>
+</section>
+<section id="performance-options">
+<h3>Performance Options<a class="headerlink" href="#performance-options" title="Link to this heading"></a></h3>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">train</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">main_trainer</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">enable_nan_checking</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span><span class="w">      </span><span class="c1"># Enable NaN detection (expensive)</span>
+<span class="w">    </span><span class="nt">enable_adaptive_clipping</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span><span class="w"> </span><span class="c1"># Enable adaptive gradient clipping (expensive)</span>
+<span class="w">    </span><span class="nt">use_amp</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span><span class="w">                  </span><span class="c1"># Enable automatic mixed precision</span>
+</pre></div>
+</div>
+</section>
+<section id="encoder-network-caching">
+<h3>Encoder Network Caching<a class="headerlink" href="#encoder-network-caching" title="Link to this heading"></a></h3>
+<p>Hash-based caching automatically reuses trained encoder networks with identical configurations.</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">train</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">encoder</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">load_save_root</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">./.trained_encoder_networks/</span>
+</pre></div>
+</div>
+<p>Models are saved to <code class="docutils literal notranslate"><span class="pre">{load_save_root}/{config_hash}/best_model.pt</span></code> and automatically loaded when configurations match.</p>
 </section>
 </section>
 <section id="troubleshooting">

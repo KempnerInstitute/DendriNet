@@ -228,6 +228,111 @@ Parameter Sweep
      mode: "ei-sum"
      value: 4
 
+Information Analysis
+--------------------
+
+The framework provides flexible information-theoretic analysis with configurable computation levels.
+
+Computation Levels
+~~~~~~~~~~~~~~~~~~
+
+.. code-block:: yaml
+
+   analysis:
+     information_analysis:
+       params:
+         computation_level: "branch"  # Options: "branch", "layer", "network"
+         branch_aggregation: "mean"   # Options: "mean", "multivariate", "sample"
+
+- ``branch``: Compute information for individual branches (most granular)
+- ``layer``: Aggregate branches within each layer then compute information
+- ``network``: Aggregate all branches across the network then compute information
+
+Branch Aggregation
+~~~~~~~~~~~~~~~~~~
+
+When using ``layer`` or ``network`` computation levels:
+
+- ``mean``: Average branch activations to create scalar values
+- ``multivariate``: Use raw multi-dimensional branch data for joint information computation
+- ``sample``: Treat each branch as a separate observation by flattening branch dimension into sample dimension
+
+Enhanced EI Network Analysis
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The framework provides enhanced analysis specifically designed for excitation-inhibition networks.
+
+.. code-block:: yaml
+
+   analysis:
+     information_analysis:
+       params:
+         # Enhanced analysis modes
+         per_neuron_analysis: false       # Compute MI for each neuron individually
+         per_einet_analysis: false        # Analyze E and I networks separately
+         per_layer_analysis: false        # Compute enhanced analysis per layer
+
+Per-Neuron Analysis:
+
+When enabled, computes mutual information for each individual neuron separately, providing detailed per-neuron MI statistics and averaged results across all neurons.
+
+Per-EI-Network Analysis:
+
+When enabled, performs three separate analyses:
+- Excitatory network only (inhibitory inputs set to zero)
+- Inhibitory network only (excitatory inputs set to zero)  
+- Combined E+I network (standard analysis)
+
+Per-Layer Analysis:
+
+When enabled, computes enhanced analysis (per-neuron and per-EI-network) for each layer separately in multilayer networks, providing layer-specific insights into information processing.
+
+Training Optimization
+---------------------
+
+Configure performance and debugging options for training.
+
+Trainer Structure
+~~~~~~~~~~~~~~~~~
+
+.. code-block:: yaml
+
+   train:
+     encoder_net_trainer:
+       loss_function: mse
+       epochs: 50
+       batch_size: 128
+     main_trainer:
+       loss_function: ce
+       epochs: 100
+       batch_size: 64
+       enable_nan_checking: false
+       enable_adaptive_clipping: false
+
+Performance Options
+~~~~~~~~~~~~~~~~~~~
+
+.. code-block:: yaml
+
+   train:
+     main_trainer:
+       enable_nan_checking: false      # Enable NaN detection (expensive)
+       enable_adaptive_clipping: false # Enable adaptive gradient clipping (expensive)
+       use_amp: false                  # Enable automatic mixed precision
+
+Encoder Network Caching
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+Hash-based caching automatically reuses trained encoder networks with identical configurations.
+
+.. code-block:: yaml
+
+   train:
+     encoder:
+       load_save_root: ./.trained_encoder_networks/
+
+Models are saved to ``{load_save_root}/{config_hash}/best_model.pt`` and automatically loaded when configurations match.
+
 Troubleshooting
 ---------------
 
