@@ -5,17 +5,18 @@ This module provides comprehensive testing for the unified result analyzer
 including sweep type detection, data collection, and analysis capabilities.
 """
 
+# Configure matplotlib backend before any other matplotlib imports
+import matplotlib
+
+matplotlib.use("Agg")  # Use non-interactive backend for tests
+
 import json
 import tempfile
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-# Mock matplotlib to avoid display issues in tests
-import matplotlib
 import pandas as pd
 import pytest
-
-matplotlib.use("Agg")  # Use non-interactive backend
 
 from dendritic_modeling.scripts.sweeps.result_analyzer import (
     UnifiedResultAnalyzer,

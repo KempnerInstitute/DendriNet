@@ -34,7 +34,7 @@ class Trainer:
     def __init__(
         self,
         optimizer: torch.optim.Optimizer,
-        loss_function: str,
+        loss_function: str = "mse",
         epochs: int = 100,
         early_stopping: bool = False,
         patience: int = 10,
@@ -64,7 +64,6 @@ class Trainer:
         self.print_every = print_every
         self.analysis_manager = analysis_manager
 
-        # TEST 1B: Add expensive config instantiation from iss294
         regularization_config = kwargs.get("regularization_config")
         pruning_config = kwargs.get("pruning_config")
         reporting_config = kwargs.get("reporting_config")
@@ -78,7 +77,6 @@ class Trainer:
         self.enable_nan_checking = kwargs.get("enable_nan_checking", False)
         self.enable_adaptive_clipping = kwargs.get("enable_adaptive_clipping", False)
 
-        # TEST 4A: Mixed Precision Training Support (potentially expensive)
         self.enable_amp = kwargs.get("enable_amp", torch.cuda.is_available())
         if self.enable_amp and torch.cuda.is_available():
             try:
@@ -92,7 +90,6 @@ class Trainer:
         else:
             self.enable_amp = False
 
-        # TEST 4B: Profiling Support (potentially expensive initialization)
         self.enable_profiling = kwargs.get("enable_profiling", False)
         self.profiler = None
 
@@ -269,7 +266,6 @@ class Trainer:
         for x_batch, y_batch in train_loader:
             x_batch, y_batch = x_batch.to(self.device), y_batch.to(self.device)
 
-            # TEST 4A: Mixed Precision vs Standard Training
             if self.enable_amp:
                 # Mixed precision forward pass
                 with autocast():
@@ -416,7 +412,7 @@ class Trainer:
     def _check_and_handle_nan_gradients(self, model: BaseModel) -> bool:
         """
         Check for NaN values in gradients and handle them to prevent training crashes.
-        TEST: This method iterates through ALL model parameters every batch!
+
 
         Args:
             model: The model to check gradients for
@@ -442,7 +438,7 @@ class Trainer:
     def _apply_adaptive_gradient_clipping(self, model: BaseModel) -> float:
         """
         Apply adaptive gradient clipping with dynamic learning rate adjustment.
-        TEST: Another expensive method that iterates through ALL parameters!
+
 
         Args:
             model: The model to apply gradient clipping to
