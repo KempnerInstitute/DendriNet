@@ -325,7 +325,7 @@ class Trainer:
             for x_batch, y_batch in valid_loader:
                 x_batch = x_batch.to(self.device)
                 y_batch = y_batch.to(self.device)
-                loss: torch.Tensor = self.loss_function(model, x_batch, y_batch)
+                loss = self.loss_function(model, x_batch, y_batch)
                 valid_loss += loss.item()
 
         valid_loss /= len(valid_loader)
