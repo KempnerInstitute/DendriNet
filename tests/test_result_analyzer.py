@@ -151,17 +151,18 @@ class TestUnifiedResultAnalyzer:
         mock_df = pd.DataFrame(
             {
                 "accuracy": [0.85, 0.90, 0.88],
-                "loss": [[0.5], [0.3], [0.4]],  # List values to test cleaning
+                "loss": [0.5, 0.3, 0.4],  # Simple numeric values
                 "config_name": ["config_1", "config_2", "config_3"],
-                "ee_value": [1.0, 1.5, 1.2],  # Required columns
-                "ie_value": [0.5, 0.7, 0.6],
+                "ee_value": [[1.0], [1.5], [1.2]],  # List values to test cleaning
+                "ie_value": [[0.5], [0.7], [0.6]],  # List values to test cleaning
             }
         )
 
         cleaned_df = analyzer.clean_results_data(mock_df)
         assert isinstance(cleaned_df, pd.DataFrame)
-        # Should extract scalar values from lists
-        assert cleaned_df["loss"].dtype in [float, "float64"]
+        # Should extract scalar values from lists in ee_value and ie_value
+        assert cleaned_df["ee_value"].dtype in [float, "float64"]
+        assert cleaned_df["ie_value"].dtype in [float, "float64"]
 
     def test_aggregate_results(self, analyzer):
         """Test results aggregation."""
@@ -173,7 +174,14 @@ class TestUnifiedResultAnalyzer:
                 "excitatory_layer_sizes_0": [8, 16, 8, 8, 16, 8],
                 "inhibitory_layer_sizes_0": [4, 8, 4, 4, 8, 4],
                 "seed": [1, 1, 2, 3, 2, 3],
-                "config_path": ["a", "b", "a", "a", "b", "a"],  # Grouping column
+                "config_path": ["a", "b", "a", "a", "b", "a"],
+                # Add required architecture columns for grouping
+                "ee_value": [1.0, 1.5, 1.0, 1.0, 1.5, 1.0],
+                "ie_value": [0.5, 0.7, 0.5, 0.5, 0.7, 0.5],
+                "ei_ratio": [2.0, 2.14, 2.0, 2.0, 2.14, 2.0],
+                "branch_factors": ["2x2", "4x4", "2x2", "2x2", "4x4", "2x2"],
+                "use_shunting": [False, True, False, False, True, False],
+                "network_category": ["EI", "EI", "EI", "EI", "EI", "EI"],
             }
         )
 

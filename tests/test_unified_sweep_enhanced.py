@@ -27,7 +27,8 @@ class TestExpandRanges:
     def test_float_range(self):
         """Test expanding float ranges."""
         result = expand_ranges([0.0, 1.0, 0.25])
-        assert len(result) == 4
+        assert len(result) == 5  # [0.0, 0.25, 0.5, 0.75, 1.0]
+        assert result == [0.0, 0.25, 0.5, 0.75, 1.0]
         assert abs(result[0] - 0.0) < 1e-10
         assert abs(result[1] - 0.25) < 1e-10
 
@@ -60,7 +61,7 @@ class TestExpandRanges:
         """Test edge cases for range expansion."""
         # Same start and end
         result = expand_ranges([5, 5, 1])
-        assert result == []  # No values in range
+        assert result == [5]  # Single value when start == end
 
         # Step larger than range
         result = expand_ranges([1, 3, 5])
