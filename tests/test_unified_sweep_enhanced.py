@@ -125,14 +125,18 @@ class TestUnifiedSweepGenerator:
         """Test config validation with missing sweep_config."""
         config = OmegaConf.create({"filter_config": {}, "experiment_settings": {}})
         # Should raise ValueError when validation fails
-        with pytest.raises(ValueError, match="Either sweep_config must have parameters"):
+        with pytest.raises(
+            ValueError, match="Either sweep_config must have parameters"
+        ):
             generator.validate_config(config)
 
     def test_validate_config_missing_experiment_settings(self, generator):
         """Test config validation with missing experiment_settings."""
         config = OmegaConf.create({"sweep_config": {}, "filter_config": {}})
         # Should raise ValueError when validation fails
-        with pytest.raises(ValueError, match="Either sweep_config must have parameters"):
+        with pytest.raises(
+            ValueError, match="Either sweep_config must have parameters"
+        ):
             generator.validate_config(config)
 
     def test_apply_ei_filter_maintain_ratio(self, generator):
@@ -158,7 +162,9 @@ class TestUnifiedSweepGenerator:
 
         # Should only return combinations that sum to 10
         assert isinstance(result, list)
-        assert all(sum(item) == 10 for item in result)  # (4,6) doesn't exist, (8,2) exists
+        assert all(
+            sum(item) == 10 for item in result
+        )  # (4,6) doesn't exist, (8,2) exists
 
     def test_apply_ei_filter_no_ei_params(self, generator):
         """Test EI filter with e-const mode."""
