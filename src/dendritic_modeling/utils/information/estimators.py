@@ -131,9 +131,13 @@ class KraskovEstimator(BaseInformationEstimator):
         # Check if y is discrete (single column with few unique values)
         if y.shape[1] == 1 and len(np.unique(y)) < 20:
             # Treat as discrete
+            if self.config.verbose:
+                self.logger.debug(f"    Computing MI (continuous-discrete): x{x.shape}, y{y.shape}, k={self.n_neighbors}")
             return compute_mi_cd(x, y.ravel(), self.n_neighbors)
         else:
             # Both continuous
+            if self.config.verbose:
+                self.logger.debug(f"    Computing MI (continuous-continuous): x{x.shape}, y{y.shape}, k={self.n_neighbors}")
             return compute_mi_cc(x, y, self.n_neighbors)
 
     def conditional_mutual_information(
