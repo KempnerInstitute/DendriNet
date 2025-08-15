@@ -67,6 +67,12 @@ def convert_to_serializable(obj: Any) -> Any:
         return {k: convert_to_serializable(v) for k, v in obj.items()}
     elif isinstance(obj, list):
         return [convert_to_serializable(item) for item in obj]
+    elif isinstance(obj, np.bool_):
+        return bool(obj)
+    elif isinstance(obj, (np.integer, np.floating)):
+        return obj.item()
+    elif isinstance(obj, np.ndarray):
+        return obj.tolist()
     else:
         return obj
 

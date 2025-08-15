@@ -307,8 +307,15 @@ class ModelArchitectureValidator:
                             else self.input_dim
                         )
                 elif layer_idx == 0:
-                    # Other input modes: first layer has no inhibitory input
-                    inhibitory_source_dim = 0
+                    # For input_mode=0: first layer excitatory neurons can receive inhibitory input
+                    # from same layer's inhibitory neurons (if they exist)
+                    if (
+                        layer_idx < len(self.inhibitory_layer_sizes)
+                        and self.inhibitory_layer_sizes[layer_idx] > 0
+                    ):
+                        inhibitory_source_dim = self.inhibitory_layer_sizes[layer_idx]
+                    else:
+                        inhibitory_source_dim = 0
                 else:
                     # Subsequent layers get inhibitory input from previous layer's inhibitory neurons
                     if layer_idx - 1 < len(self.inhibitory_layer_sizes):
