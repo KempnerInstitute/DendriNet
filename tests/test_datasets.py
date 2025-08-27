@@ -447,7 +447,7 @@ class TestGetUnifiedDatasets(unittest.TestCase):
         self.task_cfg.parameters = {"flatten": True, "normalize": False}
 
         train_ds, valid_ds, test_ds = get_unified_datasets(
-            self.task_cfg, self.train_cfg, output_dir=self.temp_dir
+            self.task_cfg, self.train_cfg
         )
 
         # Verify results
@@ -468,7 +468,7 @@ class TestGetUnifiedDatasets(unittest.TestCase):
 
         with self.assertRaises(ValueError):
             get_unified_datasets(
-                self.task_cfg, self.train_cfg, output_dir=self.temp_dir
+                self.task_cfg, self.train_cfg
             )
 
 

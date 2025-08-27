@@ -639,7 +639,6 @@ def estimate_from_config(config_path: str, batch_size: Optional[int] = None):
         train_ds, valid_ds, test_ds = get_unified_datasets(
             task_cfg=config.task,
             train_cfg=config.train,
-            output_dir=config.outputs.dir,
         )
 
         # Get sample input shape from real data
