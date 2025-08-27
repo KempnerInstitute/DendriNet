@@ -30,6 +30,14 @@ from dendritic_modeling.utils.information.pid import (
     check_pid_available,
     pid_synergy_redundancy,
 )
+from dendritic_modeling.plotting.visualizations.information_plots import (
+    plot_information_analysis,
+    InformationAnalysisPlotter,
+    plot_structured_ei_network_analysis,
+    plot_layer_wise_aggregated_analysis,
+    plot_network_wise_aggregated_analysis,
+    plot_fully_aggregated_analysis,
+)
 
 
 class InformationAnalyzer(AbstractAnalyzer):
@@ -1039,8 +1047,6 @@ class InformationAnalyzer(AbstractAnalyzer):
                 self.logger.info(f"Using {self.method} estimator with max_samples={self.max_samples}")
                 self.logger.info(f"Enabled computations: basic_mi={self.compute_basic_mi}, pairwise_mi={self.compute_pairwise_mi}, conditional_mi={self.compute_conditional_mi}, pid={self.compute_pid}")
                 
-                if total_branches > 50:
-                    self.logger.warning(f"Large number of branches ({total_branches}) detected. This may take significant time (estimated: {total_branches * 20}+ seconds)")
                 
                 self.logger.info("Beginning branch-by-branch processing...")
                 
@@ -1414,7 +1420,7 @@ class InformationAnalyzer(AbstractAnalyzer):
                     self._save_per_layer_ei_summaries(results["per_layer_analysis"], save_path, filename)
                 
                 # Generate plots for information analysis
-                self._plot_information_results(results, save_path, filename)
+                self._generate_information_plots(results, save_path)
                 
                 self.logger.info("Results saved successfully!")
             
@@ -1433,18 +1439,9 @@ class InformationAnalyzer(AbstractAnalyzer):
             activations, labels, condition
         )
 
-    def _plot_information_results(self, results: dict, save_path: str, filename: str):
+    def _generate_information_plots(self, results: dict, save_path: str):
         """Generate plots for information analysis results."""
         try:
-            from dendritic_modeling.plotting.visualizations.information_analysis import (
-                plot_information_analysis,
-                InformationAnalysisPlotter,
-                plot_structured_ei_network_analysis,
-                plot_layer_wise_aggregated_analysis,
-                plot_network_wise_aggregated_analysis,
-                plot_fully_aggregated_analysis,
-            )
-            
             # Generate main information analysis plots
             plot_information_analysis(results, save_path=save_path)
             
@@ -1555,7 +1552,5 @@ class InformationAnalyzer(AbstractAnalyzer):
                                 filename_prefix=f"layer_{clean_layer_name}_combined",
                             )
                             
-        except ImportError as e:
-            self.logger.warning(f"Information plotting functions not found: {e}")
         except Exception as e:
             self.logger.error(f"Error generating information plots: {e}")

@@ -16,6 +16,9 @@ from dendritic_modeling.networks import (
     ExcitationInhibitionNetwork,
 )
 from dendritic_modeling.utils import save_dict
+from dendritic_modeling.plotting.visualizations.general_analysis_plots import (
+    plot_synapse_turnover
+)
 
 logger = logging.getLogger(__name__)
 
@@ -414,14 +417,7 @@ class SynapticTurnoverAnalyzer:
     def _plot_turnover_results(self, results: dict, save_path: str, filename: str):
         """Generate plots for synaptic turnover results."""
         try:
-            from dendritic_modeling.plotting.visualizations.general_analysis_plots import (
-                plot_synapse_turnover
-            )
-            
             # Generate turnover plots
             plot_synapse_turnover(results, save_path=save_path)
-            
-        except ImportError as e:
-            logger.warning(f"Synaptic turnover plotting functions not found: {e}")
         except Exception as e:
             logger.error(f"Error generating synaptic turnover plots: {e}")

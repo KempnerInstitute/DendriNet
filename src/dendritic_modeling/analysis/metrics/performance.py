@@ -127,36 +127,3 @@ class PerformanceAnalyzer:
             save_dict(results, save_path, filename)
         else:
             return results
-    
-    @staticmethod
-    def plot_performance_evolution(
-        performance_dir: str,
-        save_path: Optional[str] = None,
-        pruning_performance: Optional[dict] = None,
-        final_epoch: Optional[int] = None,
-    ):
-        """
-        Generate performance evolution plots from training history.
-        
-        This method is designed to be called after training completes to visualize
-        performance metrics over epochs.
-        
-        Args:
-            performance_dir: Directory containing epoch-wise performance data
-            save_path: Where to save the plots (defaults to performance_dir)
-            pruning_performance: Optional pruning results to overlay
-            final_epoch: Total number of epochs in training
-        """
-        try:
-            from dendritic_modeling.plotting.visualizations.performance_plots import PerformancePlotter
-            
-            plotter = PerformancePlotter()
-            return plotter.plot_performance_evolution(
-                performance_dir=performance_dir,
-                save_path=save_path or performance_dir,
-                pruning_performance=pruning_performance,
-                final_epoch=final_epoch,
-            )
-        except Exception as e:
-            print(f"Warning: Could not generate performance evolution plots: {e}")
-            return None

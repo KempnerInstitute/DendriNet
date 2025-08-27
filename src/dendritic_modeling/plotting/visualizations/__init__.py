@@ -20,7 +20,7 @@ from .general_analysis_plots import (  # Training and sweep functions
     plot_synapse_turnover,
     plot_weight_distributions,
 )
-from .information_analysis import (
+from .information_plots import (
     plot_information_analysis, 
     plot_per_layer_information,
     plot_structured_ei_network_analysis,

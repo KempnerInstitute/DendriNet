@@ -108,7 +108,7 @@ def run_analysis(
             if os.path.exists(performance_dir):
                 logger.info("Performance directory exists. Generating performance evolution plots...")
                 try:
-                    from dendritic_modeling.analysis.metrics.performance import PerformanceAnalyzer
+                    from dendritic_modeling.plotting.visualizations.performance_plots import PerformancePlotter
                     
                     # Get final epoch from training config if available
                     final_epoch = None
@@ -125,7 +125,8 @@ def run_analysis(
                     pruning_performance = getattr(analysis_manager, 'pruning_results', None)
                     logger.info(f"Pruning results available: {pruning_performance is not None}")
                     
-                    PerformanceAnalyzer.plot_performance_evolution(
+                    plotter = PerformancePlotter()
+                    plotter.plot_performance_evolution(
                         performance_dir=performance_dir,
                         save_path=os.path.join(run_save_path, "performance"),
                         pruning_performance=pruning_performance,
