@@ -87,7 +87,7 @@ def setup_wandb(config, rank, world_size):
     run = wandb.init(
         project=wandb_config.project or "dendritic-modeling",
         entity=wandb_config.entity or None,
-        name=getattr(wandb_config, "name", None) or config.train.run_name,
+                        name=getattr(wandb_config, "name", None) or config.outputs.run_name,
         tags=wandb_config.tags,
         notes=getattr(wandb_config, "notes", None),
         config={
@@ -281,7 +281,6 @@ def setup_data_loaders(config, rank, world_size):
     train_ds, valid_ds, test_ds = get_unified_datasets(
         task_cfg=config.task,
         train_cfg=config.train,
-        output_dir=config.outputs.dir,
     )
 
     # Create distributed samplers
@@ -333,7 +332,7 @@ def main(config_path):
 
     # Setup output directory (only on rank 0)
     if rank == 0:
-        run_id = f"{config.train.run_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        run_id = f"{config.outputs.run_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         run_save_path = os.path.join(config.outputs.dir, run_id)
         os.makedirs(run_save_path, exist_ok=True)
 

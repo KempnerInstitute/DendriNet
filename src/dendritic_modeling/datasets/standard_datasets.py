@@ -427,15 +427,13 @@ def load_imagenet_as_datasets(
     return train_dataset, valid_dataset, test_dataset
 
 
-def get_unified_datasets(task_cfg, train_cfg, output_dir=None, outputs_cfg=None):
+def get_unified_datasets(task_cfg, train_cfg):
     """
     Get datasets based on configuration.
 
     Args:
         task_cfg: Task configuration
         train_cfg: Training configuration
-        output_dir: Deprecated parameter (ignored)
-        outputs_cfg: Deprecated parameter (ignored)
 
     Returns:
         tuple: (train_dataset, valid_dataset, test_dataset)
@@ -525,7 +523,7 @@ def get_unified_datasets(task_cfg, train_cfg, output_dir=None, outputs_cfg=None)
                 get_unified_datasets as get_synthetic_datasets,
             )
 
-            return get_synthetic_datasets(task_cfg, train_cfg, output_dir, outputs_cfg)
+            return get_synthetic_datasets(task_cfg, train_cfg)
         except ImportError as e:
             raise ValueError(
                 f"Unknown dataset name: {dataset_name}. Synthetic datasets not available: {e}"
