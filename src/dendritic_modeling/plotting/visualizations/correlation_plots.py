@@ -573,3 +573,122 @@ def plot_ei_comparison(ei_results: dict[str, Any], axes: np.ndarray) -> None:
     # Hide unused subplots
     for ax in axes[1:]:
         ax.axis('off')
+
+
+def plot_synaptic_correlations(
+    synaptic_results: dict[str, Any],
+    save_path: str
+) -> None:
+    """Plot synaptic-level correlation results.
+    
+    Args:
+        synaptic_results: Results from synaptic correlation analysis
+        save_path: Path to save the plot
+    """
+    try:
+        # Count number of layers analyzed
+        layer_names = [k for k in synaptic_results.keys() 
+                      if k not in ['method', 'n_samples', 'n_sample_pairs', 'sampling_strategy']]
+        n_layers = len(layer_names)
+        
+        if n_layers == 0:
+            return
+            
+        fig, axes = plt.subplots(n_layers, 3, figsize=(15, 5 * n_layers), squeeze=False)
+        
+        for idx, layer_name in enumerate(layer_names):
+            layer_data = synaptic_results[layer_name]
+            
+            # Plot 1: Within-branch correlations
+            ax1 = axes[idx, 0]
+            plot_synaptic_comparison(layer_data, ax1, "within_branch")
+            ax1.set_title(f"{layer_name} - Within Branch")
+            
+            # Plot 2: Within-layer correlations
+            ax2 = axes[idx, 1]
+            plot_synaptic_comparison(layer_data, ax2, "within_layer")
+            ax2.set_title(f"{layer_name} - Within Layer")
+            
+            # Plot 3: Summary statistics
+            ax3 = axes[idx, 2]
+            plot_synaptic_summary(layer_data, ax3)
+            ax3.set_title(f"{layer_name} - Summary")
+            
+        plt.suptitle("Synaptic-Level Correlation Analysis", fontsize=16, fontweight='bold')
+        plt.tight_layout()
+        save_plot(fig, save_path)
+        
+    except Exception as e:
+        handle_plot_error("synaptic correlations", e)
+
+
+def plot_synaptic_comparison(layer_data: dict[str, Any], ax: plt.Axes, category: str) -> None:
+    """Plot comparison of synaptic correlations for a specific category."""
+    # Extract relevant statistics
+    ee_stats = layer_data.get(f"EE_{category}", {})
+    ii_stats = layer_data.get(f"II_{category}", {})
+    ei_stats = layer_data.get("EI_cross", {}) if category == "within_layer" else {}
+    
+    # Prepare data for plotting
+    labels = []
+    means = []
+    stds = []
+    colors = []
+    
+    if ee_stats:
+        labels.extend(['E-E Total', 'E-E Noise'])
+        means.extend([ee_stats.get('total_mean', 0), ee_stats.get('noise_mean', 0)])
+        stds.extend([ee_stats.get('std', 0), ee_stats.get('noise_std', 0)])
+        colors.extend(['red', 'lightcoral'])
+        
+    if ii_stats:
+        labels.extend(['I-I Total', 'I-I Noise'])
+        means.extend([ii_stats.get('total_mean', 0), ii_stats.get('noise_mean', 0)])
+        stds.extend([ii_stats.get('std', 0), ii_stats.get('noise_std', 0)])
+        colors.extend(['blue', 'lightblue'])
+        
+    if ei_stats:
+        labels.extend(['E-I Total', 'E-I Noise'])
+        means.extend([ei_stats.get('total_mean', 0), ei_stats.get('noise_mean', 0)])
+        stds.extend([ei_stats.get('std', 0), ei_stats.get('noise_std', 0)])
+        colors.extend(['purple', 'plum'])
+        
+    # Create bar plot with error bars
+    x = np.arange(len(labels))
+    bars = ax.bar(x, means, yerr=stds, capsize=5, color=colors, alpha=0.7)
+    
+    ax.set_xticks(x)
+    ax.set_xticklabels(labels, rotation=45, ha='right')
+    ax.set_ylabel('Mean Correlation')
+    ax.grid(True, alpha=0.3, axis='y')
+    
+    # Add sample size info
+    for i, (label, stats_dict) in enumerate([(l, d) for l, d in [
+        ('E-E', ee_stats), ('I-I', ii_stats), ('E-I', ei_stats)
+    ] if d]):
+        n_pairs = stats_dict.get('n_pairs', 0)
+        if n_pairs > 0:
+            ax.text(0.02, 0.98 - i*0.05, f"{label}: {n_pairs} pairs",
+                   transform=ax.transAxes, fontsize=9, va='top')
+
+
+def plot_synaptic_summary(layer_data: dict[str, Any], ax: plt.Axes) -> None:
+    """Plot summary statistics for synaptic correlations."""
+    # Create a text summary
+    summary_text = []
+    
+    for corr_type in ['EE_within_branch', 'EE_within_layer', 
+                     'II_within_branch', 'II_within_layer', 'EI_cross']:
+        if corr_type in layer_data:
+            stats = layer_data[corr_type]
+            summary_text.append(f"{corr_type}:")
+            summary_text.append(f"  Total: {stats.get('total_mean', 0):.3f} ± {stats.get('std', 0):.3f}")
+            summary_text.append(f"  Noise: {stats.get('noise_mean', 0):.3f} ± {stats.get('noise_std', 0):.3f}")
+            if 'signal_mean' in stats:
+                summary_text.append(f"  Signal: {stats.get('signal_mean', 0):.3f}")
+            summary_text.append("")
+            
+    ax.text(0.05, 0.95, '\n'.join(summary_text), 
+           transform=ax.transAxes, fontsize=10, va='top', 
+           fontfamily='monospace')
+    ax.axis('off')

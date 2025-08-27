@@ -259,7 +259,7 @@ class AnalysisManager:
             (hasattr(self.config.correlation_analysis, 'training') and self.config.correlation_analysis.training and training)
             or not training
         ):
-            self.correlation_analyzer.analyze_hierarchical(
+            self.correlation_analyzer.analyze(
                 model=self.model,
                 test_dataset=self.data["test"],
                 device=self.device,

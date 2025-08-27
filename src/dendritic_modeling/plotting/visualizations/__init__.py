@@ -32,6 +32,7 @@ from .correlation_plots import (
     plot_hierarchical_correlations,
     plot_correlation_matrices,
     plot_tuning_curves,
+    plot_synaptic_correlations,
 )
 
 # Network visualizations module exists but all functions have been removed as unused
@@ -68,4 +69,5 @@ __all__ = [
     "plot_hierarchical_correlations",
     "plot_correlation_matrices",
     "plot_tuning_curves",
+    "plot_synaptic_correlations",
 ]

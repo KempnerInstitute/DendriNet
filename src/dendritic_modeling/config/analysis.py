@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Optional, List
 
 from dendritic_modeling.config.base import BaseConfig
 
@@ -208,20 +208,41 @@ class SingleLayerContributionAnalysisConfig(BaseConfig):
 
 @dataclass
 class CorrelationAnalysisParams(BaseConfig):
-    # Core correlation computations
-    compute_synaptic_correlations: bool = True
-    compute_tuning_curves: bool = True
-    compute_branch_correlations: bool = True
-    compute_conditional_correlations: bool = True
+    # Computation level (aligned with information analysis)
+    # "synaptic": Individual synapse correlations (most detailed, uses sampling)
+    # "single_branch": Branch-by-branch analysis (detailed)
+    # "layer_branch": All branches in a layer together (balanced)
+    # "all_branch": Full network aggregation (most efficient)
+    computation_level: str = "layer_branch"
     
-    # Analysis levels (similar to information analysis)
-    per_layer_analysis: bool = True
-    per_einet_analysis: bool = True
-    per_branch_analysis: bool = False
+    # Correlation types to compute
+    compute_noise_correlations: bool = True  # Within-class (stimulus-independent) correlations
+    compute_signal_correlations: bool = True  # Between-class (stimulus-driven) correlations
+    compute_total_correlations: bool = True  # Across all data
+    compute_tuning_curves: bool = True  # Class selectivity (mean difference between classes)
     
-    # Computation parameters
-    max_samples: Optional[int] = None
-    computation_level: str = "layer_branch"  # Options: "single_branch", "layer_branch", "all_branch"
+    # Which correlation pairs to analyze
+    analyze_EE: bool = True  # Excitatory-Excitatory correlations
+    analyze_II: bool = True  # Inhibitory-Inhibitory correlations  
+    analyze_EI: bool = True  # Excitatory-Inhibitory cross-correlations
+    analyze_E_output: bool = True  # Excitatory-Output (Vout) correlations
+    analyze_I_output: bool = True  # Inhibitory-Output (Vout) correlations
+    analyze_output_output: bool = True  # Output-Output (Vout-Vout) correlations
+    
+    # Hierarchical analysis options (similar to information analysis)
+    per_layer_analysis: bool = True  # Analyze each layer separately
+    per_einet_analysis: bool = True  # Separate E and I network analysis
+    per_neuron_analysis: bool = False  # Analyze individual neurons (expensive)
+    
+    # Sampling parameters (only used when computation_level="synaptic")
+    n_synapse_pairs: int = 10000  # Number of synapse pairs to sample
+    sampling_strategy: str = "stratified"  # "random", "stratified", "importance"
+    stratified_categories: List[str] = field(default_factory=lambda: ["within_branch", "within_layer", "across_layer"])
+    max_pairs_per_category: int = 1000  # Maximum pairs per category in stratified sampling
+    
+    # Performance optimization
+    max_samples: Optional[int] = 5000  # Limit data samples for faster computation
+    batch_process: bool = True  # Process correlations in batches for memory efficiency
 
 
 @dataclass

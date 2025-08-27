@@ -1,19 +1,22 @@
 """
-Correlation analysis for studying how EI networks learn input correlations.
+Hierarchical correlation analysis for dendritic networks.
 
-This module provides hierarchical correlation analysis similar to the information analysis,
-computing correlations at multiple levels: network-wide, per-layer, per-EI network, and per-branch.
+This module provides correlation analysis at multiple levels of granularity:
+- Synaptic level: Individual synapse correlations (using sampling)
+- Branch level: Correlations between branch activations
+- Layer level: Aggregated correlations within layers
+- Network level: Full network correlation structure
+
+The implementation is aligned with the information analysis module for consistency.
 """
 
 import logging
 import os
 import traceback
-from typing import Any, Optional, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import seaborn as sns
 import torch
 from scipy.stats import pearsonr
 
@@ -23,6 +26,7 @@ from dendritic_modeling.models import BaseModel
 from dendritic_modeling.networks import (
     DendriticBranchLayer,
     ExcitationInhibitionNetwork,
+    TopKLinear,
 )
 from dendritic_modeling.utils import save_dict
 
@@ -30,11 +34,11 @@ logger = logging.getLogger(__name__)
 
 
 class CorrelationAnalyzer(AbstractAnalyzer):
-    """Analyze synaptic correlations and tuning properties in EI networks with hierarchical structure."""
+    """Hierarchical correlation analyzer for dendritic networks."""
 
     def __init__(self, params: CorrelationAnalysisParams):
         """
-        Initialize correlation analyzer with hierarchical analysis capabilities.
+        Initialize correlation analyzer.
 
         Args:
             params: Configuration parameters for correlation analysis
@@ -43,85 +47,146 @@ class CorrelationAnalyzer(AbstractAnalyzer):
         self.logger = logger
         self.params = params
         
-        # Configuration parameters
-        self.compute_synaptic_correlations = getattr(params, "compute_synaptic_correlations", True)
-        self.compute_branch_correlations = getattr(params, "compute_branch_correlations", True)
-        self.compute_conditional_correlations = getattr(params, "compute_conditional_correlations", True)
-        self.compute_tuning_curves = getattr(params, "compute_tuning_curves", True)
+        # Core parameters
+        self.computation_level = params.computation_level
         
-        # Analysis levels
-        self.per_layer_analysis = getattr(params, "per_layer_analysis", True)
-        self.per_einet_analysis = getattr(params, "per_einet_analysis", True)
-        self.per_branch_analysis = getattr(params, "per_branch_analysis", False)
+        # Correlation types
+        self.compute_noise_correlations = params.compute_noise_correlations
+        self.compute_signal_correlations = params.compute_signal_correlations
+        self.compute_total_correlations = params.compute_total_correlations
+        self.compute_tuning_curves = params.compute_tuning_curves
         
-        # Computation parameters
-        self.max_samples = getattr(params, "max_samples", None)
-        self.computation_level = getattr(params, "computation_level", "layer_branch")
+        # Which pairs to analyze
+        self.analyze_EE = params.analyze_EE
+        self.analyze_II = params.analyze_II
+        self.analyze_EI = params.analyze_EI
+        self.analyze_E_output = params.analyze_E_output
+        self.analyze_I_output = params.analyze_I_output
+        self.analyze_output_output = params.analyze_output_output
+        
+        # Hierarchical analysis options
+        self.per_layer_analysis = params.per_layer_analysis
+        self.per_einet_analysis = params.per_einet_analysis
+        self.per_neuron_analysis = params.per_neuron_analysis
+        
+        # Sampling parameters (for synaptic level)
+        self.n_synapse_pairs = params.n_synapse_pairs
+        self.sampling_strategy = params.sampling_strategy
+        self.stratified_categories = params.stratified_categories
+        self.max_pairs_per_category = params.max_pairs_per_category
+        
+        # Performance
+        self.max_samples = params.max_samples
+        self.batch_process = params.batch_process
         
         self.logger.info(f"Initialized CorrelationAnalyzer with computation_level: {self.computation_level}")
 
-    def attach_forward_hooks(self, model: BaseModel):
-        """Attach forward hooks to collect activations (same as information analysis)."""
+    def attach_forward_hooks(self, model: BaseModel) -> List:
+        """Attach forward hooks to collect activations."""
         self.data_dict = {}
-        
         handles = []
-        for _name, module in model.named_modules():
-            if isinstance(module, DendriticBranchLayer):
-                if (
-                    module.branch_excitation is not None
-                    and module.branch_inhibition is not None
-                ):
-                    self.data_dict[_name] = {}
-                    module._name = _name
-                    handle = module.register_forward_hook(self.forward_hook)
-                    handles.append(handle)
+        
+        if self.computation_level == "synaptic":
+            # For synaptic level, we need to hook into TopKLinear modules
+            for name, module in model.named_modules():
+                if isinstance(module, DendriticBranchLayer):
+                    layer_name = name
+                    self.data_dict[layer_name] = {}
                     
-        self.logger.info(f"Attached hooks to {len(handles)} DendriticBranchLayers")
+                    # Hook excitatory TopKLinear
+                    if module.branch_excitation is not None:
+                        def create_synapse_hook(layer_name, synapse_type):
+                            def hook(module, input, output):
+                                x = input[0] if isinstance(input, tuple) else input
+                                with torch.no_grad():
+                                    # Get active synapses
+                                    mask = module.weight_mask()
+                                    weights = module.weight()
+                                    active_indices = torch.topk(
+                                        module.pre_w, module.K, dim=-1, largest=True, sorted=False
+                                    )[1]
+                                    
+                                    # Extract synaptic activations
+                                    batch_size = x.shape[0]
+                                    n_branches = active_indices.shape[0]
+                                    K = active_indices.shape[1]
+                                    
+                                    x_expanded = x.unsqueeze(1).expand(-1, n_branches, -1)
+                                    indices_expanded = active_indices.unsqueeze(0).expand(batch_size, -1, -1)
+                                    synaptic_inputs = torch.gather(x_expanded, 2, indices_expanded)
+                                    
+                                    weights_active = torch.gather(weights, 1, active_indices)
+                                    weights_expanded = weights_active.unsqueeze(0).expand(batch_size, -1, -1)
+                                    synaptic_activations = synaptic_inputs * weights_expanded
+                                    
+                                    # Store
+                                    self.data_dict[layer_name][f"{synapse_type}_synaptic"] = synaptic_activations
+                                    self.data_dict[layer_name][f"{synapse_type}_indices"] = active_indices
+                                    self.data_dict[layer_name][f"{synapse_type}_weights"] = weights_active
+                                    self.data_dict[layer_name][f"{synapse_type}_branch_output"] = output
+                            return hook
+                        
+                        handle = module.branch_excitation.register_forward_hook(
+                            create_synapse_hook(layer_name, "E")
+                        )
+                        handles.append(handle)
+                    
+                    # Hook inhibitory TopKLinear
+                    if module.branch_inhibition is not None:
+                        handle = module.branch_inhibition.register_forward_hook(
+                            create_synapse_hook(layer_name, "I")
+                        )
+                        handles.append(handle)
+                    
+                    # Hook layer output
+                    def output_hook(layer_name):
+                        def hook(module, input, output):
+                            self.data_dict[layer_name]["output"] = output
+                        return hook
+                    
+                    handle = module.register_forward_hook(output_hook(layer_name))
+                    handles.append(handle)
+        else:
+            # For branch/layer level, use standard hooks
+            for name, module in model.named_modules():
+                if isinstance(module, DendriticBranchLayer):
+                    if module.branch_excitation is not None and module.branch_inhibition is not None:
+                        self.data_dict[name] = {}
+                        module._name = name
+                        handle = module.register_forward_hook(self.forward_hook)
+                        handles.append(handle)
+                        
+        self.logger.info(f"Attached hooks to {len(handles)} modules")
         return handles
         
-    def forward_hook(
-        self,
-        module: DendriticBranchLayer,
-        input: tuple[torch.Tensor, torch.Tensor, torch.Tensor],
-        output: torch.Tensor,
-    ):
-        """Forward hook to collect branch data (same as information analysis)."""
+    def forward_hook(self, module: DendriticBranchLayer, input: Tuple, output: torch.Tensor):
+        """Standard forward hook for branch/layer level analysis."""
         excitatory_input, inhibitory_input, _ = input
         
-        # Get the outputs from TopKLinear layers
+        # Get branch outputs
         excitation_per_branch = module.branch_excitation(excitatory_input)
         inhibition_per_branch = module.branch_inhibition(inhibitory_input)
         
-        # Store per-branch data
+        # Store data
         self.data_dict[module._name]["excitation"] = excitation_per_branch
         self.data_dict[module._name]["inhibition"] = inhibition_per_branch
         self.data_dict[module._name]["output"] = output
-        # Also store raw inputs if available
         self.data_dict[module._name]["excitatory_input"] = excitatory_input
         self.data_dict[module._name]["inhibitory_input"] = inhibitory_input
-        
-    def remove_forward_hooks(self, handles: list[torch.utils.hooks.RemovableHandle]):
-        """Remove forward hooks from the model."""
+
+    def remove_forward_hooks(self, handles: List):
+        """Remove forward hooks."""
         for handle in handles:
             handle.remove()
 
     def _compute_correlation_matrix(self, X: np.ndarray, Y: Optional[np.ndarray] = None) -> np.ndarray:
-        """Compute correlation matrix between X and Y (or within X if Y is None).
-        
-        Args:
-            X: First set of variables (n_samples, n_features_X)
-            Y: Second set of variables (n_samples, n_features_Y) or None
-            
-        Returns:
-            Correlation matrix of shape (n_features_X, n_features_Y) or (n_features_X, n_features_X)
-        """
+        """Compute correlation matrix between X and Y."""
         if Y is None:
-            # Self-correlation (e.g., E-E or I-I)
+            # Self-correlation
             return np.corrcoef(X.T)
         else:
-            # Cross-correlation (e.g., E-I)
-            n_x = X.shape[1]
-            n_y = Y.shape[1]
+            # Cross-correlation
+            n_x, n_y = X.shape[1], Y.shape[1]
             corr_matrix = np.zeros((n_x, n_y))
             
             for i in range(n_x):
@@ -134,111 +199,233 @@ class CorrelationAnalyzer(AbstractAnalyzer):
             return corr_matrix
             
     def _compute_conditional_correlations(
-        self, 
-        X: np.ndarray, 
-        Y: Optional[np.ndarray], 
-        labels: np.ndarray
-    ) -> dict[str, np.ndarray]:
-        """Compute correlations conditioned on class labels.
-        
-        Args:
-            X: First set of variables
-            Y: Second set of variables (or None for self-correlation)
-            labels: Class labels
-            
-        Returns:
-            Dictionary with total and per-class correlations
-        """
-        unique_labels = np.unique(labels)
+        self, X: np.ndarray, Y: Optional[np.ndarray], labels: np.ndarray
+    ) -> Dict[str, np.ndarray]:
+        """Compute correlations conditioned on class labels."""
         results = {}
+        unique_labels = np.unique(labels)
         
-        # Total correlation (across all data)
-        results["total"] = self._compute_correlation_matrix(X, Y)
+        # Total correlation
+        if self.compute_total_correlations:
+            results["total"] = self._compute_correlation_matrix(X, Y)
         
-        # Per-class correlations
-        per_class_corrs = []
-        for label in unique_labels:
-            mask = labels == label
-            X_class = X[mask]
-            Y_class = Y[mask] if Y is not None else None
+        # Per-class and noise correlations
+        if self.compute_noise_correlations:
+            per_class_corrs = []
+            for label in unique_labels:
+                mask = labels == label
+                X_class = X[mask]
+                Y_class = Y[mask] if Y is not None else None
+                
+                class_corr = self._compute_correlation_matrix(X_class, Y_class)
+                results[f"class_{label}"] = class_corr
+                per_class_corrs.append(class_corr)
             
-            results[f"class_{label}"] = self._compute_correlation_matrix(X_class, Y_class)
-            per_class_corrs.append(results[f"class_{label}"])
-            
-        # Noise correlation (average within-class correlation)
-        results["noise"] = np.mean(per_class_corrs, axis=0)
+            # Noise correlation (average within-class)
+            results["noise"] = np.mean(per_class_corrs, axis=0)
         
         # Signal correlation (between-class difference)
-        if len(unique_labels) == 2:
+        if self.compute_signal_correlations and len(unique_labels) == 2:
             results["signal"] = results[f"class_{unique_labels[1]}"] - results[f"class_{unique_labels[0]}"]
             
         return results
-        
+
     def _compute_synaptic_correlations(
-        self, 
-        E: np.ndarray, 
-        I: np.ndarray, 
-        Vout: np.ndarray,
-        labels: np.ndarray
-    ) -> dict[str, Any]:
-        """Compute all synaptic correlation types.
-        
-        Args:
-            E: Excitatory inputs
-            I: Inhibitory inputs
-            Vout: Branch outputs
-            labels: Class labels
-            
-        Returns:
-            Dictionary with correlation results
-        """
+        self, data: Dict[str, torch.Tensor], labels: np.ndarray
+    ) -> Dict[str, Any]:
+        """Compute correlations at synaptic level using sampling."""
         results = {}
         
-        # E-E correlations
-        self.logger.info("Computing E-E correlations...")
-        results["EE"] = self._compute_conditional_correlations(E, None, labels)
+        # Extract synaptic data
+        E_syn = data.get("E_synaptic")
+        I_syn = data.get("I_synaptic")
+        E_indices = data.get("E_indices")
+        I_indices = data.get("I_indices")
         
-        # I-I correlations
-        self.logger.info("Computing I-I correlations...")
-        results["II"] = self._compute_conditional_correlations(I, None, labels)
+        if E_syn is None and I_syn is None:
+            return results
+            
+        # Convert to numpy
+        if E_syn is not None:
+            E_syn_np = E_syn.cpu().numpy()
+        if I_syn is not None:
+            I_syn_np = I_syn.cpu().numpy()
+            
+        # Sample and compute correlations for each type
+        for corr_type in ["EE", "II", "EI"]:
+            if corr_type == "EE" and self.analyze_EE and E_syn is not None:
+                pairs = self._sample_synapse_pairs(E_indices, corr_type)
+                results[corr_type] = self._compute_sampled_correlations(
+                    E_syn_np, E_syn_np, pairs, labels, corr_type
+                )
+            elif corr_type == "II" and self.analyze_II and I_syn is not None:
+                pairs = self._sample_synapse_pairs(I_indices, corr_type)
+                results[corr_type] = self._compute_sampled_correlations(
+                    I_syn_np, I_syn_np, pairs, labels, corr_type
+                )
+            elif corr_type == "EI" and self.analyze_EI and E_syn is not None and I_syn is not None:
+                pairs = self._sample_cross_synapse_pairs(E_indices, I_indices)
+                results[corr_type] = self._compute_sampled_correlations(
+                    E_syn_np, I_syn_np, pairs, labels, corr_type
+                )
+                
+        return results
+
+    def _sample_synapse_pairs(self, indices: torch.Tensor, corr_type: str) -> List[Tuple]:
+        """Sample synapse pairs for correlation computation."""
+        n_branches, n_synapses = indices.shape
+        all_synapses = [(b, s) for b in range(n_branches) for s in range(n_synapses)]
         
-        # E-I correlations
-        self.logger.info("Computing E-I correlations...")
-        results["EI"] = self._compute_conditional_correlations(E, I, labels)
+        if self.sampling_strategy == "stratified":
+            pairs = []
+            
+            # Within-branch pairs
+            if "within_branch" in self.stratified_categories:
+                for branch in range(n_branches):
+                    n_pairs = min(
+                        n_synapses * (n_synapses - 1) // 2,
+                        self.max_pairs_per_category // n_branches
+                    )
+                    for _ in range(n_pairs):
+                        idx1, idx2 = np.random.choice(n_synapses, 2, replace=False)
+                        pairs.append(((branch, idx1), (branch, idx2)))
+            
+            # Within-layer pairs (across branches)
+            if "within_layer" in self.stratified_categories:
+                n_pairs = min(self.max_pairs_per_category, len(all_synapses) * (len(all_synapses) - 1) // 2)
+                for _ in range(n_pairs):
+                    syn1, syn2 = np.random.choice(len(all_synapses), 2, replace=False)
+                    pairs.append((all_synapses[syn1], all_synapses[syn2]))
+                    
+        else:  # Random sampling
+            n_total_pairs = min(self.n_synapse_pairs, len(all_synapses) * (len(all_synapses) - 1) // 2)
+            pairs = []
+            for _ in range(n_total_pairs):
+                syn1, syn2 = np.random.choice(len(all_synapses), 2, replace=False)
+                pairs.append((all_synapses[syn1], all_synapses[syn2]))
+                
+        return pairs
+
+    def _sample_cross_synapse_pairs(self, E_indices: torch.Tensor, I_indices: torch.Tensor) -> List[Tuple]:
+        """Sample E-I synapse pairs."""
+        E_branches, E_synapses = E_indices.shape
+        I_branches, I_synapses = I_indices.shape
         
-        # E-Vout correlations
-        self.logger.info("Computing E-Vout correlations...")
-        results["E_Vout"] = self._compute_conditional_correlations(E, Vout, labels)
+        E_all = [(b, s) for b in range(E_branches) for s in range(E_synapses)]
+        I_all = [(b, s) for b in range(I_branches) for s in range(I_synapses)]
         
-        # I-Vout correlations
-        self.logger.info("Computing I-Vout correlations...")
-        results["I_Vout"] = self._compute_conditional_correlations(I, Vout, labels)
+        n_sample = min(self.n_synapse_pairs, len(E_all) * len(I_all))
         
-        # Vout-Vout correlations
-        if Vout.shape[1] > 1:
-            self.logger.info("Computing Vout-Vout correlations...")
+        pairs = []
+        for _ in range(n_sample):
+            e_idx = np.random.choice(len(E_all))
+            i_idx = np.random.choice(len(I_all))
+            pairs.append((E_all[e_idx], I_all[i_idx]))
+            
+        return pairs
+
+    def _compute_sampled_correlations(
+        self, X: np.ndarray, Y: np.ndarray, pairs: List[Tuple], labels: np.ndarray, corr_type: str
+    ) -> Dict[str, Any]:
+        """Compute correlations for sampled pairs."""
+        results = {"n_pairs": len(pairs)}
+        
+        # Compute correlations for all pairs
+        all_correlations = []
+        for (b1, s1), (b2, s2) in pairs:
+            x_series = X[:, b1, s1]
+            y_series = Y[:, b2, s2]
+            
+            if np.std(x_series) > 0 and np.std(y_series) > 0:
+                corr, _ = pearsonr(x_series, y_series)
+                all_correlations.append(corr)
+        
+        if not all_correlations:
+            return results
+            
+        all_correlations = np.array(all_correlations)
+        
+        # Total statistics
+        if self.compute_total_correlations:
+            results["total"] = {
+                "mean": np.mean(all_correlations),
+                "std": np.std(all_correlations),
+                "median": np.median(all_correlations),
+                "q25": np.percentile(all_correlations, 25),
+                "q75": np.percentile(all_correlations, 75),
+            }
+        
+        # Class-conditional correlations
+        if self.compute_noise_correlations:
+            unique_labels = np.unique(labels)
+            class_correlations = {}
+            
+            for label in unique_labels:
+                mask = labels == label
+                label_corrs = []
+                
+                for (b1, s1), (b2, s2) in pairs:
+                    x_series = X[mask, b1, s1]
+                    y_series = Y[mask, b2, s2]
+                    
+                    if np.std(x_series) > 0 and np.std(y_series) > 0:
+                        corr, _ = pearsonr(x_series, y_series)
+                        label_corrs.append(corr)
+                
+                if label_corrs:
+                    class_correlations[label] = np.array(label_corrs)
+                    results[f"class_{label}"] = {
+                        "mean": np.mean(label_corrs),
+                        "std": np.std(label_corrs),
+                    }
+            
+            # Noise correlation
+            if class_correlations:
+                all_within_class = np.concatenate(list(class_correlations.values()))
+                results["noise"] = {
+                    "mean": np.mean(all_within_class),
+                    "std": np.std(all_within_class),
+                }
+                
+            # Signal correlation
+            if self.compute_signal_correlations and len(unique_labels) == 2:
+                results["signal"] = {
+                    "mean": results[f"class_{unique_labels[1]}"]["mean"] - results[f"class_{unique_labels[0]}"]["mean"]
+                }
+                
+        return results
+
+    def _compute_branch_correlations(
+        self, E: np.ndarray, I: np.ndarray, Vout: np.ndarray, labels: np.ndarray
+    ) -> Dict[str, Any]:
+        """Compute correlations at branch level."""
+        results = {}
+        
+        # Ensure 2D arrays
+        E = E.reshape(E.shape[0], -1) if E.ndim > 2 else E
+        I = I.reshape(I.shape[0], -1) if I.ndim > 2 else I
+        Vout = Vout.reshape(Vout.shape[0], -1) if Vout.ndim > 2 else Vout
+        
+        # Compute requested correlations
+        if self.analyze_EE:
+            results["EE"] = self._compute_conditional_correlations(E, None, labels)
+        if self.analyze_II:
+            results["II"] = self._compute_conditional_correlations(I, None, labels)
+        if self.analyze_EI:
+            results["EI"] = self._compute_conditional_correlations(E, I, labels)
+        if self.analyze_E_output:
+            results["E_Vout"] = self._compute_conditional_correlations(E, Vout, labels)
+        if self.analyze_I_output:
+            results["I_Vout"] = self._compute_conditional_correlations(I, Vout, labels)
+        if self.analyze_output_output and Vout.shape[1] > 1:
             results["Vout_Vout"] = self._compute_conditional_correlations(Vout, None, labels)
             
         return results
-        
+
     def _compute_tuning_curves(
-        self,
-        E: np.ndarray,
-        I: np.ndarray,
-        Vout: np.ndarray,
-        labels: np.ndarray
-    ) -> dict[str, np.ndarray]:
-        """Compute tuning curves (class selectivity) for each variable.
-        
-        Args:
-            E: Excitatory inputs
-            I: Inhibitory inputs
-            Vout: Branch outputs
-            labels: Class labels
-            
-        Returns:
-            Dictionary with tuning curves
-        """
+        self, E: np.ndarray, I: np.ndarray, Vout: np.ndarray, labels: np.ndarray
+    ) -> Dict[str, np.ndarray]:
+        """Compute tuning curves (class selectivity)."""
         unique_labels = np.unique(labels)
         if len(unique_labels) != 2:
             self.logger.warning(f"Tuning curves require binary labels, got {len(unique_labels)} classes")
@@ -254,155 +441,37 @@ class CorrelationAnalyzer(AbstractAnalyzer):
         }
         
         return results
-        
-    def _analyze_single_layer(
-        self,
-        layer_name: str,
-        layer_data: dict[str, torch.Tensor],
-        labels: np.ndarray
-    ) -> dict[str, Any]:
-        """Analyze correlations for a single layer.
-        
-        Args:
-            layer_name: Name of the layer
-            layer_data: Dictionary with excitation, inhibition, output tensors
-            labels: Class labels
-            
-        Returns:
-            Dictionary with layer-specific correlation results
-        """
-        self.logger.info(f"Analyzing layer: {layer_name}")
-        
-        # Extract data
-        E = layer_data["excitation"].detach().cpu().numpy()
-        I = layer_data["inhibition"].detach().cpu().numpy()
-        Vout = layer_data["output"].detach().cpu().numpy()
-        
-        # Ensure 2D
-        if E.ndim == 1:
-            E = E.reshape(-1, 1)
-        if I.ndim == 1:
-            I = I.reshape(-1, 1)
-        if Vout.ndim == 1:
-            Vout = Vout.reshape(-1, 1)
-            
-        results = {
-            "layer_name": layer_name,
-            "data_shapes": {
-                "excitation": E.shape,
-                "inhibition": I.shape,
-                "output": Vout.shape,
-            }
-        }
-        
-        # Compute correlations
-        if self.compute_synaptic_correlations:
-            results["correlations"] = self._compute_synaptic_correlations(E, I, Vout, labels)
-            
-        # Compute tuning curves
-        if self.compute_tuning_curves:
-            results["tuning"] = self._compute_tuning_curves(E, I, Vout, labels)
-            
-        # Compute summary statistics
-        results["summary_stats"] = self._compute_summary_statistics(results["correlations"])
-        
-        return results
-        
-    def _compute_summary_statistics(self, correlations: dict[str, Any]) -> dict[str, float]:
-        """Compute summary statistics from correlation results.
-        
-        Args:
-            correlations: Dictionary with correlation matrices
-            
-        Returns:
-            Dictionary with summary statistics
-        """
+
+    def _compute_summary_statistics(self, correlations: Dict[str, Any]) -> Dict[str, float]:
+        """Compute summary statistics from correlation results."""
         stats = {}
         
-        for corr_type in ["EE", "II", "EI", "E_Vout", "I_Vout", "Vout_Vout"]:
-            if corr_type not in correlations:
+        for corr_type, corr_data in correlations.items():
+            if not isinstance(corr_data, dict):
                 continue
                 
-            corr_data = correlations[corr_type]
-            
-            # Get upper triangular indices for self-correlations
-            if corr_type in ["EE", "II", "Vout_Vout"]:
-                # For self-correlations, exclude diagonal
-                for cond in ["total", "noise", "signal"]:
-                    if cond in corr_data:
-                        matrix = corr_data[cond]
-                        upper_tri = matrix[np.triu_indices_from(matrix, k=1)]
-                        stats[f"{corr_type}_{cond}_mean"] = np.mean(np.abs(upper_tri))
-                        stats[f"{corr_type}_{cond}_std"] = np.std(upper_tri)
+            # For synaptic level with sampling
+            if "mean" in corr_data:
+                for metric in ["total", "noise", "signal"]:
+                    if metric in corr_data and isinstance(corr_data[metric], dict):
+                        stats[f"{corr_type}_{metric}_mean"] = corr_data[metric].get("mean", 0)
+                        stats[f"{corr_type}_{metric}_std"] = corr_data[metric].get("std", 0)
             else:
-                # For cross-correlations, use all values
+                # For branch/layer level with full matrices
                 for cond in ["total", "noise", "signal"]:
                     if cond in corr_data:
                         matrix = corr_data[cond]
-                        stats[f"{corr_type}_{cond}_mean"] = np.mean(np.abs(matrix))
-                        stats[f"{corr_type}_{cond}_std"] = np.std(matrix)
-                        
+                        if corr_type in ["EE", "II", "Vout_Vout"]:
+                            # Self-correlations: exclude diagonal
+                            upper_tri = matrix[np.triu_indices_from(matrix, k=1)]
+                            stats[f"{corr_type}_{cond}_mean"] = np.mean(np.abs(upper_tri))
+                            stats[f"{corr_type}_{cond}_std"] = np.std(upper_tri)
+                        else:
+                            # Cross-correlations: use all values
+                            stats[f"{corr_type}_{cond}_mean"] = np.mean(np.abs(matrix))
+                            stats[f"{corr_type}_{cond}_std"] = np.std(matrix)
+                            
         return stats
-        
-    def _compute_per_ei_analysis(
-        self,
-        E: np.ndarray,
-        I: np.ndarray,
-        Vout: np.ndarray,
-        labels: np.ndarray
-    ) -> dict[str, Any]:
-        """Compute separate analysis for excitatory and inhibitory networks.
-        
-        Args:
-            E: Excitatory inputs
-            I: Inhibitory inputs
-            Vout: Branch outputs
-            labels: Class labels
-            
-        Returns:
-            Dictionary with E-specific and I-specific results
-        """
-        results = {}
-        
-        # Excitatory network analysis
-        self.logger.info("Computing excitatory network correlations...")
-        exc_results = {
-            "EE": self._compute_conditional_correlations(E, None, labels),
-            "E_Vout": self._compute_conditional_correlations(E, Vout, labels),
-        }
-        if self.compute_tuning_curves:
-            exc_results["tuning"] = {
-                "E_tuning": self._compute_tuning_curves(E, I, Vout, labels)["E_tuning"]
-            }
-        results["excitatory_results"] = {
-            "correlations": exc_results,
-            "summary_stats": self._compute_summary_statistics(exc_results)
-        }
-        
-        # Inhibitory network analysis
-        self.logger.info("Computing inhibitory network correlations...")
-        inh_results = {
-            "II": self._compute_conditional_correlations(I, None, labels),
-            "I_Vout": self._compute_conditional_correlations(I, Vout, labels),
-        }
-        if self.compute_tuning_curves:
-            inh_results["tuning"] = {
-                "I_tuning": self._compute_tuning_curves(E, I, Vout, labels)["I_tuning"]
-            }
-        results["inhibitory_results"] = {
-            "correlations": inh_results,
-            "summary_stats": self._compute_summary_statistics(inh_results)
-        }
-        
-        # Combined E-I analysis
-        self.logger.info("Computing combined E-I network correlations...")
-        combined_results = {
-            "EI": self._compute_conditional_correlations(E, I, labels),
-            "correlations": self._compute_synaptic_correlations(E, I, Vout, labels),
-        }
-        results["combined_results"] = combined_results
-        
-        return results
 
     def analyze(
         self,
@@ -412,133 +481,70 @@ class CorrelationAnalyzer(AbstractAnalyzer):
         save_path: Optional[str] = None,
         filename: str = "final",
     ):
-        """Run hierarchical correlation analysis on the model.
-        
-        Args:
-            model: The trained model to analyze
-            test_dataset: Test dataset for analysis
-            device: Device to run analysis on
-            save_path: Path to save results
-            filename: Filename for saved results
-        """
-        self.logger.info("Starting hierarchical correlation analysis")
+        """Run hierarchical correlation analysis."""
+        self.logger.info(f"Starting correlation analysis at {self.computation_level} level")
         self.logger.info(f"Model: {type(model).__name__}, Dataset size: {len(test_dataset)}, Device: {device}")
         
         try:
-            # Check if model has ExcitationInhibitionNetwork
+            # Validate model
             if not isinstance(model.core_network, ExcitationInhibitionNetwork):
-                self.logger.warning(
-                    "Model does not have ExcitationInhibitionNetwork. Skipping correlation analysis."
-                )
+                self.logger.warning("Model does not have ExcitationInhibitionNetwork. Skipping analysis.")
                 return
                 
-            self.logger.info("Model validation passed - starting analysis")
-            
-            # Prepare data
+            # Prepare model and data
             model = model.to(device)
             model.eval()
             
-            self.logger.info("Loading test dataset...")
             inputs, labels = test_dataset[:]
-            inputs: torch.Tensor = inputs.to(device)
-            labels: torch.Tensor = labels.to(device)
+            inputs = inputs.to(device)
+            labels_np = labels.numpy()
             
-            # Optional: Sample a subset of data
+            # Sample data if needed
             if self.max_samples and len(inputs) > self.max_samples:
                 self.logger.info(f"Sampling {self.max_samples} samples from {len(inputs)}")
                 indices = torch.randperm(len(inputs))[: self.max_samples]
                 inputs = inputs[indices]
-                labels = labels[indices]
-                
-            # Attach forward hooks
-            self.logger.info("Attaching forward hooks to collect activations...")
+                labels_np = labels_np[indices]
+            
+            # Attach hooks and run forward pass
+            self.logger.info("Collecting activations...")
             handles = self.attach_forward_hooks(model)
             
-            # Forward pass to collect activations
-            self.logger.info("Running forward pass to collect neural activations...")
             with torch.no_grad():
                 _ = model(inputs)
                 
-            # Remove hooks
             self.remove_forward_hooks(handles)
-            
-            # Convert labels to numpy
-            labels_np = labels.cpu().numpy()
             
             # Initialize results
             results = {
                 "method": "hierarchical_correlation_analysis",
+                "computation_level": self.computation_level,
                 "n_samples": len(inputs),
                 "n_layers": len(self.data_dict),
-                "computation_level": self.computation_level,
-                "per_layer_analysis_enabled": self.per_layer_analysis,
-                "per_einet_analysis_enabled": self.per_einet_analysis,
+                "config": {
+                    "per_layer_analysis": self.per_layer_analysis,
+                    "per_einet_analysis": self.per_einet_analysis,
+                    "per_neuron_analysis": self.per_neuron_analysis,
+                }
             }
             
-            # Network-level analysis (aggregate all layers)
-            self.logger.info("Computing network-level correlations...")
-            all_E = []
-            all_I = []
-            all_Vout = []
+            # Analyze based on computation level
+            if self.computation_level == "synaptic":
+                self._analyze_synaptic_level(results, labels_np)
+            elif self.computation_level == "single_branch":
+                self._analyze_single_branch_level(results, labels_np)
+            elif self.computation_level == "layer_branch":
+                self._analyze_layer_branch_level(results, labels_np)
+            else:  # all_branch
+                self._analyze_all_branch_level(results, labels_np)
             
-            for layer_data in self.data_dict.values():
-                E = layer_data["excitation"].detach().cpu().numpy()
-                I = layer_data["inhibition"].detach().cpu().numpy()
-                Vout = layer_data["output"].detach().cpu().numpy()
-                
-                # Flatten if needed for network-level analysis
-                if E.ndim > 2:
-                    E = E.reshape(E.shape[0], -1)
-                if I.ndim > 2:
-                    I = I.reshape(I.shape[0], -1)
-                if Vout.ndim > 2:
-                    Vout = Vout.reshape(Vout.shape[0], -1)
-                    
-                all_E.append(E)
-                all_I.append(I)
-                all_Vout.append(Vout)
-                
-            # Concatenate all layers
-            network_E = np.hstack(all_E)
-            network_I = np.hstack(all_I)
-            network_Vout = np.hstack(all_Vout)
-            
-            # Compute network-level correlations
-            results["network_level"] = {
-                "correlations": self._compute_synaptic_correlations(
-                    network_E, network_I, network_Vout, labels_np
-                ),
-                "tuning": self._compute_tuning_curves(
-                    network_E, network_I, network_Vout, labels_np
-                ) if self.compute_tuning_curves else {},
-            }
-            results["network_level"]["summary_stats"] = self._compute_summary_statistics(
-                results["network_level"]["correlations"]
-            )
-            
-            # Layer-level analysis
-            if self.per_layer_analysis:
-                self.logger.info("Computing per-layer correlations...")
-                results["per_layer_analysis"] = {}
-                
-                for layer_name, layer_data in self.data_dict.items():
-                    layer_results = self._analyze_single_layer(layer_name, layer_data, labels_np)
-                    results["per_layer_analysis"][layer_name] = layer_results
-                    
-            # EI-network specific analysis
-            if self.per_einet_analysis:
-                self.logger.info("Computing per-EI-network correlations...")
-                results["per_einet_analysis"] = self._compute_per_ei_analysis(
-                    network_E, network_I, network_Vout, labels_np
-                )
-                
-            # Save results if requested
+            # Save results
             if save_path is not None:
                 os.makedirs(save_path, exist_ok=True)
                 save_dict(results, save_path, filename)
                 
                 # Generate plots
-                self._generate_correlation_plots(results, save_path)
+                self._generate_plots(results, save_path)
                 
                 # Save summary CSV
                 summary = self._create_summary_dataframe(results)
@@ -551,17 +557,197 @@ class CorrelationAnalyzer(AbstractAnalyzer):
             self.logger.error(traceback.format_exc())
             raise
 
-    def analyze_hierarchical(self, *args, **kwargs):
-        """Alias for analyze method for backward compatibility."""
-        return self.analyze(*args, **kwargs)
-            
-    def _generate_correlation_plots(self, results: dict[str, Any], save_path: str):
-        """Generate plots for correlation analysis results.
+    def _analyze_synaptic_level(self, results: Dict[str, Any], labels: np.ndarray):
+        """Analyze at synaptic level using sampling."""
+        self.logger.info("Running synaptic-level correlation analysis...")
         
-        Args:
-            results: Analysis results
-            save_path: Path to save plots
-        """
+        # Network-level synaptic analysis
+        all_results = {}
+        for layer_name, layer_data in self.data_dict.items():
+            layer_results = self._compute_synaptic_correlations(layer_data, labels)
+            all_results[layer_name] = layer_results
+        
+        results["synaptic_analysis"] = all_results
+        
+        # Compute aggregated statistics
+        results["network_summary"] = self._aggregate_synaptic_stats(all_results)
+
+    def _analyze_single_branch_level(self, results: Dict[str, Any], labels: np.ndarray):
+        """Analyze each branch individually."""
+        self.logger.info("Running single-branch level correlation analysis...")
+        
+        for layer_name, layer_data in self.data_dict.items():
+            E = layer_data["excitation"].cpu().numpy()
+            I = layer_data["inhibition"].cpu().numpy()
+            Vout = layer_data["output"].cpu().numpy()
+            
+            # Analyze each branch separately
+            n_branches = E.shape[1] if E.ndim > 1 else 1
+            branch_results = []
+            
+            for branch_idx in range(n_branches):
+                e_branch = E[:, branch_idx:branch_idx+1] if E.ndim > 1 else E
+                i_branch = I[:, branch_idx:branch_idx+1] if I.ndim > 1 else I
+                v_branch = Vout[:, branch_idx:branch_idx+1] if Vout.ndim > 1 else Vout
+                
+                branch_corr = self._compute_branch_correlations(e_branch, i_branch, v_branch, labels)
+                if self.compute_tuning_curves:
+                    branch_corr["tuning"] = self._compute_tuning_curves(e_branch, i_branch, v_branch, labels)
+                
+                branch_results.append(branch_corr)
+            
+            results[f"{layer_name}_branches"] = branch_results
+
+    def _analyze_layer_branch_level(self, results: Dict[str, Any], labels: np.ndarray):
+        """Analyze at layer level (all branches together)."""
+        self.logger.info("Running layer-branch level correlation analysis...")
+        
+        # Analyze each layer
+        if self.per_layer_analysis:
+            layer_results = {}
+            for layer_name, layer_data in self.data_dict.items():
+                E = layer_data["excitation"].cpu().numpy()
+                I = layer_data["inhibition"].cpu().numpy()
+                Vout = layer_data["output"].cpu().numpy()
+                
+                layer_corr = self._compute_branch_correlations(E, I, Vout, labels)
+                if self.compute_tuning_curves:
+                    layer_corr["tuning"] = self._compute_tuning_curves(E, I, Vout, labels)
+                layer_corr["summary_stats"] = self._compute_summary_statistics(layer_corr)
+                
+                layer_results[layer_name] = layer_corr
+            
+            results["per_layer_analysis"] = layer_results
+        
+        # Network-wide analysis (aggregate all layers)
+        all_E, all_I, all_Vout = [], [], []
+        for layer_data in self.data_dict.values():
+            E = layer_data["excitation"].cpu().numpy()
+            I = layer_data["inhibition"].cpu().numpy()
+            Vout = layer_data["output"].cpu().numpy()
+            
+            # Flatten for aggregation
+            E = E.reshape(E.shape[0], -1)
+            I = I.reshape(I.shape[0], -1)
+            Vout = Vout.reshape(Vout.shape[0], -1)
+            
+            all_E.append(E)
+            all_I.append(I)
+            all_Vout.append(Vout)
+        
+        network_E = np.hstack(all_E)
+        network_I = np.hstack(all_I)
+        network_Vout = np.hstack(all_Vout)
+        
+        network_corr = self._compute_branch_correlations(network_E, network_I, network_Vout, labels)
+        if self.compute_tuning_curves:
+            network_corr["tuning"] = self._compute_tuning_curves(network_E, network_I, network_Vout, labels)
+        network_corr["summary_stats"] = self._compute_summary_statistics(network_corr)
+        
+        results["network_level"] = network_corr
+        
+        # Per E/I network analysis
+        if self.per_einet_analysis:
+            results["per_einet_analysis"] = self._compute_per_ei_analysis(
+                network_E, network_I, network_Vout, labels
+            )
+
+    def _analyze_all_branch_level(self, results: Dict[str, Any], labels: np.ndarray):
+        """Analyze with full network aggregation."""
+        self.logger.info("Running all-branch level correlation analysis...")
+        
+        # This is similar to network-level in layer_branch but without per-layer
+        all_E, all_I, all_Vout = [], [], []
+        for layer_data in self.data_dict.values():
+            E = layer_data["excitation"].cpu().numpy()
+            I = layer_data["inhibition"].cpu().numpy()
+            Vout = layer_data["output"].cpu().numpy()
+            
+            E = E.reshape(E.shape[0], -1)
+            I = I.reshape(I.shape[0], -1)
+            Vout = Vout.reshape(Vout.shape[0], -1)
+            
+            all_E.append(E)
+            all_I.append(I)
+            all_Vout.append(Vout)
+        
+        network_E = np.hstack(all_E)
+        network_I = np.hstack(all_I)
+        network_Vout = np.hstack(all_Vout)
+        
+        network_corr = self._compute_branch_correlations(network_E, network_I, network_Vout, labels)
+        if self.compute_tuning_curves:
+            network_corr["tuning"] = self._compute_tuning_curves(network_E, network_I, network_Vout, labels)
+        network_corr["summary_stats"] = self._compute_summary_statistics(network_corr)
+        
+        results["network_level"] = network_corr
+
+    def _compute_per_ei_analysis(
+        self, E: np.ndarray, I: np.ndarray, Vout: np.ndarray, labels: np.ndarray
+    ) -> Dict[str, Any]:
+        """Separate E and I network analysis."""
+        results = {}
+        
+        # Excitatory network
+        exc_results = {}
+        if self.analyze_EE:
+            exc_results["EE"] = self._compute_conditional_correlations(E, None, labels)
+        if self.analyze_E_output:
+            exc_results["E_Vout"] = self._compute_conditional_correlations(E, Vout, labels)
+        if self.compute_tuning_curves:
+            exc_results["tuning"] = {"E_tuning": self._compute_tuning_curves(E, I, Vout, labels)["E_tuning"]}
+        
+        results["excitatory_results"] = {
+            "correlations": exc_results,
+            "summary_stats": self._compute_summary_statistics(exc_results)
+        }
+        
+        # Inhibitory network
+        inh_results = {}
+        if self.analyze_II:
+            inh_results["II"] = self._compute_conditional_correlations(I, None, labels)
+        if self.analyze_I_output:
+            inh_results["I_Vout"] = self._compute_conditional_correlations(I, Vout, labels)
+        if self.compute_tuning_curves:
+            inh_results["tuning"] = {"I_tuning": self._compute_tuning_curves(E, I, Vout, labels)["I_tuning"]}
+        
+        results["inhibitory_results"] = {
+            "correlations": inh_results,
+            "summary_stats": self._compute_summary_statistics(inh_results)
+        }
+        
+        # Combined E-I
+        if self.analyze_EI:
+            results["combined_results"] = {
+                "EI": self._compute_conditional_correlations(E, I, labels)
+            }
+        
+        return results
+
+    def _aggregate_synaptic_stats(self, synaptic_results: Dict[str, Any]) -> Dict[str, float]:
+        """Aggregate statistics across layers for synaptic analysis."""
+        all_stats = {}
+        
+        for layer_name, layer_results in synaptic_results.items():
+            for corr_type, corr_data in layer_results.items():
+                if isinstance(corr_data, dict) and "total" in corr_data:
+                    for metric in ["total", "noise", "signal"]:
+                        if metric in corr_data and "mean" in corr_data[metric]:
+                            key = f"{corr_type}_{metric}_mean"
+                            if key not in all_stats:
+                                all_stats[key] = []
+                            all_stats[key].append(corr_data[metric]["mean"])
+        
+        # Average across layers
+        summary = {}
+        for key, values in all_stats.items():
+            summary[f"avg_{key}"] = np.mean(values)
+            summary[f"std_{key}"] = np.std(values)
+            
+        return summary
+
+    def _generate_plots(self, results: Dict[str, Any], save_path: str):
+        """Generate correlation plots."""
         try:
             from dendritic_modeling.plotting.visualizations.correlation_plots import (
                 plot_hierarchical_correlations,
@@ -569,46 +755,51 @@ class CorrelationAnalyzer(AbstractAnalyzer):
                 plot_tuning_curves,
             )
             
-            # Plot hierarchical correlations
+            # Main hierarchical plot
             plot_hierarchical_correlations(results, save_path=save_path)
             
-            # Plot correlation matrices for network level
+            # Additional plots based on computation level
             if "network_level" in results:
-                plot_correlation_matrices(
-                    results["network_level"]["correlations"],
-                    save_path=os.path.join(save_path, "network_correlation_matrices.png")
-                )
+                # Correlation matrices
+                if any(k in results["network_level"] for k in ["EE", "II", "EI"]):
+                    plot_correlation_matrices(
+                        results["network_level"],
+                        save_path=os.path.join(save_path, "correlation_matrices.png")
+                    )
                 
-            # Plot tuning curves if available
-            if "network_level" in results and "tuning" in results["network_level"]:
-                plot_tuning_curves(
-                    results["network_level"]["tuning"],
-                    save_path=os.path.join(save_path, "tuning_curves.png")
-                )
-                
+                # Tuning curves
+                if "tuning" in results["network_level"]:
+                    plot_tuning_curves(
+                        results["network_level"]["tuning"],
+                        save_path=os.path.join(save_path, "tuning_curves.png")
+                    )
+                    
         except ImportError as e:
             self.logger.warning(f"Could not import plotting functions: {e}")
         except Exception as e:
             self.logger.error(f"Error generating plots: {e}")
-            
-    def _create_summary_dataframe(self, results: dict[str, Any]) -> pd.DataFrame:
-        """Create a summary dataframe from results.
-        
-        Args:
-            results: Analysis results
-            
-        Returns:
-            Summary dataframe
-        """
+
+    def _create_summary_dataframe(self, results: Dict[str, Any]) -> pd.DataFrame:
+        """Create summary dataframe."""
         summary_data = {
             "method": results["method"],
+            "computation_level": results["computation_level"],
             "n_samples": results["n_samples"],
             "n_layers": results["n_layers"],
         }
         
-        # Add network-level statistics
-        if "network_level" in results and "summary_stats" in results["network_level"]:
+        # Add statistics based on computation level
+        if "network_summary" in results:
+            # Synaptic level
+            for key, value in results["network_summary"].items():
+                summary_data[key] = value
+        elif "network_level" in results and "summary_stats" in results["network_level"]:
+            # Branch/layer level
             for key, value in results["network_level"]["summary_stats"].items():
                 summary_data[f"network_{key}"] = value
                 
         return pd.DataFrame([summary_data])
+
+    def analyze_hierarchical(self, *args, **kwargs):
+        """Alias for backward compatibility."""
+        return self.analyze(*args, **kwargs)
