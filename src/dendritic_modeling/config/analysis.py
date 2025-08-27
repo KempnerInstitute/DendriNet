@@ -208,8 +208,20 @@ class SingleLayerContributionAnalysisConfig(BaseConfig):
 
 @dataclass
 class CorrelationAnalysisParams(BaseConfig):
+    # Core correlation computations
     compute_synaptic_correlations: bool = True
     compute_tuning_curves: bool = True
+    compute_branch_correlations: bool = True
+    compute_conditional_correlations: bool = True
+    
+    # Analysis levels (similar to information analysis)
+    per_layer_analysis: bool = True
+    per_einet_analysis: bool = True
+    per_branch_analysis: bool = False
+    
+    # Computation parameters
+    max_samples: Optional[int] = None
+    computation_level: str = "layer_branch"  # Options: "single_branch", "layer_branch", "all_branch"
 
 
 @dataclass

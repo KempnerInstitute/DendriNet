@@ -28,6 +28,11 @@ from .information_plots import (
     plot_network_wise_aggregated_analysis,
     plot_fully_aggregated_analysis,
 )
+from .correlation_plots import (
+    plot_hierarchical_correlations,
+    plot_correlation_matrices,
+    plot_tuning_curves,
+)
 
 # Network visualizations module exists but all functions have been removed as unused
 
@@ -59,4 +64,8 @@ __all__ = [
     "plot_pruning_performance_comparison",
     "plot_synapse_turnover",
     "plot_weight_distributions",
+    # Correlation analysis
+    "plot_hierarchical_correlations",
+    "plot_correlation_matrices",
+    "plot_tuning_curves",
 ]
