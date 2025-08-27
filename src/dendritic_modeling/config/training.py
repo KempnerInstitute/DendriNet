@@ -137,7 +137,6 @@ class TrainConfig(BaseConfig):
     encoder: EncoderTrainConfig = field(default_factory=EncoderTrainConfig)
     main: MainTrainConfig = field(default_factory=MainTrainConfig)
     # Advanced 294 features added to the existing TrainConfig structure
-    run_name: str = "experiment"
     # Performance features
     enable_amp: bool = False
     enable_profiling: bool = False

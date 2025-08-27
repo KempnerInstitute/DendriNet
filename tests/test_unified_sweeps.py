@@ -416,8 +416,10 @@ def test_config_generation_preserves_base_config():
                     "network": {"type": "ExcitationInhibitionNetwork"},
                 },
                 "train": {
-                    "run_name": "test_run",
                     "main": {"trainer": {"epochs": 100, "batch_size": 32}},
+                },
+                "outputs": {
+                    "run_name": "test_run",
                 },
             },
             "experiment_settings": {"seeds_per_condition": 1, "base_seed": 42},
@@ -432,7 +434,7 @@ def test_config_generation_preserves_base_config():
     for cfg in configs:
         assert cfg.model.task == "classification"
         assert cfg.model.network.type == "ExcitationInhibitionNetwork"
-        assert cfg.train.run_name == "test_run"
+        assert cfg.outputs.run_name == "test_run"
         assert cfg.train.main.trainer.epochs == 100
         assert cfg.train.main.trainer.batch_size == 32
 
