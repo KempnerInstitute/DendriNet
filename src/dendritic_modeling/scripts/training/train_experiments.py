@@ -100,6 +100,45 @@ def run_analysis(
             analysis_manager.set_pruning_results(training_results)
 
         analysis_manager.run_analysis(filename="final", training=training)
+        
+        # Generate performance evolution plots if this is final analysis and training tracking was enabled
+        if not training and analysis_manager.config.performance_analysis.training:
+            performance_dir = os.path.join(run_save_path, "performance", "epochs")
+            logger.info(f"Checking for performance evolution data in: {performance_dir}")
+            if os.path.exists(performance_dir):
+                logger.info("Performance directory exists. Generating performance evolution plots...")
+                try:
+                    from dendritic_modeling.analysis.metrics.performance import PerformanceAnalyzer
+                    
+                    # Get final epoch from training config if available
+                    final_epoch = None
+                    if (
+                        hasattr(analysis_manager, 'train_config')
+                        and analysis_manager.train_config
+                        and hasattr(analysis_manager.train_config, "main")
+                        and hasattr(analysis_manager.train_config.main, "trainer")
+                        and hasattr(analysis_manager.train_config.main.trainer, "epochs")
+                    ):
+                        final_epoch = analysis_manager.train_config.main.trainer.epochs
+                    
+                    # Get pruning results if available
+                    pruning_performance = getattr(analysis_manager, 'pruning_results', None)
+                    logger.info(f"Pruning results available: {pruning_performance is not None}")
+                    
+                    PerformanceAnalyzer.plot_performance_evolution(
+                        performance_dir=performance_dir,
+                        save_path=os.path.join(run_save_path, "performance"),
+                        pruning_performance=pruning_performance,
+                        final_epoch=final_epoch,
+                    )
+                    logger.info("Performance evolution plots generated successfully")
+                except Exception as e:
+                    logger.error(f"Failed to generate performance evolution plots: {e}")
+                    import traceback
+                    logger.error(traceback.format_exc())
+            else:
+                logger.warning(f"Performance directory does not exist: {performance_dir}")
+        
         logger.info("Analysis completed")
 
 

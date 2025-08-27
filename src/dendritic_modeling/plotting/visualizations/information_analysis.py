@@ -663,3 +663,353 @@ def plot_per_layer_information(layer_results: dict[str, dict[str, Any]], **kwarg
     """Convenience function for per-layer information plotting."""
     plotter = InformationAnalysisPlotter()
     return plotter.plot_per_layer_information(layer_results, **kwargs)
+
+
+# ============================================================================
+# Dendritic Depth Analysis Functions
+# ============================================================================
+
+
+def plot_structured_ei_network_analysis(
+    layer_statistics: dict, 
+    save_path: str,
+    logger: Optional[logging.Logger] = None
+):
+    """Generate structured plots comparing different layers with color-coded lines.
+    
+    Creates 2 plots:
+    - Excitatory Networks: Layer 0 vs Layer 1 as different colored lines
+    - Inhibitory Networks: Layer 0 vs Layer 1 as different colored lines
+    X-axis: [Soma, Layer 1, Layer 2] (dendritic depth)
+    """
+    if logger is None:
+        logger = logging.getLogger(__name__)
+        
+    logger.info("Generating structured EI network plots with layer comparison...")
+    
+    # Group layers by major layer and network type
+    layer_groups = {}
+    for layer_name in layer_statistics.keys():
+        parts = layer_name.split('.')
+        if len(parts) >= 6:
+            major_layer = parts[2]  # layers.0 or layers.1
+            network_type = parts[3]  # inhibitory_cells or excitatory_cells  
+            branch_layer = parts[5]  # branch_layers.0, branch_layers.1, branch_layers.2
+            
+            group_key = f"{major_layer}_{network_type}"
+            if group_key not in layer_groups:
+                layer_groups[group_key] = {}
+            
+            layer_groups[group_key][branch_layer] = layer_statistics[layer_name]
+    
+    logger.info(f"Found {len(layer_groups)} major layer groups: {list(layer_groups.keys())}")
+    
+    # Reorganize by network type instead of individual layers
+    network_comparison_data = {
+        "excitatory": {},  # Will contain Layer 0 and Layer 1 data
+        "inhibitory": {}   # Will contain Layer 0 and Layer 1 data
+    }
+    
+    # Process each group and organize by network type
+    for group_key, group_data in layer_groups.items():
+        major_layer, network_type = group_key.split('_', 1)
+        
+        # Create ordered layer data for this group (only include existing branches)
+        ordered_data = {}
+        branch_to_label = {
+            "0": "Soma",
+            "1": "Layer 1", 
+            "2": "Layer 2"
+        }
+        
+        # Only process branches that actually exist in the data
+        for branch_idx in sorted(group_data.keys()):  # Use available branches only
+            if branch_idx in branch_to_label:
+                label = branch_to_label[branch_idx]
+                ordered_data[label] = group_data[branch_idx]
+        
+        if ordered_data:
+            # Get clean network type name
+            net_type_clean = network_type.split('_')[0]  # "excitatory" or "inhibitory"
+            layer_label = f"Layer {major_layer[-1]}"  # "Layer 0" or "Layer 1"
+            
+            # Store data organized for comparison plotting
+            if net_type_clean not in network_comparison_data:
+                network_comparison_data[net_type_clean] = {}
+            
+            network_comparison_data[net_type_clean][layer_label] = ordered_data
+    
+    # Generate comparison plots
+    _generate_layer_comparison_plots(network_comparison_data, save_path, logger)
+
+
+def _generate_layer_comparison_plots(network_comparison_data: dict, save_path: str, logger: logging.Logger):
+    """Generate plots comparing Layer 0 vs Layer 1 for each network type."""
+    import matplotlib.pyplot as plt
+    import numpy as np
+    import os
+    
+    # Define colors for different layers
+    layer_colors = {
+        "Layer 0": "#1f77b4",  # Blue
+        "Layer 1": "#ff7f0e",  # Orange
+    }
+    
+    # Information metrics to plot
+    metric_types = [
+        ("basic_mi", ["I(E;C)", "I(I;C)", "I(Vout;C)", "I(E,I;C)"]),
+        ("pairwise_mi", ["I(E;I)", "I(E;Vout)", "I(I;Vout)"]),
+        ("conditional_mi", ["I(E;I|C)", "I(E;Vout|C)", "I(I;Vout|C)"])
+    ]
+    
+    for network_type, layer_data in network_comparison_data.items():
+        logger.info(f"Generating comparison plots for {network_type} networks")
+        
+        for metric_category, metrics in metric_types:
+            # Create figure with subplots for each metric
+            n_metrics = len(metrics)
+            fig, axes = plt.subplots(2, 2, figsize=(15, 10))
+            axes = axes.flatten()
+            
+            for idx, metric in enumerate(metrics):
+                ax = axes[idx] if idx < len(axes) else axes[-1]
+                
+                # First, determine all available depths from all layers
+                all_available_depths = set()
+                for layer_name, depth_data in layer_data.items():
+                    all_available_depths.update(depth_data.keys())
+                
+                # Sort depths in logical order
+                depth_order_map = {"Soma": 0, "Layer 1": 1, "Layer 2": 2}
+                sorted_depths = sorted(all_available_depths, key=lambda x: depth_order_map.get(x, 99))
+                
+                # Plot each layer as a different colored line
+                for layer_name, depth_data in layer_data.items():
+                    if not depth_data:
+                        continue
+                        
+                    # Extract dendritic depths and metric values
+                    depths = []
+                    values = []
+                    errors = []
+                    
+                    # Use the sorted depths that were determined for all layers
+                    for depth_label in sorted_depths:
+                        if depth_label in depth_data:
+                            depth_stats = depth_data[depth_label]
+                            if f"{metric}_mean" in depth_stats:
+                                depths.append(depth_label)
+                                values.append(depth_stats[f"{metric}_mean"])
+                                # Use std/5 for smaller error bars
+                                errors.append(depth_stats.get(f"{metric}_std", 0) / 5.0)
+                    
+                    if depths and values:
+                        x_pos = np.arange(len(depths))
+                        color = layer_colors.get(layer_name, "#808080")
+                        
+                        # Plot line with error bars
+                        ax.errorbar(
+                            x_pos, values, yerr=errors,
+                            marker='o', linewidth=2, markersize=6,
+                            label=layer_name, color=color, capsize=3
+                        )
+                        
+                        # Fill between for variance
+                        ax.fill_between(
+                            x_pos,
+                            [v - e for v, e in zip(values, errors)],
+                            [v + e for v, e in zip(values, errors)],
+                            alpha=0.2, color=color
+                        )
+                
+                # Customize subplot using the actual depths found in the data
+                if sorted_depths:  # Only customize if we have data
+                    ax.set_xlabel("Dendritic Depth")
+                    ax.set_ylabel(f"{metric} (bits)")
+                    ax.set_title(f"{metric}")
+                    ax.set_xticks(range(len(sorted_depths)))
+                    ax.set_xticklabels(sorted_depths, rotation=0)
+                    ax.grid(True, alpha=0.3)
+                    ax.legend()
+                else:
+                    ax.text(0.5, 0.5, f"No data for {metric}", 
+                           ha='center', va='center', transform=ax.transAxes)
+            
+            # Remove empty subplots
+            for idx in range(len(metrics), len(axes)):
+                fig.delaxes(axes[idx])
+            
+            # Set overall title and save
+            fig.suptitle(f"{network_type.title()} Networks: {metric_category.replace('_', ' ').title()} vs Dendritic Depth", fontsize=16)
+            plt.tight_layout()
+            
+            filename = f"layer_comparison_{network_type}_{metric_category}_depth.png"
+            filepath = os.path.join(save_path, filename)
+            plt.savefig(filepath, dpi=300, bbox_inches='tight')
+            plt.close()
+            
+            logger.info(f"Saved comparison plot: {filename}")
+
+
+def plot_layer_wise_aggregated_analysis(layer_statistics: dict, save_path: str, logger: Optional[logging.Logger] = None):
+    """Generate layer-wise aggregated plots when per_layer is enabled but per_einet is disabled.
+    
+    This aggregates E/I networks within each layer but keeps layers separate.
+    """
+    if logger is None:
+        logger = logging.getLogger(__name__)
+        
+    logger.info("Generating layer-wise aggregated plots...")
+    # Implementation similar to _plot_structured_ei_network_analysis but aggregating E/I
+    # This would be called when per_layer=True, per_einet=False
+    pass  # Placeholder for now
+
+
+def plot_network_wise_aggregated_analysis(layer_statistics: dict, save_path: str, logger: Optional[logging.Logger] = None):
+    """Generate network-wise aggregated plots when per_einet is enabled but per_layer is disabled.
+    
+    This aggregates layers but keeps E/I networks separate.
+    """
+    if logger is None:
+        logger = logging.getLogger(__name__)
+        
+    logger.info("Generating network-wise aggregated plots...")
+    # Implementation would aggregate across layers but keep E/I separate
+    # This would be called when per_layer=False, per_einet=True
+    pass  # Placeholder for now
+
+
+def plot_fully_aggregated_analysis(layer_statistics: dict, save_path: str, logger: Optional[logging.Logger] = None):
+    """Generate fully aggregated plots when both per_layer and per_einet analysis are disabled.
+    
+    This creates plots that:
+    - Aggregate across all layers (Layer 0 + Layer 1)
+    - Aggregate across E/I networks (Excitatory + Inhibitory)
+    - Show dendritic depth (Soma, Layer 1, Layer 2) on x-axis
+    - Display one line representing the overall network
+    """
+    if logger is None:
+        logger = logging.getLogger(__name__)
+        
+    logger.info("Generating fully aggregated dendritic depth plots...")
+    
+    # Aggregate data across all layers and E/I networks
+    aggregated_data = {}
+    
+    # First, collect all depth labels that exist across all entries
+    all_depths = set()
+    for layer_name, layer_data in layer_statistics.items():
+        if isinstance(layer_data, dict):
+            # Extract depth labels - convert from branch_layers.X to readable names
+            for depth_key in layer_data.keys():
+                if depth_key.endswith('_mean'):
+                    metric_name = depth_key.replace('_mean', '')
+                    # Determine depth label from layer structure
+                    if 'branch_layers.0' in layer_name:
+                        depth_label = 'Soma'
+                    elif 'branch_layers.1' in layer_name:
+                        depth_label = 'Layer 1'
+                    elif 'branch_layers.2' in layer_name:
+                        depth_label = 'Layer 2'
+                    else:
+                        continue
+                    
+                    all_depths.add(depth_label)
+                    
+                    # Initialize aggregated structure
+                    if depth_label not in aggregated_data:
+                        aggregated_data[depth_label] = {}
+                    if metric_name not in aggregated_data[depth_label]:
+                        aggregated_data[depth_label][metric_name] = {'values': [], 'stds': []}
+                    
+                    # Collect values and stds for averaging
+                    mean_val = layer_data.get(f'{metric_name}_mean', 0)
+                    std_val = layer_data.get(f'{metric_name}_std', 0)
+                    
+                    aggregated_data[depth_label][metric_name]['values'].append(mean_val)
+                    aggregated_data[depth_label][metric_name]['stds'].append(std_val)
+    
+    # Compute final aggregated statistics
+    final_aggregated = {}
+    for depth_label, depth_data in aggregated_data.items():
+        final_aggregated[depth_label] = {}
+        for metric_name, metric_data in depth_data.items():
+            # Average across all layers and networks
+            final_aggregated[depth_label][f'{metric_name}_mean'] = np.mean(metric_data['values'])
+            # Combine standard deviations (root mean square)
+            final_aggregated[depth_label][f'{metric_name}_std'] = np.sqrt(np.mean(np.array(metric_data['stds'])**2))
+    
+    # Sort depths in logical order
+    depth_order_map = {"Soma": 0, "Layer 1": 1, "Layer 2": 2}
+    sorted_depths = sorted(all_depths, key=lambda x: depth_order_map.get(x, 99))
+    
+    # Define metric categories
+    metric_types = [
+        ("basic_mi", ["I(E;C)", "I(I;C)", "I(Vout;C)", "I(E,I;C)"]),
+        ("pairwise_mi", ["I(E;I)", "I(E;Vout)", "I(I;Vout)"]),
+        ("conditional_mi", ["I(E;I|C)", "I(E;Vout|C)", "I(I;Vout|C)"])
+    ]
+    
+    # Generate plots for each metric category
+    for metric_category, metrics in metric_types:
+        fig, axes = plt.subplots(2, 2, figsize=(15, 10))
+        axes = axes.flatten()
+        
+        for idx, metric in enumerate(metrics):
+            ax = axes[idx] if idx < len(axes) else axes[-1]
+            
+            # Extract values for this metric across depths
+            depths = []
+            values = []
+            errors = []
+            
+            for depth_label in sorted_depths:
+                if depth_label in final_aggregated:
+                    depth_stats = final_aggregated[depth_label]
+                    if f"{metric}_mean" in depth_stats:
+                        depths.append(depth_label)
+                        values.append(depth_stats[f"{metric}_mean"])
+                        errors.append(depth_stats.get(f"{metric}_std", 0) / 5.0)  # Smaller error bars
+            
+            if depths and values:
+                x_pos = np.arange(len(depths))
+                
+                # Plot single line representing aggregated network
+                ax.errorbar(
+                    x_pos, values, yerr=errors,
+                    marker='o', linewidth=2, markersize=6,
+                    label='All Networks', color='#1f77b4', capsize=3
+                )
+                
+                # Fill between for variance
+                ax.fill_between(
+                    x_pos,
+                    [v - e for v, e in zip(values, errors)],
+                    [v + e for v, e in zip(values, errors)],
+                    alpha=0.2, color='#1f77b4'
+                )
+                
+                ax.set_xlabel("Dendritic Depth")
+                ax.set_ylabel(f"{metric} (bits)")
+                ax.set_title(f"{metric}")
+                ax.set_xticks(range(len(depths)))
+                ax.set_xticklabels(depths, rotation=0)
+                ax.grid(True, alpha=0.3)
+                ax.legend()
+            else:
+                ax.text(0.5, 0.5, f"No data for {metric}",
+                       ha='center', va='center', transform=ax.transAxes)
+        
+        # Remove empty subplots
+        for idx in range(len(metrics), len(axes)):
+            fig.delaxes(axes[idx])
+        
+        fig.suptitle(f"Information Analysis: {metric_category.replace('_', ' ').title()} vs Dendritic Depth", fontsize=16)
+        plt.tight_layout()
+        
+        filename = f"aggregated_{metric_category}_depth.png"
+        filepath = os.path.join(save_path, filename)
+        plt.savefig(filepath, dpi=300, bbox_inches='tight')
+        plt.close()
+        
+        logger.info(f"Saved aggregated plot: {filename}")

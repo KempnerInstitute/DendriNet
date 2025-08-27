@@ -405,5 +405,23 @@ class SynapticTurnoverAnalyzer:
 
             if save_path is not None:
                 save_dict(turnover_dict, save_path, filename)
+                
+                # Generate turnover plots
+                self._plot_turnover_results(turnover_dict, save_path, filename)
             else:
                 return turnover_dict
+
+    def _plot_turnover_results(self, results: dict, save_path: str, filename: str):
+        """Generate plots for synaptic turnover results."""
+        try:
+            from dendritic_modeling.plotting.visualizations.general_analysis_plots import (
+                plot_synapse_turnover
+            )
+            
+            # Generate turnover plots
+            plot_synapse_turnover(results, save_path=save_path)
+            
+        except ImportError as e:
+            logger.warning(f"Synaptic turnover plotting functions not found: {e}")
+        except Exception as e:
+            logger.error(f"Error generating synaptic turnover plots: {e}")

@@ -20,7 +20,14 @@ from .general_analysis_plots import (  # Training and sweep functions
     plot_synapse_turnover,
     plot_weight_distributions,
 )
-from .information_analysis import plot_information_analysis, plot_per_layer_information
+from .information_analysis import (
+    plot_information_analysis, 
+    plot_per_layer_information,
+    plot_structured_ei_network_analysis,
+    plot_layer_wise_aggregated_analysis,
+    plot_network_wise_aggregated_analysis,
+    plot_fully_aggregated_analysis,
+)
 
 # Network visualizations module exists but all functions have been removed as unused
 
@@ -37,6 +44,10 @@ __all__ = [
     # Information analysis (now modular)
     "plot_information_analysis",
     "plot_layer_contributions",
+    "plot_structured_ei_network_analysis",
+    "plot_layer_wise_aggregated_analysis",
+    "plot_network_wise_aggregated_analysis",
+    "plot_fully_aggregated_analysis",
     # Training/sweep functions
     "plot_loss_curves",
     "plot_noise_sweep_branch_results",
