@@ -24,6 +24,10 @@ from dendritic_modeling.training.utils.evaluation import (
     evaluate_mse,
 )
 from dendritic_modeling.utils import save_dict
+from dendritic_modeling.plotting.visualizations.general_analysis_plots import (
+    plot_ablation_results,
+    plot_per_layer_ablation,
+)
 
 
 class AblationAnalyzer(AbstractAnalyzer):
@@ -194,11 +198,6 @@ class AblationAnalyzer(AbstractAnalyzer):
     def _plot_ablation_results(self, results: dict, save_path: str, filename: str):
         """Generate comprehensive ablation plots similar to information analysis."""
         try:
-            from dendritic_modeling.plotting.visualizations.general_analysis_plots import (
-                plot_ablation_results,
-                plot_per_layer_ablation,
-            )
-
             # Plot layer ablation results if available
             if results.get("layer"):
                 # Create comprehensive per-layer plots

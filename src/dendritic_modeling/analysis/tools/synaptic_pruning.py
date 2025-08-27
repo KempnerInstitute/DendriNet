@@ -574,10 +574,6 @@ class SynapticPruningAnalyzer(SynapticTurnoverAnalyzer):
             filename: Base filename for the plots
         """
         try:
-            from dendritic_modeling.plotting.visualizations.general_analysis_plots import (
-                plot_active_synapses_summary_by_layer,
-            )
-
             logger.info(
                 f"DEBUG: pruning_events count: {len(self.pruning_events) if self.pruning_events else 0}"
             )

@@ -52,6 +52,7 @@ class PerformanceAnalyzer:
         device: str = "cpu",
         save_path: Optional[str] = None,
         filename: str = "final",
+        training: bool = False,
     ):
         """
         Analyze model performance on specified datasets.
@@ -64,6 +65,7 @@ class PerformanceAnalyzer:
             device: Device to run evaluation on
             save_path: Path to save results (optional)
             filename: Filename for saved results
+            training: Whether this is being called during training (affects plotting)
 
         Returns:
             Dictionary containing results if save_path is None, otherwise None

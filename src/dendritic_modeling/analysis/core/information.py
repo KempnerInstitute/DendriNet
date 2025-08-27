@@ -30,6 +30,14 @@ from dendritic_modeling.utils.information.pid import (
     check_pid_available,
     pid_synergy_redundancy,
 )
+from dendritic_modeling.plotting.visualizations.information_plots import (
+    plot_information_analysis,
+    InformationAnalysisPlotter,
+    plot_structured_ei_network_analysis,
+    plot_layer_wise_aggregated_analysis,
+    plot_network_wise_aggregated_analysis,
+    plot_fully_aggregated_analysis,
+)
 
 
 class InformationAnalyzer(AbstractAnalyzer):
@@ -1039,8 +1047,6 @@ class InformationAnalyzer(AbstractAnalyzer):
                 self.logger.info(f"Using {self.method} estimator with max_samples={self.max_samples}")
                 self.logger.info(f"Enabled computations: basic_mi={self.compute_basic_mi}, pairwise_mi={self.compute_pairwise_mi}, conditional_mi={self.compute_conditional_mi}, pid={self.compute_pid}")
                 
-                if total_branches > 50:
-                    self.logger.warning(f"Large number of branches ({total_branches}) detected. This may take significant time (estimated: {total_branches * 20}+ seconds)")
                 
                 self.logger.info("Beginning branch-by-branch processing...")
                 
@@ -1413,6 +1419,9 @@ class InformationAnalyzer(AbstractAnalyzer):
                 if "per_layer_analysis" in results:
                     self._save_per_layer_ei_summaries(results["per_layer_analysis"], save_path, filename)
                 
+                # Generate plots for information analysis
+                self._generate_information_plots(results, save_path)
+                
                 self.logger.info("Results saved successfully!")
             
             # Always return results for plotting
@@ -1429,3 +1438,119 @@ class InformationAnalyzer(AbstractAnalyzer):
         return self.estimators[self.method].conditional_mutual_information(
             activations, labels, condition
         )
+
+    def _generate_information_plots(self, results: dict, save_path: str):
+        """Generate plots for information analysis results."""
+        try:
+            # Generate main information analysis plots
+            plot_information_analysis(results, save_path=save_path)
+            
+            # Initialize plotter for enhanced visualizations
+            plotter = InformationAnalysisPlotter()
+            
+            # Generate dendritic depth plots based on enabled analysis modes
+            if results and "layer_statistics" in results:
+                per_layer_enabled = results.get("per_layer_analysis_enabled", False)
+                per_einet_enabled = results.get("per_einet_analysis_enabled", False)
+                
+                if per_layer_enabled and per_einet_enabled:
+                    self.logger.info("Both per_layer and per_einet analysis enabled - generating detailed comparison plots...")
+                    # Generate structured plots grouped by major layer and network type
+                    plot_structured_ei_network_analysis(
+                        results["layer_statistics"],
+                        save_path=save_path,
+                        logger=self.logger
+                    )
+                elif per_layer_enabled and not per_einet_enabled:
+                    self.logger.info("per_layer analysis enabled, per_einet disabled - generating layer-wise plots...")
+                    # Aggregate E/I networks, but keep layers separate
+                    plot_layer_wise_aggregated_analysis(
+                        results["layer_statistics"],
+                        save_path=save_path,
+                        logger=self.logger
+                    )
+                elif not per_layer_enabled and per_einet_enabled:
+                    self.logger.info("per_einet analysis enabled, per_layer disabled - generating network-wise plots...")
+                    # Aggregate layers, but keep E/I networks separate
+                    plot_network_wise_aggregated_analysis(
+                        results["layer_statistics"],
+                        save_path=save_path,
+                        logger=self.logger
+                    )
+                else:
+                    self.logger.info("Both per_layer and per_einet analysis disabled - generating overall aggregated plots...")
+                    # Aggregate both layers and E/I networks
+                    plot_fully_aggregated_analysis(
+                        results["layer_statistics"],
+                        save_path=save_path,
+                        logger=self.logger
+                    )
+            
+            # Plot per-EI-network analysis only if per_einet_analysis was actually enabled
+            if (results and "per_einet_analysis" in results and 
+                results.get("per_einet_analysis_enabled", False)):
+                self.logger.info("per_einet_analysis is enabled - generating per-EI-network analysis plots...")
+                # Create separate plots for excitatory and inhibitory networks
+                ei_results = results["per_einet_analysis"]
+                
+                # Plot excitatory network results
+                if "excitatory_results" in ei_results:
+                    plot_information_analysis(
+                        ei_results["excitatory_results"],
+                        save_path=save_path,
+                        filename_prefix="excitatory_network",
+                    )
+                
+                # Plot inhibitory network results
+                if "inhibitory_results" in ei_results:
+                    plot_information_analysis(
+                        ei_results["inhibitory_results"],
+                        save_path=save_path,
+                        filename_prefix="inhibitory_network",
+                    )
+                
+                # Plot combined EI network results
+                if "combined_results" in ei_results:
+                    plot_information_analysis(
+                        ei_results["combined_results"],
+                        save_path=save_path,
+                        filename_prefix="combined_ei_network",
+                    )
+            
+            # Plot individual layer EI-network analysis if available in per_layer_analysis
+            if results and "per_layer_analysis" in results:
+                per_layer_data = results["per_layer_analysis"]
+                for layer_name, layer_results in per_layer_data.items():
+                    if "per_einet_analysis" in layer_results:
+                        self.logger.info(f"Generating EI-network plots for layer: {layer_name}")
+                        layer_ei_results = layer_results["per_einet_analysis"]
+                        
+                        # Clean layer name for filename (remove special characters)
+                        clean_layer_name = layer_name.replace(".", "_").replace("/", "_")
+                        
+                        # Plot excitatory network for this layer
+                        if "excitatory_results" in layer_ei_results:
+                            plot_information_analysis(
+                                layer_ei_results["excitatory_results"],
+                                save_path=save_path,
+                                filename_prefix=f"layer_{clean_layer_name}_excitatory",
+                            )
+                        
+                        # Plot inhibitory network for this layer
+                        if "inhibitory_results" in layer_ei_results:
+                            plot_information_analysis(
+                                layer_ei_results["inhibitory_results"],
+                                save_path=save_path,
+                                filename_prefix=f"layer_{clean_layer_name}_inhibitory",
+                            )
+                        
+                        # Plot combined network for this layer
+                        if "combined_results" in layer_ei_results:
+                            plot_information_analysis(
+                                layer_ei_results["combined_results"],
+                                save_path=save_path,
+                                filename_prefix=f"layer_{clean_layer_name}_combined",
+                            )
+                            
+        except Exception as e:
+            self.logger.error(f"Error generating information plots: {e}")
