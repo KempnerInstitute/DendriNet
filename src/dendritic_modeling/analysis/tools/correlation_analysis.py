@@ -19,6 +19,8 @@ import numpy as np
 import pandas as pd
 import torch
 from scipy.stats import pearsonr
+from tqdm import tqdm
+
 
 from dendritic_modeling.analysis.core.base import AbstractAnalyzer
 from dendritic_modeling.config import CorrelationAnalysisParams
@@ -185,17 +187,38 @@ class CorrelationAnalyzer(AbstractAnalyzer):
             # Self-correlation
             return np.corrcoef(X.T)
         else:
-            # Cross-correlation
+            # Cross-correlation using vectorized operations
+            # Standardize the data
+            X_std = np.std(X, axis=0)
+            Y_std = np.std(Y, axis=0)
+            
+            # Find non-zero variance columns
+            valid_X = X_std > 0
+            valid_Y = Y_std > 0
+            
+            # Initialize correlation matrix
             n_x, n_y = X.shape[1], Y.shape[1]
             corr_matrix = np.zeros((n_x, n_y))
             
-            for i in range(n_x):
-                for j in range(n_y):
-                    if np.std(X[:, i]) > 0 and np.std(Y[:, j]) > 0:
-                        corr_matrix[i, j] = pearsonr(X[:, i], Y[:, j])[0]
-                    else:
-                        corr_matrix[i, j] = 0.0
-                        
+            if np.any(valid_X) and np.any(valid_Y):
+                # Compute correlations only for valid columns
+                X_valid = X[:, valid_X]
+                Y_valid = Y[:, valid_Y]
+                
+                # Center the data
+                X_centered = X_valid - np.mean(X_valid, axis=0)
+                Y_centered = Y_valid - np.mean(Y_valid, axis=0)
+                
+                # Normalize
+                X_norm = X_centered / X_std[valid_X]
+                Y_norm = Y_centered / Y_std[valid_Y]
+                
+                # Compute correlations using matrix multiplication
+                valid_corr = np.dot(X_norm.T, Y_norm) / X.shape[0]
+                
+                # Fill in the valid correlations
+                corr_matrix[np.ix_(valid_X, valid_Y)] = valid_corr
+                
             return corr_matrix
             
     def _compute_conditional_correlations(
@@ -227,7 +250,7 @@ class CorrelationAnalyzer(AbstractAnalyzer):
         # Signal correlation (between-class difference)
         if self.compute_signal_correlations and len(unique_labels) == 2:
             results["signal"] = results[f"class_{unique_labels[1]}"] - results[f"class_{unique_labels[0]}"]
-            
+
         return results
 
     def _compute_synaptic_correlations(
@@ -235,7 +258,7 @@ class CorrelationAnalyzer(AbstractAnalyzer):
     ) -> Dict[str, Any]:
         """Compute correlations at synaptic level using sampling."""
         results = {}
-        
+
         # Extract synaptic data
         E_syn = data.get("E_synaptic")
         I_syn = data.get("I_synaptic")
@@ -406,41 +429,135 @@ class CorrelationAnalyzer(AbstractAnalyzer):
         I = I.reshape(I.shape[0], -1) if I.ndim > 2 else I
         Vout = Vout.reshape(Vout.shape[0], -1) if Vout.ndim > 2 else Vout
         
-        # Compute requested correlations
+        self.logger.debug(f"Computing correlations - E shape: {E.shape}, I shape: {I.shape}, Vout shape: {Vout.shape}")
+        
+        # Compute requested correlations with progress
+        correlation_tasks = []
         if self.analyze_EE:
-            results["EE"] = self._compute_conditional_correlations(E, None, labels)
+            correlation_tasks.append(("EE", E, None))
         if self.analyze_II:
-            results["II"] = self._compute_conditional_correlations(I, None, labels)
+            correlation_tasks.append(("II", I, None))
         if self.analyze_EI:
-            results["EI"] = self._compute_conditional_correlations(E, I, labels)
+            correlation_tasks.append(("EI", E, I))
         if self.analyze_E_output:
-            results["E_Vout"] = self._compute_conditional_correlations(E, Vout, labels)
+            correlation_tasks.append(("E_Vout", E, Vout))
         if self.analyze_I_output:
-            results["I_Vout"] = self._compute_conditional_correlations(I, Vout, labels)
+            correlation_tasks.append(("I_Vout", I, Vout))
         if self.analyze_output_output and Vout.shape[1] > 1:
-            results["Vout_Vout"] = self._compute_conditional_correlations(Vout, None, labels)
-            
+            correlation_tasks.append(("Vout_Vout", Vout, None))
+        
+        for name, x, y in tqdm(correlation_tasks, desc="Computing correlations", leave=False):
+            self.logger.debug(f"Computing {name} correlations")
+            results[name] = self._compute_conditional_correlations(x, y, labels)
+
         return results
 
     def _compute_tuning_curves(
         self, E: np.ndarray, I: np.ndarray, Vout: np.ndarray, labels: np.ndarray
-    ) -> Dict[str, np.ndarray]:
-        """Compute tuning curves (class selectivity)."""
+    ) -> Dict[str, Any]:
+        """Compute tuning curves (class selectivity) for multi-class scenarios.
+        
+        For each unit, computes:
+        - Mean response per class
+        - Preferred class (class with highest mean response)
+        - Selectivity index (normalized difference between best and second-best class)
+        - For binary classification: traditional difference between classes
+        """
         unique_labels = np.unique(labels)
-        if len(unique_labels) != 2:
-            self.logger.warning(f"Tuning curves require binary labels, got {len(unique_labels)} classes")
-            return {}
-            
-        class0_mask = labels == unique_labels[0]
-        class1_mask = labels == unique_labels[1]
+        n_classes = len(unique_labels)
+        n_units_E = E.shape[1] if E.ndim > 1 else 1
+        n_units_I = I.shape[1] if I.ndim > 1 else 1
+        n_units_Vout = Vout.shape[1] if Vout.ndim > 1 else 1
         
         results = {
-            "E_tuning": np.mean(E[class1_mask], axis=0) - np.mean(E[class0_mask], axis=0),
-            "I_tuning": np.mean(I[class1_mask], axis=0) - np.mean(I[class0_mask], axis=0),
-            "Vout_tuning": np.mean(Vout[class1_mask], axis=0) - np.mean(Vout[class0_mask], axis=0),
+            "n_classes": n_classes,
+            "class_labels": unique_labels.tolist(),
         }
         
+        # Compute mean response per class for each variable
+        E_class_means = np.zeros((n_classes, n_units_E))
+        I_class_means = np.zeros((n_classes, n_units_I))
+        Vout_class_means = np.zeros((n_classes, n_units_Vout))
+        
+        for i, label in enumerate(unique_labels):
+            mask = labels == label
+            E_class_means[i] = np.mean(E[mask], axis=0)
+            I_class_means[i] = np.mean(I[mask], axis=0)
+            Vout_class_means[i] = np.mean(Vout[mask], axis=0)
+        
+        # Store per-class means
+        results["E_class_means"] = E_class_means
+        results["I_class_means"] = I_class_means
+        results["Vout_class_means"] = Vout_class_means
+        
+        # Compute selectivity metrics
+        results["E_selectivity"] = self._compute_selectivity_metrics(E_class_means, "E")
+        results["I_selectivity"] = self._compute_selectivity_metrics(I_class_means, "I")
+        results["Vout_selectivity"] = self._compute_selectivity_metrics(Vout_class_means, "Vout")
+        
+        # For binary classification, also compute traditional tuning (difference)
+        if n_classes == 2:
+            results["E_tuning"] = E_class_means[1] - E_class_means[0]  # Class 1 - Class 0
+            results["I_tuning"] = I_class_means[1] - I_class_means[0]
+            results["Vout_tuning"] = Vout_class_means[1] - Vout_class_means[0]
+
         return results
+
+    def _compute_selectivity_metrics(self, class_means: np.ndarray, var_name: str) -> Dict[str, np.ndarray]:
+        """Compute selectivity metrics for multi-class scenarios.
+
+        Args:
+            class_means: Array of shape (n_classes, n_units) with mean response per class
+            var_name: Variable name for logging
+
+        Returns:
+            Dictionary with selectivity metrics
+        """
+        n_classes, n_units = class_means.shape
+        
+        # Find preferred class for each unit (class with highest mean response)
+        preferred_class = np.argmax(class_means, axis=0)
+        
+        # Compute selectivity index for each unit
+        selectivity_index = np.zeros(n_units)
+        class_selectivity = np.zeros(n_units)  # How selective is each unit
+        
+        for unit in range(n_units):
+            # Sort responses for this unit
+            sorted_responses = np.sort(class_means[:, unit])[::-1]  # Descending order
+            
+            if n_classes > 1 and sorted_responses[0] > 0:
+                # Selectivity index: (best - second_best) / best
+                # Normalized to [0, 1] where 1 means perfectly selective
+                selectivity_index[unit] = (sorted_responses[0] - sorted_responses[1]) / sorted_responses[0]
+                
+                # Class selectivity: (best - mean_others) / (best + mean_others)
+                # Alternative metric that considers all non-preferred classes
+                best = sorted_responses[0]
+                mean_others = np.mean(sorted_responses[1:])
+                if best + mean_others > 0:
+                    class_selectivity[unit] = (best - mean_others) / (best + mean_others)
+            
+        # Compute sparseness (how many classes each unit responds to)
+        # Using lifetime sparseness metric
+        sparseness = np.zeros(n_units)
+        for unit in range(n_units):
+            responses = class_means[:, unit]
+            if np.sum(responses) > 0:
+                # Lifetime sparseness: 1 - (sum(r)^2 / n) / sum(r^2)
+                sum_r = np.sum(responses)
+                sum_r2 = np.sum(responses ** 2)
+                if sum_r2 > 0:
+                    sparseness[unit] = 1 - (sum_r ** 2 / n_classes) / sum_r2
+        
+        return {
+            "preferred_class": preferred_class,
+            "selectivity_index": selectivity_index,
+            "class_selectivity": class_selectivity,
+            "sparseness": sparseness,
+            "mean_selectivity": np.mean(selectivity_index),
+            "mean_sparseness": np.mean(sparseness),
+        }
 
     def _compute_summary_statistics(self, correlations: Dict[str, Any]) -> Dict[str, float]:
         """Compute summary statistics from correlation results."""
@@ -490,7 +607,7 @@ class CorrelationAnalyzer(AbstractAnalyzer):
             if not isinstance(model.core_network, ExcitationInhibitionNetwork):
                 self.logger.warning("Model does not have ExcitationInhibitionNetwork. Skipping analysis.")
                 return
-                
+
             # Prepare model and data
             model = model.to(device)
             model.eval()
@@ -511,7 +628,9 @@ class CorrelationAnalyzer(AbstractAnalyzer):
             handles = self.attach_forward_hooks(model)
             
             with torch.no_grad():
-                _ = model(inputs)
+                with tqdm(total=1, desc="Forward pass") as pbar:
+                    _ = model(inputs)
+                    pbar.update(1)
                 
             self.remove_forward_hooks(handles)
             
@@ -529,18 +648,26 @@ class CorrelationAnalyzer(AbstractAnalyzer):
             }
             
             # Analyze based on computation level
+            self.logger.info(f"Computation level: {self.computation_level}")
             if self.computation_level == "synaptic":
+                self.logger.info("Calling _analyze_synaptic_level")
                 self._analyze_synaptic_level(results, labels_np)
             elif self.computation_level == "single_branch":
+                self.logger.info("Calling _analyze_single_branch_level")
                 self._analyze_single_branch_level(results, labels_np)
             elif self.computation_level == "layer_branch":
+                self.logger.info("Calling _analyze_layer_branch_level")
                 self._analyze_layer_branch_level(results, labels_np)
             else:  # all_branch
+                self.logger.info("Calling _analyze_all_branch_level")
                 self._analyze_all_branch_level(results, labels_np)
             
             # Save results
+            self.logger.info(f"Save path provided: {save_path}")
             if save_path is not None:
+                self.logger.info(f"Creating save_path directory: {save_path}")
                 os.makedirs(save_path, exist_ok=True)
+                self.logger.info(f"Directory created, saving results...")
                 save_dict(results, save_path, filename)
                 
                 # Generate plots
@@ -551,7 +678,7 @@ class CorrelationAnalyzer(AbstractAnalyzer):
                 summary.to_csv(os.path.join(save_path, f"{filename}_summary.csv"), index=False)
                 
                 self.logger.info(f"Results saved to {save_path}")
-                
+
         except Exception as e:
             self.logger.error(f"Error during correlation analysis: {e}")
             self.logger.error(traceback.format_exc())
@@ -563,7 +690,8 @@ class CorrelationAnalyzer(AbstractAnalyzer):
         
         # Network-level synaptic analysis
         all_results = {}
-        for layer_name, layer_data in self.data_dict.items():
+        layers = list(self.data_dict.items())
+        for layer_name, layer_data in tqdm(layers, desc="Processing layers (synaptic)"):
             layer_results = self._compute_synaptic_correlations(layer_data, labels)
             all_results[layer_name] = layer_results
         
@@ -576,7 +704,8 @@ class CorrelationAnalyzer(AbstractAnalyzer):
         """Analyze each branch individually."""
         self.logger.info("Running single-branch level correlation analysis...")
         
-        for layer_name, layer_data in self.data_dict.items():
+        layers = list(self.data_dict.items())
+        for layer_name, layer_data in tqdm(layers, desc="Processing layers (single-branch)"):
             E = layer_data["excitation"].cpu().numpy()
             I = layer_data["inhibition"].cpu().numpy()
             Vout = layer_data["output"].cpu().numpy()
@@ -585,7 +714,7 @@ class CorrelationAnalyzer(AbstractAnalyzer):
             n_branches = E.shape[1] if E.ndim > 1 else 1
             branch_results = []
             
-            for branch_idx in range(n_branches):
+            for branch_idx in tqdm(range(n_branches), desc=f"  Branches in {layer_name}", leave=False):
                 e_branch = E[:, branch_idx:branch_idx+1] if E.ndim > 1 else E
                 i_branch = I[:, branch_idx:branch_idx+1] if I.ndim > 1 else I
                 v_branch = Vout[:, branch_idx:branch_idx+1] if Vout.ndim > 1 else Vout
@@ -605,7 +734,8 @@ class CorrelationAnalyzer(AbstractAnalyzer):
         # Analyze each layer
         if self.per_layer_analysis:
             layer_results = {}
-            for layer_name, layer_data in self.data_dict.items():
+            layers = list(self.data_dict.items())
+            for layer_name, layer_data in tqdm(layers, desc="Processing layers (correlation)"):
                 E = layer_data["excitation"].cpu().numpy()
                 I = layer_data["inhibition"].cpu().numpy()
                 Vout = layer_data["output"].cpu().numpy()
@@ -620,6 +750,7 @@ class CorrelationAnalyzer(AbstractAnalyzer):
             results["per_layer_analysis"] = layer_results
         
         # Network-wide analysis (aggregate all layers)
+        self.logger.info("Computing network-wide correlations...")
         all_E, all_I, all_Vout = [], [], []
         for layer_data in self.data_dict.values():
             E = layer_data["excitation"].cpu().numpy()
@@ -639,6 +770,7 @@ class CorrelationAnalyzer(AbstractAnalyzer):
         network_I = np.hstack(all_I)
         network_Vout = np.hstack(all_Vout)
         
+        self.logger.info(f"Network-wide data shapes - E: {network_E.shape}, I: {network_I.shape}, Vout: {network_Vout.shape}")
         network_corr = self._compute_branch_correlations(network_E, network_I, network_Vout, labels)
         if self.compute_tuning_curves:
             network_corr["tuning"] = self._compute_tuning_curves(network_E, network_I, network_Vout, labels)
@@ -695,7 +827,12 @@ class CorrelationAnalyzer(AbstractAnalyzer):
         if self.analyze_E_output:
             exc_results["E_Vout"] = self._compute_conditional_correlations(E, Vout, labels)
         if self.compute_tuning_curves:
-            exc_results["tuning"] = {"E_tuning": self._compute_tuning_curves(E, I, Vout, labels)["E_tuning"]}
+            tuning_results = self._compute_tuning_curves(E, I, Vout, labels)
+            if "E_tuning" in tuning_results:
+                exc_results["tuning"] = {"E_tuning": tuning_results["E_tuning"]}
+            else:
+                # For multi-class, use selectivity metrics
+                exc_results["tuning"] = {"E_selectivity": tuning_results["E_selectivity"]}
         
         results["excitatory_results"] = {
             "correlations": exc_results,
@@ -709,7 +846,12 @@ class CorrelationAnalyzer(AbstractAnalyzer):
         if self.analyze_I_output:
             inh_results["I_Vout"] = self._compute_conditional_correlations(I, Vout, labels)
         if self.compute_tuning_curves:
-            inh_results["tuning"] = {"I_tuning": self._compute_tuning_curves(E, I, Vout, labels)["I_tuning"]}
+            tuning_results = self._compute_tuning_curves(E, I, Vout, labels)
+            if "I_tuning" in tuning_results:
+                inh_results["tuning"] = {"I_tuning": tuning_results["I_tuning"]}
+            else:
+                # For multi-class, use selectivity metrics
+                inh_results["tuning"] = {"I_selectivity": tuning_results["I_selectivity"]}
         
         results["inhibitory_results"] = {
             "correlations": inh_results,
@@ -749,14 +891,23 @@ class CorrelationAnalyzer(AbstractAnalyzer):
     def _generate_plots(self, results: Dict[str, Any], save_path: str):
         """Generate correlation plots."""
         try:
+            self.logger.info(f"Generating correlation plots, save_path: {save_path}")
+            self.logger.info(f"Results keys: {list(results.keys())}")
+
             from dendritic_modeling.plotting.visualizations.correlation_plots import (
-                plot_hierarchical_correlations,
-                plot_correlation_matrices,
-                plot_tuning_curves,
-            )
-            
+    plot_hierarchical_correlations,
+    plot_correlation_matrices,
+    plot_tuning_curves,
+    plot_correlation_comparisons,
+)
+
             # Main hierarchical plot
+            self.logger.info("Calling plot_hierarchical_correlations...")
             plot_hierarchical_correlations(results, save_path=save_path)
+
+            # Generate dedicated comparison plots
+            self.logger.info("Calling plot_correlation_comparisons...")
+            plot_correlation_comparisons(results, save_path=save_path)
             
             # Additional plots based on computation level
             if "network_level" in results:
@@ -764,14 +915,14 @@ class CorrelationAnalyzer(AbstractAnalyzer):
                 if any(k in results["network_level"] for k in ["EE", "II", "EI"]):
                     plot_correlation_matrices(
                         results["network_level"],
-                        save_path=os.path.join(save_path, "correlation_matrices.png")
+                        save_path=save_path
                     )
                 
                 # Tuning curves
                 if "tuning" in results["network_level"]:
                     plot_tuning_curves(
                         results["network_level"]["tuning"],
-                        save_path=os.path.join(save_path, "tuning_curves.png")
+                        save_path=save_path
                     )
                     
         except ImportError as e:

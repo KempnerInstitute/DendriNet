@@ -10,8 +10,8 @@ from typing import Any, Optional, Dict
 
 import matplotlib.pyplot as plt
 import numpy as np
-import seaborn as sns
 from matplotlib.gridspec import GridSpec
+import seaborn as sns
 
 from .plotting_utils import (
     create_figure,
@@ -27,7 +27,7 @@ def plot_hierarchical_correlations(
     filename_prefix: str = "correlation"
 ) -> None:
     """Plot hierarchical correlation analysis results.
-    
+
     Args:
         results: Correlation analysis results with hierarchical structure
         save_path: Directory to save plots
@@ -36,26 +36,28 @@ def plot_hierarchical_correlations(
     try:
         # Create output directory
         os.makedirs(save_path, exist_ok=True)
+        print(f"DEBUG: plot_hierarchical_correlations called with save_path: {save_path}")
+        print(f"DEBUG: results keys: {list(results.keys())}")
         
         # Plot network-level summary
         if "network_level" in results:
             plot_network_summary(
                 results["network_level"], 
-                save_path=os.path.join(save_path, f"{filename_prefix}_network_summary.png")
+                save_path=save_path
             )
             
         # Plot per-layer results if available
         if "per_layer_analysis" in results and results.get("per_layer_analysis_enabled", False):
             plot_per_layer_correlations(
                 results["per_layer_analysis"],
-                save_path=os.path.join(save_path, f"{filename_prefix}_per_layer.png")
+                save_path=save_path
             )
             
         # Plot per-EI network results if available
         if "per_einet_analysis" in results and results.get("per_einet_analysis_enabled", False):
             plot_per_ei_correlations(
                 results["per_einet_analysis"],
-                save_path=os.path.join(save_path, f"{filename_prefix}_per_ei_network.png")
+                save_path=save_path
             )
             
     except Exception as e:
@@ -63,50 +65,301 @@ def plot_hierarchical_correlations(
 
 
 def plot_network_summary(network_results: dict[str, Any], save_path: str) -> None:
-    """Plot network-level correlation summary.
+    """Plot comprehensive correlation analysis with clear comparisons.
     
     Args:
         network_results: Network-level correlation results
         save_path: Path to save the plot
     """
     try:
-        fig = plt.figure(figsize=(16, 10))
-        gs = GridSpec(3, 3, figure=fig, hspace=0.3, wspace=0.3)
+        # Create a comprehensive comparison plot
+        fig = plt.figure(figsize=(20, 16))
+        gs = GridSpec(4, 5, figure=fig, hspace=0.4, wspace=0.3)
         
         # Get summary statistics
         summary_stats = network_results.get("summary_stats", {})
         
-        # Plot 1: Mean correlation strengths
-        ax1 = fig.add_subplot(gs[0, :])
-        plot_correlation_strengths(summary_stats, ax1)
-        ax1.set_title("Mean Correlation Strengths (Network-wide)", fontsize=14, fontweight='bold')
+        # Section 1: Correlation Type Comparison (Top row)
+        correlation_types = ["EE", "II", "EI", "E_Vout", "I_Vout"]
+        colors = ['#e74c3c', '#3498db', '#9b59b6', '#f39c12', '#2ecc71']
         
-        # Plot 2: Total vs Noise correlations comparison
-        ax2 = fig.add_subplot(gs[1, 0])
-        plot_total_vs_noise_correlations(summary_stats, ax2)
-        ax2.set_title("Total vs Noise Correlations", fontsize=12)
+        ax_types = fig.add_subplot(gs[0, :3])
+        if summary_stats:
+            type_values = []
+            type_labels = []
+            type_colors = []
+            
+            for i, corr_type in enumerate(correlation_types):
+                if f"{corr_type}_total_mean" in summary_stats:
+                    type_values.append(summary_stats[f"{corr_type}_total_mean"])
+                    type_labels.append(corr_type.replace('_', '-'))
+                    type_colors.append(colors[i])
+            
+            if type_values:
+                bars = ax_types.bar(type_labels, type_values, color=type_colors, alpha=0.7)
+                ax_types.set_title("Correlation Strengths by Type", fontsize=14, fontweight='bold')
+                ax_types.set_ylabel("Mean Correlation")
+                ax_types.grid(True, alpha=0.3, axis='y')
+                
+                # Add value labels
+                for bar, val in zip(bars, type_values):
+                    ax_types.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.01,
+                                f'{val:.3f}', ha='center', va='bottom', fontweight='bold')
         
-        # Plot 3: Signal correlations (if available)
-        ax3 = fig.add_subplot(gs[1, 1])
-        plot_signal_correlations(summary_stats, ax3)
-        ax3.set_title("Signal Correlations", fontsize=12)
+        # Section 2: Total vs Noise vs Signal Comparison (Top right)
+        ax_comparison = fig.add_subplot(gs[0, 3:])
+        plot_total_vs_noise_correlations(summary_stats, ax_comparison)
+        ax_comparison.set_title("Total vs Noise vs Signal", fontsize=14, fontweight='bold')
         
-        # Plot 4: E-I balance
-        ax4 = fig.add_subplot(gs[1, 2])
-        plot_ei_balance(summary_stats, ax4)
-        ax4.set_title("E-I Correlation Balance", fontsize=12)
+        # Section 3: EI Layer Comparison (Second row, left)
+        ax_ei_layers = fig.add_subplot(gs[1, :2])
+        ax_ei_layers.set_title("Comparison Across EI Layers", fontsize=14, fontweight='bold')
+        ax_ei_layers.text(0.5, 0.5, "EI Layer 0 vs 1 vs 2\n(Network Depth)", 
+                         ha='center', va='center', transform=ax_ei_layers.transAxes,
+                         fontsize=12, bbox=dict(boxstyle="round,pad=0.5", facecolor="lightblue"))
         
-        # Plot 5: Tuning summary (if available)
+        # Section 4: E vs I Network Comparison (Second row, middle)
+        ax_e_vs_i = fig.add_subplot(gs[1, 2])
+        plot_ei_balance(summary_stats, ax_e_vs_i)
+        ax_e_vs_i.set_title("E vs I Networks", fontsize=14, fontweight='bold')
+        
+        # Section 5: Dendritic Branch Layer Comparison (Second row, right)
+        ax_dendrite = fig.add_subplot(gs[1, 3:])
+        ax_dendrite.set_title("Dendritic Branch Layers", fontsize=14, fontweight='bold')
+        ax_dendrite.text(0.5, 0.5, "Branch Layer 0 vs 1 vs 2\n(Dendritic Depth)", 
+                        ha='center', va='center', transform=ax_dendrite.transAxes,
+                        fontsize=12, bbox=dict(boxstyle="round,pad=0.5", facecolor="lightgreen"))
+        
+        # Section 6: Input-Output Correlations (Third row)
+        ax_io = fig.add_subplot(gs[2, :2])
+        plot_signal_correlations(summary_stats, ax_io)
+        ax_io.set_title("Input-Output Correlations", fontsize=14, fontweight='bold')
+        
+        # Section 7: Correlation Matrix Heatmap (Third row, right)
+        ax_matrix = fig.add_subplot(gs[2, 2:])
+        # Create a simplified correlation matrix visualization
+        if summary_stats:
+            matrix_data = []
+            labels = []
+            for corr_type in correlation_types:
+                if f"{corr_type}_total_mean" in summary_stats:
+                    matrix_data.append(summary_stats[f"{corr_type}_total_mean"])
+                    labels.append(corr_type.replace('_', '-'))
+            
+            if matrix_data:
+                # Create a simple correlation strength visualization
+                matrix = np.array(matrix_data).reshape(1, -1)
+                im = ax_matrix.imshow(matrix, cmap='RdBu_r', aspect='auto', vmin=-1, vmax=1)
+                ax_matrix.set_xticks(range(len(labels)))
+                ax_matrix.set_xticklabels(labels, rotation=45)
+                ax_matrix.set_yticks([])
+                ax_matrix.set_title("Correlation Strength Overview", fontsize=14, fontweight='bold')
+                plt.colorbar(im, ax=ax_matrix, shrink=0.6)
+        
+        # Section 8: Tuning Summary (Bottom row)
         if "tuning" in network_results:
-            ax5 = fig.add_subplot(gs[2, :])
-            plot_tuning_summary(network_results["tuning"], ax5)
-            ax5.set_title("Tuning Curves Summary", fontsize=12)
+            ax_tuning = fig.add_subplot(gs[3, :])
+            plot_tuning_summary(network_results["tuning"], ax_tuning)
+            ax_tuning.set_title("Selectivity & Tuning Analysis", fontsize=14, fontweight='bold')
         
-        plt.suptitle("Network-wide Correlation Analysis", fontsize=16, fontweight='bold')
-        save_plot(fig, save_path)
+        # Add explanatory text
+        fig.text(0.02, 0.95, "Correlation Analysis Structure:", fontsize=12, fontweight='bold')
+        fig.text(0.02, 0.92, "• EI Layers: Network depth (0→1→2)", fontsize=10)
+        fig.text(0.02, 0.90, "• E/I Networks: Excitatory vs Inhibitory pathways", fontsize=10)
+        fig.text(0.02, 0.88, "• Dendritic Layers: Branch depth (0→1→2)", fontsize=10)
+        
+        plt.suptitle("Comprehensive Correlation Analysis\nComparisons: EI Layers | E/I Networks | Dendritic Branch Layers", 
+                    fontsize=16, fontweight='bold', y=0.98)
+        save_plot(fig, save_path, "comprehensive_correlation_analysis")
         
     except Exception as e:
         handle_plot_error("network summary", e)
+
+
+def plot_correlation_comparisons(results: dict[str, Any], save_path: str) -> None:
+    """Create dedicated comparison plots for EI layers, E/I networks, and dendritic layers.
+    
+    Args:
+        results: Full correlation analysis results
+        save_path: Directory to save plots
+    """
+    try:
+        # Create three separate comparison plots
+        
+        # 1. EI Layer Comparison
+        if "per_layer_analysis" in results:
+            fig1, axes1 = plt.subplots(2, 3, figsize=(18, 12))
+            fig1.suptitle("EI Layer Comparison\n(How correlations change with network depth)", 
+                         fontsize=16, fontweight='bold')
+            
+            layer_data = results["per_layer_analysis"]
+            correlation_types = ["EE", "II", "EI", "E_Vout", "I_Vout", "Vout_Vout"]
+            
+            for i, corr_type in enumerate(correlation_types[:6]):
+                ax = axes1.flatten()[i]
+                
+                # Collect data across EI layers
+                layers = []
+                values = []
+                
+                for layer_name, layer_stats in layer_data.items():
+                    if corr_type in layer_stats:
+                        try:
+                            layer_idx = int(layer_name.split('_')[-1])
+                            layers.append(layer_idx)
+                            
+                            corr_data = layer_stats[corr_type]
+                            if isinstance(corr_data, dict) and "total" in corr_data:
+                                if hasattr(corr_data["total"], 'mean'):
+                                    values.append(float(corr_data["total"].mean()))
+                                else:
+                                    values.append(float(corr_data["total"]))
+                            else:
+                                values.append(float(corr_data))
+                        except (ValueError, AttributeError):
+                            continue
+                
+                if layers and values:
+                    # Sort by layer index
+                    sorted_data = sorted(zip(layers, values))
+                    layers, values = zip(*sorted_data)
+                    
+                    ax.plot(layers, values, 'o-', linewidth=2, markersize=8)
+                    ax.set_title(f'{corr_type} Correlation', fontsize=12, fontweight='bold')
+                    ax.set_xlabel('EI Layer')
+                    ax.set_ylabel('Correlation Strength')
+                    ax.grid(True, alpha=0.3)
+                    
+                    # Add value labels
+                    for x, y in zip(layers, values):
+                        ax.annotate(f'{y:.3f}', (x, y), textcoords="offset points", 
+                                  xytext=(0,10), ha='center')
+            
+            plt.tight_layout()
+            save_plot(fig1, save_path, "ei_layer_comparison")
+        
+        # 2. E vs I Network Comparison
+        if "per_einet_analysis" in results:
+            fig2, axes2 = plt.subplots(2, 2, figsize=(15, 12))
+            fig2.suptitle("Excitatory vs Inhibitory Network Comparison\n(How E and I pathways differ)", 
+                         fontsize=16, fontweight='bold')
+            
+            einet_data = results["per_einet_analysis"]
+            
+            # Compare excitatory vs inhibitory results
+            if "excitatory_results" in einet_data and "inhibitory_results" in einet_data:
+                exc_data = einet_data["excitatory_results"]
+                inh_data = einet_data["inhibitory_results"]
+                
+                comparison_metrics = ["EE", "II", "E_Vout", "I_Vout"]
+                
+                for i, metric in enumerate(comparison_metrics):
+                    if i < 4:
+                        ax = axes2.flatten()[i]
+                        
+                        exc_val = 0
+                        inh_val = 0
+                        
+                        # Extract values from excitatory and inhibitory results
+                        if "correlations" in exc_data and metric in exc_data["correlations"]:
+                            exc_corr = exc_data["correlations"][metric]
+                            if isinstance(exc_corr, dict) and "total" in exc_corr:
+                                exc_val = float(exc_corr["total"].mean() if hasattr(exc_corr["total"], 'mean') else exc_corr["total"])
+                        
+                        if "correlations" in inh_data and metric in inh_data["correlations"]:
+                            inh_corr = inh_data["correlations"][metric]
+                            if isinstance(inh_corr, dict) and "total" in inh_corr:
+                                inh_val = float(inh_corr["total"].mean() if hasattr(inh_corr["total"], 'mean') else inh_corr["total"])
+                        
+                        # Create comparison bar plot
+                        networks = ['Excitatory', 'Inhibitory']
+                        values = [exc_val, inh_val]
+                        colors = ['#e74c3c', '#3498db']
+                        
+                        bars = ax.bar(networks, values, color=colors, alpha=0.7)
+                        ax.set_title(f'{metric} Correlation', fontsize=12, fontweight='bold')
+                        ax.set_ylabel('Correlation Strength')
+                        ax.grid(True, alpha=0.3, axis='y')
+                        
+                        # Add value labels
+                        for bar, val in zip(bars, values):
+                            ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.01,
+                                  f'{val:.3f}', ha='center', va='bottom', fontweight='bold')
+            
+            plt.tight_layout()
+            save_plot(fig2, save_path, "e_vs_i_network_comparison")
+        
+        # 3. Dendritic Branch Layer Comparison
+        fig3, axes3 = plt.subplots(2, 3, figsize=(18, 12))
+        fig3.suptitle("Dendritic Branch Layer Comparison\n(How correlations change with dendritic depth)", 
+                     fontsize=16, fontweight='bold')
+        
+        # Extract data for dendritic layers if available
+        dendritic_data = {}
+        if "per_layer_correlations" in results:
+            for layer_key, layer_data in results["per_layer_correlations"].items():
+                # Try to extract dendritic layer info from the key
+                if "branch_layer" in layer_key or "layer" in layer_key:
+                    dendritic_data[layer_key] = layer_data
+        
+        # If we have network-wide data, use that as fallback
+        if not dendritic_data and "network_correlations" in results:
+            dendritic_data["Network-wide"] = results["network_correlations"]
+        
+        # Plot different correlation types across dendritic layers
+        plot_idx = 0
+        corr_types = [
+            ("E-E Total", "EE_corr_total", "Blues"),
+            ("I-I Total", "II_corr_total", "Reds"),
+            ("E-I Total", "EI_corr_total", "Greens"),
+            ("E-E Noise", "EE_corr_noise", "Blues"),
+            ("I-I Noise", "II_corr_noise", "Reds"),
+            ("E-I Signal", "EI_corr_signal", "Greens")
+        ]
+        
+        for title, key, cmap in corr_types:
+            if plot_idx >= 6:
+                break
+            ax = axes3.flatten()[plot_idx]
+            
+            # Collect data across layers
+            layer_names = []
+            corr_values = []
+            
+            for layer_name, layer_data in sorted(dendritic_data.items()):
+                if key in layer_data and layer_data[key] is not None:
+                    layer_names.append(layer_name.split('.')[-1] if '.' in layer_name else layer_name)
+                    corr_values.append(layer_data[key])
+            
+            if corr_values:
+                # Create bar plot
+                x = np.arange(len(layer_names))
+                bars = ax.bar(x, corr_values, color=plt.cm.get_cmap(cmap)(0.6))
+                ax.set_xticks(x)
+                ax.set_xticklabels(layer_names, rotation=45, ha='right')
+                ax.set_ylabel('Correlation')
+                ax.set_title(title, fontsize=12)
+                ax.grid(True, alpha=0.3)
+                ax.set_ylim(-1, 1)
+                
+                # Add value labels on bars
+                for bar, val in zip(bars, corr_values):
+                    height = bar.get_height()
+                    ax.text(bar.get_x() + bar.get_width()/2., height + 0.02 * np.sign(height),
+                           f'{val:.3f}', ha='center', va='bottom' if height > 0 else 'top', fontsize=8)
+            else:
+                ax.text(0.5, 0.5, f'{title}\n(No data available)', 
+                       ha='center', va='center', transform=ax.transAxes,
+                       fontsize=12, bbox=dict(boxstyle="round,pad=0.5", facecolor="lightgray"))
+                ax.set_title(title, fontsize=12)
+            
+            plot_idx += 1
+        
+        plt.tight_layout()
+        save_plot(fig3, save_path, "dendritic_layer_comparison")
+        
+    except Exception as e:
+        handle_plot_error("correlation comparisons", e)
 
 
 def plot_correlation_strengths(stats: dict[str, float], ax: plt.Axes) -> None:
@@ -215,10 +468,11 @@ def plot_ei_balance(stats: dict[str, float], ax: plt.Axes) -> None:
         ax.grid(True, alpha=0.3, axis='y')
 
 
-def plot_tuning_summary(tuning: dict[str, np.ndarray], ax: plt.Axes) -> None:
+def plot_tuning_summary(tuning: dict[str, Any], ax: plt.Axes) -> None:
     """Plot summary of tuning curves."""
+    # Check if we have binary or multi-class tuning
     if 'E_tuning' in tuning and 'I_tuning' in tuning:
-        # Create violin plots for tuning distributions
+        # Binary classification - violin plots of tuning differences
         data = [tuning['E_tuning'].flatten(), tuning['I_tuning'].flatten()]
         
         parts = ax.violinplot(data, positions=[0, 1], showmeans=True, showmedians=True)
@@ -233,6 +487,33 @@ def plot_tuning_summary(tuning: dict[str, np.ndarray], ax: plt.Axes) -> None:
         ax.set_ylabel('Tuning Strength')
         ax.axhline(y=0, color='k', linestyle='--', alpha=0.5)
         ax.grid(True, alpha=0.3, axis='y')
+    elif 'E_selectivity' in tuning:
+        # Multi-class - bar plot of mean selectivity metrics
+        metrics = []
+        labels = []
+        colors_list = []
+        
+        colors = get_color_scheme()
+        for var_type, color in [('E', colors['excitatory']), ('I', colors['inhibitory']), ('Vout', 'green')]:
+            if f'{var_type}_selectivity' in tuning:
+                sel_data = tuning[f'{var_type}_selectivity']
+                metrics.extend([sel_data['mean_selectivity'], sel_data['mean_sparseness']])
+                labels.extend([f'{var_type} Selectivity', f'{var_type} Sparseness'])
+                colors_list.extend([color, color])
+        
+        if metrics:
+            x = np.arange(len(metrics))
+            bars = ax.bar(x, metrics, color=colors_list, alpha=0.7)
+            ax.set_xticks(x)
+            ax.set_xticklabels(labels, rotation=45, ha='right')
+            ax.set_ylabel('Mean Value')
+            ax.set_title('Selectivity Metrics Summary')
+            ax.grid(True, alpha=0.3, axis='y')
+            
+            # Add values on bars
+            for bar, val in zip(bars, metrics):
+                ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.01,
+                       f'{val:.3f}', ha='center', va='bottom', fontsize=9)
 
 
 def plot_per_layer_correlations(
@@ -272,9 +553,9 @@ def plot_per_layer_correlations(
                     axes[idx, 2]
                 )
         
-        plt.suptitle("Per-Layer Correlation Analysis", fontsize=16, fontweight='bold')
+        plt.suptitle("Per-Layer Correlation Analysis\nComparison Across EI Layers (Rows) and Analysis Types (Columns)", fontsize=16, fontweight='bold')
         plt.tight_layout()
-        save_plot(fig, save_path)
+        save_plot(fig, save_path, "per_layer_correlation_analysis")
         
     except Exception as e:
         handle_plot_error("per-layer correlations", e)
@@ -327,75 +608,234 @@ def plot_correlation_matrices(
         
         plt.suptitle("Correlation Matrices", fontsize=16, fontweight='bold')
         plt.tight_layout()
-        save_plot(fig, save_path)
+        save_plot(fig, save_path, "correlation_matrices_all")
         
     except Exception as e:
         handle_plot_error("correlation matrices", e)
 
 
 def plot_tuning_curves(
-    tuning: dict[str, np.ndarray],
+    tuning: dict[str, Any],
     save_path: str
 ) -> None:
-    """Plot detailed tuning curves for E, I, and Vout.
+    """Plot tuning curves and selectivity metrics for multi-class scenarios.
     
     Args:
-        tuning: Dictionary with tuning arrays
+        tuning: Dictionary with tuning data (can be binary or multi-class)
         save_path: Path to save the plot
     """
     try:
-        fig, axes = plt.subplots(2, 2, figsize=(12, 10))
+        n_classes = tuning.get('n_classes', 2)
         
-        # Plot histograms
-        if 'E_tuning' in tuning:
-            axes[0, 0].hist(tuning['E_tuning'], bins=50, alpha=0.7, color='red')
-            axes[0, 0].set_xlabel('Tuning Strength')
-            axes[0, 0].set_ylabel('Count')
-            axes[0, 0].set_title('Excitatory Tuning Distribution')
-            axes[0, 0].axvline(0, color='k', linestyle='--', alpha=0.5)
-        
-        if 'I_tuning' in tuning:
-            axes[0, 1].hist(tuning['I_tuning'], bins=50, alpha=0.7, color='blue')
-            axes[0, 1].set_xlabel('Tuning Strength')
-            axes[0, 1].set_ylabel('Count')
-            axes[0, 1].set_title('Inhibitory Tuning Distribution')
-            axes[0, 1].axvline(0, color='k', linestyle='--', alpha=0.5)
-        
-        # Plot E vs I tuning scatter
-        if 'E_tuning' in tuning and 'I_tuning' in tuning:
-            # Limit points for visualization
-            n_points = min(1000, len(tuning['E_tuning']))
-            indices = np.random.choice(len(tuning['E_tuning']), n_points, replace=False)
+        if n_classes == 2 and 'E_tuning' in tuning:
+            # Binary classification - use traditional tuning curve plots
+            _plot_binary_tuning_curves(tuning, save_path)
+        else:
+            # Multi-class - use selectivity analysis plots
+            _plot_multiclass_tuning_curves(tuning, save_path)
             
-            axes[1, 0].scatter(tuning['E_tuning'][indices], 
-                             tuning['I_tuning'][indices], 
-                             alpha=0.5, s=20)
-            axes[1, 0].set_xlabel('Excitatory Tuning')
-            axes[1, 0].set_ylabel('Inhibitory Tuning')
-            axes[1, 0].set_title('E vs I Tuning Correlation')
-            axes[1, 0].axhline(0, color='k', linestyle='--', alpha=0.3)
-            axes[1, 0].axvline(0, color='k', linestyle='--', alpha=0.3)
-            
-            # Add correlation coefficient
-            corr = np.corrcoef(tuning['E_tuning'], tuning['I_tuning'])[0, 1]
-            axes[1, 0].text(0.05, 0.95, f'r = {corr:.3f}', 
-                          transform=axes[1, 0].transAxes, 
-                          bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.8))
-        
-        # Plot Vout tuning if available
-        if 'Vout_tuning' in tuning:
-            axes[1, 1].hist(tuning['Vout_tuning'], bins=50, alpha=0.7, color='green')
-            axes[1, 1].set_xlabel('Tuning Strength')
-            axes[1, 1].set_ylabel('Count')
-            axes[1, 1].set_title('Output (Vout) Tuning Distribution')
-            axes[1, 1].axvline(0, color='k', linestyle='--', alpha=0.5)
-        
-        plt.suptitle("Tuning Curves Analysis", fontsize=16, fontweight='bold')
-        plt.tight_layout()
-        save_plot(fig, save_path)
-        
     except Exception as e:
         handle_plot_error("tuning curves", e)
+
+
+def _plot_binary_tuning_curves(tuning: dict[str, Any], save_path: str) -> None:
+    """Plot tuning curves for binary classification."""
+    fig, axes = plt.subplots(2, 2, figsize=(12, 10))
+    
+    # Plot histograms
+    if 'E_tuning' in tuning:
+        axes[0, 0].hist(tuning['E_tuning'], bins=50, alpha=0.7, color='red')
+        axes[0, 0].set_xlabel('Tuning Strength (Class 1 - Class 0)')
+        axes[0, 0].set_ylabel('Count')
+        axes[0, 0].set_title('Excitatory Tuning Distribution')
+        axes[0, 0].axvline(0, color='k', linestyle='--', alpha=0.5)
+    
+    if 'I_tuning' in tuning:
+        axes[0, 1].hist(tuning['I_tuning'], bins=50, alpha=0.7, color='blue')
+        axes[0, 1].set_xlabel('Tuning Strength (Class 1 - Class 0)')
+        axes[0, 1].set_ylabel('Count')
+        axes[0, 1].set_title('Inhibitory Tuning Distribution')
+        axes[0, 1].axvline(0, color='k', linestyle='--', alpha=0.5)
+    
+    # Plot E vs I tuning scatter
+    if 'E_tuning' in tuning and 'I_tuning' in tuning:
+        # Limit points for visualization
+        n_points = min(1000, len(tuning['E_tuning']))
+        indices = np.random.choice(len(tuning['E_tuning']), n_points, replace=False)
+        
+        axes[1, 0].scatter(tuning['E_tuning'][indices], 
+                         tuning['I_tuning'][indices], 
+                         alpha=0.5, s=20)
+        axes[1, 0].set_xlabel('Excitatory Tuning')
+        axes[1, 0].set_ylabel('Inhibitory Tuning')
+        axes[1, 0].set_title('E vs I Tuning Correlation')
+        axes[1, 0].axhline(0, color='k', linestyle='--', alpha=0.3)
+        axes[1, 0].axvline(0, color='k', linestyle='--', alpha=0.3)
+        
+        # Add correlation coefficient
+        corr = np.corrcoef(tuning['E_tuning'], tuning['I_tuning'])[0, 1]
+        axes[1, 0].text(0.05, 0.95, f'r = {corr:.3f}', 
+                      transform=axes[1, 0].transAxes, 
+                      bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.8))
+    
+    # Plot Vout tuning if available
+    if 'Vout_tuning' in tuning:
+        axes[1, 1].hist(tuning['Vout_tuning'], bins=50, alpha=0.7, color='green')
+        axes[1, 1].set_xlabel('Tuning Strength (Class 1 - Class 0)')
+        axes[1, 1].set_ylabel('Count')
+        axes[1, 1].set_title('Output (Vout) Tuning Distribution')
+        axes[1, 1].axvline(0, color='k', linestyle='--', alpha=0.5)
+    
+    plt.suptitle("Binary Classification Tuning Curves", fontsize=16, fontweight='bold')
+    plt.tight_layout()
+    save_plot(fig, save_path, "binary_tuning_curves")
+
+
+def _plot_multiclass_tuning_curves(tuning: dict[str, Any], save_path: str) -> None:
+    """Plot selectivity metrics for multi-class scenarios."""
+    fig = plt.figure(figsize=(16, 12))
+    gs = GridSpec(3, 3, figure=fig, hspace=0.3, wspace=0.3)
+    
+    n_classes = tuning.get('n_classes', 0)
+    class_labels = tuning.get('class_labels', list(range(n_classes)))
+    
+    # Plot 1: Class preference distribution
+    ax1 = fig.add_subplot(gs[0, :])
+    _plot_class_preference_distribution(tuning, ax1, class_labels)
+    
+    # Plot 2: Selectivity index distributions
+    ax2 = fig.add_subplot(gs[1, 0])
+    _plot_selectivity_distributions(tuning, ax2, 'selectivity_index')
+    
+    # Plot 3: Sparseness distributions
+    ax3 = fig.add_subplot(gs[1, 1])
+    _plot_selectivity_distributions(tuning, ax3, 'sparseness')
+    
+    # Plot 4: Mean responses per class (heatmap)
+    ax4 = fig.add_subplot(gs[1, 2])
+    _plot_class_response_heatmap(tuning, ax4, 'E')
+    
+    # Plot 5: E vs I selectivity comparison
+    ax5 = fig.add_subplot(gs[2, 0])
+    _plot_ei_selectivity_comparison(tuning, ax5)
+    
+    # Plot 6: Summary statistics table
+    ax6 = fig.add_subplot(gs[2, 1:])
+    _plot_tuning_summary_table(tuning, ax6)
+    
+    plt.suptitle(f"Multi-class Tuning Analysis ({n_classes} classes)", fontsize=16, fontweight='bold')
+    save_plot(fig, save_path, "correlation_plot")
+
+
+def _plot_class_preference_distribution(tuning: dict[str, Any], ax: plt.Axes, class_labels: list) -> None:
+    """Plot distribution of preferred classes across units."""
+    n_classes = len(class_labels)
+    
+    # Count preferred classes for each type
+    for var_type, color in [('E', 'red'), ('I', 'blue'), ('Vout', 'green')]:
+        if f'{var_type}_selectivity' in tuning:
+            pref_classes = tuning[f'{var_type}_selectivity']['preferred_class']
+            counts = np.bincount(pref_classes, minlength=n_classes)
+            
+            x = np.arange(n_classes) + {'E': -0.25, 'I': 0, 'Vout': 0.25}[var_type]
+            ax.bar(x, counts, width=0.25, label=var_type, color=color, alpha=0.7)
+    
+    ax.set_xticks(range(n_classes))
+    ax.set_xticklabels([f'Class {i}' for i in class_labels])
+    ax.set_xlabel('Preferred Class')
+    ax.set_ylabel('Number of Units')
+    ax.set_title('Distribution of Preferred Classes')
+    ax.legend()
+    ax.grid(True, alpha=0.3, axis='y')
+
+
+def _plot_selectivity_distributions(tuning: dict[str, Any], ax: plt.Axes, metric: str) -> None:
+    """Plot distributions of selectivity metrics."""
+    colors = {'E': 'red', 'I': 'blue', 'Vout': 'green'}
+    
+    for var_type in ['E', 'I', 'Vout']:
+        if f'{var_type}_selectivity' in tuning and metric in tuning[f'{var_type}_selectivity']:
+            values = tuning[f'{var_type}_selectivity'][metric]
+            ax.hist(values, bins=30, alpha=0.5, label=var_type, color=colors[var_type])
+    
+    ax.set_xlabel(metric.replace('_', ' ').title())
+    ax.set_ylabel('Count')
+    ax.set_title(f'{metric.replace("_", " ").title()} Distribution')
+    ax.legend()
+    ax.grid(True, alpha=0.3, axis='y')
+
+
+def _plot_class_response_heatmap(tuning: dict[str, Any], ax: plt.Axes, var_type: str) -> None:
+    """Plot heatmap of mean responses per class."""
+    if f'{var_type}_class_means' in tuning:
+        class_means = tuning[f'{var_type}_class_means']
+        
+        # Normalize for visualization
+        class_means_norm = class_means / (np.max(class_means, axis=0, keepdims=True) + 1e-8)
+        
+        # Limit number of units shown
+        max_units = 50
+        if class_means_norm.shape[1] > max_units:
+            # Select most selective units
+            if f'{var_type}_selectivity' in tuning:
+                selectivity = tuning[f'{var_type}_selectivity']['selectivity_index']
+                top_units = np.argsort(selectivity)[-max_units:]
+                class_means_norm = class_means_norm[:, top_units]
+        
+        im = ax.imshow(class_means_norm, aspect='auto', cmap='hot', interpolation='nearest')
+        ax.set_xlabel('Unit Index')
+        ax.set_ylabel('Class')
+        ax.set_title(f'{var_type} Class Response Patterns')
+        plt.colorbar(im, ax=ax, label='Normalized Response')
+
+
+def _plot_ei_selectivity_comparison(tuning: dict[str, Any], ax: plt.Axes) -> None:
+    """Plot E vs I selectivity comparison."""
+    if 'E_selectivity' in tuning and 'I_selectivity' in tuning:
+        E_sel = tuning['E_selectivity']['selectivity_index']
+        I_sel = tuning['I_selectivity']['selectivity_index']
+        
+        # Sample for visualization
+        n_points = min(1000, len(E_sel))
+        indices = np.random.choice(len(E_sel), n_points, replace=False)
+        
+        ax.scatter(E_sel[indices], I_sel[indices], alpha=0.5, s=20)
+        ax.set_xlabel('E Selectivity Index')
+        ax.set_ylabel('I Selectivity Index')
+        ax.set_title('E vs I Selectivity')
+        ax.plot([0, 1], [0, 1], 'k--', alpha=0.3)
+        
+        # Add correlation
+        corr = np.corrcoef(E_sel, I_sel)[0, 1]
+        ax.text(0.05, 0.95, f'r = {corr:.3f}', transform=ax.transAxes,
+               bbox=dict(boxstyle="round,pad=0.3", facecolor="white", alpha=0.8))
+
+
+def _plot_tuning_summary_table(tuning: dict[str, Any], ax: plt.Axes) -> None:
+    """Plot summary statistics table."""
+    summary_data = []
+    
+    for var_type in ['E', 'I', 'Vout']:
+        if f'{var_type}_selectivity' in tuning:
+            sel_data = tuning[f'{var_type}_selectivity']
+            summary_data.append([
+                var_type,
+                f"{sel_data['mean_selectivity']:.3f}",
+                f"{sel_data['mean_sparseness']:.3f}",
+                f"{np.mean(sel_data['class_selectivity']):.3f}"
+            ])
+    
+    # Create table
+    table = ax.table(cellText=summary_data,
+                    colLabels=['Type', 'Mean Selectivity', 'Mean Sparseness', 'Mean Class Sel.'],
+                    loc='center',
+                    cellLoc='center')
+    table.auto_set_font_size(False)
+    table.set_fontsize(10)
+    table.scale(1, 2)
+    
+    ax.axis('off')
+    ax.set_title('Tuning Summary Statistics', pad=20)
 
 
 def plot_layer_correlation_matrix(
@@ -504,7 +944,7 @@ def plot_per_ei_correlations(
         
         plt.suptitle("Per-EI Network Correlation Analysis", fontsize=16, fontweight='bold')
         plt.tight_layout()
-        save_plot(fig, save_path)
+        save_plot(fig, save_path, "correlation_plot")
         
     except Exception as e:
         handle_plot_error("per-EI correlations", e)
@@ -616,7 +1056,7 @@ def plot_synaptic_correlations(
             
         plt.suptitle("Synaptic-Level Correlation Analysis", fontsize=16, fontweight='bold')
         plt.tight_layout()
-        save_plot(fig, save_path)
+        save_plot(fig, save_path, "correlation_plot")
         
     except Exception as e:
         handle_plot_error("synaptic correlations", e)

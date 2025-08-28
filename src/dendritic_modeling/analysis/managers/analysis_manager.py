@@ -158,13 +158,15 @@ class AnalysisManager:
             (self.config.information_analysis.training and training)
             or not training
         ):
+            self.logger.info("Starting information analysis...")
             self.information_analyzer.analyze(
                     model=self.model,
                     test_dataset=self.data["test"],
                     device=self.device,
                     save_path=os.path.join(self.save_root, "information_analysis"),
-                filename=filename
-            )
+                    filename=filename
+                )
+            self.logger.info("Information analysis completed successfully")
 
         # Synaptic Turnover Analysis
         if self.config.synapse_turnover_analysis.enabled and (
@@ -259,6 +261,7 @@ class AnalysisManager:
             (hasattr(self.config.correlation_analysis, 'training') and self.config.correlation_analysis.training and training)
             or not training
         ):
+            self.logger.info("Starting correlation analysis...")
             self.correlation_analyzer.analyze(
                 model=self.model,
                 test_dataset=self.data["test"],
@@ -266,3 +269,4 @@ class AnalysisManager:
                 save_path=os.path.join(self.save_root, "correlation_analysis"),
                 filename=filename
             )
+            self.logger.info("Correlation analysis completed successfully")

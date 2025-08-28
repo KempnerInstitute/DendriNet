@@ -19,7 +19,6 @@ from .visualizations import (  # Analysis functions; Training functions
     plot_active_synapses_per_branch,
     plot_branch_sweep_results,
     plot_ei_sweep_results,
-    plot_information_analysis,
     plot_layer_contributions,
     plot_loss_curves,
     plot_noise_sweep_branch_results,
@@ -31,8 +30,6 @@ from .visualizations import (  # Analysis functions; Training functions
     plot_weight_distributions,
 )
 
-# Note: PlotManager was removed as it was unused
-
 __all__ = [
     # Analysis functions
     "dendritic_activations_todict",
@@ -42,7 +39,6 @@ __all__ = [
     # Training functions
     "plot_branch_sweep_results",
     "plot_ei_sweep_results",
-    "plot_information_analysis",
     "plot_layer_contributions",
     "plot_loss_curves",
     "plot_noise_sweep_branch_results",

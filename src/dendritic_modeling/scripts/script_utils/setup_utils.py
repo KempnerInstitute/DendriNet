@@ -109,7 +109,9 @@ def setup_environment(
         logger.info(f"Using sweep output directory directly: {run_save_path}")
     else:
         # Standard single experiment - create timestamped directory
-        run_id = f"{train_config.run_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        # Use outputs_config.run_name as primary, fallback to train_config.run_name
+        run_name = getattr(outputs_config, 'run_name', None)
+        run_id = f"{run_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         run_save_path = os.path.join(output_dir, run_id)
         logger.info(f"Created timestamped experiment directory: {run_save_path}")
 
@@ -131,7 +133,7 @@ def setup_environment(
                 project=wandb_config.project,
                 group=wandb_config.group,
                 tags=wandb_config.tags,
-                name=train_config.run_name,
+                name=run_name,  # Use the same run_name as directory
                 config=asdict(train_config),
             )
             logger.info("Successfully initialized W&B")
