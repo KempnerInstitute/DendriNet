@@ -232,6 +232,11 @@ class ExcitationInhibitionNetwork(nn.Module):
         # Extend lists if needed - use exactly what's specified, no smart defaulting
         num_layers = len(excitatory_layer_sizes) - 1
 
+        # Check if we have inhibitory neurons in the network
+        has_inhibitory_neurons = any(
+            size is not None and size > 0 for size in self.inhibitory_layer_sizes
+        )
+
         # Only extend lists if they have values to repeat, otherwise error
         while len(ee_syn) < num_layers:
             if ee_syn:
@@ -239,23 +244,35 @@ class ExcitationInhibitionNetwork(nn.Module):
             else:
                 raise ValueError("ee_synapses_per_branch_per_layer cannot be empty")
 
+        # EI synapses: only required if inhibitory neurons exist
         while len(ei_syn) < num_layers:
             if ei_syn:
                 ei_syn.append(ei_syn[-1])
+            elif has_inhibitory_neurons:
+                raise ValueError("ei_synapses_per_branch_per_layer cannot be empty when inhibitory neurons exist")
             else:
-                raise ValueError("ei_synapses_per_branch_per_layer cannot be empty")
+                # No inhibitory neurons, so E->I connections are not needed
+                ei_syn.append(0)
 
+        # IE synapses: required for input_mode=1 or when inhibitory neurons exist
         while len(ie_syn) < num_layers:
             if ie_syn:
                 ie_syn.append(ie_syn[-1])
-            else:
+            elif self.transfer_params.get("input_mode", 0) == 1 or has_inhibitory_neurons:
                 raise ValueError("ie_synapses_per_branch_per_layer cannot be empty")
+            else:
+                # No inhibitory input available, so I->E connections are not needed
+                ie_syn.append(0)
 
+        # II synapses: only required if inhibitory neurons exist
         while len(ii_syn) < num_layers:
             if ii_syn:
                 ii_syn.append(ii_syn[-1])
+            elif has_inhibitory_neurons:
+                raise ValueError("ii_synapses_per_branch_per_layer cannot be empty when inhibitory neurons exist")
             else:
-                raise ValueError("ii_synapses_per_branch_per_layer cannot be empty")
+                # No inhibitory neurons, so I->I connections are not needed
+                ii_syn.append(0)
 
         excitatory_input_dim = self.transfer_fn.excitatory_dim
         inhibitory_input_dim = self.transfer_fn.inhibitory_dim
