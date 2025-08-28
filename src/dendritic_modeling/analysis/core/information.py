@@ -13,6 +13,7 @@ from typing import Any, Optional, Union
 
 import numpy as np
 import torch
+from tqdm import tqdm
 
 from dendritic_modeling.analysis.core.base import AbstractAnalyzer
 from dendritic_modeling.config import InformationAnalysisParams
@@ -31,12 +32,12 @@ from dendritic_modeling.utils.information.pid import (
     pid_synergy_redundancy,
 )
 from dendritic_modeling.plotting.visualizations.information_plots import (
-    plot_information_analysis,
     InformationAnalysisPlotter,
     plot_structured_ei_network_analysis,
     plot_layer_wise_aggregated_analysis,
     plot_network_wise_aggregated_analysis,
     plot_fully_aggregated_analysis,
+    plot_info_vs_ei_depth_per_dendritic_layer,
 )
 
 
@@ -882,6 +883,10 @@ class InformationAnalyzer(AbstractAnalyzer):
         """
         self.logger.info("Generating individual layer E/I network summaries...")
         
+        # Create subfolder for per-layer results
+        per_layer_path = os.path.join(save_path, "per_layer_results")
+        os.makedirs(per_layer_path, exist_ok=True)
+        
         for layer_name, layer_results in per_layer_data.items():
             if "per_einet_analysis" in layer_results:
                 ei_analysis = layer_results["per_einet_analysis"]
@@ -893,7 +898,7 @@ class InformationAnalyzer(AbstractAnalyzer):
                 if "excitatory_results" in ei_analysis:
                     exc_summary = self.get_summary(ei_analysis["excitatory_results"])
                     exc_summary_path = os.path.join(
-                        save_path, 
+                        per_layer_path, 
                         f"{base_filename}_{clean_layer_name}_excitatory_summary.txt"
                     )
                     with open(exc_summary_path, "w") as f:
@@ -904,7 +909,7 @@ class InformationAnalyzer(AbstractAnalyzer):
                     # Also save the results as JSON for plotting
                     save_dict(
                         ei_analysis["excitatory_results"], 
-                        save_path, 
+                        per_layer_path, 
                         f"{base_filename}_{clean_layer_name}_excitatory_results"
                     )
                 
@@ -912,7 +917,7 @@ class InformationAnalyzer(AbstractAnalyzer):
                 if "inhibitory_results" in ei_analysis:
                     inh_summary = self.get_summary(ei_analysis["inhibitory_results"])
                     inh_summary_path = os.path.join(
-                        save_path, 
+                        per_layer_path, 
                         f"{base_filename}_{clean_layer_name}_inhibitory_summary.txt"
                     )
                     with open(inh_summary_path, "w") as f:
@@ -923,7 +928,7 @@ class InformationAnalyzer(AbstractAnalyzer):
                     # Also save the results as JSON for plotting
                     save_dict(
                         ei_analysis["inhibitory_results"], 
-                        save_path, 
+                        per_layer_path, 
                         f"{base_filename}_{clean_layer_name}_inhibitory_results"
                     )
                 
@@ -931,7 +936,7 @@ class InformationAnalyzer(AbstractAnalyzer):
                 if "combined_results" in ei_analysis:
                     combined_summary = self.get_summary(ei_analysis["combined_results"])
                     combined_summary_path = os.path.join(
-                        save_path, 
+                        per_layer_path, 
                         f"{base_filename}_{clean_layer_name}_combined_summary.txt"
                     )
                     with open(combined_summary_path, "w") as f:
@@ -942,7 +947,7 @@ class InformationAnalyzer(AbstractAnalyzer):
                     # Also save the results as JSON for plotting
                     save_dict(
                         ei_analysis["combined_results"], 
-                        save_path, 
+                        per_layer_path, 
                         f"{base_filename}_{clean_layer_name}_combined_results"
                     )
         
@@ -1018,7 +1023,9 @@ class InformationAnalyzer(AbstractAnalyzer):
             # Forward pass to collect activations
             self.logger.info("Running forward pass to collect neural activations...")
             with torch.no_grad():
-                _ = model(inputs)
+                with tqdm(total=1, desc="Forward pass") as pbar:
+                    _ = model(inputs)
+                    pbar.update(1)
 
             # Remove hooks
             self.logger.info("Removing forward hooks...")
@@ -1050,10 +1057,9 @@ class InformationAnalyzer(AbstractAnalyzer):
                 
                 self.logger.info("Beginning branch-by-branch processing...")
                 
-                for layer_name, layer_data in self.data_dict.items():
-                    if "excitation" not in layer_data:
-                        continue
-
+                layers_to_process = [(name, data) for name, data in self.data_dict.items() if "excitation" in data]
+                
+                for layer_name, layer_data in tqdm(layers_to_process, desc="Processing layers"):
                     layer_count += 1
                     self.logger.info(f"Processing layer {layer_count}/{total_layers}: {layer_name}")
 
@@ -1081,9 +1087,9 @@ class InformationAnalyzer(AbstractAnalyzer):
                     layer_start_time = time.time()
 
                     # Process each branch individually
-                    for branch_idx in range(n_branches):
+                    for branch_idx in tqdm(range(n_branches), desc=f"  Branches in {layer_name}", leave=False):
                         branch_start_time = time.time()
-                        self.logger.info(f"  Processing branch {branch_idx + 1}/{n_branches} in {layer_name}...")
+                        self.logger.debug(f"  Processing branch {branch_idx + 1}/{n_branches} in {layer_name}...")
                         
                         # Extract data for this specific branch
                         E_branch = E_all_branches[
@@ -1100,7 +1106,7 @@ class InformationAnalyzer(AbstractAnalyzer):
                         layer_branch_results.append(branch_results)
                         branch_names.append(f"{layer_name}_branch_{branch_idx}")
                         
-                        self.logger.info(f"  Branch {branch_idx + 1}/{n_branches} completed (took {time.time() - branch_start_time:.1f}s)")
+                        self.logger.debug(f"  Branch {branch_idx + 1}/{n_branches} completed (took {time.time() - branch_start_time:.1f}s)")
 
                     # Compute layer statistics
                     if layer_branch_results:
@@ -1131,10 +1137,9 @@ class InformationAnalyzer(AbstractAnalyzer):
                 all_results = []
                 layer_names = []
 
-                for layer_name, layer_data in self.data_dict.items():
-                    if "excitation" not in layer_data:
-                        continue
-
+                layers_to_process = [(name, data) for name, data in self.data_dict.items() if "excitation" in data]
+                
+                for layer_name, layer_data in tqdm(layers_to_process, desc="Processing layers"):
                     # Aggregate all branches within this layer using branch_aggregation
                     E_layer_data_raw = layer_data[
                         "excitation"
@@ -1442,9 +1447,6 @@ class InformationAnalyzer(AbstractAnalyzer):
     def _generate_information_plots(self, results: dict, save_path: str):
         """Generate plots for information analysis results."""
         try:
-            # Generate main information analysis plots
-            plot_information_analysis(results, save_path=save_path)
-            
             # Initialize plotter for enhanced visualizations
             plotter = InformationAnalysisPlotter()
             
@@ -1486,71 +1488,25 @@ class InformationAnalyzer(AbstractAnalyzer):
                         logger=self.logger
                     )
             
-            # Plot per-EI-network analysis only if per_einet_analysis was actually enabled
-            if (results and "per_einet_analysis" in results and 
-                results.get("per_einet_analysis_enabled", False)):
-                self.logger.info("per_einet_analysis is enabled - generating per-EI-network analysis plots...")
-                # Create separate plots for excitatory and inhibitory networks
-                ei_results = results["per_einet_analysis"]
-                
-                # Plot excitatory network results
-                if "excitatory_results" in ei_results:
-                    plot_information_analysis(
-                        ei_results["excitatory_results"],
-                        save_path=save_path,
-                        filename_prefix="excitatory_network",
-                    )
-                
-                # Plot inhibitory network results
-                if "inhibitory_results" in ei_results:
-                    plot_information_analysis(
-                        ei_results["inhibitory_results"],
-                        save_path=save_path,
-                        filename_prefix="inhibitory_network",
-                    )
-                
-                # Plot combined EI network results
-                if "combined_results" in ei_results:
-                    plot_information_analysis(
-                        ei_results["combined_results"],
-                        save_path=save_path,
-                        filename_prefix="combined_ei_network",
-                    )
+            # Generate info vs EI depth per dendritic layer plots if we have layer statistics
+            self.logger.info(f"Checking for layer_statistics: results exists={results is not None}")
+            if results:
+                self.logger.info(f"Results keys: {list(results.keys())}")
+                self.logger.info(f"layer_statistics in results: {'layer_statistics' in results}")
+                if "layer_statistics" in results:
+                    self.logger.info(f"layer_statistics length: {len(results['layer_statistics'])}")
+
+            if results and "layer_statistics" in results and len(results["layer_statistics"]) > 0:
+                self.logger.info(f"Calling plot_info_vs_ei_depth_per_dendritic_layer with {len(results['layer_statistics'])} layer statistics")
+                plot_info_vs_ei_depth_per_dendritic_layer(
+                    results["layer_statistics"],
+                    save_path=save_path,
+                    logger=self.logger
+                )
+            else:
+                self.logger.warning("Skipping plot_info_vs_ei_depth_per_dendritic_layer - no layer statistics found")
             
-            # Plot individual layer EI-network analysis if available in per_layer_analysis
-            if results and "per_layer_analysis" in results:
-                per_layer_data = results["per_layer_analysis"]
-                for layer_name, layer_results in per_layer_data.items():
-                    if "per_einet_analysis" in layer_results:
-                        self.logger.info(f"Generating EI-network plots for layer: {layer_name}")
-                        layer_ei_results = layer_results["per_einet_analysis"]
-                        
-                        # Clean layer name for filename (remove special characters)
-                        clean_layer_name = layer_name.replace(".", "_").replace("/", "_")
-                        
-                        # Plot excitatory network for this layer
-                        if "excitatory_results" in layer_ei_results:
-                            plot_information_analysis(
-                                layer_ei_results["excitatory_results"],
-                                save_path=save_path,
-                                filename_prefix=f"layer_{clean_layer_name}_excitatory",
-                            )
-                        
-                        # Plot inhibitory network for this layer
-                        if "inhibitory_results" in layer_ei_results:
-                            plot_information_analysis(
-                                layer_ei_results["inhibitory_results"],
-                                save_path=save_path,
-                                filename_prefix=f"layer_{clean_layer_name}_inhibitory",
-                            )
-                        
-                        # Plot combined network for this layer
-                        if "combined_results" in layer_ei_results:
-                            plot_information_analysis(
-                                layer_ei_results["combined_results"],
-                                save_path=save_path,
-                                filename_prefix=f"layer_{clean_layer_name}_combined",
-                            )
+
                             
         except Exception as e:
             self.logger.error(f"Error generating information plots: {e}")

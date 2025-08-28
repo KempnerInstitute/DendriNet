@@ -5,6 +5,7 @@ This module provides specialized plotting classes for information-theoretic anal
 """
 
 import logging
+import os
 from typing import Any, Optional
 
 import matplotlib.pyplot as plt
@@ -651,14 +652,6 @@ class InformationAnalysisPlotter(BasePlotter):
 # ============================================================================
 
 
-def plot_information_analysis(results: dict[str, Any], **kwargs):
-    """Convenience function for information analysis plotting."""
-    plotter = InformationAnalysisPlotter()
-    if "filename" in kwargs and "filename_prefix" not in kwargs:
-        kwargs["filename_prefix"] = kwargs.pop("filename")
-    return plotter.plot_information_metrics(results, **kwargs)
-
-
 def plot_per_layer_information(layer_results: dict[str, dict[str, Any]], **kwargs):
     """Convenience function for per-layer information plotting."""
     plotter = InformationAnalysisPlotter()
@@ -877,6 +870,242 @@ def plot_network_wise_aggregated_analysis(layer_statistics: dict, save_path: str
     # Implementation would aggregate across layers but keep E/I separate
     # This would be called when per_layer=False, per_einet=True
     pass  # Placeholder for now
+
+
+
+def plot_info_vs_ei_depth_per_dendritic_layer(
+    layer_statistics: dict[str, Any],
+    save_path: str,
+    logger: Optional[logging.Logger] = None
+) -> None:
+    """Plot information vs EI layer depth for each dendritic branch layer.
+    
+    This creates the complement to the existing plots - instead of showing
+    info vs dendritic depth for each EI layer, this shows info vs EI depth
+    for each dendritic branch layer.
+    
+    Args:
+        layer_statistics: Layer-wise information statistics
+        save_path: Directory to save plots
+        logger: Optional logger
+    """
+    try:
+        if logger:
+            logger.info("Starting plot_info_vs_ei_depth_per_dendritic_layer...")
+            logger.info(f"Received {len(layer_statistics)} layer statistics")
+        
+        # Organize data by dendritic branch layer instead of EI layer
+        dendritic_layers_data = {}
+        
+        # Extract data from layer_statistics
+        for layer_name, stats in layer_statistics.items():
+            if logger:
+                logger.debug(f"Processing layer: {layer_name}")
+                
+            try:
+                # Try to parse layer name - handle different formats
+                parts = layer_name.split(".")
+                if logger:
+                    logger.debug(f"Layer parts: {parts}")
+                
+                # Determine EI layer index and cell type
+                ei_layer_idx = None
+                cell_type = None
+                branch_layer_idx = 0  # Default to 0 for single branch layer
+                
+                # Format 1: "core_network.layers.0.excitatory_cells.branch_layers.1"
+                if "layers" in parts and "branch_layers" in parts:
+                    idx = parts.index("layers")
+                    ei_layer_idx = int(parts[idx + 1])
+                    cell_type = parts[idx + 2]
+                    branch_idx = parts.index("branch_layers")
+                    branch_layer_idx = int(parts[branch_idx + 1])
+                    
+                # Format 2: "core_network.layers.0.excitatory_cells" (without branch_layers)
+                elif "layers" in parts:
+                    idx = parts.index("layers")
+                    ei_layer_idx = int(parts[idx + 1])
+                    cell_type = parts[idx + 2]
+                    # Assume this is the main output layer (branch_layer 2)
+                    branch_layer_idx = 2
+                    
+                else:
+                    # Skip if we can't parse the format
+                    if logger:
+                        logger.debug(f"Skipping unparseable layer: {layer_name}")
+                    continue
+                
+                # Normalize cell type
+                if "excitatory" in cell_type.lower():
+                    cell_type = "excitatory_cells"
+                elif "inhibitory" in cell_type.lower():
+                    cell_type = "inhibitory_cells"
+                else:
+                    continue
+                
+                # Create key for dendritic layer
+                dendritic_key = f"branch_layer_{branch_layer_idx}_{cell_type}"
+                
+                if dendritic_key not in dendritic_layers_data:
+                    dendritic_layers_data[dendritic_key] = {}
+                
+                dendritic_layers_data[dendritic_key][ei_layer_idx] = stats
+                
+            except (ValueError, IndexError) as e:
+                if logger:
+                    logger.debug(f"Error parsing layer {layer_name}: {e}")
+                continue
+        
+        if not dendritic_layers_data:
+            if logger:
+                logger.warning("No valid dendritic layer data found for EI depth plots")
+            return
+        
+        # Create plots for each metric type (basic, pairwise, conditional)
+        metric_types = [
+            ("basic_mi", ["I(E;C)", "I(I;C)", "I(Vout;C)", "I(E,I;C)"]),
+            ("pairwise_mi", ["I(E;I)", "I(E;Vout)", "I(I;Vout)"]),
+            ("conditional_mi", ["I(E;I|C)", "I(E;Vout|C)", "I(I;Vout|C)"])
+        ]
+        
+        # Define colors for different branch layers
+        branch_colors = {
+            0: "#1f77b4",  # Blue for Soma/Branch Layer 0
+            1: "#ff7f0e",  # Orange for Branch Layer 1
+            2: "#2ca02c",  # Green for Branch Layer 2
+        }
+        
+        if logger:
+            logger.info(f"Dendritic layers data keys: {list(dendritic_layers_data.keys())}")
+            logger.info(f"Going to generate plots for metric types: {metric_types}")
+        
+        for metric_category, metric_names in metric_types:
+            # Create separate plots for excitatory and inhibitory
+            for cell_type in ['excitatory_cells', 'inhibitory_cells']:
+                fig, axes = plt.subplots(2, 2, figsize=(15, 10))
+                axes = axes.flatten()
+                
+                # Track if any plots were created
+                plots_created = []
+                
+                # Plot up to 4 metrics
+                for i, metric_name in enumerate(metric_names[:4]):
+                    if i >= len(axes):
+                        break
+                        
+                    ax = axes[i]
+                    data_plotted = False
+                    
+                    # Plot each dendritic branch layer as a different colored line
+                    for branch_idx in range(3):  # Assuming 3 dendritic layers (0, 1, 2)
+                        dendritic_key = f"branch_layer_{branch_idx}_{cell_type}"
+                        
+                        if dendritic_key not in dendritic_layers_data:
+                            continue
+                        
+                        ei_data = dendritic_layers_data[dendritic_key]
+                        
+                        # Sort by EI layer index
+                        ei_layers = sorted(ei_data.keys())
+                        
+                        if len(ei_layers) < 2:  # Need at least 2 points
+                            continue
+                        
+                        # Collect values across EI layers using flattened format
+                        values = []
+                        errors = []
+                    
+                        for ei_idx in ei_layers:
+                            if ei_idx in ei_data:
+                                layer_stats = ei_data[ei_idx]
+                                # Use flattened format: metric_name + "_mean" and "_std"
+                                mean_key = f"{metric_name}_mean"
+                                std_key = f"{metric_name}_std"
+                                
+                                if mean_key in layer_stats:
+                                    values.append(layer_stats[mean_key])
+                                    # Use std/5 for smaller error bars like in layer_comparison
+                                    errors.append(layer_stats.get(std_key, 0) / 5.0)
+                                else:
+                                    values.append(0)
+                                    errors.append(0)
+                            else:
+                                values.append(0)
+                                errors.append(0)
+                    
+                        # Only plot if we have non-zero values
+                        if any(v != 0 for v in values):
+                            color = branch_colors.get(branch_idx, "#808080")
+                            branch_label = {0: "Soma", 1: "Branch Layer 1", 2: "Branch Layer 2"}.get(branch_idx, f"Branch Layer {branch_idx}")
+                            
+                            # Plot line with error bars
+                            ax.errorbar(ei_layers, values, yerr=errors, 
+                                      marker='o', linewidth=2, markersize=6,
+                                      label=branch_label, color=color, capsize=3)
+                            
+                            # Fill between for variance (like layer_comparison)
+                            ax.fill_between(
+                                ei_layers,
+                                [v - e for v, e in zip(values, errors)],
+                                [v + e for v, e in zip(values, errors)],
+                                alpha=0.2, color=color
+                            )
+                            
+                            data_plotted = True
+                
+                    # Customize subplot if data was plotted
+                    if data_plotted:
+                        ax.set_xlabel('EI Network Layer')
+                        ax.set_ylabel(f'{metric_name} (bits)')
+                        ax.set_title(f'{metric_name}')
+                        ax.set_xticks(ei_layers)
+                        
+                        # Create custom labels for layers
+                        layer_labels = []
+                        for idx, layer_idx in enumerate(ei_layers):
+                            if idx == 0:
+                                layer_labels.append('Input')
+                            elif idx == len(ei_layers) - 1:
+                                layer_labels.append('Output')
+                            else:
+                                layer_labels.append(f'Layer {layer_idx}')
+                        
+                        ax.set_xticklabels(layer_labels, rotation=0)
+                        ax.grid(True, alpha=0.3)
+                        ax.legend(loc='best')
+                        plots_created.append(i)
+                    else:
+                        ax.text(0.5, 0.5, f'No data for {metric_name}', 
+                               ha='center', va='center', transform=ax.transAxes)
+            
+                # Remove empty subplots and finalize the figure
+                if plots_created:
+                    # Remove unused subplots
+                    for i in range(len(metric_names), 4):
+                        fig.delaxes(axes[i])
+                    
+                    cell_type_name = cell_type.replace('_cells', '').title()
+                    fig.suptitle(f'{cell_type_name} Networks: {metric_category.replace("_", " ").title()} vs EI Network Layer', 
+                               fontsize=16)
+                    plt.tight_layout()
+                    
+                    # Save plot
+                    filename = f"ei_depth_comparison_{cell_type}_{metric_category}.png"
+                    plot_path = os.path.join(save_path, filename)
+                    plt.savefig(plot_path, dpi=300, bbox_inches='tight')
+                    plt.close()
+                    
+                    if logger:
+                        logger.info(f"Saved EI depth comparison plot to {plot_path}")
+                else:
+                    plt.close(fig)
+                    
+    except Exception as e:
+        if logger:
+            logger.error(f"Error generating EI depth comparison plots: {e}")
+        else:
+            print(f"Error generating EI depth comparison plots: {e}")
+
 
 
 def plot_fully_aggregated_analysis(layer_statistics: dict, save_path: str, logger: Optional[logging.Logger] = None):

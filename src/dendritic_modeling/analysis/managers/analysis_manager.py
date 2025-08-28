@@ -109,8 +109,10 @@ class AnalysisManager:
 
         # Initialize Correlation Analysis
         if hasattr(self.config, 'correlation_analysis') and self.config.correlation_analysis.enabled:
-            # Note: CorrelationAnalyzer is initialized differently, needs dataset
             self.correlation_analysis_enabled = True
+            self.correlation_analyzer = CorrelationAnalyzer(
+                params=self.config.correlation_analysis.params
+            )
         else:
             self.correlation_analysis_enabled = False
 
@@ -156,13 +158,15 @@ class AnalysisManager:
             (self.config.information_analysis.training and training)
             or not training
         ):
+            self.logger.info("Starting information analysis...")
             self.information_analyzer.analyze(
                     model=self.model,
                     test_dataset=self.data["test"],
                     device=self.device,
                     save_path=os.path.join(self.save_root, "information_analysis"),
-                filename=filename
-            )
+                    filename=filename
+                )
+            self.logger.info("Information analysis completed successfully")
 
         # Synaptic Turnover Analysis
         if self.config.synapse_turnover_analysis.enabled and (
@@ -257,35 +261,12 @@ class AnalysisManager:
             (hasattr(self.config.correlation_analysis, 'training') and self.config.correlation_analysis.training and training)
             or not training
         ):
-            # Initialize with test dataset for correlation structure
-            correlation_analyzer = CorrelationAnalyzer(
+            self.logger.info("Starting correlation analysis...")
+            self.correlation_analyzer.analyze(
                 model=self.model,
-                dataset=self.data["test"],
-                device=self.device
+                test_dataset=self.data["test"],
+                device=self.device,
+                save_path=os.path.join(self.save_root, "correlation_analysis"),
+                filename=filename
             )
-            
-            # Get information results if available
-            information_results = None
-            accuracy = None
-            
-            # Try to load information analysis results if they exist
-            info_results_path = os.path.join(self.save_root, "information_analysis", f"{filename}.npz")
-            if os.path.exists(info_results_path):
-                try:
-                    info_data = np.load(info_results_path, allow_pickle=True)
-                    information_results = info_data.item() if info_data.files else {}
-                    self.logger.info("Loaded information analysis results for correlation analysis")
-                except Exception as e:
-                    self.logger.warning(f"Failed to load information results: {e}")
-            
-            # Try to get accuracy from recent training
-            if hasattr(self.model, 'last_test_accuracy'):
-                accuracy = self.model.last_test_accuracy
-            elif hasattr(self, 'last_test_accuracy'):
-                accuracy = self.last_test_accuracy
-            
-            correlation_analyzer.analyze(
-                save_dir=os.path.join(self.save_root, "correlation_analysis"),
-                information_results=information_results,
-                accuracy=accuracy
-            )
+            self.logger.info("Correlation analysis completed successfully")

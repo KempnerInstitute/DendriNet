@@ -345,14 +345,12 @@ class DendriticBranchLayer(nn.Module):
             if self.input_excitatory and self.branch_excitation is not None:
                 excitation = self.branch_excitation(x)
                 numerator = numerator + excitation
-                # Ensure excitation is positive using ReLU (biologically realistic and efficient)
                 denominator = denominator + torch.nn.functional.relu(excitation)
 
             if self.input_branches and branch_input is not None:
                 current = self.branches_to_output(branch_input)
                 numerator = numerator + current
                 conductance = self.branches_to_output.sum_conductances()
-                # Ensure conductance is positive using ReLU (biologically realistic and efficient)
                 denominator = denominator + torch.nn.functional.relu(conductance)
 
             if (
@@ -361,10 +359,8 @@ class DendriticBranchLayer(nn.Module):
                 and inhibitory_input is not None
             ):
                 inhibition = self.branch_inhibition(inhibitory_input)
-                # Ensure inhibition is positive using ReLU (biologically realistic and efficient)
                 denominator = denominator + torch.nn.functional.relu(inhibition)
 
-            # Add configurable epsilon for numerical stability
             voltage = numerator / (denominator + self.epsilon)
 
         else:

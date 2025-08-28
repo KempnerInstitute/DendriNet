@@ -21,12 +21,19 @@ from .general_analysis_plots import (  # Training and sweep functions
     plot_weight_distributions,
 )
 from .information_plots import (
-    plot_information_analysis, 
     plot_per_layer_information,
     plot_structured_ei_network_analysis,
     plot_layer_wise_aggregated_analysis,
     plot_network_wise_aggregated_analysis,
     plot_fully_aggregated_analysis,
+    plot_info_vs_ei_depth_per_dendritic_layer,
+)
+from .correlation_plots import (
+    plot_hierarchical_correlations,
+    plot_correlation_matrices,
+    plot_tuning_curves,
+    plot_synaptic_correlations,
+    plot_correlation_comparisons,
 )
 
 # Network visualizations module exists but all functions have been removed as unused
@@ -42,12 +49,12 @@ __all__ = [
     "plot_branch_sweep_results",
     "plot_ei_sweep_results",
     # Information analysis (now modular)
-    "plot_information_analysis",
     "plot_layer_contributions",
     "plot_structured_ei_network_analysis",
     "plot_layer_wise_aggregated_analysis",
     "plot_network_wise_aggregated_analysis",
     "plot_fully_aggregated_analysis",
+    "plot_info_vs_ei_depth_per_dendritic_layer",
     # Training/sweep functions
     "plot_loss_curves",
     "plot_noise_sweep_branch_results",
@@ -59,4 +66,10 @@ __all__ = [
     "plot_pruning_performance_comparison",
     "plot_synapse_turnover",
     "plot_weight_distributions",
+    # Correlation analysis
+    "plot_hierarchical_correlations",
+    "plot_correlation_matrices",
+    "plot_tuning_curves",
+    "plot_synaptic_correlations",
+    "plot_correlation_comparisons",
 ]

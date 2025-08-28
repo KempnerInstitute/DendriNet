@@ -10,6 +10,8 @@ from dendritic_modeling.config.analysis import (
     AnalysisConfig,
     BranchActivationAnalysisConfig,
     BranchActivationAnalysisParams,
+    CorrelationAnalysisConfig,
+    CorrelationAnalysisParams,
     InformationAnalysisConfig,
     InformationAnalysisParams,
     NoisePerturbationAnalysisConfig,
@@ -50,40 +52,42 @@ from dendritic_modeling.config.training import (
 )
 
 __all__ = [
-    "AblationAnalysisConfig"
-    "AblationAnalysisParams"
-    "AnalysisConfig"
-    "BaseConfig"
-    "BranchActivationAnalysisConfig"
-    "BranchActivationAnalysisParams"
-    "Config"
-    "CoreNetworkConfig"
-    "DecoderNetworkConfig"
-    "EINetParameters"
-    "EncoderNetworkConfig"
-    "EncoderNetworkParameters"
-    "EncoderTrainConfig"
-    "InformationAnalysisConfig"
-    "InformationAnalysisParams"
-    "load_config"
-    "MainTrainConfig"
-    "ModelConfig"
-    "NoisePerturbationAnalysisConfig"
-    "NoisePerturbationAnalysisParams"
-    "OutputsConfig"
-    "ParamGroupsConfig"
-    "PerformanceAnalysisConfig"
-    "PerformanceAnalysisParams"
-    "SingleLayerContributionAnalysisConfig"
-    "SingleLayerContributionAnalysisParams"
-    "SynapseTurnoverAnalysisConfig"
-    "SynapticActivationAnalysisConfig"
-    "SynapticActivationAnalysisParams"
-    "TaskConfig"
-    "TrainConfig"
-    "TrainerConfig"
-    "TransferFunctionParams"
-    "WandbConfig"
-    "WeightAnalysisConfig"
-    "WeightAnalysisParams"
+    "AblationAnalysisConfig",
+    "AblationAnalysisParams",
+    "AnalysisConfig",
+    "BaseConfig",
+    "BranchActivationAnalysisConfig",
+    "BranchActivationAnalysisParams",
+    "Config",
+    "CoreNetworkConfig",
+    "CorrelationAnalysisConfig",
+    "CorrelationAnalysisParams",
+    "DecoderNetworkConfig",
+    "EINetParameters",
+    "EncoderNetworkConfig",
+    "EncoderNetworkParameters",
+    "EncoderTrainConfig",
+    "InformationAnalysisConfig",
+    "InformationAnalysisParams",
+    "load_config",
+    "MainTrainConfig",
+    "ModelConfig",
+    "NoisePerturbationAnalysisConfig",
+    "NoisePerturbationAnalysisParams",
+    "OutputsConfig",
+    "ParamGroupsConfig",
+    "PerformanceAnalysisConfig",
+    "PerformanceAnalysisParams",
+    "SingleLayerContributionAnalysisConfig",
+    "SingleLayerContributionAnalysisParams",
+    "SynapseTurnoverAnalysisConfig",
+    "SynapticActivationAnalysisConfig",
+    "SynapticActivationAnalysisParams",
+    "TaskConfig",
+    "TrainConfig",
+    "TrainerConfig",
+    "TransferFunctionParams",
+    "WandbConfig",
+    "WeightAnalysisConfig",
+    "WeightAnalysisParams",
 ]
