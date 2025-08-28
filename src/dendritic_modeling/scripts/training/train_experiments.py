@@ -185,7 +185,7 @@ def main(config_path: str, args=None):
                 config.outputs.dir = args.output_dir
             logger.info(f"Override output directory: {args.output_dir}")
         if args.run_name:
-            config.train.run_name = args.run_name
+            config.outputs.run_name = args.run_name
             logger.info(f"Override run name: {args.run_name}")
 
     model_config = config.model
