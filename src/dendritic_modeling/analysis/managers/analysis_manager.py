@@ -238,7 +238,7 @@ class AnalysisManager:
             self.synaptic_activation_analyzer.analyze(
                 model=self.model,
                 test_dataset=self.data["test"],
-                device="cpu",
+                device=self.device,
                 save_path=os.path.join(self.save_root, "synaptic_activation_analysis"),
                 filename=filename
             )
@@ -251,7 +251,7 @@ class AnalysisManager:
             self.branch_activation_analyzer.analyze(
                 model=self.model,
                 test_dataset=self.data["test"],
-                device="cpu",
+                device=self.device,
                 save_path=os.path.join(self.save_root, "branch_activation_analysis"),
                 filename=filename
             )
