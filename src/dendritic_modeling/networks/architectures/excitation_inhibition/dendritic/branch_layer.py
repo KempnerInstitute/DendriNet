@@ -18,7 +18,8 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.g
     GradientScaler,
 )
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.initialize import (
-    initialize_dendritic_branch_layer,
+    analytical_expectation_dbl_init,
+    naive_dbl_init,
 )
 
 # Import linear layer variants
@@ -81,6 +82,7 @@ class DendriticBranchLayer(nn.Module):
         reactivation_type="param_tanh",
         reactivation_init_m=1,
         reactivation_init_b=0.5,
+        dbl_init_method="analytical_expectation",
         reactivation_strategy="none",
         blocklinear_strategy="none",
         efficient_blocklinear: bool = False,
@@ -109,6 +111,7 @@ class DendriticBranchLayer(nn.Module):
         self.blocklinear_strategy = blocklinear_strategy
         self.efficient_blocklinear = efficient_blocklinear
         self.use_shunting = use_shunting
+        self.dbl_init_method = dbl_init_method
         self.epsilon = epsilon  # Store epsilon for numerical stability
         self.topk_type = topk_type  # Store the strategy
         self.topk_temperature = topk_temperature  # Store the temperature
@@ -194,15 +197,16 @@ class DendriticBranchLayer(nn.Module):
             self.reactivation = nn.Identity()
         self.reactivate = reactivate
 
-        # if topk_type == 'deepst':
-        #     initialize_dendritic_branch_layer(self)
-        # else:
-        #     self.initialize()
-        initialize_dendritic_branch_layer(
-            self,
-            adaptive=self.adaptive_initialization,
-            branch_factors=self.branch_factors,
-        )
+        if self.dbl_init_method == "analytical_expectation":
+            analytical_expectation_dbl_init(
+                self,
+                adaptive=self.adaptive_initialization,
+                branch_factors=self.branch_factors,
+            )
+        elif self.dbl_init_method == "naive":
+            naive_dbl_init(self)
+        else:
+            raise ValueError(f"Unknown dbl_init_method: {self.dbl_init_method}")
 
     def _create_topk_layer(
         self,

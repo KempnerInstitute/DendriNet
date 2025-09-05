@@ -27,7 +27,7 @@ from dendritic_modeling.networks.architectures.excitation_inhibition import (
     TopKLinear,
     TransferLayer,
     VarianceTopKLinear,
-    initialize_dendritic_branch_layer,
+    analytical_expectation_dbl_init,
 )
 
 __all__ = [
@@ -44,7 +44,7 @@ __all__ = [
     "Identity"
     "IdentityInputTransform"
     "IndexInputTransform"
-    "initialize_dendritic_branch_layer"
+    "analytical_expectation_dbl_init"
     "MatchedParamMLP"
     "MLP"
     "StochasticTopKLinear"

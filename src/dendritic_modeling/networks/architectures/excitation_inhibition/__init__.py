@@ -9,7 +9,7 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic i
     DendriNet,
     DendriticBranchLayer,
     GradientScaler,
-    initialize_dendritic_branch_layer,
+    analytical_expectation_dbl_init,
 )
 from dendritic_modeling.networks.architectures.excitation_inhibition.ei_layer import (
     ExcitationInhibitionLayer,
@@ -39,7 +39,7 @@ __all__ = [
     "GradientScaler"
     "IdentityInputTransform"
     "IndexInputTransform"
-    "initialize_dendritic_branch_layer"
+    "analytical_expectation_dbl_init"
     "StochasticTopKLinear"
     "TopKLinear"
     "TransferLayer"

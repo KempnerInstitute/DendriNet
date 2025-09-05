@@ -18,7 +18,7 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.g
     GradientScaler,
 )
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.initialize import (
-    initialize_dendritic_branch_layer,
+    analytical_expectation_dbl_init,
 )
 
 # Vision neuron factories

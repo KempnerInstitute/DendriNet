@@ -73,7 +73,8 @@ model:
       # Morphological features
       somatic_synapses: true      # Include somatic (non-dendritic) synapses
       use_shunting: true          # Use shunting inhibition
-
+      dbl_init_method: analytical_expectation
+      
       # ==========================================
       # TOPK SPARSITY PARAMETERS
       # ==========================================
@@ -237,8 +238,12 @@ train:
       # Performance optimization flags (disabled by default for speed)
       enable_nan_checking: false      # Enable NaN detection during training (expensive)
       enable_adaptive_clipping: false # Enable adaptive gradient clipping (expensive)
+      # for learning strategies other than standard:
       pretrain_epochs: 50
+      stabilize_mode: vout
+      freeze_reactivation: false
       target_voltage: 0.5
+      loss_metric: "mse"  # Options: "mse", "log_mse", "mae", "log_mae"
       kl_weight: 0.1
       reverse_training: false
       epochs_per_layer: 50

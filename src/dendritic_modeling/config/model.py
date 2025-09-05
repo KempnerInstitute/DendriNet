@@ -32,6 +32,7 @@ class EINetParameters(BaseConfig):
     reactivate: bool = True
     reactivation_init_m: float = 1.5
     reactivation_init_b: float = 0.5
+    dbl_init_method: str = "analytical_expectation"
     somatic_synapses: bool = True
     topk_init_method: str = "xavier_normal"
     topk_noise_level: float = 0.0
