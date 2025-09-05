@@ -156,12 +156,12 @@ class Trainer:
             self.best_loss = float("inf")
         if not hasattr(self, "best_epoch"):
             self.best_epoch = 1
-        if not hasattr(self, "epoch_counter"):
-            self.epoch_counter = 0
         if not hasattr(self, "start_time"):
             self.start_time = time.time()
-        if not hasattr(self, "total_epochs"):
-            self.total_epochs = total_epochs
+        if not hasattr(self, "logger_info_prefix"):
+            self.logger_info_prefix = "[Standard] "
+        self.epoch_counter = 0
+        self.total_epochs = total_epochs
         self.patience_counter = 0
 
     def train(
@@ -184,7 +184,7 @@ class Trainer:
             valid_loader=valid_loader,
             train_losses=train_losses,
             valid_losses=valid_losses,
-            logger_info="[Standard] ",
+            logger_info=self.logger_info_prefix,
             wandb_info={},
         )
 
@@ -295,7 +295,7 @@ class Trainer:
                 self.scaler.update()
             else:
                 # Standard precision training
-                loss = self.loss_function(model, x_batch, y_batch)
+                loss: torch.Tensor = self.loss_function(model, x_batch, y_batch)
                 self.optimizer.zero_grad()
                 loss.backward()
 
@@ -323,9 +323,11 @@ class Trainer:
         valid_loss = 0
         with torch.no_grad():
             for x_batch, y_batch in valid_loader:
+                x_batch: torch.Tensor
+                y_batch: torch.Tensor
                 x_batch = x_batch.to(self.device)
                 y_batch = y_batch.to(self.device)
-                loss = self.loss_function(model, x_batch, y_batch)
+                loss: torch.Tensor = self.loss_function(model, x_batch, y_batch)
                 valid_loss += loss.item()
 
         valid_loss /= len(valid_loader)

@@ -51,6 +51,7 @@ class LayerWiseTrainer(Trainer):
             default_epochs = self.epochs
             self.epochs = self.pretrain_epochs
             self.filename_prefix = "pretrain_"
+            self.logger_info_prefix = "[Pretrain] "
             pretrain_results = super().train(model, train_data, valid_data)
             self.epochs = default_epochs
             self.filename_prefix = ""
@@ -122,6 +123,7 @@ class LayerWiseTrainer(Trainer):
         train_loader, valid_loader = self._dataloaders(train_data, valid_data)
 
         self.filename_prefix = f"{learning_strategy.lower().replace('-', '_')}_"
+        self.logger_info_prefix = f"[{learning_strategy}] "
 
         for layer_idx, layer_module in zip(layer_indices, layer_modules):
             # Freeze all parameters
@@ -168,6 +170,7 @@ class LayerWiseTrainer(Trainer):
         default_epochs = self.epochs
         self.epochs = self.final_tune_epochs
         self.filename_prefix = "final_tune_"
+        self.logger_info_prefix = "[Final Tune] "
         final_results = super().train(model, train_data, valid_data)
         self.epochs = default_epochs
         self.filename_prefix = ""

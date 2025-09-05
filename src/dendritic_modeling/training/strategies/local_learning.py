@@ -53,6 +53,7 @@ class LocalCreditAssignment(Trainer):
             default_epochs = self.epochs
             self.epochs = self.pretrain_epochs
             self.filename_prefix = "pretrain_"
+            self.logger_info_prefix = "[Pretrain] "
             pretrain_results = super().train(model, train_data, valid_data)
             self.epochs = default_epochs
             self.filename_prefix = ""
@@ -185,6 +186,7 @@ class LocalCreditAssignment(Trainer):
         default_epochs = self.epochs
         self.epochs = self.final_tune_epochs
         self.filename_prefix = "final_tune_"
+        self.logger_info_prefix = "[Final Tune] "
         final_results = super().train(model, train_data, valid_data)
         self.epochs = default_epochs
         self.filename_prefix = ""
