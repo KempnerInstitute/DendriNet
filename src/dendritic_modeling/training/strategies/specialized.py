@@ -10,7 +10,11 @@ import logging
 import torch
 
 from dendritic_modeling.models import BaseModel
-from dendritic_modeling.training.loss.functions import VoltageStabilizationLoss
+from dendritic_modeling.training.loss.functions import (
+    VoltageStabilizationLoss,
+    HomeostaticControlLoss
+)
+from dendritic_modeling.networks.activations import ParametricActivation
 from dendritic_modeling.training.strategies.standard import Trainer
 
 logger = logging.getLogger(__name__)
@@ -26,7 +30,10 @@ class VoltageStabilizationTrainer(Trainer):
     """
 
     pretrain_epochs: int = 1
+    stabilize_mode: str = "vinf"
+    freeze_reactivation: bool = False
     target_voltage: float = 0.5
+    loss_metric: str = "mse"
 
     def train(
         self,
@@ -46,7 +53,10 @@ class VoltageStabilizationTrainer(Trainer):
             Dictionary containing training results and metrics
         """
         voltage_stabilization_loss = VoltageStabilizationLoss(
-            target_voltage=self.target_voltage, reduction=self.loss_function.reduction
+            stabilize_mode=self.stabilize_mode,
+            target_voltage=self.target_voltage, 
+            loss_metric=self.loss_metric,
+            reduction=self.loss_function.reduction
         )
 
         handles = voltage_stabilization_loss.attach_forward_hooks(model)
@@ -56,6 +66,13 @@ class VoltageStabilizationTrainer(Trainer):
         default_epochs = self.epochs
         self.epochs = max(self.pretrain_epochs, 1)
         self.filename_prefix = "voltage_stabilization_"
+        self.logger_info_prefix = "[Voltage Stabilization] "
+
+        if self.freeze_reactivation:
+            for module in model.modules():
+                if isinstance(module, ParametricActivation):
+                    for param in module.parameters():
+                        param.requires_grad = False
 
         logger.info(
             "=== VoltageStabilization: "
@@ -64,13 +81,107 @@ class VoltageStabilizationTrainer(Trainer):
         pretrain_results = super().train(model, train_data, valid_data)
         voltage_stabilization_loss.remove_forward_hooks(handles)
 
+        if self.freeze_reactivation:
+            for module in model.modules():
+                if isinstance(module, ParametricActivation):
+                    for param in module.parameters():
+                        param.requires_grad = True
+
         self.loss_function = default_loss_fn
         self.epochs = default_epochs
         self.filename_prefix = ""
+        self.logger_info_prefix = "[Standard] "
         self.best_loss = float("inf")
 
         logger.info(
-            "=== VoltageStabilization: "
+            "=== Voltage Stabilization: "
+            f"Starting normal training for {self.epochs} epochs ==="
+        )
+        final_results = super().train(model, train_data, valid_data)
+        final_results["train_losses"] = (
+            pretrain_results["train_losses"] + final_results["train_losses"]
+        )
+        final_results["valid_losses"] = (
+            pretrain_results["valid_losses"] + final_results["valid_losses"]
+        )
+        return final_results
+
+
+class HomeostaticControlTrainer(Trainer):
+    """
+    Homeostatic Control Training Strategy.
+
+    This trainer includes a warm-up phase that stabilizes dendritic voltages
+    and excitatory-inhibitory balance to target values before proceeding with normal training.
+    This can help with training stability in dendritic networks.
+    """
+
+    pretrain_epochs: int = 1
+    stabilize_mode: str = "vinf"
+    freeze_reactivation: bool = False
+    target_voltage: float = 0.5
+    loss_metric: str = "mse"
+
+    def train(
+        self,
+        model: BaseModel,
+        train_data: torch.utils.data.Dataset,
+        valid_data: torch.utils.data.Dataset,
+    ):
+        """
+        Train the model with homeostatic control warm-up.
+
+        Args:
+            model: The model to train
+            train_data: Training dataset
+            valid_data: Validation dataset
+
+        Returns:
+            Dictionary containing training results and metrics
+        """
+        homeostatic_control_loss = HomeostaticControlLoss(
+            stabilize_mode=self.stabilize_mode,
+            target_voltage=self.target_voltage,
+            loss_metric=self.loss_metric,
+            reduction=self.loss_function.reduction
+        )
+
+        handles = homeostatic_control_loss.attach_forward_hooks(model)
+
+        default_loss_fn = self.loss_function
+        self.loss_function = homeostatic_control_loss
+        default_epochs = self.epochs
+        self.epochs = max(self.pretrain_epochs, 1)
+        self.filename_prefix = "homeostatic_control_"
+        self.logger_info_prefix = "[Homeostatic Control] "
+
+        if self.freeze_reactivation:
+            for module in model.modules():
+                if isinstance(module, ParametricActivation):
+                    for param in module.parameters():
+                        param.requires_grad = False
+
+        logger.info(
+            "=== Homeostatic Control: "
+            f"Starting pretraining phase for {self.pretrain_epochs} epochs ==="
+        )
+        pretrain_results = super().train(model, train_data, valid_data)
+        homeostatic_control_loss.remove_forward_hooks(handles)
+
+        if self.freeze_reactivation:
+            for module in model.modules():
+                if isinstance(module, ParametricActivation):
+                    for param in module.parameters():
+                        param.requires_grad = True
+
+        self.loss_function = default_loss_fn
+        self.epochs = default_epochs
+        self.filename_prefix = ""
+        self.logger_info_prefix = "[Standard] "
+        self.best_loss = float("inf")
+
+        logger.info(
+            "=== HomeostaticControl: "
             f"Starting normal training for {self.epochs} epochs ==="
         )
         final_results = super().train(model, train_data, valid_data)

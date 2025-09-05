@@ -23,6 +23,7 @@ from dendritic_modeling.training.strategies import (
     TwoStepTrainer,
     TwoStepTrainerWithKL,
     VoltageStabilizationTrainer,
+    HomeostaticControlTrainer,
 )
 
 logger = logging.getLogger(__name__)
@@ -116,13 +117,13 @@ def get_trainer(
     """
     strategy = strategy.lower()
     trainer_config_dict["analysis_manager"] = analysis_manager
+    trainer_config_dict["optimizer"] = optimizer
 
     if strategy == "standard":
         # Extract enhanced config objects if present
         enhanced_configs = _extract_enhanced_configs(trainer_config_dict)
 
         # Add optimizer and enhanced configs to trainer config
-        trainer_config_dict["optimizer"] = optimizer
         trainer_config_dict.update(enhanced_configs)
 
         return Trainer(**trainer_config_dict)
@@ -137,33 +138,28 @@ def get_trainer(
         enhanced_configs = _extract_enhanced_configs(trainer_config_dict)
 
         # Add optimizer and enhanced configs to trainer config
-        trainer_config_dict["optimizer"] = optimizer
         trainer_config_dict.update(enhanced_configs)
 
         return Trainer(**trainer_config_dict)
 
     elif strategy == "freeze_layers":
-        trainer_config_dict["optimizer"] = optimizer
         return LayerWiseTrainer(**trainer_config_dict)
     elif strategy == "freeze_branches":
-        trainer_config_dict["optimizer"] = optimizer
         return TwoStepTrainer(**trainer_config_dict)
     elif strategy == "local_ca":
-        trainer_config_dict["optimizer"] = optimizer
         return LocalCreditAssignment(**trainer_config_dict)
     elif strategy == "freeze_branch_kl":
-        trainer_config_dict["optimizer"] = optimizer
         return TwoStepTrainerWithKL(**trainer_config_dict)
-    elif strategy == "voltage_stablization":
-        trainer_config_dict["optimizer"] = optimizer
+    elif strategy == "voltage_stabilization":
         return VoltageStabilizationTrainer(**trainer_config_dict)
+    elif strategy == "homeostatic_control":
+        return HomeostaticControlTrainer(**trainer_config_dict)
     elif strategy == "fsdp" or strategy == "fsdp_standard":
         # Note: FSDP requires additional setup (distributed init, special config)
         # This would need to be called from a distributed context
         from dendritic_modeling.training.fsdp_utils import get_fsdp_config
         from dendritic_modeling.training.strategies.fsdp_standard import FSDPTrainer
 
-        trainer_config_dict["optimizer"] = optimizer
         if "fsdp_config" not in trainer_config_dict:
             # Generate default FSDP config if not provided
             trainer_config_dict["fsdp_config"] = get_fsdp_config()
@@ -171,7 +167,6 @@ def get_trainer(
         return FSDPTrainer(**trainer_config_dict)
     else:
         logger.info(f"Unrecognized strategy '{strategy}', defaulting to 'standard'.")
-        trainer_config_dict["optimizer"] = optimizer
         enhanced_configs = _extract_enhanced_configs(trainer_config_dict)
         trainer_config_dict.update(enhanced_configs)
         return Trainer(**trainer_config_dict)

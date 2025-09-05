@@ -35,7 +35,10 @@ class TrainerConfig(BaseConfig):
     enable_adaptive_clipping: bool = False
     # for learning strategies other than standard:
     pretrain_epochs: int = 50
+    stabilize_mode: str = "vinf"
+    freeze_reactivation: bool = False
     target_voltage: float = 0.5
+    loss_metric: str = "mse"
     kl_weight: float = 0.1
     reverse_training: bool = False
     epochs_per_layer: int = 50
