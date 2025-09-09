@@ -27,6 +27,7 @@ from dendritic_modeling.utils import save_dict
 from dendritic_modeling.plotting.visualizations.general_analysis_plots import (
     plot_ablation_results,
     plot_per_layer_ablation,
+    plot_layer_ablation
 )
 
 
@@ -91,7 +92,7 @@ class AblationAnalyzer(AbstractAnalyzer):
             _evaluate_metric(metric_func=evaluate_mse, metric_key="mse")
         if self.cosine_similarity:
             _evaluate_metric(
-                metric_func=evaluate_cosine_similarity, metric_key="cosine similarity"
+                metric_func=evaluate_cosine_similarity, metric_key="cosine_similarity"
             )
 
         model.load_state_dict(state_dict)
@@ -201,10 +202,15 @@ class AblationAnalyzer(AbstractAnalyzer):
             # Plot layer ablation results if available
             if results.get("layer"):
                 # Create comprehensive per-layer plots
-                plot_per_layer_ablation(
-                    results["layer"],
+                # plot_per_layer_ablation(
+                #     results["layer"],
+                #     save_path=save_path,
+                #     filename_prefix="ablation_per_layer",
+                # )
+                plot_layer_ablation(
+                    layer_results=results["layer"],
                     save_path=save_path,
-                    filename_prefix="ablation_per_layer",
+                    filename=filename
                 )
 
             # Plot compartment ablation results if available
@@ -418,3 +424,4 @@ class AblationAnalyzer(AbstractAnalyzer):
             self._plot_ablation_results(results, save_path, filename)
         else:
             return results
+

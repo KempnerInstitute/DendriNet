@@ -6,7 +6,7 @@ import logging
 import os
 import re
 from collections import defaultdict
-from typing import Any, Optional
+from typing import Any, Optional, List
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -178,6 +178,100 @@ def plot_ablation_results(results: dict, **kwargs):
         return fig, ax
     except Exception as e:
         return handle_plot_error("ablation plotting", e)
+
+
+def plot_layer_ablation(
+    layer_results: dict,
+    save_path: Optional[str] = None,
+    filename: str = "final"
+) -> Optional[List[plt.Figure]]:
+    """
+    Plot layer ablation results showing accuracy/log-likelihood decrease vs depth.
+    
+    Args:
+        layer_results: Dictionary containing ablation results by type and layer
+        save_path: Path to save plots. If None, returns list of figures
+        filename: Base filename for saved plots
+        
+    Returns:
+        List of figures if save_path is None, otherwise None
+    """
+    if save_path is None:
+        fig_list = []
+    
+    metric_mapping = {
+        "accuracy drop": "Accuracy Drop",
+        "auc drop": "AUC Drop",
+        "categorical_loglikelihood drop": "Log Likelihood Drop",
+        "mse drop": "MSE Drop",
+        "cosine_similarity drop": "Cosine Similarity Drop"
+    }
+
+    def has_key_nested(dictionary, key):
+        """
+        Check if key exists at any level in a nested dictionary
+        """
+        if isinstance(dictionary, dict):
+            if key in dictionary:
+                return True
+            return any(has_key_nested(value, key) for value in dictionary.values())
+        elif isinstance(dictionary, (list, tuple)):
+            return any(has_key_nested(item, key) for item in dictionary)
+        return False
+
+    metrics = []
+    for metric in metric_mapping.keys():
+        if has_key_nested(layer_results, metric):
+            metrics.append(metric)
+
+    synapse_ablation_types = []
+    if "excitation" in layer_results:
+        synapse_ablation_types.append("excitation")
+    if "inhibition" in layer_results:
+        synapse_ablation_types.append("inhibition")
+    if "all synapses" in layer_results:
+        synapse_ablation_types.append("all synapses")
+    
+    for metric in metrics:
+        results = {}
+        for ablation_type in synapse_ablation_types:
+            data_dict = {"depth": [], "decrease": []}
+            type_dict: dict = layer_results[ablation_type]
+            for layer_dict in type_dict.values():
+                data_dict["depth"].append(layer_dict["depth"])
+                data_dict["decrease"].append(layer_dict[metric])
+            results[ablation_type] = data_dict
+                
+        fig, ax = plt.subplots(figsize=(10, 8))
+        n_ablation_types = len(synapse_ablation_types)
+        depths = results[synapse_ablation_types[0]]["depth"]
+        width = 0.25
+        for i, ablation_type in enumerate(synapse_ablation_types):
+            x = np.array(depths) + width * (i - (n_ablation_types - 1) / 2)
+            ax.bar(
+                x,
+                results[ablation_type]["decrease"],
+                width=width,
+                label=ablation_type
+            )
+        ax.set_xticks(depths)
+        ax.set_xlabel("Depth")
+        ax.set_ylabel(f"{metric_mapping[metric]} Decrease")
+        ax.set_title(f"{metric_mapping[metric]} Decrease vs. Depth")
+        ax.legend()
+        ax.grid(True, axis="y", alpha=0.3)
+        
+        if save_path is not None:
+            plot_path = os.path.join(
+                save_path, f"{filename}_{metric}.png"
+            )
+            fig.savefig(plot_path, dpi=300, bbox_inches="tight")
+            plt.close()
+        else:
+            fig_list.append(fig)
+    
+    if save_path is None:
+        return fig_list
 
 
 def plot_per_layer_ablation(layer_results: dict[str, dict[str, dict]], **kwargs):
