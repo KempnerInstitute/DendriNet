@@ -48,19 +48,20 @@ class ParametricTanh(ParametricActivation):
     def __init__(self, output_dim, init_m=1.5, init_b=1.0):
         super().__init__()
         self.log_m = nn.Parameter(torch.empty((output_dim,)), requires_grad=True)
-        self.log_b = nn.Parameter(torch.empty((output_dim,)), requires_grad=True)
+        # self.log_b = nn.Parameter(torch.empty((output_dim,)), requires_grad=True)
+        self.b = nn.Parameter(torch.empty((output_dim,)), requires_grad=True)
 
         nn.init.constant_(self.log_m, math.log(init_m))
-        nn.init.constant_(self.log_b, math.log(init_b))
+        nn.init.constant_(self.b, init_b)
 
     def forward(self, V):
         m = self.log_m.exp()  # slope
-        b = self.log_b.exp()  # midpoint
+        b = self.b  # midpoint
         return (torch.tanh(m * (V - b)) + 1) / 2
 
-    def initialize(self, slope_val, log_mid):
+    def initialize(self, slope_val, mid_val):
         self.log_m.data.fill_(math.log(slope_val))
-        self.log_b.data.fill_(log_mid)
+        self.b.data.fill_(mid_val)
 
 
 class ParametricTanhOnlyM(ParametricActivation):

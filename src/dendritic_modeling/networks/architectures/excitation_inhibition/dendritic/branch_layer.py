@@ -6,6 +6,8 @@ computation along a layer of branches, modeling the interaction between
 excitatory and inhibitory inputs.
 """
 
+from typing import Optional
+
 import torch
 import torch.nn as nn
 
@@ -193,20 +195,12 @@ class DendriticBranchLayer(nn.Module):
             )
             if use_shunting:
                 gradient_scaler.register_reactivation_inverse(self.reactivation)
+            # gradient_scaler.register_reactivation_inverse(self.reactivation)
         else:
             self.reactivation = nn.Identity()
         self.reactivate = reactivate
 
-        if self.dbl_init_method == "analytical_expectation":
-            analytical_expectation_dbl_init(
-                self,
-                adaptive=self.adaptive_initialization,
-                branch_factors=self.branch_factors,
-            )
-        elif self.dbl_init_method == "naive":
-            naive_dbl_init(self)
-        else:
-            raise ValueError(f"Unknown dbl_init_method: {self.dbl_init_method}")
+        self.initialize()
 
     def _create_topk_layer(
         self,
@@ -293,28 +287,16 @@ class DendriticBranchLayer(nn.Module):
             )
 
     def initialize(self):
-        with torch.no_grad():
-            if self.input_excitatory and self.branch_excitation is not None:
-                self.branch_excitation.initialize()
-            if self.input_inhibitory and self.branch_inhibition is not None:
-                self.branch_inhibition.initialize()
-
-            if self.input_branches:
-                if (
-                    self.input_excitatory or self.input_inhibitory
-                ) and self.use_shunting:
-                    sum_synapse_conductances = 0
-                    if self.input_excitatory and self.branch_excitation is not None:
-                        sum_synapse_conductances += self.branch_excitation.weight().sum(
-                            dim=1
-                        )
-                    if self.input_inhibitory and self.branch_inhibition is not None:
-                        sum_synapse_conductances += self.branch_inhibition.weight().sum(
-                            dim=1
-                        )
-                else:
-                    sum_synapse_conductances = None
-                self.branches_to_output.initialize(sum_synapse_conductances)
+        if self.dbl_init_method == "analytical_expectation":
+            analytical_expectation_dbl_init(
+                self,
+                adaptive=self.adaptive_initialization,
+                branch_factors=self.branch_factors,
+            )
+        elif self.dbl_init_method == "naive":
+            naive_dbl_init(self)
+        else:
+            raise ValueError(f"Unknown dbl_init_method: {self.dbl_init_method}")
 
     def decay_weights(self, weight_decay):
         if self.input_excitatory and self.branch_excitation is not None:
@@ -392,7 +374,7 @@ class DendriticBranchLayer(nn.Module):
         result = self.reactivation(voltage)
         return result
 
-    def compute_grad_scales(self, g_total=None):
+    def compute_grad_scales(self, g_total: Optional[torch.Tensor] = None):
         """
         A conduction-based dynamic scale, returning a flattened vector so each weight
         can get a distinct multiplier. shape [out_features * block_size].
@@ -428,6 +410,16 @@ class DendriticBranchLayer(nn.Module):
                         g_total[:, None] / self.branch_inhibition.weight()
                     ).mean(dim=0)
                     self.branch_inhibition.param_scale_vec = g_total[:, None]
+            
+            else:
+                if (
+                    hasattr(self, "branches_to_output")
+                    and self.blocklinear_strategy == "conductance_dynamic"
+                ):
+                    # only apply input_scale_vec = 1 / branch_weights
+                    self.branches_to_output.input_scale_vec = torch.exp(
+                        -1 * self.branches_to_output.log_weight
+                    ).flatten()
 
     def get_weights(self):
         if self.input_inhibitory and self.input_excitatory:

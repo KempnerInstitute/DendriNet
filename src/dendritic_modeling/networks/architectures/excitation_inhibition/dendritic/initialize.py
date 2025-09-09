@@ -172,24 +172,34 @@ def analytical_expectation_dbl_init(dbl, adaptive=True, branch_factors=None):
                 0.5 * dbl.branch_inhibition.K * E_w_inh * exp(-network_scale_factor)
             )
 
-        E_Vinf = E_g_exc / (E_g_exc + E_g_inh + 1)
-
         if dbl.input_branches:
-            E_Vinf = max(0.49, 0.5 * E_Vinf + 0.25)
+            if dbl.use_shunting:
+                E_Vinf = E_g_exc / (E_g_exc + E_g_inh + 1)
 
-            sum_g_branch = ((E_g_exc + E_g_inh + 1) * E_Vinf - E_g_exc) / (0.5 - E_Vinf)
-            g_branch = sum_g_branch / dbl.branches_to_output.block_size
+                if E_Vinf < 0.5:
+                    E_Vinf = max(0.49, 0.5 * E_Vinf + 0.25)
+                else:
+                    E_Vinf = min(0.51, 0.5 * E_Vinf + 0.25)
 
-            dbl.branches_to_output.initialize(
-                torch.full(
-                    (dbl.branches_to_output.out_features,),
-                    g_branch,
-                    device=dbl.branches_to_output.log_weight.device,
-                )
-            )
+                sum_g_branch = ((E_g_exc + E_g_inh + 1) * E_Vinf - E_g_exc) / (0.5 - E_Vinf)
+                g_branch = sum_g_branch / dbl.branches_to_output.block_size
+                m = 1.5
+            else:
+                g_branch = E_g_exc + E_g_inh + 1
+                E_Vinf = E_g_exc - E_g_inh + 0.5 * g_branch
+                m = 0.1
 
-        # if dbl.reactivate:
-        #     dbl.reactivation.initialize(1.8, log(E_Vinf))
+            dbl.branches_to_output.initialize(log_g_branch=log(g_branch))
+        else:
+            if dbl.use_shunting:
+                E_Vinf = E_g_exc / (E_g_exc + E_g_inh + 1)
+                m = 1.5
+            else:
+                E_Vinf = 0
+                m = 0.1
+
+        if not isinstance(dbl.reactivation, torch.nn.Identity):
+            dbl.reactivation.initialize(m, E_Vinf)
 
 
 def naive_dbl_init(dbl):
@@ -224,26 +234,24 @@ def naive_dbl_init(dbl):
             )
             E_g_inh = 0.5 * dbl.branch_inhibition.K * E_w_inh
 
-        E_Vinf = E_g_exc / (E_g_exc + E_g_inh + 1)
-
         if dbl.input_branches:
-            # print(f"E_Vinf bound: {E_Vinf}")
-            # if E_Vinf < 0.5:
-            #     E_Vinf = max(0.49, 0.5 * E_Vinf + 0.25)
-            # else:
-            #     E_Vinf = min(0.51, 0.5 * E_Vinf + 0.25)
-
-            # sum_g_branch = ((E_g_exc + E_g_inh + 1) * E_Vinf - E_g_exc) / (0.5 - E_Vinf)
-            # g_branch = sum_g_branch / dbl.branches_to_output.block_size
             g_branch = E_g_exc + E_g_inh + 1
+            dbl.branches_to_output.initialize(log_g_branch=log(g_branch))
 
-            print(f"E_Vinf: {E_Vinf}, g_branch: {g_branch}")
+            if dbl.use_shunting:
+                E_Vinf = (E_g_exc + 0.5 * g_branch) / (E_g_exc + E_g_inh + g_branch + 1)
+                m = 1.5
+            else:
+                E_Vinf = E_g_exc - E_g_inh + 0.5 * g_branch
+                m = 0.1
+        else:
+            if dbl.use_shunting:
+                E_Vinf = E_g_exc / (E_g_exc + E_g_inh + 1)
+                m = 1.5
+            else:
+                E_Vinf = E_g_exc - E_g_inh
+                m = 0.1
 
-            dbl.branches_to_output.initialize(
-                torch.full(
-                    (dbl.branches_to_output.out_features,),
-                    g_branch,
-                    device=dbl.branches_to_output.log_weight.device,
-                )
-            )
+        if not isinstance(dbl.reactivation, torch.nn.Identity):
+            dbl.reactivation.initialize(m, E_Vinf)
 
