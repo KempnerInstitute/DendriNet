@@ -229,6 +229,8 @@ train:
       batch_size: 128          # Batch size
       shuffle: true            # Shuffle data
       grad_clip_value: 5.0     # Gradient clipping
+      checkpointing: false
+      checkpoint_interval: 10
       load_best_state_dict: true
       plot_losses: true
       save_path: null

@@ -23,6 +23,8 @@ class TrainerConfig(BaseConfig):
     batch_size: int = 128
     shuffle: bool = True
     grad_clip_value: float = 5.0
+    checkpointing: bool = False
+    checkpoint_interval: int = 10
     load_best_state_dict: bool = True
     plot_losses: bool = False
     save_path: Optional[str] = None

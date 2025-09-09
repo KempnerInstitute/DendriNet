@@ -89,7 +89,7 @@ class VoltageStabilizationTrainer(Trainer):
 
         self.loss_function = default_loss_fn
         self.epochs = default_epochs
-        self.filename_prefix = ""
+        self.filename_prefix = "standard_"
         self.logger_info_prefix = "[Standard] "
         self.best_loss = float("inf")
 
@@ -176,7 +176,7 @@ class HomeostaticControlTrainer(Trainer):
 
         self.loss_function = default_loss_fn
         self.epochs = default_epochs
-        self.filename_prefix = ""
+        self.filename_prefix = "standard_"
         self.logger_info_prefix = "[Standard] "
         self.best_loss = float("inf")
 

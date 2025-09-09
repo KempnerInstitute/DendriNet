@@ -40,7 +40,9 @@ class Trainer:
         patience: int = 10,
         batch_size: int = 256,
         shuffle: bool = True,
-        grad_clip_value=5,
+        grad_clip_value: float = 5,
+        checkpointing: bool = False,
+        checkpoint_interval: int = 10,
         load_best_state_dict: bool = True,
         plot_losses: bool = False,
         save_path: Optional[str] = None,
@@ -57,6 +59,8 @@ class Trainer:
         self.batch_size = batch_size
         self.shuffle = shuffle
         self.grad_clip_value = grad_clip_value
+        self.checkpointing = checkpointing
+        self.checkpoint_interval = checkpoint_interval
         self.load_best_state_dict = load_best_state_dict
         self.plot_losses = plot_losses
         self.save_path = save_path
@@ -133,7 +137,7 @@ class Trainer:
                     logger.warning("torch.profiler not available, profiling disabled")
                     self.enable_profiling = False
 
-        self.filename_prefix = ""
+        self.filename_prefix = "standard_"
         for k, v in kwargs.items():
             setattr(self, k, v)
 
@@ -176,6 +180,7 @@ class Trainer:
         valid_losses = []
 
         self._initialize_attributes(model, self.epochs)
+        self._save_checkpoint(model)
 
         train_losses, valid_losses = self._run_training_loop(
             n_epochs=self.epochs,
@@ -256,6 +261,7 @@ class Trainer:
         valid_losses.append(valid_loss)
 
         self._update_best(model, valid_loss)
+        self._save_checkpoint(model)
         self._analyze()
         self._tracking(train_loss, valid_loss, logger_info, wandb_info)
         return train_losses, valid_losses
@@ -348,6 +354,18 @@ class Trainer:
                 )
         else:
             self.patience_counter += 1
+    
+    def _save_checkpoint(self, model: BaseModel):
+        if self.checkpointing and (self.epoch_counter % self.checkpoint_interval == 0):
+            checkpoint_path = os.path.join(
+                self.save_path, f"{self.filename_prefix}checkpoints"
+            )
+            if not os.path.exists(checkpoint_path):
+                os.makedirs(checkpoint_path, exist_ok=True)
+            torch.save(
+                model.state_dict(), 
+                os.path.join(checkpoint_path, f"epoch_{self.epoch_counter}.pt")
+            )
 
     def _analyze(self):
         if self.analysis_manager is not None:
