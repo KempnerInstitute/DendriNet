@@ -135,8 +135,9 @@ def convert_layer_names(
         except (ValueError, IndexError, AttributeError):
             indexed_layers.append((999, name))
 
-    # Sort by index (reverse order so highest index = soma, lowest = distal)
-    indexed_layers.sort(key=lambda x: x[0], reverse=True)
+    # Sort by index (CORRECT ORDER: lowest index = soma, highest = distal)
+    # In dendritic networks: layer_idx=1 is soma, higher layer_idx is more distal
+    indexed_layers.sort(key=lambda x: x[0])
 
     # Create new dictionary with intuitive names
     converted_results = {}
@@ -144,7 +145,7 @@ def convert_layer_names(
         if i == 0:
             new_name = "Soma"
         else:
-            new_name = f"Layer {i}"
+            new_name = f"Distal Layer {i}"
 
         converted_results[new_name] = layer_results[original_name]
 

@@ -274,10 +274,22 @@ def plot_layer_contribution(
                 width=width,
                 label=ablation_type
             )
+        # Create depth labels - correct soma/distal ordering
+        # Lower depth values = closer to soma, higher = more distal
+        depth_labels = []
+        for depth in depths:
+            if depth == min(depths):
+                depth_labels.append("Soma")
+            else:
+                # Calculate distal layer number based on distance from soma
+                distal_layer = depth - min(depths)
+                depth_labels.append(f"Distal {distal_layer}")
+        
         ax.set_xticks(depths)
-        ax.set_xlabel("Depth")
+        ax.set_xticklabels(depth_labels, rotation=45)
+        ax.set_xlabel("Branch Depth (Soma → Distal)")
         ax.set_ylabel(f"{metric_mapping[metric]}")
-        ax.set_title(f"{metric_mapping[metric]} vs. Depth")
+        ax.set_title(f"{metric_mapping[metric]} vs. Branch Depth")
         ax.legend()
         ax.grid(True, axis="y", alpha=0.3)
         

@@ -254,10 +254,22 @@ def plot_layer_ablation(
                 width=width,
                 label=ablation_type
             )
+        # Create depth labels - correct soma/distal ordering
+        # Lower depth values = closer to soma, higher = more distal
+        depth_labels = []
+        for depth in depths:
+            if depth == min(depths):
+                depth_labels.append("Soma")
+            else:
+                # Calculate distal layer number based on distance from soma
+                distal_layer = depth - min(depths)
+                depth_labels.append(f"Distal {distal_layer}")
+        
         ax.set_xticks(depths)
-        ax.set_xlabel("Depth")
+        ax.set_xticklabels(depth_labels, rotation=45)
+        ax.set_xlabel("Branch Depth (Soma → Distal)")
         ax.set_ylabel(f"{metric_mapping[metric]} Decrease")
-        ax.set_title(f"{metric_mapping[metric]} Decrease vs. Depth")
+        ax.set_title(f"{metric_mapping[metric]} Decrease vs. Branch Depth")
         ax.legend()
         ax.grid(True, axis="y", alpha=0.3)
         
@@ -306,7 +318,7 @@ def plot_per_layer_ablation(layer_results: dict[str, dict[str, dict]], **kwargs)
                     if "depth" in layer_metrics:
                         all_depths.add(layer_metrics["depth"])
 
-        all_depths = sorted(all_depths, reverse=True)  # Soma to distal order
+        all_depths = sorted(all_depths)  # CORRECT: Lower depth = soma, higher = distal
 
         # Create consistent naming
         for ablation_type, ablation_data in layer_results.items():
@@ -316,11 +328,11 @@ def plot_per_layer_ablation(layer_results: dict[str, dict[str, dict]], **kwargs)
             # Create a consistent structure for all depths
             layers_info = []
             for i, depth in enumerate(all_depths):
-                # Use same naming as information analysis: Soma, Layer 1, Layer 2, etc.
+                # Use consistent naming: lowest depth = Soma, higher depths = Distal layers
                 if i == 0:
                     display_name = "Soma"
                 else:
-                    display_name = f"Layer {i}"
+                    display_name = f"Distal Layer {i}"
 
                 # Find the layer data for this depth
                 layer_metrics = None

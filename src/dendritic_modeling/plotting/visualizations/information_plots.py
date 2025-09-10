@@ -772,9 +772,20 @@ def _generate_layer_comparison_plots(network_comparison_data: dict, save_path: s
                 for layer_name, depth_data in layer_data.items():
                     all_available_depths.update(depth_data.keys())
                 
-                # Sort depths in logical order
-                depth_order_map = {"Soma": 0, "Layer 1": 1, "Layer 2": 2}
-                sorted_depths = sorted(all_available_depths, key=lambda x: depth_order_map.get(x, 99))
+                # Sort depths in logical order (soma to distal)
+                # Create dynamic depth ordering for any number of distal layers
+                def depth_sort_key(depth_name):
+                    if depth_name == "Soma":
+                        return 0
+                    elif depth_name.startswith("Distal Layer"):
+                        try:
+                            return int(depth_name.split()[-1])
+                        except ValueError:
+                            return 99
+                    else:
+                        return 99
+                
+                sorted_depths = sorted(all_available_depths, key=depth_sort_key)
                 
                 # Plot each layer as a different colored line
                 for layer_name, depth_data in layer_data.items():
@@ -1036,7 +1047,12 @@ def plot_info_vs_ei_depth_per_dendritic_layer(
                         # Only plot if we have non-zero values
                         if any(v != 0 for v in values):
                             color = branch_colors.get(branch_idx, "#808080")
-                            branch_label = {0: "Soma", 1: "Branch Layer 1", 2: "Branch Layer 2"}.get(branch_idx, f"Branch Layer {branch_idx}")
+                            # Fix branch labeling - higher branch_idx means more distal
+                            # branch_idx corresponds to dendritic depth (0=soma, higher=more distal)
+                            if branch_idx == 0:
+                                branch_label = "Soma"
+                            else:
+                                branch_label = f"Distal Layer {branch_idx}"
                             
                             # Plot line with error bars
                             ax.errorbar(ei_layers, values, yerr=errors, 
@@ -1134,12 +1150,17 @@ def plot_fully_aggregated_analysis(layer_statistics: dict, save_path: str, logge
                 if depth_key.endswith('_mean'):
                     metric_name = depth_key.replace('_mean', '')
                     # Determine depth label from layer structure
-                    if 'branch_layers.0' in layer_name:
-                        depth_label = 'Soma'
-                    elif 'branch_layers.1' in layer_name:
-                        depth_label = 'Layer 1'
-                    elif 'branch_layers.2' in layer_name:
-                        depth_label = 'Layer 2'
+                    # Extract branch layer index from layer name
+                    if 'branch_layers.' in layer_name:
+                        branch_idx_str = layer_name.split('branch_layers.')[1].split('.')[0]
+                        try:
+                            branch_idx = int(branch_idx_str)
+                            if branch_idx == 0:
+                                depth_label = 'Soma'
+                            else:
+                                depth_label = f'Distal Layer {branch_idx}'
+                        except ValueError:
+                            continue
                     else:
                         continue
                     
