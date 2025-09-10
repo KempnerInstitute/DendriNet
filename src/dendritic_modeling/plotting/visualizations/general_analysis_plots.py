@@ -6,7 +6,7 @@ import logging
 import os
 import re
 from collections import defaultdict
-from typing import Any, Optional, List
+from typing import Any, List, Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -146,7 +146,9 @@ def plot_ablation_results(results: dict, **kwargs):
                     (
                         next(iter(result.values()))
                         if isinstance(result, dict) and result
-                        else result if isinstance(result, (int, float)) else 0
+                        else result
+                        if isinstance(result, (int, float))
+                        else 0
                     )
                     for result in results.values()
                 ]
@@ -183,28 +185,29 @@ def plot_ablation_results(results: dict, **kwargs):
 def plot_layer_ablation(
     layer_results: dict,
     save_path: Optional[str] = None,
-    filename: str = "final"
+    filename: str = "final",
+    somatic_synapses: bool = True,
 ) -> Optional[List[plt.Figure]]:
     """
     Plot layer ablation results showing accuracy/log-likelihood decrease vs depth.
-    
+
     Args:
         layer_results: Dictionary containing ablation results by type and layer
         save_path: Path to save plots. If None, returns list of figures
         filename: Base filename for saved plots
-        
+
     Returns:
         List of figures if save_path is None, otherwise None
     """
     if save_path is None:
         fig_list = []
-    
+
     metric_mapping = {
         "accuracy drop": "Accuracy Drop",
         "auc drop": "AUC Drop",
         "categorical_loglikelihood drop": "Log Likelihood Drop",
         "mse drop": "MSE Drop",
-        "cosine_similarity drop": "Cosine Similarity Drop"
+        "cosine_similarity drop": "Cosine Similarity Drop",
     }
 
     def has_key_nested(dictionary, key):
@@ -231,7 +234,7 @@ def plot_layer_ablation(
         synapse_ablation_types.append("inhibition")
     if "all synapses" in layer_results:
         synapse_ablation_types.append("all synapses")
-    
+
     for metric in metrics:
         results = {}
         for ablation_type in synapse_ablation_types:
@@ -241,7 +244,7 @@ def plot_layer_ablation(
                 data_dict["depth"].append(layer_dict["depth"])
                 data_dict["decrease"].append(layer_dict[metric])
             results[ablation_type] = data_dict
-                
+
         fig, ax = plt.subplots(figsize=(10, 8))
         n_ablation_types = len(synapse_ablation_types)
         depths = results[synapse_ablation_types[0]]["depth"]
@@ -249,10 +252,7 @@ def plot_layer_ablation(
         for i, ablation_type in enumerate(synapse_ablation_types):
             x = np.array(depths) + width * (i - (n_ablation_types - 1) / 2)
             ax.bar(
-                x,
-                results[ablation_type]["decrease"],
-                width=width,
-                label=ablation_type
+                x, results[ablation_type]["decrease"], width=width, label=ablation_type
             )
         # Create depth labels - correct soma/distal ordering
         # Lower depth values = closer to soma, higher = more distal
@@ -264,7 +264,7 @@ def plot_layer_ablation(
                 # Calculate distal layer number based on distance from soma
                 distal_layer = depth - min(depths)
                 depth_labels.append(f"Distal {distal_layer}")
-        
+
         ax.set_xticks(depths)
         ax.set_xticklabels(depth_labels, rotation=45)
         ax.set_xlabel("Branch Depth (Soma → Distal)")
@@ -272,16 +272,14 @@ def plot_layer_ablation(
         ax.set_title(f"{metric_mapping[metric]} Decrease vs. Branch Depth")
         ax.legend()
         ax.grid(True, axis="y", alpha=0.3)
-        
+
         if save_path is not None:
-            plot_path = os.path.join(
-                save_path, f"{filename}_{metric}.png"
-            )
+            plot_path = os.path.join(save_path, f"{filename}_{metric}.png")
             fig.savefig(plot_path, dpi=300, bbox_inches="tight")
             plt.close()
         else:
             fig_list.append(fig)
-    
+
     if save_path is None:
         return fig_list
 
@@ -308,7 +306,7 @@ def plot_per_layer_ablation(layer_results: dict[str, dict[str, dict]], **kwargs)
             temp_layer_results[layer_name] = layer_data
 
         # Convert layer names using the standard function
-        convert_layer_names(temp_layer_results)
+        convert_layer_names(temp_layer_results, somatic_synapses=somatic_synapses)
 
         # Create mapping from original technical names to display names
         all_depths = set()

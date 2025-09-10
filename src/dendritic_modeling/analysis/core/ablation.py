@@ -16,6 +16,10 @@ from dendritic_modeling.config.analysis import AblationAnalysisParams
 from dendritic_modeling.models import BaseModel, Regressor
 from dendritic_modeling.networks import ExcitationInhibitionNetwork
 from dendritic_modeling.networks.architectures import DendriticBranchLayer
+from dendritic_modeling.plotting.visualizations.general_analysis_plots import (
+    plot_ablation_results,
+    plot_layer_ablation,
+)
 from dendritic_modeling.training.utils.evaluation import (
     evaluate_accuracy,
     evaluate_auc,
@@ -24,11 +28,6 @@ from dendritic_modeling.training.utils.evaluation import (
     evaluate_mse,
 )
 from dendritic_modeling.utils import save_dict
-from dendritic_modeling.plotting.visualizations.general_analysis_plots import (
-    plot_ablation_results,
-    plot_per_layer_ablation,
-    plot_layer_ablation
-)
 
 
 class AblationAnalyzer(AbstractAnalyzer):
@@ -64,36 +63,69 @@ class AblationAnalyzer(AbstractAnalyzer):
         results_dict[ablation_type][module_name] = {}
         results_dict[ablation_type][module_name]["depth"] = module.layer_idx
 
-        if ablation_type in ["all synapses", "excitation"]:
-            module.branch_excitation.pre_w.data.fill_(-1000)
-        if ablation_type in ["all synapses", "inhibition"]:
-            module.branch_inhibition.pre_w.data.fill_(-1000)
-        if ablation_type == "upstream":
-            module.branches_to_output.log_weight.data.fill_(-1000)
+        # Check if this is a soma layer without somatic synapses (using config)
+        somatic_synapses_enabled = getattr(model.core_network, "somatic_synapses", True)
+        is_soma_without_synapses = (
+            module.layer_idx == 0 and not somatic_synapses_enabled
+        )
 
-        def _evaluate_metric(metric_func: Callable, metric_key: str):
-            metric_score = metric_func(model, test_ds=test_dataset, move_device=False)[
-                -1
-            ]
-            results_dict[ablation_type][module_name][f"{metric_key} drop"] = (
-                baseline_dict[metric_key] - metric_score
-            )
+        if is_soma_without_synapses:
+            # For soma without synapses, ablation has no effect (zero drop)
+            def _set_zero_metric(metric_key: str):
+                results_dict[ablation_type][module_name][f"{metric_key} drop"] = 0.0
 
-        if self.accuracy:
-            _evaluate_metric(metric_func=evaluate_accuracy, metric_key="accuracy")
-        if self.auc:
-            _evaluate_metric(metric_func=evaluate_auc, metric_key="auc")
-        if self.categorical_ll:
-            _evaluate_metric(
-                metric_func=evaluate_categorical_loglikelihood,
-                metric_key="categorical_loglikelihood",
-            )
-        if self.mse:
-            _evaluate_metric(metric_func=evaluate_mse, metric_key="mse")
-        if self.cosine_similarity:
-            _evaluate_metric(
-                metric_func=evaluate_cosine_similarity, metric_key="cosine_similarity"
-            )
+            if self.accuracy:
+                _set_zero_metric("accuracy")
+            if self.auc:
+                _set_zero_metric("auc")
+            if self.categorical_ll:
+                _set_zero_metric("categorical_loglikelihood")
+            if self.mse:
+                _set_zero_metric("mse")
+            if self.cosine_similarity:
+                _set_zero_metric("cosine_similarity")
+        else:
+            # Normal ablation for layers with actual synapses
+            if ablation_type in ["all synapses", "excitation"]:
+                if module.branch_excitation is not None and hasattr(
+                    module.branch_excitation, "pre_w"
+                ):
+                    module.branch_excitation.pre_w.data.fill_(-1000)
+            if ablation_type in ["all synapses", "inhibition"]:
+                if module.branch_inhibition is not None and hasattr(
+                    module.branch_inhibition, "pre_w"
+                ):
+                    module.branch_inhibition.pre_w.data.fill_(-1000)
+            if ablation_type == "upstream":
+                if hasattr(module, "branches_to_output") and hasattr(
+                    module.branches_to_output, "log_weight"
+                ):
+                    module.branches_to_output.log_weight.data.fill_(-1000)
+
+            def _evaluate_metric(metric_func: Callable, metric_key: str):
+                metric_score = metric_func(
+                    model, test_ds=test_dataset, move_device=False
+                )[-1]
+                results_dict[ablation_type][module_name][f"{metric_key} drop"] = (
+                    baseline_dict[metric_key] - metric_score
+                )
+
+            if self.accuracy:
+                _evaluate_metric(metric_func=evaluate_accuracy, metric_key="accuracy")
+            if self.auc:
+                _evaluate_metric(metric_func=evaluate_auc, metric_key="auc")
+            if self.categorical_ll:
+                _evaluate_metric(
+                    metric_func=evaluate_categorical_loglikelihood,
+                    metric_key="categorical_loglikelihood",
+                )
+            if self.mse:
+                _evaluate_metric(metric_func=evaluate_mse, metric_key="mse")
+            if self.cosine_similarity:
+                _evaluate_metric(
+                    metric_func=evaluate_cosine_similarity,
+                    metric_key="cosine_similarity",
+                )
 
         model.load_state_dict(state_dict)
 
@@ -190,13 +222,19 @@ class AblationAnalyzer(AbstractAnalyzer):
         if self.mse:
             results_dict[ablation_type][module_name]["mse drop"] = mse_list
         if self.cosine_similarity:
-            results_dict[ablation_type][module_name][
-                "cosine similarity drop"
-            ] = cosine_similarity_list
+            results_dict[ablation_type][module_name]["cosine similarity drop"] = (
+                cosine_similarity_list
+            )
 
         return results_dict
 
-    def _plot_ablation_results(self, results: dict, save_path: str, filename: str):
+    def _plot_ablation_results(
+        self,
+        results: dict,
+        save_path: str,
+        filename: str,
+        somatic_synapses: bool = True,
+    ):
         """Generate comprehensive ablation plots similar to information analysis."""
         try:
             # Plot layer ablation results if available
@@ -206,11 +244,13 @@ class AblationAnalyzer(AbstractAnalyzer):
                 #     results["layer"],
                 #     save_path=save_path,
                 #     filename_prefix="ablation_per_layer",
+                #     somatic_synapses=somatic_synapses
                 # )
                 plot_layer_ablation(
                     layer_results=results["layer"],
                     save_path=save_path,
-                    filename=filename
+                    filename=filename,
+                    somatic_synapses=somatic_synapses,
                 )
 
             # Plot compartment ablation results if available
@@ -417,11 +457,28 @@ class AblationAnalyzer(AbstractAnalyzer):
         if self.compartment_ablation:
             results["compartment"] = compartment_results
 
+        # Add synthetic soma entry when somatic_synapses=False for uniform plotting
+        somatic_synapses_enabled = getattr(model.core_network, "somatic_synapses", True)
+        if not somatic_synapses_enabled and "layer" in results:
+            # Add soma entry with zero values for all ablation types
+            for ablation_type in results["layer"]:
+                soma_entry = {
+                    "depth": 0,
+                    "accuracy drop": 0.0,
+                    "auc drop": 0.0,
+                    "categorical_loglikelihood drop": 0.0,
+                    "mse drop": 0.0,
+                    "cosine_similarity drop": 0.0,
+                }
+                # Add soma entry to the results
+                results["layer"][ablation_type]["synthetic_soma"] = soma_entry
+
         if save_path is not None:
             save_dict(results, save_path, filename)
 
             # Generate ablation plots
-            self._plot_ablation_results(results, save_path, filename)
+            self._plot_ablation_results(
+                results, save_path, filename, somatic_synapses_enabled
+            )
         else:
             return results
-

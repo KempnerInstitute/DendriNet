@@ -109,17 +109,63 @@ def setup_basic_plot(
 
 def convert_layer_names(
     layer_results: dict[str, dict[str, Any]],
+    somatic_synapses: bool = True,
 ) -> dict[str, dict[str, Any]]:
-    """Convert technical layer names to intuitive format (soma → distal)."""
+    """Convert technical layer names to intuitive format (soma → distal).
+
+    Parameters
+    ----------
+    layer_results : dict
+        Dictionary with layer results keyed by technical layer names
+    somatic_synapses : bool, optional
+        Whether the model was configured with somatic_synapses=True.
+        Default is True for backward compatibility.
+
+    Returns
+    -------
+    dict
+        Dictionary with converted layer names
+    """
     if not layer_results:
         return {}
 
     layer_names = list(layer_results.keys())
     indexed_layers = []
 
+    # First pass: collect all branch indices to determine the mapping dynamically
+    branch_indices = []
+    for name in layer_names:
+        if "branch_layers." in name:
+            parts = name.split("branch_layers.")
+            if len(parts) > 1:
+                try:
+                    branch_idx = int(parts[1])
+                    branch_indices.append(branch_idx)
+                except ValueError:
+                    continue
+
+    # Determine max branch index to calculate depths dynamically
+    max_branch_idx = max(branch_indices) if branch_indices else 0
+
     for name in layer_names:
         try:
-            if "layers." in name:
+            if name == "synthetic_soma":
+                # Synthetic soma always gets depth 0
+                indexed_layers.append((0, name))
+            elif "branch_layers." in name:
+                # Extract branch index from information analysis layer names
+                parts = name.split("branch_layers.")
+                if len(parts) > 1:
+                    branch_idx = int(parts[1])
+                    # Map branch index to depth dynamically: higher branch_idx = more distal
+                    # branch_layers.0 is most distal, branch_layers.max is closest to soma
+                    # We reverse this: branch_layers.max → depth 1, branch_layers.0 → depth (max+1)
+                    depth = (max_branch_idx + 1) - branch_idx
+                    indexed_layers.append((depth, name))
+                else:
+                    indexed_layers.append((999, name))
+            elif "layers." in name:
+                # Handle ablation analysis layer names (original logic)
                 parts = name.split("layers.")
                 if len(parts) > 1:
                     layer_part = parts[1].split(".")[0]
@@ -136,18 +182,24 @@ def convert_layer_names(
             indexed_layers.append((999, name))
 
     # Sort by index (CORRECT ORDER: lowest index = soma, highest = distal)
-    # In dendritic networks: layer_idx=1 is soma, higher layer_idx is more distal
+    # In dendritic networks: layer_idx=0 is soma, higher layer_idx is more distal
     indexed_layers.sort(key=lambda x: x[0])
 
     # Create new dictionary with intuitive names
     converted_results = {}
     for i, (_original_idx, original_name) in enumerate(indexed_layers):
         if i == 0:
+            # Always label as "Soma" for consistency, but the analysis should handle
+            # the case where somatic synapses are not present
             new_name = "Soma"
         else:
             new_name = f"Distal Layer {i}"
 
         converted_results[new_name] = layer_results[original_name]
+
+        # Add metadata about whether this is actually a functional soma
+        if i == 0 and "has_somatic_synapses" not in converted_results[new_name]:
+            converted_results[new_name]["has_somatic_synapses"] = somatic_synapses
 
     return converted_results
 
