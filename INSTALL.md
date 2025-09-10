@@ -1,80 +1,74 @@
-# Installation Guide
+# Dendritic Modeling Installation Guide
 
-## Quick Install
+## Quick Installation
 
 ```bash
-# Clone the repository
-git clone https://github.com/KempnerInstitute/dendritic_modeling.git
-cd dendritic_modeling
-
-# Create conda environment
-conda env create -f environment.yml
-conda activate dendritic_env
-
-# Install the package
-pip install -e .
+bash install.sh
 ```
 
-## Requirements
+The automated script handles environment creation, dependency installation, package setup, and verification.
 
-- Python 3.8+
-- PyTorch 1.12+
-- CUDA (optional, for GPU acceleration)
+## Installation Options
+
+### Option 1: Full Automated Install
+```bash
+bash install.sh
+```
+
+### Option 2: Quick Install (Skip Optional Components)
+```bash
+bash install.sh --quick
+```
+
+### Option 3: Fix Existing Installation
+```bash
+bash install.sh --fix-only
+```
+
+### Option 4: Verify Current Installation
+```bash
+bash install.sh --verify
+```
 
 ## Manual Installation
 
-If you prefer to set up the environment manually:
+### Prerequisites
+- Conda/Miniconda/Anaconda installed
+- CUDA 12.1+ (for GPU support)
 
+### Step-by-Step Manual Install
+
+#### 1. Remove Existing Environment (if corrupted)
 ```bash
-# Create environment
-conda create -n dendritic_env python=3.9
+conda env remove -n dendritic_env -y
+conda clean --all -y
+```
+
+#### 2. Create Environment
+```bash
+# Method A: From environment file (recommended)
+conda env create -f setup/environment.yml
+
+# Method B: Minimal environment (if above fails)
+conda create -n dendritic_env python=3.11 -y
 conda activate dendritic_env
-
-# Install PyTorch (choose appropriate version for your system)
-conda install pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvidia
-
-# Install other dependencies
 pip install -r requirements.txt
+```
 
-# Install package in development mode
+#### 3. Activate and Install Package
+```bash
+conda activate dendritic_env
 pip install -e .
 ```
 
-## Verify Installation
-
+#### 4. Fix Import Issues (if needed)
 ```bash
-# Run tests to verify everything works
-pytest tests/ -v
-
-# Quick functionality test
-python -c "from dendritic_modeling.config import load_config; print('Installation successful!')"
+export PYTHONPATH="$PYTHONPATH:$(pwd)/src"
+echo 'export PYTHONPATH="$PYTHONPATH:'$(pwd)'/src"' >> ~/.bashrc
 ```
 
-## GPU Setup
-
-The framework automatically detects and uses GPU when available. To force CPU usage:
-
+#### 5. Verify Installation
 ```bash
-CUDA_VISIBLE_DEVICES="" python your_script.py
+python -c "import torch; import dendritic_modeling; print('Success!')"
+python src/dendritic_modeling/scripts/sweeps/sweep_manager.py --help
 ```
-
-## Development Setup
-
-For development with code quality tools:
-
-```bash
-pip install -e ".[dev]"
-pre-commit install
-```
-
-## Troubleshooting
-
-**Common Issues:**
-
-1. **CUDA version mismatch**: Ensure PyTorch CUDA version matches your system CUDA
-2. **Memory errors**: Reduce batch size in your config files
-3. **Import errors**: Verify all dependencies are installed: `pip install -r requirements.txt`
-
-**Get Help:**
-- Check [GitHub Issues](https://github.com/KempnerInstitute/dendritic_modeling/issues)
-- Verify your environment: `conda list` and `pip list`

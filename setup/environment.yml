@@ -4,12 +4,12 @@ channels:
   - pytorch
   - nvidia
 dependencies:
-  # Core Python
-  - python=3.12
+  # Core Python (3.11 for better compatibility)
+  - python=3.11
 
   # PyTorch ecosystem
-  - pytorch
-  - torchvision
+  - pytorch>=2.0.0,!=2.6.0
+  - torchvision>=0.15.0
   - pytorch-cuda=12.1  # Adjust CUDA version as needed
 
   # Core scientific computing
@@ -50,9 +50,9 @@ dependencies:
 
   # Code quality and formatting
   - ruff>=0.1.0
-  - mypy>=1.0,<1.4
-  - black>=23.1,<24.0
-  - isort>=5.12,<5.13
+  - mypy>=1.0  # Removed upper bound to allow Python 3.11 compatibility
+  - black>=23.1
+  - isort>=5.12
   - pre-commit>=3.0.0
 
   # Documentation
