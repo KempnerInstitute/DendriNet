@@ -22,6 +22,7 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.g
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.initialize import (
     analytical_expectation_dbl_init,
     naive_dbl_init,
+    default_dbl_init,
 )
 
 # Import linear layer variants
@@ -295,6 +296,8 @@ class DendriticBranchLayer(nn.Module):
             )
         elif self.dbl_init_method == "naive":
             naive_dbl_init(self)
+        elif self.dbl_init_method == "default":
+            default_dbl_init(self)
         else:
             raise ValueError(f"Unknown dbl_init_method: {self.dbl_init_method}")
 

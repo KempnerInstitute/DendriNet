@@ -202,6 +202,8 @@ def analytical_expectation_dbl_init(dbl, adaptive=True, branch_factors=None):
             dbl.reactivation.initialize(m, E_Vinf)
 
 
+
+
 def naive_dbl_init(dbl):
     from .branch_layer import DendriticBranchLayer
     assert isinstance(dbl, DendriticBranchLayer)
@@ -254,4 +256,51 @@ def naive_dbl_init(dbl):
 
         if not isinstance(dbl.reactivation, torch.nn.Identity):
             dbl.reactivation.initialize(m, E_Vinf)
+
+
+def default_dbl_init(dbl):
+    from .branch_layer import DendriticBranchLayer
+    assert isinstance(dbl, DendriticBranchLayer)
+
+    with torch.no_grad():
+        E_g_exc = 0
+        E_g_inh = 0
+
+        if dbl.branch_excitation is not None:
+            exc_upper_quantile = dbl.branch_excitation.K / dbl.excitatory_input_dim
+            exc_std = sqrt(2 / (dbl.excitatory_input_dim + 1))
+            _no_grad_normal_(dbl.branch_excitation.pre_w, 0, exc_std)
+
+            E_w_exc = compute_expectation_truncated_log_normal(
+                mean=0,
+                std=exc_std,
+                upper_quantile=exc_upper_quantile,
+            )
+            E_g_exc = 0.5 * dbl.branch_excitation.K * E_w_exc
+
+        if dbl.branch_inhibition is not None:
+            inh_upper_quantile = dbl.branch_inhibition.K / dbl.inhibitory_input_dim
+            inh_std = sqrt(2 / (dbl.inhibitory_input_dim + 1))
+            _no_grad_normal_(dbl.branch_inhibition.pre_w, 0, inh_std)
+
+            E_w_inh = compute_expectation_truncated_log_normal(
+                mean=0,
+                std=inh_std,
+                upper_quantile=inh_upper_quantile,
+            )
+            E_g_inh = 0.5 * dbl.branch_inhibition.K * E_w_inh
+
+        if dbl.input_branches:
+            if dbl.use_shunting:
+                g_branch = E_g_exc + E_g_inh + 1
+            else:
+                g_branch = 1
+            
+            dbl.branches_to_output.initialize(log_g_branch=log(g_branch))
+
+        if not isinstance(dbl.reactivation, torch.nn.Identity):
+            dbl.reactivation.initialize(
+                1.5 if dbl.use_shunting else 0.1,
+                0.5 if dbl.use_shunting else 0.0
+            )
 
