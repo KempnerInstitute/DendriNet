@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Optional, List
+from typing import Optional
 
 from dendritic_modeling.config.base import BaseConfig
 
@@ -33,7 +33,7 @@ class InformationAnalysisParams(BaseConfig):
     # Method-specific parameters
     n_neighbors: int = 10  # For Kraskov
     n_bins: int = 20  # For sklearn histogram
-    copula_type: str = "gaussian"  # For copula
+    copula_type: str = "gaussian"  # For copula: "gaussian", "kernel", "dvc"
 
     # Which metrics to compute
     compute_basic_mi: bool = True  # I(E;C), I(I;C), I(Vout;C)
@@ -214,32 +214,42 @@ class CorrelationAnalysisParams(BaseConfig):
     # "layer_branch": All branches in a layer together (balanced)
     # "all_branch": Full network aggregation (most efficient)
     computation_level: str = "layer_branch"
-    
+
     # Correlation types to compute
-    compute_noise_correlations: bool = True  # Within-class (stimulus-independent) correlations
-    compute_signal_correlations: bool = True  # Between-class (stimulus-driven) correlations
+    compute_noise_correlations: bool = (
+        True  # Within-class (stimulus-independent) correlations
+    )
+    compute_signal_correlations: bool = (
+        True  # Between-class (stimulus-driven) correlations
+    )
     compute_total_correlations: bool = True  # Across all data
-    compute_tuning_curves: bool = True  # Class selectivity (mean difference between classes)
-    
+    compute_tuning_curves: bool = (
+        True  # Class selectivity (mean difference between classes)
+    )
+
     # Which correlation pairs to analyze
-    analyze_EE: bool = True  # Excitatory-Excitatory correlations
-    analyze_II: bool = True  # Inhibitory-Inhibitory correlations  
-    analyze_EI: bool = True  # Excitatory-Inhibitory cross-correlations
-    analyze_E_output: bool = True  # Excitatory-Output (Vout) correlations
-    analyze_I_output: bool = True  # Inhibitory-Output (Vout) correlations
+    analyze_EE: bool = True  # Excitatory-Excitatory correlations  # noqa: N815
+    analyze_II: bool = True  # Inhibitory-Inhibitory correlations  # noqa: N815
+    analyze_EI: bool = True  # Excitatory-Inhibitory cross-correlations  # noqa: N815
+    analyze_E_output: bool = True  # Excitatory-Output (Vout) correlations  # noqa: N815
+    analyze_I_output: bool = True  # Inhibitory-Output (Vout) correlations  # noqa: N815
     analyze_output_output: bool = True  # Output-Output (Vout-Vout) correlations
-    
+
     # Hierarchical analysis options (similar to information analysis)
     per_layer_analysis: bool = True  # Analyze each layer separately
     per_einet_analysis: bool = True  # Separate E and I network analysis
     per_neuron_analysis: bool = False  # Analyze individual neurons (expensive)
-    
+
     # Sampling parameters (only used when computation_level="synaptic")
     n_synapse_pairs: int = 10000  # Number of synapse pairs to sample
     sampling_strategy: str = "stratified"  # "random", "stratified", "importance"
-    stratified_categories: List[str] = field(default_factory=lambda: ["within_branch", "within_layer", "across_layer"])
-    max_pairs_per_category: int = 1000  # Maximum pairs per category in stratified sampling
-    
+    stratified_categories: list[str] = field(
+        default_factory=lambda: ["within_branch", "within_layer", "across_layer"]
+    )
+    max_pairs_per_category: int = (
+        1000  # Maximum pairs per category in stratified sampling
+    )
+
     # Performance optimization
     max_samples: Optional[int] = 5000  # Limit data samples for faster computation
     batch_process: bool = True  # Process correlations in batches for memory efficiency
@@ -250,6 +260,46 @@ class CorrelationAnalysisConfig(BaseConfig):
     enabled: bool = False
     training: bool = False
     params: CorrelationAnalysisParams = field(default_factory=CorrelationAnalysisParams)
+
+
+@dataclass
+class SynapticWeightExpectationParams(BaseConfig):
+    """Configuration for synaptic weight expectation analysis."""
+
+    # Computation Level Control (similar to information analysis)
+    computation_level: str = (
+        "single_branch"  # Options: "single_branch", "layer_branch", "all_branch"
+    )
+    branch_aggregation: str = "mean"  # Options: "mean", "multivariate", "sample"
+
+    # Enhanced analysis modes (similar to information analysis)
+    per_layer_analysis: bool = False  # Analyze each layer separately
+    per_einet_analysis: bool = (
+        False  # Separate excitatory and inhibitory network analysis
+    )
+    per_neuron_analysis: bool = False  # Analyze individual neurons (expensive)
+
+    # Weight types to analyze
+    analyze_excitatory: bool = True  # Analyze excitatory synaptic weights
+    analyze_inhibitory: bool = True  # Analyze inhibitory synaptic weights
+    analyze_branch_output: bool = False  # Analyze branch-to-output weights
+
+    # Statistical measures to compute
+    compute_mean: bool = True  # Compute mean weights per branch
+    compute_variance: bool = True  # Compute variance/std of weights per branch
+    compute_percentiles: bool = False  # Compute percentiles (median, quartiles)
+
+    # Weight filtering
+    weight_threshold: float = 1e-6  # Minimum weight to consider as "active"
+
+
+@dataclass
+class SynapticWeightExpectationConfig(BaseConfig):
+    enabled: bool = False
+    training: bool = False
+    params: SynapticWeightExpectationParams = field(
+        default_factory=SynapticWeightExpectationParams
+    )
 
 
 @dataclass
@@ -281,4 +331,7 @@ class AnalysisConfig(BaseConfig):
     )
     correlation_analysis: CorrelationAnalysisConfig = field(
         default_factory=CorrelationAnalysisConfig
+    )
+    synaptic_weight_expectation: SynapticWeightExpectationConfig = field(
+        default_factory=SynapticWeightExpectationConfig
     )

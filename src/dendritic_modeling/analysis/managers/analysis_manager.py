@@ -7,30 +7,37 @@ all the different analysis tools in the dendritic modeling package.
 
 import logging
 import os
-from typing import Dict, Optional
-import numpy as np
+from typing import Optional
 
 import torch
 
-from dendritic_modeling.models import BaseModel
-from dendritic_modeling.config import AnalysisConfig
-
-from dendritic_modeling.analysis.metrics.performance import PerformanceAnalyzer
-from dendritic_modeling.analysis.metrics.noise_perturbation import NoisePerturbationAnalyzer
 from dendritic_modeling.analysis.core.ablation import AblationAnalyzer
-from dendritic_modeling.analysis.metrics.layer_contribution import SingleLayerContributionAnalyzer
-from dendritic_modeling.analysis.tools.synaptic_turnover import SynapticTurnoverAnalyzer
-from dendritic_modeling.analysis.tools.weight import WeightAnalyzer
-from dendritic_modeling.analysis.tools.synaptic_activation import SynapticActivationAnalyzer
 from dendritic_modeling.analysis.core.branch_activation import BranchActivationAnalyzer
 from dendritic_modeling.analysis.core.information import InformationAnalyzer
+from dendritic_modeling.analysis.metrics.layer_contribution import (
+    SingleLayerContributionAnalyzer,
+)
+from dendritic_modeling.analysis.metrics.noise_perturbation import (
+    NoisePerturbationAnalyzer,
+)
+from dendritic_modeling.analysis.metrics.performance import PerformanceAnalyzer
 from dendritic_modeling.analysis.tools.correlation_analysis import CorrelationAnalyzer
+from dendritic_modeling.analysis.tools.synaptic_activation import (
+    SynapticActivationAnalyzer,
+)
+from dendritic_modeling.analysis.tools.synaptic_turnover import SynapticTurnoverAnalyzer
+from dendritic_modeling.analysis.tools.synaptic_weight_expectation import (
+    SynapticWeightExpectationAnalyzer,
+)
+from dendritic_modeling.analysis.tools.weight import WeightAnalyzer
+from dendritic_modeling.config import AnalysisConfig
+from dendritic_modeling.models import BaseModel
 
 
 class AnalysisManager:
     """
     Coordinates and orchestrates all analysis tools for dendritic modeling.
-    
+
     This class manages the initialization and execution of various analysis tools
     based on configuration settings, providing a unified interface for running
     comprehensive model analysis.
@@ -39,11 +46,11 @@ class AnalysisManager:
     def __init__(
         self,
         model: BaseModel,
-        data: Dict[str, torch.utils.data.Dataset],
+        data: dict[str, torch.utils.data.Dataset],
         analysis_config: AnalysisConfig,
         save_root: Optional[str] = None,
         device: str = "cpu",
-        train_config: Optional[Dict] = None,
+        train_config: Optional[dict] = None,
     ):
         self.model = model
         self.data = data
@@ -91,9 +98,7 @@ class AnalysisManager:
 
         # Initialize Weight Analysis
         if self.config.weight_analysis.enabled:
-            self.weight_analyzer = WeightAnalyzer(
-                self.config.weight_analysis.params
-            )
+            self.weight_analyzer = WeightAnalyzer(self.config.weight_analysis.params)
 
         # Initialize Synaptic Activation Analysis
         if self.config.synaptic_activation_analysis.enabled:
@@ -108,13 +113,27 @@ class AnalysisManager:
             )
 
         # Initialize Correlation Analysis
-        if hasattr(self.config, 'correlation_analysis') and self.config.correlation_analysis.enabled:
+        if (
+            hasattr(self.config, "correlation_analysis")
+            and self.config.correlation_analysis.enabled
+        ):
             self.correlation_analysis_enabled = True
             self.correlation_analyzer = CorrelationAnalyzer(
                 params=self.config.correlation_analysis.params
             )
         else:
             self.correlation_analysis_enabled = False
+
+        # Initialize Synaptic Weight Expectation Analysis
+        if (
+            hasattr(self.config, "synaptic_weight_expectation")
+            and self.config.synaptic_weight_expectation.enabled
+        ):
+            self.synaptic_weight_expectation_analyzer = (
+                SynapticWeightExpectationAnalyzer(
+                    params=self.config.synaptic_weight_expectation.params
+                )
+            )
 
     def set_pruning_results(self, pruning_results: dict):
         """Set pruning results for inclusion in performance plots."""
@@ -123,15 +142,14 @@ class AnalysisManager:
     def run_analysis(self, filename: str = "final", training: bool = False):
         """
         Run all enabled analysis tools.
-        
+
         Args:
             filename: Base filename for saving analysis results
             training: Whether this is being called during training (affects which analyses run)
         """
         # Performance Analysis
         if self.config.performance_analysis.enabled and (
-            (self.config.performance_analysis.training and training) 
-            or not training
+            (self.config.performance_analysis.training and training) or not training
         ):
             # Determine save path based on whether this is training or final analysis
             if training:
@@ -150,22 +168,21 @@ class AnalysisManager:
                 device=self.device,
                 save_path=save_path,
                 filename=filename,
-                training=training
+                training=training,
             )
 
         # Information Analysis
         if self.config.information_analysis.enabled and (
-            (self.config.information_analysis.training and training)
-            or not training
+            (self.config.information_analysis.training and training) or not training
         ):
             self.logger.info("Starting information analysis...")
             self.information_analyzer.analyze(
-                    model=self.model,
-                    test_dataset=self.data["test"],
-                    device=self.device,
-                    save_path=os.path.join(self.save_root, "information_analysis"),
-                    filename=filename
-                )
+                model=self.model,
+                test_dataset=self.data["test"],
+                device=self.device,
+                save_path=os.path.join(self.save_root, "information_analysis"),
+                filename=filename,
+            )
             self.logger.info("Information analysis completed successfully")
 
         # Synaptic Turnover Analysis
@@ -177,7 +194,7 @@ class AnalysisManager:
                 model=self.model,
                 training=training,
                 save_path=os.path.join(self.save_root, "synapse_turnover_analysis"),
-                filename=filename
+                filename=filename,
             )
 
         # Noise Perturbation Analysis
@@ -190,7 +207,7 @@ class AnalysisManager:
                 test_dataset=self.data["test"],
                 device=self.device,
                 save_path=os.path.join(self.save_root, "noise_perturbation_analysis"),
-                filename=filename
+                filename=filename,
             )
 
         # Single Layer Contribution Analysis
@@ -203,31 +220,29 @@ class AnalysisManager:
                 test_dataset=self.data["test"],
                 device=self.device,
                 save_path=os.path.join(self.save_root, "single_layer_contribution"),
-                filename=filename
+                filename=filename,
             )
 
         # Ablation Analysis
         if self.config.ablation_analysis.enabled and (
-            (self.config.ablation_analysis.training and training)
-            or not training
+            (self.config.ablation_analysis.training and training) or not training
         ):
             self.ablation_analyzer.analyze(
                 model=self.model,
                 test_dataset=self.data["test"],
                 device=self.device,
                 save_path=os.path.join(self.save_root, "ablation_analysis"),
-                filename=filename
+                filename=filename,
             )
 
         # Weight Analysis
         if self.config.weight_analysis.enabled and (
-            (self.config.weight_analysis.training and training)
-            or not training
+            (self.config.weight_analysis.training and training) or not training
         ):
             self.weight_analyzer.analyze(
                 model=self.model,
                 save_path=os.path.join(self.save_root, "weight_analysis"),
-                filename=filename
+                filename=filename,
             )
 
         # Synaptic Activation Analysis
@@ -240,7 +255,7 @@ class AnalysisManager:
                 test_dataset=self.data["test"],
                 device=self.device,
                 save_path=os.path.join(self.save_root, "synaptic_activation_analysis"),
-                filename=filename
+                filename=filename,
             )
 
         # Branch Activation Analysis
@@ -253,12 +268,16 @@ class AnalysisManager:
                 test_dataset=self.data["test"],
                 device=self.device,
                 save_path=os.path.join(self.save_root, "branch_activation_analysis"),
-                filename=filename
+                filename=filename,
             )
 
         # Correlation Analysis
         if self.correlation_analysis_enabled and (
-            (hasattr(self.config.correlation_analysis, 'training') and self.config.correlation_analysis.training and training)
+            (
+                hasattr(self.config.correlation_analysis, "training")
+                and self.config.correlation_analysis.training
+                and training
+            )
             or not training
         ):
             self.logger.info("Starting correlation analysis...")
@@ -267,6 +286,26 @@ class AnalysisManager:
                 test_dataset=self.data["test"],
                 device=self.device,
                 save_path=os.path.join(self.save_root, "correlation_analysis"),
-                filename=filename
+                filename=filename,
             )
             self.logger.info("Correlation analysis completed successfully")
+
+        # Synaptic Weight Expectation Analysis
+        if (
+            hasattr(self.config, "synaptic_weight_expectation")
+            and self.config.synaptic_weight_expectation.enabled
+            and (
+                (self.config.synaptic_weight_expectation.training and training)
+                or not training
+            )
+        ):
+            self.logger.info("Starting synaptic weight expectation analysis...")
+            self.synaptic_weight_expectation_analyzer.analyze(
+                model=self.model,
+                device=self.device,
+                save_path=os.path.join(self.save_root, "synaptic_weight_expectation"),
+                filename=filename,
+            )
+            self.logger.info(
+                "Synaptic weight expectation analysis completed successfully"
+            )

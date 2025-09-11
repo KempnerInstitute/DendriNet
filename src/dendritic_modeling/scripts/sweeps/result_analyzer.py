@@ -683,6 +683,49 @@ class UnifiedResultAnalyzer:
                 except Exception as e:
                     print(f"Error reading ablation analysis: {e}")
 
+            # Collect synaptic weight expectation analysis results
+            weight_file = os.path.join(
+                search_path, "synaptic_weight_expectation", "final"
+            )
+            if os.path.exists(weight_file):
+                try:
+                    with open(weight_file) as f:
+                        content = f.read()
+                    content_dict = json.loads(content)
+
+                    if "layer_statistics" in content_dict:
+                        layer_stats = content_dict["layer_statistics"]
+
+                        for layer_name, layer_data in layer_stats.items():
+                            # Convert layer names to consistent format
+                            if "branch_layers." in layer_name:
+                                branch_idx = int(
+                                    layer_name.split("branch_layers.")[1].split(".")[0]
+                                )
+                                layer_key = f"layer_{branch_idx}"
+                            elif layer_name == "synthetic_soma":
+                                layer_key = "soma"
+                            else:
+                                layer_key = layer_name.replace(".", "_")
+
+                            # Extract weight statistics
+                            for metric_key, metric_value in layer_data.items():
+                                if isinstance(metric_value, (int, float)):
+                                    # Create column name for this weight metric
+                                    safe_metric = metric_key.replace(".", "_").replace(
+                                        " ", "_"
+                                    )
+                                    data[f"weight_{safe_metric}_{layer_key}"] = (
+                                        metric_value
+                                    )
+
+                    print(
+                        f"Loaded synaptic weight expectation analysis from {weight_file}"
+                    )
+
+                except Exception as e:
+                    print(f"Error reading synaptic weight expectation analysis: {e}")
+
             # Break after processing the first valid path (flattened or first experiment dir)
             break
 
@@ -1047,6 +1090,16 @@ class UnifiedResultAnalyzer:
                     valid_data, plots_dir, base_name
                 )
                 plot_paths.extend(info_plots)
+
+            # 7. Synaptic weight expectation plots (if weight data available)
+            weight_cols = [
+                col for col in valid_data.columns if "weight_" in col.lower()
+            ]
+            if weight_cols:
+                weight_plots = self._generate_weight_expectation_plots(
+                    valid_data, plots_dir, base_name
+                )
+                plot_paths.extend(weight_plots)
 
         except Exception as e:
             print(f"Error generating plots: {e}")
@@ -2010,6 +2063,201 @@ class UnifiedResultAnalyzer:
         print(
             f"Created {len(plot_paths)} information theory plots (global + layer-specific + heatmaps)"
         )
+        return plot_paths
+
+    def _generate_weight_expectation_plots(
+        self, valid_data: pd.DataFrame, plots_dir: str, base_name: str
+    ) -> list[str]:
+        """Generate synaptic weight expectation analysis plots across sweeps"""
+        plot_paths = []
+
+        weight_plot_dir = os.path.join(plots_dir, "weight_expectation_plots")
+        os.makedirs(weight_plot_dir, exist_ok=True)
+
+        # Find weight columns by layer
+        weight_cols = [col for col in valid_data.columns if "weight_" in col.lower()]
+
+        if not weight_cols:
+            print("No synaptic weight data found for plotting")
+            return plot_paths
+
+        print(f"Found {len(weight_cols)} weight metrics")
+
+        # Group weight columns by metric type and layer
+        weight_metrics = {}
+        for col in weight_cols:
+            # Parse column name: weight_exc_weight_mean_mean_layer_0
+            parts = col.split("_")
+            if len(parts) >= 4:
+                metric_type = "_".join(parts[1:-1])  # exc_weight_mean_mean
+                layer_part = parts[-1]  # layer_0 or soma
+
+                if metric_type not in weight_metrics:
+                    weight_metrics[metric_type] = {}
+                weight_metrics[metric_type][layer_part] = col
+
+        # Create plots for different weight metrics
+        plot_paths.extend(
+            self._create_weight_vs_ei_plots(
+                valid_data, weight_metrics, weight_plot_dir, base_name
+            )
+        )
+
+        plot_paths.extend(
+            self._create_weight_heatmaps(
+                valid_data, weight_metrics, weight_plot_dir, base_name
+            )
+        )
+
+        print(f"Created {len(plot_paths)} synaptic weight expectation plots")
+        return plot_paths
+
+    def _create_weight_vs_ei_plots(
+        self,
+        valid_data: pd.DataFrame,
+        weight_metrics: dict,
+        output_dir: str,
+        base_name: str,
+    ) -> list[str]:
+        """Create weight vs E/I ratio plots for each layer"""
+        plot_paths = []
+
+        if "ei_ratio" not in valid_data.columns:
+            print("No E/I ratio data for weight vs E/I plots")
+            return plot_paths
+
+        # Focus on key metrics
+        key_metrics = [
+            "exc_weight_mean_mean",
+            "inh_weight_mean_mean",
+            "exc_weight_var_mean",
+            "inh_weight_var_mean",
+        ]
+
+        for metric_name in key_metrics:
+            if metric_name not in weight_metrics:
+                continue
+
+            metric_data = weight_metrics[metric_name]
+
+            # Create plot for this metric across layers
+            fig, ax = plt.subplots(figsize=(12, 8))
+
+            # Plot each layer
+            for layer_key, col_name in metric_data.items():
+                if col_name in valid_data.columns:
+                    # Group by network category for consistent styling
+                    for category in ["shunting", "no_shunting"]:
+                        cat_data = valid_data[
+                            valid_data["network_category"] == category
+                        ]
+                        if not cat_data.empty:
+                            style = "--" if category == "no_shunting" else "-"
+                            ax.plot(
+                                cat_data["ei_ratio"],
+                                cat_data[col_name],
+                                marker="o",
+                                linestyle=style,
+                                label=f"{layer_key.replace('_', ' ').title()} ({category})",
+                                markersize=4,
+                                linewidth=2,
+                            )
+
+            ax.set_xlabel("E/I Ratio")
+            ax.set_ylabel(f"{metric_name.replace('_', ' ').title()}")
+            ax.set_title(
+                f"Synaptic Weight {metric_name.replace('_', ' ').title()} vs E/I Ratio"
+            )
+            ax.legend(bbox_to_anchor=(1.05, 1), loc="upper left")
+            ax.grid(True, alpha=0.3)
+
+            filename = os.path.join(
+                output_dir, f"{base_name}_weight_{metric_name}_vs_ei.png"
+            )
+            plt.savefig(filename, dpi=300, bbox_inches="tight")
+            plt.close()
+            plot_paths.append(filename)
+
+        return plot_paths
+
+    def _create_weight_heatmaps(
+        self,
+        valid_data: pd.DataFrame,
+        weight_metrics: dict,
+        output_dir: str,
+        base_name: str,
+    ) -> list[str]:
+        """Create heatmaps for synaptic weight metrics"""
+        plot_paths = []
+
+        # Check for required columns
+        required_cols = ["ei_ratio"]
+        if not all(col in valid_data.columns for col in required_cols):
+            print("Missing required columns for weight heatmaps")
+            return plot_paths
+
+        # Create heatmaps for key weight metrics
+        key_metrics = ["exc_weight_mean_mean", "inh_weight_mean_mean"]
+
+        for metric_name in key_metrics:
+            if metric_name not in weight_metrics:
+                continue
+
+            metric_data = weight_metrics[metric_name]
+
+            # Create heatmap showing metric across layers and E/I ratios
+            fig, ax = plt.subplots(figsize=(12, 8))
+
+            # Prepare data for heatmap
+            ei_ratios = sorted(valid_data["ei_ratio"].unique())
+            layer_keys = sorted(metric_data.keys())
+
+            heatmap_data = []
+            for ei_ratio in ei_ratios:
+                row_data = []
+                for layer_key in layer_keys:
+                    col_name = metric_data[layer_key]
+                    if col_name in valid_data.columns:
+                        # Get mean value for this E/I ratio
+                        subset = valid_data[valid_data["ei_ratio"] == ei_ratio]
+                        if not subset.empty:
+                            mean_val = subset[col_name].mean()
+                            row_data.append(mean_val)
+                        else:
+                            row_data.append(0.0)
+                    else:
+                        row_data.append(0.0)
+                heatmap_data.append(row_data)
+
+            heatmap_data = np.array(heatmap_data)
+
+            # Create heatmap
+            im = ax.imshow(heatmap_data, cmap="viridis", aspect="auto")
+
+            # Set labels
+            ax.set_xticks(range(len(layer_keys)))
+            ax.set_xticklabels(
+                [key.replace("_", " ").title() for key in layer_keys], rotation=45
+            )
+            ax.set_yticks(range(len(ei_ratios)))
+            ax.set_yticklabels([f"{ratio:.2f}" for ratio in ei_ratios])
+
+            ax.set_xlabel("Dendritic Layer")
+            ax.set_ylabel("E/I Ratio")
+            ax.set_title(
+                f"Synaptic Weight {metric_name.replace('_', ' ').title()} Heatmap"
+            )
+
+            # Add colorbar
+            plt.colorbar(im, ax=ax, label=metric_name.replace("_", " ").title())
+
+            filename = os.path.join(
+                output_dir, f"{base_name}_weight_{metric_name}_heatmap.png"
+            )
+            plt.savefig(filename, dpi=300, bbox_inches="tight")
+            plt.close()
+            plot_paths.append(filename)
+
         return plot_paths
 
     def _create_ivc_heatmap_by_layer(

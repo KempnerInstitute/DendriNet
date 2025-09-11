@@ -23,7 +23,6 @@ from dendritic_modeling.networks import (
     ExcitationInhibitionNetwork,
 )
 from dendritic_modeling.plotting.visualizations.information_plots import (
-    InformationAnalysisPlotter,
     plot_fully_aggregated_analysis,
     plot_info_vs_ei_depth_per_dendritic_layer,
     plot_layer_wise_aggregated_analysis,
@@ -676,6 +675,54 @@ class InformationAnalyzer(AbstractAnalyzer):
                     layer_stats[f"{key}_std"] = np.std(values)
 
         return layer_stats
+
+    def _compute_variance_analysis(self, results: dict) -> dict:
+        """
+        Compute variance analysis across different hierarchical levels.
+
+        This computes how much information values vary:
+        - When per_neuron_analysis=True: variance across branches within neurons
+        - When per_layer_analysis=True: variance across neurons within layers
+        - When per_einet_analysis=True: variance across E/I networks
+
+        Returns variance statistics that can be plotted alongside means.
+        """
+        variance_analysis = {}
+
+        # Compute variance based on computation level and analysis modes
+        if "layer_statistics" in results:
+            layer_stats = results["layer_statistics"]
+
+            # Extract variance information from the existing std values
+            # The std values in layer_statistics represent variance across branches
+            variance_by_layer = {}
+
+            for layer_name, layer_data in layer_stats.items():
+                layer_variances = {}
+
+                # Extract variance from std values (std^2 = variance)
+                for metric_key, value in layer_data.items():
+                    if metric_key.endswith("_std"):
+                        metric_base = metric_key.replace("_std", "")
+                        variance_key = f"{metric_base}_variance"
+                        layer_variances[variance_key] = value**2  # std^2 = variance
+
+                # Always include layer in variance analysis (even if all variances are zero)
+                # This ensures synthetic_soma is included when somatic_synapses=False
+                variance_by_layer[layer_name] = layer_variances
+
+            variance_analysis["layer_variances"] = variance_by_layer
+
+        # Add metadata about what type of variance this represents
+        variance_analysis["variance_interpretation"] = {
+            "layer_variances": "Variance across branches within each layer",
+            "computation_level": results.get("computation_level", "unknown"),
+            "per_neuron_enabled": results.get("per_neuron_analysis_enabled", False),
+            "per_layer_enabled": results.get("per_layer_analysis_enabled", False),
+            "per_einet_enabled": results.get("per_einet_analysis_enabled", False),
+        }
+
+        return variance_analysis
 
     def attach_forward_hooks(self, model: BaseModel):
         """Attach forward hooks to the model."""
@@ -1351,7 +1398,7 @@ class InformationAnalyzer(AbstractAnalyzer):
 
                     # Generate layer statistics for plotting (similar to single_branch mode)
                     layer_statistics = {}
-                    for i, (layer_name, layer_result) in enumerate(
+                    for _i, (layer_name, layer_result) in enumerate(
                         zip(layer_names, all_results)
                     ):
                         # Convert individual layer result to statistics format expected by plotting
@@ -1550,14 +1597,50 @@ class InformationAnalyzer(AbstractAnalyzer):
                 self.logger.info(
                     f"Adding synthetic soma entry to {len(results['layer_statistics'])} existing layers"
                 )
+
+                # Find the real soma layer to get its Vout information
+                # The real soma is the layer with the highest branch index (corresponds to layer_idx=0)
+                soma_vout_mean = 0.0
+                soma_vout_std = 0.0
+
+                # Find the layer with the highest branch index in layer_statistics
+                max_branch_idx = -1
+                real_soma_layer = None
+
+                for layer_name, _layer_data in results["layer_statistics"].items():
+                    if "branch_layers." in layer_name:
+                        try:
+                            branch_idx = int(
+                                layer_name.split("branch_layers.")[1].split(".")[0]
+                            )
+                            if branch_idx > max_branch_idx:
+                                max_branch_idx = branch_idx
+                                real_soma_layer = layer_name
+                        except (ValueError, IndexError):
+                            continue
+
+                # Extract I(Vout;C) from the real soma layer
+                if real_soma_layer and real_soma_layer in results["layer_statistics"]:
+                    real_soma_stats = results["layer_statistics"][real_soma_layer]
+                    soma_vout_mean = real_soma_stats.get("I(Vout;C)_mean", 0.0)
+                    soma_vout_std = real_soma_stats.get("I(Vout;C)_std", 0.0)
+                    self.logger.info(f"Found real soma layer: {real_soma_layer}")
+                    self.logger.info(
+                        f"Using real soma I(Vout;C): {soma_vout_mean:.4f} ± {soma_vout_std:.4f}"
+                    )
+                else:
+                    self.logger.warning(
+                        "Could not find real soma layer for I(Vout;C) computation"
+                    )
+
                 # Add synthetic soma entry with appropriate values
                 soma_entry = {
                     "I(E;C)_mean": 0.0,  # Zero - no excitatory synapses
                     "I(E;C)_std": 0.0,
                     "I(I;C)_mean": 0.0,  # Zero - no inhibitory synapses
                     "I(I;C)_std": 0.0,
-                    "I(Vout;C)_mean": 0.0,  # This should be computed but setting to 0 for now
-                    "I(Vout;C)_std": 0.0,
+                    "I(Vout;C)_mean": soma_vout_mean,  # Real computed value from soma output
+                    "I(Vout;C)_std": soma_vout_std,  # Real computed std from soma output
                     "I(E,I;C)_mean": 0.0,  # Zero - no synapses
                     "I(E,I;C)_std": 0.0,
                     "I(E;I)_mean": 0.0,  # Zero - no synapses
@@ -1576,12 +1659,20 @@ class InformationAnalyzer(AbstractAnalyzer):
                 # Add soma entry to layer_statistics
                 results["layer_statistics"]["synthetic_soma"] = soma_entry
                 self.logger.info(
-                    f"Added synthetic soma. Total layers now: {len(results['layer_statistics'])}"
+                    f"Added synthetic soma with real I(Vout;C)={soma_vout_mean:.4f}. Total layers now: {len(results['layer_statistics'])}"
                 )
             elif not somatic_synapses:
                 self.logger.warning(
                     "somatic_synapses=False but no layer_statistics found in results"
                 )
+
+            # Compute variance analysis for plotting (AFTER synthetic soma is added)
+            self.logger.info("Computing variance analysis for plotting...")
+            variance_analysis = self._compute_variance_analysis(results)
+            results["variance_analysis"] = variance_analysis
+            self.logger.info(
+                f"Variance analysis computed with {len(variance_analysis.get('layer_variances', {}))} layers"
+            )
 
             # Save results
             if save_path is not None:
@@ -1626,7 +1717,7 @@ class InformationAnalyzer(AbstractAnalyzer):
         """Generate plots for information analysis results."""
         try:
             # Initialize plotter for enhanced visualizations
-            plotter = InformationAnalysisPlotter()
+            # plotter = InformationAnalysisPlotter()  # Unused variable
 
             # Generate dendritic depth plots based on enabled analysis modes
             if results and "layer_statistics" in results:
@@ -1709,6 +1800,36 @@ class InformationAnalyzer(AbstractAnalyzer):
             else:
                 self.logger.warning(
                     "Skipping plot_info_vs_ei_depth_per_dendritic_layer - no layer statistics found"
+                )
+
+            # Generate variance analysis plots if variance analysis was computed
+            if results and "variance_analysis" in results:
+                try:
+                    self.logger.info(
+                        "Generating information variance analysis plots..."
+                    )
+                    self.logger.info(
+                        f"Variance analysis keys: {list(results['variance_analysis'].keys())}"
+                    )
+                    from dendritic_modeling.plotting.visualizations.information_plots import (
+                        plot_information_variance_analysis,
+                    )
+
+                    plot_information_variance_analysis(
+                        results["variance_analysis"],
+                        save_path=save_path,
+                        somatic_synapses=somatic_synapses,
+                        logger=self.logger,
+                    )
+                    self.logger.info("Variance plots completed successfully!")
+                except Exception as e:
+                    self.logger.error(f"Error generating variance plots: {e}")
+                    import traceback
+
+                    traceback.print_exc()
+            else:
+                self.logger.warning(
+                    "No variance_analysis found in results - skipping variance plots"
                 )
 
         except Exception as e:

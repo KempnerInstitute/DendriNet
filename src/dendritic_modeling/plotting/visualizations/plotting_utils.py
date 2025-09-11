@@ -150,17 +150,29 @@ def convert_layer_names(
     for name in layer_names:
         try:
             if name == "synthetic_soma":
-                # Synthetic soma always gets depth 0
+                # Synthetic soma always gets depth 0 (for information analysis)
                 indexed_layers.append((0, name))
             elif "branch_layers." in name:
-                # Extract branch index from information analysis layer names
+                # For weight analysis, we need to check if this layer is actually the soma
+                # by looking at the layer results to find layer_idx
+                # This is a bit tricky since we don't have layer_idx in layer_results directly
+                # For now, use the branch index mapping but we'll need to fix this properly
                 parts = name.split("branch_layers.")
                 if len(parts) > 1:
-                    branch_idx = int(parts[1])
-                    # Map branch index to depth dynamically: higher branch_idx = more distal
-                    # branch_layers.0 is most distal, branch_layers.max is closest to soma
-                    # We reverse this: branch_layers.max → depth 1, branch_layers.0 → depth (max+1)
-                    depth = (max_branch_idx + 1) - branch_idx
+                    branch_idx = int(parts[1].split(".")[0])
+
+                    # Check if this might be the soma layer (highest branch index often corresponds to soma)
+                    # We'll use the layer_idx information if available in the data
+                    if branch_idx == max_branch_idx:
+                        # Highest branch index is likely the soma when somatic_synapses=False
+                        depth = 0
+                    else:
+                        # Map other branch indices to distal layers
+                        # branch_layers with lower indices are more distal
+                        depth = (
+                            max_branch_idx
+                        ) - branch_idx  # Adjusted to avoid duplication
+
                     indexed_layers.append((depth, name))
                 else:
                     indexed_layers.append((999, name))

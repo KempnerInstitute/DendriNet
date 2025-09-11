@@ -132,12 +132,16 @@ class KraskovEstimator(BaseInformationEstimator):
         if y.shape[1] == 1 and len(np.unique(y)) < 20:
             # Treat as discrete
             if self.config.verbose:
-                self.logger.debug(f"    Computing MI (continuous-discrete): x{x.shape}, y{y.shape}, k={self.n_neighbors}")
+                self.logger.debug(
+                    f"    Computing MI (continuous-discrete): x{x.shape}, y{y.shape}, k={self.n_neighbors}"
+                )
             return compute_mi_cd(x, y.ravel(), self.n_neighbors)
         else:
             # Both continuous
             if self.config.verbose:
-                self.logger.debug(f"    Computing MI (continuous-continuous): x{x.shape}, y{y.shape}, k={self.n_neighbors}")
+                self.logger.debug(
+                    f"    Computing MI (continuous-continuous): x{x.shape}, y{y.shape}, k={self.n_neighbors}"
+                )
             return compute_mi_cc(x, y, self.n_neighbors)
 
     def conditional_mutual_information(
@@ -335,31 +339,145 @@ class CopulaEstimator(BaseInformationEstimator):
         return max(0.0, mi_xyz - mi_xz)
 
     def _simple_copula_mi(self, x: np.ndarray, y: np.ndarray) -> float:
-        """Simple Gaussian copula-based MI estimation."""
+        """Enhanced copula-based MI estimation with discrete variable handling."""
+
+        # Handle discrete variables (like class labels) by adding non-informative noise
+        x_processed = self._add_noise_to_discrete(x)
+        y_processed = self._add_noise_to_discrete(y)
 
         # Transform to uniform margins using empirical CDF
-        n_samples = len(x)
-        u = np.zeros_like(x)
-        v = np.zeros_like(y)
+        n_samples = len(x_processed)
+        u = np.zeros_like(x_processed)
+        v = np.zeros_like(y_processed)
 
-        for i in range(x.shape[1]):
-            ranks = stats.rankdata(x[:, i])
+        for i in range(x_processed.shape[1]):
+            ranks = stats.rankdata(x_processed[:, i])
             u[:, i] = ranks / (n_samples + 1)
 
-        for i in range(y.shape[1]):
-            ranks = stats.rankdata(y[:, i])
+        for i in range(y_processed.shape[1]):
+            ranks = stats.rankdata(y_processed[:, i])
             v[:, i] = ranks / (n_samples + 1)
 
-        # For Gaussian copula, compute correlation on uniform margins
-        if x.shape[1] == 1 and y.shape[1] == 1:
-            # Univariate case
-            corr, _ = stats.pearsonr(u.ravel(), v.ravel())
+        # Choose estimation method based on copula_type
+        if self.copula_type == "gaussian":
+            return self._gaussian_copula_mi(u, v)
+        elif self.copula_type == "kernel":
+            return self._kernel_copula_mi(u, v)
+        else:
+            # Default to Gaussian copula
+            return self._gaussian_copula_mi(u, v)
+
+    def _add_noise_to_discrete(
+        self, data: np.ndarray, noise_scale: float = 0.1
+    ) -> np.ndarray:
+        """Add non-informative noise to discrete variables.
+
+        For discrete variables like class labels, adds uniform noise in [0, 1)
+        to each integer value, transforming c to a random number in [c, c+1).
+        """
+        data_processed = data.copy()
+
+        # Detect if data appears to be discrete (integer-like values)
+        for i in range(data.shape[1]):
+            col = data[:, i]
+            # Check if all values are close to integers
+            if np.allclose(col, np.round(col), atol=1e-6):
+                # This appears to be discrete - add uniform noise
+                noise = np.random.uniform(0, noise_scale, size=col.shape)
+                data_processed[:, i] = col + noise
+                self.logger.debug(f"Added noise to discrete variable in column {i}")
+
+        return data_processed
+
+    def _gaussian_copula_mi(self, u: np.ndarray, v: np.ndarray) -> float:
+        """Gaussian copula MI estimation."""
+        if u.shape[1] == 1 and v.shape[1] == 1:
+            # Univariate case - check for constant inputs first
+            u_flat = u.ravel()
+            v_flat = v.ravel()
+
+            # Check if either input is constant (all same values)
+            if np.var(u_flat) < 1e-10 or np.var(v_flat) < 1e-10:
+                # If either input is constant, MI = 0
+                return 0.0
+
+            # Suppress the correlation warning for constant inputs
+            import warnings
+
+            with warnings.catch_warnings():
+                warnings.filterwarnings("ignore", category=stats.ConstantInputWarning)
+                corr, _ = stats.pearsonr(u_flat, v_flat)
+
+            # Handle NaN correlation (when inputs are constant)
+            if np.isnan(corr) or np.isinf(corr):
+                return 0.0
+
             # MI for Gaussian copula: -0.5 * log(1 - rho^2)
             if abs(corr) < 0.999:
                 mi = -0.5 * np.log(1 - corr**2)
                 return max(0.0, mi)
+            else:
+                return 0.0
 
         # For multivariate, fall back to Kraskov on uniform margins
+        return KraskovEstimator(self.config).mutual_information(u, v)
+
+    def _kernel_copula_mi(self, u: np.ndarray, v: np.ndarray) -> float:
+        """Non-parametric kernel-based copula MI estimation."""
+        from sklearn.neighbors import KernelDensity
+
+        if u.shape[1] == 1 and v.shape[1] == 1:
+            # Univariate case with kernel density estimation
+            u_flat = u.ravel()
+            v_flat = v.ravel()
+
+            # Check for constant inputs
+            if np.var(u_flat) < 1e-10 or np.var(v_flat) < 1e-10:
+                return 0.0
+
+            # Choose bandwidth automatically using Scott's rule
+            n_samples = len(u_flat)
+            bandwidth_u = n_samples ** (-1 / 5) * np.std(u_flat)
+            bandwidth_v = n_samples ** (-1 / 5) * np.std(v_flat)
+            bandwidth_joint = min(bandwidth_u, bandwidth_v)
+
+            # Ensure minimum bandwidth
+            bandwidth_joint = max(bandwidth_joint, 0.01)
+
+            try:
+                # Estimate marginal densities
+                kde_u = KernelDensity(bandwidth=bandwidth_u, kernel="gaussian")
+                kde_v = KernelDensity(bandwidth=bandwidth_v, kernel="gaussian")
+                kde_joint = KernelDensity(bandwidth=bandwidth_joint, kernel="gaussian")
+
+                kde_u.fit(u_flat.reshape(-1, 1))
+                kde_v.fit(v_flat.reshape(-1, 1))
+
+                # Joint density on uniform margins
+                uv_joint = np.column_stack([u_flat, v_flat])
+                kde_joint.fit(uv_joint)
+
+                # Compute MI using kernel density estimates
+                # MI = ∫∫ p(u,v) log(p(u,v) / (p(u)p(v))) du dv
+                # Approximate using sample-based estimation
+
+                log_pu = kde_u.score_samples(u_flat.reshape(-1, 1))
+                log_pv = kde_v.score_samples(v_flat.reshape(-1, 1))
+                log_puv = kde_joint.score_samples(uv_joint)
+
+                # MI estimate: mean of log(p(u,v)) - log(p(u)) - log(p(v))
+                mi_samples = log_puv - log_pu - log_pv
+                mi = np.mean(mi_samples)
+
+                return max(0.0, mi)
+
+            except Exception as e:
+                self.logger.warning(
+                    f"Kernel copula estimation failed: {e}, falling back to Gaussian"
+                )
+                return self._gaussian_copula_mi(u, v)
+
+        # For multivariate, fall back to Kraskov
         return KraskovEstimator(self.config).mutual_information(u, v)
 
     def _dvc_copula_mi(self, x: np.ndarray, y: np.ndarray) -> float:

@@ -107,7 +107,7 @@ train:
       print_every: 10
 
   main:
-    learning_strategy: standard
+    learning_strategy: standard  # Options: "standard", "voltage_stabilization", "homeostatic_control", "freeze_layers", "freeze_branches", "local_ca", "two_step"
     weight_decay_rate: 0.01
 
     param_groups:
@@ -295,18 +295,18 @@ analysis:
       include_vinf: true
       normalize_mi: false
       verbose: false
-      
+
       # Computation Level Control - determines the granularity of information analysis
       computation_level: layer_branch # Options: "single_branch", "layer_branch", "all_branch"
                                      # "single_branch": Individual branches (most granular and accurate)
                                      # "layer_branch": Layer-level aggregation (treats each layer as a unit)
                                      # "all_branch": Full network aggregation (most efficient)
-      
+
       # Branch aggregation method - only used when computation_level is "layer_branch" or "all_branch"
       branch_aggregation: mean       # Options: "mean", "multivariate", "sample"
-      
+
       # Enhanced analysis modes
-      per_neuron_analysis: false     # If true, compute MI for each neuron separately  
+      per_neuron_analysis: false     # If true, compute MI for each neuron separately
       per_einet_analysis: false      # If true, analyze E and I networks separately
       per_layer_analysis: false      # If true, compute enhanced analysis per layer
 

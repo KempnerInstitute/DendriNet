@@ -42,7 +42,7 @@ slurm_config:
     - python/3.12.5-fasrc01
     - cuda/12.4.1-fasrc01
     - cudnn/8.9.2.26_cuda12-fasrc01
-  conda_env_path:  
+  conda_env_path:
   training_script: "src/dendritic_modeling/scripts/training/train_experiments.py"
 
 # Experiment settings
@@ -229,7 +229,7 @@ train:
   # MAIN NETWORK TRAINING
   # ==========================================
   main:
-    learning_strategy: standard # Options: "standard", "freeze_layers", "local_ca", etc.
+    learning_strategy: standard # Options: "standard", "voltage_stabilization", "homeostatic_control", "freeze_layers", "freeze_branches", "local_ca", "two_step"
                                # Supports regularization, pruning, and parameter group features
     weight_decay_rate: 0.01     # Use optimizer.weight_decay for internal optimizer creation
 
@@ -259,13 +259,23 @@ train:
       # Performance optimization flags (disabled by default for speed)
       enable_nan_checking: false      # Enable NaN detection during training (expensive)
       enable_adaptive_clipping: false # Enable adaptive gradient clipping (expensive)
-      pretrain_epochs: 50
-      target_voltage: 0.5
-      kl_weight: 0.1
-      reverse_training: false
-      epochs_per_layer: 50
-      epochs_per_branch: 50
-      final_tune_epochs: 10
+
+      # ==========================================
+      # SPECIALIZED LEARNING STRATEGY PARAMETERS
+      # ==========================================
+      # Used by voltage_stabilization and homeostatic_control strategies
+      pretrain_epochs: 50          # Epochs of homeostatic/voltage stabilization warm-up
+      stabilize_mode: vout         # What to stabilize: "vinf" (inputs), "vout" (outputs), "both"
+      freeze_reactivation: false   # Freeze reactivation parameters during warm-up phase
+      target_voltage: 0.5          # Target voltage value for stabilization (0.0-1.0)
+      loss_metric: "mse"           # Loss metric: "mse", "log_mse", "mae", "log_mae"
+
+      # Used by other specialized strategies
+      kl_weight: 0.1              # KL divergence weight (for two_step_kl strategy)
+      reverse_training: false      # Train in reverse order (for freeze_*_reversed strategies)
+      epochs_per_layer: 50         # Epochs per layer (for freeze_layers strategy)
+      epochs_per_branch: 50        # Epochs per branch (for freeze_branches strategy)
+      final_tune_epochs: 10        # Final tuning epochs (for multi-phase strategies)
 
     # ==========================================
     # ADVANCED TRAINING FEATURES
@@ -380,18 +390,18 @@ analysis:
       include_vinf: true        # Include soma activation
       normalize_mi: false       # Normalize by entropy
       verbose: false
-      
+
       # Computation Level Control - determines the granularity of information analysis
       computation_level: single_branch # Options: "single_branch", "layer_branch", "all_branch"
                                      # "single_branch": Individual branches (most granular and accurate)
-                                     # "layer_branch": Layer-level aggregation (treats each layer as a unit)  
+                                     # "layer_branch": Layer-level aggregation (treats each layer as a unit)
                                      # "all_branch": Full network aggregation (most efficient)
-      
+
       # Branch aggregation method - only used when computation_level is "layer_branch" or "all_branch"
       branch_aggregation: mean     # Options: "mean", "multivariate", "sample"
-      
+
       # Enhanced analysis modes
-      per_neuron_analysis: false   # If true, compute MI for each neuron separately  
+      per_neuron_analysis: false   # If true, compute MI for each neuron separately
       per_einet_analysis: false    # If true, analyze E and I networks separately
       per_layer_analysis: false    # If true, compute enhanced analysis per layer
 
@@ -465,6 +475,23 @@ analysis:
       logspace: false
       downsample: true
       samples: 5
+
+  synaptic_weight_expectation:
+    enabled: false
+    training: false
+    params:
+      computation_level: "single_branch"
+      branch_aggregation: "mean"
+      per_layer_analysis: true
+      per_einet_analysis: true
+      per_neuron_analysis: false
+      analyze_excitatory: true
+      analyze_inhibitory: true
+      analyze_branch_output: false
+      compute_mean: true
+      compute_variance: true
+      compute_percentiles: false
+      weight_threshold: 1e-6
 
   single_layer_contribution:
     enabled: false

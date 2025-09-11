@@ -766,7 +766,7 @@ def _generate_layer_comparison_plots(
 
         for metric_category, metrics in metric_types:
             # Create figure with subplots for each metric
-            n_metrics = len(metrics)
+            # n_metrics = len(metrics)  # Unused variable
             fig, axes = plt.subplots(2, 2, figsize=(15, 10))
             axes = axes.flatten()
 
@@ -775,7 +775,7 @@ def _generate_layer_comparison_plots(
 
                 # First, determine all available depths from all layers
                 all_available_depths = set()
-                for layer_name, depth_data in layer_data.items():
+                for _layer_name, depth_data in layer_data.items():
                     all_available_depths.update(depth_data.keys())
 
                 # Sort depths in logical order (soma to distal)
@@ -940,6 +940,18 @@ def plot_info_vs_ei_depth_per_dendritic_layer(
         # Organize data by dendritic branch layer instead of EI layer
         dendritic_layers_data = {}
 
+        # Determine dynamic max branch index for correct depth mapping
+        branch_indices = []
+        for lname in layer_statistics.keys():
+            if "branch_layers." in lname:
+                try:
+                    branch_indices.append(
+                        int(lname.split("branch_layers.")[1].split(".")[0])
+                    )
+                except (IndexError, ValueError):
+                    continue
+        max_branch_idx = max(branch_indices) if branch_indices else -1
+
         # Extract data from layer_statistics
         for layer_name, stats in layer_statistics.items():
             if logger:
@@ -1082,10 +1094,26 @@ def plot_info_vs_ei_depth_per_dendritic_layer(
                         if any(v != 0 for v in values):
                             color = branch_colors.get(branch_idx, "#808080")
                             # Fix branch labeling - higher branch_idx means more distal
-                            # branch_idx corresponds to dendritic depth (0=soma, higher=more distal)
-                            if branch_idx == 0:
-                                branch_label = "Soma"
+                            # Map branch_idx to correct distal depth dynamically
+                            # Highest branch_idx is closest to soma (Distal Layer 1)
+                            if max_branch_idx >= 0:
+                                distal_number = (max_branch_idx - branch_idx) + 1
+                                if (
+                                    not somatic_synapses
+                                    and branch_idx == max_branch_idx
+                                    and "synthetic_soma" in layer_statistics
+                                ):
+                                    # When somatic_synapses=False, we explicitly include a synthetic Soma elsewhere
+                                    branch_label = f"Distal Layer {distal_number}"
+                                else:
+                                    branch_label = (
+                                        "Soma"
+                                        if distal_number == 0
+                                        else f"Distal Layer {distal_number}"
+                                    )
+                                # Note: distal_number never 0 here; Soma is provided via synthetic_soma
                             else:
+                                # Fallback
                                 branch_label = f"Distal Layer {branch_idx}"
 
                             # Plot line with error bars
@@ -1179,6 +1207,7 @@ def plot_fully_aggregated_analysis(
     save_path: str,
     logger: Optional[logging.Logger] = None,
     somatic_synapses: bool = True,
+    plot_variance: bool = False,
 ):
     """Generate fully aggregated plots when both per_layer and per_einet analysis are disabled.
 
@@ -1187,11 +1216,24 @@ def plot_fully_aggregated_analysis(
     - Aggregate across E/I networks (Excitatory + Inhibitory)
     - Show dendritic depth (Soma, Layer 1, Layer 2) on x-axis
     - Display one line representing the overall network
+
+    Args:
+        plot_variance: If True, plot variance (std^2) instead of mean values
     """
     if logger is None:
         logger = logging.getLogger(__name__)
 
-    logger.info("Generating fully aggregated dendritic depth plots...")
+    plot_type = "variance" if plot_variance else "mean"
+    logger.info(f"Generating fully aggregated dendritic depth plots ({plot_type})...")
+    logger.info(f"Input layer_statistics keys: {list(layer_statistics.keys())}")
+
+    # Debug: Show sample data structure
+    if layer_statistics:
+        sample_key = next(iter(layer_statistics.keys()))
+        sample_data = layer_statistics[sample_key]
+        logger.info(
+            f"Sample layer data keys for '{sample_key}': {list(sample_data.keys()) if isinstance(sample_data, dict) else 'Not a dict'}"
+        )
 
     # Aggregate data across all layers and E/I networks
     aggregated_data = {}
@@ -1217,24 +1259,37 @@ def plot_fully_aggregated_analysis(
 
         # Helper to register a metric entry under a given depth label
         def register_metric(
-            depth_label: str, metric_name: str, mean_val: float, std_val: float
+            depth_label: str, metric_name: str, value: float, std_val: float
         ):
             all_depths.add(depth_label)
             if depth_label not in aggregated_data:
                 aggregated_data[depth_label] = {}
             if metric_name not in aggregated_data[depth_label]:
                 aggregated_data[depth_label][metric_name] = {"values": [], "stds": []}
-            aggregated_data[depth_label][metric_name]["values"].append(mean_val)
-            aggregated_data[depth_label][metric_name]["stds"].append(std_val)
+
+            # Store the value directly (either mean or variance depending on plot_variance)
+            aggregated_data[depth_label][metric_name]["values"].append(float(value))
+            aggregated_data[depth_label][metric_name]["stds"].append(float(std_val))
 
         # Case 1: synthetic soma (added when somatic_synapses=False)
         if layer_name == "synthetic_soma":
-            for depth_key, val in layer_data.items():
-                if depth_key.endswith("_mean"):
-                    metric_name = depth_key.replace("_mean", "")
-                    mean_val = layer_data.get(f"{metric_name}_mean", 0)
-                    std_val = layer_data.get(f"{metric_name}_std", 0)
-                    register_metric("Soma", metric_name, mean_val, std_val)
+            if plot_variance:
+                # For variance plots, look for _variance keys
+                for depth_key, _val in layer_data.items():
+                    if depth_key.endswith("_variance"):
+                        metric_name = depth_key.replace("_variance", "")
+                        var_val = layer_data.get(f"{metric_name}_variance", 0)
+                        register_metric(
+                            "Soma", metric_name, var_val, 0
+                        )  # No std for variance plots
+            else:
+                # For mean plots, look for _mean keys
+                for depth_key, _val in layer_data.items():
+                    if depth_key.endswith("_mean"):
+                        metric_name = depth_key.replace("_mean", "")
+                        mean_val = layer_data.get(f"{metric_name}_mean", 0)
+                        std_val = layer_data.get(f"{metric_name}_std", 0)
+                        register_metric("Soma", metric_name, mean_val, std_val)
             continue
 
         # Case 2: actual dendritic branch layers
@@ -1254,12 +1309,23 @@ def plot_fully_aggregated_analysis(
                 # Fallback if we couldn't determine max index
                 depth_label = f"Distal Layer {branch_idx}"
 
-            for depth_key, val in layer_data.items():
-                if depth_key.endswith("_mean"):
-                    metric_name = depth_key.replace("_mean", "")
-                    mean_val = layer_data.get(f"{metric_name}_mean", 0)
-                    std_val = layer_data.get(f"{metric_name}_std", 0)
-                    register_metric(depth_label, metric_name, mean_val, std_val)
+            if plot_variance:
+                # For variance plots, look for _variance keys
+                for depth_key, _val in layer_data.items():
+                    if depth_key.endswith("_variance"):
+                        metric_name = depth_key.replace("_variance", "")
+                        var_val = layer_data.get(f"{metric_name}_variance", 0)
+                        register_metric(
+                            depth_label, metric_name, var_val, 0
+                        )  # No std for variance plots
+            else:
+                # For mean plots, look for _mean keys
+                for depth_key, _val in layer_data.items():
+                    if depth_key.endswith("_mean"):
+                        metric_name = depth_key.replace("_mean", "")
+                        mean_val = layer_data.get(f"{metric_name}_mean", 0)
+                        std_val = layer_data.get(f"{metric_name}_std", 0)
+                        register_metric(depth_label, metric_name, mean_val, std_val)
 
     # Compute final aggregated statistics
     final_aggregated = {}
@@ -1274,6 +1340,13 @@ def plot_fully_aggregated_analysis(
             final_aggregated[depth_label][f"{metric_name}_std"] = np.sqrt(
                 np.mean(np.array(metric_data["stds"]) ** 2)
             )
+
+    logger.info(f"Final aggregated data depths: {list(final_aggregated.keys())}")
+    if final_aggregated:
+        sample_depth = next(iter(final_aggregated.keys()))
+        logger.info(
+            f"Sample depth '{sample_depth}' metrics: {list(final_aggregated[sample_depth].keys())}"
+        )
 
     # Sort depths in logical order: Soma first, then Distal Layer 1..N
     def depth_sort_key(label: str) -> int:
@@ -1344,17 +1417,22 @@ def plot_fully_aggregated_analysis(
                 )
 
                 ax.set_xlabel("Dendritic Depth")
-                ax.set_ylabel(f"{metric} (bits)")
-                ax.set_title(f"{metric}")
+                if plot_variance:
+                    ax.set_ylabel(f"{metric} variance (bits²)")
+                    ax.set_title(f"{metric} variance")
+                else:
+                    ax.set_ylabel(f"{metric} (bits)")
+                    ax.set_title(f"{metric}")
                 ax.set_xticks(range(len(depths)))
                 ax.set_xticklabels(depths, rotation=0)
                 ax.grid(True, alpha=0.3)
                 ax.legend()
             else:
+                data_type = "variance" if plot_variance else "data"
                 ax.text(
                     0.5,
                     0.5,
-                    f"No data for {metric}",
+                    f"No {data_type} for {metric}",
                     ha="center",
                     va="center",
                     transform=ax.transAxes,
@@ -1364,15 +1442,46 @@ def plot_fully_aggregated_analysis(
         for idx in range(len(metrics), len(axes)):
             fig.delaxes(axes[idx])
 
+        plot_type = "Variance" if plot_variance else "Analysis"
         fig.suptitle(
-            f"Information Analysis: {metric_category.replace('_', ' ').title()} vs Dendritic Depth",
+            f"Information {plot_type}: {metric_category.replace('_', ' ').title()} vs Dendritic Depth",
             fontsize=16,
         )
         plt.tight_layout()
 
-        filename = f"aggregated_{metric_category}_depth.png"
+        suffix = "_variance" if plot_variance else ""
+        filename = f"aggregated_{metric_category}{suffix}_depth.png"
         filepath = os.path.join(save_path, filename)
         plt.savefig(filepath, dpi=300, bbox_inches="tight")
         plt.close()
 
         logger.info(f"Saved aggregated plot: {filename}")
+
+
+def plot_information_variance_analysis(
+    variance_input: dict,
+    save_path: str,
+    somatic_synapses: bool = True,
+    logger: Optional[logging.Logger] = None,
+) -> None:
+    """Simple wrapper that calls plot_fully_aggregated_analysis with variance=True.
+
+    This function exists for backward compatibility with the analysis pipeline.
+    """
+    if logger is None:
+        logger = logging.getLogger(__name__)
+
+    # Extract layer_variances if it's wrapped in variance_analysis dict
+    if isinstance(variance_input, dict) and "layer_variances" in variance_input:
+        layer_statistics = variance_input.get("layer_variances", {})
+    else:
+        layer_statistics = variance_input
+
+    # Call the enhanced aggregated analysis function with variance=True
+    plot_fully_aggregated_analysis(
+        layer_statistics=layer_statistics,
+        save_path=save_path,
+        logger=logger,
+        somatic_synapses=somatic_synapses,
+        plot_variance=True,
+    )
