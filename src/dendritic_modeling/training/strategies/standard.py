@@ -53,19 +53,22 @@ class Trainer:
     ):
         self.optimizer = optimizer
         self.loss_function: LossFunction = get_loss_function(loss_function)
-        
+
         # E/I Weight Ratio Enforcement
         self.enforce_ei_weight_ratio = kwargs.get("enforce_ei_weight_ratio", False)
         if self.enforce_ei_weight_ratio:
             from dendritic_modeling.training.loss.functions import EIWeightRatioLoss
+
             self.ei_ratio_loss = EIWeightRatioLoss(
                 target_ratio=kwargs.get("target_ei_weight_ratio", 1.5),
                 loss_weight=kwargs.get("ei_ratio_loss_weight", 0.1),
                 scope=kwargs.get("ei_ratio_scope", "per_branch"),
-                metric=kwargs.get("ei_ratio_metric", "mean")
+                metric=kwargs.get("ei_ratio_metric", "mean"),
             )
-            logger.info(f"E/I weight ratio enforcement enabled: target_ratio={self.ei_ratio_loss.target_ratio}, "
-                       f"loss_weight={self.ei_ratio_loss.loss_weight}, scope={self.ei_ratio_loss.scope}")
+            logger.info(
+                f"E/I weight ratio enforcement enabled: target_ratio={self.ei_ratio_loss.target_ratio}, "
+                f"loss_weight={self.ei_ratio_loss.loss_weight}, scope={self.ei_ratio_loss.scope}"
+            )
         else:
             self.ei_ratio_loss = None
         self.epochs = epochs
@@ -291,7 +294,7 @@ class Trainer:
                 # Mixed precision forward pass
                 with autocast():
                     loss = self.loss_function(model, x_batch, y_batch)
-                    
+
                     # Add E/I weight ratio loss if enabled
                     if self.enforce_ei_weight_ratio and self.ei_ratio_loss is not None:
                         ratio_loss = self.ei_ratio_loss(model, x_batch, y_batch)
@@ -322,12 +325,12 @@ class Trainer:
             else:
                 # Standard precision training
                 loss: torch.Tensor = self.loss_function(model, x_batch, y_batch)
-                
+
                 # Add E/I weight ratio loss if enabled
                 if self.enforce_ei_weight_ratio and self.ei_ratio_loss is not None:
                     ratio_loss = self.ei_ratio_loss(model, x_batch, y_batch)
                     loss = loss + ratio_loss
-                
+
                 self.optimizer.zero_grad()
                 loss.backward()
 
@@ -380,7 +383,7 @@ class Trainer:
                 )
         else:
             self.patience_counter += 1
-    
+
     def _save_checkpoint(self, model: BaseModel):
         if self.checkpointing and (self.epoch_counter % self.checkpoint_interval == 0):
             checkpoint_path = os.path.join(
@@ -389,8 +392,8 @@ class Trainer:
             if not os.path.exists(checkpoint_path):
                 os.makedirs(checkpoint_path, exist_ok=True)
             torch.save(
-                model.state_dict(), 
-                os.path.join(checkpoint_path, f"epoch_{self.epoch_counter}.pt")
+                model.state_dict(),
+                os.path.join(checkpoint_path, f"epoch_{self.epoch_counter}.pt"),
             )
 
     def _analyze(self):

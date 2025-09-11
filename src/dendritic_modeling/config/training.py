@@ -46,13 +46,15 @@ class TrainerConfig(BaseConfig):
     epochs_per_layer: int = 50
     epochs_per_branch: int = 50
     final_tune_epochs: int = 10
-    
+
     # E/I Weight Ratio Enforcement
-    enforce_ei_weight_ratio: bool = False       # Enable E/I weight ratio regularization
-    target_ei_weight_ratio: float = 1.5         # Target excitatory/inhibitory weight ratio
-    ei_ratio_loss_weight: float = 0.1           # Regularization strength (fraction of total loss)
-    ei_ratio_scope: str = "per_branch"          # Options: "per_branch", "per_layer", "global"
-    ei_ratio_metric: str = "mean"               # Options: "mean", "median", "rms"
+    enforce_ei_weight_ratio: bool = False  # Enable E/I weight ratio regularization
+    target_ei_weight_ratio: float = 1.5  # Target excitatory/inhibitory weight ratio
+    ei_ratio_loss_weight: float = (
+        0.1  # Regularization strength (fraction of total loss)
+    )
+    ei_ratio_scope: str = "per_branch"  # Options: "per_branch", "per_layer", "global"
+    ei_ratio_metric: str = "mean"  # Options: "mean", "median", "rms"
 
 
 @dataclass

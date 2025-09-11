@@ -2098,25 +2098,24 @@ class UnifiedResultAnalyzer:
                     elif part == "soma":
                         layer_idx = i
                         break
-                
+
                 if layer_idx > 0:
                     # Extract metric type (everything between 'weight_' and layer)
                     metric_parts = parts[1:layer_idx]  # exc, weight, mean, mean
                     metric_type = "_".join(metric_parts)  # exc_weight_mean_mean
-                    
+
                     # Extract layer part
                     if parts[layer_idx] == "layer":
                         layer_part = f"layer_{parts[layer_idx + 1]}"  # layer_0
                     else:  # soma
                         layer_part = "soma"
-                    
+
                     # Group by metric type and layer (ignore aggregation stats like _mean, _std)
                     if metric_type not in weight_metrics:
                         weight_metrics[metric_type] = {}
                     if layer_part not in weight_metrics[metric_type]:
                         weight_metrics[metric_type][layer_part] = []
                     weight_metrics[metric_type][layer_part].append(col)
-        
 
         # Create plots for different weight metrics
         plot_paths.extend(
@@ -2176,10 +2175,10 @@ class UnifiedResultAnalyzer:
                 # Use the first column that ends with '_mean' for the main value
                 mean_col = None
                 for col_name in col_list:
-                    if col_name.endswith('_mean'):
+                    if col_name.endswith("_mean"):
                         mean_col = col_name
                         break
-                
+
                 if mean_col and mean_col in valid_data.columns:
                     # Group by network category for consistent styling
                     for category in ["shunting", "no_shunting"]:
@@ -2188,16 +2187,18 @@ class UnifiedResultAnalyzer:
                         ]
                         if not cat_data.empty:
                             style = "--" if category == "no_shunting" else "-"
-                            marker = "s" if category == "no_shunting" else "o"  # squares for no_shunting, circles for shunting
-                            
+                            marker = (
+                                "s" if category == "no_shunting" else "o"
+                            )  # squares for no_shunting, circles for shunting
+
                             # Apply threshold to handle outliers
                             threshold = 50.0
                             plot_data = cat_data[mean_col].copy()
-                            
+
                             # Filter out values above threshold for plotting
                             valid_mask = plot_data <= threshold
                             filtered_cat_data = cat_data[valid_mask]
-                            
+
                             if not filtered_cat_data.empty:
                                 ax.plot(
                                     filtered_cat_data["ei_ratio"],
@@ -2214,12 +2215,12 @@ class UnifiedResultAnalyzer:
             ax.set_title(
                 f"Synaptic Weight {metric_name.replace('_', ' ').title()} vs E/I Ratio\n(Values >50 excluded)"
             )
-            
+
             # Set y-axis limit to threshold to prevent outliers from dominating the scale
             threshold = 50.0
             current_ylim = ax.get_ylim()
             ax.set_ylim(current_ylim[0], min(current_ylim[1], threshold))
-            
+
             ax.legend(bbox_to_anchor=(1.05, 1), loc="upper left")
             ax.grid(True, alpha=0.3)
 
@@ -2272,10 +2273,10 @@ class UnifiedResultAnalyzer:
                     # Use the first column that ends with '_mean' for the main value
                     mean_col = None
                     for col_name in col_list:
-                        if col_name.endswith('_mean'):
+                        if col_name.endswith("_mean"):
                             mean_col = col_name
                             break
-                    
+
                     if mean_col and mean_col in valid_data.columns:
                         # Get mean value for this E/I ratio
                         subset = valid_data[valid_data["ei_ratio"] == ei_ratio]
@@ -2289,13 +2290,13 @@ class UnifiedResultAnalyzer:
                 heatmap_data.append(row_data)
 
             heatmap_data = np.array(heatmap_data)
-            
+
             # Apply threshold to handle outliers
             threshold = 50.0
-            
+
             # Create a masked array where values > threshold are masked (will appear empty)
             masked_data = np.ma.masked_where(heatmap_data > threshold, heatmap_data)
-            
+
             # Set color range based on non-outlier data to prevent outliers from dominating
             valid_data_for_range = heatmap_data[heatmap_data <= threshold]
             if len(valid_data_for_range) > 0:
@@ -2305,7 +2306,9 @@ class UnifiedResultAnalyzer:
                 vmin, vmax = 0, threshold
 
             # Create heatmap with masked data
-            im = ax.imshow(masked_data, cmap="viridis", aspect="auto", vmin=vmin, vmax=vmax)
+            im = ax.imshow(
+                masked_data, cmap="viridis", aspect="auto", vmin=vmin, vmax=vmax
+            )
 
             # Set labels
             ax.set_xticks(range(len(layer_keys)))
@@ -2348,7 +2351,10 @@ class UnifiedResultAnalyzer:
             return plot_paths
 
         # Check if we have both excitatory and inhibitory weight data
-        if "exc_weight_mean_mean" not in weight_metrics or "inh_weight_mean_mean" not in weight_metrics:
+        if (
+            "exc_weight_mean_mean" not in weight_metrics
+            or "inh_weight_mean_mean" not in weight_metrics
+        ):
             print("Missing excitatory or inhibitory weight data for ratio plots")
             return plot_paths
 
@@ -2364,22 +2370,27 @@ class UnifiedResultAnalyzer:
                 # Get the mean columns for both excitatory and inhibitory
                 exc_col_list = exc_data[layer_key]
                 inh_col_list = inh_data[layer_key]
-                
+
                 # Find the _mean columns
                 exc_mean_col = None
                 inh_mean_col = None
-                
+
                 for col_name in exc_col_list:
-                    if col_name.endswith('_mean'):
+                    if col_name.endswith("_mean"):
                         exc_mean_col = col_name
                         break
-                        
+
                 for col_name in inh_col_list:
-                    if col_name.endswith('_mean'):
+                    if col_name.endswith("_mean"):
                         inh_mean_col = col_name
                         break
 
-                if exc_mean_col and inh_mean_col and exc_mean_col in valid_data.columns and inh_mean_col in valid_data.columns:
+                if (
+                    exc_mean_col
+                    and inh_mean_col
+                    and exc_mean_col in valid_data.columns
+                    and inh_mean_col in valid_data.columns
+                ):
                     # Group by network category for consistent styling
                     for category in ["shunting", "no_shunting"]:
                         cat_data = valid_data[
@@ -2388,20 +2399,20 @@ class UnifiedResultAnalyzer:
                         if not cat_data.empty:
                             style = "--" if category == "no_shunting" else "-"
                             marker = "s" if category == "no_shunting" else "o"
-                            
+
                             # Calculate excitatory/inhibitory ratio
                             exc_weights = cat_data[exc_mean_col]
                             inh_weights = cat_data[inh_mean_col]
-                            
+
                             # Avoid division by zero and handle very small inhibitory weights
                             ratio_data = exc_weights / (inh_weights + 1e-8)
-                            
+
                             # Apply threshold to handle outliers and filter for log scale (positive values only)
                             threshold = 50.0
                             valid_mask = (ratio_data <= threshold) & (ratio_data > 0)
                             filtered_cat_data = cat_data[valid_mask]
                             filtered_ratio_data = ratio_data[valid_mask]
-                            
+
                             if not filtered_cat_data.empty:
                                 ax.plot(
                                     filtered_cat_data["ei_ratio"],
@@ -2415,16 +2426,20 @@ class UnifiedResultAnalyzer:
 
         ax.set_xlabel("E/I Ratio")
         ax.set_ylabel("Excitatory/Inhibitory Weight Ratio")
-        ax.set_title("Mean Excitatory/Inhibitory Weight Ratio vs E/I Ratio\n(Values >50 excluded)")
-        
+        ax.set_title(
+            "Mean Excitatory/Inhibitory Weight Ratio vs E/I Ratio\n(Values >50 excluded)"
+        )
+
         # Set logarithmic y-axis scale
-        ax.set_yscale('log')
-        
+        ax.set_yscale("log")
+
         # Set y-axis limit to threshold to prevent outliers from dominating the scale
         threshold = 50.0
         current_ylim = ax.get_ylim()
-        ax.set_ylim(max(current_ylim[0], 0.01), min(current_ylim[1], threshold))  # Avoid log(0)
-        
+        ax.set_ylim(
+            max(current_ylim[0], 0.01), min(current_ylim[1], threshold)
+        )  # Avoid log(0)
+
         ax.legend(bbox_to_anchor=(1.05, 1), loc="upper left")
         ax.grid(True, alpha=0.3)
 
