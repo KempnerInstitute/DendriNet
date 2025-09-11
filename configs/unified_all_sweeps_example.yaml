@@ -276,6 +276,13 @@ train:
       epochs_per_layer: 50         # Epochs per layer (for freeze_layers strategy)
       epochs_per_branch: 50        # Epochs per branch (for freeze_branches strategy)
       final_tune_epochs: 10        # Final tuning epochs (for multi-phase strategies)
+      
+      # E/I Weight Ratio Enforcement
+      enforce_ei_weight_ratio: false      # Enable E/I weight ratio regularization
+      target_ei_weight_ratio: 1.5         # Target excitatory/inhibitory weight ratio
+      ei_ratio_loss_weight: 0.1           # Regularization strength (fraction of total loss)
+      ei_ratio_scope: "per_branch"        # Options: "per_branch", "per_layer", "global"
+      ei_ratio_metric: "mean"             # Options: "mean", "median", "rms"
 
     # ==========================================
     # ADVANCED TRAINING FEATURES

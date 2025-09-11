@@ -399,6 +399,127 @@ class HomeostaticControlLoss(LossFunction):
         return loss / 2.0
 
 
+class EIWeightRatioLoss(LossFunction):
+    """
+    Loss function to enforce a target ratio between excitatory and inhibitory synaptic weights.
+    
+    This loss function computes the deviation from a target E/I weight ratio across
+    dendritic branch layers and adds it as a regularization term to encourage
+    biologically plausible E/I balance.
+    """
+    
+    def __init__(
+        self,
+        target_ratio: float = 1.5,
+        loss_weight: float = 0.1,
+        scope: str = "per_branch",
+        metric: str = "mean",
+        reduction: str = "mean"
+    ):
+        super().__init__(reduction)
+        self._loss_name = "E/I Weight Ratio"
+        self.target_ratio = target_ratio
+        self.loss_weight = loss_weight
+        self.scope = scope  # "per_branch", "per_layer", "global"
+        self.metric = metric  # "mean", "median", "rms"
+        
+        if self.reduction == "mean":
+            self.reduction_fn = torch.mean
+        elif self.reduction == "sum":
+            self.reduction_fn = torch.sum
+        else:
+            self.reduction_fn = lambda x: x
+    
+    def forward(
+        self,
+        model: BaseModel,
+        x: torch.Tensor,
+        y: Optional[torch.Tensor] = None
+    ) -> torch.Tensor:
+        """Compute E/I weight ratio loss."""
+        ratio_losses = []
+        
+        for module in model.modules():
+            if isinstance(module, DendriticBranchLayer):
+                if (module.branch_excitation is not None and 
+                    module.branch_inhibition is not None and
+                    hasattr(module.branch_excitation, 'pruned_weight') and
+                    hasattr(module.branch_inhibition, 'pruned_weight')):
+                    
+                    try:
+                        exc_weights = module.branch_excitation.pruned_weight()  # [n_branches, in_features]
+                        inh_weights = module.branch_inhibition.pruned_weight()  # [n_branches, in_features]
+                        
+                        if self.scope == "per_branch":
+                            # Enforce ratio per branch
+                            ratio_loss = self._compute_per_branch_ratio_loss(exc_weights, inh_weights)
+                        elif self.scope == "per_layer":
+                            # Enforce ratio per layer (average across branches)
+                            ratio_loss = self._compute_per_layer_ratio_loss(exc_weights, inh_weights)
+                        else:  # global
+                            # Enforce global ratio across entire layer
+                            ratio_loss = self._compute_global_ratio_loss(exc_weights, inh_weights)
+                        
+                        if ratio_loss is not None:
+                            ratio_losses.append(ratio_loss)
+                            
+                    except Exception as e:
+                        # Skip layers that don't have proper weight structure
+                        continue
+        
+        if ratio_losses:
+            total_ratio_loss = self.reduction_fn(torch.stack(ratio_losses))
+            return self.loss_weight * total_ratio_loss
+        else:
+            # Return zero loss if no valid layers found
+            return torch.tensor(0.0, device=x.device, requires_grad=True)
+    
+    def _compute_per_branch_ratio_loss(self, exc_weights: torch.Tensor, inh_weights: torch.Tensor) -> torch.Tensor:
+        """Compute ratio loss per branch."""
+        # Compute weight statistics per branch
+        if self.metric == "mean":
+            exc_stats = exc_weights.mean(dim=1)  # [n_branches]
+            inh_stats = inh_weights.mean(dim=1)  # [n_branches]
+        elif self.metric == "median":
+            exc_stats = exc_weights.median(dim=1)[0]
+            inh_stats = inh_weights.median(dim=1)[0]
+        else:  # rms
+            exc_stats = torch.sqrt(torch.mean(exc_weights**2, dim=1))
+            inh_stats = torch.sqrt(torch.mean(inh_weights**2, dim=1))
+        
+        # Compute actual E/I ratio per branch (avoid division by zero)
+        actual_ratios = exc_stats / (inh_stats + 1e-8)
+        
+        # Compute loss as squared deviation from target
+        ratio_loss = torch.mean((actual_ratios - self.target_ratio)**2)
+        return ratio_loss
+    
+    def _compute_per_layer_ratio_loss(self, exc_weights: torch.Tensor, inh_weights: torch.Tensor) -> torch.Tensor:
+        """Compute ratio loss per layer (average across branches first)."""
+        # Average across branches, then compute ratio
+        if self.metric == "mean":
+            exc_layer_mean = exc_weights.mean()
+            inh_layer_mean = inh_weights.mean()
+        elif self.metric == "median":
+            exc_layer_mean = exc_weights.median()
+            inh_layer_mean = inh_weights.median()
+        else:  # rms
+            exc_layer_mean = torch.sqrt(torch.mean(exc_weights**2))
+            inh_layer_mean = torch.sqrt(torch.mean(inh_weights**2))
+        
+        # Compute layer-level ratio
+        actual_ratio = exc_layer_mean / (inh_layer_mean + 1e-8)
+        
+        # Compute loss
+        ratio_loss = (actual_ratio - self.target_ratio)**2
+        return ratio_loss
+    
+    def _compute_global_ratio_loss(self, exc_weights: torch.Tensor, inh_weights: torch.Tensor) -> torch.Tensor:
+        """Compute global ratio loss across entire network."""
+        # Same as per_layer but will be aggregated across all layers by reduction_fn
+        return self._compute_per_layer_ratio_loss(exc_weights, inh_weights)
+
+
 def get_loss_function(loss_function: str) -> LossFunction:
     if loss_function in ["mse", "mean_squared_error"]:
         return MSELoss()
