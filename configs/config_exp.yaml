@@ -245,21 +245,40 @@ train:
       enable_adaptive_clipping: false # Enable adaptive gradient clipping (expensive)
 
       # ==========================================
-      # SPECIALIZED LEARNING STRATEGY PARAMETERS
+      # STRATEGY-SPECIFIC CONFIG BLOCKS
       # ==========================================
-      # Used by voltage_stabilization and homeostatic_control strategies
-      pretrain_epochs: 50          # Epochs of homeostatic/voltage stabilization warm-up
-      stabilize_mode: vout         # What to stabilize: "vinf" (inputs), "vout" (outputs), "both"
-      freeze_reactivation: true    # Freeze reactivation parameters during warm-up phase
-      target_voltage: 0.5          # Target voltage value for stabilization (0.0-1.0)
-      loss_metric: "mse"           # Loss metric: "mse", "log_mse", "mae", "log_mae"
+      voltage_stabilization_config:
+        pretrain_epochs: 50
+        stabilize_mode: vout
+        freeze_reactivation: true
+        target_voltage: 0.5
+        loss_metric: "mse"
 
-      # Used by other specialized strategies
-      kl_weight: 0.1              # KL divergence weight (for two_step_kl strategy)
-      reverse_training: false      # Train in reverse order (for freeze_*_reversed strategies)
-      epochs_per_layer: 50         # Epochs per layer (for freeze_layers strategy)
-      epochs_per_branch: 50        # Epochs per branch (for freeze_branches strategy)
-      final_tune_epochs: 10        # Final tuning epochs (for multi-phase strategies)
+      homeostatic_control_config:
+        pretrain_epochs: 50
+        stabilize_mode: vinf
+        freeze_reactivation: false
+        target_voltage: 0.5
+        loss_metric: "mse"
+
+      freeze_layers_config:
+        pretrain_epochs: 10
+        reverse_training: false
+        epochs_per_layer: 50
+        final_tune_epochs: 10
+
+      freeze_branches_config:
+        pretrain_epochs: 10
+        reverse_training: false
+        epochs_per_branch: 50
+        final_tune_epochs: 10
+
+      freeze_branch_kl_config:
+        pretrain_epochs: 10
+        reverse_training: false
+        epochs_per_branch: 50
+        final_tune_epochs: 10
+        kl_weight: 0.1
 
 
     # ==========================================

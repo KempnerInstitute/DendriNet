@@ -144,6 +144,66 @@ train:
       # Performance optimization flags (disabled by default for speed)
       enable_nan_checking: false      # Enable NaN detection during training (expensive)
       enable_adaptive_clipping: false # Enable adaptive gradient clipping (expensive)
+      # Local multi-factor rule configuration (when learning_strategy: local_ca)
+      local_rule_config:
+        rule_variant: "3f"
+        error_mode: "auto"
+        ema_alpha: 0.05
+        use_conductance_scaling: true
+        use_driving_force: true
+        theta: 0.0
+        e_rev_exc: 1.0
+        e_rev_inh: 0.0
+        clip_grad_value: 5.0
+        normalize_by_batch: true
+        phi_mode: "conditional"
+        phi_ridge_lambda: 0.001
+        rho_estimator: "ema"
+        phi_estimator: "conditional_ema"
+        augment_k: 8
+        augment_noise_sigma: 0.01
+        rls_forgetting: 0.99
+        hsic_enabled: false
+        hsic_weight: 0.0
+        hsic_self_weight: 1.0
+        hsic_target_weight: 1.0
+        hsic_target_source: "labels"
+        hsic_kernel: "linear"
+        decoder_update_mode: backprop
+
+      # Strategy-specific config blocks
+      voltage_stabilization_config:
+        pretrain_epochs: 50
+        stabilize_mode: vout
+        freeze_reactivation: true
+        target_voltage: 0.5
+        loss_metric: mse
+
+      homeostatic_control_config:
+        pretrain_epochs: 50
+        stabilize_mode: vinf
+        freeze_reactivation: false
+        target_voltage: 0.5
+        loss_metric: mse
+
+      freeze_layers_config:
+        pretrain_epochs: 10
+        reverse_training: false
+        epochs_per_layer: 50
+        final_tune_epochs: 10
+
+      freeze_branches_config:
+        pretrain_epochs: 10
+        reverse_training: false
+        epochs_per_branch: 50
+        final_tune_epochs: 10
+
+      freeze_branch_kl_config:
+        pretrain_epochs: 10
+        reverse_training: false
+        epochs_per_branch: 50
+        final_tune_epochs: 10
+        kl_weight: 0.1
 
     # Unified regularization configuration
     regularization:

@@ -17,13 +17,13 @@ from dendritic_modeling.config.training import (
     ReportingConfig,
 )
 from dendritic_modeling.training.strategies import (
+    HomeostaticControlTrainer,
     LayerWiseTrainer,
     LocalCreditAssignment,
     Trainer,
     TwoStepTrainer,
     TwoStepTrainerWithKL,
     VoltageStabilizationTrainer,
-    HomeostaticControlTrainer,
 )
 
 logger = logging.getLogger(__name__)
@@ -68,19 +68,24 @@ def _extract_enhanced_configs(trainer_config_dict: dict[str, Any]) -> dict[str, 
     else:
         # Create default regularization config and check for legacy E/I parameters
         reg_config_dict = {}
-        
+
         # Check for legacy E/I regularization parameters in trainer config
         ei_params = [
-            "enforce_ei_weight_ratio", "target_ei_weight_ratio", 
-            "ei_ratio_loss_weight", "ei_ratio_scope", "ei_ratio_metric"
+            "enforce_ei_weight_ratio",
+            "target_ei_weight_ratio",
+            "ei_ratio_loss_weight",
+            "ei_ratio_scope",
+            "ei_ratio_metric",
         ]
         for param in ei_params:
             if param in trainer_config_dict:
                 reg_config_dict[param] = trainer_config_dict.pop(param)
-        
+
         # Create regularization config with legacy parameters if found
         if reg_config_dict:
-            enhanced_configs["regularization_config"] = RegularizationConfig(**reg_config_dict)
+            enhanced_configs["regularization_config"] = RegularizationConfig(
+                **reg_config_dict
+            )
 
     # Extract pruning config
     if "pruning" in trainer_config_dict:
@@ -110,6 +115,43 @@ def _extract_enhanced_configs(trainer_config_dict: dict[str, Any]) -> dict[str, 
         param_groups_config = trainer_config_dict.pop("param_groups")
         enhanced_configs["param_groups_config"] = param_groups_config
 
+    # Extract strategy-specific nested configs and flatten into kwargs
+    # Local credit assignment
+    if "local_rule_config" in trainer_config_dict:
+        enhanced_configs["local_rule_config"] = trainer_config_dict.pop(
+            "local_rule_config"
+        )
+
+    # Voltage stabilization
+    if "voltage_stabilization_config" in trainer_config_dict:
+        vs_cfg = trainer_config_dict.pop("voltage_stabilization_config")
+        if isinstance(vs_cfg, dict):
+            enhanced_configs.update(vs_cfg)
+
+    # Homeostatic control
+    if "homeostatic_control_config" in trainer_config_dict:
+        hc_cfg = trainer_config_dict.pop("homeostatic_control_config")
+        if isinstance(hc_cfg, dict):
+            enhanced_configs.update(hc_cfg)
+
+    # Freeze layers
+    if "freeze_layers_config" in trainer_config_dict:
+        fl_cfg = trainer_config_dict.pop("freeze_layers_config")
+        if isinstance(fl_cfg, dict):
+            enhanced_configs.update(fl_cfg)
+
+    # Freeze branches
+    if "freeze_branches_config" in trainer_config_dict:
+        fb_cfg = trainer_config_dict.pop("freeze_branches_config")
+        if isinstance(fb_cfg, dict):
+            enhanced_configs.update(fb_cfg)
+
+    # Freeze branch with KL
+    if "freeze_branch_kl_config" in trainer_config_dict:
+        fbkl_cfg = trainer_config_dict.pop("freeze_branch_kl_config")
+        if isinstance(fbkl_cfg, dict):
+            enhanced_configs.update(fbkl_cfg)
+
     return enhanced_configs
 
 
@@ -136,10 +178,7 @@ def get_trainer(
     trainer_config_dict["optimizer"] = optimizer
 
     if strategy == "standard":
-        # Extract enhanced config objects if present
         enhanced_configs = _extract_enhanced_configs(trainer_config_dict)
-
-        # Add optimizer and enhanced configs to trainer config
         trainer_config_dict.update(enhanced_configs)
 
         return Trainer(**trainer_config_dict)
@@ -150,25 +189,34 @@ def get_trainer(
             "learning_strategy 'enhanced' is deprecated. All features are now available in 'standard' strategy."
         )
 
-        # Extract enhanced config objects
         enhanced_configs = _extract_enhanced_configs(trainer_config_dict)
-
-        # Add optimizer and enhanced configs to trainer config
         trainer_config_dict.update(enhanced_configs)
 
         return Trainer(**trainer_config_dict)
 
     elif strategy == "freeze_layers":
+        enhanced_configs = _extract_enhanced_configs(trainer_config_dict)
+        trainer_config_dict.update(enhanced_configs)
         return LayerWiseTrainer(**trainer_config_dict)
     elif strategy == "freeze_branches":
+        enhanced_configs = _extract_enhanced_configs(trainer_config_dict)
+        trainer_config_dict.update(enhanced_configs)
         return TwoStepTrainer(**trainer_config_dict)
     elif strategy == "local_ca":
+        enhanced_configs = _extract_enhanced_configs(trainer_config_dict)
+        trainer_config_dict.update(enhanced_configs)
         return LocalCreditAssignment(**trainer_config_dict)
     elif strategy == "freeze_branch_kl":
+        enhanced_configs = _extract_enhanced_configs(trainer_config_dict)
+        trainer_config_dict.update(enhanced_configs)
         return TwoStepTrainerWithKL(**trainer_config_dict)
     elif strategy == "voltage_stabilization":
+        enhanced_configs = _extract_enhanced_configs(trainer_config_dict)
+        trainer_config_dict.update(enhanced_configs)
         return VoltageStabilizationTrainer(**trainer_config_dict)
     elif strategy == "homeostatic_control":
+        enhanced_configs = _extract_enhanced_configs(trainer_config_dict)
+        trainer_config_dict.update(enhanced_configs)
         return HomeostaticControlTrainer(**trainer_config_dict)
     elif strategy == "fsdp" or strategy == "fsdp_standard":
         # Note: FSDP requires additional setup (distributed init, special config)
