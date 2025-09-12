@@ -10,6 +10,11 @@ from math import floor
 import torch
 import torch.nn as nn
 
+from dendritic_modeling.networks.utils.weight_transforms import (
+    apply_weight_transform,
+    WeightTransformType
+)
+
 
 class BlockLinear(nn.Module):
     """
@@ -58,7 +63,7 @@ class BlockLinear(nn.Module):
 
     """
 
-    def __init__(self, in_features, out_features):
+    def __init__(self, in_features, out_features, weight_transform: WeightTransformType = "exp"):
         super().__init__()
 
         block_size = floor(in_features / out_features)
@@ -72,6 +77,7 @@ class BlockLinear(nn.Module):
         self.in_features = in_features
         self.out_features = out_features
         self.block_size = block_size
+        self.weight_transform = weight_transform
         self.input_scale_vec = None  # may be used for gradient scaling
         self.param_scale_vec = None  # may be used for gradient scaling
 
@@ -88,7 +94,7 @@ class BlockLinear(nn.Module):
         col_ix = torch.arange(self.in_features, device=self.log_weight.device).view(
             self.out_features, self.block_size
         )
-        block[row_ix, col_ix] = self.log_weight.exp()
+        block[row_ix, col_ix] = apply_weight_transform(self.log_weight, self.weight_transform)
         return block
 
     def log_block(self):
@@ -143,7 +149,7 @@ class BlockLinear(nn.Module):
         return torch.matmul(x, self.block().t())
 
     def sum_conductances(self):
-        return self.log_weight.exp().sum(dim=1)
+        return apply_weight_transform(self.log_weight, self.weight_transform).sum(dim=1)
 
 
 # ---------------------------------------------------------------------------
@@ -190,7 +196,7 @@ class EfficientBlockLinear(BlockLinear):
             return torch.zeros(B, self.out_features, device=x.device, dtype=x.dtype)
 
         x_reshaped = x.view(B, self.out_features, self.block_size)
-        weights = self.log_weight.exp()  # (out_features, block_size)
+        weights = apply_weight_transform(self.log_weight, self.weight_transform)  # (out_features, block_size)
         output = (x_reshaped * weights).sum(dim=-1)  # (B, out_features)
         return output
 

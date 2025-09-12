@@ -183,21 +183,17 @@ def _plot_weight_comparisons(
     save_path: str,
     logger: logging.Logger,
 ):
-    """Plot excitatory vs inhibitory weight comparisons with separate mean and error bar panels."""
+    """Plot simplified excitatory vs inhibitory weight comparisons: mean and variance only."""
     colors = get_color_scheme()
 
-    fig, axes = plt.subplots(2, 2, figsize=(15, 12))
+    fig, axes = plt.subplots(1, 2, figsize=(12, 5))
 
-    # Collect all data first
+    # Collect data for simplified 2-panel plot
     depths = []
     exc_means = []
     inh_means = []
-    exc_errors = []
-    inh_errors = []
     exc_vars = []
     inh_vars = []
-    exc_var_errors = []
-    inh_var_errors = []
 
     for layer_name in layer_names:
         layer_data = converted_results[layer_name]
@@ -209,19 +205,15 @@ def _plot_weight_comparisons(
             depths.append(layer_name)
             exc_means.append(layer_data["exc_weight_mean_mean"])
             inh_means.append(layer_data["inh_weight_mean_mean"])
-            exc_errors.append(layer_data.get("exc_weight_mean_std", 0.0))
-            inh_errors.append(layer_data.get("inh_weight_mean_std", 0.0))
             exc_vars.append(layer_data.get("exc_weight_var_mean", 0.0))
             inh_vars.append(layer_data.get("inh_weight_var_mean", 0.0))
-            exc_var_errors.append(layer_data.get("exc_weight_var_std", 0.0))
-            inh_var_errors.append(layer_data.get("inh_weight_var_std", 0.0))
 
     if depths:
         x_pos = np.arange(len(depths))
         width = 0.35
 
-        # Plot 1: Mean weights comparison (no error bars)
-        ax1 = axes[0, 0]
+        # Panel 1: Mean weights (mean over branches, then mean over all branches)
+        ax1 = axes[0]
         ax1.bar(
             x_pos - width / 2,
             exc_means,
@@ -250,39 +242,9 @@ def _plot_weight_comparisons(
         ax1.set_xticklabels(depths, rotation=45)
         ax1.legend()
 
-        # Plot 2: Standard deviation of mean weights
-        ax2 = axes[0, 1]
+        # Panel 2: Variance (variance over branches, then mean over all variances)
+        ax2 = axes[1]
         ax2.bar(
-            x_pos - width / 2,
-            exc_errors,
-            width,
-            label="Excitatory",
-            color=colors["excitatory"],
-            alpha=0.7,
-        )
-        ax2.bar(
-            x_pos + width / 2,
-            inh_errors,
-            width,
-            label="Inhibitory",
-            color=colors["inhibitory"],
-            alpha=0.7,
-        )
-
-        setup_basic_plot(
-            ax2,
-            "Std Dev of Mean Weights",
-            "Layer (Soma → Distal)",
-            "Weight Mean Std",
-            grid=True,
-        )
-        ax2.set_xticks(x_pos)
-        ax2.set_xticklabels(depths, rotation=45)
-        ax2.legend()
-
-        # Plot 3: Weight variance comparison (no error bars)
-        ax3 = axes[1, 0]
-        ax3.bar(
             x_pos - width / 2,
             exc_vars,
             width,
@@ -290,7 +252,7 @@ def _plot_weight_comparisons(
             color=colors["excitatory"],
             alpha=0.7,
         )
-        ax3.bar(
+        ax2.bar(
             x_pos + width / 2,
             inh_vars,
             width,
@@ -300,47 +262,17 @@ def _plot_weight_comparisons(
         )
 
         setup_basic_plot(
-            ax3,
-            "Weight Variance",
+            ax2,
+            "Synaptic Weight Variance",
             "Layer (Soma → Distal)",
             "Weight Variance",
             grid=True,
         )
-        ax3.set_xticks(x_pos)
-        ax3.set_xticklabels(depths, rotation=45)
-        ax3.legend()
+        ax2.set_xticks(x_pos)
+        ax2.set_xticklabels(depths, rotation=45)
+        ax2.legend()
 
-        # Plot 4: Standard deviation of weight variances
-        ax4 = axes[1, 1]
-        ax4.bar(
-            x_pos - width / 2,
-            exc_var_errors,
-            width,
-            label="Excitatory",
-            color=colors["excitatory"],
-            alpha=0.7,
-        )
-        ax4.bar(
-            x_pos + width / 2,
-            inh_var_errors,
-            width,
-            label="Inhibitory",
-            color=colors["inhibitory"],
-            alpha=0.7,
-        )
-
-        setup_basic_plot(
-            ax4,
-            "Std Dev of Weight Variance",
-            "Layer (Soma → Distal)",
-            "Weight Variance Std",
-            grid=True,
-        )
-        ax4.set_xticks(x_pos)
-        ax4.set_xticklabels(depths, rotation=45)
-        ax4.legend()
-
-    plt.suptitle("Excitatory vs Inhibitory Synaptic Weight Analysis", fontsize=16)
+    plt.suptitle("Synaptic Weight Analysis: Mean and Variance", fontsize=16)
     plt.tight_layout()
 
     # Save plot

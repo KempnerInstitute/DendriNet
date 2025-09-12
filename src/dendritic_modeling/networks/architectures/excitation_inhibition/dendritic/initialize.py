@@ -21,6 +21,79 @@ def compute_expectation_truncated_log_normal(
     return expectation
 
 
+# -----------------------------
+# Transform-aware expectation helpers
+# -----------------------------
+
+def _truncated_normal_moments(mean: float, std: float, upper_quantile: float) -> tuple[float, float, float]:
+    """
+    Compute moments of X | X > alpha where X ~ Normal(mean, std^2),
+    and alpha is the threshold corresponding to the given upper_quantile (top proportion kept).
+
+    Returns:
+        alpha: threshold
+        mean_c: E[X | X > alpha]
+        var_c: Var[X | X > alpha]
+    """
+    # Determine threshold alpha such that P(X > alpha) = upper_quantile
+    # gamma = (alpha - mean) / std
+    gamma = norm.ppf(1 - upper_quantile)
+    alpha = mean + std * gamma
+
+    # Avoid numerical issues for extreme quantiles
+    Q = max(1e-12, 1 - norm.cdf(gamma))
+    phi = norm.pdf(gamma)
+    lam = phi / Q
+
+    mean_c = mean + std * lam
+    var_c = (std**2) * (1 + gamma * lam - lam**2)
+    return alpha, mean_c, var_c
+
+
+def _compute_expectation_truncated_softplus(mean: float, std: float, upper_quantile: float) -> float:
+    """
+    Approximate E[softplus(X) | X > alpha] via delta method using truncated normal moments.
+    softplus(x) = ln(1 + e^x),
+    g'(x) = sigmoid(x), g''(x) = sigmoid(x) * (1 - sigmoid(x)).
+    """
+    _, mu_c, var_c = _truncated_normal_moments(mean, std, upper_quantile)
+    # softplus at conditional mean
+    from math import exp as mexp, log as mlog
+    sp = mlog(1 + mexp(mu_c))
+    # second-order correction
+    sig = 1.0 / (1.0 + mexp(-mu_c))
+    sp_corr = sp + 0.5 * sig * (1 - sig) * var_c
+    return sp_corr
+
+
+def _compute_expectation_truncated_relu(mean: float, std: float, upper_quantile: float) -> float:
+    """
+    Approximate E[ReLU(X) | X > alpha]. Since conditioning ensures X > alpha,
+    and for typical TopK alpha is positive, we use E[X | X > alpha] as a good approximation.
+    """
+    alpha, mu_c, _ = _truncated_normal_moments(mean, std, upper_quantile)
+    # If alpha <= 0 but mu_c still small, ensure non-negativity
+    return max(0.0, mu_c)
+
+
+def _expected_weight_for_transform(transform: str, mean: float, std: float, upper_quantile: float) -> float:
+    """
+    Compute/approximate E[g(X) | X > alpha] where g is the transform and X ~ N(mean, std^2).
+
+    For 'exp' uses the existing closed-form truncated log-normal expectation.
+    For 'softplus' and 'relu' uses truncated normal moments with a delta-method approximation.
+    """
+    t = (transform or "exp").lower()
+    if t == "exp":
+        return compute_expectation_truncated_log_normal(mean=mean, std=std, upper_quantile=upper_quantile)
+    if t == "softplus":
+        return _compute_expectation_truncated_softplus(mean, std, upper_quantile)
+    if t == "relu":
+        return _compute_expectation_truncated_relu(mean, std, upper_quantile)
+    # Fallback to exp-style expectation if unknown
+    return compute_expectation_truncated_log_normal(mean=mean, std=std, upper_quantile=upper_quantile)
+
+
 def compute_network_scale_factor(dbl, branch_factors=None):
     """
     Compute a scale factor based on the total network architecture.
@@ -87,12 +160,15 @@ def analytical_expectation_dbl_init(dbl, adaptive=True, branch_factors=None):
             exc_upper_quantile = dbl.branch_excitation.K / dbl.excitatory_input_dim
             exc_mean = 0
             exc_std = sqrt(2 / (dbl.excitatory_input_dim + 1))
+            # Determine transform for excitation
+            exc_transform = getattr(getattr(dbl, "branch_excitation", None), "weight_transform", "exp")
 
             if not dbl.input_inhibitory and not dbl.input_branches:
                 step = 0.01
                 done = False
                 while not done:
-                    E_w_exc = compute_expectation_truncated_log_normal(
+                    E_w_exc = _expected_weight_for_transform(
+                        transform=exc_transform,
                         mean=exc_mean,
                         std=exc_std,
                         upper_quantile=exc_upper_quantile,
@@ -103,7 +179,8 @@ def analytical_expectation_dbl_init(dbl, adaptive=True, branch_factors=None):
                         exc_mean -= step
 
             else:
-                E_w_exc = compute_expectation_truncated_log_normal(
+                E_w_exc = _expected_weight_for_transform(
+                    transform=exc_transform,
                     mean=exc_mean,
                     std=exc_std,
                     upper_quantile=exc_upper_quantile,
@@ -122,10 +199,12 @@ def analytical_expectation_dbl_init(dbl, adaptive=True, branch_factors=None):
             inh_upper_quantile = dbl.branch_inhibition.K / dbl.inhibitory_input_dim
             inh_mean = 0
             inh_std = sqrt(2 / (dbl.inhibitory_input_dim + 1))
+            inh_transform = getattr(getattr(dbl, "branch_inhibition", None), "weight_transform", "exp")
             if dbl.input_excitatory:
                 ie_ratio = dbl.branch_inhibition.K / dbl.branch_excitation.K
                 inh_std = inh_std * ie_ratio if ie_ratio < 1 else inh_std
-                E_w_inh = compute_expectation_truncated_log_normal(
+                E_w_inh = _expected_weight_for_transform(
+                    transform=inh_transform,
                     mean=inh_mean,
                     std=inh_std,
                     upper_quantile=inh_upper_quantile,
@@ -135,7 +214,8 @@ def analytical_expectation_dbl_init(dbl, adaptive=True, branch_factors=None):
                 done = False
                 if E_w_exc >= ie_ratio * E_w_inh:
                     while not done:
-                        E_w_inh = compute_expectation_truncated_log_normal(
+                        E_w_inh = _expected_weight_for_transform(
+                            transform=inh_transform,
                             mean=inh_mean,
                             std=inh_std,
                             upper_quantile=inh_upper_quantile,
@@ -146,7 +226,8 @@ def analytical_expectation_dbl_init(dbl, adaptive=True, branch_factors=None):
                             inh_mean += step
                 else:
                     while not done:
-                        E_w_inh = compute_expectation_truncated_log_normal(
+                        E_w_inh = _expected_weight_for_transform(
+                            transform=inh_transform,
                             mean=inh_mean,
                             std=inh_std,
                             upper_quantile=inh_upper_quantile,
@@ -157,7 +238,8 @@ def analytical_expectation_dbl_init(dbl, adaptive=True, branch_factors=None):
                             inh_mean -= step
 
             else:
-                E_w_inh = compute_expectation_truncated_log_normal(
+                E_w_inh = _expected_weight_for_transform(
+                    transform=inh_transform,
                     mean=inh_mean,
                     std=inh_std,
                     upper_quantile=inh_upper_quantile,
@@ -217,7 +299,8 @@ def naive_dbl_init(dbl):
             exc_std = sqrt(2 / (dbl.excitatory_input_dim + 1))
             _no_grad_normal_(dbl.branch_excitation.pre_w, 0, exc_std)
 
-            E_w_exc = compute_expectation_truncated_log_normal(
+            E_w_exc = _expected_weight_for_transform(
+                transform=getattr(dbl.branch_excitation, "weight_transform", "exp"),
                 mean=0,
                 std=exc_std,
                 upper_quantile=exc_upper_quantile,
@@ -229,7 +312,8 @@ def naive_dbl_init(dbl):
             inh_std = sqrt(2 / (dbl.inhibitory_input_dim + 1))
             _no_grad_normal_(dbl.branch_inhibition.pre_w, 0, inh_std)
 
-            E_w_inh = compute_expectation_truncated_log_normal(
+            E_w_inh = _expected_weight_for_transform(
+                transform=getattr(dbl.branch_inhibition, "weight_transform", "exp"),
                 mean=0,
                 std=inh_std,
                 upper_quantile=inh_upper_quantile,
@@ -271,7 +355,8 @@ def default_dbl_init(dbl):
             exc_std = sqrt(2 / (dbl.excitatory_input_dim + 1))
             _no_grad_normal_(dbl.branch_excitation.pre_w, 0, exc_std)
 
-            E_w_exc = compute_expectation_truncated_log_normal(
+            E_w_exc = _expected_weight_for_transform(
+                transform=getattr(dbl.branch_excitation, "weight_transform", "exp"),
                 mean=0,
                 std=exc_std,
                 upper_quantile=exc_upper_quantile,
@@ -283,7 +368,8 @@ def default_dbl_init(dbl):
             inh_std = sqrt(2 / (dbl.inhibitory_input_dim + 1))
             _no_grad_normal_(dbl.branch_inhibition.pre_w, 0, inh_std)
 
-            E_w_inh = compute_expectation_truncated_log_normal(
+            E_w_inh = _expected_weight_for_transform(
+                transform=getattr(dbl.branch_inhibition, "weight_transform", "exp"),
                 mean=0,
                 std=inh_std,
                 upper_quantile=inh_upper_quantile,

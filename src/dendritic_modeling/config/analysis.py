@@ -132,8 +132,35 @@ class AblationAnalysisConfig(BaseConfig):
 
 @dataclass
 class WeightAnalysisParams(BaseConfig):
-    synapse_weights: bool = True
-    branch_weights: bool = True
+    """Enhanced configuration for unified weight analysis."""
+    
+    # Weight types to analyze (from original WeightAnalyzer)
+    synapse_weights: bool = True  # Analyze excitatory and inhibitory synapse weights
+    branch_weights: bool = True   # Analyze branch-to-output connection weights
+    
+    # Hierarchical analysis options (from SynapticWeightExpectationAnalyzer)
+    computation_level: str = "single_branch"  # Options: "single_branch", "layer_branch", "all_branch"
+    branch_aggregation: str = "mean"          # Options: "mean", "multivariate", "sample"
+    
+    # Enhanced analysis modes
+    per_layer_analysis: bool = True           # Analyze each layer separately (soma→distal)
+    per_einet_analysis: bool = True           # Separate excitatory and inhibitory network analysis
+    per_neuron_analysis: bool = False         # Analyze individual neurons (expensive)
+    
+    # Weight types to analyze (more granular control)
+    analyze_excitatory: bool = True           # Analyze excitatory synaptic weights
+    analyze_inhibitory: bool = True           # Analyze inhibitory synaptic weights
+    analyze_branch_output: bool = True        # Analyze branch-to-output weights
+    
+    # Statistical measures to compute
+    compute_mean: bool = True                 # Compute mean weights per branch
+    compute_variance: bool = True             # Compute variance of weights per branch
+    compute_percentiles: bool = True          # Compute percentiles (median, quartiles)
+    compute_min_max: bool = True              # Compute min/max per layer
+    compute_dendritic_strength: bool = True   # Compute total dendritic strength per layer
+    
+    # Weight filtering
+    weight_threshold: float = 1e-6            # Minimum weight to consider as "active"
 
 
 @dataclass

@@ -23,6 +23,7 @@ from dendritic_modeling.config.training import (
     RegularizationConfig,
     ReportingConfig,
 )
+from dendritic_modeling.training.regularization import RegularizationManager
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.plotting import plot_loss_curves
 from dendritic_modeling.training.loss.functions import LossFunction, get_loss_function
@@ -53,24 +54,6 @@ class Trainer:
     ):
         self.optimizer = optimizer
         self.loss_function: LossFunction = get_loss_function(loss_function)
-
-        # E/I Weight Ratio Enforcement
-        self.enforce_ei_weight_ratio = kwargs.get("enforce_ei_weight_ratio", False)
-        if self.enforce_ei_weight_ratio:
-            from dendritic_modeling.training.loss.functions import EIWeightRatioLoss
-
-            self.ei_ratio_loss = EIWeightRatioLoss(
-                target_ratio=kwargs.get("target_ei_weight_ratio", 1.5),
-                loss_weight=kwargs.get("ei_ratio_loss_weight", 0.1),
-                scope=kwargs.get("ei_ratio_scope", "per_branch"),
-                metric=kwargs.get("ei_ratio_metric", "mean"),
-            )
-            logger.info(
-                f"E/I weight ratio enforcement enabled: target_ratio={self.ei_ratio_loss.target_ratio}, "
-                f"loss_weight={self.ei_ratio_loss.loss_weight}, scope={self.ei_ratio_loss.scope}"
-            )
-        else:
-            self.ei_ratio_loss = None
         self.epochs = epochs
         self.early_stopping = early_stopping
         self.patience = patience
@@ -94,6 +77,18 @@ class Trainer:
         self.regularization_config = regularization_config or RegularizationConfig()
         self.pruning_config = pruning_config or PruningConfig()
         self.reporting_config = reporting_config or ReportingConfig()
+        
+        # Initialize RegularizationManager
+        self.regularization_manager = RegularizationManager(self.regularization_config)
+        
+        # Log regularization settings
+        if self.regularization_config.l1_weight > 0 or self.regularization_config.l2_weight > 0:
+            logger.info(f"L1/L2 regularization enabled: l1_weight={self.regularization_config.l1_weight}, l2_weight={self.regularization_config.l2_weight}")
+        if self.regularization_config.enforce_ei_weight_ratio:
+            logger.info(f"E/I weight ratio regularization enabled: target_ratio={self.regularization_config.target_ei_weight_ratio}, loss_weight={self.regularization_config.ei_ratio_loss_weight}")
+        if (self.regularization_config.l1_weight <= 0 and self.regularization_config.l2_weight <= 0 and 
+            not self.regularization_config.enforce_ei_weight_ratio):
+            logger.info("No regularization enabled - zero computational overhead")
 
         # Performance optimization flags (disabled by default for speed)
         self.enable_nan_checking = kwargs.get("enable_nan_checking", False)
@@ -295,10 +290,9 @@ class Trainer:
                 with autocast():
                     loss = self.loss_function(model, x_batch, y_batch)
 
-                    # Add E/I weight ratio loss if enabled
-                    if self.enforce_ei_weight_ratio and self.ei_ratio_loss is not None:
-                        ratio_loss = self.ei_ratio_loss(model, x_batch, y_batch)
-                        loss = loss + ratio_loss
+                    # Add all regularization losses
+                    reg_loss = self.regularization_manager.compute_regularization_loss(model, x_batch, y_batch)
+                    loss = loss + reg_loss
 
                 self.optimizer.zero_grad()
                 self.scaler.scale(loss).backward()
@@ -326,10 +320,9 @@ class Trainer:
                 # Standard precision training
                 loss: torch.Tensor = self.loss_function(model, x_batch, y_batch)
 
-                # Add E/I weight ratio loss if enabled
-                if self.enforce_ei_weight_ratio and self.ei_ratio_loss is not None:
-                    ratio_loss = self.ei_ratio_loss(model, x_batch, y_batch)
-                    loss = loss + ratio_loss
+                # Add all regularization losses
+                reg_loss = self.regularization_manager.compute_regularization_loss(model, x_batch, y_batch)
+                loss = loss + reg_loss
 
                 self.optimizer.zero_grad()
                 loss.backward()

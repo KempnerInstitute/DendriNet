@@ -63,6 +63,7 @@ class DendriNet(nn.Module):
         init_method=None,
         weight_threshold=1e-6,
         adaptive_initialization=True,  # Add adaptive initialization parameter
+        weight_transform="exp",  # Weight transformation for positive weights
         **kwargs,
     ):
         super().__init__()
@@ -146,6 +147,7 @@ class DendriNet(nn.Module):
                 init_method=init_method,
                 weight_threshold=weight_threshold,
                 adaptive_initialization=adaptive_initialization,
+                weight_transform=weight_transform,
                 branch_factors=self.branch_factors,  # Pass branch_factors
                 **kwargs,
             )

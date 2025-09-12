@@ -106,6 +106,7 @@ class DendriticBranchLayer(nn.Module):
         adaptive_initialization=True,
         branch_factors=None,  # Add branch_factors parameter
         epsilon=1e-8,  # Add configurable epsilon for numerical stability
+        weight_transform="exp",  # Weight transformation for positive weights
         **kwargs,
     ):
         super().__init__()
@@ -137,6 +138,7 @@ class DendriticBranchLayer(nn.Module):
         self.weight_threshold = weight_threshold
         self.adaptive_initialization = adaptive_initialization
         self.branch_factors = branch_factors  # Store branch_factors
+        self.weight_transform = weight_transform
 
         gradient_scaler = GradientScaler(
             topk_strategy=topk_strategy,
@@ -181,7 +183,7 @@ class DendriticBranchLayer(nn.Module):
                 EfficientBlockLinear if self.efficient_blocklinear else BlockLinear
             )
             self.branches_to_output = BlockCls(
-                output_dim * input_branch_factor, output_dim
+                output_dim * input_branch_factor, output_dim, weight_transform=self.weight_transform
             )
             gradient_scaler.register_block_linear_dynamic(self.branches_to_output)
         self.input_branch_factor = input_branch_factor
@@ -224,6 +226,7 @@ class DendriticBranchLayer(nn.Module):
                 param_space="log",
                 init_method=init_method,
                 noise_level=noise_level,
+                weight_transform=self.weight_transform,
             )
             return topk_layer
 
@@ -243,6 +246,7 @@ class DendriticBranchLayer(nn.Module):
                 noise_level=noise_level,
                 temperature=temperature,
                 ultrafast=ultrafast,
+                weight_transform=self.weight_transform,
             )
         elif self.topk_type == "variance":
             return VarianceTopKLinear(
@@ -252,6 +256,7 @@ class DendriticBranchLayer(nn.Module):
                 param_space="log",
                 init_method=init_method,
                 noise_level=noise_level,
+                weight_transform=self.weight_transform,
             )
         elif self.topk_type == "deepst":
             self.step_counter = 0
@@ -275,6 +280,7 @@ class DendriticBranchLayer(nn.Module):
                     else self.freeze_inhibitory_connectivity
                 ),
                 weight_threshold=self.weight_threshold,
+                weight_transform=self.weight_transform,
             )
         else:
             # Fallback for any unknown strategy - use standard

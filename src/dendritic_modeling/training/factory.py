@@ -65,6 +65,22 @@ def _extract_enhanced_configs(trainer_config_dict: dict[str, Any]) -> dict[str, 
             )
         else:
             enhanced_configs["regularization_config"] = reg_config
+    else:
+        # Create default regularization config and check for legacy E/I parameters
+        reg_config_dict = {}
+        
+        # Check for legacy E/I regularization parameters in trainer config
+        ei_params = [
+            "enforce_ei_weight_ratio", "target_ei_weight_ratio", 
+            "ei_ratio_loss_weight", "ei_ratio_scope", "ei_ratio_metric"
+        ]
+        for param in ei_params:
+            if param in trainer_config_dict:
+                reg_config_dict[param] = trainer_config_dict.pop(param)
+        
+        # Create regularization config with legacy parameters if found
+        if reg_config_dict:
+            enhanced_configs["regularization_config"] = RegularizationConfig(**reg_config_dict)
 
     # Extract pruning config
     if "pruning" in trainer_config_dict:

@@ -105,6 +105,7 @@ class ExcitationInhibitionNetwork(nn.Module):
         init_method="xavier_normal",
         weight_threshold=1e-6,
         adaptive_initialization=True,
+        weight_transform="exp",  # Weight transformation for positive weights
         **kwargs,
     ):
         super().__init__()
@@ -154,6 +155,7 @@ class ExcitationInhibitionNetwork(nn.Module):
         self.init_method = init_method
         self.weight_threshold = weight_threshold
         self.adaptive_initialization = adaptive_initialization
+        self.weight_transform = weight_transform
 
         # Set up transfer function
         self.setup_transfer_function()
@@ -334,6 +336,7 @@ class ExcitationInhibitionNetwork(nn.Module):
                 weight_threshold=self.weight_threshold,
                 efficient_blocklinear=self.efficient_blocklinear,
                 adaptive_initialization=self.adaptive_initialization,
+                weight_transform=self.weight_transform,
             )
             layers.append(layer)
 

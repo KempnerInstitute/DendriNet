@@ -136,6 +136,10 @@ base_config:
         # Morphological features
         somatic_synapses: true
         use_shunting: true               # Can be overridden by sweep_config
+        
+        # Weight transformation for positive weights
+        weight_transform: exp            # Options: "exp", "relu", "softplus"
+        dbl_init_method: analytical_expectation
 
         # Implementation optimizations
         adaptive_initialization: false
@@ -277,13 +281,6 @@ train:
       epochs_per_branch: 50        # Epochs per branch (for freeze_branches strategy)
       final_tune_epochs: 10        # Final tuning epochs (for multi-phase strategies)
 
-      # E/I Weight Ratio Enforcement
-      enforce_ei_weight_ratio: false      # Enable E/I weight ratio regularization
-      target_ei_weight_ratio: 1.5         # Target excitatory/inhibitory weight ratio
-      ei_ratio_loss_weight: 0.1           # Regularization strength (fraction of total loss)
-      ei_ratio_scope: "per_branch"        # Options: "per_branch", "per_layer", "global"
-      ei_ratio_metric: "mean"             # Options: "mean", "median", "rms"
-
     # ==========================================
     # ADVANCED TRAINING FEATURES
     # ==========================================
@@ -325,6 +322,13 @@ train:
         decoder:                    # Decoder network
           l1_weight: 0.0          # No L1 for decoder
           l2_weight: 0.0          # No L2 for decoder
+
+      # E/I Weight Ratio Regularization
+      enforce_ei_weight_ratio: false      # Enable E/I weight ratio regularization
+      target_ei_weight_ratio: 1.5         # Target excitatory/inhibitory weight ratio
+      ei_ratio_loss_weight: 0.1           # Regularization strength (fraction of total loss)
+      ei_ratio_scope: "per_branch"        # Options: "per_branch", "per_layer", "global"
+      ei_ratio_metric: "mean"             # Options: "mean", "median", "rms"
 
     # Pruning configuration
     pruning:

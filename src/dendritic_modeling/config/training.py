@@ -91,8 +91,9 @@ class SelectiveConfig(BaseConfig):
 
 @dataclass
 class RegularizationConfig(BaseConfig):
-    """Configuration for L1/L2 regularization."""
+    """Configuration for all regularization types."""
 
+    # L1/L2 regularization
     l1_weight: float = 0.0  # Strength of L1 regularization (0 to disable)
     l2_weight: float = 0.0  # Strength of L2 regularization (0 to disable)
     selective: SelectiveConfig = field(default_factory=SelectiveConfig)
@@ -105,6 +106,13 @@ class RegularizationConfig(BaseConfig):
     # Example: {"topk": {"l1_weight": 0.001, "l2_weight": 0.01},
     #          "blocklinear": {"l1_weight": 0.0, "l2_weight": 0.005}}
     # Note: When split_params=True, uses param_group_weights; when False, uses global l1_weight/l2_weight
+
+    # E/I Weight Ratio Regularization
+    enforce_ei_weight_ratio: bool = False  # Enable E/I weight ratio regularization
+    target_ei_weight_ratio: float = 1.5    # Target excitatory/inhibitory weight ratio
+    ei_ratio_loss_weight: float = 0.1       # Regularization strength (fraction of total loss)
+    ei_ratio_scope: str = "per_branch"      # Options: "per_branch", "per_layer", "global"
+    ei_ratio_metric: str = "mean"           # Options: "mean", "median", "rms"
 
 
 @dataclass

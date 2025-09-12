@@ -55,6 +55,7 @@ class ExcitationInhibitionLayer(nn.Module):
         init_method="xavier_normal",
         weight_threshold=1e-6,
         adaptive_initialization=True,
+        weight_transform="exp",  # Weight transformation for positive weights
         **kwargs,
     ):
         super().__init__()
@@ -94,6 +95,7 @@ class ExcitationInhibitionLayer(nn.Module):
                 init_method=init_method,
                 weight_threshold=weight_threshold,
                 adaptive_initialization=adaptive_initialization,
+                weight_transform=weight_transform,
                 **kwargs,
             )
         else:
@@ -140,6 +142,7 @@ class ExcitationInhibitionLayer(nn.Module):
             init_method=init_method,
             weight_threshold=weight_threshold,
             adaptive_initialization=adaptive_initialization,
+            weight_transform=weight_transform,
             **kwargs,
         )
 
