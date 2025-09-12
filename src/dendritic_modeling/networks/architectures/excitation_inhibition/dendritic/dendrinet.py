@@ -38,6 +38,7 @@ class DendriNet(nn.Module):
         topk_init_method="xavier_normal",
         topk_noise_level=0.0,
         topk_type="standard",  # New parameter for TopK strategy
+        weight_transform="exp",  # Weight transformation for positive weights
         topk_temperature=0.5,  # For stochastic TopK
         topk_ultrafast=False,  # For much faster stochastic TopK
         topk_strategy="none",
@@ -63,7 +64,6 @@ class DendriNet(nn.Module):
         init_method=None,
         weight_threshold=1e-6,
         adaptive_initialization=True,  # Add adaptive initialization parameter
-        weight_transform="exp",  # Weight transformation for positive weights
         **kwargs,
     ):
         super().__init__()
@@ -121,6 +121,7 @@ class DendriNet(nn.Module):
                 topk_init_method=topk_init_method,
                 topk_noise_level=topk_noise_level,
                 topk_type=topk_type,  # Pass the parameter
+                weight_transform=weight_transform,
                 topk_temperature=topk_temperature,  # Pass the temperature
                 topk_ultrafast=topk_ultrafast,  # Pass the ultrafast flag
                 topk_strategy=topk_strategy,
@@ -147,7 +148,6 @@ class DendriNet(nn.Module):
                 init_method=init_method,
                 weight_threshold=weight_threshold,
                 adaptive_initialization=adaptive_initialization,
-                weight_transform=weight_transform,
                 branch_factors=self.branch_factors,  # Pass branch_factors
                 **kwargs,
             )
@@ -165,6 +165,7 @@ class DendriNet(nn.Module):
                     topk_init_method=topk_init_method,
                     topk_noise_level=topk_noise_level,
                     topk_type=topk_type,  # Pass the parameter
+                    weight_transform=weight_transform,
                     topk_temperature=topk_temperature,  # Pass the temperature
                     topk_ultrafast=topk_ultrafast,  # Pass the ultrafast flag
                     topk_strategy=topk_strategy,
@@ -207,6 +208,7 @@ class DendriNet(nn.Module):
                     topk_init_method=topk_init_method,
                     topk_noise_level=topk_noise_level,
                     topk_type=topk_type,  # Pass the parameter
+                    weight_transform=weight_transform,
                     topk_temperature=topk_temperature,  # Pass the temperature
                     topk_ultrafast=topk_ultrafast,  # Pass the ultrafast flag
                     topk_strategy=topk_strategy,

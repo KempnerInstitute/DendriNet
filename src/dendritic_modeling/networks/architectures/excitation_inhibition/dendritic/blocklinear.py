@@ -5,7 +5,7 @@ This module implements a custom linear layer that aggregates information
 from converging branches in a previous branch layer.
 """
 
-from math import floor
+from math import floor, log
 
 import torch
 import torch.nn as nn
@@ -63,7 +63,12 @@ class BlockLinear(nn.Module):
 
     """
 
-    def __init__(self, in_features, out_features, weight_transform: WeightTransformType = "exp"):
+    def __init__(
+        self, 
+        in_features, 
+        out_features, 
+        weight_transform: WeightTransformType = "exp"
+    ):
         super().__init__()
 
         block_size = floor(in_features / out_features)
@@ -81,8 +86,16 @@ class BlockLinear(nn.Module):
         self.input_scale_vec = None  # may be used for gradient scaling
         self.param_scale_vec = None  # may be used for gradient scaling
 
-    def initialize(self, log_g_branch: float=0):
-        nn.init.constant_(self.log_weight, log_g_branch)
+    def initialize(self, g_branch: float=1):
+        if self.weight_transform == "exp":
+            inv_transform_g_branch = log(g_branch)
+        elif self.weight_transform == "relu":
+            inv_transform_g_branch = g_branch
+        elif self.weight_transform == "softplus":
+            inv_transform_g_branch = log(g_branch - 1 + 1e-8)
+        else:
+            raise ValueError(f"Unsupported weight transform type: {self.weight_transform}")
+        nn.init.constant_(self.log_weight, inv_transform_g_branch)
 
     def block(self):
         block = torch.zeros(

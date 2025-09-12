@@ -77,6 +77,7 @@ class DendriticBranchLayer(nn.Module):
         topk_init_method="xavier_normal",
         topk_noise_level=0.0,
         topk_type="standard",  # New parameter
+        weight_transform="exp",  # Weight transformation for positive weights
         topk_temperature=0.5,  # For stochastic TopK
         topk_ultrafast=False,  # For much faster stochastic TopK
         topk_strategy="none",
@@ -106,7 +107,6 @@ class DendriticBranchLayer(nn.Module):
         adaptive_initialization=True,
         branch_factors=None,  # Add branch_factors parameter
         epsilon=1e-8,  # Add configurable epsilon for numerical stability
-        weight_transform="exp",  # Weight transformation for positive weights
         **kwargs,
     ):
         super().__init__()
@@ -291,6 +291,7 @@ class DendriticBranchLayer(nn.Module):
                 param_space="log",
                 init_method=init_method,
                 noise_level=noise_level,
+                weight_transform=self.weight_transform,
             )
 
     def initialize(self):

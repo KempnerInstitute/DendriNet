@@ -112,11 +112,18 @@ class TopKLinear(nn.Module):
         """Apply weight decay to active synapses and optionally boost inactive ones."""
         with torch.no_grad():
             weight_mask = self.weight_mask()
-            log_decay = log(1 - weight_decay) * weight_mask
-            self.pre_w.data += log_decay  # suppress active synapses
-            if weight_boost:
-                log_boost = log(1 + weight_decay) * (1 - weight_mask)
-                self.pre_w.data -= log_boost  # boost inactive synapses
+            if self.weight_transform == "exp":
+                decay = log(1 - weight_decay) * weight_mask
+                self.pre_w.data += decay
+            elif self.weight_transform == "relu":
+                decay = torch.where(weight_mask > 0, 1 - weight_decay, 1)
+                self.pre_w.data *= decay
+            elif self.weight_transform == "softplus":
+                w = nn.functional.softplus(self.pre_w.data)
+                decayed_w = w * (1 - weight_decay)
+                p_prime = torch.log(torch.exp(decayed_w) - 1 + 1e-8)
+                p_prime_masked = torch.where(weight_mask > 0, p_prime, self.pre_w.data)
+                self.pre_w.data = p_prime_masked
 
     def forward(self, x):
         """Forward pass through the TopK linear layer."""
@@ -134,10 +141,7 @@ class TopKLinear(nn.Module):
 
     def weight(self):
         """Return the transformed synaptic weights."""
-        if self.param_space == "log":
-            return apply_weight_transform(self.pre_w, self.weight_transform)
-        elif self.param_space == "presigmoid":
-            return torch.sigmoid(self.pre_w)
+        return apply_weight_transform(self.pre_w, self.weight_transform)
 
     def log_weight(self):
         """Return the log of the transformed weights."""

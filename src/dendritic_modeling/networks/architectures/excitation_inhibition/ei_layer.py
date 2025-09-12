@@ -41,6 +41,7 @@ class ExcitationInhibitionLayer(nn.Module):
         reactivation_type="param_tanh",
         topk_noise_level=0.0,
         topk_type="standard",
+        weight_transform="exp",  # Weight transformation for positive weights
         topk_strategy="none",
         print_hooks=False,
         excitatory_target_density=0.1,
@@ -55,7 +56,6 @@ class ExcitationInhibitionLayer(nn.Module):
         init_method="xavier_normal",
         weight_threshold=1e-6,
         adaptive_initialization=True,
-        weight_transform="exp",  # Weight transformation for positive weights
         **kwargs,
     ):
         super().__init__()
@@ -82,6 +82,7 @@ class ExcitationInhibitionLayer(nn.Module):
                 topk_noise_level=topk_noise_level,
                 topk_strategy=topk_strategy,
                 topk_type=topk_type,
+                weight_transform=weight_transform,
                 print_hooks=print_hooks,
                 excitatory_target_density=excitatory_target_density,
                 inhibitory_target_density=inhibitory_target_density,
@@ -95,7 +96,6 @@ class ExcitationInhibitionLayer(nn.Module):
                 init_method=init_method,
                 weight_threshold=weight_threshold,
                 adaptive_initialization=adaptive_initialization,
-                weight_transform=weight_transform,
                 **kwargs,
             )
         else:
@@ -129,6 +129,7 @@ class ExcitationInhibitionLayer(nn.Module):
             topk_noise_level=topk_noise_level,
             topk_strategy=topk_strategy,
             topk_type=topk_type,
+            weight_transform=weight_transform,
             print_hooks=print_hooks,
             excitatory_target_density=excitatory_target_density,
             inhibitory_target_density=inhibitory_target_density,
@@ -142,7 +143,6 @@ class ExcitationInhibitionLayer(nn.Module):
             init_method=init_method,
             weight_threshold=weight_threshold,
             adaptive_initialization=adaptive_initialization,
-            weight_transform=weight_transform,
             **kwargs,
         )
 
