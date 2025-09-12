@@ -250,7 +250,7 @@ train:
       # Used by voltage_stabilization and homeostatic_control strategies
       pretrain_epochs: 50          # Epochs of homeostatic/voltage stabilization warm-up
       stabilize_mode: vout         # What to stabilize: "vinf" (inputs), "vout" (outputs), "both"
-      freeze_reactivation: false   # Freeze reactivation parameters during warm-up phase
+      freeze_reactivation: true    # Freeze reactivation parameters during warm-up phase
       target_voltage: 0.5          # Target voltage value for stabilization (0.0-1.0)
       loss_metric: "mse"           # Loss metric: "mse", "log_mse", "mae", "log_mae"
 
