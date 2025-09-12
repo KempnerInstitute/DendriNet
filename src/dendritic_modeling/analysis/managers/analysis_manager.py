@@ -26,9 +26,6 @@ from dendritic_modeling.analysis.tools.synaptic_activation import (
     SynapticActivationAnalyzer,
 )
 from dendritic_modeling.analysis.tools.synaptic_turnover import SynapticTurnoverAnalyzer
-from dendritic_modeling.analysis.tools.synaptic_weight_expectation import (
-    SynapticWeightExpectationAnalyzer,
-)
 from dendritic_modeling.analysis.tools.weight import WeightAnalyzer
 from dendritic_modeling.config import AnalysisConfig
 from dendritic_modeling.models import BaseModel
@@ -123,17 +120,6 @@ class AnalysisManager:
             )
         else:
             self.correlation_analysis_enabled = False
-
-        # Initialize Synaptic Weight Expectation Analysis
-        if (
-            hasattr(self.config, "synaptic_weight_expectation")
-            and self.config.synaptic_weight_expectation.enabled
-        ):
-            self.synaptic_weight_expectation_analyzer = (
-                SynapticWeightExpectationAnalyzer(
-                    params=self.config.synaptic_weight_expectation.params
-                )
-            )
 
     def set_pruning_results(self, pruning_results: dict):
         """Set pruning results for inclusion in performance plots."""
@@ -243,6 +229,7 @@ class AnalysisManager:
                 model=self.model,
                 save_path=os.path.join(self.save_root, "weight_analysis"),
                 filename=filename,
+                training=training,
             )
 
         # Synaptic Activation Analysis
@@ -289,23 +276,3 @@ class AnalysisManager:
                 filename=filename,
             )
             self.logger.info("Correlation analysis completed successfully")
-
-        # Synaptic Weight Expectation Analysis
-        if (
-            hasattr(self.config, "synaptic_weight_expectation")
-            and self.config.synaptic_weight_expectation.enabled
-            and (
-                (self.config.synaptic_weight_expectation.training and training)
-                or not training
-            )
-        ):
-            self.logger.info("Starting synaptic weight expectation analysis...")
-            self.synaptic_weight_expectation_analyzer.analyze(
-                model=self.model,
-                device=self.device,
-                save_path=os.path.join(self.save_root, "synaptic_weight_expectation"),
-                filename=filename,
-            )
-            self.logger.info(
-                "Synaptic weight expectation analysis completed successfully"
-            )

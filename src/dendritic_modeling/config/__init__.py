@@ -23,8 +23,6 @@ from dendritic_modeling.config.analysis import (
     SynapseTurnoverAnalysisConfig,
     SynapticActivationAnalysisConfig,
     SynapticActivationAnalysisParams,
-    SynapticWeightExpectationConfig,
-    SynapticWeightExpectationParams,
     WeightAnalysisConfig,
     WeightAnalysisParams,
 )
@@ -84,8 +82,6 @@ __all__ = [
     "SynapseTurnoverAnalysisConfig",
     "SynapticActivationAnalysisConfig",
     "SynapticActivationAnalysisParams",
-    "SynapticWeightExpectationConfig",
-    "SynapticWeightExpectationParams",
     "TaskConfig",
     "TrainConfig",
     "TrainerConfig",

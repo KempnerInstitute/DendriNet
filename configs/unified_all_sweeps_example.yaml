@@ -136,7 +136,7 @@ base_config:
         # Morphological features
         somatic_synapses: true
         use_shunting: true               # Can be overridden by sweep_config
-        
+
         # Weight transformation for positive weights
         weight_transform: exp            # Options: "exp", "relu", "softplus"
         dbl_init_method: analytical_expectation
@@ -454,13 +454,6 @@ analysis:
       mse: true
       cosine_similarity: true
 
-  weight_analysis:
-    enabled: false
-    training: false
-    params:
-      synapse_weights: true
-      branch_weights: true
-
   synaptic_activation_analysis:
     enabled: false
     training: false
@@ -487,21 +480,26 @@ analysis:
       downsample: true
       samples: 5
 
-  synaptic_weight_expectation:
+  weight_analysis:
     enabled: false
     training: false
     params:
+      synapse_weights: true
+      branch_weights: true
       computation_level: "single_branch"
       branch_aggregation: "mean"
       per_layer_analysis: true
       per_einet_analysis: true
       per_neuron_analysis: false
+
       analyze_excitatory: true
       analyze_inhibitory: true
       analyze_branch_output: false
       compute_mean: true
       compute_variance: true
       compute_percentiles: false
+      compute_min_max: true
+      compute_dendritic_strength: true
       weight_threshold: 1e-6
 
   single_layer_contribution:

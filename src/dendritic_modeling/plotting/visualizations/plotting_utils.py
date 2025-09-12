@@ -144,8 +144,7 @@ def convert_layer_names(
                 except ValueError:
                     continue
 
-    # Determine max branch index to calculate depths dynamically
-    max_branch_idx = max(branch_indices) if branch_indices else 0
+    # Branch indices collected for potential future use
 
     for name in layer_names:
         try:
@@ -153,27 +152,11 @@ def convert_layer_names(
                 # Synthetic soma always gets depth 0 (for information analysis)
                 indexed_layers.append((0, name))
             elif "branch_layers." in name:
-                # For weight analysis, we need to check if this layer is actually the soma
-                # by looking at the layer results to find layer_idx
-                # This is a bit tricky since we don't have layer_idx in layer_results directly
-                # For now, use the branch index mapping but we'll need to fix this properly
                 parts = name.split("branch_layers.")
                 if len(parts) > 1:
                     branch_idx = int(parts[1].split(".")[0])
-
-                    # Check if this might be the soma layer (highest branch index often corresponds to soma)
-                    # We'll use the layer_idx information if available in the data
-                    if branch_idx == max_branch_idx:
-                        # Highest branch index is likely the soma when somatic_synapses=False
-                        depth = 0
-                    else:
-                        # Map other branch indices to distal layers
-                        # branch_layers with lower indices are more distal
-                        depth = (
-                            max_branch_idx
-                        ) - branch_idx  # Adjusted to avoid duplication
-
-                    indexed_layers.append((depth, name))
+                    # Use actual layer_idx (branch_idx) so ordering matches ablation (0=soma → distal)
+                    indexed_layers.append((branch_idx, name))
                 else:
                     indexed_layers.append((999, name))
             elif "layers." in name:
@@ -193,25 +176,34 @@ def convert_layer_names(
         except (ValueError, IndexError, AttributeError):
             indexed_layers.append((999, name))
 
-    # Sort by index (CORRECT ORDER: lowest index = soma, highest = distal)
-    # In dendritic networks: layer_idx=0 is soma, higher layer_idx is more distal
+    # Sort by index (CORRECT ORDER: lowest index = most proximal, highest = most distal)
+    # In dendritic networks: layer_idx=0 is soma (if present), higher layer_idx is more distal
     indexed_layers.sort(key=lambda x: x[0])
 
     # Create new dictionary with intuitive names
     converted_results = {}
-    for i, (_original_idx, original_name) in enumerate(indexed_layers):
-        if i == 0:
-            # Always label as "Soma" for consistency, but the analysis should handle
-            # the case where somatic synapses are not present
+    for _i, (original_idx, original_name) in enumerate(indexed_layers):
+        # Treat layer_idx==0 as Soma in all cases (synthetic or real)
+        is_soma_layer = original_idx == 0
+
+        if is_soma_layer:
             new_name = "Soma"
         else:
-            new_name = f"Distal Layer {i}"
+            # Match ablation labeling: distal_layer = original_idx - min_depth (but since min_depth=0 for soma, it's original_idx)
+            distal_layer_num = original_idx
+            new_name = f"Distal Layer {distal_layer_num}"
 
         converted_results[new_name] = layer_results[original_name]
 
         # Add metadata about whether this is actually a functional soma
-        if i == 0 and "has_somatic_synapses" not in converted_results[new_name]:
+        if is_soma_layer and "has_somatic_synapses" not in converted_results[new_name]:
             converted_results[new_name]["has_somatic_synapses"] = somatic_synapses
+
+    # Ensure Soma appears on the x-axis even when somatic_synapses is False
+    if not somatic_synapses and "Soma" not in converted_results:
+        ordered = {"Soma": {"has_somatic_synapses": False}}
+        ordered.update(converted_results)
+        return ordered
 
     return converted_results
 

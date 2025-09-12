@@ -198,15 +198,12 @@ def _plot_weight_comparisons(
     for layer_name in layer_names:
         layer_data = converted_results[layer_name]
 
-        if (
-            "exc_weight_mean_mean" in layer_data
-            and "inh_weight_mean_mean" in layer_data
-        ):
-            depths.append(layer_name)
-            exc_means.append(layer_data["exc_weight_mean_mean"])
-            inh_means.append(layer_data["inh_weight_mean_mean"])
-            exc_vars.append(layer_data.get("exc_weight_var_mean", 0.0))
-            inh_vars.append(layer_data.get("inh_weight_var_mean", 0.0))
+        # Include all layers, using 0 as default if metrics don't exist (like soma)
+        depths.append(layer_name)
+        exc_means.append(layer_data.get("exc_weight_mean_mean", 0.0))
+        inh_means.append(layer_data.get("inh_weight_mean_mean", 0.0))
+        exc_vars.append(layer_data.get("exc_weight_var_mean", 0.0))
+        inh_vars.append(layer_data.get("inh_weight_var_mean", 0.0))
 
     if depths:
         x_pos = np.arange(len(depths))
@@ -300,10 +297,10 @@ def _plot_active_synapse_counts(
     for layer_name in layer_names:
         layer_data = converted_results[layer_name]
 
-        if "exc_n_active_synapses_mean" in layer_data:
-            depths.append(layer_name)
-            exc_counts.append(layer_data.get("exc_n_active_synapses_mean", 0))
-            inh_counts.append(layer_data.get("inh_n_active_synapses_mean", 0))
+        # Include all layers, using 0 as default if metrics don't exist (like soma)
+        depths.append(layer_name)
+        exc_counts.append(layer_data.get("exc_n_active_synapses_mean", 0))
+        inh_counts.append(layer_data.get("inh_n_active_synapses_mean", 0))
 
     if depths:
         x_pos = np.arange(len(depths))

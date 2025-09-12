@@ -684,9 +684,7 @@ class UnifiedResultAnalyzer:
                     print(f"Error reading ablation analysis: {e}")
 
             # Collect synaptic weight expectation analysis results
-            weight_file = os.path.join(
-                search_path, "synaptic_weight_expectation", "final"
-            )
+            weight_file = os.path.join(search_path, "weight_analysis", "final")
             if os.path.exists(weight_file):
                 try:
                     with open(weight_file) as f:

@@ -7,7 +7,6 @@ from .synaptic_pruning import (
     integrate_pruning_with_turnover_analysis,
 )
 from .synaptic_turnover import SynapticTurnoverAnalyzer
-from .synaptic_weight_expectation import SynapticWeightExpectationAnalyzer
 from .weight import WeightAnalyzer
 
 __all__ = [
@@ -15,7 +14,6 @@ __all__ = [
     "SynapticActivationAnalyzer",
     "SynapticPruningAnalyzer",
     "SynapticTurnoverAnalyzer",
-    "SynapticWeightExpectationAnalyzer",
-    "WeightAnalyzer",
+    "WeightAnalyzer",  # Now includes all weight analysis functionality
     "integrate_pruning_with_turnover_analysis",
 ]
