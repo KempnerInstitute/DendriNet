@@ -69,6 +69,8 @@ class LocalRuleConfig:
     e_rev_inh: float = 0.0
     clip_grad_value: float = 5.0
     normalize_by_batch: bool = True
+    # If True, update inactive TopK weights too (mask only applied in forward)
+    update_inactive_weights: bool = False
     # phi (information proxy) configuration
     phi_mode: str = "conditional"  # "conditional" uses parent voltages; "variance" uses layer variance
     phi_ridge_lambda: float = 1e-3  # Regularization for conditional regression
@@ -78,18 +80,33 @@ class LocalRuleConfig:
     augment_k: int = 8
     augment_noise_sigma: float = 0.01
     rls_forgetting: float = 0.99
+    # Rho (morphology factor) mode: "pearson" uses correlation; "dot" uses dot-product proxy; "none" disables
+    rho_mode: str = "pearson"
     # HSIC/pHSIC auxiliary loss configuration
     hsic_enabled: bool = False
     hsic_weight: float = 0.0
     hsic_self_weight: float = 1.0
     hsic_target_weight: float = 1.0
     hsic_target_source: str = "labels"  # "labels" or "logits"
-    hsic_kernel: str = "linear"  # currently only "linear" supported
-    hsic_sigma: float = 0.0  # placeholder for RBF
+    hsic_kernel: str = "linear"  # "linear", "rbf", "polynomial"
+    hsic_sigma: float = 1.0  # RBF kernel bandwidth (gamma = 1/(2*sigma^2))
+    hsic_degree: int = 2  # Polynomial kernel degree
+    hsic_coef0: float = 1.0  # Polynomial kernel coefficient
     # Decoder update strategy: "backprop" or "none"
     decoder_update_mode: str = "backprop"
     # Gate reactivation parameter updates
     update_reactivation: bool = True
+    # Optional epoch-based freezing and phased training
+    freeze_reactivation_epochs: int = (
+        0  # Freeze reactivation params for initial N epochs
+    )
+    freeze_decoder_epochs: int = 0  # Freeze decoder for initial N epochs
+    # Optional per-epoch schedule overriding the above. Each entry may include:
+    # { start_epoch: int, end_epoch: int, update_reactivation: bool, decoder_update_mode: str }
+    training_schedule: Optional[list[dict[str, Any]]] = None
+    # Layer-wise scaling for morphology factors
+    layer_wise_rho_scale: float = 1.0  # Scale rho by 1/sqrt(layer_depth) if > 0
+    layer_wise_phi_scale: float = 1.0  # Scale phi by 1/sqrt(layer_depth) if > 0
 
 
 class _LayerStats:
@@ -102,6 +119,9 @@ class _LayerStats:
         self.ema_var_y: Optional[float] = None
         self.ema_var_x: Optional[float] = None
         self.ema_cov_xy: Optional[float] = None
+        # NEW: Running means for proper online variance/covariance
+        self.ema_mean_y: Optional[float] = None
+        self.ema_mean_x: Optional[float] = None
 
 
 class LocalCreditAssignment(Trainer):
@@ -143,6 +163,32 @@ class LocalCreditAssignment(Trainer):
             return super()._epoch_train(model, train_loader)
 
         for x_batch, y_batch in train_loader:
+            # Resolve per-epoch schedule for reactivation/decoder behavior
+            update_reactivation = self.local_cfg.update_reactivation
+            decoder_update_mode = self.local_cfg.decoder_update_mode
+            # Freeze phases by epoch index
+            if self.epoch_counter <= max(
+                0, int(self.local_cfg.freeze_reactivation_epochs)
+            ):
+                update_reactivation = False
+            if self.epoch_counter <= max(0, int(self.local_cfg.freeze_decoder_epochs)):
+                decoder_update_mode = "none"
+            # Optional schedule entries override
+            if self.local_cfg.training_schedule:
+                for sched in self.local_cfg.training_schedule:
+                    try:
+                        s = int(sched.get("start_epoch", 1))
+                        e = int(sched.get("end_epoch", 10**9))
+                    except Exception:
+                        s, e = 1, 10**9
+                    if s <= self.epoch_counter <= e:
+                        if "update_reactivation" in sched:
+                            update_reactivation = bool(sched["update_reactivation"])
+                        if "decoder_update_mode" in sched:
+                            decoder_update_mode = str(
+                                sched["decoder_update_mode"]
+                            ).lower()
+                        break
             x_batch = x_batch.to(self.device)
             y_batch = y_batch.to(self.device)
 
@@ -191,11 +237,12 @@ class LocalCreditAssignment(Trainer):
                 v0=y_hat.detach(),
                 delta=delta.detach(),
                 y_target=y_target,
+                update_reactivation=update_reactivation,
             )
 
             # Decoder update mode
             if hasattr(model, "decoder_network"):
-                if self.local_cfg.decoder_update_mode == "backprop":
+                if decoder_update_mode == "backprop":
                     # Backprop only decoder parameters using global loss
                     dec_params = [
                         p for p in model.decoder_network.parameters() if p.requires_grad
@@ -210,7 +257,7 @@ class LocalCreditAssignment(Trainer):
                                     p.grad = g.detach().clone()
                                 else:
                                     p.grad = p.grad + g.detach()
-                elif self.local_cfg.decoder_update_mode == "local":
+                elif decoder_update_mode == "local":
                     # Simple local 3-factor on last Linear: grad_W = e_out^T @ h_in; grad_b = sum(e_out)
                     lin_mod = self._decoder_cache.get("module")
                     h_in = self._decoder_cache.get("input")
@@ -415,15 +462,19 @@ class LocalCreditAssignment(Trainer):
         v0: torch.Tensor,
         delta: torch.Tensor,
         y_target: Optional[torch.Tensor] = None,
+        update_reactivation: bool = True,
     ) -> None:
         batch_size = v0.size(0)
         delta_mean: torch.Tensor = delta.mean(dim=1, keepdim=True)  # [B, 1]
 
         # Iterate in the order records were captured
-        for rec in layer_records:
+        for layer_idx, rec in enumerate(layer_records):
             v_n: Optional[torch.Tensor] = rec.get("v_n")  # [B, out]
             if v_n is None:
                 continue
+
+            # Layer depth scaling (1-indexed)
+            layer_depth = layer_idx + 1
             out_features = v_n.size(1)
 
             # Error term per compartment (broadcast soma error)
@@ -452,6 +503,9 @@ class LocalCreditAssignment(Trainer):
             rho = 1.0
             if self.local_cfg.rule_variant in {"4f", "5f"}:
                 rho = self._compute_layer_rho(rec, v0)
+                # Apply layer-wise scaling if enabled
+                if self.local_cfg.layer_wise_rho_scale > 0:
+                    rho = rho / (layer_depth**0.5 * self.local_cfg.layer_wise_rho_scale)
 
             # Information proxy phi (scalar per layer)
             phi = 1.0
@@ -460,6 +514,9 @@ class LocalCreditAssignment(Trainer):
                     phi = self._compute_layer_phi_conditional(rec)
                 else:
                     phi = self._compute_layer_phi(rec)
+                # Apply layer-wise scaling if enabled
+                if self.local_cfg.layer_wise_phi_scale > 0:
+                    phi = phi / (layer_depth**0.5 * self.local_cfg.layer_wise_phi_scale)
 
             # Post-synaptic modulation per-sample, per-neuron
             if self.local_cfg.use_driving_force:
@@ -481,7 +538,7 @@ class LocalCreditAssignment(Trainer):
                 g_current = exc_layer.weight().detach()
                 grad_param = grad_g * g_current
                 mask = rec.get("exc_mask")
-                if mask is not None:
+                if mask is not None and not self.local_cfg.update_inactive_weights:
                     grad_param = grad_param * mask
                 if exc_layer.pre_w.grad is None:
                     exc_layer.pre_w.grad = grad_param.to(exc_layer.pre_w.dtype)
@@ -512,7 +569,7 @@ class LocalCreditAssignment(Trainer):
                 g_current_inh = inh_layer.weight().detach()
                 grad_param_inh = grad_g_inh * g_current_inh
                 mask_inh = rec.get("inh_mask")
-                if mask_inh is not None:
+                if mask_inh is not None and not self.local_cfg.update_inactive_weights:
                     grad_param_inh = grad_param_inh * mask_inh
                 if inh_layer.pre_w.grad is None:
                     inh_layer.pre_w.grad = grad_param_inh.to(inh_layer.pre_w.dtype)
@@ -529,14 +586,20 @@ class LocalCreditAssignment(Trainer):
                 x_blk = x_blk_raw.view(
                     x_blk_raw.size(0), blk_layer.out_features, block_size
                 )
-                # dL/dg_den ≈ E_batch[ e_n * R_tot * (V_j - V_n) ]
+                # dL/dg_den ≈ E_batch[ e_n * R_tot * (V_j - V_n) * rho * phi ]
                 diff = x_blk - v_n.unsqueeze(-1)  # [B, out, block]
                 # Ensure R_tot is a tensor for broadcasting
                 if isinstance(R_tot, torch.Tensor):
                     R_exp = R_tot.unsqueeze(-1)
                 else:
                     R_exp = torch.ones_like(v_n).unsqueeze(-1) * float(R_tot)
-                grad_g_den = (e_n.unsqueeze(-1) * R_exp * diff).mean(dim=0)
+                # Apply morphology and information factors
+                den_factor = e_n.unsqueeze(-1) * R_exp * diff
+                if self.local_cfg.rule_variant in {"4f", "5f"}:
+                    den_factor = den_factor * float(rho)
+                if self.local_cfg.rule_variant == "5f":
+                    den_factor = den_factor * float(phi)
+                grad_g_den = den_factor.mean(dim=0)
                 if not self.local_cfg.normalize_by_batch:
                     grad_g_den = grad_g_den * float(batch_size)
                 g_current_den = blk_layer.log_weight.detach().exp()
@@ -555,7 +618,7 @@ class LocalCreditAssignment(Trainer):
             react_module = getattr(rec.get("layer"), "reactivation", None)
             v_out = rec.get("v_out")
             if (
-                self.local_cfg.update_reactivation
+                update_reactivation
                 and isinstance(react_module, ParametricActivation)
                 and v_n is not None
                 and v_out is not None
@@ -609,16 +672,14 @@ class LocalCreditAssignment(Trainer):
                             react_module.b.dtype
                         )
 
-            # HSIC/pHSIC auxiliary (linear kernel): add covariance-based gradients
+            # HSIC/pHSIC auxiliary: add kernel-based gradients
             if self.local_cfg.hsic_enabled:
                 v_out = rec.get("v_out")
                 if v_out is not None:
                     z = v_out - v_out.mean(dim=0, keepdim=True)  # [B, out]
                     if self.local_cfg.hsic_self_weight != 0.0:
-                        grad_z_self = (
-                            (2.0 / float(batch_size))
-                            * z
-                            * self.local_cfg.hsic_self_weight
+                        grad_z_self = self._compute_hsic_gradient(
+                            z, z, self.local_cfg.hsic_self_weight, "self"
                         )
                         if exc_layer is not None and rec.get("x_exc") is not None:
                             x_exc = rec["x_exc"]
@@ -644,15 +705,8 @@ class LocalCreditAssignment(Trainer):
                         and y_target is not None
                     ):
                         y_centered = y_target - y_target.mean(dim=0, keepdim=True)
-                        # Maximize dependence: minimize -Cov(z, y)^2; gradient wrt z is -2 Cov(z,y) * y
-                        cov_zy = (z.t() @ y_centered) / float(batch_size)
-                        grad_z_tgt = (
-                            -2.0 * (cov_zy @ y_centered.t()).t() / float(batch_size)
-                        )
-                        grad_z_tgt = (
-                            grad_z_tgt
-                            * self.local_cfg.hsic_target_weight
-                            * self.local_cfg.hsic_weight
+                        grad_z_tgt = self._compute_hsic_gradient(
+                            z, y_centered, self.local_cfg.hsic_target_weight, "target"
                         )
                         if exc_layer is not None and rec.get("x_exc") is not None:
                             x_exc = rec["x_exc"]
@@ -674,6 +728,124 @@ class LocalCreditAssignment(Trainer):
                                     + grad_param_tgt.to(exc_layer.pre_w.dtype)
                                 )
 
+    # ----------------------- Helper: HSIC kernel functions ------------------
+    def _compute_kernel_matrix(self, X: torch.Tensor, Y: torch.Tensor) -> torch.Tensor:
+        """Compute kernel matrix K(X, Y) based on configured kernel type.
+
+        Args:
+            X: Input tensor [B, d1]
+            Y: Input tensor [B, d2]
+
+        Returns:
+            Kernel matrix [B, B]
+        """
+        kernel_type = self.local_cfg.hsic_kernel.lower()
+
+        if kernel_type == "linear":
+            # Linear kernel: K(x, y) = x^T y
+            return X @ Y.t()
+        elif kernel_type == "rbf" or kernel_type == "gaussian":
+            # RBF kernel: K(x, y) = exp(-||x - y||^2 / (2 * sigma^2))
+            gamma = (
+                1.0 / (2.0 * self.local_cfg.hsic_sigma**2)
+                if self.local_cfg.hsic_sigma > 0
+                else 1.0
+            )
+            # Compute pairwise distances efficiently
+            X_norm = (X**2).sum(dim=1, keepdim=True)  # [B, 1]
+            Y_norm = (Y**2).sum(dim=1, keepdim=True)  # [B, 1]
+            dist_sq = X_norm + Y_norm.t() - 2.0 * (X @ Y.t())  # [B, B]
+            return torch.exp(-gamma * dist_sq)
+        elif kernel_type == "polynomial" or kernel_type == "poly":
+            # Polynomial kernel: K(x, y) = (coef0 + x^T y)^degree
+            dot_product = X @ Y.t()
+            return (
+                self.local_cfg.hsic_coef0 + dot_product
+            ) ** self.local_cfg.hsic_degree
+        else:
+            # Fallback to linear
+            return X @ Y.t()
+
+    def _compute_hsic_gradient(
+        self, z: torch.Tensor, y: torch.Tensor, weight: float, grad_type: str
+    ) -> torch.Tensor:
+        """Compute HSIC gradient with respect to z using specified kernel.
+
+        Args:
+            z: Layer activations [B, d_z]
+            y: Target/reference [B, d_y]
+            weight: Gradient scaling weight
+            grad_type: "self" for self-dependence, "target" for target dependence
+
+        Returns:
+            Gradient w.r.t. z [B, d_z]
+        """
+        batch_size = z.size(0)
+        kernel_type = self.local_cfg.hsic_kernel.lower()
+
+        if kernel_type == "linear":
+            # Linear kernel gradients (original implementation)
+            if grad_type == "self":
+                return (2.0 / float(batch_size)) * z * weight
+            else:  # target
+                cov_zy = (z.t() @ y) / float(batch_size)
+                grad_z = -2.0 * (cov_zy @ y.t()).t() / float(batch_size)
+                return grad_z * self.local_cfg.hsic_weight * weight
+
+        elif kernel_type in ["rbf", "gaussian"]:
+            # RBF kernel gradients
+            gamma = (
+                1.0 / (2.0 * self.local_cfg.hsic_sigma**2)
+                if self.local_cfg.hsic_sigma > 0
+                else 1.0
+            )
+            if grad_type == "self":
+                # Self-dependence: encourage diversity (negative correlation)
+                K_zz = self._compute_kernel_matrix(z, z)
+                # Gradient of tr(K_zz) w.r.t. z_i = 2 * gamma * K_ii * (z_i - z_mean)
+                z_expanded = z.unsqueeze(1)  # [B, 1, d]
+                z_diff = z_expanded - z.unsqueeze(0)  # [B, B, d]
+                K_expanded = K_zz.unsqueeze(-1)  # [B, B, 1]
+                grad_z = -2.0 * gamma * (K_expanded * z_diff).sum(dim=1)  # [B, d]
+                return grad_z * weight / float(batch_size)
+            else:  # target
+                # Target dependence: maximize HSIC(z, y)
+                K_zy = self._compute_kernel_matrix(z, y)
+                z_expanded = z.unsqueeze(1)  # [B, 1, d_z]
+                z_diff = z_expanded - z.unsqueeze(0)  # [B, B, d_z]
+                K_expanded = K_zy.unsqueeze(-1)  # [B, B, 1]
+                grad_z = 2.0 * gamma * (K_expanded * z_diff).sum(dim=1)  # [B, d_z]
+                return grad_z * self.local_cfg.hsic_weight * weight / float(batch_size)
+
+        elif kernel_type in ["polynomial", "poly"]:
+            # Polynomial kernel gradients
+            degree = self.local_cfg.hsic_degree
+            coef0 = self.local_cfg.hsic_coef0
+            if grad_type == "self":
+                # Self-dependence gradient
+                dot_zz = z @ z.t()  # [B, B]
+                poly_base = coef0 + dot_zz  # [B, B]
+                # d/dz_i (coef0 + z_i^T z_j)^degree = degree * (coef0 + z_i^T z_j)^(degree-1) * z_j
+                poly_grad_coef = degree * (poly_base ** (degree - 1))  # [B, B]
+                grad_z = (poly_grad_coef @ z) * 2.0  # [B, d] (factor 2 for symmetry)
+                return grad_z * weight / float(batch_size)
+            else:  # target
+                # Target dependence gradient
+                dot_zy = z @ y.t()  # [B, B]
+                poly_base = coef0 + dot_zy  # [B, B]
+                poly_grad_coef = degree * (poly_base ** (degree - 1))  # [B, B]
+                grad_z = poly_grad_coef @ y  # [B, d_z]
+                return grad_z * self.local_cfg.hsic_weight * weight / float(batch_size)
+
+        else:
+            # Fallback to linear
+            if grad_type == "self":
+                return (2.0 / float(batch_size)) * z * weight
+            else:
+                cov_zy = (z.t() @ y) / float(batch_size)
+                grad_z = -2.0 * (cov_zy @ y.t()).t() / float(batch_size)
+                return grad_z * self.local_cfg.hsic_weight * weight
+
     # ----------------------- Helper: rho and phi factors --------------------
     def _compute_layer_rho(self, rec: dict[str, Any], v0: torch.Tensor) -> float:
         layer_id = id(rec.get("layer"))
@@ -681,40 +853,95 @@ class LocalCreditAssignment(Trainer):
         v_n: torch.Tensor = rec.get("v_n")
         if v_n is None:
             return 1.0
-        # If batch size < 2, use online EMA update without computing correlation
-        if v_n.size(0) < 2 or v0.size(0) < 2:
-            a = v_n.mean(dim=1)
-            b = v0.mean(dim=1)
-            alpha = self.local_cfg.ema_alpha
-            # Initialize or decay toward zero-cov neutral
-            if stats.ema_var_y is None:
-                stats.ema_var_y = float((a * a).mean().item())
-                stats.ema_var_x = float((b * b).mean().item())
-                stats.ema_cov_xy = 0.0
+
+        batch_size = v_n.size(0)
+        alpha = self.local_cfg.ema_alpha  # Learning rate for EMA (e.g., 0.05)
+        decay = 1.0 - alpha  # Decay factor
+
+        # Compute per-sample average voltages (over neurons)
+        a = v_n.mean(dim=1)  # [B]
+        b = v0.mean(dim=1)  # [B]
+        # Optional alternative: dot-product-like proxy that works with B=1
+        rho_mode = getattr(self.local_cfg, "rho_mode", "pearson").lower()
+        if rho_mode == "dot":
+            # Use batch mean of elementwise product as a scalar proxy with EMA smoothing
+            rho_val = float((a * b).mean().item())
+            if stats.rho_ema is None:
+                stats.rho_ema = rho_val
             else:
-                stats.ema_var_y = (1 - alpha) * stats.ema_var_y + alpha * float(
-                    (a * a).mean().item()
-                )
-                stats.ema_var_x = (1 - alpha) * stats.ema_var_x + alpha * float(
-                    (b * b).mean().item()
-                )
-                # No sample covariance from single sample; keep previous
-            denom = (stats.ema_var_y * stats.ema_var_x) ** 0.5 + 1e-8
-            rho_ema = (stats.ema_cov_xy or 0.0) / denom
-            stats.rho_ema = rho_ema
-            return float(rho_ema)
-        a = v_n.mean(dim=1)
-        b = v0.mean(dim=1)
-        a_c = a - a.mean()
-        b_c = b - b.mean()
-        denom = a_c.std(unbiased=False) * b_c.std(unbiased=False) + 1e-8
-        rho_batch = float((a_c * b_c).mean().item() / denom.item())
-        alpha = self.local_cfg.ema_alpha
-        if stats.rho_ema is None:
-            stats.rho_ema = rho_batch
+                stats.rho_ema = decay * stats.rho_ema + alpha * rho_val
+            return float(max(0.1, min(2.0, stats.rho_ema)))  # Clamp to stable range
+        elif rho_mode == "none":
+            return 1.0
+
+        if batch_size >= 2:
+            # Batch mode: direct correlation + EMA smoothing
+            a_c = a - a.mean()
+            b_c = b - b.mean()
+            denom = a_c.std(unbiased=False) * b_c.std(unbiased=False) + 1e-8
+            rho_batch = float((a_c * b_c).mean().item() / denom.item())
+            if stats.rho_ema is None:
+                stats.rho_ema = rho_batch
+            else:
+                stats.rho_ema = decay * stats.rho_ema + alpha * rho_batch
+            return float(stats.rho_ema)
+
         else:
-            stats.rho_ema = (1 - alpha) * stats.rho_ema + alpha * rho_batch
-        return float(stats.rho_ema)
+            # Single-sample mode: Use configured estimator
+            estimator = self.local_cfg.rho_estimator.lower()
+
+            if estimator in ["ema", "ema+augment"]:
+                # Proper online EMA with running means (Welford-like)
+                a_sample = (
+                    a.mean().item()
+                )  # Scalar average over batch (B=1) and neurons
+                b_sample = b.mean().item()
+
+                # Initialize
+                if stats.ema_mean_y is None:
+                    stats.ema_mean_y = a_sample
+                    stats.ema_mean_x = b_sample
+                    stats.ema_var_y = 0.0
+                    stats.ema_var_x = 0.0
+                    stats.ema_cov_xy = 0.0
+
+                # Update means
+                old_mean_y = stats.ema_mean_y
+                old_mean_x = stats.ema_mean_x
+                stats.ema_mean_y = decay * stats.ema_mean_y + alpha * a_sample
+                stats.ema_mean_x = decay * stats.ema_mean_x + alpha * b_sample
+
+                # Update deltas
+                delta_y = a_sample - old_mean_y
+                delta_x = b_sample - old_mean_x
+
+                # Update var/cov (incremental)
+                stats.ema_var_y = decay * stats.ema_var_y + alpha * (delta_y**2)
+                stats.ema_var_x = decay * stats.ema_var_x + alpha * (delta_x**2)
+                stats.ema_cov_xy = decay * stats.ema_cov_xy + alpha * (
+                    delta_y * delta_x
+                )
+
+                denom = (stats.ema_var_y * stats.ema_var_x) ** 0.5 + 1e-8
+                rho_ema = stats.ema_cov_xy / denom
+                stats.rho_ema = rho_ema
+                return float(max(0.1, min(2.0, rho_ema)))  # Clamp for stability
+
+            elif estimator == "augment":
+                # TODO: Implement micro-ensemble augmentation (K noisy forwards)
+                logger.warning(
+                    "Augment estimator not yet implemented; using EMA fallback."
+                )
+                # Recursive call to EMA path by changing estimator temporarily
+                old_estimator = self.local_cfg.rho_estimator
+                self.local_cfg.rho_estimator = "ema"
+                result = self._compute_layer_rho(rec, v0)
+                self.local_cfg.rho_estimator = old_estimator
+                return result
+
+            else:
+                logger.warning(f"Unknown rho_estimator '{estimator}'; returning 1.0")
+                return 1.0
 
     def _compute_layer_phi(self, rec: dict[str, Any]) -> float:
         layer_id = id(rec.get("layer"))
@@ -753,9 +980,9 @@ class LocalCreditAssignment(Trainer):
         if parent is None:
             return self._compute_layer_phi(rec)
 
-        # If batch size < 2, conditional variance is unstable; use neutral
-        if v_n.size(0) < 2:
-            return 1.0
+        # Handle single-sample case with EMA
+        if v_n.size(0) < 2 and self.local_cfg.phi_estimator == "conditional_ema":
+            return self._compute_layer_phi_conditional_ema(rec, v_n, parent)
         # Center variables
         y = v_n - v_n.mean(dim=0, keepdim=True)  # [B, out]
         x = parent - parent.mean(dim=0, keepdim=True)  # [B, out]
@@ -786,6 +1013,62 @@ class LocalCreditAssignment(Trainer):
             residual_var = 1e-12
         # Conditional SNR-like factor: higher when residual variance is small
         phi = var_y / residual_var
+        return float(max(0.25, min(4.0, phi)))
+
+    def _compute_layer_phi_conditional_ema(
+        self, rec: dict[str, Any], v_n: torch.Tensor, parent: torch.Tensor
+    ) -> float:
+        """Compute conditional phi for single samples using online EMA.
+
+        Uses Welford-like updates to maintain running statistics of conditional variance.
+        """
+        layer_id = id(rec.get("layer"))
+        stats = self._layer_stats.setdefault(layer_id, _LayerStats())
+
+        # Compute per-sample averages
+        y_sample = v_n.mean().item()  # Scalar
+        x_sample = parent.mean().item()  # Scalar
+
+        alpha = self.local_cfg.ema_alpha
+        decay = 1.0 - alpha
+        lam = self.local_cfg.phi_ridge_lambda
+
+        # Initialize if needed
+        if stats.ema_mean_y is None:
+            stats.ema_mean_y = y_sample
+            stats.ema_mean_x = x_sample
+            stats.ema_var_y = 0.0
+            stats.ema_var_x = 0.0
+            stats.ema_cov_xy = 0.0
+            return 1.0  # Neutral on first sample
+
+        # Update means
+        old_mean_y = stats.ema_mean_y
+        old_mean_x = stats.ema_mean_x
+        stats.ema_mean_y = decay * stats.ema_mean_y + alpha * y_sample
+        stats.ema_mean_x = decay * stats.ema_mean_x + alpha * x_sample
+
+        # Compute deltas
+        delta_y = y_sample - old_mean_y
+        delta_x = x_sample - old_mean_x
+
+        # Update var/cov using incremental formulation
+        stats.ema_var_y = decay * stats.ema_var_y + alpha * (delta_y**2)
+        stats.ema_var_x = decay * stats.ema_var_x + alpha * (delta_x**2)
+        stats.ema_cov_xy = decay * stats.ema_cov_xy + alpha * (delta_y * delta_x)
+
+        # Compute conditional variance
+        if stats.ema_var_x <= 1e-12:
+            return 1.0
+
+        beta = stats.ema_cov_xy / (stats.ema_var_x + lam)
+        residual_var = stats.ema_var_y - beta * stats.ema_cov_xy
+
+        if residual_var <= 1e-12:
+            residual_var = 1e-12
+
+        # Conditional SNR proxy
+        phi = stats.ema_var_y / residual_var
         return float(max(0.25, min(4.0, phi)))
 
     def train(

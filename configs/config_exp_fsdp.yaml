@@ -168,8 +168,17 @@ train:
         hsic_self_weight: 1.0
         hsic_target_weight: 1.0
         hsic_target_source: "labels"
-        hsic_kernel: "linear"
+        hsic_kernel: "linear"           # "linear", "rbf", "polynomial"
+        hsic_sigma: 1.0                 # RBF kernel bandwidth (gamma = 1/(2*sigma^2))
+        hsic_degree: 2                  # Polynomial kernel degree
+        hsic_coef0: 1.0                 # Polynomial kernel coefficient
+        # Morphology correlation options (rho)
+        rho_mode: "pearson"            # "pearson", "dot", "none"
         decoder_update_mode: backprop
+        freeze_reactivation_epochs: 0
+        freeze_decoder_epochs: 0
+        training_schedule: []
+        update_inactive_weights: false
 
       # Strategy-specific config blocks
       voltage_stabilization_config:
