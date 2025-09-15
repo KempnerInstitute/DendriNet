@@ -25,7 +25,10 @@ def compute_expectation_truncated_log_normal(
 # Transform-aware expectation helpers
 # -----------------------------
 
-def _truncated_normal_moments(mean: float, std: float, upper_quantile: float) -> tuple[float, float, float]:
+
+def _truncated_normal_moments(
+    mean: float, std: float, upper_quantile: float
+) -> tuple[float, float, float]:
     """
     Compute moments of X | X > alpha where X ~ Normal(mean, std^2),
     and alpha is the threshold corresponding to the given upper_quantile (top proportion kept).
@@ -50,7 +53,9 @@ def _truncated_normal_moments(mean: float, std: float, upper_quantile: float) ->
     return alpha, mean_c, var_c
 
 
-def _compute_expectation_truncated_softplus(mean: float, std: float, upper_quantile: float) -> float:
+def _compute_expectation_truncated_softplus(
+    mean: float, std: float, upper_quantile: float
+) -> float:
     """
     Approximate E[softplus(X) | X > alpha] via delta method using truncated normal moments.
     softplus(x) = ln(1 + e^x),
@@ -59,6 +64,7 @@ def _compute_expectation_truncated_softplus(mean: float, std: float, upper_quant
     _, mu_c, var_c = _truncated_normal_moments(mean, std, upper_quantile)
     # softplus at conditional mean
     from math import exp as mexp, log as mlog
+
     sp = mlog(1 + mexp(mu_c))
     # second-order correction
     sig = 1.0 / (1.0 + mexp(-mu_c))
@@ -66,7 +72,9 @@ def _compute_expectation_truncated_softplus(mean: float, std: float, upper_quant
     return sp_corr
 
 
-def _compute_expectation_truncated_relu(mean: float, std: float, upper_quantile: float) -> float:
+def _compute_expectation_truncated_relu(
+    mean: float, std: float, upper_quantile: float
+) -> float:
     """
     Approximate E[ReLU(X) | X > alpha]. Since conditioning ensures X > alpha,
     and for typical TopK alpha is positive, we use E[X | X > alpha] as a good approximation.
@@ -76,7 +84,9 @@ def _compute_expectation_truncated_relu(mean: float, std: float, upper_quantile:
     return max(0.0, mu_c)
 
 
-def _expected_weight_for_transform(transform: str, mean: float, std: float, upper_quantile: float) -> float:
+def _expected_weight_for_transform(
+    transform: str, mean: float, std: float, upper_quantile: float
+) -> float:
     """
     Compute/approximate E[g(X) | X > alpha] where g is the transform and X ~ N(mean, std^2).
 
@@ -85,13 +95,17 @@ def _expected_weight_for_transform(transform: str, mean: float, std: float, uppe
     """
     t = (transform or "exp").lower()
     if t == "exp":
-        return compute_expectation_truncated_log_normal(mean=mean, std=std, upper_quantile=upper_quantile)
+        return compute_expectation_truncated_log_normal(
+            mean=mean, std=std, upper_quantile=upper_quantile
+        )
     if t == "softplus":
         return _compute_expectation_truncated_softplus(mean, std, upper_quantile)
     if t == "relu":
         return _compute_expectation_truncated_relu(mean, std, upper_quantile)
     # Fallback to exp-style expectation if unknown
-    return compute_expectation_truncated_log_normal(mean=mean, std=std, upper_quantile=upper_quantile)
+    return compute_expectation_truncated_log_normal(
+        mean=mean, std=std, upper_quantile=upper_quantile
+    )
 
 
 def compute_network_scale_factor(dbl, branch_factors=None):
@@ -145,8 +159,9 @@ def analytical_expectation_dbl_init(dbl, adaptive=True, branch_factors=None):
         branch_factors: List of branch factors from parent network (for adaptive mode)
     """
     from .branch_layer import DendriticBranchLayer
+
     assert isinstance(dbl, DendriticBranchLayer)
-    
+
     with torch.no_grad():
         E_g_exc = 0
         E_g_inh = 0
@@ -161,7 +176,9 @@ def analytical_expectation_dbl_init(dbl, adaptive=True, branch_factors=None):
             exc_mean = 0
             exc_std = sqrt(2 / (dbl.excitatory_input_dim + 1))
             # Determine transform for excitation
-            exc_transform = getattr(getattr(dbl, "branch_excitation", None), "weight_transform", "exp")
+            exc_transform = getattr(
+                getattr(dbl, "branch_excitation", None), "weight_transform", "exp"
+            )
 
             if not dbl.input_inhibitory and not dbl.input_branches:
                 step = 0.01
@@ -199,7 +216,9 @@ def analytical_expectation_dbl_init(dbl, adaptive=True, branch_factors=None):
             inh_upper_quantile = dbl.branch_inhibition.K / dbl.inhibitory_input_dim
             inh_mean = 0
             inh_std = sqrt(2 / (dbl.inhibitory_input_dim + 1))
-            inh_transform = getattr(getattr(dbl, "branch_inhibition", None), "weight_transform", "exp")
+            inh_transform = getattr(
+                getattr(dbl, "branch_inhibition", None), "weight_transform", "exp"
+            )
             if dbl.input_excitatory:
                 ie_ratio = dbl.branch_inhibition.K / dbl.branch_excitation.K
                 inh_std = inh_std * ie_ratio if ie_ratio < 1 else inh_std
@@ -263,7 +282,9 @@ def analytical_expectation_dbl_init(dbl, adaptive=True, branch_factors=None):
                 else:
                     E_Vinf = min(0.51, 0.5 * E_Vinf + 0.25)
 
-                sum_g_branch = ((E_g_exc + E_g_inh + 1) * E_Vinf - E_g_exc) / (0.5 - E_Vinf)
+                sum_g_branch = ((E_g_exc + E_g_inh + 1) * E_Vinf - E_g_exc) / (
+                    0.5 - E_Vinf
+                )
                 g_branch = sum_g_branch / dbl.branches_to_output.block_size
                 m = 1.5
             else:
@@ -271,7 +292,7 @@ def analytical_expectation_dbl_init(dbl, adaptive=True, branch_factors=None):
                 E_Vinf = E_g_exc - E_g_inh + 0.5 * g_branch
                 m = 0.1
 
-            dbl.branches_to_output.initialize(log_g_branch=log(g_branch))
+            dbl.branches_to_output.initialize(g_branch=g_branch)
         else:
             if dbl.use_shunting:
                 E_Vinf = E_g_exc / (E_g_exc + E_g_inh + 1)
@@ -284,10 +305,9 @@ def analytical_expectation_dbl_init(dbl, adaptive=True, branch_factors=None):
             dbl.reactivation.initialize(m, E_Vinf)
 
 
-
-
 def naive_dbl_init(dbl):
     from .branch_layer import DendriticBranchLayer
+
     assert isinstance(dbl, DendriticBranchLayer)
 
     with torch.no_grad():
@@ -322,7 +342,7 @@ def naive_dbl_init(dbl):
 
         if dbl.input_branches:
             g_branch = E_g_exc + E_g_inh + 1
-            dbl.branches_to_output.initialize(log_g_branch=log(g_branch))
+            dbl.branches_to_output.initialize(g_branch=g_branch)
 
             if dbl.use_shunting:
                 E_Vinf = (E_g_exc + 0.5 * g_branch) / (E_g_exc + E_g_inh + g_branch + 1)
@@ -344,6 +364,7 @@ def naive_dbl_init(dbl):
 
 def default_dbl_init(dbl):
     from .branch_layer import DendriticBranchLayer
+
     assert isinstance(dbl, DendriticBranchLayer)
 
     with torch.no_grad():
@@ -381,12 +402,10 @@ def default_dbl_init(dbl):
                 g_branch = E_g_exc + E_g_inh + 1
             else:
                 g_branch = 1
-            
-            dbl.branches_to_output.initialize(log_g_branch=log(g_branch))
+
+            dbl.branches_to_output.initialize(g_branch=g_branch)
 
         if not isinstance(dbl.reactivation, torch.nn.Identity):
             dbl.reactivation.initialize(
-                1.5 if dbl.use_shunting else 0.1,
-                0.5 if dbl.use_shunting else 0.0
+                1.5 if dbl.use_shunting else 0.1, 0.5 if dbl.use_shunting else 0.0
             )
-
