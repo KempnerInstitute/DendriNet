@@ -62,7 +62,15 @@ project_root = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(project_root / "src"))
 
 # Define supported sweep types directly to avoid circular imports
-SUPPORTED_SWEEP_TYPES = ["unified", "ei", "branch", "noise", "general"]
+SUPPORTED_SWEEP_TYPES = [
+    "unified",
+    "ei",
+    "branch",
+    "noise",
+    "general",
+    "local_learning",
+    "general_param_sweep",
+]
 
 
 class UnifiedResultAnalyzer:
@@ -127,6 +135,80 @@ class UnifiedResultAnalyzer:
             "cross": "#FFA726",  # Orange for cross-information
         }
 
+    def detect_sweep_parameters(self, results_dir: str) -> Optional[dict]:
+        """
+        Detect custom sweep parameters from YAML config files.
+
+        Returns:
+            Dictionary with sweep_config parameters or None if not found
+        """
+        config_dir = os.path.join(results_dir, "configs")
+        if not os.path.exists(config_dir):
+            return None
+
+        # Look for YAML files that might contain sweep_config
+        yaml_files = glob.glob(os.path.join(config_dir, "*.yaml"))
+        for yaml_file in yaml_files:
+            try:
+                config = OmegaConf.load(yaml_file)
+                if hasattr(config, "sweep_config") and config.sweep_config:
+                    return dict(config.sweep_config)
+            except Exception:
+                continue
+        return None
+
+    def _infer_parameter_columns_from_df(self, results_df: pd.DataFrame) -> dict:
+        """Infer sweep parameter columns directly from results dataframe.
+
+        Returns a mapping of param_name -> param_name for columns that look like
+        swept parameters (categorical/bool/small-cardinality numeric) and vary across rows.
+        """
+        if results_df is None or results_df.empty:
+            return {}
+
+        # Exclude known non-parameter columns
+        exclude_cols = {
+            "experiment",
+            "task_id",
+            "job_dir",
+            "seed",
+            "config_file",
+            "ei_ratio",
+            "ee_value",
+            "ie_value",
+            "nparams",
+            "branch_factors",
+            "use_shunting",
+            "network_category",
+        }
+
+        # Heuristic: parameters are columns that are not metric aggregations and have small unique sets
+        candidate_params: dict[str, str] = {}
+        for col in results_df.columns:
+            if col in exclude_cols:
+                continue
+            # Skip metric/stat columns
+            if col.endswith(("_mean", "_std")):
+                continue
+            if col.startswith(("noise_", "ablation_", "weight_", "layer_mi_")):
+                continue
+
+            unique_vals = results_df[col].dropna().unique()
+            num_unique = len(unique_vals)
+            if num_unique <= 1:
+                continue
+
+            # Treat object/bool/small integer domains as params. Avoid large continuous numerics.
+            dtype = results_df[col].dtype
+            if dtype is object or dtype is bool:
+                candidate_params[col] = col
+            else:
+                # For numeric, only if small cardinality (categorical-like)
+                if num_unique <= 10:
+                    candidate_params[col] = col
+
+        return candidate_params
+
     def detect_sweep_type(self, results_dir: str) -> Optional[str]:
         """
         Auto-detect the sweep type from the results directory.
@@ -137,6 +219,18 @@ class UnifiedResultAnalyzer:
         Returns:
             Detected sweep type or None if unable to detect
         """
+        # First check for custom parameter sweeps
+        sweep_params = self.detect_sweep_parameters(results_dir)
+        if sweep_params:
+            # Check if it's a local learning parameter sweep
+            local_params = [k for k in sweep_params.keys() if "local_rule_config" in k]
+            if local_params:
+                return "local_learning"
+            # Check if it's a general parameter sweep (not EI-specific)
+            ei_params = [k for k in sweep_params.keys() if "synapses_per_branch" in k]
+            if not ei_params:
+                return "general_param_sweep"
+
         # Check for metadata file
         metadata_path = os.path.join(results_dir, "configs", "sweep_metadata.yaml")
         if os.path.exists(metadata_path):
@@ -243,6 +337,10 @@ class UnifiedResultAnalyzer:
                 "use_shunting": None,
                 "seed": 42,  # Default seed
                 "config_file": config_file,
+                # Local learning parameters
+                "rule_variant": None,
+                "rho_mode": None,
+                "update_inactive_weights": None,
             }
 
             # Extract EE and IE values with multiple fallback strategies
@@ -325,6 +423,28 @@ class UnifiedResultAnalyzer:
                 # Extract seed
                 if hasattr(config.train, "seed"):
                     data["seed"] = config.train.seed
+
+                # Extract local learning parameters
+                try:
+                    if (
+                        hasattr(config.train, "main")
+                        and hasattr(config.train.main, "trainer")
+                        and hasattr(config.train.main.trainer, "local_rule_config")
+                    ):
+                        local_cfg = config.train.main.trainer.local_rule_config
+
+                        if hasattr(local_cfg, "rule_variant"):
+                            data["rule_variant"] = local_cfg.rule_variant
+                        if hasattr(local_cfg, "rho_mode"):
+                            data["rho_mode"] = local_cfg.rho_mode
+                        if hasattr(local_cfg, "update_inactive_weights"):
+                            data["update_inactive_weights"] = (
+                                local_cfg.update_inactive_weights
+                            )
+                except Exception as local_e:
+                    print(
+                        f"Warning: Could not extract local learning params from {config_file}: {local_e}"
+                    )
 
             except Exception as e:
                 print(
@@ -794,9 +914,75 @@ class UnifiedResultAnalyzer:
         print("Aggregating results...")
         agg_results = self.aggregate_results(clean_results)
 
+        # Initialize plot paths list
+        plot_paths = []
+
+        # Generate parameter combination legend for all sweep types if parameters exist
+        sweep_params = self.detect_sweep_parameters(results_dir)
+        if sweep_params or self._has_parameter_combinations(agg_results):
+            params_to_use = (
+                sweep_params
+                if sweep_params
+                else self._infer_parameter_columns_from_df(agg_results)
+            )
+            if params_to_use:
+                legend_csv, legend_png = self.generate_parameter_combination_legend(
+                    agg_results, output_dir, params_to_use, sweep_type
+                )
+                if legend_csv:
+                    plot_paths.append(legend_csv)
+                if legend_png:
+                    plot_paths.append(legend_png)
+
         # Generate comprehensive plots
         print("Generating plots...")
-        plot_paths = self.generate_plots(agg_results, output_dir, f"{sweep_type}_sweep")
+        plot_paths.extend(
+            self.generate_plots(agg_results, output_dir, f"{sweep_type}_sweep")
+        )
+
+        # Generate custom parameter sweep plots if applicable
+        if sweep_type in ["local_learning", "general_param_sweep"]:
+            if sweep_params:
+                print("Generating custom parameter sweep plots...")
+                custom_plots = self.generate_parameter_sweep_plots(
+                    agg_results, output_dir, sweep_params, sweep_type
+                )
+                plot_paths.extend(custom_plots)
+        elif sweep_type == "unified":
+            # Check if unified sweep actually has custom parameters
+            print(f"DEBUG: Detected sweep_params: {sweep_params}")
+            if sweep_params:
+                local_params = [
+                    k for k in sweep_params.keys() if "local_rule_config" in k
+                ]
+                print(f"DEBUG: Found local_params: {local_params}")
+                if local_params:
+                    print(
+                        "Generating custom parameter sweep plots for unified sweep..."
+                    )
+                    custom_plots = self.generate_parameter_sweep_plots(
+                        agg_results, output_dir, sweep_params, "local_learning"
+                    )
+                    plot_paths.extend(custom_plots)
+                else:
+                    print(
+                        "DEBUG: No local_rule_config parameters found in sweep_params"
+                    )
+            else:
+                print("DEBUG: No sweep_params detected")
+                # Fallback: infer parameter columns from aggregated results
+                inferred_params = self._infer_parameter_columns_from_df(agg_results)
+                if inferred_params:
+                    print(
+                        f"DEBUG: Inferred parameter columns from data: {list(inferred_params.keys())}"
+                    )
+                    print(
+                        "Generating custom parameter sweep plots from inferred parameters..."
+                    )
+                    custom_plots = self.generate_parameter_sweep_plots(
+                        agg_results, output_dir, inferred_params, "custom_param_sweep"
+                    )
+                    plot_paths.extend(custom_plots)
 
         # Save processed data
         plots_dir = os.path.join(output_dir, "plots")
@@ -917,6 +1103,12 @@ class UnifiedResultAnalyzer:
             "branch_factors",
             "use_shunting",
             "network_category",
+            # Information analysis settings (categorical)
+            "info_method",
+            # Local learning parameters (categorical, not numeric)
+            "rule_variant",
+            "rho_mode",
+            "update_inactive_weights",
         ]
         if "nparams" in cleaned_results.columns:
             arch_cols.append("nparams")
@@ -988,8 +1180,12 @@ class UnifiedResultAnalyzer:
                             if len(numeric_values) > 0:
                                 row[f"{col}_mean"] = np.mean(numeric_values)
                                 row[f"{col}_std"] = np.std(numeric_values)
-                        except (ValueError, TypeError) as e:
-                            print(f"Warning: Could not aggregate {col}: {e}")
+                        except (ValueError, TypeError):
+                            # Treat as categorical; keep the first value for reference
+                            # but do not attempt numeric aggregation
+                            if col not in row:
+                                row[col] = group[col].iloc[0]
+                            # Suppress noisy warning for known categorical like info_method
                             continue
 
             results.append(row)
@@ -2838,6 +3034,308 @@ class UnifiedResultAnalyzer:
                 f.write("\n")
 
         print(f"Comparison report saved to: {output_file}")
+
+    def generate_parameter_combination_legend(
+        self,
+        results_df: pd.DataFrame,
+        output_dir: str,
+        sweep_params: dict,
+        sweep_type: str,
+    ) -> tuple[str, str]:
+        """Generate parameter combination legend for any sweep type."""
+        # Place legend in root plots folder for all sweep types
+        plots_root_dir = os.path.join(output_dir, "plots")
+        os.makedirs(plots_root_dir, exist_ok=True)
+
+        # Extract sweep parameter names and clean them for column names
+        param_columns = {}
+        for param_path, _values in sweep_params.items():
+            # Extract the parameter name (last part of the path)
+            param_name = param_path.split(".")[-1]
+            param_columns[param_name] = param_path
+
+        if not param_columns:
+            return None, None
+
+        param_names = list(param_columns.keys())
+        present_param_names = [p for p in param_names if p in results_df.columns]
+        if not present_param_names:
+            return None, None
+
+        # Build ordered list of unique parameter combinations
+        combo_df = results_df[present_param_names].drop_duplicates()
+        # Sort lexicographically by all param columns for stable ordering
+        combo_df = combo_df.sort_values(by=present_param_names)
+        combos = combo_df.to_dict(orient="records")
+
+        # Prepare x-axis positions and legend mapping
+        x_positions = list(range(1, len(combos) + 1))
+        mapping_df = combo_df.copy()
+        mapping_df.insert(0, "#", x_positions)
+
+        legend_csv_path = os.path.join(
+            plots_root_dir, "parameter_combinations_legend.csv"
+        )
+        mapping_df.to_csv(legend_csv_path, index=False)
+
+        # Render a compact PNG legend table for convenience
+        legend_png_path = None
+        try:
+            headers = ["#", *present_param_names]
+            table_data = [
+                [idx] + [c.get(p) for p in present_param_names]
+                for idx, c in zip(x_positions, combos)
+            ]
+            fig_legend, ax_legend = plt.subplots(
+                figsize=(
+                    min(24, 2 + 2 * len(headers)),
+                    min(0.6 * (len(table_data) + 1), 50),
+                )
+            )
+            ax_legend.axis("off")
+            tbl = ax_legend.table(cellText=table_data, colLabels=headers, loc="center")
+            tbl.auto_set_font_size(False)
+            tbl.set_fontsize(8)
+            tbl.scale(1.0, 1.2)
+            legend_png_path = os.path.join(
+                plots_root_dir, "parameter_combinations_legend.png"
+            )
+            fig_legend.tight_layout()
+            fig_legend.savefig(legend_png_path, dpi=200, bbox_inches="tight")
+            plt.close(fig_legend)
+            print(
+                f"Saved parameter combination legend to: {legend_csv_path} and {legend_png_path}"
+            )
+        except Exception as e:
+            print(f"Warning: failed to render parameter legend PNG: {e}")
+            legend_png_path = None
+
+        return legend_csv_path, legend_png_path
+
+    def generate_parameter_sweep_plots(
+        self,
+        results_df: pd.DataFrame,
+        output_dir: str,
+        sweep_params: dict,
+        sweep_type: str,
+    ) -> list[str]:
+        """Generate plots for any parameter sweeps."""
+        plot_paths = []
+        # Ensure plots are saved under plots/custom_parameter_sweep_plots
+        param_plot_dir = os.path.join(
+            output_dir, "plots", "custom_parameter_sweep_plots"
+        )
+        os.makedirs(param_plot_dir, exist_ok=True)
+
+        # Generate parameter combination legend in root plots folder
+        legend_csv_path, legend_png_path = self.generate_parameter_combination_legend(
+            results_df, output_dir, sweep_params, sweep_type
+        )
+        if legend_csv_path:
+            plot_paths.append(legend_csv_path)
+        if legend_png_path:
+            plot_paths.append(legend_png_path)
+
+        # Extract sweep parameter names and clean them for column names
+        param_columns = {}
+        for param_path, _values in sweep_params.items():
+            # Extract the parameter name (last part of the path)
+            param_name = param_path.split(".")[-1]
+            param_columns[param_name] = param_path
+
+        if not param_columns:
+            return plot_paths
+
+        print(f"Found sweep parameters: {list(param_columns.keys())}")
+
+        # Build ordered list of unique parameter combinations
+        param_names = list(param_columns.keys())
+        present_param_names = [p for p in param_names if p in results_df.columns]
+        if not present_param_names:
+            return plot_paths
+        combo_df = results_df[present_param_names].drop_duplicates()
+        # Sort lexicographically by all param columns for stable ordering
+        combo_df = combo_df.sort_values(by=present_param_names)
+        combos = combo_df.to_dict(orient="records")
+
+        # Prepare x-axis positions
+        x_positions = list(range(1, len(combos) + 1))
+
+        # Categorize metrics by analysis type and create subfolders
+        # Use more specific patterns to avoid overlap
+        metric_categories = {
+            "ablation": ["ablation_"],
+            "information": ["mi_", "layer_mi_"],
+            "weight": ["weight_"],
+            "noise": ["noise_"],
+            "performance": [
+                "accuracy",
+                "auc",
+                "categorical_loglikelihood",
+            ],  # Put performance last as fallback
+        }
+
+        # Organize metrics by category with priority (first match wins)
+        categorized_metrics = {category: [] for category in metric_categories.keys()}
+
+        for col in results_df.columns:
+            if not col.endswith("_mean"):
+                continue
+
+            # Check categories in order, first match wins
+            for category, keywords in metric_categories.items():
+                if any(k in col for k in keywords):
+                    # For performance category, exclude if it's already categorized elsewhere
+                    if category == "performance":
+                        already_categorized = any(
+                            col in categorized_metrics[other_cat]
+                            for other_cat in categorized_metrics.keys()
+                            if other_cat != "performance"
+                        )
+                        if already_categorized:
+                            continue
+
+                    categorized_metrics[category].append(col)
+                    break
+
+        # Create subfolders for each analysis type and generate plots
+        total_created = 0
+        categories = (
+            results_df["network_category"].unique()
+            if "network_category" in results_df.columns
+            else ["all"]
+        )
+
+        for analysis_type, metric_cols in categorized_metrics.items():
+            if not metric_cols:
+                continue
+
+            # Create subfolder for this analysis type
+            analysis_dir = os.path.join(param_plot_dir, analysis_type)
+            os.makedirs(analysis_dir, exist_ok=True)
+
+            for metric_col in metric_cols:
+                try:
+                    fig, ax = plt.subplots(figsize=(max(10, len(x_positions) * 0.6), 6))
+
+                    # Optional std column
+                    std_col = metric_col.replace("_mean", "_std")
+
+                    for category in categories:
+                        if category == "all":
+                            subset = results_df
+                        else:
+                            subset = results_df[
+                                results_df["network_category"] == category
+                            ]
+
+                        # Group by parameter combination
+                        group_mean = (
+                            subset.groupby(present_param_names)[metric_col].mean()
+                            if metric_col in subset.columns
+                            else None
+                        )
+                        group_std = (
+                            subset.groupby(present_param_names)[std_col].mean()
+                            if std_col in subset.columns
+                            else None
+                        )
+
+                        # Gather y and yerr in the same combo order
+                        y_values = []
+                        y_err = []
+                        for combo in combos:
+                            key = tuple(combo[p] for p in present_param_names)
+                            y = np.nan
+                            if group_mean is not None:
+                                try:
+                                    y = float(group_mean.loc[key])
+                                except Exception:
+                                    y = np.nan
+                            y_values.append(y)
+
+                            if group_std is not None:
+                                try:
+                                    err = float(group_std.loc[key])
+                                except Exception:
+                                    err = np.nan
+                            else:
+                                err = np.nan
+                            y_err.append(err)
+
+                        # Plot with markers and optional error bars
+                        color = self.category_colors.get(category, "black")
+                        marker = self.category_markers.get(category, "o")
+                        ax.errorbar(
+                            x_positions,
+                            y_values,
+                            yerr=y_err if any(~pd.isna(pd.Series(y_err))) else None,
+                            label=str(category),
+                            marker=marker,
+                            color=color,
+                            linestyle="-",
+                            alpha=0.85,
+                            capsize=3,
+                        )
+
+                    display_metric = metric_col.replace("_", " ").replace(" mean", "")
+                    ax.set_xlabel(
+                        "Parameter Combination Index (#). See parameter_combinations_legend.csv/png in plots folder.",
+                        fontsize=12,
+                    )
+                    ax.set_ylabel(f"{display_metric.title()}", fontsize=12)
+                    ax.set_title(
+                        f"{display_metric.title()} vs Parameter Combinations",
+                        fontsize=14,
+                    )
+                    ax.set_xticks(x_positions)
+                    ax.set_xticklabels(
+                        [str(x) for x in x_positions], rotation=0, ha="center"
+                    )
+                    ax.grid(True, alpha=0.3)
+                    if len(categories) > 1:
+                        ax.legend(fontsize=10)
+
+                    plt.tight_layout()
+                    safe_metric = metric_col.replace(" ", "_").replace("/", "_")
+                    plot_path = os.path.join(
+                        analysis_dir,
+                        f"{analysis_type}_{safe_metric}_vs_param_combinations.png",
+                    )
+                    plt.savefig(plot_path, dpi=300, bbox_inches="tight")
+                    plt.close()
+                    plot_paths.append(plot_path)
+                    total_created += 1
+
+                except Exception as e:
+                    print(
+                        f"Error generating {analysis_type} parameter plot for {metric_col}: {e}"
+                    )
+
+        print(
+            f"Created {total_created} custom parameter sweep plots organized by analysis type"
+        )
+        return plot_paths
+
+    def _has_parameter_combinations(self, results_df: pd.DataFrame) -> bool:
+        """Check if the results DataFrame has parameter combinations that warrant a legend."""
+        # Look for common parameter columns
+        param_indicators = [
+            "rule_variant",
+            "rho_mode",
+            "update_inactive_weights",
+            "ee_value",
+            "ie_value",
+            "ei_ratio",
+        ]
+        found_params = [col for col in param_indicators if col in results_df.columns]
+
+        # Check if there are multiple unique combinations
+        if found_params:
+            unique_combinations = results_df[found_params].drop_duplicates()
+            return len(unique_combinations) > 1
+
+        return False
 
 
 def parse_args():
