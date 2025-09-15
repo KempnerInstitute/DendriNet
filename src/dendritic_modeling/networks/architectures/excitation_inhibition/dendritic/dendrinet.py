@@ -192,6 +192,7 @@ class DendriNet(nn.Module):
                     weight_threshold=weight_threshold,
                     adaptive_initialization=adaptive_initialization,
                     branch_factors=self.branch_factors,  # Pass branch_factors
+                    weight_transform=weight_transform,
                     **kwargs,
                 )
             )
@@ -234,6 +235,7 @@ class DendriNet(nn.Module):
                     weight_threshold=weight_threshold,
                     adaptive_initialization=adaptive_initialization,
                     branch_factors=self.branch_factors,  # Pass branch_factors
+                    weight_transform=weight_transform,
                     **kwargs,
                 )
             )
