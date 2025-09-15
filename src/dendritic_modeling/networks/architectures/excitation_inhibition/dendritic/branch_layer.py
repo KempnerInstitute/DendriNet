@@ -21,6 +21,7 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.g
 )
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.initialize import (
     analytical_expectation_dbl_init,
+    ei_equivalence_dbl_init,
     naive_dbl_init,
     default_dbl_init,
 )
@@ -301,6 +302,8 @@ class DendriticBranchLayer(nn.Module):
                 adaptive=self.adaptive_initialization,
                 branch_factors=self.branch_factors,
             )
+        elif self.dbl_init_method == "ei_equivalence":
+            ei_equivalence_dbl_init(self)
         elif self.dbl_init_method == "naive":
             naive_dbl_init(self)
         elif self.dbl_init_method == "default":
@@ -309,9 +312,9 @@ class DendriticBranchLayer(nn.Module):
             raise ValueError(f"Unknown dbl_init_method: {self.dbl_init_method}")
 
     def decay_weights(self, weight_decay):
-        if self.input_excitatory and self.branch_excitation is not None:
+        if self.branch_excitation is not None:
             self.branch_excitation.decay_weights(weight_decay, weight_boost=False)
-        if self.input_inhibitory and self.branch_inhibition is not None:
+        if self.branch_inhibition is not None:
             self.branch_inhibition.decay_weights(weight_decay, weight_boost=False)
         # if self.input_branches:
         #     self.branches_to_output.decay_weights(weight_decay)
@@ -399,7 +402,7 @@ class DendriticBranchLayer(nn.Module):
                     and self.blocklinear_strategy == "conductance_dynamic"
                 ):
                     self.branches_to_output.input_scale_vec = (
-                        g_total[:, None] / self.branches_to_output.log_weight.exp()
+                        g_total[:, None] / self.branches_to_output.weight()
                     ).flatten()
                     self.branches_to_output.param_scale_vec = g_total[:, None]
 
@@ -428,7 +431,7 @@ class DendriticBranchLayer(nn.Module):
                 ):
                     # only apply input_scale_vec = 1 / branch_weights
                     self.branches_to_output.input_scale_vec = torch.exp(
-                        -1 * self.branches_to_output.log_weight
+                        -1 * self.branches_to_output.weight().log()
                     ).flatten()
 
     def get_weights(self):

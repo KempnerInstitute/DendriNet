@@ -96,6 +96,9 @@ class BlockLinear(nn.Module):
         else:
             raise ValueError(f"Unsupported weight transform type: {self.weight_transform}")
         nn.init.constant_(self.log_weight, inv_transform_g_branch)
+    
+    def weight(self):
+        return apply_weight_transform(self.log_weight, self.weight_transform)
 
     def block(self):
         block = torch.zeros(
@@ -107,7 +110,7 @@ class BlockLinear(nn.Module):
         col_ix = torch.arange(self.in_features, device=self.log_weight.device).view(
             self.out_features, self.block_size
         )
-        block[row_ix, col_ix] = apply_weight_transform(self.log_weight, self.weight_transform)
+        block[row_ix, col_ix] = self.weight()
         return block
 
     def log_block(self):
@@ -162,7 +165,7 @@ class BlockLinear(nn.Module):
         return torch.matmul(x, self.block().t())
 
     def sum_conductances(self):
-        return apply_weight_transform(self.log_weight, self.weight_transform).sum(dim=1)
+        return self.weight().sum(dim=1)
 
 
 # ---------------------------------------------------------------------------
