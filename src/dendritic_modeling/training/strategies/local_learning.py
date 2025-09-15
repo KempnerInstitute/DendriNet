@@ -154,16 +154,16 @@ class LocalCreditAssignment(Trainer):
                 f"{self.epochs_per_branch} epochs."
             )
 
-            train_losses, valid_losses = self._run_training_loop(
-                n_epochs=self.epochs_per_branch,
-                model=model,
-                train_loader=train_loader,
-                valid_loader=valid_loader,
-                train_losses=train_losses,
-                valid_losses=valid_losses,
-                logger_info=f"[{learning_strategy}] branch={branch_layer_idx}, ",
-                wandb_info={"branch": branch_layer_idx},
-            )
+        train_losses, valid_losses = self._run_training_loop(
+            n_epochs=self.epochs_per_branch,
+            model=model,
+            train_loader=train_loader,
+            valid_loader=valid_loader,
+            train_losses=train_losses,
+            valid_losses=valid_losses,
+            logger_info=f"[{learning_strategy}] branch={branch_layer_idx}, ",
+            wandb_info={"branch": branch_layer_idx},
+        )
 
         self._loss_plotting(train_losses, valid_losses)
 

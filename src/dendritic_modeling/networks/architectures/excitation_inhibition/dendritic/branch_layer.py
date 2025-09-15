@@ -401,30 +401,29 @@ class DendriticBranchLayer(nn.Module):
                     hasattr(self, "branches_to_output")
                     and self.blocklinear_strategy == "conductance_dynamic"
                 ):
-                    # Get weights and compute scaling based on weight_transform
-                    weights = self.branches_to_output.weight()
+                    # Get conductances from BlockLinear (it doesn't have a weight() method)
+                    conductances = self.branches_to_output.sum_conductances()
+                    log_weights = self.branches_to_output.log_weight
 
                     if self.weight_transform == "exp":
                         # For exp: gradient scale needs to account for the exponential derivative
-                        # d/dx(exp(x)) = exp(x), so we scale by the weights themselves
-                        scale_factor = weights
+                        # d/dx(exp(x)) = exp(x), so we scale by the conductances themselves
+                        scale_factor = conductances
                     elif self.weight_transform == "relu":
                         # Add small epsilon to avoid zero gradients
-                        scale_factor = (weights > 0).float() + 1e-6
+                        scale_factor = (conductances > 0).float() + 1e-6
                     elif self.weight_transform == "softplus":
                         # For softplus: derivative is sigmoid(x) = 1 / (1 + exp(-x))
-                        log_weights = self.branches_to_output.log_weight
-                        scale_factor = torch.sigmoid(log_weights)
+                        # We need the pre-transform weights (sum over block_size dimension)
+                        scale_factor = torch.sigmoid(log_weights).sum(dim=1)
                     else:
                         # Default/fallback - no additional scaling
-                        scale_factor = torch.ones_like(weights)
+                        scale_factor = torch.ones_like(conductances)
 
                     self.branches_to_output.input_scale_vec = (
-                        g_total[:, None] / (weights * scale_factor).clamp(min=1e-8)
+                        g_total / (conductances * scale_factor).clamp(min=1e-8)
                     ).flatten()
-                    self.branches_to_output.param_scale_vec = (
-                        g_total[:, None] * scale_factor
-                    )
+                    self.branches_to_output.param_scale_vec = g_total * scale_factor
 
                 if (
                     self.branch_excitation is not None
@@ -483,29 +482,29 @@ class DendriticBranchLayer(nn.Module):
                     and self.blocklinear_strategy == "conductance_dynamic"
                 ):
                     # Non-shunting case: apply transform-specific scaling
-                    weights = self.branches_to_output.weight()
+                    conductances = self.branches_to_output.sum_conductances()
+                    log_weights = self.branches_to_output.log_weight
 
                     if self.weight_transform == "exp":
-                        # For exp without shunting, scale inversely by weights
+                        # For exp without shunting, scale inversely by conductances
                         self.branches_to_output.input_scale_vec = (
-                            1.0 / weights.clamp(min=1e-8)
+                            1.0 / conductances.clamp(min=1e-8)
                         ).flatten()
                     elif self.weight_transform == "relu":
                         # For ReLU, avoid division by zero
                         self.branches_to_output.input_scale_vec = (
-                            1.0 / (weights + 1e-8)
+                            1.0 / (conductances + 1e-8)
                         ).flatten()
                     elif self.weight_transform == "softplus":
                         # For softplus, use the inverse scaled by derivative
-                        log_weights = self.branches_to_output.log_weight
-                        sigmoid_factor = torch.sigmoid(log_weights)
+                        sigmoid_factor = torch.sigmoid(log_weights).sum(dim=1)
                         self.branches_to_output.input_scale_vec = (
-                            sigmoid_factor / weights.clamp(min=1e-8)
+                            sigmoid_factor / conductances.clamp(min=1e-8)
                         ).flatten()
                     else:
                         # Default case
                         self.branches_to_output.input_scale_vec = (
-                            1.0 / weights.clamp(min=1e-8)
+                            1.0 / conductances.clamp(min=1e-8)
                         ).flatten()
 
     def get_weights(self):
