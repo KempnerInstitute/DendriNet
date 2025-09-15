@@ -26,22 +26,67 @@ class RegularizationManager:
         self.selective = config.selective
         self.split_params = config.split_params
         self.param_group_weights = config.param_group_weights
+        
+        # E/I Weight Ratio Regularization
+        self.enforce_ei_weight_ratio = getattr(config, 'enforce_ei_weight_ratio', False)
+        if self.enforce_ei_weight_ratio:
+            from dendritic_modeling.training.loss.functions import EIWeightRatioLoss
+            self.ei_ratio_loss = EIWeightRatioLoss(
+                target_ratio=getattr(config, 'target_ei_weight_ratio', 1.5),
+                loss_weight=getattr(config, 'ei_ratio_loss_weight', 0.1),
+                scope=getattr(config, 'ei_ratio_scope', 'per_branch'),
+                metric=getattr(config, 'ei_ratio_metric', 'mean'),
+            )
+        else:
+            self.ei_ratio_loss = None
 
     def compute_regularization_loss(
-        self, model: nn.Module, param_groups: Optional[list] = None
+        self, model: nn.Module, x: Optional[torch.Tensor] = None, y: Optional[torch.Tensor] = None, param_groups: Optional[list] = None
     ) -> torch.Tensor:
         """
-        Compute regularization loss based on configuration.
+        Compute all regularization losses based on configuration.
+
+        Args:
+            model: The model to regularize
+            x: Input tensor (needed for E/I weight ratio regularization)
+            y: Target tensor (needed for E/I weight ratio regularization)
+            param_groups: Optional parameter groups with their parameters
+
+        Returns:
+            Total regularization loss tensor
+        """
+        device = next(model.parameters()).device
+        total_reg_loss = torch.tensor(0.0, device=device)
+
+        # Compute L1/L2 regularization
+        l1_l2_loss = self._compute_l1_l2_regularization(model, param_groups, device)
+        total_reg_loss += l1_l2_loss
+
+        # Compute E/I weight ratio regularization
+        if self.enforce_ei_weight_ratio and self.ei_ratio_loss is not None:
+            ei_ratio_loss = self.ei_ratio_loss(model, x, y)
+            total_reg_loss += ei_ratio_loss
+
+        return total_reg_loss
+
+    def _compute_l1_l2_regularization(
+        self, model: nn.Module, param_groups: Optional[list] = None, device: Optional[torch.device] = None
+    ) -> torch.Tensor:
+        """
+        Compute L1/L2 regularization loss.
 
         Args:
             model: The model to regularize
             param_groups: Optional parameter groups with their parameters
+            device: Device for tensor operations
 
         Returns:
-            Regularization loss tensor
+            L1/L2 regularization loss tensor
         """
-        device = next(model.parameters()).device
-        total_reg_loss = torch.tensor(0.0, device=device)
+        if device is None:
+            device = next(model.parameters()).device
+        
+        l1_l2_loss = torch.tensor(0.0, device=device)
 
         # If split_params is enabled and parameter group weights are specified and param_groups are provided
         if self.split_params and self.param_group_weights and param_groups:
@@ -49,7 +94,7 @@ class RegularizationManager:
 
         # Otherwise use global regularization weights
         if self.l1_weight <= 0 and self.l2_weight <= 0:
-            return total_reg_loss
+            return l1_l2_loss
 
         l1_reg = torch.tensor(0.0, device=device)
         l2_reg = torch.tensor(0.0, device=device)

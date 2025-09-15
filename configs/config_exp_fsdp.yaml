@@ -53,6 +53,10 @@ model:
 
       somatic_synapses: true
       use_shunting: true
+
+      # Weight transformation for positive weights
+      weight_transform: exp       # Options: "exp", "relu", "softplus"
+      dbl_init_method: analytical_expectation
       topk_init_method: xavier_normal
       topk_noise_level: 0.0
       topk_type: standard
@@ -87,7 +91,13 @@ train:
   seed: 0
   train_valid_split: 0.8
 
-
+  # ==========================================
+  # PERFORMANCE OPTIMIZATION SETTINGS
+  # ==========================================
+  enable_amp: false             # Enable automatic mixed precision
+  enable_profiling: false       # Enable PyTorch profiler
+  profiling_output_dir: "results/profiling/"
+  enable_hooks: true            # Enable hooks for analysis (set false for max speed)
 
   encoder:
     load_save_root: ./.trained_encoder_networks/  # Hash-based encoder model cache directory
@@ -107,7 +117,7 @@ train:
       print_every: 10
 
   main:
-    learning_strategy: standard
+    learning_strategy: standard  # Options: "standard", "voltage_stabilization", "homeostatic_control", "freeze_layers", "freeze_branches", "local_ca", "two_step"
     weight_decay_rate: 0.01
 
     param_groups:
@@ -135,6 +145,7 @@ train:
       enable_nan_checking: false      # Enable NaN detection during training (expensive)
       enable_adaptive_clipping: false # Enable adaptive gradient clipping (expensive)
 
+    # Unified regularization configuration
     regularization:
       l1_weight: 0.001
       l2_weight: 0.01
@@ -157,6 +168,13 @@ train:
           l1_weight: 0.002
           l2_weight: 0.02
 
+      # E/I Weight Ratio Regularization
+      enforce_ei_weight_ratio: false      # Enable E/I weight ratio regularization
+      target_ei_weight_ratio: 1.5         # Target excitatory/inhibitory weight ratio
+      ei_ratio_loss_weight: 0.1           # Regularization strength (fraction of total loss)
+      ei_ratio_scope: "per_branch"        # Options: "per_branch", "per_layer", "global"
+      ei_ratio_metric: "mean"             # Options: "mean", "median", "rms"
+
     pruning:
       enabled: false
       threshold: 0.001
@@ -173,12 +191,6 @@ train:
       save_pruning_stats: false
       detailed_branch_report: false
       redo_analysis_after_pruning: false
-
-  run_name: experiment
-  enable_amp: false
-  enable_profiling: false
-  profiling_output_dir: outputs/profiling/
-  enable_hooks: true
 
   # ==========================================
   # FSDP CONFIGURATION
@@ -246,10 +258,30 @@ analysis:
   noise_perturbation_analysis:
     enabled: false
     training: false
+    params:
+      uniform_noise: true
+      uniform_magnitudes: [0.1, 0.2]
+      gaussian_noise: true
+      gaussian_sdevs: [0.1, 0.2]
+      n_samples: 10
+      accuracy: true
+      auc: true
+      categorical_loglikelihood: true
+      mse: false
+      cosine_similarity: false
 
   single_layer_contribution:
     enabled: false
     training: false
+    params:
+      excitation_contribution: true
+      inhibition_contribution: true
+      both_contribution: true
+      accuracy: true
+      auc: true
+      categorical_loglikelihood: true
+      mse: false
+      cosine_similarity: false
 
   ablation_analysis:
     enabled: false
@@ -270,60 +302,128 @@ analysis:
   weight_analysis:
     enabled: false
     training: false
+    params:
+      synapse_weights: true
+      branch_weights: true
+      computation_level: "single_branch"
+      branch_aggregation: "mean"
+      per_layer_analysis: true
+      per_einet_analysis: true
+      per_neuron_analysis: false
+
+      analyze_excitatory: true
+      analyze_inhibitory: true
+      analyze_branch_output: false
+      compute_mean: true
+      compute_variance: true
+      compute_percentiles: false
+      compute_min_max: true
+      compute_dendritic_strength: true
+      weight_threshold: 1e-6
 
   synaptic_activation_analysis:
     enabled: false
     training: false
+    params:
+      network_summary: true
+      layer_summary: true
+      branch_summary: true
+      raw_summary: true
+      logspace: false
+      downsample: true
+      samples: 5
 
   branch_activation_analysis:
     enabled: false
     training: false
+    params:
+      synapse_activations: true
+      branch_activations: true
+      network_summary: true
+      layer_summary: true
+      branch_summary: true
+      raw_summary: true
+      logspace: false
+      downsample: true
+      samples: 5
 
   information_analysis:
     enabled: false
     training: false
     params:
-      method: kraskov
-      max_samples: 500
-      n_neighbors: 10
-      n_bins: 20
-      copula_type: gaussian
-      compute_basic_mi: true
-      compute_pairwise_mi: false
-      compute_conditional_mi: false
-      compute_pid: false
-      include_vinf: true
-      normalize_mi: false
+      method: kraskov           # Options: "kraskov", "sklearn", "copula", "auto"
+      max_samples: null         # Limit samples for computation
+      n_neighbors: 10           # For kraskov k-NN estimator
+      n_bins: 20               # For sklearn histogram
+      copula_type: gaussian     # For copula method
+      compute_basic_mi: true    # I(E;C), I(I;C), I(Vout;C)
+      compute_pairwise_mi: true # I(E;I), I(E;Vout), I(I;Vout)
+      compute_conditional_mi: true # I(E;I|C), I(E;Vout|C), etc.
+      compute_pid: false        # Partial Information Decomposition
+      pid_binarize: true
+      pid_binarize_method: median # Options: "median", "mean", "quantile"
+      pid_binarize_threshold: 0.5
+      include_vinf: true        # Include soma activation
+      normalize_mi: false       # Normalize by entropy
       verbose: false
-      
+
       # Computation Level Control - determines the granularity of information analysis
-      computation_level: layer_branch # Options: "single_branch", "layer_branch", "all_branch"
+      computation_level: layer_branch   # Options: "single_branch", "layer_branch", "all_branch"
                                      # "single_branch": Individual branches (most granular and accurate)
                                      # "layer_branch": Layer-level aggregation (treats each layer as a unit)
                                      # "all_branch": Full network aggregation (most efficient)
-      
-      # Branch aggregation method - only used when computation_level is "layer_branch" or "all_branch"
-      branch_aggregation: mean       # Options: "mean", "multivariate", "sample"
-      
-      # Enhanced analysis modes
-      per_neuron_analysis: false     # If true, compute MI for each neuron separately  
-      per_einet_analysis: false      # If true, analyze E and I networks separately
-      per_layer_analysis: false      # If true, compute enhanced analysis per layer
 
-  correlation_analysis:
+      # Branch aggregation method - only used when computation_level is "layer_branch" or "all_branch"
+      branch_aggregation: multivariate     # Options: "mean", "multivariate", "sample"
+
+
+      # Enhanced analysis modes
+      per_neuron_analysis: false   # If true, compute MI for each neuron separately
+      per_einet_analysis: false    # If true, analyze E and I networks separately
+      per_layer_analysis: false    # If true, compute enhanced analysis per layer
+
+  correlation_analysis:    ## needs to be tested
     enabled: false
     training: false
+    params:
+      compute_synaptic_correlations: true
+      compute_tuning_curves: true
 
 # ============================================================================
 # DATASET/TASK CONFIGURATION
 # ============================================================================
 
 task:
+  # Validated dataset options (from datasets/__init__.py and synthetic_datasets.py)
   dataset: cifar10
-  data_path: ""
+  # Options:
+  # - Standard: "mnist", "cifar10", "imagenet"
+  # - Modified MNIST: "mnist_modulo10", "random_flip_mnist"
+
+  data_path: ""  # Custom data path
+
+  # Dataset-specific parameters
   parameters:
+    # Common parameters
+    # train_size: 8000
+    # valid_size: 1000
+    # test_size: 1000
     flatten: true
     normalize: true
+
+    # # Synthetic dataset parameters
+    # image_size: 16           # For image-based synthetic datasets
+    # n_orient_classes: 8      # For orientation_bars
+    # n_bits: 8               # For multi_xor
+
+    # # Generated dataset parameters
+    # base_dataset: mnist      # For poisson_generator
+    # rate_multiplier: 1       # For poisson_generator
+    # input_dim: 10           # For orthonet
+    # n_layers: 5             # For orthonet
+    # nonlinearity: sigmoid   # For orthonet: "sigmoid", "tanh", None
+    # repeat_layers: false    # For orthonet
+    # noise_std: 0.1          # For orthonet
 
 # ============================================================================
 # SLURM CONFIGURATION

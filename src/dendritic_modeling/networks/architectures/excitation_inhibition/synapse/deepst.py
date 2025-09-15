@@ -13,6 +13,10 @@ import torch.nn as nn
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.topk import (
     TOPK_INIT_METHODS,
 )
+from dendritic_modeling.networks.utils.weight_transforms import (
+    apply_weight_transform,
+    WeightTransformType
+)
 
 
 class DeepstLinear(nn.Module):
@@ -30,6 +34,7 @@ class DeepstLinear(nn.Module):
         init_method=None,  # Add initialization method parameter
         freeze_connectivity=False,  # New: flag to freeze synapse locations
         weight_threshold=1e-6,  # New: threshold for weight pruning
+        weight_transform: WeightTransformType = "exp",
     ):
         super().__init__()
 
@@ -41,6 +46,7 @@ class DeepstLinear(nn.Module):
         self.rewiring_mode = rewiring_mode
         self.param_space = param_space
         self.init_method = init_method
+        self.weight_transform = weight_transform
 
         # Add K attribute for compatibility with initialize_dendritic_branch_layer
         self.K = int(target_density * in_features) if in_features else None
@@ -55,6 +61,8 @@ class DeepstLinear(nn.Module):
                 weight_init_range = (0.25, 0.75)  # Default for uniform
         # Store weight initialization range
         self.weight_init_range = weight_init_range
+        self.freeze_connectivity = freeze_connectivity
+        self.weight_threshold = weight_threshold
 
         # For constant_branch mode
         if rewiring_mode == "constant_branch":
@@ -158,7 +166,7 @@ class DeepstLinear(nn.Module):
     def weight(self):
         """Return the actual weight values (after transformation)"""
         if self.param_space == "log":
-            return torch.exp(self.pre_w)
+            return apply_weight_transform(self.pre_w, self.weight_transform)
         elif self.param_space == "presigmoid":
             return torch.sigmoid(self.pre_w)
         elif self.param_space == "uniform":

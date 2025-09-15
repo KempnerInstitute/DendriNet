@@ -22,6 +22,13 @@ from dendritic_modeling.networks import (
     DendriticBranchLayer,
     ExcitationInhibitionNetwork,
 )
+from dendritic_modeling.plotting.visualizations.information_plots import (
+    plot_fully_aggregated_analysis,
+    plot_info_vs_ei_depth_per_dendritic_layer,
+    plot_layer_wise_aggregated_analysis,
+    plot_network_wise_aggregated_analysis,
+    plot_structured_ei_network_analysis,
+)
 from dendritic_modeling.utils import save_dict
 from dendritic_modeling.utils.information.estimators import (
     EstimatorConfig,
@@ -30,14 +37,6 @@ from dendritic_modeling.utils.information.estimators import (
 from dendritic_modeling.utils.information.pid import (
     check_pid_available,
     pid_synergy_redundancy,
-)
-from dendritic_modeling.plotting.visualizations.information_plots import (
-    InformationAnalysisPlotter,
-    plot_structured_ei_network_analysis,
-    plot_layer_wise_aggregated_analysis,
-    plot_network_wise_aggregated_analysis,
-    plot_fully_aggregated_analysis,
-    plot_info_vs_ei_depth_per_dendritic_layer,
 )
 
 
@@ -138,27 +137,35 @@ class InformationAnalyzer(AbstractAnalyzer):
         Vinf: Optional[np.ndarray] = None,
     ) -> dict[str, float]:
         """Compute mutual information between each variable and C."""
-        self.logger.info(f"Computing basic MI: E{E.shape}, I{I_var.shape}, Vout{Vout.shape}, C{C.shape}")
+        self.logger.info(
+            f"Computing basic MI: E{E.shape}, I{I_var.shape}, Vout{Vout.shape}, C{C.shape}"
+        )
         metrics = {}
-        
+
         # I(E;C)
         self.logger.info("  Computing I(E;C)...")
         start_time = time.time()
         metrics["I(E;C)"] = self.estimators[self.method].mutual_information(E, C)
-        self.logger.info(f"  I(E;C) = {metrics['I(E;C)']:.4f} (took {time.time() - start_time:.1f}s)")
-        
+        self.logger.info(
+            f"  I(E;C) = {metrics['I(E;C)']:.4f} (took {time.time() - start_time:.1f}s)"
+        )
+
         # I(I;C)
         self.logger.info("  Computing I(I;C)...")
         start_time = time.time()
         metrics["I(I;C)"] = self.estimators[self.method].mutual_information(I_var, C)
-        self.logger.info(f"  I(I;C) = {metrics['I(I;C)']:.4f} (took {time.time() - start_time:.1f}s)")
-        
+        self.logger.info(
+            f"  I(I;C) = {metrics['I(I;C)']:.4f} (took {time.time() - start_time:.1f}s)"
+        )
+
         # I(Vout;C)
         self.logger.info("  Computing I(Vout;C)...")
         start_time = time.time()
         metrics["I(Vout;C)"] = self.estimators[self.method].mutual_information(Vout, C)
-        self.logger.info(f"  I(Vout;C) = {metrics['I(Vout;C)']:.4f} (took {time.time() - start_time:.1f}s)")
-        
+        self.logger.info(
+            f"  I(Vout;C) = {metrics['I(Vout;C)']:.4f} (took {time.time() - start_time:.1f}s)"
+        )
+
         # I(Vinf;C) if available
         if Vinf is not None and self.include_vinf:
             self.logger.info("  Computing I(Vinf;C)...")
@@ -166,26 +173,32 @@ class InformationAnalyzer(AbstractAnalyzer):
             metrics["I(Vinf;C)"] = self.estimators[self.method].mutual_information(
                 Vinf, C
             )
-            self.logger.info(f"  I(Vinf;C) = {metrics['I(Vinf;C)']:.4f} (took {time.time() - start_time:.1f}s)")
-        
+            self.logger.info(
+                f"  I(Vinf;C) = {metrics['I(Vinf;C)']:.4f} (took {time.time() - start_time:.1f}s)"
+            )
+
         # Joint MI: I(E,I;C)
         self.logger.info("  Computing I(E,I;C)...")
         start_time = time.time()
         EI = np.hstack([E, I_var])
         metrics["I(E,I;C)"] = self.estimators[self.method].mutual_information(EI, C)
-        self.logger.info(f"  I(E,I;C) = {metrics['I(E,I;C)']:.4f} (took {time.time() - start_time:.1f}s)")
-        
+        self.logger.info(
+            f"  I(E,I;C) = {metrics['I(E,I;C)']:.4f} (took {time.time() - start_time:.1f}s)"
+        )
+
         # Optionally normalize by entropy
         if self.normalize_mi:
             self.logger.info("  Computing entropy H(C) for normalization...")
             start_time = time.time()
             H_C = self.estimators[self.method].entropy(C.reshape(-1, 1))
-            self.logger.info(f"  H(C) = {H_C:.4f} (took {time.time() - start_time:.1f}s)")
+            self.logger.info(
+                f"  H(C) = {H_C:.4f} (took {time.time() - start_time:.1f}s)"
+            )
             # Create a list of keys to avoid modifying dict during iteration
             keys_to_normalize = list(metrics.keys())
             for key in keys_to_normalize:
                 metrics[f"{key}_normalized"] = metrics[key] / H_C if H_C > 0 else 0.0
-        
+
         self.logger.info("  Basic MI computation completed.")
         return metrics
 
@@ -199,27 +212,33 @@ class InformationAnalyzer(AbstractAnalyzer):
         """Compute pairwise mutual information between variables."""
         self.logger.info("Computing pairwise MI between neural variables...")
         metrics = {}
-        
+
         # I(E;I)
         self.logger.info("  Computing I(E;I)...")
         start_time = time.time()
         metrics["I(E;I)"] = self.estimators[self.method].mutual_information(E, I_var)
-        self.logger.info(f"  I(E;I) = {metrics['I(E;I)']:.4f} (took {time.time() - start_time:.1f}s)")
-        
+        self.logger.info(
+            f"  I(E;I) = {metrics['I(E;I)']:.4f} (took {time.time() - start_time:.1f}s)"
+        )
+
         # I(E;Vout)
         self.logger.info("  Computing I(E;Vout)...")
         start_time = time.time()
         metrics["I(E;Vout)"] = self.estimators[self.method].mutual_information(E, Vout)
-        self.logger.info(f"  I(E;Vout) = {metrics['I(E;Vout)']:.4f} (took {time.time() - start_time:.1f}s)")
-        
+        self.logger.info(
+            f"  I(E;Vout) = {metrics['I(E;Vout)']:.4f} (took {time.time() - start_time:.1f}s)"
+        )
+
         # I(I;Vout)
         self.logger.info("  Computing I(I;Vout)...")
         start_time = time.time()
         metrics["I(I;Vout)"] = self.estimators[self.method].mutual_information(
             I_var, Vout
         )
-        self.logger.info(f"  I(I;Vout) = {metrics['I(I;Vout)']:.4f} (took {time.time() - start_time:.1f}s)")
-        
+        self.logger.info(
+            f"  I(I;Vout) = {metrics['I(I;Vout)']:.4f} (took {time.time() - start_time:.1f}s)"
+        )
+
         if Vinf is not None and self.include_vinf:
             # I(E;Vinf)
             self.logger.info("  Computing I(E;Vinf)...")
@@ -227,24 +246,30 @@ class InformationAnalyzer(AbstractAnalyzer):
             metrics["I(E;Vinf)"] = self.estimators[self.method].mutual_information(
                 E, Vinf
             )
-            self.logger.info(f"  I(E;Vinf) = {metrics['I(E;Vinf)']:.4f} (took {time.time() - start_time:.1f}s)")
-            
+            self.logger.info(
+                f"  I(E;Vinf) = {metrics['I(E;Vinf)']:.4f} (took {time.time() - start_time:.1f}s)"
+            )
+
             # I(I;Vinf)
             self.logger.info("  Computing I(I;Vinf)...")
             start_time = time.time()
             metrics["I(I;Vinf)"] = self.estimators[self.method].mutual_information(
                 I_var, Vinf
             )
-            self.logger.info(f"  I(I;Vinf) = {metrics['I(I;Vinf)']:.4f} (took {time.time() - start_time:.1f}s)")
-            
+            self.logger.info(
+                f"  I(I;Vinf) = {metrics['I(I;Vinf)']:.4f} (took {time.time() - start_time:.1f}s)"
+            )
+
             # I(Vout;Vinf)
             self.logger.info("  Computing I(Vout;Vinf)...")
             start_time = time.time()
             metrics["I(Vout;Vinf)"] = self.estimators[self.method].mutual_information(
                 Vout, Vinf
             )
-            self.logger.info(f"  I(Vout;Vinf) = {metrics['I(Vout;Vinf)']:.4f} (took {time.time() - start_time:.1f}s)")
-        
+            self.logger.info(
+                f"  I(Vout;Vinf) = {metrics['I(Vout;Vinf)']:.4f} (took {time.time() - start_time:.1f}s)"
+            )
+
         self.logger.info("  Pairwise MI computation completed.")
         return metrics
 
@@ -257,33 +282,41 @@ class InformationAnalyzer(AbstractAnalyzer):
         Vinf: Optional[np.ndarray] = None,
     ) -> dict[str, float]:
         """Compute conditional mutual information given C."""
-        self.logger.info("Computing conditional MI metrics (conditioned on class labels)...")
+        self.logger.info(
+            "Computing conditional MI metrics (conditioned on class labels)..."
+        )
         metrics = {}
-        
+
         # I(E;I|C)
         self.logger.info("  Computing I(E;I|C)...")
         start_time = time.time()
         metrics["I(E;I|C)"] = self.estimators[
             self.method
         ].conditional_mutual_information(E, I_var, C.reshape(-1, 1))
-        self.logger.info(f"  I(E;I|C) = {metrics['I(E;I|C)']:.4f} (took {time.time() - start_time:.1f}s)")
-        
+        self.logger.info(
+            f"  I(E;I|C) = {metrics['I(E;I|C)']:.4f} (took {time.time() - start_time:.1f}s)"
+        )
+
         # I(E;Vout|C)
         self.logger.info("  Computing I(E;Vout|C)...")
         start_time = time.time()
         metrics["I(E;Vout|C)"] = self.estimators[
             self.method
         ].conditional_mutual_information(E, Vout, C.reshape(-1, 1))
-        self.logger.info(f"  I(E;Vout|C) = {metrics['I(E;Vout|C)']:.4f} (took {time.time() - start_time:.1f}s)")
-        
+        self.logger.info(
+            f"  I(E;Vout|C) = {metrics['I(E;Vout|C)']:.4f} (took {time.time() - start_time:.1f}s)"
+        )
+
         # I(I;Vout|C)
         self.logger.info("  Computing I(I;Vout|C)...")
         start_time = time.time()
         metrics["I(I;Vout|C)"] = self.estimators[
             self.method
         ].conditional_mutual_information(I_var, Vout, C.reshape(-1, 1))
-        self.logger.info(f"  I(I;Vout|C) = {metrics['I(I;Vout|C)']:.4f} (took {time.time() - start_time:.1f}s)")
-        
+        self.logger.info(
+            f"  I(I;Vout|C) = {metrics['I(I;Vout|C)']:.4f} (took {time.time() - start_time:.1f}s)"
+        )
+
         if Vinf is not None and self.include_vinf:
             # I(E;Vinf|C)
             self.logger.info("  Computing I(E;Vinf|C)...")
@@ -291,16 +324,20 @@ class InformationAnalyzer(AbstractAnalyzer):
             metrics["I(E;Vinf|C)"] = self.estimators[
                 self.method
             ].conditional_mutual_information(E, Vinf, C.reshape(-1, 1))
-            self.logger.info(f"  I(E;Vinf|C) = {metrics['I(E;Vinf|C)']:.4f} (took {time.time() - start_time:.1f}s)")
-            
+            self.logger.info(
+                f"  I(E;Vinf|C) = {metrics['I(E;Vinf|C)']:.4f} (took {time.time() - start_time:.1f}s)"
+            )
+
             # I(I;Vinf|C)
             self.logger.info("  Computing I(I;Vinf|C)...")
             start_time = time.time()
             metrics["I(I;Vinf|C)"] = self.estimators[
                 self.method
             ].conditional_mutual_information(I_var, Vinf, C.reshape(-1, 1))
-            self.logger.info(f"  I(I;Vinf|C) = {metrics['I(I;Vinf|C)']:.4f} (took {time.time() - start_time:.1f}s)")
-        
+            self.logger.info(
+                f"  I(I;Vinf|C) = {metrics['I(I;Vinf|C)']:.4f} (took {time.time() - start_time:.1f}s)"
+            )
+
         self.logger.info("  Conditional MI computation completed.")
         return metrics
 
@@ -314,13 +351,17 @@ class InformationAnalyzer(AbstractAnalyzer):
         # Prepare data for PID (may need binarization)
         self.logger.info(f"  Data preprocessing: binarize={self.pid_binarize}")
         if self.pid_binarize:
-            self.logger.info(f"  Binarizing data using method: {self.pid_binarize_method}")
+            self.logger.info(
+                f"  Binarizing data using method: {self.pid_binarize_method}"
+            )
             start_time = time.time()
             E_pid = self._binarize(E)
             I_pid = self._binarize(I_var)
             Vout_pid = self._binarize(Vout)
             C_pid = self._binarize(C.reshape(-1, 1))
-            self.logger.info(f"  Data binarization completed (took {time.time() - start_time:.1f}s)")
+            self.logger.info(
+                f"  Data binarization completed (took {time.time() - start_time:.1f}s)"
+            )
         else:
             E_pid = E
             I_pid = I_var
@@ -343,20 +384,34 @@ class InformationAnalyzer(AbstractAnalyzer):
                 synergy, redundancy = pid_synergy_redundancy(
                     [source1_array, source2_array], target_array
                 )
-                
+
                 # Compute unique information
-                unique_1 = self.estimators[self.method].mutual_information(source1_array, target_array) - redundancy
-                unique_2 = self.estimators[self.method].mutual_information(source2_array, target_array) - redundancy
-                
+                unique_1 = (
+                    self.estimators[self.method].mutual_information(
+                        source1_array, target_array
+                    )
+                    - redundancy
+                )
+                unique_2 = (
+                    self.estimators[self.method].mutual_information(
+                        source2_array, target_array
+                    )
+                    - redundancy
+                )
+
                 pid_results[pid_key] = {
                     "synergy": synergy,
                     "redundancy": redundancy,
                     f"unique_{source1_name}": unique_1,
                     f"unique_{source2_name}": unique_2,
                 }
-                self.logger.info(f"  {pid_key}: synergy={synergy:.4f}, redundancy={redundancy:.4f}, unique_{source1_name}={unique_1:.4f}, unique_{source2_name}={unique_2:.4f} (took {time.time() - start_time:.1f}s)")
+                self.logger.info(
+                    f"  {pid_key}: synergy={synergy:.4f}, redundancy={redundancy:.4f}, unique_{source1_name}={unique_1:.4f}, unique_{source2_name}={unique_2:.4f} (took {time.time() - start_time:.1f}s)"
+                )
             except Exception as e:
-                self.logger.warning(f"  {pid_key} computation failed: {e} (took {time.time() - start_time:.1f}s)")
+                self.logger.warning(
+                    f"  {pid_key} computation failed: {e} (took {time.time() - start_time:.1f}s)"
+                )
 
         # PID: (E, I) -> C
         _pid_helper(E_pid, "E", I_pid, "I", C_pid, "C")
@@ -366,7 +421,7 @@ class InformationAnalyzer(AbstractAnalyzer):
         _pid_helper(I_pid, "I", Vout_pid, "Vout", C_pid, "C")
         # PID: (E, I) -> Vout
         _pid_helper(E_pid, "E", I_pid, "I", Vout_pid, "Vout")
-        
+
         self.logger.info("  PID computation completed.")
         return pid_results
 
@@ -621,10 +676,61 @@ class InformationAnalyzer(AbstractAnalyzer):
 
         return layer_stats
 
+    def _compute_variance_analysis(self, results: dict) -> dict:
+        """
+        Compute variance analysis across different hierarchical levels.
+
+        This computes how much information values vary:
+        - When per_neuron_analysis=True: variance across branches within neurons
+        - When per_layer_analysis=True: variance across neurons within layers
+        - When per_einet_analysis=True: variance across E/I networks
+
+        Returns variance statistics that can be plotted alongside means.
+        """
+        variance_analysis = {}
+
+        # Compute variance based on computation level and analysis modes
+        if "layer_statistics" in results:
+            layer_stats = results["layer_statistics"]
+
+            # Extract variance information from the existing std values
+            # The std values in layer_statistics represent variance across branches
+            variance_by_layer = {}
+
+            for layer_name, layer_data in layer_stats.items():
+                layer_variances = {}
+
+                # Extract variance from std values (std^2 = variance)
+                for metric_key, value in layer_data.items():
+                    if metric_key.endswith("_std"):
+                        metric_base = metric_key.replace("_std", "")
+                        variance_key = f"{metric_base}_variance"
+                        layer_variances[variance_key] = value**2  # std^2 = variance
+
+                # Always include layer in variance analysis (even if all variances are zero)
+                # This ensures synthetic_soma is included when somatic_synapses=False
+                variance_by_layer[layer_name] = layer_variances
+
+            variance_analysis["layer_variances"] = variance_by_layer
+
+        # Add metadata about what type of variance this represents
+        variance_analysis["variance_interpretation"] = {
+            "layer_variances": "Variance across branches within each layer",
+            "computation_level": results.get("computation_level", "unknown"),
+            "per_neuron_enabled": results.get("per_neuron_analysis_enabled", False),
+            "per_layer_enabled": results.get("per_layer_analysis_enabled", False),
+            "per_einet_enabled": results.get("per_einet_analysis_enabled", False),
+        }
+
+        return variance_analysis
+
     def attach_forward_hooks(self, model: BaseModel):
         """Attach forward hooks to the model."""
-        # Initalize data_dict attribute
+        # Initialize data_dict attribute and store somatic_synapses config
         self.data_dict = {}
+        self.somatic_synapses_enabled = getattr(
+            model.core_network, "somatic_synapses", True
+        )
 
         handles = []
         for _name, module in model.named_modules():
@@ -649,16 +755,44 @@ class InformationAnalyzer(AbstractAnalyzer):
         """Forward hook to collect branch data."""
         excitatory_input, inhibitory_input, _ = input
 
-        # Get the outputs from TopKLinear layers
-        # These represent the weighted sum for each branch (already computed by TopKLinear)
-        # Shape: (batch_size, num_branches)
-        excitation_per_branch = module.branch_excitation(excitatory_input)
-        inhibition_per_branch = module.branch_inhibition(inhibitory_input)
+        # Check if this is a soma layer without somatic synapses (using config)
+        is_soma_without_synapses = module.layer_idx == 0 and not getattr(
+            self, "somatic_synapses_enabled", True
+        )
+
+        if is_soma_without_synapses:
+            # For soma without synapses, create zero tensors for E/I but keep real output
+            batch_size = output.shape[0]
+            n_branches = output.shape[1] if len(output.shape) > 1 else 1
+
+            # Zero excitation and inhibition since there are no synapses
+            excitation_per_branch = torch.zeros(
+                batch_size, n_branches, device=output.device
+            )
+            inhibition_per_branch = torch.zeros(
+                batch_size, n_branches, device=output.device
+            )
+        else:
+            # Normal processing for layers with actual synapses
+            # Get the outputs from TopKLinear layers
+            # These represent the weighted sum for each branch (already computed by TopKLinear)
+            # Shape: (batch_size, num_branches)
+            excitation_per_branch = (
+                module.branch_excitation(excitatory_input)
+                if module.branch_excitation is not None
+                else torch.zeros_like(output)
+            )
+            inhibition_per_branch = (
+                module.branch_inhibition(inhibitory_input)
+                if module.branch_inhibition is not None
+                else torch.zeros_like(output)
+            )
 
         # Store per-branch data
         self.data_dict[module._name]["excitation"] = excitation_per_branch
         self.data_dict[module._name]["inhibition"] = inhibition_per_branch
         self.data_dict[module._name]["output"] = output
+        self.data_dict[module._name]["has_synapses"] = not is_soma_without_synapses
 
     def remove_forward_hooks(self, handles: list[torch.utils.hooks.RemovableHandle]):
         """Remove forward hooks from the model."""
@@ -869,89 +1003,88 @@ class InformationAnalyzer(AbstractAnalyzer):
         return per_layer_results
 
     def _save_per_layer_ei_summaries(
-        self, 
-        per_layer_data: dict, 
-        save_path: str, 
-        base_filename: str
+        self, per_layer_data: dict, save_path: str, base_filename: str
     ):
         """Generate and save individual summaries for each layer's E and I networks.
-        
+
         Args:
             per_layer_data: Dictionary containing per-layer analysis results
             save_path: Directory to save summary files
             base_filename: Base filename for the summaries
         """
         self.logger.info("Generating individual layer E/I network summaries...")
-        
+
         # Create subfolder for per-layer results
         per_layer_path = os.path.join(save_path, "per_layer_results")
         os.makedirs(per_layer_path, exist_ok=True)
-        
+
         for layer_name, layer_results in per_layer_data.items():
             if "per_einet_analysis" in layer_results:
                 ei_analysis = layer_results["per_einet_analysis"]
-                
+
                 # Clean layer name for filename
                 clean_layer_name = layer_name.replace(".", "_").replace("/", "_")
-                
+
                 # Generate excitatory network summary
                 if "excitatory_results" in ei_analysis:
                     exc_summary = self.get_summary(ei_analysis["excitatory_results"])
                     exc_summary_path = os.path.join(
-                        per_layer_path, 
-                        f"{base_filename}_{clean_layer_name}_excitatory_summary.txt"
+                        per_layer_path,
+                        f"{base_filename}_{clean_layer_name}_excitatory_summary.txt",
                     )
                     with open(exc_summary_path, "w") as f:
                         f.write(f"Excitatory Network Summary - {layer_name}\n")
                         f.write("=" * 50 + "\n\n")
                         f.write(exc_summary)
-                    
+
                     # Also save the results as JSON for plotting
                     save_dict(
-                        ei_analysis["excitatory_results"], 
-                        per_layer_path, 
-                        f"{base_filename}_{clean_layer_name}_excitatory_results"
+                        ei_analysis["excitatory_results"],
+                        per_layer_path,
+                        f"{base_filename}_{clean_layer_name}_excitatory_results",
                     )
-                
+
                 # Generate inhibitory network summary
                 if "inhibitory_results" in ei_analysis:
                     inh_summary = self.get_summary(ei_analysis["inhibitory_results"])
                     inh_summary_path = os.path.join(
-                        per_layer_path, 
-                        f"{base_filename}_{clean_layer_name}_inhibitory_summary.txt"
+                        per_layer_path,
+                        f"{base_filename}_{clean_layer_name}_inhibitory_summary.txt",
                     )
                     with open(inh_summary_path, "w") as f:
                         f.write(f"Inhibitory Network Summary - {layer_name}\n")
                         f.write("=" * 50 + "\n\n")
                         f.write(inh_summary)
-                    
+
                     # Also save the results as JSON for plotting
                     save_dict(
-                        ei_analysis["inhibitory_results"], 
-                        per_layer_path, 
-                        f"{base_filename}_{clean_layer_name}_inhibitory_results"
+                        ei_analysis["inhibitory_results"],
+                        per_layer_path,
+                        f"{base_filename}_{clean_layer_name}_inhibitory_results",
                     )
-                
+
                 # Generate combined network summary
                 if "combined_results" in ei_analysis:
                     combined_summary = self.get_summary(ei_analysis["combined_results"])
                     combined_summary_path = os.path.join(
-                        per_layer_path, 
-                        f"{base_filename}_{clean_layer_name}_combined_summary.txt"
+                        per_layer_path,
+                        f"{base_filename}_{clean_layer_name}_combined_summary.txt",
                     )
                     with open(combined_summary_path, "w") as f:
                         f.write(f"Combined E+I Network Summary - {layer_name}\n")
                         f.write("=" * 50 + "\n\n")
                         f.write(combined_summary)
-                    
+
                     # Also save the results as JSON for plotting
                     save_dict(
-                        ei_analysis["combined_results"], 
-                        per_layer_path, 
-                        f"{base_filename}_{clean_layer_name}_combined_results"
+                        ei_analysis["combined_results"],
+                        per_layer_path,
+                        f"{base_filename}_{clean_layer_name}_combined_results",
                     )
-        
-        self.logger.info(f"Generated individual summaries for {len(per_layer_data)} layers")
+
+        self.logger.info(
+            f"Generated individual summaries for {len(per_layer_data)} layers"
+        )
 
     def analyze(
         self,
@@ -977,10 +1110,11 @@ class InformationAnalyzer(AbstractAnalyzer):
             Filename for saved results, by default "final"
         """
         self.logger.info("Starting information analysis")
-        self.logger.info(f"Model: {type(model).__name__}, Dataset size: {len(test_dataset)}, Device: {device}")
-        
+        self.logger.info(
+            f"Model: {type(model).__name__}, Dataset size: {len(test_dataset)}, Device: {device}"
+        )
+
         try:
-            
             # Check if model has ExcitationInhibitionNetwork
             if not isinstance(model.core_network, ExcitationInhibitionNetwork):
                 self.logger.warning(
@@ -1000,7 +1134,9 @@ class InformationAnalyzer(AbstractAnalyzer):
             inputs, labels = test_dataset[:]
             inputs: torch.Tensor
             labels: torch.Tensor
-            self.logger.info(f"Loaded dataset: {len(inputs)} samples, input shape: {inputs.shape}")
+            self.logger.info(
+                f"Loaded dataset: {len(inputs)} samples, input shape: {inputs.shape}"
+            )
 
             # Optional: Sample a subset of data for faster computation
             if self.max_samples and len(inputs) > self.max_samples:
@@ -1033,8 +1169,10 @@ class InformationAnalyzer(AbstractAnalyzer):
 
             self.logger.info("Converting labels to numpy...")
             C = labels.detach().cpu().numpy()
-            
-            self.logger.info(f"Data collection completed. Found {len(self.data_dict)} layers with activations.")
+
+            self.logger.info(
+                f"Data collection completed. Found {len(self.data_dict)} layers with activations."
+            )
 
             self.data_dict: dict[str, dict[str, torch.Tensor]]
 
@@ -1046,22 +1184,45 @@ class InformationAnalyzer(AbstractAnalyzer):
                 branch_names = []
                 layer_results = {}  # Store results per layer
 
-                total_layers = len([name for name, data in self.data_dict.items() if "excitation" in data])
-                total_branches = sum(data.get("excitation", torch.empty(0, 0)).shape[1] for data in self.data_dict.values() if "excitation" in data)
+                total_layers = len(
+                    [
+                        name
+                        for name, data in self.data_dict.items()
+                        if "excitation" in data
+                    ]
+                )
+                total_branches = sum(
+                    data.get("excitation", torch.empty(0, 0)).shape[1]
+                    for data in self.data_dict.values()
+                    if "excitation" in data
+                )
                 layer_count = 0
-                
-                self.logger.info(f"Analysis scope: {total_layers} layers, ~{total_branches} total branches to process")
-                self.logger.info(f"Using {self.method} estimator with max_samples={self.max_samples}")
-                self.logger.info(f"Enabled computations: basic_mi={self.compute_basic_mi}, pairwise_mi={self.compute_pairwise_mi}, conditional_mi={self.compute_conditional_mi}, pid={self.compute_pid}")
-                
-                
+
+                self.logger.info(
+                    f"Analysis scope: {total_layers} layers, ~{total_branches} total branches to process"
+                )
+                self.logger.info(
+                    f"Using {self.method} estimator with max_samples={self.max_samples}"
+                )
+                self.logger.info(
+                    f"Enabled computations: basic_mi={self.compute_basic_mi}, pairwise_mi={self.compute_pairwise_mi}, conditional_mi={self.compute_conditional_mi}, pid={self.compute_pid}"
+                )
+
                 self.logger.info("Beginning branch-by-branch processing...")
-                
-                layers_to_process = [(name, data) for name, data in self.data_dict.items() if "excitation" in data]
-                
-                for layer_name, layer_data in tqdm(layers_to_process, desc="Processing layers"):
+
+                layers_to_process = [
+                    (name, data)
+                    for name, data in self.data_dict.items()
+                    if "excitation" in data
+                ]
+
+                for layer_name, layer_data in tqdm(
+                    layers_to_process, desc="Processing layers"
+                ):
                     layer_count += 1
-                    self.logger.info(f"Processing layer {layer_count}/{total_layers}: {layer_name}")
+                    self.logger.info(
+                        f"Processing layer {layer_count}/{total_layers}: {layer_name}"
+                    )
 
                     # Get data for all branches in this layer
                     E_all_branches_raw = layer_data["excitation"]
@@ -1087,10 +1248,16 @@ class InformationAnalyzer(AbstractAnalyzer):
                     layer_start_time = time.time()
 
                     # Process each branch individually
-                    for branch_idx in tqdm(range(n_branches), desc=f"  Branches in {layer_name}", leave=False):
+                    for branch_idx in tqdm(
+                        range(n_branches),
+                        desc=f"  Branches in {layer_name}",
+                        leave=False,
+                    ):
                         branch_start_time = time.time()
-                        self.logger.debug(f"  Processing branch {branch_idx + 1}/{n_branches} in {layer_name}...")
-                        
+                        self.logger.debug(
+                            f"  Processing branch {branch_idx + 1}/{n_branches} in {layer_name}..."
+                        )
+
                         # Extract data for this specific branch
                         E_branch = E_all_branches[
                             :, branch_idx : branch_idx + 1
@@ -1105,8 +1272,10 @@ class InformationAnalyzer(AbstractAnalyzer):
                         all_results.append(branch_results)
                         layer_branch_results.append(branch_results)
                         branch_names.append(f"{layer_name}_branch_{branch_idx}")
-                        
-                        self.logger.debug(f"  Branch {branch_idx + 1}/{n_branches} completed (took {time.time() - branch_start_time:.1f}s)")
+
+                        self.logger.debug(
+                            f"  Branch {branch_idx + 1}/{n_branches} completed (took {time.time() - branch_start_time:.1f}s)"
+                        )
 
                     # Compute layer statistics
                     if layer_branch_results:
@@ -1114,8 +1283,10 @@ class InformationAnalyzer(AbstractAnalyzer):
                             layer_branch_results
                         )
                         layer_results[layer_name] = layer_stats
-                        
-                    self.logger.info(f"Layer {layer_name} completed: {n_branches} branches processed in {time.time() - layer_start_time:.1f}s")
+
+                    self.logger.info(
+                        f"Layer {layer_name} completed: {n_branches} branches processed in {time.time() - layer_start_time:.1f}s"
+                    )
 
                 # Average the results across branches
                 if all_results:
@@ -1137,9 +1308,15 @@ class InformationAnalyzer(AbstractAnalyzer):
                 all_results = []
                 layer_names = []
 
-                layers_to_process = [(name, data) for name, data in self.data_dict.items() if "excitation" in data]
-                
-                for layer_name, layer_data in tqdm(layers_to_process, desc="Processing layers"):
+                layers_to_process = [
+                    (name, data)
+                    for name, data in self.data_dict.items()
+                    if "excitation" in data
+                ]
+
+                for layer_name, layer_data in tqdm(
+                    layers_to_process, desc="Processing layers"
+                ):
                     # Aggregate all branches within this layer using branch_aggregation
                     E_layer_data_raw = layer_data[
                         "excitation"
@@ -1218,16 +1395,20 @@ class InformationAnalyzer(AbstractAnalyzer):
                     results["layer_names"] = layer_names
                     results["num_layers"] = len(all_results)
                     results["computation_level"] = "layer_branch"
-                    
+
                     # Generate layer statistics for plotting (similar to single_branch mode)
                     layer_statistics = {}
-                    for i, (layer_name, layer_result) in enumerate(zip(layer_names, all_results)):
+                    for _i, (layer_name, layer_result) in enumerate(
+                        zip(layer_names, all_results)
+                    ):
                         # Convert individual layer result to statistics format expected by plotting
                         layer_stats = self._compute_layer_statistics([layer_result])
                         layer_statistics[layer_name] = layer_stats
-                    
+
                     results["layer_statistics"] = layer_statistics
-                    self.logger.info(f"Generated layer statistics for {len(layer_statistics)} layers for plotting")
+                    self.logger.info(
+                        f"Generated layer statistics for {len(layer_statistics)} layers for plotting"
+                    )
                 else:
                     self.logger.warning("No layer results to average")
                     return
@@ -1404,31 +1585,117 @@ class InformationAnalyzer(AbstractAnalyzer):
             self.logger.info(f"   - Computation level: {self.computation_level}")
             self.logger.info(f"   - Method: {self.method}")
             self.logger.info(f"   - Sample size: {results.get('n_samples', 'unknown')}")
-            if 'num_branches' in results:
+            if "num_branches" in results:
                 self.logger.info(f"   - Branches processed: {results['num_branches']}")
-            if 'num_layers' in results:
+            if "num_layers" in results:
                 self.logger.info(f"   - Layers processed: {results['num_layers']}")
+
+            # Add synthetic soma entry when somatic_synapses=False for uniform plotting
+            somatic_synapses = getattr(model.core_network, "somatic_synapses", True)
+            self.logger.info(f"Somatic synapses enabled: {somatic_synapses}")
+            if not somatic_synapses and "layer_statistics" in results:
+                self.logger.info(
+                    f"Adding synthetic soma entry to {len(results['layer_statistics'])} existing layers"
+                )
+
+                # Find the real soma layer to get its Vout information
+                # The real soma is the layer with the highest branch index (corresponds to layer_idx=0)
+                soma_vout_mean = 0.0
+                soma_vout_std = 0.0
+
+                # Find the layer with the highest branch index in layer_statistics
+                max_branch_idx = -1
+                real_soma_layer = None
+
+                for layer_name, _layer_data in results["layer_statistics"].items():
+                    if "branch_layers." in layer_name:
+                        try:
+                            branch_idx = int(
+                                layer_name.split("branch_layers.")[1].split(".")[0]
+                            )
+                            if branch_idx > max_branch_idx:
+                                max_branch_idx = branch_idx
+                                real_soma_layer = layer_name
+                        except (ValueError, IndexError):
+                            continue
+
+                # Extract I(Vout;C) from the real soma layer
+                if real_soma_layer and real_soma_layer in results["layer_statistics"]:
+                    real_soma_stats = results["layer_statistics"][real_soma_layer]
+                    soma_vout_mean = real_soma_stats.get("I(Vout;C)_mean", 0.0)
+                    soma_vout_std = real_soma_stats.get("I(Vout;C)_std", 0.0)
+                    self.logger.info(f"Found real soma layer: {real_soma_layer}")
+                    self.logger.info(
+                        f"Using real soma I(Vout;C): {soma_vout_mean:.4f} ± {soma_vout_std:.4f}"
+                    )
+                else:
+                    self.logger.warning(
+                        "Could not find real soma layer for I(Vout;C) computation"
+                    )
+
+                # Add synthetic soma entry with appropriate values
+                soma_entry = {
+                    "I(E;C)_mean": 0.0,  # Zero - no excitatory synapses
+                    "I(E;C)_std": 0.0,
+                    "I(I;C)_mean": 0.0,  # Zero - no inhibitory synapses
+                    "I(I;C)_std": 0.0,
+                    "I(Vout;C)_mean": soma_vout_mean,  # Real computed value from soma output
+                    "I(Vout;C)_std": soma_vout_std,  # Real computed std from soma output
+                    "I(E,I;C)_mean": 0.0,  # Zero - no synapses
+                    "I(E,I;C)_std": 0.0,
+                    "I(E;I)_mean": 0.0,  # Zero - no synapses
+                    "I(E;I)_std": 0.0,
+                    "I(E;Vout)_mean": 0.0,  # Zero - no excitatory synapses
+                    "I(E;Vout)_std": 0.0,
+                    "I(I;Vout)_mean": 0.0,  # Zero - no inhibitory synapses
+                    "I(I;Vout)_std": 0.0,
+                    "I(E;I|C)_mean": 0.0,  # Zero - no synapses
+                    "I(E;I|C)_std": 0.0,
+                    "I(E;Vout|C)_mean": 0.0,  # Zero - no excitatory synapses
+                    "I(E;Vout|C)_std": 0.0,
+                    "I(I;Vout|C)_mean": 0.0,  # Zero - no inhibitory synapses
+                    "I(I;Vout|C)_std": 0.0,
+                }
+                # Add soma entry to layer_statistics
+                results["layer_statistics"]["synthetic_soma"] = soma_entry
+                self.logger.info(
+                    f"Added synthetic soma with real I(Vout;C)={soma_vout_mean:.4f}. Total layers now: {len(results['layer_statistics'])}"
+                )
+            elif not somatic_synapses:
+                self.logger.warning(
+                    "somatic_synapses=False but no layer_statistics found in results"
+                )
+
+            # Compute variance analysis for plotting (AFTER synthetic soma is added)
+            self.logger.info("Computing variance analysis for plotting...")
+            variance_analysis = self._compute_variance_analysis(results)
+            results["variance_analysis"] = variance_analysis
+            self.logger.info(
+                f"Variance analysis computed with {len(variance_analysis.get('layer_variances', {}))} layers"
+            )
 
             # Save results
             if save_path is not None:
                 self.logger.info(f"Saving results to {save_path}/{filename}")
                 save_dict(results, save_path, filename)
-                
+
                 # Generate main summary
                 summary = self.get_summary(results)
                 summary_path = os.path.join(save_path, f"{filename}_summary.txt")
                 with open(summary_path, "w") as f:
                     f.write(summary)
-                
+
                 # Generate individual summaries for each layer's E and I networks
                 if "per_layer_analysis" in results:
-                    self._save_per_layer_ei_summaries(results["per_layer_analysis"], save_path, filename)
-                
+                    self._save_per_layer_ei_summaries(
+                        results["per_layer_analysis"], save_path, filename
+                    )
+
                 # Generate plots for information analysis
-                self._generate_information_plots(results, save_path)
-                
+                self._generate_information_plots(results, save_path, somatic_synapses)
+
                 self.logger.info("Results saved successfully!")
-            
+
             # Always return results for plotting
             return results
 
@@ -1444,69 +1711,126 @@ class InformationAnalyzer(AbstractAnalyzer):
             activations, labels, condition
         )
 
-    def _generate_information_plots(self, results: dict, save_path: str):
+    def _generate_information_plots(
+        self, results: dict, save_path: str, somatic_synapses: bool
+    ):
         """Generate plots for information analysis results."""
         try:
             # Initialize plotter for enhanced visualizations
-            plotter = InformationAnalysisPlotter()
-            
+            # plotter = InformationAnalysisPlotter()  # Unused variable
+
             # Generate dendritic depth plots based on enabled analysis modes
             if results and "layer_statistics" in results:
                 per_layer_enabled = results.get("per_layer_analysis_enabled", False)
                 per_einet_enabled = results.get("per_einet_analysis_enabled", False)
-                
+
                 if per_layer_enabled and per_einet_enabled:
-                    self.logger.info("Both per_layer and per_einet analysis enabled - generating detailed comparison plots...")
+                    self.logger.info(
+                        "Both per_layer and per_einet analysis enabled - generating detailed comparison plots..."
+                    )
                     # Generate structured plots grouped by major layer and network type
                     plot_structured_ei_network_analysis(
                         results["layer_statistics"],
                         save_path=save_path,
-                        logger=self.logger
+                        logger=self.logger,
+                        somatic_synapses=somatic_synapses,
                     )
                 elif per_layer_enabled and not per_einet_enabled:
-                    self.logger.info("per_layer analysis enabled, per_einet disabled - generating layer-wise plots...")
+                    self.logger.info(
+                        "per_layer analysis enabled, per_einet disabled - generating layer-wise plots..."
+                    )
                     # Aggregate E/I networks, but keep layers separate
                     plot_layer_wise_aggregated_analysis(
                         results["layer_statistics"],
                         save_path=save_path,
-                        logger=self.logger
+                        logger=self.logger,
+                        somatic_synapses=somatic_synapses,
                     )
                 elif not per_layer_enabled and per_einet_enabled:
-                    self.logger.info("per_einet analysis enabled, per_layer disabled - generating network-wise plots...")
+                    self.logger.info(
+                        "per_einet analysis enabled, per_layer disabled - generating network-wise plots..."
+                    )
                     # Aggregate layers, but keep E/I networks separate
                     plot_network_wise_aggregated_analysis(
                         results["layer_statistics"],
                         save_path=save_path,
-                        logger=self.logger
+                        logger=self.logger,
+                        somatic_synapses=somatic_synapses,
                     )
                 else:
-                    self.logger.info("Both per_layer and per_einet analysis disabled - generating overall aggregated plots...")
+                    self.logger.info(
+                        "Both per_layer and per_einet analysis disabled - generating overall aggregated plots..."
+                    )
                     # Aggregate both layers and E/I networks
                     plot_fully_aggregated_analysis(
                         results["layer_statistics"],
                         save_path=save_path,
-                        logger=self.logger
+                        logger=self.logger,
+                        somatic_synapses=somatic_synapses,
                     )
-            
+
             # Generate info vs EI depth per dendritic layer plots if we have layer statistics
-            self.logger.info(f"Checking for layer_statistics: results exists={results is not None}")
+            self.logger.info(
+                f"Checking for layer_statistics: results exists={results is not None}"
+            )
             if results:
                 self.logger.info(f"Results keys: {list(results.keys())}")
-                self.logger.info(f"layer_statistics in results: {'layer_statistics' in results}")
+                self.logger.info(
+                    f"layer_statistics in results: {'layer_statistics' in results}"
+                )
                 if "layer_statistics" in results:
-                    self.logger.info(f"layer_statistics length: {len(results['layer_statistics'])}")
+                    self.logger.info(
+                        f"layer_statistics length: {len(results['layer_statistics'])}"
+                    )
 
-            if results and "layer_statistics" in results and len(results["layer_statistics"]) > 0:
-                self.logger.info(f"Calling plot_info_vs_ei_depth_per_dendritic_layer with {len(results['layer_statistics'])} layer statistics")
+            if (
+                results
+                and "layer_statistics" in results
+                and len(results["layer_statistics"]) > 0
+            ):
+                self.logger.info(
+                    f"Calling plot_info_vs_ei_depth_per_dendritic_layer with {len(results['layer_statistics'])} layer statistics"
+                )
                 plot_info_vs_ei_depth_per_dendritic_layer(
                     results["layer_statistics"],
                     save_path=save_path,
-                    logger=self.logger
+                    logger=self.logger,
+                    somatic_synapses=somatic_synapses,
                 )
             else:
-                self.logger.warning("Skipping plot_info_vs_ei_depth_per_dendritic_layer - no layer statistics found")
-            
+                self.logger.warning(
+                    "Skipping plot_info_vs_ei_depth_per_dendritic_layer - no layer statistics found"
+                )
 
-                            
+            # Generate variance analysis plots if variance analysis was computed
+            if results and "variance_analysis" in results:
+                try:
+                    self.logger.info(
+                        "Generating information variance analysis plots..."
+                    )
+                    self.logger.info(
+                        f"Variance analysis keys: {list(results['variance_analysis'].keys())}"
+                    )
+                    from dendritic_modeling.plotting.visualizations.information_plots import (
+                        plot_information_variance_analysis,
+                    )
+
+                    plot_information_variance_analysis(
+                        results["variance_analysis"],
+                        save_path=save_path,
+                        somatic_synapses=somatic_synapses,
+                        logger=self.logger,
+                    )
+                    self.logger.info("Variance plots completed successfully!")
+                except Exception as e:
+                    self.logger.error(f"Error generating variance plots: {e}")
+                    import traceback
+
+                    traceback.print_exc()
+            else:
+                self.logger.warning(
+                    "No variance_analysis found in results - skipping variance plots"
+                )
+
         except Exception as e:
             self.logger.error(f"Error generating information plots: {e}")

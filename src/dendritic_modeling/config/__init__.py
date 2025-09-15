@@ -69,7 +69,6 @@ __all__ = [
     "EncoderTrainConfig",
     "InformationAnalysisConfig",
     "InformationAnalysisParams",
-    "load_config",
     "MainTrainConfig",
     "ModelConfig",
     "NoisePerturbationAnalysisConfig",
@@ -90,4 +89,5 @@ __all__ = [
     "WandbConfig",
     "WeightAnalysisConfig",
     "WeightAnalysisParams",
+    "load_config",
 ]

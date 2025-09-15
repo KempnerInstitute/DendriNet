@@ -62,7 +62,15 @@ project_root = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(project_root / "src"))
 
 # Define supported sweep types directly to avoid circular imports
-SUPPORTED_SWEEP_TYPES = ["unified", "ei", "branch", "noise", "general"]
+SUPPORTED_SWEEP_TYPES = [
+    "unified",
+    "ei",
+    "branch",
+    "noise",
+    "general",
+    "local_learning",
+    "general_param_sweep",
+]
 
 
 class UnifiedResultAnalyzer:
@@ -127,6 +135,80 @@ class UnifiedResultAnalyzer:
             "cross": "#FFA726",  # Orange for cross-information
         }
 
+    def detect_sweep_parameters(self, results_dir: str) -> Optional[dict]:
+        """
+        Detect custom sweep parameters from YAML config files.
+
+        Returns:
+            Dictionary with sweep_config parameters or None if not found
+        """
+        config_dir = os.path.join(results_dir, "configs")
+        if not os.path.exists(config_dir):
+            return None
+
+        # Look for YAML files that might contain sweep_config
+        yaml_files = glob.glob(os.path.join(config_dir, "*.yaml"))
+        for yaml_file in yaml_files:
+            try:
+                config = OmegaConf.load(yaml_file)
+                if hasattr(config, "sweep_config") and config.sweep_config:
+                    return dict(config.sweep_config)
+            except Exception:
+                continue
+        return None
+
+    def _infer_parameter_columns_from_df(self, results_df: pd.DataFrame) -> dict:
+        """Infer sweep parameter columns directly from results dataframe.
+
+        Returns a mapping of param_name -> param_name for columns that look like
+        swept parameters (categorical/bool/small-cardinality numeric) and vary across rows.
+        """
+        if results_df is None or results_df.empty:
+            return {}
+
+        # Exclude known non-parameter columns
+        exclude_cols = {
+            "experiment",
+            "task_id",
+            "job_dir",
+            "seed",
+            "config_file",
+            "ei_ratio",
+            "ee_value",
+            "ie_value",
+            "nparams",
+            "branch_factors",
+            "use_shunting",
+            "network_category",
+        }
+
+        # Heuristic: parameters are columns that are not metric aggregations and have small unique sets
+        candidate_params: dict[str, str] = {}
+        for col in results_df.columns:
+            if col in exclude_cols:
+                continue
+            # Skip metric/stat columns
+            if col.endswith(("_mean", "_std")):
+                continue
+            if col.startswith(("noise_", "ablation_", "weight_", "layer_mi_")):
+                continue
+
+            unique_vals = results_df[col].dropna().unique()
+            num_unique = len(unique_vals)
+            if num_unique <= 1:
+                continue
+
+            # Treat object/bool/small integer domains as params. Avoid large continuous numerics.
+            dtype = results_df[col].dtype
+            if dtype is object or dtype is bool:
+                candidate_params[col] = col
+            else:
+                # For numeric, only if small cardinality (categorical-like)
+                if num_unique <= 10:
+                    candidate_params[col] = col
+
+        return candidate_params
+
     def detect_sweep_type(self, results_dir: str) -> Optional[str]:
         """
         Auto-detect the sweep type from the results directory.
@@ -137,6 +219,18 @@ class UnifiedResultAnalyzer:
         Returns:
             Detected sweep type or None if unable to detect
         """
+        # First check for custom parameter sweeps
+        sweep_params = self.detect_sweep_parameters(results_dir)
+        if sweep_params:
+            # Check if it's a local learning parameter sweep
+            local_params = [k for k in sweep_params.keys() if "local_rule_config" in k]
+            if local_params:
+                return "local_learning"
+            # Check if it's a general parameter sweep (not EI-specific)
+            ei_params = [k for k in sweep_params.keys() if "synapses_per_branch" in k]
+            if not ei_params:
+                return "general_param_sweep"
+
         # Check for metadata file
         metadata_path = os.path.join(results_dir, "configs", "sweep_metadata.yaml")
         if os.path.exists(metadata_path):
@@ -243,6 +337,10 @@ class UnifiedResultAnalyzer:
                 "use_shunting": None,
                 "seed": 42,  # Default seed
                 "config_file": config_file,
+                # Local learning parameters
+                "rule_variant": None,
+                "rho_mode": None,
+                "update_inactive_weights": None,
             }
 
             # Extract EE and IE values with multiple fallback strategies
@@ -325,6 +423,28 @@ class UnifiedResultAnalyzer:
                 # Extract seed
                 if hasattr(config.train, "seed"):
                     data["seed"] = config.train.seed
+
+                # Extract local learning parameters
+                try:
+                    if (
+                        hasattr(config.train, "main")
+                        and hasattr(config.train.main, "trainer")
+                        and hasattr(config.train.main.trainer, "local_rule_config")
+                    ):
+                        local_cfg = config.train.main.trainer.local_rule_config
+
+                        if hasattr(local_cfg, "rule_variant"):
+                            data["rule_variant"] = local_cfg.rule_variant
+                        if hasattr(local_cfg, "rho_mode"):
+                            data["rho_mode"] = local_cfg.rho_mode
+                        if hasattr(local_cfg, "update_inactive_weights"):
+                            data["update_inactive_weights"] = (
+                                local_cfg.update_inactive_weights
+                            )
+                except Exception as local_e:
+                    print(
+                        f"Warning: Could not extract local learning params from {config_file}: {local_e}"
+                    )
 
             except Exception as e:
                 print(
@@ -683,6 +803,47 @@ class UnifiedResultAnalyzer:
                 except Exception as e:
                     print(f"Error reading ablation analysis: {e}")
 
+            # Collect synaptic weight expectation analysis results
+            weight_file = os.path.join(search_path, "weight_analysis", "final")
+            if os.path.exists(weight_file):
+                try:
+                    with open(weight_file) as f:
+                        content = f.read()
+                    content_dict = json.loads(content)
+
+                    if "layer_statistics" in content_dict:
+                        layer_stats = content_dict["layer_statistics"]
+
+                        for layer_name, layer_data in layer_stats.items():
+                            # Convert layer names to consistent format
+                            if "branch_layers." in layer_name:
+                                branch_idx = int(
+                                    layer_name.split("branch_layers.")[1].split(".")[0]
+                                )
+                                layer_key = f"layer_{branch_idx}"
+                            elif layer_name == "synthetic_soma":
+                                layer_key = "soma"
+                            else:
+                                layer_key = layer_name.replace(".", "_")
+
+                            # Extract weight statistics
+                            for metric_key, metric_value in layer_data.items():
+                                if isinstance(metric_value, (int, float)):
+                                    # Create column name for this weight metric
+                                    safe_metric = metric_key.replace(".", "_").replace(
+                                        " ", "_"
+                                    )
+                                    data[f"weight_{safe_metric}_{layer_key}"] = (
+                                        metric_value
+                                    )
+
+                    print(
+                        f"Loaded synaptic weight expectation analysis from {weight_file}"
+                    )
+
+                except Exception as e:
+                    print(f"Error reading synaptic weight expectation analysis: {e}")
+
             # Break after processing the first valid path (flattened or first experiment dir)
             break
 
@@ -753,9 +914,75 @@ class UnifiedResultAnalyzer:
         print("Aggregating results...")
         agg_results = self.aggregate_results(clean_results)
 
+        # Initialize plot paths list
+        plot_paths = []
+
+        # Generate parameter combination legend for all sweep types if parameters exist
+        sweep_params = self.detect_sweep_parameters(results_dir)
+        if sweep_params or self._has_parameter_combinations(agg_results):
+            params_to_use = (
+                sweep_params
+                if sweep_params
+                else self._infer_parameter_columns_from_df(agg_results)
+            )
+            if params_to_use:
+                legend_csv, legend_png = self.generate_parameter_combination_legend(
+                    agg_results, output_dir, params_to_use, sweep_type
+                )
+                if legend_csv:
+                    plot_paths.append(legend_csv)
+                if legend_png:
+                    plot_paths.append(legend_png)
+
         # Generate comprehensive plots
         print("Generating plots...")
-        plot_paths = self.generate_plots(agg_results, output_dir, f"{sweep_type}_sweep")
+        plot_paths.extend(
+            self.generate_plots(agg_results, output_dir, f"{sweep_type}_sweep")
+        )
+
+        # Generate custom parameter sweep plots if applicable
+        if sweep_type in ["local_learning", "general_param_sweep"]:
+            if sweep_params:
+                print("Generating custom parameter sweep plots...")
+                custom_plots = self.generate_parameter_sweep_plots(
+                    agg_results, output_dir, sweep_params, sweep_type
+                )
+                plot_paths.extend(custom_plots)
+        elif sweep_type == "unified":
+            # Check if unified sweep actually has custom parameters
+            print(f"DEBUG: Detected sweep_params: {sweep_params}")
+            if sweep_params:
+                local_params = [
+                    k for k in sweep_params.keys() if "local_rule_config" in k
+                ]
+                print(f"DEBUG: Found local_params: {local_params}")
+                if local_params:
+                    print(
+                        "Generating custom parameter sweep plots for unified sweep..."
+                    )
+                    custom_plots = self.generate_parameter_sweep_plots(
+                        agg_results, output_dir, sweep_params, "local_learning"
+                    )
+                    plot_paths.extend(custom_plots)
+                else:
+                    print(
+                        "DEBUG: No local_rule_config parameters found in sweep_params"
+                    )
+            else:
+                print("DEBUG: No sweep_params detected")
+                # Fallback: infer parameter columns from aggregated results
+                inferred_params = self._infer_parameter_columns_from_df(agg_results)
+                if inferred_params:
+                    print(
+                        f"DEBUG: Inferred parameter columns from data: {list(inferred_params.keys())}"
+                    )
+                    print(
+                        "Generating custom parameter sweep plots from inferred parameters..."
+                    )
+                    custom_plots = self.generate_parameter_sweep_plots(
+                        agg_results, output_dir, inferred_params, "custom_param_sweep"
+                    )
+                    plot_paths.extend(custom_plots)
 
         # Save processed data
         plots_dir = os.path.join(output_dir, "plots")
@@ -876,6 +1103,12 @@ class UnifiedResultAnalyzer:
             "branch_factors",
             "use_shunting",
             "network_category",
+            # Information analysis settings (categorical)
+            "info_method",
+            # Local learning parameters (categorical, not numeric)
+            "rule_variant",
+            "rho_mode",
+            "update_inactive_weights",
         ]
         if "nparams" in cleaned_results.columns:
             arch_cols.append("nparams")
@@ -947,8 +1180,12 @@ class UnifiedResultAnalyzer:
                             if len(numeric_values) > 0:
                                 row[f"{col}_mean"] = np.mean(numeric_values)
                                 row[f"{col}_std"] = np.std(numeric_values)
-                        except (ValueError, TypeError) as e:
-                            print(f"Warning: Could not aggregate {col}: {e}")
+                        except (ValueError, TypeError):
+                            # Treat as categorical; keep the first value for reference
+                            # but do not attempt numeric aggregation
+                            if col not in row:
+                                row[col] = group[col].iloc[0]
+                            # Suppress noisy warning for known categorical like info_method
                             continue
 
             results.append(row)
@@ -1047,6 +1284,16 @@ class UnifiedResultAnalyzer:
                     valid_data, plots_dir, base_name
                 )
                 plot_paths.extend(info_plots)
+
+            # 7. Synaptic weight expectation plots (if weight data available)
+            weight_cols = [
+                col for col in valid_data.columns if "weight_" in col.lower()
+            ]
+            if weight_cols:
+                weight_plots = self._generate_weight_expectation_plots(
+                    valid_data, plots_dir, base_name
+                )
+                plot_paths.extend(weight_plots)
 
         except Exception as e:
             print(f"Error generating plots: {e}")
@@ -2012,6 +2259,393 @@ class UnifiedResultAnalyzer:
         )
         return plot_paths
 
+    def _generate_weight_expectation_plots(
+        self, valid_data: pd.DataFrame, plots_dir: str, base_name: str
+    ) -> list[str]:
+        """Generate synaptic weight expectation analysis plots across sweeps"""
+        plot_paths = []
+
+        weight_plot_dir = os.path.join(plots_dir, "weight_expectation_plots")
+        os.makedirs(weight_plot_dir, exist_ok=True)
+
+        # Find weight columns by layer
+        weight_cols = [col for col in valid_data.columns if "weight_" in col.lower()]
+
+        if not weight_cols:
+            print("No synaptic weight data found for plotting")
+            return plot_paths
+
+        print(f"Found {len(weight_cols)} weight metrics")
+
+        # Group weight columns by metric type and layer
+        weight_metrics = {}
+        for col in weight_cols:
+            # Parse column name: weight_exc_weight_mean_mean_layer_0_mean
+            parts = col.split("_")
+            if len(parts) >= 6:
+                # Find the layer part (layer_X or soma)
+                layer_idx = -1
+                for i, part in enumerate(parts):
+                    if part == "layer" and i + 1 < len(parts):
+                        layer_idx = i
+                        break
+                    elif part == "soma":
+                        layer_idx = i
+                        break
+
+                if layer_idx > 0:
+                    # Extract metric type (everything between 'weight_' and layer)
+                    metric_parts = parts[1:layer_idx]  # exc, weight, mean, mean
+                    metric_type = "_".join(metric_parts)  # exc_weight_mean_mean
+
+                    # Extract layer part
+                    if parts[layer_idx] == "layer":
+                        layer_part = f"layer_{parts[layer_idx + 1]}"  # layer_0
+                    else:  # soma
+                        layer_part = "soma"
+
+                    # Group by metric type and layer (ignore aggregation stats like _mean, _std)
+                    if metric_type not in weight_metrics:
+                        weight_metrics[metric_type] = {}
+                    if layer_part not in weight_metrics[metric_type]:
+                        weight_metrics[metric_type][layer_part] = []
+                    weight_metrics[metric_type][layer_part].append(col)
+
+        # Create plots for different weight metrics
+        plot_paths.extend(
+            self._create_weight_vs_ei_plots(
+                valid_data, weight_metrics, weight_plot_dir, base_name
+            )
+        )
+
+        plot_paths.extend(
+            self._create_weight_heatmaps(
+                valid_data, weight_metrics, weight_plot_dir, base_name
+            )
+        )
+
+        plot_paths.extend(
+            self._create_exc_inh_ratio_plots(
+                valid_data, weight_metrics, weight_plot_dir, base_name
+            )
+        )
+
+        print(f"Created {len(plot_paths)} synaptic weight expectation plots")
+        return plot_paths
+
+    def _create_weight_vs_ei_plots(
+        self,
+        valid_data: pd.DataFrame,
+        weight_metrics: dict,
+        output_dir: str,
+        base_name: str,
+    ) -> list[str]:
+        """Create weight vs E/I ratio plots for each layer"""
+        plot_paths = []
+
+        if "ei_ratio" not in valid_data.columns:
+            print("No E/I ratio data for weight vs E/I plots")
+            return plot_paths
+
+        # Focus on key metrics
+        key_metrics = [
+            "exc_weight_mean_mean",
+            "inh_weight_mean_mean",
+            "exc_weight_var_mean",
+            "inh_weight_var_mean",
+        ]
+
+        for metric_name in key_metrics:
+            if metric_name not in weight_metrics:
+                continue
+
+            metric_data = weight_metrics[metric_name]
+
+            # Create plot for this metric across layers
+            fig, ax = plt.subplots(figsize=(12, 8))
+
+            # Plot each layer
+            for layer_key, col_list in metric_data.items():
+                # Use the first column that ends with '_mean' for the main value
+                mean_col = None
+                for col_name in col_list:
+                    if col_name.endswith("_mean"):
+                        mean_col = col_name
+                        break
+
+                if mean_col and mean_col in valid_data.columns:
+                    # Group by network category for consistent styling
+                    for category in ["shunting", "no_shunting"]:
+                        cat_data = valid_data[
+                            valid_data["network_category"] == category
+                        ]
+                        if not cat_data.empty:
+                            style = "--" if category == "no_shunting" else "-"
+                            marker = (
+                                "s" if category == "no_shunting" else "o"
+                            )  # squares for no_shunting, circles for shunting
+
+                            # Apply threshold to handle outliers
+                            threshold = 50.0
+                            plot_data = cat_data[mean_col].copy()
+
+                            # Filter out values above threshold for plotting
+                            valid_mask = plot_data <= threshold
+                            filtered_cat_data = cat_data[valid_mask]
+
+                            if not filtered_cat_data.empty:
+                                ax.plot(
+                                    filtered_cat_data["ei_ratio"],
+                                    filtered_cat_data[mean_col],
+                                    marker=marker,
+                                    linestyle=style,
+                                    label=f"{layer_key.replace('_', ' ').title()} ({category})",
+                                    markersize=4,
+                                    linewidth=2,
+                                )
+
+            ax.set_xlabel("E/I Ratio")
+            ax.set_ylabel(f"{metric_name.replace('_', ' ').title()}")
+            ax.set_title(
+                f"Synaptic Weight {metric_name.replace('_', ' ').title()} vs E/I Ratio\n(Values >50 excluded)"
+            )
+
+            # Set y-axis limit to threshold to prevent outliers from dominating the scale
+            threshold = 50.0
+            current_ylim = ax.get_ylim()
+            ax.set_ylim(current_ylim[0], min(current_ylim[1], threshold))
+
+            ax.legend(bbox_to_anchor=(1.05, 1), loc="upper left")
+            ax.grid(True, alpha=0.3)
+
+            filename = os.path.join(
+                output_dir, f"{base_name}_weight_{metric_name}_vs_ei.png"
+            )
+            plt.savefig(filename, dpi=300, bbox_inches="tight")
+            plt.close()
+            plot_paths.append(filename)
+
+        return plot_paths
+
+    def _create_weight_heatmaps(
+        self,
+        valid_data: pd.DataFrame,
+        weight_metrics: dict,
+        output_dir: str,
+        base_name: str,
+    ) -> list[str]:
+        """Create heatmaps for synaptic weight metrics"""
+        plot_paths = []
+
+        # Check for required columns
+        required_cols = ["ei_ratio"]
+        if not all(col in valid_data.columns for col in required_cols):
+            print("Missing required columns for weight heatmaps")
+            return plot_paths
+
+        # Create heatmaps for key weight metrics
+        key_metrics = ["exc_weight_mean_mean", "inh_weight_mean_mean"]
+
+        for metric_name in key_metrics:
+            if metric_name not in weight_metrics:
+                continue
+
+            metric_data = weight_metrics[metric_name]
+
+            # Create heatmap showing metric across layers and E/I ratios
+            fig, ax = plt.subplots(figsize=(12, 8))
+
+            # Prepare data for heatmap
+            ei_ratios = sorted(valid_data["ei_ratio"].unique())
+            layer_keys = sorted(metric_data.keys())
+
+            heatmap_data = []
+            for ei_ratio in ei_ratios:
+                row_data = []
+                for layer_key in layer_keys:
+                    col_list = metric_data[layer_key]
+                    # Use the first column that ends with '_mean' for the main value
+                    mean_col = None
+                    for col_name in col_list:
+                        if col_name.endswith("_mean"):
+                            mean_col = col_name
+                            break
+
+                    if mean_col and mean_col in valid_data.columns:
+                        # Get mean value for this E/I ratio
+                        subset = valid_data[valid_data["ei_ratio"] == ei_ratio]
+                        if not subset.empty:
+                            mean_val = subset[mean_col].mean()
+                            row_data.append(mean_val)
+                        else:
+                            row_data.append(0.0)
+                    else:
+                        row_data.append(0.0)
+                heatmap_data.append(row_data)
+
+            heatmap_data = np.array(heatmap_data)
+
+            # Apply threshold to handle outliers
+            threshold = 50.0
+
+            # Create a masked array where values > threshold are masked (will appear empty)
+            masked_data = np.ma.masked_where(heatmap_data > threshold, heatmap_data)
+
+            # Set color range based on non-outlier data to prevent outliers from dominating
+            valid_data_for_range = heatmap_data[heatmap_data <= threshold]
+            if len(valid_data_for_range) > 0:
+                vmin = np.min(valid_data_for_range)
+                vmax = min(np.max(valid_data_for_range), threshold)
+            else:
+                vmin, vmax = 0, threshold
+
+            # Create heatmap with masked data
+            im = ax.imshow(
+                masked_data, cmap="viridis", aspect="auto", vmin=vmin, vmax=vmax
+            )
+
+            # Set labels
+            ax.set_xticks(range(len(layer_keys)))
+            ax.set_xticklabels(
+                [key.replace("_", " ").title() for key in layer_keys], rotation=45
+            )
+            ax.set_yticks(range(len(ei_ratios)))
+            ax.set_yticklabels([f"{ratio:.2f}" for ratio in ei_ratios])
+
+            ax.set_xlabel("Dendritic Layer")
+            ax.set_ylabel("E/I Ratio")
+            ax.set_title(
+                f"Synaptic Weight {metric_name.replace('_', ' ').title()} Heatmap\n(Values >50 masked)"
+            )
+
+            # Add colorbar
+            plt.colorbar(im, ax=ax, label=metric_name.replace("_", " ").title())
+
+            filename = os.path.join(
+                output_dir, f"{base_name}_weight_{metric_name}_heatmap.png"
+            )
+            plt.savefig(filename, dpi=300, bbox_inches="tight")
+            plt.close()
+            plot_paths.append(filename)
+
+        return plot_paths
+
+    def _create_exc_inh_ratio_plots(
+        self,
+        valid_data: pd.DataFrame,
+        weight_metrics: dict,
+        output_dir: str,
+        base_name: str,
+    ) -> list[str]:
+        """Create excitatory/inhibitory weight ratio vs E/I ratio plots"""
+        plot_paths = []
+
+        if "ei_ratio" not in valid_data.columns:
+            print("No E/I ratio data for exc/inh weight ratio plots")
+            return plot_paths
+
+        # Check if we have both excitatory and inhibitory weight data
+        if (
+            "exc_weight_mean_mean" not in weight_metrics
+            or "inh_weight_mean_mean" not in weight_metrics
+        ):
+            print("Missing excitatory or inhibitory weight data for ratio plots")
+            return plot_paths
+
+        exc_data = weight_metrics["exc_weight_mean_mean"]
+        inh_data = weight_metrics["inh_weight_mean_mean"]
+
+        # Create plot for excitatory/inhibitory weight ratio vs E/I ratio
+        fig, ax = plt.subplots(figsize=(12, 8))
+
+        # Plot each layer
+        for layer_key in sorted(exc_data.keys()):
+            if layer_key in inh_data:
+                # Get the mean columns for both excitatory and inhibitory
+                exc_col_list = exc_data[layer_key]
+                inh_col_list = inh_data[layer_key]
+
+                # Find the _mean columns
+                exc_mean_col = None
+                inh_mean_col = None
+
+                for col_name in exc_col_list:
+                    if col_name.endswith("_mean"):
+                        exc_mean_col = col_name
+                        break
+
+                for col_name in inh_col_list:
+                    if col_name.endswith("_mean"):
+                        inh_mean_col = col_name
+                        break
+
+                if (
+                    exc_mean_col
+                    and inh_mean_col
+                    and exc_mean_col in valid_data.columns
+                    and inh_mean_col in valid_data.columns
+                ):
+                    # Group by network category for consistent styling
+                    for category in ["shunting", "no_shunting"]:
+                        cat_data = valid_data[
+                            valid_data["network_category"] == category
+                        ]
+                        if not cat_data.empty:
+                            style = "--" if category == "no_shunting" else "-"
+                            marker = "s" if category == "no_shunting" else "o"
+
+                            # Calculate excitatory/inhibitory ratio
+                            exc_weights = cat_data[exc_mean_col]
+                            inh_weights = cat_data[inh_mean_col]
+
+                            # Avoid division by zero and handle very small inhibitory weights
+                            ratio_data = exc_weights / (inh_weights + 1e-8)
+
+                            # Apply threshold to handle outliers and filter for log scale (positive values only)
+                            threshold = 50.0
+                            valid_mask = (ratio_data <= threshold) & (ratio_data > 0)
+                            filtered_cat_data = cat_data[valid_mask]
+                            filtered_ratio_data = ratio_data[valid_mask]
+
+                            if not filtered_cat_data.empty:
+                                ax.plot(
+                                    filtered_cat_data["ei_ratio"],
+                                    filtered_ratio_data,
+                                    marker=marker,
+                                    linestyle=style,
+                                    label=f"{layer_key.replace('_', ' ').title()} ({category})",
+                                    markersize=4,
+                                    linewidth=2,
+                                )
+
+        ax.set_xlabel("E/I Ratio")
+        ax.set_ylabel("Excitatory/Inhibitory Weight Ratio")
+        ax.set_title(
+            "Mean Excitatory/Inhibitory Weight Ratio vs E/I Ratio\n(Values >50 excluded)"
+        )
+
+        # Set logarithmic y-axis scale
+        ax.set_yscale("log")
+
+        # Set y-axis limit to threshold to prevent outliers from dominating the scale
+        threshold = 50.0
+        current_ylim = ax.get_ylim()
+        ax.set_ylim(
+            max(current_ylim[0], 0.01), min(current_ylim[1], threshold)
+        )  # Avoid log(0)
+
+        ax.legend(bbox_to_anchor=(1.05, 1), loc="upper left")
+        ax.grid(True, alpha=0.3)
+
+        filename = os.path.join(
+            output_dir, f"{base_name}_exc_inh_weight_ratio_vs_ei.png"
+        )
+        plt.savefig(filename, dpi=300, bbox_inches="tight")
+        plt.close()
+        plot_paths.append(filename)
+
+        return plot_paths
+
     def _create_ivc_heatmap_by_layer(
         self, valid_data: pd.DataFrame, output_dir: str, base_name: str
     ) -> list[str]:
@@ -2400,6 +3034,308 @@ class UnifiedResultAnalyzer:
                 f.write("\n")
 
         print(f"Comparison report saved to: {output_file}")
+
+    def generate_parameter_combination_legend(
+        self,
+        results_df: pd.DataFrame,
+        output_dir: str,
+        sweep_params: dict,
+        sweep_type: str,
+    ) -> tuple[str, str]:
+        """Generate parameter combination legend for any sweep type."""
+        # Place legend in root plots folder for all sweep types
+        plots_root_dir = os.path.join(output_dir, "plots")
+        os.makedirs(plots_root_dir, exist_ok=True)
+
+        # Extract sweep parameter names and clean them for column names
+        param_columns = {}
+        for param_path, _values in sweep_params.items():
+            # Extract the parameter name (last part of the path)
+            param_name = param_path.split(".")[-1]
+            param_columns[param_name] = param_path
+
+        if not param_columns:
+            return None, None
+
+        param_names = list(param_columns.keys())
+        present_param_names = [p for p in param_names if p in results_df.columns]
+        if not present_param_names:
+            return None, None
+
+        # Build ordered list of unique parameter combinations
+        combo_df = results_df[present_param_names].drop_duplicates()
+        # Sort lexicographically by all param columns for stable ordering
+        combo_df = combo_df.sort_values(by=present_param_names)
+        combos = combo_df.to_dict(orient="records")
+
+        # Prepare x-axis positions and legend mapping
+        x_positions = list(range(1, len(combos) + 1))
+        mapping_df = combo_df.copy()
+        mapping_df.insert(0, "#", x_positions)
+
+        legend_csv_path = os.path.join(
+            plots_root_dir, "parameter_combinations_legend.csv"
+        )
+        mapping_df.to_csv(legend_csv_path, index=False)
+
+        # Render a compact PNG legend table for convenience
+        legend_png_path = None
+        try:
+            headers = ["#", *present_param_names]
+            table_data = [
+                [idx] + [c.get(p) for p in present_param_names]
+                for idx, c in zip(x_positions, combos)
+            ]
+            fig_legend, ax_legend = plt.subplots(
+                figsize=(
+                    min(24, 2 + 2 * len(headers)),
+                    min(0.6 * (len(table_data) + 1), 50),
+                )
+            )
+            ax_legend.axis("off")
+            tbl = ax_legend.table(cellText=table_data, colLabels=headers, loc="center")
+            tbl.auto_set_font_size(False)
+            tbl.set_fontsize(8)
+            tbl.scale(1.0, 1.2)
+            legend_png_path = os.path.join(
+                plots_root_dir, "parameter_combinations_legend.png"
+            )
+            fig_legend.tight_layout()
+            fig_legend.savefig(legend_png_path, dpi=200, bbox_inches="tight")
+            plt.close(fig_legend)
+            print(
+                f"Saved parameter combination legend to: {legend_csv_path} and {legend_png_path}"
+            )
+        except Exception as e:
+            print(f"Warning: failed to render parameter legend PNG: {e}")
+            legend_png_path = None
+
+        return legend_csv_path, legend_png_path
+
+    def generate_parameter_sweep_plots(
+        self,
+        results_df: pd.DataFrame,
+        output_dir: str,
+        sweep_params: dict,
+        sweep_type: str,
+    ) -> list[str]:
+        """Generate plots for any parameter sweeps."""
+        plot_paths = []
+        # Ensure plots are saved under plots/custom_parameter_sweep_plots
+        param_plot_dir = os.path.join(
+            output_dir, "plots", "custom_parameter_sweep_plots"
+        )
+        os.makedirs(param_plot_dir, exist_ok=True)
+
+        # Generate parameter combination legend in root plots folder
+        legend_csv_path, legend_png_path = self.generate_parameter_combination_legend(
+            results_df, output_dir, sweep_params, sweep_type
+        )
+        if legend_csv_path:
+            plot_paths.append(legend_csv_path)
+        if legend_png_path:
+            plot_paths.append(legend_png_path)
+
+        # Extract sweep parameter names and clean them for column names
+        param_columns = {}
+        for param_path, _values in sweep_params.items():
+            # Extract the parameter name (last part of the path)
+            param_name = param_path.split(".")[-1]
+            param_columns[param_name] = param_path
+
+        if not param_columns:
+            return plot_paths
+
+        print(f"Found sweep parameters: {list(param_columns.keys())}")
+
+        # Build ordered list of unique parameter combinations
+        param_names = list(param_columns.keys())
+        present_param_names = [p for p in param_names if p in results_df.columns]
+        if not present_param_names:
+            return plot_paths
+        combo_df = results_df[present_param_names].drop_duplicates()
+        # Sort lexicographically by all param columns for stable ordering
+        combo_df = combo_df.sort_values(by=present_param_names)
+        combos = combo_df.to_dict(orient="records")
+
+        # Prepare x-axis positions
+        x_positions = list(range(1, len(combos) + 1))
+
+        # Categorize metrics by analysis type and create subfolders
+        # Use more specific patterns to avoid overlap
+        metric_categories = {
+            "ablation": ["ablation_"],
+            "information": ["mi_", "layer_mi_"],
+            "weight": ["weight_"],
+            "noise": ["noise_"],
+            "performance": [
+                "accuracy",
+                "auc",
+                "categorical_loglikelihood",
+            ],  # Put performance last as fallback
+        }
+
+        # Organize metrics by category with priority (first match wins)
+        categorized_metrics = {category: [] for category in metric_categories.keys()}
+
+        for col in results_df.columns:
+            if not col.endswith("_mean"):
+                continue
+
+            # Check categories in order, first match wins
+            for category, keywords in metric_categories.items():
+                if any(k in col for k in keywords):
+                    # For performance category, exclude if it's already categorized elsewhere
+                    if category == "performance":
+                        already_categorized = any(
+                            col in categorized_metrics[other_cat]
+                            for other_cat in categorized_metrics.keys()
+                            if other_cat != "performance"
+                        )
+                        if already_categorized:
+                            continue
+
+                    categorized_metrics[category].append(col)
+                    break
+
+        # Create subfolders for each analysis type and generate plots
+        total_created = 0
+        categories = (
+            results_df["network_category"].unique()
+            if "network_category" in results_df.columns
+            else ["all"]
+        )
+
+        for analysis_type, metric_cols in categorized_metrics.items():
+            if not metric_cols:
+                continue
+
+            # Create subfolder for this analysis type
+            analysis_dir = os.path.join(param_plot_dir, analysis_type)
+            os.makedirs(analysis_dir, exist_ok=True)
+
+            for metric_col in metric_cols:
+                try:
+                    fig, ax = plt.subplots(figsize=(max(10, len(x_positions) * 0.6), 6))
+
+                    # Optional std column
+                    std_col = metric_col.replace("_mean", "_std")
+
+                    for category in categories:
+                        if category == "all":
+                            subset = results_df
+                        else:
+                            subset = results_df[
+                                results_df["network_category"] == category
+                            ]
+
+                        # Group by parameter combination
+                        group_mean = (
+                            subset.groupby(present_param_names)[metric_col].mean()
+                            if metric_col in subset.columns
+                            else None
+                        )
+                        group_std = (
+                            subset.groupby(present_param_names)[std_col].mean()
+                            if std_col in subset.columns
+                            else None
+                        )
+
+                        # Gather y and yerr in the same combo order
+                        y_values = []
+                        y_err = []
+                        for combo in combos:
+                            key = tuple(combo[p] for p in present_param_names)
+                            y = np.nan
+                            if group_mean is not None:
+                                try:
+                                    y = float(group_mean.loc[key])
+                                except Exception:
+                                    y = np.nan
+                            y_values.append(y)
+
+                            if group_std is not None:
+                                try:
+                                    err = float(group_std.loc[key])
+                                except Exception:
+                                    err = np.nan
+                            else:
+                                err = np.nan
+                            y_err.append(err)
+
+                        # Plot with markers and optional error bars
+                        color = self.category_colors.get(category, "black")
+                        marker = self.category_markers.get(category, "o")
+                        ax.errorbar(
+                            x_positions,
+                            y_values,
+                            yerr=y_err if any(~pd.isna(pd.Series(y_err))) else None,
+                            label=str(category),
+                            marker=marker,
+                            color=color,
+                            linestyle="-",
+                            alpha=0.85,
+                            capsize=3,
+                        )
+
+                    display_metric = metric_col.replace("_", " ").replace(" mean", "")
+                    ax.set_xlabel(
+                        "Parameter Combination Index (#). See parameter_combinations_legend.csv/png in plots folder.",
+                        fontsize=12,
+                    )
+                    ax.set_ylabel(f"{display_metric.title()}", fontsize=12)
+                    ax.set_title(
+                        f"{display_metric.title()} vs Parameter Combinations",
+                        fontsize=14,
+                    )
+                    ax.set_xticks(x_positions)
+                    ax.set_xticklabels(
+                        [str(x) for x in x_positions], rotation=0, ha="center"
+                    )
+                    ax.grid(True, alpha=0.3)
+                    if len(categories) > 1:
+                        ax.legend(fontsize=10)
+
+                    plt.tight_layout()
+                    safe_metric = metric_col.replace(" ", "_").replace("/", "_")
+                    plot_path = os.path.join(
+                        analysis_dir,
+                        f"{analysis_type}_{safe_metric}_vs_param_combinations.png",
+                    )
+                    plt.savefig(plot_path, dpi=300, bbox_inches="tight")
+                    plt.close()
+                    plot_paths.append(plot_path)
+                    total_created += 1
+
+                except Exception as e:
+                    print(
+                        f"Error generating {analysis_type} parameter plot for {metric_col}: {e}"
+                    )
+
+        print(
+            f"Created {total_created} custom parameter sweep plots organized by analysis type"
+        )
+        return plot_paths
+
+    def _has_parameter_combinations(self, results_df: pd.DataFrame) -> bool:
+        """Check if the results DataFrame has parameter combinations that warrant a legend."""
+        # Look for common parameter columns
+        param_indicators = [
+            "rule_variant",
+            "rho_mode",
+            "update_inactive_weights",
+            "ee_value",
+            "ie_value",
+            "ei_ratio",
+        ]
+        found_params = [col for col in param_indicators if col in results_df.columns]
+
+        # Check if there are multiple unique combinations
+        if found_params:
+            unique_combinations = results_df[found_params].drop_duplicates()
+            return len(unique_combinations) > 1
+
+        return False
 
 
 def parse_args():

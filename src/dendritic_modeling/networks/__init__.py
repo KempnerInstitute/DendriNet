@@ -35,7 +35,7 @@ from dendritic_modeling.networks.architectures import (
     TopKLinear,
     TransferLayer,
     VarianceTopKLinear,
-    initialize_dendritic_branch_layer,
+    analytical_expectation_dbl_init,
 )
 from dendritic_modeling.networks.architectures.classical.autoencoder.base import (
     BaseAutoencoder,
@@ -68,7 +68,7 @@ __all__ = [
     "Identity"
     "IdentityInputTransform"
     "IndexInputTransform"
-    "initialize_dendritic_branch_layer"
+    "analytical_expectation_dbl_init"
     "InputNetTransform"
     "MatchedParamMLP"
     "MLP"

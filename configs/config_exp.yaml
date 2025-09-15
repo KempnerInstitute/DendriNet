@@ -55,7 +55,7 @@ model:
         excitatory_dim: null        # Dimensions for excitatory pathways (input_mode 1)
         inhibitory_dim: null        # Dimensions for inhibitory pathways (input_mode 1)
         output_activation: null     # Options: "sigmoid", "relu", "tanh", "softplus", null
-        
+
       # ==========================================
       # MORPHOLOGICAL ARCHITECTURE
       # ==========================================
@@ -73,6 +73,10 @@ model:
       # Morphological features
       somatic_synapses: true      # Include somatic (non-dendritic) synapses
       use_shunting: true          # Use shunting inhibition
+
+      # Weight transformation for positive weights
+      weight_transform: exp       # Options: "exp", "relu", "softplus"
+      dbl_init_method: analytical_expectation
 
       # ==========================================
       # TOPK SPARSITY PARAMETERS
@@ -207,7 +211,7 @@ train:
   # MAIN NETWORK TRAINING
   # ==========================================
   main:
-    learning_strategy: standard # Options: "standard", "freeze_layers", "local_ca", etc.
+    learning_strategy: standard # Options: "standard", "voltage_stabilization", "homeostatic_control", "freeze_layers", "freeze_branches", "local_ca", "two_step"
                                # Supports regularization, pruning, and parameter group features
     weight_decay_rate: 0.01     # Use optimizer.weight_decay for internal optimizer creation
 
@@ -228,6 +232,8 @@ train:
       batch_size: 128          # Batch size
       shuffle: true            # Shuffle data
       grad_clip_value: 5.0     # Gradient clipping
+      checkpointing: false
+      checkpoint_interval: 10
       load_best_state_dict: true
       plot_losses: true
       save_path: null
@@ -237,13 +243,24 @@ train:
       # Performance optimization flags (disabled by default for speed)
       enable_nan_checking: false      # Enable NaN detection during training (expensive)
       enable_adaptive_clipping: false # Enable adaptive gradient clipping (expensive)
-      pretrain_epochs: 50
-      target_voltage: 0.5
-      kl_weight: 0.1
-      reverse_training: false
-      epochs_per_layer: 50
-      epochs_per_branch: 50
-      final_tune_epochs: 10
+
+      # ==========================================
+      # SPECIALIZED LEARNING STRATEGY PARAMETERS
+      # ==========================================
+      # Used by voltage_stabilization and homeostatic_control strategies
+      pretrain_epochs: 50          # Epochs of homeostatic/voltage stabilization warm-up
+      stabilize_mode: vout         # What to stabilize: "vinf" (inputs), "vout" (outputs), "both"
+      freeze_reactivation: true    # Freeze reactivation parameters during warm-up phase
+      target_voltage: 0.5          # Target voltage value for stabilization (0.0-1.0)
+      loss_metric: "mse"           # Loss metric: "mse", "log_mse", "mae", "log_mae"
+
+      # Used by other specialized strategies
+      kl_weight: 0.1              # KL divergence weight (for two_step_kl strategy)
+      reverse_training: false      # Train in reverse order (for freeze_*_reversed strategies)
+      epochs_per_layer: 50         # Epochs per layer (for freeze_layers strategy)
+      epochs_per_branch: 50        # Epochs per branch (for freeze_branches strategy)
+      final_tune_epochs: 10        # Final tuning epochs (for multi-phase strategies)
+
 
     # ==========================================
     # ADVANCED TRAINING FEATURES
@@ -261,7 +278,7 @@ train:
     #   betas: [0.9, 0.999]           # For Adam/AdamW
     #   eps: 1e-8                      # For Adam/AdamW
 
-    # Regularization configuration
+    # Unified regularization configuration
     regularization:
       l1_weight: 0.0               # Global L1 regularization strength (used when split_params=false)
       l2_weight: 0.0                # Global L2 regularization strength (used when split_params=false)
@@ -286,6 +303,13 @@ train:
         decoder:                    # Decoder network
           l1_weight: 0.0          # No L1 for decoder
           l2_weight: 0.0          # No L2 for decoder
+
+      # E/I Weight Ratio Regularization
+      enforce_ei_weight_ratio: false      # Enable E/I weight ratio regularization
+      target_ei_weight_ratio: 1.5         # Target excitatory/inhibitory weight ratio
+      ei_ratio_loss_weight: 0.1           # Regularization strength (fraction of total loss)
+      ei_ratio_scope: "per_branch"        # Options: "per_branch", "per_layer", "global"
+      ei_ratio_metric: "mean"             # Options: "mean", "median", "rms"
 
     # Pruning configuration
     pruning:
@@ -384,19 +408,19 @@ analysis:
       include_vinf: true        # Include soma activation
       normalize_mi: false       # Normalize by entropy
       verbose: false
-     
+
       # Computation Level Control - determines the granularity of information analysis
       computation_level: layer_branch   # Options: "single_branch", "layer_branch", "all_branch"
                                      # "single_branch": Individual branches (most granular and accurate)
-                                     # "layer_branch": Layer-level aggregation (treats each layer as a unit)  
+                                     # "layer_branch": Layer-level aggregation (treats each layer as a unit)
                                      # "all_branch": Full network aggregation (most efficient)
-      
+
       # Branch aggregation method - only used when computation_level is "layer_branch" or "all_branch"
       branch_aggregation: multivariate     # Options: "mean", "multivariate", "sample"
-      
-      
+
+
       # Enhanced analysis modes
-      per_neuron_analysis: false   # If true, compute MI for each neuron separately  
+      per_neuron_analysis: false   # If true, compute MI for each neuron separately
       per_einet_analysis: false    # If true, analyze E and I networks separately
       per_layer_analysis: false    # If true, compute enhanced analysis per layer
 
@@ -439,11 +463,26 @@ analysis:
       cosine_similarity: true
 
   weight_analysis:
-    enabled: false
+    enabled: true
     training: false
     params:
       synapse_weights: true
       branch_weights: true
+      computation_level: "single_branch"
+      branch_aggregation: "mean"
+      per_layer_analysis: true
+      per_einet_analysis: true
+      per_neuron_analysis: false
+
+      analyze_excitatory: true
+      analyze_inhibitory: true
+      analyze_branch_output: false
+      compute_mean: true
+      compute_variance: true
+      compute_percentiles: false
+      compute_min_max: true
+      compute_dendritic_strength: true
+      weight_threshold: 1e-6
 
   synaptic_activation_analysis:
     enabled: true
@@ -470,6 +509,7 @@ analysis:
       logspace: false
       downsample: true
       samples: 5
+
 
   single_layer_contribution:
     enabled: true

@@ -48,6 +48,7 @@ class DendriNet(nn.Module):
         print_hooks=False,
         reactivation_init_m=1,
         reactivation_init_b=0.5,
+        dbl_init_method="analytical_expectation",
         # DEEPST specific parameters, clean up later
         excitatory_target_density=0.1,
         inhibitory_target_density=0.1,
@@ -62,6 +63,7 @@ class DendriNet(nn.Module):
         init_method=None,
         weight_threshold=1e-6,
         adaptive_initialization=True,  # Add adaptive initialization parameter
+        weight_transform="exp",  # Weight transformation for positive weights
         **kwargs,
     ):
         super().__init__()
@@ -126,6 +128,7 @@ class DendriNet(nn.Module):
                 reactivate=reactivate,
                 reactivation_init_m=reactivation_init_m,
                 reactivation_init_b=reactivation_init_b,
+                dbl_init_method=dbl_init_method,
                 reactivation_type=reactivation_type,
                 reactivation_strategy=reactivation_strategy,
                 blocklinear_strategy=blocklinear_strategy,
@@ -144,6 +147,7 @@ class DendriNet(nn.Module):
                 init_method=init_method,
                 weight_threshold=weight_threshold,
                 adaptive_initialization=adaptive_initialization,
+                weight_transform=weight_transform,
                 branch_factors=self.branch_factors,  # Pass branch_factors
                 **kwargs,
             )
@@ -168,6 +172,7 @@ class DendriNet(nn.Module):
                     reactivate=reactivate,
                     reactivation_init_m=reactivation_init_m,
                     reactivation_init_b=reactivation_init_b,
+                    dbl_init_method=dbl_init_method,
                     reactivation_type=reactivation_type,
                     reactivation_strategy=reactivation_strategy,
                     blocklinear_strategy=blocklinear_strategy,
@@ -187,6 +192,7 @@ class DendriNet(nn.Module):
                     weight_threshold=weight_threshold,
                     adaptive_initialization=adaptive_initialization,
                     branch_factors=self.branch_factors,  # Pass branch_factors
+                    weight_transform=weight_transform,
                     **kwargs,
                 )
             )
@@ -209,6 +215,7 @@ class DendriNet(nn.Module):
                     reactivate=reactivate,
                     reactivation_init_m=reactivation_init_m,
                     reactivation_init_b=reactivation_init_b,
+                    dbl_init_method=dbl_init_method,
                     reactivation_type=reactivation_type,
                     reactivation_strategy=reactivation_strategy,
                     blocklinear_strategy=blocklinear_strategy,
@@ -228,6 +235,7 @@ class DendriNet(nn.Module):
                     weight_threshold=weight_threshold,
                     adaptive_initialization=adaptive_initialization,
                     branch_factors=self.branch_factors,  # Pass branch_factors
+                    weight_transform=weight_transform,
                     **kwargs,
                 )
             )

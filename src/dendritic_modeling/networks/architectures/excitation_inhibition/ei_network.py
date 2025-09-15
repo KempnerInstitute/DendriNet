@@ -38,6 +38,7 @@ class ExcitationInhibitionNetwork(nn.Module):
         reactivate: Whether to reactivate cells.
         reactivation_init_m: Initial m parameter for reactivation.
         reactivation_init_b: Initial b parameter for reactivation.
+        dbl_init_method: Method for initializing dendritic branch layers.
         somatic_synapses: Whether to use somatic synapses.
         ee_synapses_per_branch_per_layer: List of integers specifying the number of excitatory-excitatory synapses per branch per layer.
         ei_synapses_per_branch_per_layer: List of integers specifying the number of excitatory-inhibitory synapses per branch per layer.
@@ -77,6 +78,7 @@ class ExcitationInhibitionNetwork(nn.Module):
         reactivate: bool = True,
         reactivation_init_m: float = 1.5,
         reactivation_init_b: float = 0.5,
+        dbl_init_method: str = "analytical_expectation",
         somatic_synapses: bool = True,
         ee_synapses_per_branch_per_layer: Optional[list[int]] = None,
         ei_synapses_per_branch_per_layer: Optional[list[int]] = None,
@@ -103,6 +105,7 @@ class ExcitationInhibitionNetwork(nn.Module):
         init_method="xavier_normal",
         weight_threshold=1e-6,
         adaptive_initialization=True,
+        weight_transform="exp",  # Weight transformation for positive weights
         **kwargs,
     ):
         super().__init__()
@@ -116,6 +119,7 @@ class ExcitationInhibitionNetwork(nn.Module):
         self.reactivate = reactivate
         self.reactivation_init_m = reactivation_init_m
         self.reactivation_init_b = reactivation_init_b
+        self.dbl_init_method = dbl_init_method
         self.somatic_synapses = somatic_synapses
         self.ee_synapses_per_branch_per_layer = (
             ee_synapses_per_branch_per_layer if ee_synapses_per_branch_per_layer else []
@@ -151,6 +155,7 @@ class ExcitationInhibitionNetwork(nn.Module):
         self.init_method = init_method
         self.weight_threshold = weight_threshold
         self.adaptive_initialization = adaptive_initialization
+        self.weight_transform = weight_transform
 
         # Set up transfer function
         self.setup_transfer_function()
@@ -159,47 +164,9 @@ class ExcitationInhibitionNetwork(nn.Module):
         self.setup_network_layers()
 
     def setup_transfer_function(self):
-        # For input_mode=1 with no inhibitory layers, n_inhibitory_cells can be None
-        n_inhibitory_cells = (
-            self.inhibitory_layer_sizes[0] if self.inhibitory_layer_sizes else None
-        )
-
         self.transfer_fn = TransferLayer(
             input_dim=self.input_dim,
-            transfer_params=self.transfer_params,
-            n_inhibitory_cells=n_inhibitory_cells,
-            inhibitory_branch_factors=self.inhibitory_branch_factors,
-            excitatory_synapses_per_branch=(
-                self.ee_synapses_per_branch_per_layer[0]
-                if self.ee_synapses_per_branch_per_layer
-                else None
-            ),
-            reactivate=self.reactivate,
-            reactivation_init_m=self.reactivation_init_m,
-            reactivation_init_b=self.reactivation_init_b,
-            somatic_synapses=self.somatic_synapses,
-            topk_init_method=self.topk_init_method,
-            use_shunting=self.use_shunting,
-            reactivation_type=self.reactivation_type,
-            reactivation_strategy=self.reactivation_strategy,
-            blocklinear_strategy=self.blocklinear_strategy,
-            topk_noise_level=self.topk_noise_level,
-            topk_strategy=self.topk_strategy,
-            topk_type=self.topk_type,
-            print_hooks=self.print_hooks,
-            excitatory_target_density=self.excitatory_target_density,
-            inhibitory_target_density=self.inhibitory_target_density,
-            use_noise=self.use_noise,
-            sigma=self.sigma,
-            rewiring_mode=self.rewiring_mode,
-            rewire_frequency=self.rewire_frequency,
-            synapses_per_branch=self.synapses_per_branch,
-            freeze_excitatory_connectivity=self.freeze_excitatory_connectivity,
-            freeze_inhibitory_connectivity=self.freeze_inhibitory_connectivity,
-            init_method=self.init_method,
-            weight_threshold=self.weight_threshold,
-            efficient_blocklinear=self.efficient_blocklinear,
-            adaptive_initialization=self.adaptive_initialization,
+            transfer_params=self.transfer_params
         )
 
     def setup_network_layers(self):
@@ -345,6 +312,7 @@ class ExcitationInhibitionNetwork(nn.Module):
                 reactivate=self.reactivate,
                 reactivation_init_m=self.reactivation_init_m,
                 reactivation_init_b=self.reactivation_init_b,
+                dbl_init_method=self.dbl_init_method,
                 somatic_synapses=self.somatic_synapses,
                 topk_init_method=self.topk_init_method,
                 use_shunting=self.use_shunting,
@@ -368,6 +336,7 @@ class ExcitationInhibitionNetwork(nn.Module):
                 weight_threshold=self.weight_threshold,
                 efficient_blocklinear=self.efficient_blocklinear,
                 adaptive_initialization=self.adaptive_initialization,
+                weight_transform=self.weight_transform,
             )
             layers.append(layer)
 

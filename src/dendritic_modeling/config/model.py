@@ -32,6 +32,7 @@ class EINetParameters(BaseConfig):
     reactivate: bool = True
     reactivation_init_m: float = 1.5
     reactivation_init_b: float = 0.5
+    dbl_init_method: str = "analytical_expectation"
     somatic_synapses: bool = True
     topk_init_method: str = "xavier_normal"
     topk_noise_level: float = 0.0
@@ -58,6 +59,9 @@ class EINetParameters(BaseConfig):
     weight_threshold: float = 1e-6
     adaptive_initialization: bool = True  # use network-aware weight scaling
     epsilon: float = 1e-8  # numerical stability constant for shunting computation
+    
+    # Weight transformation for positive weights
+    weight_transform: str = "exp"  # Options: "exp", "relu", "softplus"
 
 
 @dataclass

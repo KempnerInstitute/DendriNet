@@ -14,6 +14,6 @@ __all__ = [
     "SynapticActivationAnalyzer",
     "SynapticPruningAnalyzer",
     "SynapticTurnoverAnalyzer",
-    "WeightAnalyzer",
+    "WeightAnalyzer",  # Now includes all weight analysis functionality
     "integrate_pruning_with_turnover_analysis",
 ]

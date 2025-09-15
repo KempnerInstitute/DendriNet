@@ -120,8 +120,9 @@ class VarianceTopKLinear(TopKLinear):
 
         # Score is weight magnitude * input variance
         if self.param_space == "log":
-            # For log param space, we use exp(pre_w) * variance
-            importance_scores = w_for_topk.exp() * var_expanded
+            # For log param space, we use transformed weights * variance
+            from dendritic_modeling.networks.utils.weight_transforms import apply_weight_transform
+            importance_scores = apply_weight_transform(w_for_topk, self.weight_transform) * var_expanded
         else:
             # For presigmoid, use sigmoid(pre_w) * variance
             importance_scores = torch.sigmoid(w_for_topk) * var_expanded

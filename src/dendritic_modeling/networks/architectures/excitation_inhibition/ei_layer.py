@@ -32,6 +32,7 @@ class ExcitationInhibitionLayer(nn.Module):
         reactivate=True,
         reactivation_init_m=1.5,
         reactivation_init_b=0.5,
+        dbl_init_method="analytical_expectation",
         somatic_synapses=True,
         topk_init_method="xavier_normal",
         use_shunting=True,
@@ -54,6 +55,7 @@ class ExcitationInhibitionLayer(nn.Module):
         init_method="xavier_normal",
         weight_threshold=1e-6,
         adaptive_initialization=True,
+        weight_transform="exp",  # Weight transformation for positive weights
         **kwargs,
     ):
         super().__init__()
@@ -70,6 +72,7 @@ class ExcitationInhibitionLayer(nn.Module):
                 reactivate=reactivate,
                 reactivation_init_m=reactivation_init_m,
                 reactivation_init_b=reactivation_init_b,
+                dbl_init_method=dbl_init_method,
                 somatic_synapses=somatic_synapses,
                 topk_init_method=topk_init_method,
                 use_shunting=use_shunting,
@@ -92,6 +95,7 @@ class ExcitationInhibitionLayer(nn.Module):
                 init_method=init_method,
                 weight_threshold=weight_threshold,
                 adaptive_initialization=adaptive_initialization,
+                weight_transform=weight_transform,
                 **kwargs,
             )
         else:
@@ -115,6 +119,7 @@ class ExcitationInhibitionLayer(nn.Module):
             reactivate=reactivate,
             reactivation_init_m=reactivation_init_m,
             reactivation_init_b=reactivation_init_b,
+            dbl_init_method=dbl_init_method,
             somatic_synapses=somatic_synapses,
             topk_init_method=topk_init_method,
             use_shunting=use_shunting,
@@ -137,6 +142,7 @@ class ExcitationInhibitionLayer(nn.Module):
             init_method=init_method,
             weight_threshold=weight_threshold,
             adaptive_initialization=adaptive_initialization,
+            weight_transform=weight_transform,
             **kwargs,
         )
 

@@ -19,18 +19,27 @@ A comprehensive framework for modeling dendritic neural networks with biological
 
 ## Installation
 
+### Automated Installation
 ```bash
-# 1. Clone the repository
 git clone https://github.com/KempnerInstitute/dendritic-modeling.git
 cd dendritic-modeling
+bash install.sh
+```
 
-# 2. Create conda environment
-conda env create -f environment.yml
+### Manual Installation
+```bash
+conda env create -f setup/environment.yml
 conda activate dendritic_env
-
-# 3. Install the package
 pip install -e .
 ```
+
+### Troubleshooting
+```bash
+bash install.sh --fix-only    # Fix existing installation
+bash install.sh --verify      # Verify installation
+```
+
+See [INSTALL.md](INSTALL.md) for detailed troubleshooting.
 
 ## Quick Start
 

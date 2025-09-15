@@ -23,6 +23,7 @@ from dendritic_modeling.config.training import (
     RegularizationConfig,
     ReportingConfig,
 )
+from dendritic_modeling.training.regularization import RegularizationManager
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.plotting import plot_loss_curves
 from dendritic_modeling.training.loss.functions import LossFunction, get_loss_function
@@ -40,7 +41,9 @@ class Trainer:
         patience: int = 10,
         batch_size: int = 256,
         shuffle: bool = True,
-        grad_clip_value=5,
+        grad_clip_value: float = 5,
+        checkpointing: bool = False,
+        checkpoint_interval: int = 10,
         load_best_state_dict: bool = True,
         plot_losses: bool = False,
         save_path: Optional[str] = None,
@@ -57,6 +60,8 @@ class Trainer:
         self.batch_size = batch_size
         self.shuffle = shuffle
         self.grad_clip_value = grad_clip_value
+        self.checkpointing = checkpointing
+        self.checkpoint_interval = checkpoint_interval
         self.load_best_state_dict = load_best_state_dict
         self.plot_losses = plot_losses
         self.save_path = save_path
@@ -72,6 +77,18 @@ class Trainer:
         self.regularization_config = regularization_config or RegularizationConfig()
         self.pruning_config = pruning_config or PruningConfig()
         self.reporting_config = reporting_config or ReportingConfig()
+        
+        # Initialize RegularizationManager
+        self.regularization_manager = RegularizationManager(self.regularization_config)
+        
+        # Log regularization settings
+        if self.regularization_config.l1_weight > 0 or self.regularization_config.l2_weight > 0:
+            logger.info(f"L1/L2 regularization enabled: l1_weight={self.regularization_config.l1_weight}, l2_weight={self.regularization_config.l2_weight}")
+        if self.regularization_config.enforce_ei_weight_ratio:
+            logger.info(f"E/I weight ratio regularization enabled: target_ratio={self.regularization_config.target_ei_weight_ratio}, loss_weight={self.regularization_config.ei_ratio_loss_weight}")
+        if (self.regularization_config.l1_weight <= 0 and self.regularization_config.l2_weight <= 0 and 
+            not self.regularization_config.enforce_ei_weight_ratio):
+            logger.info("No regularization enabled - zero computational overhead")
 
         # Performance optimization flags (disabled by default for speed)
         self.enable_nan_checking = kwargs.get("enable_nan_checking", False)
@@ -133,7 +150,7 @@ class Trainer:
                     logger.warning("torch.profiler not available, profiling disabled")
                     self.enable_profiling = False
 
-        self.filename_prefix = ""
+        self.filename_prefix = "standard_"
         for k, v in kwargs.items():
             setattr(self, k, v)
 
@@ -156,12 +173,12 @@ class Trainer:
             self.best_loss = float("inf")
         if not hasattr(self, "best_epoch"):
             self.best_epoch = 1
-        if not hasattr(self, "epoch_counter"):
-            self.epoch_counter = 0
         if not hasattr(self, "start_time"):
             self.start_time = time.time()
-        if not hasattr(self, "total_epochs"):
-            self.total_epochs = total_epochs
+        if not hasattr(self, "logger_info_prefix"):
+            self.logger_info_prefix = "[Standard] "
+        self.epoch_counter = 0
+        self.total_epochs = total_epochs
         self.patience_counter = 0
 
     def train(
@@ -176,6 +193,7 @@ class Trainer:
         valid_losses = []
 
         self._initialize_attributes(model, self.epochs)
+        self._save_checkpoint(model)
 
         train_losses, valid_losses = self._run_training_loop(
             n_epochs=self.epochs,
@@ -184,7 +202,7 @@ class Trainer:
             valid_loader=valid_loader,
             train_losses=train_losses,
             valid_losses=valid_losses,
-            logger_info="[Standard] ",
+            logger_info=self.logger_info_prefix,
             wandb_info={},
         )
 
@@ -256,6 +274,7 @@ class Trainer:
         valid_losses.append(valid_loss)
 
         self._update_best(model, valid_loss)
+        self._save_checkpoint(model)
         self._analyze()
         self._tracking(train_loss, valid_loss, logger_info, wandb_info)
         return train_losses, valid_losses
@@ -270,6 +289,10 @@ class Trainer:
                 # Mixed precision forward pass
                 with autocast():
                     loss = self.loss_function(model, x_batch, y_batch)
+
+                    # Add all regularization losses
+                    reg_loss = self.regularization_manager.compute_regularization_loss(model, x_batch, y_batch)
+                    loss = loss + reg_loss
 
                 self.optimizer.zero_grad()
                 self.scaler.scale(loss).backward()
@@ -295,7 +318,12 @@ class Trainer:
                 self.scaler.update()
             else:
                 # Standard precision training
-                loss = self.loss_function(model, x_batch, y_batch)
+                loss: torch.Tensor = self.loss_function(model, x_batch, y_batch)
+
+                # Add all regularization losses
+                reg_loss = self.regularization_manager.compute_regularization_loss(model, x_batch, y_batch)
+                loss = loss + reg_loss
+
                 self.optimizer.zero_grad()
                 loss.backward()
 
@@ -323,9 +351,11 @@ class Trainer:
         valid_loss = 0
         with torch.no_grad():
             for x_batch, y_batch in valid_loader:
+                x_batch: torch.Tensor
+                y_batch: torch.Tensor
                 x_batch = x_batch.to(self.device)
                 y_batch = y_batch.to(self.device)
-                loss = self.loss_function(model, x_batch, y_batch)
+                loss: torch.Tensor = self.loss_function(model, x_batch, y_batch)
                 valid_loss += loss.item()
 
         valid_loss /= len(valid_loader)
@@ -346,6 +376,18 @@ class Trainer:
                 )
         else:
             self.patience_counter += 1
+
+    def _save_checkpoint(self, model: BaseModel):
+        if self.checkpointing and (self.epoch_counter % self.checkpoint_interval == 0):
+            checkpoint_path = os.path.join(
+                self.save_path, f"{self.filename_prefix}checkpoints"
+            )
+            if not os.path.exists(checkpoint_path):
+                os.makedirs(checkpoint_path, exist_ok=True)
+            torch.save(
+                model.state_dict(),
+                os.path.join(checkpoint_path, f"epoch_{self.epoch_counter}.pt"),
+            )
 
     def _analyze(self):
         if self.analysis_manager is not None:

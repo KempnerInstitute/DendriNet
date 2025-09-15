@@ -10,6 +10,11 @@ from math import floor
 import torch
 import torch.nn as nn
 
+from dendritic_modeling.networks.utils.weight_transforms import (
+    WeightTransformType,
+    apply_weight_transform,
+)
+
 
 class BlockLinear(nn.Module):
     """
@@ -58,7 +63,9 @@ class BlockLinear(nn.Module):
 
     """
 
-    def __init__(self, in_features, out_features):
+    def __init__(
+        self, in_features, out_features, weight_transform: WeightTransformType = "exp"
+    ):
         super().__init__()
 
         block_size = floor(in_features / out_features)
@@ -72,19 +79,34 @@ class BlockLinear(nn.Module):
         self.in_features = in_features
         self.out_features = out_features
         self.block_size = block_size
+        self.weight_transform = weight_transform
         self.input_scale_vec = None  # may be used for gradient scaling
         self.param_scale_vec = None  # may be used for gradient scaling
 
-    def initialize(self, sum_synapse_conductances=None):
-        if sum_synapse_conductances is None:
-            nn.init.constant_(self.log_weight, 0)
-        else:
-            # Ensure sum_synapse_conductances is a 1D tensor
-            self.log_weight.data = (
-                sum_synapse_conductances.log()[:, None]
-                .expand(self.out_features, self.block_size)
-                .clone()
-            )
+    def initialize(self, g_branch: float = 1.0):
+        """
+        Initialize the block weights to a specific conductance value.
+
+        Args:
+            g_branch: The desired conductance value (positive) after weight transformation.
+                     The method handles conversion to the appropriate raw parameter space
+                     based on self.weight_transform.
+        """
+        # Import here to avoid circular imports
+        from dendritic_modeling.networks.utils.weight_transforms import (
+            inverse_weight_transform,
+        )
+
+        # Convert the desired conductance to the appropriate raw parameter value
+        raw_value = inverse_weight_transform(
+            torch.tensor(
+                g_branch, dtype=self.log_weight.dtype, device=self.log_weight.device
+            ),
+            self.weight_transform,
+        ).item()
+
+        # Initialize the raw parameters
+        nn.init.constant_(self.log_weight, raw_value)
 
     def block(self):
         block = torch.zeros(
@@ -96,7 +118,9 @@ class BlockLinear(nn.Module):
         col_ix = torch.arange(self.in_features, device=self.log_weight.device).view(
             self.out_features, self.block_size
         )
-        block[row_ix, col_ix] = self.log_weight.exp()
+        block[row_ix, col_ix] = apply_weight_transform(
+            self.log_weight, self.weight_transform
+        )
         return block
 
     def log_block(self):
@@ -151,7 +175,7 @@ class BlockLinear(nn.Module):
         return torch.matmul(x, self.block().t())
 
     def sum_conductances(self):
-        return self.log_weight.exp().sum(dim=1)
+        return apply_weight_transform(self.log_weight, self.weight_transform).sum(dim=1)
 
 
 # ---------------------------------------------------------------------------
@@ -198,7 +222,9 @@ class EfficientBlockLinear(BlockLinear):
             return torch.zeros(B, self.out_features, device=x.device, dtype=x.dtype)
 
         x_reshaped = x.view(B, self.out_features, self.block_size)
-        weights = self.log_weight.exp()  # (out_features, block_size)
+        weights = apply_weight_transform(
+            self.log_weight, self.weight_transform
+        )  # (out_features, block_size)
         output = (x_reshaped * weights).sum(dim=-1)  # (B, out_features)
         return output
 

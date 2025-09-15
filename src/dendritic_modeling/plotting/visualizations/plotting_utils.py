@@ -109,17 +109,58 @@ def setup_basic_plot(
 
 def convert_layer_names(
     layer_results: dict[str, dict[str, Any]],
+    somatic_synapses: bool = True,
 ) -> dict[str, dict[str, Any]]:
-    """Convert technical layer names to intuitive format (soma → distal)."""
+    """Convert technical layer names to intuitive format (soma → distal).
+
+    Parameters
+    ----------
+    layer_results : dict
+        Dictionary with layer results keyed by technical layer names
+    somatic_synapses : bool, optional
+        Whether the model was configured with somatic_synapses=True.
+        Default is True for backward compatibility.
+
+    Returns
+    -------
+    dict
+        Dictionary with converted layer names
+    """
     if not layer_results:
         return {}
 
     layer_names = list(layer_results.keys())
     indexed_layers = []
 
+    # First pass: collect all branch indices to determine the mapping dynamically
+    branch_indices = []
+    for name in layer_names:
+        if "branch_layers." in name:
+            parts = name.split("branch_layers.")
+            if len(parts) > 1:
+                try:
+                    branch_idx = int(parts[1])
+                    branch_indices.append(branch_idx)
+                except ValueError:
+                    continue
+
+    # Branch indices collected for potential future use
+
     for name in layer_names:
         try:
-            if "layers." in name:
+            if name == "synthetic_soma":
+                # Synthetic soma always gets depth 0 (for information analysis)
+                indexed_layers.append((0, name))
+            elif "branch_layers." in name:
+                parts = name.split("branch_layers.")
+                if len(parts) > 1:
+                    branch_idx = int(parts[1].split(".")[0])
+                    # Use actual layer_idx (branch_idx) so ordering matches ablation (0=soma → distal)
+                    indexed_layers.append((branch_idx, name))
+                else:
+                    indexed_layers.append((999, name))
+            elif "layers." in name:
+                # Handle ablation analysis layer names (original logic)
                 parts = name.split("layers.")
                 if len(parts) > 1:
                     layer_part = parts[1].split(".")[0]
@@ -135,18 +176,34 @@ def convert_layer_names(
         except (ValueError, IndexError, AttributeError):
             indexed_layers.append((999, name))
 
-    # Sort by index (reverse order so highest index = soma, lowest = distal)
-    indexed_layers.sort(key=lambda x: x[0], reverse=True)
+    # Sort by index (CORRECT ORDER: lowest index = most proximal, highest = most distal)
+    # In dendritic networks: layer_idx=0 is soma (if present), higher layer_idx is more distal
+    indexed_layers.sort(key=lambda x: x[0])
 
     # Create new dictionary with intuitive names
     converted_results = {}
-    for i, (_original_idx, original_name) in enumerate(indexed_layers):
-        if i == 0:
+    for _i, (original_idx, original_name) in enumerate(indexed_layers):
+        # Treat layer_idx==0 as Soma in all cases (synthetic or real)
+        is_soma_layer = original_idx == 0
+
+        if is_soma_layer:
             new_name = "Soma"
         else:
-            new_name = f"Layer {i}"
+            # Match ablation labeling: distal_layer = original_idx - min_depth (but since min_depth=0 for soma, it's original_idx)
+            distal_layer_num = original_idx
+            new_name = f"Distal Layer {distal_layer_num}"
 
         converted_results[new_name] = layer_results[original_name]
+
+        # Add metadata about whether this is actually a functional soma
+        if is_soma_layer and "has_somatic_synapses" not in converted_results[new_name]:
+            converted_results[new_name]["has_somatic_synapses"] = somatic_synapses
+
+    # Ensure Soma appears on the x-axis even when somatic_synapses is False
+    if not somatic_synapses and "Soma" not in converted_results:
+        ordered = {"Soma": {"has_somatic_synapses": False}}
+        ordered.update(converted_results)
+        return ordered
 
     return converted_results
 

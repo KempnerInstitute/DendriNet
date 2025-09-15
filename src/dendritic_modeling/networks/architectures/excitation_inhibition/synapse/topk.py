@@ -11,6 +11,11 @@ from math import log
 import torch
 import torch.nn as nn
 
+from dendritic_modeling.networks.utils.weight_transforms import (
+    apply_weight_transform,
+    WeightTransformType
+)
+
 TOPK_INIT_METHODS = {
     "xavier_normal": nn.init.xavier_normal_,
     "xavier_uniform": nn.init.xavier_uniform_,
@@ -60,6 +65,7 @@ class TopKLinear(nn.Module):
         init_method="xavier_normal",
         init_gain=1.0,
         noise_level=0.0,
+        weight_transform: WeightTransformType = "exp",
     ):
         super().__init__()
 
@@ -68,6 +74,7 @@ class TopKLinear(nn.Module):
         self.init_method = init_method
         self.init_gain = init_gain
         self.noise_level = noise_level
+        self.weight_transform = weight_transform
 
         self.pre_w = nn.Parameter(
             torch.empty((out_features, in_features)), requires_grad=True
@@ -128,7 +135,7 @@ class TopKLinear(nn.Module):
     def weight(self):
         """Return the transformed synaptic weights."""
         if self.param_space == "log":
-            return self.pre_w.exp()
+            return apply_weight_transform(self.pre_w, self.weight_transform)
         elif self.param_space == "presigmoid":
             return torch.sigmoid(self.pre_w)
 
