@@ -11,8 +11,8 @@ import torch
 import torch.nn as nn
 
 from dendritic_modeling.networks.utils.weight_transforms import (
+    WeightTransformType,
     apply_weight_transform,
-    WeightTransformType
 )
 
 
@@ -63,7 +63,9 @@ class BlockLinear(nn.Module):
 
     """
 
-    def __init__(self, in_features, out_features, weight_transform: WeightTransformType = "exp"):
+    def __init__(
+        self, in_features, out_features, weight_transform: WeightTransformType = "exp"
+    ):
         super().__init__()
 
         block_size = floor(in_features / out_features)
@@ -81,7 +83,7 @@ class BlockLinear(nn.Module):
         self.input_scale_vec = None  # may be used for gradient scaling
         self.param_scale_vec = None  # may be used for gradient scaling
 
-    def initialize(self, log_g_branch: float=0):
+    def initialize(self, log_g_branch: float = 0):
         nn.init.constant_(self.log_weight, log_g_branch)
 
     def block(self):
@@ -94,7 +96,9 @@ class BlockLinear(nn.Module):
         col_ix = torch.arange(self.in_features, device=self.log_weight.device).view(
             self.out_features, self.block_size
         )
-        block[row_ix, col_ix] = apply_weight_transform(self.log_weight, self.weight_transform)
+        block[row_ix, col_ix] = apply_weight_transform(
+            self.log_weight, self.weight_transform
+        )
         return block
 
     def log_block(self):
@@ -151,6 +155,10 @@ class BlockLinear(nn.Module):
     def sum_conductances(self):
         return apply_weight_transform(self.log_weight, self.weight_transform).sum(dim=1)
 
+    def weight(self):
+        """Return transformed per-block weights with shape (out_features, block_size)."""
+        return apply_weight_transform(self.log_weight, self.weight_transform)
+
 
 # ---------------------------------------------------------------------------
 # Memory-efficient implementation that avoids constructing the block-diagonal
@@ -196,7 +204,9 @@ class EfficientBlockLinear(BlockLinear):
             return torch.zeros(B, self.out_features, device=x.device, dtype=x.dtype)
 
         x_reshaped = x.view(B, self.out_features, self.block_size)
-        weights = apply_weight_transform(self.log_weight, self.weight_transform)  # (out_features, block_size)
+        weights = apply_weight_transform(
+            self.log_weight, self.weight_transform
+        )  # (out_features, block_size)
         output = (x_reshaped * weights).sum(dim=-1)  # (B, out_features)
         return output
 

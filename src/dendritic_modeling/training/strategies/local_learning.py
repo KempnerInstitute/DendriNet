@@ -41,6 +41,10 @@ class LocalRuleConfig:
         include both morphology and information proxy.
     error_mode: str
         'auto', 'mse', 'ce', or 'bce' for deriving the soma error signal.
+    error_broadcast_mode: str
+        How to broadcast the soma error to compartments: 'scalar' (default, per-sample
+        scalar broadcast to all somas), 'per_soma' (map output-dim error to per-soma),
+        or 'local_mismatch' (modulate scalar error by local parent-vs-soma mismatch).
     ema_alpha: float
         EMA smoothing for morphology/information statistics.
     use_conductance_scaling: bool
@@ -61,6 +65,7 @@ class LocalRuleConfig:
 
     rule_variant: str = "3f"
     error_mode: str = "auto"
+    error_broadcast_mode: str = "scalar"
     ema_alpha: float = 0.05
     use_conductance_scaling: bool = True
     use_driving_force: bool = True
@@ -477,8 +482,46 @@ class LocalCreditAssignment(Trainer):
             layer_depth = layer_idx + 1
             out_features = v_n.size(1)
 
-            # Error term per compartment (broadcast soma error)
-            e_n = delta_mean.expand(-1, out_features)  # [B, out]
+            # Error term per compartment
+            # Modes:
+            # - 'scalar': broadcast per-sample scalar to all somas in layer (default)
+            # - 'per_soma': map output-dim error to soma-dim if sizes match, else fallback to scalar
+            # - 'local_mismatch': modulate scalar error by local parent-vs-soma voltage mismatch
+            bmode = (self.local_cfg.error_broadcast_mode or "scalar").lower()
+            if (
+                bmode == "per_soma"
+                and delta.dim() == 2
+                and delta.size(1) == out_features
+            ):
+                e_n = delta  # [B, out]
+            elif bmode == "local_mismatch":
+                parent = rec.get("blk_out")
+                if parent is None:
+                    parent = rec.get("exc_out")
+                if parent is None:
+                    parent = rec.get("inh_out")
+                if parent is None:
+                    # Fallback to scalar broadcast if no parent signal is available
+                    e_n = delta_mean.expand(-1, out_features)
+                else:
+                    # Centered mismatch as a simple local error proxy
+                    p = parent
+                    if p.size() != v_n.size():
+                        # Try to align shapes; if mismatch persists, fallback to scalar
+                        try:
+                            p = p.view_as(v_n)
+                        except Exception:
+                            p = None
+                    if p is None:
+                        e_n = delta_mean.expand(-1, out_features)
+                    else:
+                        mismatch = p - v_n  # [B, out]
+                        # Optionally center mismatch per-batch to avoid bias
+                        mismatch = mismatch - mismatch.mean(dim=0, keepdim=True)
+                        e_n = delta_mean.expand(-1, out_features) * mismatch
+            else:
+                # Scalar broadcast
+                e_n = delta_mean.expand(-1, out_features)  # [B, out]
 
             # Conductance scaling: R_tot = 1 / g_tot
             if self.local_cfg.use_conductance_scaling:

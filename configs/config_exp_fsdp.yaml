@@ -148,6 +148,7 @@ train:
       local_rule_config:
         rule_variant: "3f"
         error_mode: "auto"
+        error_broadcast_mode: "scalar"  # "scalar", "per_soma", "local_mismatch"
         ema_alpha: 0.05
         use_conductance_scaling: true
         use_driving_force: true

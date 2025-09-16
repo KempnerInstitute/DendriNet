@@ -284,6 +284,7 @@ train:
       local_rule_config:
         rule_variant: "3f"              # "3f", "4f", or "5f"
         error_mode: "auto"             # "auto", "mse", "ce", "bce"
+        error_broadcast_mode: "scalar"  # "scalar", "per_soma", "local_mismatch"
         ema_alpha: 0.05                 # EMA for rho/phi statistics
         use_conductance_scaling: true   # Scale by 1 / (g_tot)
         use_driving_force: true         # Use (E_rev - V_n) factor
