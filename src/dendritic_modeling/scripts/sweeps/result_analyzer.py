@@ -142,11 +142,21 @@ class UnifiedResultAnalyzer:
         Returns:
             Dictionary with sweep_config parameters or None if not found
         """
+        # First check for original_config.yaml in the root results directory
+        original_config_path = os.path.join(results_dir, "original_config.yaml")
+        if os.path.exists(original_config_path):
+            try:
+                config = OmegaConf.load(original_config_path)
+                if hasattr(config, "sweep_config") and config.sweep_config:
+                    return dict(config.sweep_config)
+            except Exception:
+                pass
+
+        # Fallback: look in configs directory for any YAML files with sweep_config
         config_dir = os.path.join(results_dir, "configs")
         if not os.path.exists(config_dir):
             return None
 
-        # Look for YAML files that might contain sweep_config
         yaml_files = glob.glob(os.path.join(config_dir, "*.yaml"))
         for yaml_file in yaml_files:
             try:
@@ -440,6 +450,12 @@ class UnifiedResultAnalyzer:
                         if hasattr(local_cfg, "update_inactive_weights"):
                             data["update_inactive_weights"] = (
                                 local_cfg.update_inactive_weights
+                            )
+                        if hasattr(local_cfg, "hsic_enabled"):
+                            data["hsic_enabled"] = local_cfg.hsic_enabled
+                        if hasattr(local_cfg, "error_broadcast_mode"):
+                            data["error_broadcast_mode"] = (
+                                local_cfg.error_broadcast_mode
                             )
                 except Exception as local_e:
                     print(
@@ -1109,6 +1125,8 @@ class UnifiedResultAnalyzer:
             "rule_variant",
             "rho_mode",
             "update_inactive_weights",
+            "hsic_enabled",
+            "error_broadcast_mode",
         ]
         if "nparams" in cleaned_results.columns:
             arch_cols.append("nparams")
@@ -3062,16 +3080,47 @@ class UnifiedResultAnalyzer:
         if not present_param_names:
             return None, None
 
-        # Build ordered list of unique parameter combinations
-        combo_df = results_df[present_param_names].drop_duplicates()
-        # Sort lexicographically by all param columns for stable ordering
-        combo_df = combo_df.sort_values(by=present_param_names)
-        combos = combo_df.to_dict(orient="records")
+        # Build ordered list of unique parameter combinations with config numbers
+        # Prefer pulling task_id from configs to ensure 0-based config_# mapping
+        try:
+            params_df = self.collect_params_data(output_dir)
+        except Exception:
+            params_df = None
 
-        # Prepare x-axis positions and legend mapping
-        x_positions = list(range(1, len(combos) + 1))
-        mapping_df = combo_df.copy()
-        mapping_df.insert(0, "#", x_positions)
+        if (
+            params_df is not None
+            and not params_df.empty
+            and all(p in params_df.columns for p in present_param_names)
+        ):
+            # Map each unique combination to the smallest task_id (first config)
+            combo_df = (
+                params_df[[*present_param_names, "task_id"]]
+                .dropna(subset=present_param_names)
+                .groupby(present_param_names, as_index=False)["task_id"]
+                .min()
+            )
+            combo_df = combo_df.sort_values(by=present_param_names)
+            combos = combo_df.to_dict(orient="records")
+            config_numbers = combo_df["task_id"].tolist()
+            x_positions = config_numbers
+        else:
+            # Fallback to combinations present in aggregated results (no task_id)
+            combo_df = results_df[present_param_names].drop_duplicates()
+            combo_df = combo_df.sort_values(by=present_param_names)
+            combos = combo_df.to_dict(orient="records")
+            x_positions = list(range(1, len(combos) + 1))
+            config_numbers = x_positions
+
+        mapping_df = combo_df[present_param_names].copy()
+        # Create a column that references the actual YAML config file
+        if "task_id" in combo_df.columns:
+            yaml_config_names = [
+                f"unified_config_{task_id}.yaml" for task_id in config_numbers
+            ]
+            mapping_df.insert(0, "config_yaml", yaml_config_names)
+            mapping_df.insert(1, "config_#", config_numbers)
+        else:
+            mapping_df.insert(0, "config_#", config_numbers)
 
         legend_csv_path = os.path.join(
             plots_root_dir, "parameter_combinations_legend.csv"
@@ -3081,11 +3130,19 @@ class UnifiedResultAnalyzer:
         # Render a compact PNG legend table for convenience
         legend_png_path = None
         try:
-            headers = ["#", *present_param_names]
-            table_data = [
-                [idx] + [c.get(p) for p in present_param_names]
-                for idx, c in zip(x_positions, combos)
-            ]
+            if "task_id" in combo_df.columns:
+                headers = ["config_yaml", "config_#", *present_param_names]
+                table_data = [
+                    [f"unified_config_{config_num}.yaml", config_num]
+                    + [c.get(p) for p in present_param_names]
+                    for config_num, c in zip(config_numbers, combos)
+                ]
+            else:
+                headers = ["config_#", *present_param_names]
+                table_data = [
+                    [config_num] + [c.get(p) for p in present_param_names]
+                    for config_num, c in zip(config_numbers, combos)
+                ]
             fig_legend, ax_legend = plt.subplots(
                 figsize=(
                     min(24, 2 + 2 * len(headers)),
@@ -3153,13 +3210,21 @@ class UnifiedResultAnalyzer:
         present_param_names = [p for p in param_names if p in results_df.columns]
         if not present_param_names:
             return plot_paths
-        combo_df = results_df[present_param_names].drop_duplicates()
+        # Include task_id to get actual config numbers, same as legend generation
+        combo_cols = present_param_names + (
+            ["task_id"] if "task_id" in results_df.columns else []
+        )
+        combo_df = results_df[combo_cols].drop_duplicates(subset=present_param_names)
         # Sort lexicographically by all param columns for stable ordering
         combo_df = combo_df.sort_values(by=present_param_names)
         combos = combo_df.to_dict(orient="records")
 
-        # Prepare x-axis positions
-        x_positions = list(range(1, len(combos) + 1))
+        # Use actual config numbers (task_id) for x-axis positions, same as legend
+        if "task_id" in combo_df.columns:
+            x_positions = combo_df["task_id"].tolist()
+        else:
+            # Fallback to sequential if task_id not available
+            x_positions = list(range(1, len(combos) + 1))
 
         # Categorize metrics by analysis type and create subfolders
         # Use more specific patterns to avoid overlap
@@ -3213,6 +3278,65 @@ class UnifiedResultAnalyzer:
             # Create subfolder for this analysis type
             analysis_dir = os.path.join(param_plot_dir, analysis_type)
             os.makedirs(analysis_dir, exist_ok=True)
+
+            # Additionally, save mean of each metric grouped by each sweep parameter
+            try:
+                means_by_param_dir = os.path.join(analysis_dir, "means_by_param")
+                os.makedirs(means_by_param_dir, exist_ok=True)
+                # Overall means by parameter (across categories)
+                for param_name in present_param_names:
+                    series_dict = {}
+                    for metric_col in metric_cols:
+                        if metric_col in results_df.columns:
+                            try:
+                                series_dict[metric_col] = results_df.groupby(
+                                    param_name
+                                )[metric_col].mean()
+                            except Exception:
+                                continue
+                    if series_dict:
+                        df_param_overall = pd.DataFrame(series_dict)
+                        df_param_overall.index.name = param_name
+                        df_param_overall = df_param_overall.reset_index()
+                        csv_path_overall = os.path.join(
+                            means_by_param_dir,
+                            f"{analysis_type}__means_by_{param_name}.csv",
+                        )
+                        df_param_overall.to_csv(csv_path_overall, index=False)
+                # Category-specific means by parameter (if multiple categories)
+                if len(categories) > 1:
+                    for category in categories:
+                        subset = (
+                            results_df
+                            if category == "all"
+                            else results_df[results_df["network_category"] == category]
+                        )
+                        for param_name in present_param_names:
+                            series_dict_cat = {}
+                            for metric_col in metric_cols:
+                                if metric_col in subset.columns:
+                                    try:
+                                        series_dict_cat[metric_col] = subset.groupby(
+                                            param_name
+                                        )[metric_col].mean()
+                                    except Exception:
+                                        continue
+                            if series_dict_cat:
+                                df_param_cat = pd.DataFrame(series_dict_cat)
+                                df_param_cat.index.name = param_name
+                                df_param_cat = df_param_cat.reset_index()
+                                safe_cat = (
+                                    str(category).replace("/", "_").replace(" ", "_")
+                                )
+                                csv_path_cat = os.path.join(
+                                    means_by_param_dir,
+                                    f"{analysis_type}__means_by_{param_name}__{safe_cat}.csv",
+                                )
+                                df_param_cat.to_csv(csv_path_cat, index=False)
+            except Exception as e:
+                print(
+                    f"Warning: failed to write means_by_param CSVs for {analysis_type}: {e}"
+                )
 
             for metric_col in metric_cols:
                 try:
@@ -3280,7 +3404,7 @@ class UnifiedResultAnalyzer:
 
                     display_metric = metric_col.replace("_", " ").replace(" mean", "")
                     ax.set_xlabel(
-                        "Parameter Combination Index (#). See parameter_combinations_legend.csv/png in plots folder.",
+                        "Config Number (config_#). See parameter_combinations_legend.csv/png in plots folder.",
                         fontsize=12,
                     )
                     ax.set_ylabel(f"{display_metric.title()}", fontsize=12)
