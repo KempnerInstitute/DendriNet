@@ -135,6 +135,9 @@ class UnifiedResultAnalyzer:
             "cross": "#FFA726",  # Orange for cross-information
         }
 
+        # Cache for params_df keyed by experiment directory to avoid reloading
+        self._params_data_cache: dict[str, pd.DataFrame] = {}
+
     def detect_sweep_parameters(self, results_dir: str) -> Optional[dict]:
         """
         Detect custom sweep parameters from YAML config files.
@@ -277,13 +280,37 @@ class UnifiedResultAnalyzer:
         return None
 
     def collect_params_data(self, exp_dir: str) -> pd.DataFrame:
-        """Collect parameter data from the config files"""
+        """Collect parameter data from the config files.
+
+        Dynamically extracts ALL sweep parameters declared in
+        original_config.yaml:sweep_config (if present), avoiding any
+        hard-coded parameter lists. Parameter column names are the full
+        config paths with dots replaced by double underscores to avoid
+        collisions (e.g., train.main.trainer.local_rule_config.hsic_weight
+        -> train__main__trainer__local_rule_config__hsic_weight).
+        """
         configs_dir = os.path.join(exp_dir, "configs")
+
+        # Return cached if available
+        if exp_dir in getattr(self, "_params_data_cache", {}):
+            cached = self._params_data_cache[exp_dir]
+            if isinstance(cached, pd.DataFrame) and not cached.empty:
+                return cached
         params_data = []
 
         if not os.path.exists(configs_dir):
             print(f"Configs directory not found: {configs_dir}")
             return pd.DataFrame()
+
+        # Load sweep parameter paths from original_config.yaml if available (cache it)
+        try:
+            sweep_params = self.detect_sweep_parameters(exp_dir)
+            if sweep_params:
+                print(
+                    f"Found {len(sweep_params)} sweep parameters to extract from configs."
+                )
+        except Exception:
+            sweep_params = None
 
         # Find all config files - handle both naming conventions
         config_patterns = [
@@ -304,7 +331,9 @@ class UnifiedResultAnalyzer:
 
         print(f"Found {len(config_files)} config files to process.")
 
-        for config_file in config_files:
+        for i, config_file in enumerate(config_files):
+            if i % 20 == 0:  # Progress indicator every 20 files
+                print(f"Processing parameter config {i+1}/{len(config_files)}...")
             try:
                 # Extract task id from filename
                 task_match = re.search(
@@ -320,6 +349,20 @@ class UnifiedResultAnalyzer:
 
                 # Extract parameters with robust handling
                 data = self._extract_config_params(config, task_id, config_file)
+
+                # Dynamically extract declared sweep parameter values
+                if sweep_params:
+                    try:
+                        dyn_vals = self._extract_param_values_from_config(
+                            config, sweep_params
+                        )
+                        if dyn_vals:
+                            data.update(dyn_vals)
+                    except Exception as e:
+                        if i < 5:  # Only print first few errors to avoid spam
+                            print(
+                                f"Warning: Could not extract dynamic sweep params for {config_file}: {e}"
+                            )
                 if data:
                     params_data.append(data)
 
@@ -328,10 +371,32 @@ class UnifiedResultAnalyzer:
 
         # Create DataFrame
         params_df = pd.DataFrame(params_data)
+
+        # Convert any list columns to string for proper groupby operations
+        for col in params_df.columns:
+            if params_df[col].dtype == "object":
+                # Check if any values are lists or tuples
+                sample = (
+                    params_df[col].dropna().iloc[0]
+                    if not params_df[col].dropna().empty
+                    else None
+                )
+                if sample is not None and isinstance(sample, (list, tuple)):
+                    params_df[col] = params_df[col].apply(
+                        lambda x: str(x) if x is not None else x
+                    )
+
         if not params_df.empty and "task_id" in params_df.columns:
             params_df = params_df.sort_values("task_id").reset_index(drop=True)
         else:
             print("Warning: No task_id column found in parameter data")
+        # Cache and return
+        try:
+            if not hasattr(self, "_params_data_cache"):
+                self._params_data_cache = {}
+            self._params_data_cache[exp_dir] = params_df
+        except Exception:
+            pass
         return params_df
 
     def _extract_config_params(
@@ -475,6 +540,31 @@ class UnifiedResultAnalyzer:
         except Exception as e:
             print(f"Error: Could not extract parameters from {config_file}: {e}")
             return None
+
+    def _sanitize_param_name(self, param_path: str) -> str:
+        """Convert a dot-separated config path to a unique, safe column name."""
+        return str(param_path).replace(".", "__")
+
+    def _extract_param_values_from_config(
+        self, config: Any, sweep_params: dict
+    ) -> dict:
+        """Extract values for all param paths declared in sweep_params from a loaded config.
+
+        Uses OmegaConf.select to safely access nested attributes. Returns a mapping
+        from sanitized param names to their concrete values in this config.
+        """
+        result: dict[str, Any] = {}
+        for param_path in sweep_params.keys():
+            try:
+                val = OmegaConf.select(config, param_path)
+                # Convert ListConfig to regular list
+                if hasattr(val, "__class__") and "ListConfig" in str(val.__class__):
+                    val = list(val)
+                # Keep lists as lists - we'll convert to string later in collect_params_data
+            except Exception:
+                val = None
+            result[self._sanitize_param_name(param_path)] = val
+        return result
 
     def collect_results(self, exp_dir: str) -> tuple[pd.DataFrame, pd.DataFrame]:
         """Collect results from the experiment directory using the new flattened structure"""
@@ -1136,11 +1226,9 @@ class UnifiedResultAnalyzer:
             col for col in cleaned_results.columns if col.startswith("noise_")
         ]
 
-        # Define columns to exclude from aggregation
+        # Define columns to exclude from aggregation (keep task_id for custom plots)
         exclude_cols = (
-            arch_cols
-            + noise_cols
-            + ["experiment", "task_id", "job_dir", "seed", "config_file"]
+            arch_cols + noise_cols + ["experiment", "job_dir", "seed", "config_file"]
         )
         metric_cols = [
             col for col in cleaned_results.columns if col not in exclude_cols
@@ -1165,6 +1253,9 @@ class UnifiedResultAnalyzer:
 
         for _, group in cleaned_results.groupby(groupby_cols):
             row = dict(zip(groupby_cols, group[groupby_cols].iloc[0]))
+            # Include a representative task_id for each group (take the first one)
+            if "task_id" in group.columns:
+                row["task_id"] = group["task_id"].iloc[0]
 
             # Aggregate noise patterns
             for noise_type, metric, noise_level in noise_patterns:
@@ -3065,19 +3156,13 @@ class UnifiedResultAnalyzer:
         plots_root_dir = os.path.join(output_dir, "plots")
         os.makedirs(plots_root_dir, exist_ok=True)
 
-        # Extract sweep parameter names and clean them for column names
-        param_columns = {}
+        # Extract sweep parameter names and build sanitized column names
+        param_columns: dict[str, str] = {}
         for param_path, _values in sweep_params.items():
-            # Extract the parameter name (last part of the path)
-            param_name = param_path.split(".")[-1]
+            param_name = self._sanitize_param_name(param_path)
             param_columns[param_name] = param_path
 
         if not param_columns:
-            return None, None
-
-        param_names = list(param_columns.keys())
-        present_param_names = [p for p in param_names if p in results_df.columns]
-        if not present_param_names:
             return None, None
 
         # Build ordered list of unique parameter combinations with config numbers
@@ -3087,11 +3172,14 @@ class UnifiedResultAnalyzer:
         except Exception:
             params_df = None
 
-        if (
-            params_df is not None
-            and not params_df.empty
-            and all(p in params_df.columns for p in present_param_names)
-        ):
+        if params_df is not None and not params_df.empty:
+            present_param_names = [
+                p for p in param_columns.keys() if p in params_df.columns
+            ]
+        else:
+            present_param_names = []
+
+        if params_df is not None and not params_df.empty and present_param_names:
             # Map each unique combination to the smallest task_id (first config)
             combo_df = (
                 params_df[[*present_param_names, "task_id"]]
@@ -3099,28 +3187,33 @@ class UnifiedResultAnalyzer:
                 .groupby(present_param_names, as_index=False)["task_id"]
                 .min()
             )
-            combo_df = combo_df.sort_values(by=present_param_names)
+            # Sort by task_id instead of parameter values to avoid comparison issues
+            combo_df = combo_df.sort_values(by="task_id")
             combos = combo_df.to_dict(orient="records")
             config_numbers = combo_df["task_id"].tolist()
-            x_positions = config_numbers
         else:
-            # Fallback to combinations present in aggregated results (no task_id)
-            combo_df = results_df[present_param_names].drop_duplicates()
-            combo_df = combo_df.sort_values(by=present_param_names)
-            combos = combo_df.to_dict(orient="records")
-            x_positions = list(range(1, len(combos) + 1))
-            config_numbers = x_positions
+            # Unable to construct combinations without parameters
+            return None, None
 
+        # Create mapping DataFrame with human-readable column names
         mapping_df = combo_df[present_param_names].copy()
+        # Rename columns to show only the last part of the parameter path
+        readable_names = {}
+        for sanitized_name in present_param_names:
+            # Find original path and extract last part
+            original_path = param_columns.get(sanitized_name, sanitized_name)
+            readable_name = (
+                original_path.split(".")[-1] if "." in original_path else sanitized_name
+            )
+            readable_names[sanitized_name] = readable_name
+        mapping_df = mapping_df.rename(columns=readable_names)
+
         # Create a column that references the actual YAML config file
-        if "task_id" in combo_df.columns:
-            yaml_config_names = [
-                f"unified_config_{task_id}.yaml" for task_id in config_numbers
-            ]
-            mapping_df.insert(0, "config_yaml", yaml_config_names)
-            mapping_df.insert(1, "config_#", config_numbers)
-        else:
-            mapping_df.insert(0, "config_#", config_numbers)
+        yaml_config_names = [
+            f"unified_config_{task_id}.yaml" for task_id in config_numbers
+        ]
+        mapping_df.insert(0, "config_yaml", yaml_config_names)
+        mapping_df.insert(1, "config_#", config_numbers)
 
         legend_csv_path = os.path.join(
             plots_root_dir, "parameter_combinations_legend.csv"
@@ -3130,19 +3223,22 @@ class UnifiedResultAnalyzer:
         # Render a compact PNG legend table for convenience
         legend_png_path = None
         try:
-            if "task_id" in combo_df.columns:
-                headers = ["config_yaml", "config_#", *present_param_names]
-                table_data = [
-                    [f"unified_config_{config_num}.yaml", config_num]
-                    + [c.get(p) for p in present_param_names]
-                    for config_num, c in zip(config_numbers, combos)
-                ]
-            else:
-                headers = ["config_#", *present_param_names]
-                table_data = [
-                    [config_num] + [c.get(p) for p in present_param_names]
-                    for config_num, c in zip(config_numbers, combos)
-                ]
+            # Use readable column names for headers
+            readable_param_names = [
+                readable_names.get(p, p) for p in present_param_names
+            ]
+            headers = ["config_yaml", "config_#", *readable_param_names]
+            table_data = []
+            for config_num, c in zip(config_numbers, combos):
+                row = [f"unified_config_{config_num}.yaml", config_num]
+                for p in present_param_names:
+                    val = c.get(p)
+                    # Convert tuples back to lists for display
+                    if isinstance(val, tuple):
+                        val = list(val)
+                    # Convert to string for display
+                    row.append(str(val) if val is not None else "")
+                table_data.append(row)
             fig_legend, ax_legend = plt.subplots(
                 figsize=(
                     min(24, 2 + 2 * len(headers)),
@@ -3193,11 +3289,10 @@ class UnifiedResultAnalyzer:
         if legend_png_path:
             plot_paths.append(legend_png_path)
 
-        # Extract sweep parameter names and clean them for column names
+        # Extract sweep parameter names and build sanitized column names
         param_columns = {}
         for param_path, _values in sweep_params.items():
-            # Extract the parameter name (last part of the path)
-            param_name = param_path.split(".")[-1]
+            param_name = self._sanitize_param_name(param_path)
             param_columns[param_name] = param_path
 
         if not param_columns:
@@ -3205,26 +3300,47 @@ class UnifiedResultAnalyzer:
 
         print(f"Found sweep parameters: {list(param_columns.keys())}")
 
-        # Build ordered list of unique parameter combinations
+        # Build ordered list of unique parameter combinations using params_df
+        # Ensure we have parameter values collected from configs
+        try:
+            params_df = self.collect_params_data(output_dir)
+        except Exception:
+            params_df = None
+
+        if params_df is None or params_df.empty:
+            return plot_paths
+
         param_names = list(param_columns.keys())
-        present_param_names = [p for p in param_names if p in results_df.columns]
+        present_param_names = [p for p in param_names if p in params_df.columns]
         if not present_param_names:
             return plot_paths
-        # Include task_id to get actual config numbers, same as legend generation
-        combo_cols = present_param_names + (
-            ["task_id"] if "task_id" in results_df.columns else []
-        )
-        combo_df = results_df[combo_cols].drop_duplicates(subset=present_param_names)
-        # Sort lexicographically by all param columns for stable ordering
-        combo_df = combo_df.sort_values(by=present_param_names)
-        combos = combo_df.to_dict(orient="records")
 
-        # Use actual config numbers (task_id) for x-axis positions, same as legend
-        if "task_id" in combo_df.columns:
-            x_positions = combo_df["task_id"].tolist()
-        else:
-            # Fallback to sequential if task_id not available
-            x_positions = list(range(1, len(combos) + 1))
+        # Merge parameter columns into results for grouping/plotting
+        try:
+            # Check if task_id exists in both dataframes
+            if "task_id" in results_df.columns and "task_id" in params_df.columns:
+                results_df = results_df.merge(
+                    params_df[["task_id", *present_param_names]],
+                    on="task_id",
+                    how="left",
+                )
+            else:
+                print("Warning: task_id column missing, cannot merge parameter data")
+                return plot_paths
+        except Exception as e:
+            print(f"Failed to merge parameter columns: {e}")
+            return plot_paths
+
+        combo_df = (
+            params_df[[*present_param_names, "task_id"]]
+            .dropna(subset=present_param_names)
+            .groupby(present_param_names, as_index=False)["task_id"]
+            .min()
+        )
+        # Sort by task_id instead of parameter values to avoid comparison issues
+        combo_df = combo_df.sort_values(by="task_id")
+        combos = combo_df.to_dict(orient="records")
+        x_positions = combo_df["task_id"].tolist()
 
         # Categorize metrics by analysis type and create subfolders
         # Use more specific patterns to avoid overlap
