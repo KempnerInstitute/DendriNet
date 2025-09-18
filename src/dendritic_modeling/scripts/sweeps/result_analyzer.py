@@ -3387,19 +3387,29 @@ class UnifiedResultAnalyzer:
                                 err = np.nan
                             y_err.append(err)
 
-                        # Plot with markers and optional error bars
+                        # Plot with bars and optional error bars
                         color = self.category_colors.get(category, "black")
-                        marker = self.category_markers.get(category, "o")
-                        ax.errorbar(
-                            x_positions,
+
+                        # Calculate bar width and positions for multiple categories
+                        bar_width = (
+                            0.8 / len(categories) if len(categories) > 1 else 0.8
+                        )
+                        cat_idx = list(categories).index(category)
+                        bar_positions = [
+                            x + (cat_idx - len(categories) / 2 + 0.5) * bar_width
+                            for x in x_positions
+                        ]
+
+                        ax.bar(
+                            bar_positions,
                             y_values,
+                            width=bar_width,
                             yerr=y_err if any(~pd.isna(pd.Series(y_err))) else None,
                             label=str(category),
-                            marker=marker,
                             color=color,
-                            linestyle="-",
-                            alpha=0.85,
+                            alpha=0.75,
                             capsize=3,
+                            error_kw={"elinewidth": 1, "capthick": 1},
                         )
 
                     display_metric = metric_col.replace("_", " ").replace(" mean", "")

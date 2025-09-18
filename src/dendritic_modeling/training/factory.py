@@ -205,6 +205,9 @@ def get_trainer(
     elif strategy == "local_ca":
         enhanced_configs = _extract_enhanced_configs(trainer_config_dict)
         trainer_config_dict.update(enhanced_configs)
+        # Ensure loss_function defaults to 'ce' for local learning if not specified
+        if "loss_function" not in trainer_config_dict:
+            trainer_config_dict["loss_function"] = "ce"
         return LocalCreditAssignment(**trainer_config_dict)
     elif strategy == "freeze_branch_kl":
         enhanced_configs = _extract_enhanced_configs(trainer_config_dict)
