@@ -36,24 +36,13 @@ os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"  # Disable oneDNN optimizations warnin
 
 # Core imports
 import argparse
-import warnings
+import logging
 from dataclasses import asdict
 
-# Optional imports (with fallbacks)
-try:
-    import torchinfo
-
-    TORCHINFO_AVAILABLE = True
-except ImportError:
-    TORCHINFO_AVAILABLE = False
-    warnings.warn(
-        "torchinfo not available. Model summary will be skipped.", stacklevel=2
-    )
-
-
-import logging
-
 import torch
+
+# External imports
+import torchinfo
 import wandb
 from omegaconf import OmegaConf
 
@@ -61,6 +50,9 @@ from dendritic_modeling.analysis import AnalysisManager
 from dendritic_modeling.config import load_config
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.networks import Identity
+from dendritic_modeling.plotting.visualizations.performance_plots import (
+    PerformancePlotter,
+)
 from dendritic_modeling.scripts.script_utils.setup_utils import (
     save_model,
     setup_environment,
@@ -100,31 +92,39 @@ def run_analysis(
             analysis_manager.set_pruning_results(training_results)
 
         analysis_manager.run_analysis(filename="final", training=training)
-        
+
         # Generate performance evolution plots if this is final analysis and training tracking was enabled
         if not training and analysis_manager.config.performance_analysis.training:
             performance_dir = os.path.join(run_save_path, "performance", "epochs")
-            logger.info(f"Checking for performance evolution data in: {performance_dir}")
+            logger.info(
+                f"Checking for performance evolution data in: {performance_dir}"
+            )
             if os.path.exists(performance_dir):
-                logger.info("Performance directory exists. Generating performance evolution plots...")
+                logger.info(
+                    "Performance directory exists. Generating performance evolution plots..."
+                )
                 try:
-                    from dendritic_modeling.plotting.visualizations.performance_plots import PerformancePlotter
-                    
                     # Get final epoch from training config if available
                     final_epoch = None
                     if (
-                        hasattr(analysis_manager, 'train_config')
+                        hasattr(analysis_manager, "train_config")
                         and analysis_manager.train_config
                         and hasattr(analysis_manager.train_config, "main")
                         and hasattr(analysis_manager.train_config.main, "trainer")
-                        and hasattr(analysis_manager.train_config.main.trainer, "epochs")
+                        and hasattr(
+                            analysis_manager.train_config.main.trainer, "epochs"
+                        )
                     ):
                         final_epoch = analysis_manager.train_config.main.trainer.epochs
-                    
+
                     # Get pruning results if available
-                    pruning_performance = getattr(analysis_manager, 'pruning_results', None)
-                    logger.info(f"Pruning results available: {pruning_performance is not None}")
-                    
+                    pruning_performance = getattr(
+                        analysis_manager, "pruning_results", None
+                    )
+                    logger.info(
+                        f"Pruning results available: {pruning_performance is not None}"
+                    )
+
                     plotter = PerformancePlotter()
                     plotter.plot_performance_evolution(
                         performance_dir=performance_dir,
@@ -136,10 +136,13 @@ def run_analysis(
                 except Exception as e:
                     logger.error(f"Failed to generate performance evolution plots: {e}")
                     import traceback
+
                     logger.error(traceback.format_exc())
             else:
-                logger.warning(f"Performance directory does not exist: {performance_dir}")
-        
+                logger.warning(
+                    f"Performance directory does not exist: {performance_dir}"
+                )
+
         logger.info("Analysis completed")
 
 
@@ -212,25 +215,22 @@ def main(config_path: str, args=None):
     logger.info("Network architecture summary before training:")
     try:
         sample_input: torch.Tensor = train_ds[0][0]
-        if TORCHINFO_AVAILABLE:
-            summary = torchinfo.summary(
-                model,
-                input_size=(100, *sample_input.shape),
-                col_names=["input_size", "output_size", "num_params"],
-                col_width=25,
-                row_settings=["depth"],
-                depth=7,
+        summary = torchinfo.summary(
+            model,
+            input_size=(100, *sample_input.shape),
+            col_names=["input_size", "output_size", "num_params"],
+            col_width=25,
+            row_settings=["depth"],
+            depth=7,
+        )
+        logger.info("Model summary generated (see console output)")
+        if wandb.run:
+            wandb.log(
+                {
+                    "total_params": summary.total_params,
+                    "trainable_params": summary.trainable_params,
+                }
             )
-            logger.info("Model summary generated (see console output)")
-            if wandb.run:
-                wandb.log(
-                    {
-                        "total_params": summary.total_params,
-                        "trainable_params": summary.trainable_params,
-                    }
-                )
-        else:
-            logger.warning("torchinfo is not available. Model summary not generated.")
     except Exception as e:
         logger.error(f"Failed to generate model summary before training: {e}")
 
@@ -341,9 +341,18 @@ def main(config_path: str, args=None):
 
     # Store original pruning config and temporarily disable it for initial training
     original_pruning_config = main_trainer_config_dict.get("pruning", {})
-    main_trainer_config_dict["pruning"] = (
-        {}
-    )  # Temporarily disable pruning for initial training
+    main_trainer_config_dict[
+        "pruning"
+    ] = {}  # Temporarily disable pruning for initial training
+
+    # Check if using multi-stage training
+    if main_train_config.learning_strategy == "multi_stage":
+        # Look for multi_stage_config in trainer config
+        if "multi_stage_config" not in main_trainer_config_dict:
+            raise ValueError(
+                "Learning strategy is 'multi_stage' but no 'multi_stage_config' found in trainer configuration"
+            )
+        logger.info("Using multi-stage training strategy")
 
     main_trainer = get_trainer(
         strategy=main_train_config.learning_strategy,
@@ -351,6 +360,7 @@ def main(config_path: str, args=None):
         trainer_config_dict=main_trainer_config_dict,
         analysis_manager=analysis_manager,
     )
+
     training_results = main_trainer.train(
         model=model, train_data=encoded_train_ds, valid_data=encoded_valid_ds
     )
@@ -395,9 +405,7 @@ def main(config_path: str, args=None):
         ]
     )
 
-    # Run original analysis BEFORE pruning
-    if any_analysis_enabled:
-        logger.info("Running original analysis before pruning...")
+    if any_analysis_enabled and main_train_config.learning_strategy != "multi_stage":
         run_analysis(
             model=model,
             train_ds=train_ds,
@@ -405,11 +413,29 @@ def main(config_path: str, args=None):
             test_ds=test_ds,
             run_save_path=run_save_path,
             analysis_manager=analysis_manager,
-            training=False,  # Final analysis, not during training
+            training=False,
         )
-        logger.info("Original analysis completed")
-    else:
-        logger.info("No analysis enabled - skipping original analysis")
+    elif main_train_config.learning_strategy == "multi_stage":
+        if analysis_config.performance_analysis.training:
+            performance_dir = os.path.join(run_save_path, "performance", "epochs")
+            if os.path.exists(performance_dir):
+                try:
+                    total_epochs = sum(
+                        stage.epochs or main_train_config.trainer.epochs
+                        for stage in main_train_config.trainer.multi_stage_config.stages
+                    )
+
+                    plotter = PerformancePlotter()
+                    plotter.plot_performance_evolution(
+                        performance_dir=performance_dir,
+                        save_path=os.path.join(run_save_path, "performance"),
+                        pruning_performance=getattr(
+                            analysis_manager, "pruning_results", None
+                        ),
+                        final_epoch=total_epochs,
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to generate performance plots: {e}")
 
     # Now apply pruning if enabled (separate step)
     if original_pruning_config and original_pruning_config.get("enabled", False):

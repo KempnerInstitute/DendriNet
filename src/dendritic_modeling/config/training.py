@@ -2,6 +2,7 @@ from dataclasses import dataclass, field
 from typing import Any, Optional
 
 from dendritic_modeling.config.base import BaseConfig
+from dendritic_modeling.config.multi_stage_training import MultiStageTrainingConfig
 
 
 @dataclass
@@ -109,10 +110,12 @@ class RegularizationConfig(BaseConfig):
 
     # E/I Weight Ratio Regularization
     enforce_ei_weight_ratio: bool = False  # Enable E/I weight ratio regularization
-    target_ei_weight_ratio: float = 1.5    # Target excitatory/inhibitory weight ratio
-    ei_ratio_loss_weight: float = 0.1       # Regularization strength (fraction of total loss)
-    ei_ratio_scope: str = "per_branch"      # Options: "per_branch", "per_layer", "global"
-    ei_ratio_metric: str = "mean"           # Options: "mean", "median", "rms"
+    target_ei_weight_ratio: float = 1.5  # Target excitatory/inhibitory weight ratio
+    ei_ratio_loss_weight: float = (
+        0.1  # Regularization strength (fraction of total loss)
+    )
+    ei_ratio_scope: str = "per_branch"  # Options: "per_branch", "per_layer", "global"
+    ei_ratio_metric: str = "mean"  # Options: "mean", "median", "rms"
 
 
 @dataclass
@@ -158,6 +161,9 @@ class TrainConfig(BaseConfig):
     train_valid_split: float = 0.8
     encoder: EncoderTrainConfig = field(default_factory=EncoderTrainConfig)
     main: MainTrainConfig = field(default_factory=MainTrainConfig)
+    multi_stage: MultiStageTrainingConfig = field(
+        default_factory=MultiStageTrainingConfig
+    )
     # Advanced 294 features added to the existing TrainConfig structure
     # Performance features
     enable_amp: bool = False

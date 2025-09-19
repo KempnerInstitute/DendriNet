@@ -10,12 +10,18 @@ from typing import Any, Optional
 
 import torch
 
+from dendritic_modeling.config.multi_stage_training import (
+    MultiStageTrainingConfig,
+    TrainingStageConfig,
+)
 from dendritic_modeling.config.training import (
     OptimizerConfig,
     PruningConfig,
     RegularizationConfig,
     ReportingConfig,
+    SelectiveConfig,
 )
+from dendritic_modeling.training.fsdp_utils import get_fsdp_config
 from dendritic_modeling.training.strategies import (
     HomeostaticControlTrainer,
     LayerWiseTrainer,
@@ -25,6 +31,8 @@ from dendritic_modeling.training.strategies import (
     TwoStepTrainerWithKL,
     VoltageStabilizationTrainer,
 )
+from dendritic_modeling.training.strategies.fsdp_standard import FSDPTrainer
+from dendritic_modeling.training.strategies.multi_stage import MultiStageTrainer
 
 logger = logging.getLogger(__name__)
 
@@ -57,8 +65,6 @@ def _extract_enhanced_configs(trainer_config_dict: dict[str, Any]) -> dict[str, 
         if isinstance(reg_config, dict):
             # Handle nested SelectiveConfig properly
             if "selective" in reg_config and isinstance(reg_config["selective"], dict):
-                from dendritic_modeling.config.training import SelectiveConfig
-
                 reg_config["selective"] = SelectiveConfig(**reg_config["selective"])
             enhanced_configs["regularization_config"] = RegularizationConfig(
                 **reg_config
@@ -95,8 +101,6 @@ def _extract_enhanced_configs(trainer_config_dict: dict[str, Any]) -> dict[str, 
             if "selective" in prune_config and isinstance(
                 prune_config["selective"], dict
             ):
-                from dendritic_modeling.config.training import SelectiveConfig
-
                 prune_config["selective"] = SelectiveConfig(**prune_config["selective"])
             enhanced_configs["pruning_config"] = PruningConfig(**prune_config)
         else:
@@ -224,14 +228,55 @@ def get_trainer(
     elif strategy == "fsdp" or strategy == "fsdp_standard":
         # Note: FSDP requires additional setup (distributed init, special config)
         # This would need to be called from a distributed context
-        from dendritic_modeling.training.fsdp_utils import get_fsdp_config
-        from dendritic_modeling.training.strategies.fsdp_standard import FSDPTrainer
 
         if "fsdp_config" not in trainer_config_dict:
             # Generate default FSDP config if not provided
             trainer_config_dict["fsdp_config"] = get_fsdp_config()
             logger.info("Generated default FSDP config for trainer")
         return FSDPTrainer(**trainer_config_dict)
+    elif strategy == "multi_stage":
+        # Multi-stage trainer requires special handling
+        # Extract multi_stage_config from trainer config
+        enhanced_configs = _extract_enhanced_configs(trainer_config_dict)
+        trainer_config_dict.update(enhanced_configs)
+
+        # Look for multi_stage_config in the trainer config
+        multi_stage_config = trainer_config_dict.pop("multi_stage_config", None)
+        if multi_stage_config is None:
+            raise ValueError(
+                "multi_stage strategy requires 'multi_stage_config' in trainer configuration"
+            )
+
+        # Convert dict to MultiStageTrainingConfig if needed
+        if isinstance(multi_stage_config, dict):
+            stages = []
+            for stage_dict in multi_stage_config.get("stages", []):
+                stages.append(TrainingStageConfig(**stage_dict))
+            multi_stage_config_obj = MultiStageTrainingConfig(
+                stages=stages,
+                analyze_between_stages=multi_stage_config.get(
+                    "analyze_between_stages", True
+                ),
+                use_best_from_each_stage=multi_stage_config.get(
+                    "use_best_from_each_stage", True
+                ),
+                continue_on_failure=multi_stage_config.get(
+                    "continue_on_failure", False
+                ),
+                global_batch_size=multi_stage_config.get("global_batch_size"),
+                global_shuffle=multi_stage_config.get("global_shuffle", True),
+                global_grad_clip_value=multi_stage_config.get(
+                    "global_grad_clip_value", 5.0
+                ),
+            )
+            multi_stage_config = multi_stage_config_obj
+
+        return MultiStageTrainer(
+            multi_stage_config=multi_stage_config,
+            base_optimizer=optimizer,
+            base_trainer_config=trainer_config_dict,
+            analysis_manager=analysis_manager,
+        )
     else:
         logger.info(f"Unrecognized strategy '{strategy}', defaulting to 'standard'.")
         enhanced_configs = _extract_enhanced_configs(trainer_config_dict)

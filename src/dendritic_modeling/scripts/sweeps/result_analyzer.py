@@ -3454,6 +3454,22 @@ class UnifiedResultAnalyzer:
                     f"Warning: failed to write means_by_param CSVs for {analysis_type}: {e}"
                 )
 
+            # Generate plots from means_by_param CSV files
+            # Only generate plots for performance and selected other analysis types
+            if analysis_type in ["performance", "information", "weight_expectation"]:
+                try:
+                    means_by_param_plots = self._generate_means_by_param_plots(
+                        means_by_param_dir,
+                        analysis_type,
+                        present_param_names,
+                        categories,
+                    )
+                    plot_paths.extend(means_by_param_plots)
+                except Exception as e:
+                    print(
+                        f"Warning: failed to generate means_by_param plots for {analysis_type}: {e}"
+                    )
+
             for metric_col in metric_cols:
                 try:
                     fig, ax = plt.subplots(figsize=(max(10, len(x_positions) * 0.6), 6))
@@ -3586,6 +3602,273 @@ class UnifiedResultAnalyzer:
             return len(unique_combinations) > 1
 
         return False
+
+    def _generate_means_by_param_plots(
+        self,
+        means_by_param_dir: str,
+        analysis_type: str,
+        param_names: list,
+        categories: list,
+    ) -> list[str]:
+        """Generate plots from the means_by_param CSV files."""
+        import glob
+        import os
+
+        import matplotlib.pyplot as plt
+        import pandas as pd
+
+        plot_paths = []
+
+        # Find all CSV files in the means_by_param directory
+        csv_pattern = os.path.join(
+            means_by_param_dir, f"{analysis_type}__means_by_*.csv"
+        )
+        csv_files = glob.glob(csv_pattern)
+
+        if not csv_files:
+            return plot_paths
+
+        print(
+            f"Generating means_by_param plots for {len(csv_files)} CSV files in {analysis_type}"
+        )
+
+        # Process each CSV file
+        for csv_file in csv_files:
+            try:
+                # Load the CSV file
+                df = pd.read_csv(csv_file)
+                if df.empty:
+                    continue
+
+                # Extract info from filename
+                # The parameter name is embedded in the filename after "means_by_"
+                # Need to match it with actual column names in the dataframe
+
+                # Find which column is the parameter column (should match one of param_names)
+                param_col = None
+                for col in df.columns:
+                    if col in param_names:
+                        param_col = col
+                        break
+
+                if param_col is None:
+                    # Try to find any column that looks like a parameter column
+                    # (not a metric column - metrics usually have specific patterns)
+                    metric_patterns = [
+                        "_mean",
+                        "_std",
+                        "accuracy",
+                        "auc",
+                        "loss",
+                        "loglikelihood",
+                        "mse",
+                        "similarity",
+                    ]
+                    for col in df.columns:
+                        is_metric = any(
+                            pattern in col.lower() for pattern in metric_patterns
+                        )
+                        if not is_metric:
+                            param_col = col
+                            break
+
+                if param_col is None:
+                    print(f"Warning: Could not identify parameter column in {csv_file}")
+                    continue
+
+                # Get metric columns (all columns except the parameter column)
+                all_metric_columns = [col for col in df.columns if col != param_col]
+
+                # Filter metrics based on analysis type
+                if analysis_type == "performance":
+                    # Only keep train and test accuracy
+                    metric_columns = [
+                        col
+                        for col in all_metric_columns
+                        if (
+                            "accuracy" in col.lower()
+                            and ("train" in col.lower() or "test" in col.lower())
+                            and "valid" not in col.lower()
+                        )
+                    ]
+                elif analysis_type == "information":
+                    # Only keep the most important information metrics
+                    metric_columns = [
+                        col
+                        for col in all_metric_columns
+                        if any(
+                            key in col.lower()
+                            for key in ["class_information", "mutual_information"]
+                        )
+                        and "layer_0" not in col
+                        and "layer_1" not in col
+                        and "layer_2" not in col
+                    ]
+                elif analysis_type == "weight_expectation":
+                    # Only keep overall weight expectation metrics
+                    metric_columns = [
+                        col
+                        for col in all_metric_columns
+                        if "overall" in col.lower() or "network" in col.lower()
+                    ]
+                else:
+                    # For other analysis types, keep only accuracy-based metrics
+                    metric_columns = [
+                        col for col in all_metric_columns if "accuracy" in col.lower()
+                    ]
+
+                if not metric_columns:
+                    continue
+
+                print(
+                    f"  Plotting {len(metric_columns)} metrics for parameter {param_col}: {metric_columns}"
+                )
+
+                # Create plots directory for this parameter
+                safe_param_name = (
+                    param_col.replace("/", "_").replace(" ", "_").replace(".", "_")
+                )
+                param_plots_dir = os.path.join(
+                    os.path.dirname(means_by_param_dir),
+                    f"means_by_{safe_param_name}_plots",
+                )
+                os.makedirs(param_plots_dir, exist_ok=True)
+
+                # Generate a plot for each metric
+                for metric_col in metric_columns:
+                    try:
+                        fig, ax = plt.subplots(figsize=(10, 6))
+
+                        # Check if parameter values are boolean
+                        param_values_str = df[param_col].astype(str).str.lower()
+                        is_boolean = all(
+                            val in ["true", "false"] for val in param_values_str
+                        )
+
+                        # Sort by parameter value for better visualization
+                        if is_boolean:
+                            # Sort boolean values: False first, then True
+                            df["_sort_key"] = (
+                                df[param_col].astype(str).str.lower() == "true"
+                            )
+                            df_sorted = df.sort_values("_sort_key")
+                            df_sorted = df_sorted.drop("_sort_key", axis=1)
+                        else:
+                            df_sorted = df.sort_values(param_col)
+
+                        param_values = df_sorted[param_col]
+                        metric_values = df_sorted[metric_col]
+
+                        if is_boolean:
+                            # Bar plot for boolean parameters with True/False labels
+                            x_pos = range(len(param_values))
+                            param_values_sorted_str = param_values.astype(
+                                str
+                            ).str.lower()
+                            colors = [
+                                "salmon" if val == "false" else "steelblue"
+                                for val in param_values_sorted_str
+                            ]
+                            bars = ax.bar(x_pos, metric_values, color=colors, alpha=0.7)
+                            ax.set_xticks(x_pos)
+                            ax.set_xticklabels(
+                                param_values, rotation=0
+                            )  # No rotation needed for True/False
+                            ax.set_xlabel(param_col, fontsize=12)
+
+                            # Add value labels on bars
+                            for bar, val in zip(bars, metric_values):
+                                height = bar.get_height()
+                                ax.text(
+                                    bar.get_x() + bar.get_width() / 2.0,
+                                    height,
+                                    f"{val:.3f}",
+                                    ha="center",
+                                    va="bottom",
+                                    fontsize=9,
+                                )
+                        else:
+                            # Check if parameter values are numeric
+                            try:
+                                param_numeric = pd.to_numeric(
+                                    param_values, errors="coerce"
+                                )
+                                if not param_numeric.isna().all():
+                                    # Line plot for numeric parameters
+                                    ax.plot(
+                                        param_numeric,
+                                        metric_values,
+                                        "o-",
+                                        linewidth=2,
+                                        markersize=8,
+                                        color="steelblue",
+                                    )
+                                    ax.set_xlabel(param_col, fontsize=12)
+                                else:
+                                    # Bar plot for categorical parameters
+                                    x_pos = range(len(param_values))
+                                    bars = ax.bar(
+                                        x_pos,
+                                        metric_values,
+                                        color="steelblue",
+                                        alpha=0.7,
+                                    )
+                                    ax.set_xticks(x_pos)
+                                    ax.set_xticklabels(
+                                        param_values, rotation=45, ha="right"
+                                    )
+                                    ax.set_xlabel(param_col, fontsize=12)
+
+                                    # Add value labels on bars
+                                    for bar, val in zip(bars, metric_values):
+                                        height = bar.get_height()
+                                        ax.text(
+                                            bar.get_x() + bar.get_width() / 2.0,
+                                            height,
+                                            f"{val:.3f}",
+                                            ha="center",
+                                            va="bottom",
+                                            fontsize=9,
+                                        )
+                            except Exception:
+                                # Fallback to bar plot
+                                x_pos = range(len(param_values))
+                                bars = ax.bar(
+                                    x_pos, metric_values, color="steelblue", alpha=0.7
+                                )
+                                ax.set_xticks(x_pos)
+                                ax.set_xticklabels(
+                                    param_values, rotation=45, ha="right"
+                                )
+                                ax.set_xlabel(param_col, fontsize=12)
+
+                        ax.set_ylabel(metric_col, fontsize=12)
+                        ax.set_title(f"{metric_col} by {param_col}", fontsize=14)
+                        ax.grid(True, alpha=0.3)
+
+                        plt.tight_layout()
+
+                        # Save the plot
+                        safe_metric = metric_col.replace("/", "_").replace(" ", "_")
+                        plot_filename = (
+                            f"{analysis_type}__{safe_param_name}__{safe_metric}.png"
+                        )
+                        plot_path = os.path.join(param_plots_dir, plot_filename)
+                        plt.savefig(plot_path, dpi=300, bbox_inches="tight")
+                        plt.close()
+                        plot_paths.append(plot_path)
+
+                    except Exception as e:
+                        print(f"Warning: Could not create plot for {metric_col}: {e}")
+                        plt.close()
+                        continue
+
+            except Exception as e:
+                print(f"Warning: Could not process {csv_file}: {e}")
+                continue
+
+        print(f"Generated {len(plot_paths)} means_by_param plots")
+        return plot_paths
 
 
 def parse_args():

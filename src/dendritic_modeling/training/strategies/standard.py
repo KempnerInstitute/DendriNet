@@ -14,7 +14,7 @@ from typing import Optional
 import torch
 import torch.utils.data
 import wandb
-from torch.cuda.amp import autocast
+from torch.cuda.amp import GradScaler, autocast
 from torch.nn.utils import clip_grad_value_
 from torch.utils.data import DataLoader
 
@@ -101,8 +101,6 @@ class Trainer:
         self.enable_amp = kwargs.get("enable_amp", torch.cuda.is_available())
         if self.enable_amp and torch.cuda.is_available():
             try:
-                from torch.cuda.amp import GradScaler
-
                 self.scaler = GradScaler()
                 logger.info("Mixed precision training enabled")
             except ImportError:
@@ -399,7 +397,7 @@ class Trainer:
 
     def _analyze(self):
         if self.analysis_manager is not None:
-            # Conditional import to avoid circular dependency
+            # Lazy import to avoid circular dependency
             from dendritic_modeling.analysis import AnalysisManager
 
             if isinstance(self.analysis_manager, AnalysisManager):

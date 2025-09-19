@@ -124,6 +124,8 @@ class PerformanceAnalyzer:
             )
 
         if save_path is not None:
+            if not filename.endswith(".json"):
+                filename = f"{filename}.json"
             save_dict(results, save_path, filename)
         else:
             return results
