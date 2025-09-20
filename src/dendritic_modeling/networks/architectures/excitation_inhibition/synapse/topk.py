@@ -12,8 +12,8 @@ import torch
 import torch.nn as nn
 
 from dendritic_modeling.networks.utils.weight_transforms import (
+    WeightTransformType,
     apply_weight_transform,
-    WeightTransformType
 )
 
 TOPK_INIT_METHODS = {
@@ -108,15 +108,39 @@ class TopKLinear(nn.Module):
                 f"Choose from {list(TOPK_INIT_METHODS.keys())}"
             )
 
-    def decay_weights(self, weight_decay=0.1, weight_boost=False):
+    def decay_weights(self, weight_decay=0.1, weight_boosting=False):
         """Apply weight decay to active synapses and optionally boost inactive ones."""
         with torch.no_grad():
             weight_mask = self.weight_mask()
-            log_decay = log(1 - weight_decay) * weight_mask
-            self.pre_w.data += log_decay  # suppress active synapses
-            if weight_boost:
-                log_boost = log(1 + weight_decay) * (1 - weight_mask)
-                self.pre_w.data -= log_boost  # boost inactive synapses
+            if self.weight_transform == "exp":
+                decay = log(1 - weight_decay) * weight_mask
+                self.pre_w.data += decay
+            elif self.weight_transform == "relu":
+                decay = torch.where(weight_mask > 0, 1 - weight_decay, 1)
+                self.pre_w.data *= decay
+            elif self.weight_transform == "softplus":
+                w = nn.functional.softplus(self.pre_w.data)
+                decayed_w = w * (1 - weight_decay)
+                p_prime = torch.log(torch.exp(decayed_w) - 1 + 1e-8)
+                p_prime_masked = torch.where(weight_mask > 0, p_prime, self.pre_w.data)
+                self.pre_w.data = p_prime_masked
+
+            if weight_boosting:
+                inv_weight_mask = (-1 * weight_mask) + 1
+                if self.weight_transform == "exp":
+                    boost = log(1 + weight_decay) * inv_weight_mask
+                    self.pre_w.data += boost
+                elif self.weight_transform == "relu":
+                    boost = torch.where(inv_weight_mask > 0, 1 + weight_decay, 1)
+                    self.pre_w.data *= boost
+                elif self.weight_transform == "softplus":
+                    w = nn.functional.softplus(self.pre_w.data)
+                    boosted_w = w * (1 + weight_decay)
+                    p_prime = torch.log(torch.exp(boosted_w) - 1 + 1e-8)
+                    p_prime_masked = torch.where(
+                        inv_weight_mask > 0, p_prime, self.pre_w.data
+                    )
+                    self.pre_w.data = p_prime_masked
 
     def forward(self, x):
         """Forward pass through the TopK linear layer."""

@@ -309,11 +309,11 @@ class DendriticBranchLayer(nn.Module):
         else:
             raise ValueError(f"Unknown dbl_init_method: {self.dbl_init_method}")
 
-    def decay_weights(self, weight_decay):
+    def decay_weights(self, weight_decay, weight_boosting=False):
         if self.input_excitatory and self.branch_excitation is not None:
-            self.branch_excitation.decay_weights(weight_decay, weight_boost=False)
+            self.branch_excitation.decay_weights(weight_decay, weight_boosting)
         if self.input_inhibitory and self.branch_inhibition is not None:
-            self.branch_inhibition.decay_weights(weight_decay, weight_boost=False)
+            self.branch_inhibition.decay_weights(weight_decay, weight_boosting)
         # if self.input_branches:
         #     self.branches_to_output.decay_weights(weight_decay)
 
