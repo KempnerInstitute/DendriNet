@@ -84,11 +84,13 @@ class ExcitationInhibitionNetwork(nn.Module):
         ei_synapses_per_branch_per_layer: Optional[list[int]] = None,
         ie_synapses_per_branch_per_layer: Optional[list[int]] = None,
         ii_synapses_per_branch_per_layer: Optional[list[int]] = None,
+        inhibitory_network_type: str = "dendritic",
         use_shunting: bool = True,
         reactivation_type: str = "param_tanh",
         reactivation_strategy: str = "inverse",
         blocklinear_strategy: str = "conductance_dynamic",
         topk_init_method: str = "xavier_normal",
+        topk_noise_level: float = 0.0,
         topk_strategy: str = "conductance_dynamic",
         topk_type: str = "standard",
         weight_transform="exp",  # Weight transformation for positive weights
@@ -121,6 +123,7 @@ class ExcitationInhibitionNetwork(nn.Module):
         self.reactivation_init_b = reactivation_init_b
         self.dbl_init_method = dbl_init_method
         self.somatic_synapses = somatic_synapses
+        self.inhibitory_network_type = inhibitory_network_type
         self.ee_synapses_per_branch_per_layer = (
             ee_synapses_per_branch_per_layer if ee_synapses_per_branch_per_layer else []
         )
@@ -141,7 +144,7 @@ class ExcitationInhibitionNetwork(nn.Module):
         self.topk_strategy = topk_strategy
         self.topk_type = topk_type
         self.weight_transform = weight_transform
-        self.topk_noise_level = kwargs.get("topk_noise_level", 0.0)
+        self.topk_noise_level = topk_noise_level
         self.print_hooks = print_hooks
         self.excitatory_target_density = excitatory_target_density
         self.inhibitory_target_density = inhibitory_target_density
@@ -161,7 +164,7 @@ class ExcitationInhibitionNetwork(nn.Module):
         self.setup_transfer_function()
 
         # Set up network layers
-        self.setup_network_layers()
+        self.setup_network_layers(**kwargs)
 
     def setup_transfer_function(self):
         self.transfer_fn = TransferLayer(
@@ -169,7 +172,7 @@ class ExcitationInhibitionNetwork(nn.Module):
             transfer_params=self.transfer_params
         )
 
-    def setup_network_layers(self):
+    def setup_network_layers(self, **kwargs):
         """Set up the excitatory and inhibitory network layers"""
         # Create network layers using ExcitationInhibitionLayer
         layers = []
@@ -306,6 +309,7 @@ class ExcitationInhibitionNetwork(nn.Module):
                 ee_synapses_per_branch=ee_syn[i],
                 ei_synapses_per_branch=ei_syn[i],
                 build_inhibitory_cells=build_inhibitory_cells,
+                inhibitory_network_type=self.inhibitory_network_type,
                 inhibitory_input_dim=layer_inhibitory_input_dim,
                 ie_synapses_per_branch=ie_syn[i],
                 ii_synapses_per_branch=ii_syn[i],
@@ -337,6 +341,7 @@ class ExcitationInhibitionNetwork(nn.Module):
                 weight_threshold=self.weight_threshold,
                 efficient_blocklinear=self.efficient_blocklinear,
                 adaptive_initialization=self.adaptive_initialization,
+                **kwargs,
             )
             layers.append(layer)
 
@@ -356,10 +361,10 @@ class ExcitationInhibitionNetwork(nn.Module):
             # torch.compile not available in older PyTorch versions
             pass
 
-    def decay_weights(self, weight_decay):
+    def decay_weights(self, weight_decay, weight_boosting=False):
         for layer in self.layers:
             layer: ExcitationInhibitionLayer
-            layer.decay_weights(weight_decay)
+            layer.decay_weights(weight_decay, weight_boosting)
 
     def apply_rewiring(self):
         for layer in self.layers:

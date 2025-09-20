@@ -29,6 +29,8 @@ class EINetParameters(BaseConfig):
     ei_synapses_per_branch_per_layer: list[int] = field(default_factory=lambda: [200])
     ie_synapses_per_branch_per_layer: list[int] = field(default_factory=lambda: [1])
     ii_synapses_per_branch_per_layer: list[int] = field(default_factory=list)
+    inhibitory_network_type: str = "dendritic"
+    mlp_inhibitory_network_params: dict = field(default_factory=dict)
     reactivate: bool = True
     reactivation_init_m: float = 1.5
     reactivation_init_b: float = 0.5
