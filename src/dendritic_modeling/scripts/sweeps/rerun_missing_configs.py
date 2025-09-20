@@ -157,7 +157,8 @@ def check_result_for_config(
             print(f"Found config directory: {config_dir}")
 
         # Check output log for completion message
-        output_log = os.path.join(config_dir, "output.log")
+        # output_log = os.path.join(config_dir, "output.log")
+        output_log = os.path.join(config_dir, "dendritic_modeling.log")
         if os.path.exists(output_log):
             if verbose:
                 print(f"Found output log: {output_log}")
@@ -166,7 +167,8 @@ def check_result_for_config(
             try:
                 with open(output_log, "r") as f:
                     content = f.read()
-                    if "Training experiment completed successfully" in content:
+                    # if "Training experiment completed successfully" in content:
+                    if "Saved model to" in content:
                         if verbose:
                             print(
                                 f"FOUND: 'Training experiment completed successfully' in {output_log}"
@@ -308,16 +310,17 @@ def get_base_dir_from_config(config_file, verbose=False):
 def get_original_slurm_config(sweep_dir):
     """Get the original SLURM configuration used for this sweep."""
     # Try to find the sweep_params.yaml file (old structure)
-    sweep_params_path = os.path.join(sweep_dir, "configs", "sweep_params.yaml")
+    # sweep_params_path = os.path.join(sweep_dir, "configs", "sweep_params.yaml")
+    sweep_params_path = os.path.join(sweep_dir, "original_config.yaml")
     
     # Also try sweep_metadata.yaml (new structure)
     metadata_path = os.path.join(sweep_dir, "configs", "sweep_metadata.yaml")
 
     config_file = None
-    if os.path.exists(metadata_path):
-        config_file = metadata_path
-    elif os.path.exists(sweep_params_path):
+    if os.path.exists(sweep_params_path):
         config_file = sweep_params_path
+    elif os.path.exists(metadata_path):
+        config_file = metadata_path
     else:
         print(f"Error: Could not find sweep configuration in {sweep_dir}/configs")
         return None
@@ -536,11 +539,15 @@ def generate_rerun_script(
 
     # Training command
     training_script = slurm_config.get("training_script", "")
+    # if training_script.startswith("/"):
+    #     lines.append("  ${PYTHON} -u ${TRAINING_SCRIPT} ${CONFIG_FILE}")
+    # else:
+    #     lines.append("  ${PYTHON} -u $(pwd)/${TRAINING_SCRIPT} ${CONFIG_FILE}")
     if training_script.startswith("/"):
-        lines.append("  ${PYTHON} -u ${TRAINING_SCRIPT} ${CONFIG_FILE}")
+        lines.append("  ${PYTHON} -u ${TRAINING_SCRIPT} \"${CONFIG_FILE}\" --output_dir \"${CONFIG_FOLDER_PATH}\"")
     else:
-        lines.append("  ${PYTHON} -u $(pwd)/${TRAINING_SCRIPT} ${CONFIG_FILE}")
-
+        lines.append("  ${PYTHON} -u $(pwd)/${TRAINING_SCRIPT} \"${CONFIG_FILE}\" --output_dir \"${CONFIG_FOLDER_PATH}\"")
+    
     # Finish
     lines.extend(
         [

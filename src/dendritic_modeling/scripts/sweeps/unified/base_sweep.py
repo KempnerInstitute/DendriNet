@@ -285,6 +285,9 @@ class SweepJobManager:
             f.write(
                 f"#SBATCH --partition={self.slurm_config.get('partition', 'kempner')}\n"
             )
+            constraint = self.slurm_config.get('constraint', None)
+            if constraint:
+                f.write(f"#SBATCH --constraint={constraint}\n")
             f.write(f"#SBATCH --time={self.slurm_config.get('time', '02:00:00')}\n")
             f.write(f"#SBATCH --nodes={self.slurm_config.get('nodes', 1)}\n")
             f.write(
