@@ -10,6 +10,7 @@ from dendritic_modeling.training.strategies.local_learning import LocalCreditAss
 from dendritic_modeling.training.strategies.specialized import (
     TrainOnlyMReactivation,
     VoltageStabilizationTrainer,
+    ExcitationInhibitionEquilibriumTrainer,
     HomeostaticControlTrainer,
 )
 from dendritic_modeling.training.strategies.standard import Trainer
@@ -26,5 +27,6 @@ __all__ = [
     "TwoStepTrainer",
     "TwoStepTrainerWithKL",
     "VoltageStabilizationTrainer",
+    "ExcitationInhibitionEquilibriumTrainer",
     "HomeostaticControlTrainer",
 ]
