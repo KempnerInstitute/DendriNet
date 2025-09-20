@@ -390,7 +390,8 @@ class DendriticBranchLayer(nn.Module):
         A conduction-based dynamic scale, returning a flattened vector so each weight
         can get a distinct multiplier. shape [out_features * block_size].
 
-        Dynamically handles gradient scaling based on the weight_transform type.
+        NOTE: PyTorch autograd automatically handles weight transform derivatives,
+        so we only need to scale for shunting dynamics normalization.
         """
         with torch.no_grad():
             if self.use_shunting:
@@ -401,29 +402,15 @@ class DendriticBranchLayer(nn.Module):
                     hasattr(self, "branches_to_output")
                     and self.blocklinear_strategy == "conductance_dynamic"
                 ):
-                    # Get conductances from BlockLinear (it doesn't have a weight() method)
-                    conductances = self.branches_to_output.sum_conductances()
-                    log_weights = self.branches_to_output.log_weight
+                    # Get weights from BlockLinear
+                    weights = self.branches_to_output.weight()
 
-                    if self.weight_transform == "exp":
-                        # For exp: gradient scale needs to account for the exponential derivative
-                        # d/dx(exp(x)) = exp(x), so we scale by the conductances themselves
-                        scale_factor = conductances
-                    elif self.weight_transform == "relu":
-                        # Add small epsilon to avoid zero gradients
-                        scale_factor = (conductances > 0).float() + 1e-6
-                    elif self.weight_transform == "softplus":
-                        # For softplus: derivative is sigmoid(x) = 1 / (1 + exp(-x))
-                        # We need the pre-transform weights (sum over block_size dimension)
-                        scale_factor = torch.sigmoid(log_weights).sum(dim=1)
-                    else:
-                        # Default/fallback - no additional scaling
-                        scale_factor = torch.ones_like(conductances)
-
+                    # Scale to normalize gradient flow (prevent explosion from shunting dynamics)
+                    # This makes gradients approximately O(1) regardless of conductance magnitude
                     self.branches_to_output.input_scale_vec = (
-                        g_total / (conductances * scale_factor).clamp(min=1e-8)
+                        g_total[:, None] / weights.clamp(min=1e-8)
                     ).flatten()
-                    self.branches_to_output.param_scale_vec = g_total * scale_factor
+                    self.branches_to_output.param_scale_vec = g_total[:, None]
 
                 if (
                     self.branch_excitation is not None
@@ -431,25 +418,11 @@ class DendriticBranchLayer(nn.Module):
                 ):
                     weights = self.branch_excitation.weight()
 
-                    # Apply transform-specific gradient scaling
-                    if self.weight_transform == "exp":
-                        scale_factor = weights
-                    elif self.weight_transform == "relu":
-                        scale_factor = (weights > 0).float() + 1e-6
-                    elif self.weight_transform == "softplus":
-                        # For TopK layers, we need to handle the pre-transform weights differently
-                        # since they use their own weight() method
-                        pre_weights = self.branch_excitation.pre_w
-                        scale_factor = torch.sigmoid(pre_weights)
-                    else:
-                        scale_factor = torch.ones_like(weights)
-
+                    # Scale to normalize gradient flow (no transform-specific scaling needed)
                     self.branch_excitation.input_scale_vec = (
-                        g_total[:, None] / (weights * scale_factor).clamp(min=1e-8)
+                        g_total[:, None] / weights.clamp(min=1e-8)
                     ).mean(dim=0)
-                    self.branch_excitation.param_scale_vec = g_total[
-                        :, None
-                    ] * scale_factor.mean(dim=0)
+                    self.branch_excitation.param_scale_vec = g_total[:, None]
 
                 if (
                     self.branch_inhibition is not None
@@ -457,59 +430,31 @@ class DendriticBranchLayer(nn.Module):
                 ):
                     weights = self.branch_inhibition.weight()
 
-                    # Apply transform-specific gradient scaling
-                    if self.weight_transform == "exp":
-                        scale_factor = weights
-                    elif self.weight_transform == "relu":
-                        scale_factor = (weights > 0).float() + 1e-6
-                    elif self.weight_transform == "softplus":
-                        # For TopK layers, we need to handle the pre-transform weights differently
-                        pre_weights = self.branch_inhibition.pre_w
-                        scale_factor = torch.sigmoid(pre_weights)
-                    else:
-                        scale_factor = torch.ones_like(weights)
-
+                    # Scale to normalize gradient flow (no transform-specific scaling needed)
                     self.branch_inhibition.input_scale_vec = (
-                        g_total[:, None] / (weights * scale_factor).clamp(min=1e-8)
+                        g_total[:, None] / weights.clamp(min=1e-8)
                     ).mean(dim=0)
-                    self.branch_inhibition.param_scale_vec = g_total[
-                        :, None
-                    ] * scale_factor.mean(dim=0)
+                    self.branch_inhibition.param_scale_vec = g_total[:, None]
 
-                else:
-                    if (
-                        hasattr(self, "branches_to_output")
-                        and self.blocklinear_strategy == "conductance_dynamic"
-                    ):
-                        # Non-shunting case: no input scaling, only param scaling for chain rule
-                        conductances = self.branches_to_output.sum_conductances()
-                        log_weights = self.branches_to_output.log_weight
+            else:
+                # Non-shunting case
+                if (
+                    hasattr(self, "branches_to_output")
+                    and self.blocklinear_strategy == "conductance_dynamic"
+                ):
+                    # Get weights
+                    weights = self.branches_to_output.weight()
 
-                        # Disable input scaling for non-shunting
-                        self.branches_to_output.input_scale_vec = torch.ones_like(
-                            conductances
-                        ).flatten()
+                    # For non-shunting, we can apply a simple inverse weight scaling
+                    # to help with gradient flow normalization
+                    self.branches_to_output.input_scale_vec = (
+                        1.0 / weights.clamp(min=1e-8)
+                    ).flatten()
 
-                        # Apply param scaling based on weight transform (chain rule)
-                        if self.weight_transform == "exp":
-                            # d/dw̃ = exp(w̃) = g
-                            self.branches_to_output.param_scale_vec = conductances
-                        elif self.weight_transform == "relu":
-                            # d/dw̃ = 1 if w̃ > 0, else 0
-                            self.branches_to_output.param_scale_vec = (
-                                conductances > 0
-                            ).float()
-                        elif self.weight_transform == "softplus":
-                            # d/dw̃ = sigmoid(w̃)
-                            sigmoid_derivatives = torch.sigmoid(log_weights)
-                            self.branches_to_output.param_scale_vec = (
-                                sigmoid_derivatives.mean(dim=1)
-                            )
-                        else:
-                            # No transform, no scaling needed
-                            self.branches_to_output.param_scale_vec = torch.ones_like(
-                                conductances
-                            )
+                    # No param scaling needed - PyTorch handles transform derivatives
+                    self.branches_to_output.param_scale_vec = torch.ones(
+                        weights.shape[0]
+                    )
 
     def get_weights(self):
         if self.input_inhibitory and self.input_excitatory:

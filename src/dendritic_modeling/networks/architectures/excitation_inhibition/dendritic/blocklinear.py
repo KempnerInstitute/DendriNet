@@ -177,6 +177,10 @@ class BlockLinear(nn.Module):
     def sum_conductances(self):
         return apply_weight_transform(self.log_weight, self.weight_transform).sum(dim=1)
 
+    def weight(self):
+        """Return transformed per-block weights with shape (out_features, block_size)."""
+        return apply_weight_transform(self.log_weight, self.weight_transform)
+
 
 # ---------------------------------------------------------------------------
 # Memory-efficient implementation that avoids constructing the block-diagonal
