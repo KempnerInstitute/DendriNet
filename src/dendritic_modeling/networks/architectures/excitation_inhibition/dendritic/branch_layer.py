@@ -77,6 +77,7 @@ class DendriticBranchLayer(nn.Module):
         topk_init_method="xavier_normal",
         topk_noise_level=0.0,
         topk_type="standard",  # New parameter
+        weight_transform="exp",  # Weight transformation for positive weights
         topk_temperature=0.5,  # For stochastic TopK
         topk_ultrafast=False,  # For much faster stochastic TopK
         topk_strategy="none",
@@ -106,7 +107,6 @@ class DendriticBranchLayer(nn.Module):
         adaptive_initialization=True,
         branch_factors=None,  # Add branch_factors parameter
         epsilon=1e-8,  # Add configurable epsilon for numerical stability
-        weight_transform="exp",  # Weight transformation for positive weights
         **kwargs,
     ):
         super().__init__()
@@ -163,6 +163,9 @@ class DendriticBranchLayer(nn.Module):
             self.branch_excitation = None
 
         self.input_inhibitory = inhibitory_input_dim is not None
+        self.input_inhibitory = self.input_inhibitory and (
+            inhibitory_synapses_per_branch > 0
+        )
         if self.input_inhibitory:
             self.branch_inhibition = self._create_topk_layer(
                 in_features=inhibitory_input_dim,
