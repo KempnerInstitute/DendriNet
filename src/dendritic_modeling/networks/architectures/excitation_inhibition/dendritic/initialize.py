@@ -175,11 +175,8 @@ def analytical_expectation_dbl_init(
         branch_factors: List of branch factors for hierarchical networks
     """
     from .branch_layer import DendriticBranchLayer
-    from .dendriarchblock import DendriarchBlockLinear
 
-    assert isinstance(dbl, DendriticBranchLayer) or isinstance(
-        dbl, DendriarchBlockLinear
-    )
+    assert isinstance(dbl, DendriticBranchLayer)
 
     with torch.no_grad():
         E_g_exc = 0

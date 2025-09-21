@@ -123,7 +123,13 @@ class DendriticBranchLayer(nn.Module):
         self.weight_transform = weight_transform
         self.branch_factors = branch_factors
         self.adaptive_initialization = adaptive_initialization
-        gradient_scaler = GradientScaler()
+        gradient_scaler = GradientScaler(
+            topk_strategy=topk_strategy,
+            reactivation_strategy=reactivation_strategy,
+            blocklinear_strategy=blocklinear_strategy,
+            layer_idx=layer_idx,
+            print_hooks=print_hooks,
+        )
 
         # TopK strategy-related configs
         self.topk_strategy = topk_strategy
@@ -199,19 +205,23 @@ class DendriticBranchLayer(nn.Module):
             gradient_scaler.register_block_linear_dynamic(self.branches_to_output)
         self.input_branch_factor = input_branch_factor
 
-        # Add activation for reactivation
-        if reactivate and reactivation_strategy != "none":
-            self.reactivation = ActivationFactory.get_activation(
-                reactivation_type,
-                m=reactivation_init_m,
-                b=reactivation_init_b,
-                out_features=output_dim,
+        # Add activation for reactivation: instantiate whenever reactivate is True
+        if reactivate:
+            self.reactivation = ActivationFactory.create(
+                act_type=reactivation_type,
+                output_dim=output_dim,
+                init_m=reactivation_init_m,
+                init_b=reactivation_init_b,
+                **kwargs,
             )
-            gradient_scaler.register_param_tanh_dynamic(self.reactivation)
+            if self.use_shunting:
+                gradient_scaler.register_reactivation_inverse(self.reactivation)
         else:
             self.reactivation = nn.Identity()
 
-        self.initialized = False
+        # Initialize parameters immediately to match volt behavior
+        self.initialize()
+        self.initialized = True
 
     def _compute_einet_scaling_factors(self):
         """
@@ -356,9 +366,7 @@ class DendriticBranchLayer(nn.Module):
         Returns:
             Output tensor after dendritic processing
         """
-        if not self.initialized:
-            self.initialize()
-            self.initialized = True
+        # Already initialized in __init__
 
         if self.use_shunting:
             numerator = 0
