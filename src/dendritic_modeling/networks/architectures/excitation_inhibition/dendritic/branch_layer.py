@@ -10,6 +10,7 @@ from typing import Optional
 
 import torch
 import torch.nn as nn
+import torch.nn.functional
 
 from dendritic_modeling.networks.activations import ActivationFactory
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.blocklinear import (
@@ -198,24 +199,17 @@ class DendriticBranchLayer(nn.Module):
             gradient_scaler.register_block_linear_dynamic(self.branches_to_output)
         self.input_branch_factor = input_branch_factor
 
-        # Add activation for reactivation strategy
-        if self.reactivation_strategy == "add" or self.reactivation_strategy == "mult":
-            # For multiplicative or additive reactivation,
-            # initialize the activation function
-            if reactivate:
-                self.activation = ActivationFactory.get_activation(
-                    reactivation_type,
-                    m=reactivation_init_m,
-                    b=reactivation_init_b,
-                    out_features=output_dim,
-                )
-                gradient_scaler.register_param_tanh_dynamic(self.activation)
-            else:
-                # If not reactivated, use identity
-                self.activation = nn.Identity()
+        # Add activation for reactivation
+        if reactivate and reactivation_strategy != "none":
+            self.reactivation = ActivationFactory.get_activation(
+                reactivation_type,
+                m=reactivation_init_m,
+                b=reactivation_init_b,
+                out_features=output_dim,
+            )
+            gradient_scaler.register_param_tanh_dynamic(self.reactivation)
         else:
-            # No reactivation
-            self.activation = None
+            self.reactivation = nn.Identity()
 
         self.initialized = False
 
@@ -350,17 +344,12 @@ class DendriticBranchLayer(nn.Module):
         if self.input_inhibitory and hasattr(self.branch_inhibition, "apply_rewiring"):
             self.branch_inhibition.apply_rewiring()
 
-    def forward(
-        self,
-        excitatory_input: Optional[torch.Tensor] = None,
-        inhibitory_input: Optional[torch.Tensor] = None,
-        branch_input: Optional[torch.Tensor] = None,
-    ):
+    def forward(self, x, inhibitory_input=None, branch_input=None):
         """
         Forward pass through the dendritic branch layer.
 
         Args:
-            excitatory_input: Excitatory input tensor [batch, input_dim]
+            x: Excitatory input tensor [batch, input_dim]
             inhibitory_input: Inhibitory input tensor [batch, input_dim]
             branch_input: Input from previous branches [batch, n_branches]
 
@@ -371,166 +360,104 @@ class DendriticBranchLayer(nn.Module):
             self.initialize()
             self.initialized = True
 
-        # Process excitatory input
-        excitation = None
-        if excitatory_input is not None and self.branch_excitation is not None:
-            # Use TopK layer to select sparse excitatory connections
-            excitation = self.branch_excitation(excitatory_input)
+        if self.use_shunting:
+            numerator = 0
+            denominator = 1
 
-        # Process inhibitory input
-        inhibition = None
-        if inhibitory_input is not None and self.branch_inhibition is not None:
-            # Use TopK layer to select sparse inhibitory connections
-            inhibition = self.branch_inhibition(inhibitory_input)
+            if self.input_excitatory and self.branch_excitation is not None:
+                excitation = self.branch_excitation(x)
+                numerator = numerator + excitation
+                denominator = denominator + torch.nn.functional.relu(excitation)
 
-        # Process branch input
-        aggregate_branch = None
-        if branch_input is not None and self.input_branches:
-            # Use BlockLinear to aggregate from converging branches
-            aggregate_branch = self.branches_to_output(branch_input)
+            if self.input_branches and branch_input is not None:
+                current = self.branches_to_output(branch_input)
+                numerator = numerator + current
+                conductance = self.branches_to_output.sum_conductances()
+                denominator = denominator + torch.nn.functional.relu(conductance)
 
-        # Aggregate all inputs
-        aggregated = 0
-        if excitation is not None:
-            aggregated = aggregated + excitation
-        if aggregate_branch is not None:
-            aggregated = aggregated + aggregate_branch
+            if (
+                self.input_inhibitory
+                and self.branch_inhibition is not None
+                and inhibitory_input is not None
+            ):
+                inhibition = self.branch_inhibition(inhibitory_input)
+                denominator = denominator + torch.nn.functional.relu(inhibition)
 
-        # Apply shunting inhibition if enabled and inhibition is present
-        if self.use_shunting and inhibition is not None:
-            aggregated = aggregated / (1 + inhibition + self.epsilon)
-        elif inhibition is not None:
-            # Subtractive inhibition
-            aggregated = aggregated - inhibition
+            voltage = numerator / (denominator + self.epsilon)
 
-        # Apply reactivation strategy
-        if self.reactivation_strategy == "none":
-            # No reactivation
-            return aggregated
-        elif self.reactivation_strategy == "add":
-            # Additive reactivation: branch_out = activation(aggregated) + aggregated
-            activated = self.activation(aggregated)
-            return activated + aggregated
-        elif self.reactivation_strategy == "mult":
-            # Multiplicative reactivation: branch_out = activation(aggregated) * aggregated
-            activated = self.activation(aggregated)
-            return activated * aggregated
         else:
-            raise ValueError(
-                f"Unknown reactivation strategy: {self.reactivation_strategy}"
-            )
+            voltage = 0
 
-    def compute_grad_scales(self):
+            if self.input_excitatory and self.branch_excitation is not None:
+                voltage = voltage + self.branch_excitation(x)
+
+            if self.input_branches and branch_input is not None:
+                voltage = voltage + self.branches_to_output(branch_input)
+
+            if (
+                self.input_inhibitory
+                and self.branch_inhibition is not None
+                and inhibitory_input is not None
+            ):
+                voltage = voltage - self.branch_inhibition(inhibitory_input)
+
+        if self.training and "conductance_dynamic" in [
+            self.topk_strategy,
+            self.blocklinear_strategy,
+        ]:
+            self.compute_grad_scales(g_total=denominator if self.use_shunting else None)
+
+        result = self.reactivation(voltage)
+        return result
+
+    def compute_grad_scales(self, g_total: Optional[torch.Tensor] = None):
         """
         A conduction-based dynamic scale, returning a flattened vector so each weight
         can get a distinct multiplier. shape [out_features * block_size].
         """
         with torch.no_grad():
-            if self.use_shunting:
-                # Only set up shunting dynamics gradient scaling
+            if self.use_shunting and g_total is not None:
+                if g_total.dim() > 1:
+                    g_total = g_total.mean(dim=tuple(range(g_total.dim() - 1)))
+
                 if (
                     hasattr(self, "branches_to_output")
                     and self.blocklinear_strategy == "conductance_dynamic"
                 ):
-                    # Calculate g_total for each output neuron
-                    g_total = torch.zeros(self.output_dim)
-                    if self.branch_excitation is not None:
-                        g_total += self.branch_excitation.weight().sum(dim=1)
-
-                    # Get weights from BlockLinear
-                    weights = self.branches_to_output.weight()
-
-                    # Scale to normalize gradient flow (prevent explosion from shunting dynamics)
-                    # This makes gradients approximately O(1) regardless of conductance magnitude
                     self.branches_to_output.input_scale_vec = (
-                        g_total[:, None] / weights.clamp(min=1e-8)
+                        g_total[:, None] / self.branches_to_output.weight()
                     ).flatten()
                     self.branches_to_output.param_scale_vec = g_total[:, None]
 
-                # Similar logic for TopK excitatory connections if requested
                 if (
-                    self.topk_strategy == "conductance_dynamic"
-                    and self.branch_excitation is not None
+                    self.branch_excitation is not None
+                    and self.topk_strategy == "conductance_dynamic"
                 ):
-                    # TopK layers handle their own gradient scaling
-                    exc_weights = self.branch_excitation.weight()
-                    g_total = exc_weights.sum(dim=1, keepdim=True)
                     self.branch_excitation.input_scale_vec = (
-                        g_total / exc_weights.clamp(min=1e-8)
-                    ).flatten()
-                    self.branch_excitation.param_scale_vec = g_total.flatten()
+                        g_total[:, None] / self.branch_excitation.weight()
+                    ).mean(dim=0)
+                    self.branch_excitation.param_scale_vec = g_total[:, None]
 
-                # Similar logic for TopK inhibitory connections if requested
                 if (
-                    self.topk_strategy == "conductance_dynamic"
-                    and self.branch_inhibition is not None
+                    self.branch_inhibition is not None
+                    and self.topk_strategy == "conductance_dynamic"
                 ):
-                    inh_weights = self.branch_inhibition.weight()
-                    g_total = inh_weights.sum(dim=1, keepdim=True)
                     self.branch_inhibition.input_scale_vec = (
-                        g_total / inh_weights.clamp(min=1e-8)
-                    ).flatten()
-                    self.branch_inhibition.param_scale_vec = g_total.flatten()
+                        g_total[:, None] / self.branch_inhibition.weight()
+                    ).mean(dim=0)
+                    self.branch_inhibition.param_scale_vec = g_total[:, None]
+
             else:
-                # For non-shunting dynamics, only need to prevent zero gradients
                 if (
                     hasattr(self, "branches_to_output")
                     and self.blocklinear_strategy == "conductance_dynamic"
                 ):
-                    # Get weights
-                    weights = self.branches_to_output.weight()
-
-                    # Simple scaling to prevent zero gradients
-                    # to help with gradient flow normalization
-                    self.branches_to_output.input_scale_vec = (
-                        1.0 / weights.clamp(min=1e-8)
+                    # only apply input_scale_vec = 1 / branch_weights
+                    self.branches_to_output.input_scale_vec = torch.exp(
+                        -1 * self.branches_to_output.weight().log()
                     ).flatten()
 
-                    # No param scaling needed - PyTorch handles transform derivatives
+                    # No param scaling needed
                     self.branches_to_output.param_scale_vec = torch.ones(
-                        weights.shape[0]
+                        self.branches_to_output.out_features
                     )
-
-                # Similar for TopK layers in non-shunting mode
-                if (
-                    self.topk_strategy == "conductance_dynamic"
-                    and self.branch_excitation is not None
-                ):
-                    exc_weights = self.branch_excitation.weight()
-                    self.branch_excitation.input_scale_vec = (
-                        1.0 / exc_weights.clamp(min=1e-8)
-                    ).flatten()
-                    self.branch_excitation.param_scale_vec = torch.ones(
-                        exc_weights.shape[0]
-                    )
-
-                if (
-                    self.topk_strategy == "conductance_dynamic"
-                    and self.branch_inhibition is not None
-                ):
-                    inh_weights = self.branch_inhibition.weight()
-                    self.branch_inhibition.input_scale_vec = (
-                        1.0 / inh_weights.clamp(min=1e-8)
-                    ).flatten()
-                    self.branch_inhibition.param_scale_vec = torch.ones(
-                        inh_weights.shape[0]
-                    )
-
-        # Add hook to update gradients before each optimization step
-        if self.blocklinear_strategy == "conductance_dynamic" and hasattr(
-            self, "branches_to_output"
-        ):
-            # Register hook to update scales before backward
-            self.branches_to_output.register_forward_pre_hook(
-                lambda m, x: self.compute_grad_scales()
-            )
-
-        if self.topk_strategy == "conductance_dynamic":
-            if self.branch_excitation is not None:
-                self.branch_excitation.register_forward_pre_hook(
-                    lambda m, x: self.compute_grad_scales()
-                )
-            if self.branch_inhibition is not None:
-                self.branch_inhibition.register_forward_pre_hook(
-                    lambda m, x: self.compute_grad_scales()
-                )

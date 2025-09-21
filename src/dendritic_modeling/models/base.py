@@ -17,7 +17,6 @@ from dendritic_modeling.networks import (
     DendriticBranchLayer,
     ExcitationInhibitionLayer,
     ExcitationInhibitionNetwork,
-    MLP
 )
 
 
@@ -83,9 +82,13 @@ class BaseModel(nn.Module):
                         blocklinear_params.append(
                             module.branches_to_output.parameters()
                         )
-                    if module.reactivate:
+                    if (
+                        hasattr(module, "reactivation")
+                        and module.reactivation is not None
+                        and not isinstance(module.reactivation, nn.Identity)
+                    ):
                         reactivation_params.append(module.reactivation.parameters())
-                
+
                 elif isinstance(module, ExcitationInhibitionLayer):
                     if isinstance(module.inhibitory_cells, nn.Sequential):
                         mlp_inh_net_params.append(module.inhibitory_cells.parameters())

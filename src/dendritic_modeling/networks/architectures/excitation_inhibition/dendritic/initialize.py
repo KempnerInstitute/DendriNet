@@ -314,8 +314,6 @@ def analytical_expectation_dbl_init(
 
         # Initialize reactivation if present
         reactivation = getattr(dbl, "reactivation", None)
-        if reactivation is None:
-            reactivation = getattr(dbl, "activation", None)
 
         if reactivation and not isinstance(reactivation, torch.nn.Identity):
             # Adaptive initialization for reactivation based on expected voltage
@@ -423,8 +421,6 @@ def ei_equivalence_dbl_init(dbl):
 
         # Initialize reactivation if present
         reactivation = getattr(dbl, "reactivation", None)
-        if reactivation is None:
-            reactivation = getattr(dbl, "activation", None)
 
         if reactivation and not isinstance(reactivation, torch.nn.Identity):
             E_Vinf = (
@@ -506,8 +502,6 @@ def naive_dbl_init(dbl):
 
         # Initialize reactivation if present
         reactivation = getattr(dbl, "reactivation", None)
-        if reactivation is None:
-            reactivation = getattr(dbl, "activation", None)
 
         if reactivation and not isinstance(reactivation, torch.nn.Identity):
             if hasattr(reactivation, "initialize"):
@@ -549,8 +543,6 @@ def default_dbl_init(dbl):
 
         # Initialize reactivation if present
         reactivation = getattr(dbl, "reactivation", None)
-        if reactivation is None:
-            reactivation = getattr(dbl, "activation", None)
 
         if reactivation and not isinstance(reactivation, torch.nn.Identity):
             if hasattr(reactivation, "initialize"):
