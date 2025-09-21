@@ -38,6 +38,7 @@ class DendriNet(nn.Module):
         topk_init_method="xavier_normal",
         topk_noise_level=0.0,
         topk_type="standard",  # New parameter for TopK strategy
+        weight_transform="exp",  # Weight transformation for positive weights
         topk_temperature=0.5,  # For stochastic TopK
         topk_ultrafast=False,  # For much faster stochastic TopK
         topk_strategy="none",
@@ -63,7 +64,6 @@ class DendriNet(nn.Module):
         init_method=None,
         weight_threshold=1e-6,
         adaptive_initialization=True,  # Add adaptive initialization parameter
-        weight_transform="exp",  # Weight transformation for positive weights
         **kwargs,
     ):
         super().__init__()
@@ -90,8 +90,8 @@ class DendriNet(nn.Module):
         ):
             if not isinstance(inhibitory_synapses_per_branch, int):
                 raise TypeError("inhibitory_synapses_per_branch must be int")
-            if inhibitory_synapses_per_branch < 1:
-                raise ValueError("inhibitory_synapses_per_branch must be >= 1")
+            # if inhibitory_synapses_per_branch < 1:
+            #     raise ValueError("inhibitory_synapses_per_branch must be >= 1")
 
         if (
             excitatory_input_dim is not None
@@ -253,9 +253,9 @@ class DendriNet(nn.Module):
         for layer in self.branch_layers:
             layer.apply_rewiring()
 
-    def decay_weights(self, weight_decay):
+    def decay_weights(self, weight_decay, weight_boosting=False):
         for branch_layer in self.branch_layers:
-            branch_layer.decay_weights(weight_decay)
+            branch_layer.decay_weights(weight_decay, weight_boosting)
 
     def forward(self, x, inhibitory_input=None):
         output = None

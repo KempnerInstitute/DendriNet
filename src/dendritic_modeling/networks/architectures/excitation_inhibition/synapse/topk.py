@@ -158,10 +158,7 @@ class TopKLinear(nn.Module):
 
     def weight(self):
         """Return the transformed synaptic weights."""
-        if self.param_space == "log":
-            return apply_weight_transform(self.pre_w, self.weight_transform)
-        elif self.param_space == "presigmoid":
-            return torch.sigmoid(self.pre_w)
+        return apply_weight_transform(self.pre_w, self.weight_transform)
 
     def log_weight(self):
         """Return the log of the transformed weights."""

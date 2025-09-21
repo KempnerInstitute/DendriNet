@@ -23,6 +23,7 @@ from dendritic_modeling.training.strategies import (
     TwoStepTrainer,
     TwoStepTrainerWithKL,
     VoltageStabilizationTrainer,
+    ExcitationInhibitionEquilibriumTrainer,
     HomeostaticControlTrainer,
 )
 
@@ -168,6 +169,8 @@ def get_trainer(
         return TwoStepTrainerWithKL(**trainer_config_dict)
     elif strategy == "voltage_stabilization":
         return VoltageStabilizationTrainer(**trainer_config_dict)
+    elif strategy == "ei_equilibrium":
+        return ExcitationInhibitionEquilibriumTrainer(**trainer_config_dict)
     elif strategy == "homeostatic_control":
         return HomeostaticControlTrainer(**trainer_config_dict)
     elif strategy == "fsdp" or strategy == "fsdp_standard":

@@ -210,6 +210,18 @@ class VoltageStabilizationLoss(LossFunction):
             self.metric_fn = lambda x, y: torch.log(
                 reduction_fn(torch.abs(x - y)) + self.eps
             )
+        elif loss_metric == "squared_mean_error":
+            self.metric_fn = lambda x, y: reduction_fn(x - y) ** 2
+        elif loss_metric == "log_squared_mean_error":
+            self.metric_fn = lambda x, y: torch.log(
+                reduction_fn(x - y) ** 2 + self.eps
+            )
+        elif loss_metric == "abs_mean_error":
+            self.metric_fn = lambda x, y: torch.abs(reduction_fn(x - y))
+        elif loss_metric == "log_abs_mean_error":
+            self.metric_fn = lambda x, y: torch.log(
+                torch.abs(reduction_fn(x - y)) + self.eps
+            )
         else:
             raise ValueError(f"Invalid metric for voltage stabilization: {loss_metric}")
 
@@ -287,6 +299,18 @@ class ExcitationInhibitionBalanceLoss(LossFunction):
         elif loss_metric == "log_mae":
             self.metric_fn = lambda x, y: torch.log(
                 reduction_fn(torch.abs(x - y)) + self.eps
+            )
+        elif loss_metric == "squared_mean_error":
+            self.metric_fn = lambda x, y: (reduction_fn(x) - reduction_fn(y)) ** 2
+        elif loss_metric == "log_squared_mean_error":
+            self.metric_fn = lambda x, y: torch.log(
+                (reduction_fn(x) - reduction_fn(y)) ** 2 + self.eps
+            )
+        elif loss_metric == "abs_mean_error":
+            self.metric_fn = lambda x, y: torch.abs(reduction_fn(x) - reduction_fn(y))
+        elif loss_metric == "log_abs_mean_error":
+            self.metric_fn = lambda x, y: torch.log(
+                torch.abs(reduction_fn(x) - reduction_fn(y)) + self.eps
             )
         else:
             raise ValueError(

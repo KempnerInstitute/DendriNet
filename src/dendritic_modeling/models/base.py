@@ -15,7 +15,9 @@ from dendritic_modeling.config import ParamGroupsConfig
 from dendritic_modeling.networks import (
     BaseNetwork,
     DendriticBranchLayer,
+    ExcitationInhibitionLayer,
     ExcitationInhibitionNetwork,
+    MLP
 )
 
 
@@ -45,12 +47,12 @@ class BaseModel(nn.Module):
     def predict(self, x: torch.Tensor) -> torch.Tensor:
         raise NotImplementedError("Predict method must be implemented in subclass.")
 
-    def decay_weights(self, weight_decay: float):
+    def decay_weights(self, weight_decay: float, weight_boosting: bool = False):
         """
         Forward this call to self.net if it implements decay_weights.
         """
         if hasattr(self.core_network, "decay_weights"):
-            self.core_network.decay_weights(weight_decay)
+            self.core_network.decay_weights(weight_decay, weight_boosting)
 
     def apply_rewiring(self):
         """
@@ -65,6 +67,7 @@ class BaseModel(nn.Module):
         """
         split_params = getattr(param_groups_config, "split_params", True)
         if split_params and isinstance(self.core_network, ExcitationInhibitionNetwork):
+            mlp_inh_net_params = []
             topk_params = []
             blocklinear_params = []
             reactivation_params = []
@@ -82,6 +85,10 @@ class BaseModel(nn.Module):
                         )
                     if module.reactivate:
                         reactivation_params.append(module.reactivation.parameters())
+                
+                elif isinstance(module, ExcitationInhibitionLayer):
+                    if isinstance(module.inhibitory_cells, nn.Sequential):
+                        mlp_inh_net_params.append(module.inhibitory_cells.parameters())
 
             decoder_params.append(self.decoder_network.parameters())
             if hasattr(self, "log_output_scale"):
@@ -89,6 +96,13 @@ class BaseModel(nn.Module):
                 decoder_params.append([self.log_output_scale])
 
             param_groups = []
+            if mlp_inh_net_params:
+                param_groups.append(
+                    {
+                        "params": chain(*mlp_inh_net_params),
+                        "lr": getattr(param_groups_config, "lr", 0.001),
+                    }
+                )
             if topk_params:
                 param_groups.append(
                     {
