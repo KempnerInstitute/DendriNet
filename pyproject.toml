@@ -27,26 +27,26 @@ classifiers = [
 ]
 dependencies = [
     "torch>=2.0.0,!=2.6.0,<3.0.0",
-    "numpy>=1.21.0,<2.0.0",
     "torchvision>=0.15.0,<1.0.0",
     "torchinfo>=1.7.0",
+    "omegaconf>=2.1.0,<3.0.0",
+    "PyYAML>=6.0",
+    "numpy>=1.21.0,<2.0.0",
+    "scipy>=1.7.0",
+    "scikit-learn>=1.0.0",
+    "pandas>=1.3.0,<3.0.0",
+    "h5py>=3.0.0",
     "matplotlib>=3.5.0,<4.0.0",
     "seaborn>=0.11.0,<1.0.0",
+    "plotly>=5.0.0",
     "wandb>=0.12.0",
-    "pandas>=1.3.0,<3.0.0",
-    "omegaconf>=2.1.0,<3.0.0",
-    "scikit-learn>=1.0.0",
+    "tensorboard>=2.10.0",
     "tensorflow>=2.16.0",
     "tensorflow_probability",
     "tf-keras",
-    "python-dateutil",
-    "PyYAML>=6.0",
-    "tqdm>=4.60.0",
-    "scipy>=1.7.0",
-    "h5py>=3.0.0",
-    "plotly>=5.0.0",
-    "tensorboard>=2.10.0",
     "psutil>=5.8.0",
+    "tqdm>=4.60.0",
+    "python-dateutil",
 ]
 
 [project.urls]
@@ -70,7 +70,6 @@ dendritic_modeling = ["configs/*.yaml", "configs/**/*.yaml"]
 
 
 [project.optional-dependencies]
-# Testing dependencies for comprehensive test suite
 test = [
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",
@@ -78,20 +77,18 @@ test = [
     "pytest-timeout>=2.1.0",
     "pytest-xdist>=3.0.0",
     "coverage[toml]>=6.5.0",
-    "networkx",  # For graph/network testing
-    "mock",  # Additional mocking utilities
+    "networkx",
+    "mock",
 ]
 
-# Code quality and linting
 lint = [
     "ruff>=0.1.0",
     "mypy>=1.0,<1.4",
-    "black>=23.1,<24.0",
+    "black>=24.3.0",
     "isort>=5.12,<5.13",
     "pre-commit>=3.0.0",
 ]
 
-# Development dependencies (testing + linting + build tools)
 dev = [
     "dendritic_modeling[test,lint]",
     "twine>=1.11.0",
@@ -100,15 +97,12 @@ dev = [
     "build",
 ]
 
-# Training and analysis dependencies
 train = [
-    "jupyter",  # For training notebooks and analysis
-    "ipykernel",  # Jupyter kernel support
-    "plotly",  # Interactive plotting for analysis
-    "tensorboard",  # TensorFlow/PyTorch logging and visualization
+    "jupyter>=1.0.0",
+    "ipykernel",
+    "ipython>=8.0.0",
 ]
 
-# Documentation dependencies
 docs = [
     "sphinx",
     "sphinx-rtd-theme",
@@ -120,7 +114,6 @@ docs = [
     "sphinxcontrib-bibtex",
 ]
 
-# All optional dependencies
 all = [
     "dendritic_modeling[dev,train,docs]",
 ]

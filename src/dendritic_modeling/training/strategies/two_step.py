@@ -87,7 +87,9 @@ class TwoStepTrainer(Trainer):
             Dictionary containing training results and metrics
         """
         # Get network object
-        if hasattr(model, "net"):
+        if hasattr(model, "core_network"):
+            net_obj = model.core_network
+        elif hasattr(model, "net"):
             net_obj = model.net
         elif hasattr(model, "network"):
             net_obj = model.network
@@ -251,7 +253,9 @@ class TwoStepTrainerWithKL(Trainer):
             Dictionary containing training results and metrics
         """
         # Get network object
-        if hasattr(model, "net"):
+        if hasattr(model, "core_network"):
+            net_obj = model.core_network
+        elif hasattr(model, "net"):
             net_obj = model.net
         elif hasattr(model, "network"):
             net_obj = model.network
