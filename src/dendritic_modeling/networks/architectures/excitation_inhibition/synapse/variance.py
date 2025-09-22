@@ -10,6 +10,10 @@ import torch
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.topk import (
     TopKLinear,
 )
+from dendritic_modeling.networks.utils.weight_transforms import (
+    apply_weight_transform, 
+    WeightTransformType
+)
 
 
 class VarianceTopKLinear(TopKLinear):
@@ -29,6 +33,7 @@ class VarianceTopKLinear(TopKLinear):
         out_features,
         K,
         param_space="log",
+        weight_transform: WeightTransformType = "exp",
         init_method="xavier_normal",
         init_gain=1.0,
         noise_level=0.0,
@@ -39,6 +44,7 @@ class VarianceTopKLinear(TopKLinear):
             out_features,
             K,
             param_space=param_space,
+            weight_transform=weight_transform,
             init_method=init_method,
             init_gain=init_gain,
             noise_level=noise_level,
@@ -118,14 +124,7 @@ class VarianceTopKLinear(TopKLinear):
         # Expand variance to match weight shape [out_features, in_features]
         var_expanded = self.activation_var.expand_as(w_for_topk)
 
-        # Score is weight magnitude * input variance
-        if self.param_space == "log":
-            # For log param space, we use transformed weights * variance
-            from dendritic_modeling.networks.utils.weight_transforms import apply_weight_transform
-            importance_scores = apply_weight_transform(w_for_topk, self.weight_transform) * var_expanded
-        else:
-            # For presigmoid, use sigmoid(pre_w) * variance
-            importance_scores = torch.sigmoid(w_for_topk) * var_expanded
+        importance_scores = apply_weight_transform(w_for_topk, self.weight_transform) * var_expanded
 
         # Perform topk selection per neuron
         topk_indices = torch.topk(

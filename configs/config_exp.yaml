@@ -245,21 +245,83 @@ train:
       enable_adaptive_clipping: false # Enable adaptive gradient clipping (expensive)
 
       # ==========================================
-      # SPECIALIZED LEARNING STRATEGY PARAMETERS
+      # STRATEGY-SPECIFIC CONFIG BLOCKS
       # ==========================================
-      # Used by voltage_stabilization and homeostatic_control strategies
-      pretrain_epochs: 50          # Epochs of homeostatic/voltage stabilization warm-up
-      stabilize_mode: vout         # What to stabilize: "vinf" (inputs), "vout" (outputs), "both"
-      freeze_reactivation: true    # Freeze reactivation parameters during warm-up phase
-      target_voltage: 0.5          # Target voltage value for stabilization (0.0-1.0)
-      loss_metric: "mse"           # Loss metric: "mse", "log_mse", "mae", "log_mae"
+      voltage_stabilization_config:
+        pretrain_epochs: 50
+        stabilize_mode: vout
+        freeze_reactivation: true
+        target_voltage: 0.5
+        loss_metric: "mse"
 
-      # Used by other specialized strategies
-      kl_weight: 0.1              # KL divergence weight (for two_step_kl strategy)
-      reverse_training: false      # Train in reverse order (for freeze_*_reversed strategies)
-      epochs_per_layer: 50         # Epochs per layer (for freeze_layers strategy)
-      epochs_per_branch: 50        # Epochs per branch (for freeze_branches strategy)
-      final_tune_epochs: 10        # Final tuning epochs (for multi-phase strategies)
+      homeostatic_control_config:
+        pretrain_epochs: 50
+        stabilize_mode: vinf
+        freeze_reactivation: false
+        target_voltage: 0.5
+        loss_metric: "mse"
+
+      freeze_layers_config:
+        pretrain_epochs: 10
+        reverse_training: false
+        epochs_per_layer: 50
+        final_tune_epochs: 10
+
+      freeze_branches_config:
+        pretrain_epochs: 10
+        reverse_training: false
+        epochs_per_branch: 50
+        final_tune_epochs: 10
+
+      freeze_branch_kl_config:
+        pretrain_epochs: 10
+        reverse_training: false
+        epochs_per_branch: 50
+        final_tune_epochs: 10
+        kl_weight: 0.1
+
+      # Local multi-factor rule configuration (for learning_strategy: local_ca)
+      local_rule_config:
+        rule_variant: "3f"              # "3f", "4f", or "5f"
+        error_mode: "auto"             # "auto", "mse", "ce", "bce"
+        error_broadcast_mode: "scalar"  # "scalar", "per_soma", "local_mismatch"
+        ema_alpha: 0.05                 # EMA for rho/phi statistics
+        use_conductance_scaling: true   # Scale by 1 / (g_tot)
+        use_driving_force: true         # Use (E_rev - V_n) factor
+        theta: 0.0                      # Leak reversal when not using driving force
+        e_rev_exc: 1.0                  # Excitatory reversal
+        e_rev_inh: 0.0                  # Inhibitory reversal (shunting)
+        clip_grad_value: 5.0            # Clip absolute gradient values
+        normalize_by_batch: true        # Average updates over batch
+        # Information proxy configuration (used when rule_variant: "5f")
+        phi_mode: "conditional"         # "conditional" (parent regression) or "variance"
+        phi_ridge_lambda: 0.001         # Ridge for conditional regression
+        # Single-sample estimator options (work with batch size 1)
+        rho_estimator: "ema"            # "ema", "augment", "ema+augment"
+        phi_estimator: "conditional_ema" # "conditional_ema", "variance_ema"
+        augment_k: 8                    # Micro-ensemble forward passes when using augment
+        augment_noise_sigma: 0.01       # Std of Gaussian noise for augmentation
+        rls_forgetting: 0.99            # Forgetting factor for conditional EMA/RLS
+        # HSIC auxiliary dependence objective
+        hsic_enabled: false              # Enable auxiliary HSIC/pHSIC-like gradients
+        hsic_weight: 0.1                # Overall HSIC strength
+        hsic_self_weight: 1.0           # Weight for self-dependence (compression)
+        hsic_target_weight: 1.0         # Weight for target dependence (prediction)
+        hsic_target_source: "labels"    # "labels" or "logits"
+        hsic_kernel: "linear"           # "linear", "rbf", "polynomial"
+        hsic_sigma: 1.0                 # RBF kernel bandwidth (gamma = 1/(2*sigma^2))
+        hsic_degree: 2                  # Polynomial kernel degree
+        hsic_coef0: 1.0                 # Polynomial kernel coefficient
+        # Morphology correlation options (rho)
+        rho_mode: "pearson"             # "pearson", "dot", "none"
+        decoder_update_mode: backprop    # backprop | local | none
+        update_reactivation: true
+        freeze_reactivation_epochs: 0
+        freeze_decoder_epochs: 0
+        training_schedule: [] # [] | [{start_epoch: int, end_epoch: int, update_reactivation: bool, decoder_update_mode: str}]
+        layer_wise_rho_scale: 0.0       # Scale rho by 1/sqrt(layer_depth) if > 0
+        layer_wise_phi_scale: 0.0       # Scale phi by 1/sqrt(layer_depth) if > 0
+        update_inactive_weights: false   # Update all weights (mask only in forward)
 
 
     # ==========================================

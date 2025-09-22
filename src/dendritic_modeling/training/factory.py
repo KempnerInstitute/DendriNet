@@ -17,13 +17,14 @@ from dendritic_modeling.config.training import (
     ReportingConfig,
 )
 from dendritic_modeling.training.strategies import (
+    ExcitationInhibitionEquilibriumTrainer,
+    HomeostaticControlTrainer,
     LayerWiseTrainer,
     LocalCreditAssignment,
     Trainer,
     TwoStepTrainer,
     TwoStepTrainerWithKL,
     VoltageStabilizationTrainer,
-    HomeostaticControlTrainer,
 )
 
 logger = logging.getLogger(__name__)
@@ -68,19 +69,24 @@ def _extract_enhanced_configs(trainer_config_dict: dict[str, Any]) -> dict[str, 
     else:
         # Create default regularization config and check for legacy E/I parameters
         reg_config_dict = {}
-        
+
         # Check for legacy E/I regularization parameters in trainer config
         ei_params = [
-            "enforce_ei_weight_ratio", "target_ei_weight_ratio", 
-            "ei_ratio_loss_weight", "ei_ratio_scope", "ei_ratio_metric"
+            "enforce_ei_weight_ratio",
+            "target_ei_weight_ratio",
+            "ei_ratio_loss_weight",
+            "ei_ratio_scope",
+            "ei_ratio_metric",
         ]
         for param in ei_params:
             if param in trainer_config_dict:
                 reg_config_dict[param] = trainer_config_dict.pop(param)
-        
+
         # Create regularization config with legacy parameters if found
         if reg_config_dict:
-            enhanced_configs["regularization_config"] = RegularizationConfig(**reg_config_dict)
+            enhanced_configs["regularization_config"] = RegularizationConfig(
+                **reg_config_dict
+            )
 
     # Extract pruning config
     if "pruning" in trainer_config_dict:
@@ -168,6 +174,8 @@ def get_trainer(
         return TwoStepTrainerWithKL(**trainer_config_dict)
     elif strategy == "voltage_stabilization":
         return VoltageStabilizationTrainer(**trainer_config_dict)
+    elif strategy == "ei_equilibrium":
+        return ExcitationInhibitionEquilibriumTrainer(**trainer_config_dict)
     elif strategy == "homeostatic_control":
         return HomeostaticControlTrainer(**trainer_config_dict)
     elif strategy == "fsdp" or strategy == "fsdp_standard":
