@@ -26,11 +26,16 @@ class CustomWeightDecayOptimizer:
     """
 
     def __init__(
-        self, model: BaseModel, optimizer: Optimizer, weight_decay: float = 0.1
+        self, 
+        model: BaseModel, 
+        optimizer: Optimizer, 
+        weight_decay: float = 0.1,
+        weight_boosting: bool = False
     ):
         self.model = model
         self.optimizer = optimizer
         self.weight_decay = weight_decay
+        self.weight_boosting = weight_boosting
 
     @property
     def param_groups(self):
@@ -49,7 +54,11 @@ class CustomWeightDecayOptimizer:
         learning rate, then performs the standard optimizer step.
         """
         lr = self.optimizer.param_groups[0]["lr"]
-        self.model.decay_weights(weight_decay=lr * self.weight_decay)
+        if self.weight_decay > 0:
+            self.model.decay_weights(
+                weight_decay=lr * self.weight_decay,
+                weight_boosting=self.weight_boosting
+            )
         self.model.apply_rewiring()
         self.optimizer.step()
 

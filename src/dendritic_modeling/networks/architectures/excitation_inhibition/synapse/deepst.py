@@ -165,12 +165,7 @@ class DeepstLinear(nn.Module):
 
     def weight(self):
         """Return the actual weight values (after transformation)"""
-        if self.param_space == "log":
-            return apply_weight_transform(self.pre_w, self.weight_transform)
-        elif self.param_space == "presigmoid":
-            return torch.sigmoid(self.pre_w)
-        elif self.param_space == "uniform":
-            return self.pre_w
+        return apply_weight_transform(self.pre_w, self.weight_transform)
 
     def weight_mask(self):
         """Return the current mask"""

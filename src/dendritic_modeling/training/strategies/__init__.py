@@ -7,8 +7,8 @@ for dendritic network models.
 
 from dendritic_modeling.training.strategies.layerwise import LayerWiseTrainer
 from dendritic_modeling.training.strategies.local_learning import LocalCreditAssignment
-from dendritic_modeling.training.strategies.multi_stage import MultiStageTrainer
 from dendritic_modeling.training.strategies.specialized import (
+    ExcitationInhibitionEquilibriumTrainer,
     HomeostaticControlTrainer,
     TrainOnlyMReactivation,
     VoltageStabilizationTrainer,
@@ -20,10 +20,10 @@ from dendritic_modeling.training.strategies.two_step import (
 )
 
 __all__ = [
+    "ExcitationInhibitionEquilibriumTrainer",
     "HomeostaticControlTrainer",
     "LayerWiseTrainer",
     "LocalCreditAssignment",
-    "MultiStageTrainer",
     "TrainOnlyMReactivation",
     "Trainer",
     "TwoStepTrainer",

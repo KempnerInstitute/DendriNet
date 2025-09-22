@@ -10,19 +10,14 @@ from typing import Any, Optional
 
 import torch
 
-from dendritic_modeling.config.multi_stage_training import (
-    MultiStageTrainingConfig,
-    TrainingStageConfig,
-)
 from dendritic_modeling.config.training import (
     OptimizerConfig,
     PruningConfig,
     RegularizationConfig,
     ReportingConfig,
-    SelectiveConfig,
 )
-from dendritic_modeling.training.fsdp_utils import get_fsdp_config
 from dendritic_modeling.training.strategies import (
+    ExcitationInhibitionEquilibriumTrainer,
     HomeostaticControlTrainer,
     LayerWiseTrainer,
     LocalCreditAssignment,
@@ -31,8 +26,6 @@ from dendritic_modeling.training.strategies import (
     TwoStepTrainerWithKL,
     VoltageStabilizationTrainer,
 )
-from dendritic_modeling.training.strategies.fsdp_standard import FSDPTrainer
-from dendritic_modeling.training.strategies.multi_stage import MultiStageTrainer
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +58,8 @@ def _extract_enhanced_configs(trainer_config_dict: dict[str, Any]) -> dict[str, 
         if isinstance(reg_config, dict):
             # Handle nested SelectiveConfig properly
             if "selective" in reg_config and isinstance(reg_config["selective"], dict):
+                from dendritic_modeling.config.training import SelectiveConfig
+
                 reg_config["selective"] = SelectiveConfig(**reg_config["selective"])
             enhanced_configs["regularization_config"] = RegularizationConfig(
                 **reg_config
@@ -101,6 +96,8 @@ def _extract_enhanced_configs(trainer_config_dict: dict[str, Any]) -> dict[str, 
             if "selective" in prune_config and isinstance(
                 prune_config["selective"], dict
             ):
+                from dendritic_modeling.config.training import SelectiveConfig
+
                 prune_config["selective"] = SelectiveConfig(**prune_config["selective"])
             enhanced_configs["pruning_config"] = PruningConfig(**prune_config)
         else:
@@ -118,43 +115,6 @@ def _extract_enhanced_configs(trainer_config_dict: dict[str, Any]) -> dict[str, 
     if "param_groups" in trainer_config_dict:
         param_groups_config = trainer_config_dict.pop("param_groups")
         enhanced_configs["param_groups_config"] = param_groups_config
-
-    # Extract strategy-specific nested configs and flatten into kwargs
-    # Local credit assignment
-    if "local_rule_config" in trainer_config_dict:
-        enhanced_configs["local_rule_config"] = trainer_config_dict.pop(
-            "local_rule_config"
-        )
-
-    # Voltage stabilization
-    if "voltage_stabilization_config" in trainer_config_dict:
-        vs_cfg = trainer_config_dict.pop("voltage_stabilization_config")
-        if isinstance(vs_cfg, dict):
-            enhanced_configs.update(vs_cfg)
-
-    # Homeostatic control
-    if "homeostatic_control_config" in trainer_config_dict:
-        hc_cfg = trainer_config_dict.pop("homeostatic_control_config")
-        if isinstance(hc_cfg, dict):
-            enhanced_configs.update(hc_cfg)
-
-    # Freeze layers
-    if "freeze_layers_config" in trainer_config_dict:
-        fl_cfg = trainer_config_dict.pop("freeze_layers_config")
-        if isinstance(fl_cfg, dict):
-            enhanced_configs.update(fl_cfg)
-
-    # Freeze branches
-    if "freeze_branches_config" in trainer_config_dict:
-        fb_cfg = trainer_config_dict.pop("freeze_branches_config")
-        if isinstance(fb_cfg, dict):
-            enhanced_configs.update(fb_cfg)
-
-    # Freeze branch with KL
-    if "freeze_branch_kl_config" in trainer_config_dict:
-        fbkl_cfg = trainer_config_dict.pop("freeze_branch_kl_config")
-        if isinstance(fbkl_cfg, dict):
-            enhanced_configs.update(fbkl_cfg)
 
     return enhanced_configs
 
@@ -182,7 +142,10 @@ def get_trainer(
     trainer_config_dict["optimizer"] = optimizer
 
     if strategy == "standard":
+        # Extract enhanced config objects if present
         enhanced_configs = _extract_enhanced_configs(trainer_config_dict)
+
+        # Add optimizer and enhanced configs to trainer config
         trainer_config_dict.update(enhanced_configs)
 
         return Trainer(**trainer_config_dict)
@@ -193,90 +156,39 @@ def get_trainer(
             "learning_strategy 'enhanced' is deprecated. All features are now available in 'standard' strategy."
         )
 
+        # Extract enhanced config objects
         enhanced_configs = _extract_enhanced_configs(trainer_config_dict)
+
+        # Add optimizer and enhanced configs to trainer config
         trainer_config_dict.update(enhanced_configs)
 
         return Trainer(**trainer_config_dict)
 
     elif strategy == "freeze_layers":
-        enhanced_configs = _extract_enhanced_configs(trainer_config_dict)
-        trainer_config_dict.update(enhanced_configs)
         return LayerWiseTrainer(**trainer_config_dict)
     elif strategy == "freeze_branches":
-        enhanced_configs = _extract_enhanced_configs(trainer_config_dict)
-        trainer_config_dict.update(enhanced_configs)
         return TwoStepTrainer(**trainer_config_dict)
     elif strategy == "local_ca":
-        enhanced_configs = _extract_enhanced_configs(trainer_config_dict)
-        trainer_config_dict.update(enhanced_configs)
-        # Ensure loss_function defaults to 'ce' for local learning if not specified
-        if "loss_function" not in trainer_config_dict:
-            trainer_config_dict["loss_function"] = "ce"
         return LocalCreditAssignment(**trainer_config_dict)
     elif strategy == "freeze_branch_kl":
-        enhanced_configs = _extract_enhanced_configs(trainer_config_dict)
-        trainer_config_dict.update(enhanced_configs)
         return TwoStepTrainerWithKL(**trainer_config_dict)
     elif strategy == "voltage_stabilization":
-        enhanced_configs = _extract_enhanced_configs(trainer_config_dict)
-        trainer_config_dict.update(enhanced_configs)
         return VoltageStabilizationTrainer(**trainer_config_dict)
+    elif strategy == "ei_equilibrium":
+        return ExcitationInhibitionEquilibriumTrainer(**trainer_config_dict)
     elif strategy == "homeostatic_control":
-        enhanced_configs = _extract_enhanced_configs(trainer_config_dict)
-        trainer_config_dict.update(enhanced_configs)
         return HomeostaticControlTrainer(**trainer_config_dict)
     elif strategy == "fsdp" or strategy == "fsdp_standard":
         # Note: FSDP requires additional setup (distributed init, special config)
         # This would need to be called from a distributed context
+        from dendritic_modeling.training.fsdp_utils import get_fsdp_config
+        from dendritic_modeling.training.strategies.fsdp_standard import FSDPTrainer
 
         if "fsdp_config" not in trainer_config_dict:
             # Generate default FSDP config if not provided
             trainer_config_dict["fsdp_config"] = get_fsdp_config()
             logger.info("Generated default FSDP config for trainer")
         return FSDPTrainer(**trainer_config_dict)
-    elif strategy == "multi_stage":
-        # Multi-stage trainer requires special handling
-        # Extract multi_stage_config from trainer config
-        enhanced_configs = _extract_enhanced_configs(trainer_config_dict)
-        trainer_config_dict.update(enhanced_configs)
-
-        # Look for multi_stage_config in the trainer config
-        multi_stage_config = trainer_config_dict.pop("multi_stage_config", None)
-        if multi_stage_config is None:
-            raise ValueError(
-                "multi_stage strategy requires 'multi_stage_config' in trainer configuration"
-            )
-
-        # Convert dict to MultiStageTrainingConfig if needed
-        if isinstance(multi_stage_config, dict):
-            stages = []
-            for stage_dict in multi_stage_config.get("stages", []):
-                stages.append(TrainingStageConfig(**stage_dict))
-            multi_stage_config_obj = MultiStageTrainingConfig(
-                stages=stages,
-                analyze_between_stages=multi_stage_config.get(
-                    "analyze_between_stages", True
-                ),
-                use_best_from_each_stage=multi_stage_config.get(
-                    "use_best_from_each_stage", True
-                ),
-                continue_on_failure=multi_stage_config.get(
-                    "continue_on_failure", False
-                ),
-                global_batch_size=multi_stage_config.get("global_batch_size"),
-                global_shuffle=multi_stage_config.get("global_shuffle", True),
-                global_grad_clip_value=multi_stage_config.get(
-                    "global_grad_clip_value", 5.0
-                ),
-            )
-            multi_stage_config = multi_stage_config_obj
-
-        return MultiStageTrainer(
-            multi_stage_config=multi_stage_config,
-            base_optimizer=optimizer,
-            base_trainer_config=trainer_config_dict,
-            analysis_manager=analysis_manager,
-        )
     else:
         logger.info(f"Unrecognized strategy '{strategy}', defaulting to 'standard'.")
         enhanced_configs = _extract_enhanced_configs(trainer_config_dict)

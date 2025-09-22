@@ -135,9 +135,6 @@ class UnifiedResultAnalyzer:
             "cross": "#FFA726",  # Orange for cross-information
         }
 
-        # Cache for params_df keyed by experiment directory to avoid reloading
-        self._params_data_cache: dict[str, pd.DataFrame] = {}
-
     def detect_sweep_parameters(self, results_dir: str) -> Optional[dict]:
         """
         Detect custom sweep parameters from YAML config files.
@@ -145,21 +142,11 @@ class UnifiedResultAnalyzer:
         Returns:
             Dictionary with sweep_config parameters or None if not found
         """
-        # First check for original_config.yaml in the root results directory
-        original_config_path = os.path.join(results_dir, "original_config.yaml")
-        if os.path.exists(original_config_path):
-            try:
-                config = OmegaConf.load(original_config_path)
-                if hasattr(config, "sweep_config") and config.sweep_config:
-                    return dict(config.sweep_config)
-            except Exception:
-                pass
-
-        # Fallback: look in configs directory for any YAML files with sweep_config
         config_dir = os.path.join(results_dir, "configs")
         if not os.path.exists(config_dir):
             return None
 
+        # Look for YAML files that might contain sweep_config
         yaml_files = glob.glob(os.path.join(config_dir, "*.yaml"))
         for yaml_file in yaml_files:
             try:
@@ -280,37 +267,13 @@ class UnifiedResultAnalyzer:
         return None
 
     def collect_params_data(self, exp_dir: str) -> pd.DataFrame:
-        """Collect parameter data from the config files.
-
-        Dynamically extracts ALL sweep parameters declared in
-        original_config.yaml:sweep_config (if present), avoiding any
-        hard-coded parameter lists. Parameter column names are the full
-        config paths with dots replaced by double underscores to avoid
-        collisions (e.g., train.main.trainer.local_rule_config.hsic_weight
-        -> train__main__trainer__local_rule_config__hsic_weight).
-        """
+        """Collect parameter data from the config files"""
         configs_dir = os.path.join(exp_dir, "configs")
-
-        # Return cached if available
-        if exp_dir in getattr(self, "_params_data_cache", {}):
-            cached = self._params_data_cache[exp_dir]
-            if isinstance(cached, pd.DataFrame) and not cached.empty:
-                return cached
         params_data = []
 
         if not os.path.exists(configs_dir):
             print(f"Configs directory not found: {configs_dir}")
             return pd.DataFrame()
-
-        # Load sweep parameter paths from original_config.yaml if available (cache it)
-        try:
-            sweep_params = self.detect_sweep_parameters(exp_dir)
-            if sweep_params:
-                print(
-                    f"Found {len(sweep_params)} sweep parameters to extract from configs."
-                )
-        except Exception:
-            sweep_params = None
 
         # Find all config files - handle both naming conventions
         config_patterns = [
@@ -331,9 +294,7 @@ class UnifiedResultAnalyzer:
 
         print(f"Found {len(config_files)} config files to process.")
 
-        for i, config_file in enumerate(config_files):
-            if i % 20 == 0:  # Progress indicator every 20 files
-                print(f"Processing parameter config {i+1}/{len(config_files)}...")
+        for config_file in config_files:
             try:
                 # Extract task id from filename
                 task_match = re.search(
@@ -349,20 +310,6 @@ class UnifiedResultAnalyzer:
 
                 # Extract parameters with robust handling
                 data = self._extract_config_params(config, task_id, config_file)
-
-                # Dynamically extract declared sweep parameter values
-                if sweep_params:
-                    try:
-                        dyn_vals = self._extract_param_values_from_config(
-                            config, sweep_params
-                        )
-                        if dyn_vals:
-                            data.update(dyn_vals)
-                    except Exception as e:
-                        if i < 5:  # Only print first few errors to avoid spam
-                            print(
-                                f"Warning: Could not extract dynamic sweep params for {config_file}: {e}"
-                            )
                 if data:
                     params_data.append(data)
 
@@ -371,32 +318,10 @@ class UnifiedResultAnalyzer:
 
         # Create DataFrame
         params_df = pd.DataFrame(params_data)
-
-        # Convert any list columns to string for proper groupby operations
-        for col in params_df.columns:
-            if params_df[col].dtype == "object":
-                # Check if any values are lists or tuples
-                sample = (
-                    params_df[col].dropna().iloc[0]
-                    if not params_df[col].dropna().empty
-                    else None
-                )
-                if sample is not None and isinstance(sample, (list, tuple)):
-                    params_df[col] = params_df[col].apply(
-                        lambda x: str(x) if x is not None else x
-                    )
-
         if not params_df.empty and "task_id" in params_df.columns:
             params_df = params_df.sort_values("task_id").reset_index(drop=True)
         else:
             print("Warning: No task_id column found in parameter data")
-        # Cache and return
-        try:
-            if not hasattr(self, "_params_data_cache"):
-                self._params_data_cache = {}
-            self._params_data_cache[exp_dir] = params_df
-        except Exception:
-            pass
         return params_df
 
     def _extract_config_params(
@@ -516,12 +441,6 @@ class UnifiedResultAnalyzer:
                             data["update_inactive_weights"] = (
                                 local_cfg.update_inactive_weights
                             )
-                        if hasattr(local_cfg, "hsic_enabled"):
-                            data["hsic_enabled"] = local_cfg.hsic_enabled
-                        if hasattr(local_cfg, "error_broadcast_mode"):
-                            data["error_broadcast_mode"] = (
-                                local_cfg.error_broadcast_mode
-                            )
                 except Exception as local_e:
                     print(
                         f"Warning: Could not extract local learning params from {config_file}: {local_e}"
@@ -540,31 +459,6 @@ class UnifiedResultAnalyzer:
         except Exception as e:
             print(f"Error: Could not extract parameters from {config_file}: {e}")
             return None
-
-    def _sanitize_param_name(self, param_path: str) -> str:
-        """Convert a dot-separated config path to a unique, safe column name."""
-        return str(param_path).replace(".", "__")
-
-    def _extract_param_values_from_config(
-        self, config: Any, sweep_params: dict
-    ) -> dict:
-        """Extract values for all param paths declared in sweep_params from a loaded config.
-
-        Uses OmegaConf.select to safely access nested attributes. Returns a mapping
-        from sanitized param names to their concrete values in this config.
-        """
-        result: dict[str, Any] = {}
-        for param_path in sweep_params.keys():
-            try:
-                val = OmegaConf.select(config, param_path)
-                # Convert ListConfig to regular list
-                if hasattr(val, "__class__") and "ListConfig" in str(val.__class__):
-                    val = list(val)
-                # Keep lists as lists - we'll convert to string later in collect_params_data
-            except Exception:
-                val = None
-            result[self._sanitize_param_name(param_path)] = val
-        return result
 
     def collect_results(self, exp_dir: str) -> tuple[pd.DataFrame, pd.DataFrame]:
         """Collect results from the experiment directory using the new flattened structure"""
@@ -1215,8 +1109,6 @@ class UnifiedResultAnalyzer:
             "rule_variant",
             "rho_mode",
             "update_inactive_weights",
-            "hsic_enabled",
-            "error_broadcast_mode",
         ]
         if "nparams" in cleaned_results.columns:
             arch_cols.append("nparams")
@@ -1226,9 +1118,11 @@ class UnifiedResultAnalyzer:
             col for col in cleaned_results.columns if col.startswith("noise_")
         ]
 
-        # Define columns to exclude from aggregation (keep task_id for custom plots)
+        # Define columns to exclude from aggregation
         exclude_cols = (
-            arch_cols + noise_cols + ["experiment", "job_dir", "seed", "config_file"]
+            arch_cols
+            + noise_cols
+            + ["experiment", "task_id", "job_dir", "seed", "config_file"]
         )
         metric_cols = [
             col for col in cleaned_results.columns if col not in exclude_cols
@@ -1253,9 +1147,6 @@ class UnifiedResultAnalyzer:
 
         for _, group in cleaned_results.groupby(groupby_cols):
             row = dict(zip(groupby_cols, group[groupby_cols].iloc[0]))
-            # Include a representative task_id for each group (take the first one)
-            if "task_id" in group.columns:
-                row["task_id"] = group["task_id"].iloc[0]
 
             # Aggregate noise patterns
             for noise_type, metric, noise_level in noise_patterns:
@@ -3156,64 +3047,31 @@ class UnifiedResultAnalyzer:
         plots_root_dir = os.path.join(output_dir, "plots")
         os.makedirs(plots_root_dir, exist_ok=True)
 
-        # Extract sweep parameter names and build sanitized column names
-        param_columns: dict[str, str] = {}
+        # Extract sweep parameter names and clean them for column names
+        param_columns = {}
         for param_path, _values in sweep_params.items():
-            param_name = self._sanitize_param_name(param_path)
+            # Extract the parameter name (last part of the path)
+            param_name = param_path.split(".")[-1]
             param_columns[param_name] = param_path
 
         if not param_columns:
             return None, None
 
-        # Build ordered list of unique parameter combinations with config numbers
-        # Prefer pulling task_id from configs to ensure 0-based config_# mapping
-        try:
-            params_df = self.collect_params_data(output_dir)
-        except Exception:
-            params_df = None
-
-        if params_df is not None and not params_df.empty:
-            present_param_names = [
-                p for p in param_columns.keys() if p in params_df.columns
-            ]
-        else:
-            present_param_names = []
-
-        if params_df is not None and not params_df.empty and present_param_names:
-            # Map each unique combination to the smallest task_id (first config)
-            combo_df = (
-                params_df[[*present_param_names, "task_id"]]
-                .dropna(subset=present_param_names)
-                .groupby(present_param_names, as_index=False)["task_id"]
-                .min()
-            )
-            # Sort by task_id instead of parameter values to avoid comparison issues
-            combo_df = combo_df.sort_values(by="task_id")
-            combos = combo_df.to_dict(orient="records")
-            config_numbers = combo_df["task_id"].tolist()
-        else:
-            # Unable to construct combinations without parameters
+        param_names = list(param_columns.keys())
+        present_param_names = [p for p in param_names if p in results_df.columns]
+        if not present_param_names:
             return None, None
 
-        # Create mapping DataFrame with human-readable column names
-        mapping_df = combo_df[present_param_names].copy()
-        # Rename columns to show only the last part of the parameter path
-        readable_names = {}
-        for sanitized_name in present_param_names:
-            # Find original path and extract last part
-            original_path = param_columns.get(sanitized_name, sanitized_name)
-            readable_name = (
-                original_path.split(".")[-1] if "." in original_path else sanitized_name
-            )
-            readable_names[sanitized_name] = readable_name
-        mapping_df = mapping_df.rename(columns=readable_names)
+        # Build ordered list of unique parameter combinations
+        combo_df = results_df[present_param_names].drop_duplicates()
+        # Sort lexicographically by all param columns for stable ordering
+        combo_df = combo_df.sort_values(by=present_param_names)
+        combos = combo_df.to_dict(orient="records")
 
-        # Create a column that references the actual YAML config file
-        yaml_config_names = [
-            f"unified_config_{task_id}.yaml" for task_id in config_numbers
-        ]
-        mapping_df.insert(0, "config_yaml", yaml_config_names)
-        mapping_df.insert(1, "config_#", config_numbers)
+        # Prepare x-axis positions and legend mapping
+        x_positions = list(range(1, len(combos) + 1))
+        mapping_df = combo_df.copy()
+        mapping_df.insert(0, "#", x_positions)
 
         legend_csv_path = os.path.join(
             plots_root_dir, "parameter_combinations_legend.csv"
@@ -3223,22 +3081,11 @@ class UnifiedResultAnalyzer:
         # Render a compact PNG legend table for convenience
         legend_png_path = None
         try:
-            # Use readable column names for headers
-            readable_param_names = [
-                readable_names.get(p, p) for p in present_param_names
+            headers = ["#", *present_param_names]
+            table_data = [
+                [idx] + [c.get(p) for p in present_param_names]
+                for idx, c in zip(x_positions, combos)
             ]
-            headers = ["config_yaml", "config_#", *readable_param_names]
-            table_data = []
-            for config_num, c in zip(config_numbers, combos):
-                row = [f"unified_config_{config_num}.yaml", config_num]
-                for p in present_param_names:
-                    val = c.get(p)
-                    # Convert tuples back to lists for display
-                    if isinstance(val, tuple):
-                        val = list(val)
-                    # Convert to string for display
-                    row.append(str(val) if val is not None else "")
-                table_data.append(row)
             fig_legend, ax_legend = plt.subplots(
                 figsize=(
                     min(24, 2 + 2 * len(headers)),
@@ -3289,10 +3136,11 @@ class UnifiedResultAnalyzer:
         if legend_png_path:
             plot_paths.append(legend_png_path)
 
-        # Extract sweep parameter names and build sanitized column names
+        # Extract sweep parameter names and clean them for column names
         param_columns = {}
         for param_path, _values in sweep_params.items():
-            param_name = self._sanitize_param_name(param_path)
+            # Extract the parameter name (last part of the path)
+            param_name = param_path.split(".")[-1]
             param_columns[param_name] = param_path
 
         if not param_columns:
@@ -3300,47 +3148,18 @@ class UnifiedResultAnalyzer:
 
         print(f"Found sweep parameters: {list(param_columns.keys())}")
 
-        # Build ordered list of unique parameter combinations using params_df
-        # Ensure we have parameter values collected from configs
-        try:
-            params_df = self.collect_params_data(output_dir)
-        except Exception:
-            params_df = None
-
-        if params_df is None or params_df.empty:
-            return plot_paths
-
+        # Build ordered list of unique parameter combinations
         param_names = list(param_columns.keys())
-        present_param_names = [p for p in param_names if p in params_df.columns]
+        present_param_names = [p for p in param_names if p in results_df.columns]
         if not present_param_names:
             return plot_paths
-
-        # Merge parameter columns into results for grouping/plotting
-        try:
-            # Check if task_id exists in both dataframes
-            if "task_id" in results_df.columns and "task_id" in params_df.columns:
-                results_df = results_df.merge(
-                    params_df[["task_id", *present_param_names]],
-                    on="task_id",
-                    how="left",
-                )
-            else:
-                print("Warning: task_id column missing, cannot merge parameter data")
-                return plot_paths
-        except Exception as e:
-            print(f"Failed to merge parameter columns: {e}")
-            return plot_paths
-
-        combo_df = (
-            params_df[[*present_param_names, "task_id"]]
-            .dropna(subset=present_param_names)
-            .groupby(present_param_names, as_index=False)["task_id"]
-            .min()
-        )
-        # Sort by task_id instead of parameter values to avoid comparison issues
-        combo_df = combo_df.sort_values(by="task_id")
+        combo_df = results_df[present_param_names].drop_duplicates()
+        # Sort lexicographically by all param columns for stable ordering
+        combo_df = combo_df.sort_values(by=present_param_names)
         combos = combo_df.to_dict(orient="records")
-        x_positions = combo_df["task_id"].tolist()
+
+        # Prepare x-axis positions
+        x_positions = list(range(1, len(combos) + 1))
 
         # Categorize metrics by analysis type and create subfolders
         # Use more specific patterns to avoid overlap
@@ -3395,81 +3214,6 @@ class UnifiedResultAnalyzer:
             analysis_dir = os.path.join(param_plot_dir, analysis_type)
             os.makedirs(analysis_dir, exist_ok=True)
 
-            # Additionally, save mean of each metric grouped by each sweep parameter
-            try:
-                means_by_param_dir = os.path.join(analysis_dir, "means_by_param")
-                os.makedirs(means_by_param_dir, exist_ok=True)
-                # Overall means by parameter (across categories)
-                for param_name in present_param_names:
-                    series_dict = {}
-                    for metric_col in metric_cols:
-                        if metric_col in results_df.columns:
-                            try:
-                                series_dict[metric_col] = results_df.groupby(
-                                    param_name
-                                )[metric_col].mean()
-                            except Exception:
-                                continue
-                    if series_dict:
-                        df_param_overall = pd.DataFrame(series_dict)
-                        df_param_overall.index.name = param_name
-                        df_param_overall = df_param_overall.reset_index()
-                        csv_path_overall = os.path.join(
-                            means_by_param_dir,
-                            f"{analysis_type}__means_by_{param_name}.csv",
-                        )
-                        df_param_overall.to_csv(csv_path_overall, index=False)
-                # Category-specific means by parameter (if multiple categories)
-                if len(categories) > 1:
-                    for category in categories:
-                        subset = (
-                            results_df
-                            if category == "all"
-                            else results_df[results_df["network_category"] == category]
-                        )
-                        for param_name in present_param_names:
-                            series_dict_cat = {}
-                            for metric_col in metric_cols:
-                                if metric_col in subset.columns:
-                                    try:
-                                        series_dict_cat[metric_col] = subset.groupby(
-                                            param_name
-                                        )[metric_col].mean()
-                                    except Exception:
-                                        continue
-                            if series_dict_cat:
-                                df_param_cat = pd.DataFrame(series_dict_cat)
-                                df_param_cat.index.name = param_name
-                                df_param_cat = df_param_cat.reset_index()
-                                safe_cat = (
-                                    str(category).replace("/", "_").replace(" ", "_")
-                                )
-                                csv_path_cat = os.path.join(
-                                    means_by_param_dir,
-                                    f"{analysis_type}__means_by_{param_name}__{safe_cat}.csv",
-                                )
-                                df_param_cat.to_csv(csv_path_cat, index=False)
-            except Exception as e:
-                print(
-                    f"Warning: failed to write means_by_param CSVs for {analysis_type}: {e}"
-                )
-
-            # Generate plots from means_by_param CSV files
-            # Only generate plots for performance and selected other analysis types
-            if analysis_type in ["performance", "information", "weight_expectation"]:
-                try:
-                    means_by_param_plots = self._generate_means_by_param_plots(
-                        means_by_param_dir,
-                        analysis_type,
-                        present_param_names,
-                        categories,
-                    )
-                    plot_paths.extend(means_by_param_plots)
-                except Exception as e:
-                    print(
-                        f"Warning: failed to generate means_by_param plots for {analysis_type}: {e}"
-                    )
-
             for metric_col in metric_cols:
                 try:
                     fig, ax = plt.subplots(figsize=(max(10, len(x_positions) * 0.6), 6))
@@ -3519,34 +3263,24 @@ class UnifiedResultAnalyzer:
                                 err = np.nan
                             y_err.append(err)
 
-                        # Plot with bars and optional error bars
+                        # Plot with markers and optional error bars
                         color = self.category_colors.get(category, "black")
-
-                        # Calculate bar width and positions for multiple categories
-                        bar_width = (
-                            0.8 / len(categories) if len(categories) > 1 else 0.8
-                        )
-                        cat_idx = list(categories).index(category)
-                        bar_positions = [
-                            x + (cat_idx - len(categories) / 2 + 0.5) * bar_width
-                            for x in x_positions
-                        ]
-
-                        ax.bar(
-                            bar_positions,
+                        marker = self.category_markers.get(category, "o")
+                        ax.errorbar(
+                            x_positions,
                             y_values,
-                            width=bar_width,
                             yerr=y_err if any(~pd.isna(pd.Series(y_err))) else None,
                             label=str(category),
+                            marker=marker,
                             color=color,
-                            alpha=0.75,
+                            linestyle="-",
+                            alpha=0.85,
                             capsize=3,
-                            error_kw={"elinewidth": 1, "capthick": 1},
                         )
 
                     display_metric = metric_col.replace("_", " ").replace(" mean", "")
                     ax.set_xlabel(
-                        "Config Number (config_#). See parameter_combinations_legend.csv/png in plots folder.",
+                        "Parameter Combination Index (#). See parameter_combinations_legend.csv/png in plots folder.",
                         fontsize=12,
                     )
                     ax.set_ylabel(f"{display_metric.title()}", fontsize=12)
@@ -3602,273 +3336,6 @@ class UnifiedResultAnalyzer:
             return len(unique_combinations) > 1
 
         return False
-
-    def _generate_means_by_param_plots(
-        self,
-        means_by_param_dir: str,
-        analysis_type: str,
-        param_names: list,
-        categories: list,
-    ) -> list[str]:
-        """Generate plots from the means_by_param CSV files."""
-        import glob
-        import os
-
-        import matplotlib.pyplot as plt
-        import pandas as pd
-
-        plot_paths = []
-
-        # Find all CSV files in the means_by_param directory
-        csv_pattern = os.path.join(
-            means_by_param_dir, f"{analysis_type}__means_by_*.csv"
-        )
-        csv_files = glob.glob(csv_pattern)
-
-        if not csv_files:
-            return plot_paths
-
-        print(
-            f"Generating means_by_param plots for {len(csv_files)} CSV files in {analysis_type}"
-        )
-
-        # Process each CSV file
-        for csv_file in csv_files:
-            try:
-                # Load the CSV file
-                df = pd.read_csv(csv_file)
-                if df.empty:
-                    continue
-
-                # Extract info from filename
-                # The parameter name is embedded in the filename after "means_by_"
-                # Need to match it with actual column names in the dataframe
-
-                # Find which column is the parameter column (should match one of param_names)
-                param_col = None
-                for col in df.columns:
-                    if col in param_names:
-                        param_col = col
-                        break
-
-                if param_col is None:
-                    # Try to find any column that looks like a parameter column
-                    # (not a metric column - metrics usually have specific patterns)
-                    metric_patterns = [
-                        "_mean",
-                        "_std",
-                        "accuracy",
-                        "auc",
-                        "loss",
-                        "loglikelihood",
-                        "mse",
-                        "similarity",
-                    ]
-                    for col in df.columns:
-                        is_metric = any(
-                            pattern in col.lower() for pattern in metric_patterns
-                        )
-                        if not is_metric:
-                            param_col = col
-                            break
-
-                if param_col is None:
-                    print(f"Warning: Could not identify parameter column in {csv_file}")
-                    continue
-
-                # Get metric columns (all columns except the parameter column)
-                all_metric_columns = [col for col in df.columns if col != param_col]
-
-                # Filter metrics based on analysis type
-                if analysis_type == "performance":
-                    # Only keep train and test accuracy
-                    metric_columns = [
-                        col
-                        for col in all_metric_columns
-                        if (
-                            "accuracy" in col.lower()
-                            and ("train" in col.lower() or "test" in col.lower())
-                            and "valid" not in col.lower()
-                        )
-                    ]
-                elif analysis_type == "information":
-                    # Only keep the most important information metrics
-                    metric_columns = [
-                        col
-                        for col in all_metric_columns
-                        if any(
-                            key in col.lower()
-                            for key in ["class_information", "mutual_information"]
-                        )
-                        and "layer_0" not in col
-                        and "layer_1" not in col
-                        and "layer_2" not in col
-                    ]
-                elif analysis_type == "weight_expectation":
-                    # Only keep overall weight expectation metrics
-                    metric_columns = [
-                        col
-                        for col in all_metric_columns
-                        if "overall" in col.lower() or "network" in col.lower()
-                    ]
-                else:
-                    # For other analysis types, keep only accuracy-based metrics
-                    metric_columns = [
-                        col for col in all_metric_columns if "accuracy" in col.lower()
-                    ]
-
-                if not metric_columns:
-                    continue
-
-                print(
-                    f"  Plotting {len(metric_columns)} metrics for parameter {param_col}: {metric_columns}"
-                )
-
-                # Create plots directory for this parameter
-                safe_param_name = (
-                    param_col.replace("/", "_").replace(" ", "_").replace(".", "_")
-                )
-                param_plots_dir = os.path.join(
-                    os.path.dirname(means_by_param_dir),
-                    f"means_by_{safe_param_name}_plots",
-                )
-                os.makedirs(param_plots_dir, exist_ok=True)
-
-                # Generate a plot for each metric
-                for metric_col in metric_columns:
-                    try:
-                        fig, ax = plt.subplots(figsize=(10, 6))
-
-                        # Check if parameter values are boolean
-                        param_values_str = df[param_col].astype(str).str.lower()
-                        is_boolean = all(
-                            val in ["true", "false"] for val in param_values_str
-                        )
-
-                        # Sort by parameter value for better visualization
-                        if is_boolean:
-                            # Sort boolean values: False first, then True
-                            df["_sort_key"] = (
-                                df[param_col].astype(str).str.lower() == "true"
-                            )
-                            df_sorted = df.sort_values("_sort_key")
-                            df_sorted = df_sorted.drop("_sort_key", axis=1)
-                        else:
-                            df_sorted = df.sort_values(param_col)
-
-                        param_values = df_sorted[param_col]
-                        metric_values = df_sorted[metric_col]
-
-                        if is_boolean:
-                            # Bar plot for boolean parameters with True/False labels
-                            x_pos = range(len(param_values))
-                            param_values_sorted_str = param_values.astype(
-                                str
-                            ).str.lower()
-                            colors = [
-                                "salmon" if val == "false" else "steelblue"
-                                for val in param_values_sorted_str
-                            ]
-                            bars = ax.bar(x_pos, metric_values, color=colors, alpha=0.7)
-                            ax.set_xticks(x_pos)
-                            ax.set_xticklabels(
-                                param_values, rotation=0
-                            )  # No rotation needed for True/False
-                            ax.set_xlabel(param_col, fontsize=12)
-
-                            # Add value labels on bars
-                            for bar, val in zip(bars, metric_values):
-                                height = bar.get_height()
-                                ax.text(
-                                    bar.get_x() + bar.get_width() / 2.0,
-                                    height,
-                                    f"{val:.3f}",
-                                    ha="center",
-                                    va="bottom",
-                                    fontsize=9,
-                                )
-                        else:
-                            # Check if parameter values are numeric
-                            try:
-                                param_numeric = pd.to_numeric(
-                                    param_values, errors="coerce"
-                                )
-                                if not param_numeric.isna().all():
-                                    # Line plot for numeric parameters
-                                    ax.plot(
-                                        param_numeric,
-                                        metric_values,
-                                        "o-",
-                                        linewidth=2,
-                                        markersize=8,
-                                        color="steelblue",
-                                    )
-                                    ax.set_xlabel(param_col, fontsize=12)
-                                else:
-                                    # Bar plot for categorical parameters
-                                    x_pos = range(len(param_values))
-                                    bars = ax.bar(
-                                        x_pos,
-                                        metric_values,
-                                        color="steelblue",
-                                        alpha=0.7,
-                                    )
-                                    ax.set_xticks(x_pos)
-                                    ax.set_xticklabels(
-                                        param_values, rotation=45, ha="right"
-                                    )
-                                    ax.set_xlabel(param_col, fontsize=12)
-
-                                    # Add value labels on bars
-                                    for bar, val in zip(bars, metric_values):
-                                        height = bar.get_height()
-                                        ax.text(
-                                            bar.get_x() + bar.get_width() / 2.0,
-                                            height,
-                                            f"{val:.3f}",
-                                            ha="center",
-                                            va="bottom",
-                                            fontsize=9,
-                                        )
-                            except Exception:
-                                # Fallback to bar plot
-                                x_pos = range(len(param_values))
-                                bars = ax.bar(
-                                    x_pos, metric_values, color="steelblue", alpha=0.7
-                                )
-                                ax.set_xticks(x_pos)
-                                ax.set_xticklabels(
-                                    param_values, rotation=45, ha="right"
-                                )
-                                ax.set_xlabel(param_col, fontsize=12)
-
-                        ax.set_ylabel(metric_col, fontsize=12)
-                        ax.set_title(f"{metric_col} by {param_col}", fontsize=14)
-                        ax.grid(True, alpha=0.3)
-
-                        plt.tight_layout()
-
-                        # Save the plot
-                        safe_metric = metric_col.replace("/", "_").replace(" ", "_")
-                        plot_filename = (
-                            f"{analysis_type}__{safe_param_name}__{safe_metric}.png"
-                        )
-                        plot_path = os.path.join(param_plots_dir, plot_filename)
-                        plt.savefig(plot_path, dpi=300, bbox_inches="tight")
-                        plt.close()
-                        plot_paths.append(plot_path)
-
-                    except Exception as e:
-                        print(f"Warning: Could not create plot for {metric_col}: {e}")
-                        plt.close()
-                        continue
-
-            except Exception as e:
-                print(f"Warning: Could not process {csv_file}: {e}")
-                continue
-
-        print(f"Generated {len(plot_paths)} means_by_param plots")
-        return plot_paths
 
 
 def parse_args():

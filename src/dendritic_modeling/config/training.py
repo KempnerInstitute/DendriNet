@@ -146,6 +146,7 @@ class ReportingConfig(BaseConfig):
 class MainTrainConfig(BaseConfig):
     learning_strategy: str = "standard"
     weight_decay_rate: float = 0.01
+    weight_boosting: bool = False
     param_groups: ParamGroupsConfig = field(default_factory=ParamGroupsConfig)
     trainer: TrainerConfig = field(default_factory=TrainerConfig)
     # Advanced 294 features added to the existing MainTrainConfig structure
