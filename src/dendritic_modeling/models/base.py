@@ -82,11 +82,7 @@ class BaseModel(nn.Module):
                         blocklinear_params.append(
                             module.branches_to_output.parameters()
                         )
-                    if (
-                        hasattr(module, "reactivation")
-                        and module.reactivation is not None
-                        and not isinstance(module.reactivation, nn.Identity)
-                    ):
+                    if module.reactivate:
                         reactivation_params.append(module.reactivation.parameters())
 
                 elif isinstance(module, ExcitationInhibitionLayer):
