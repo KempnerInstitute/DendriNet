@@ -22,6 +22,7 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.g
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.initialize import (
     analytical_expectation_dbl_init,
     default_dbl_init,
+    ei_equivalence_dbl_init,
     naive_dbl_init,
 )
 
@@ -293,6 +294,7 @@ class DendriticBranchLayer(nn.Module):
                 param_space="log",
                 init_method=init_method,
                 noise_level=noise_level,
+                weight_transform=self.weight_transform,
             )
 
     def initialize(self):
@@ -302,6 +304,8 @@ class DendriticBranchLayer(nn.Module):
                 adaptive=self.adaptive_initialization,
                 branch_factors=self.branch_factors,
             )
+        elif self.dbl_init_method == "ei_equivalence":
+            ei_equivalence_dbl_init(self)
         elif self.dbl_init_method == "naive":
             naive_dbl_init(self)
         elif self.dbl_init_method == "default":
@@ -309,11 +313,11 @@ class DendriticBranchLayer(nn.Module):
         else:
             raise ValueError(f"Unknown dbl_init_method: {self.dbl_init_method}")
 
-    def decay_weights(self, weight_decay):
-        if self.input_excitatory and self.branch_excitation is not None:
-            self.branch_excitation.decay_weights(weight_decay, weight_boost=False)
-        if self.input_inhibitory and self.branch_inhibition is not None:
-            self.branch_inhibition.decay_weights(weight_decay, weight_boost=False)
+    def decay_weights(self, weight_decay, weight_boosting=False):
+        if self.branch_excitation is not None:
+            self.branch_excitation.decay_weights(weight_decay, weight_boosting)
+        if self.branch_inhibition is not None:
+            self.branch_inhibition.decay_weights(weight_decay, weight_boosting)
         # if self.input_branches:
         #     self.branches_to_output.decay_weights(weight_decay)
 
@@ -389,8 +393,6 @@ class DendriticBranchLayer(nn.Module):
         """
         A conduction-based dynamic scale, returning a flattened vector so each weight
         can get a distinct multiplier. shape [out_features * block_size].
-
-        Dynamically handles gradient scaling based on the weight_transform type.
         """
         with torch.no_grad():
             if self.use_shunting:
@@ -401,112 +403,38 @@ class DendriticBranchLayer(nn.Module):
                     hasattr(self, "branches_to_output")
                     and self.blocklinear_strategy == "conductance_dynamic"
                 ):
-                    # Get weights and compute scaling based on weight_transform
-                    weights = self.branches_to_output.weight()
-
-                    if self.weight_transform == "exp":
-                        # For exp: gradient scale needs to account for the exponential derivative
-                        # d/dx(exp(x)) = exp(x), so we scale by the weights themselves
-                        scale_factor = weights
-                    elif self.weight_transform == "relu":
-                        # Add small epsilon to avoid zero gradients
-                        scale_factor = (weights > 0).float() + 1e-6
-                    elif self.weight_transform == "softplus":
-                        # For softplus: derivative is sigmoid(x) = 1 / (1 + exp(-x))
-                        log_weights = self.branches_to_output.log_weight
-                        scale_factor = torch.sigmoid(log_weights)
-                    else:
-                        # Default/fallback - no additional scaling
-                        scale_factor = torch.ones_like(weights)
-
                     self.branches_to_output.input_scale_vec = (
-                        g_total[:, None] / (weights * scale_factor).clamp(min=1e-8)
+                        g_total[:, None] / self.branches_to_output.weight()
                     ).flatten()
-                    self.branches_to_output.param_scale_vec = (
-                        g_total[:, None] * scale_factor
-                    )
+                    self.branches_to_output.param_scale_vec = g_total[:, None]
 
                 if (
                     self.branch_excitation is not None
                     and self.topk_strategy == "conductance_dynamic"
                 ):
-                    weights = self.branch_excitation.weight()
-
-                    # Apply transform-specific gradient scaling
-                    if self.weight_transform == "exp":
-                        scale_factor = weights
-                    elif self.weight_transform == "relu":
-                        scale_factor = (weights > 0).float() + 1e-6
-                    elif self.weight_transform == "softplus":
-                        # For TopK layers, we need to handle the pre-transform weights differently
-                        # since they use their own weight() method
-                        pre_weights = self.branch_excitation.pre_w
-                        scale_factor = torch.sigmoid(pre_weights)
-                    else:
-                        scale_factor = torch.ones_like(weights)
-
                     self.branch_excitation.input_scale_vec = (
-                        g_total[:, None] / (weights * scale_factor).clamp(min=1e-8)
+                        g_total[:, None] / self.branch_excitation.weight()
                     ).mean(dim=0)
-                    self.branch_excitation.param_scale_vec = g_total[
-                        :, None
-                    ] * scale_factor.mean(dim=0)
+                    self.branch_excitation.param_scale_vec = g_total[:, None]
 
                 if (
                     self.branch_inhibition is not None
                     and self.topk_strategy == "conductance_dynamic"
                 ):
-                    weights = self.branch_inhibition.weight()
-
-                    # Apply transform-specific gradient scaling
-                    if self.weight_transform == "exp":
-                        scale_factor = weights
-                    elif self.weight_transform == "relu":
-                        scale_factor = (weights > 0).float() + 1e-6
-                    elif self.weight_transform == "softplus":
-                        # For TopK layers, we need to handle the pre-transform weights differently
-                        pre_weights = self.branch_inhibition.pre_w
-                        scale_factor = torch.sigmoid(pre_weights)
-                    else:
-                        scale_factor = torch.ones_like(weights)
-
                     self.branch_inhibition.input_scale_vec = (
-                        g_total[:, None] / (weights * scale_factor).clamp(min=1e-8)
+                        g_total[:, None] / self.branch_inhibition.weight()
                     ).mean(dim=0)
-                    self.branch_inhibition.param_scale_vec = g_total[
-                        :, None
-                    ] * scale_factor.mean(dim=0)
+                    self.branch_inhibition.param_scale_vec = g_total[:, None]
 
             else:
                 if (
                     hasattr(self, "branches_to_output")
                     and self.blocklinear_strategy == "conductance_dynamic"
                 ):
-                    # Non-shunting case: apply transform-specific scaling
-                    weights = self.branches_to_output.weight()
-
-                    if self.weight_transform == "exp":
-                        # For exp without shunting, scale inversely by weights
-                        self.branches_to_output.input_scale_vec = (
-                            1.0 / weights.clamp(min=1e-8)
-                        ).flatten()
-                    elif self.weight_transform == "relu":
-                        # For ReLU, avoid division by zero
-                        self.branches_to_output.input_scale_vec = (
-                            1.0 / (weights + 1e-8)
-                        ).flatten()
-                    elif self.weight_transform == "softplus":
-                        # For softplus, use the inverse scaled by derivative
-                        log_weights = self.branches_to_output.log_weight
-                        sigmoid_factor = torch.sigmoid(log_weights)
-                        self.branches_to_output.input_scale_vec = (
-                            sigmoid_factor / weights.clamp(min=1e-8)
-                        ).flatten()
-                    else:
-                        # Default case
-                        self.branches_to_output.input_scale_vec = (
-                            1.0 / weights.clamp(min=1e-8)
-                        ).flatten()
+                    # only apply input_scale_vec = 1 / branch_weights
+                    self.branches_to_output.input_scale_vec = torch.exp(
+                        -1 * self.branches_to_output.weight().log()
+                    ).flatten()
 
     def get_weights(self):
         if self.input_inhibitory and self.input_excitatory:
