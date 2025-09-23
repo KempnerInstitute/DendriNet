@@ -21,28 +21,22 @@ from pathlib import Path
 import numpy as np
 from omegaconf import DictConfig, OmegaConf
 
-# Add project root to path
+# Setup module path
 project_root = Path(__file__).parent.parent.parent.parent.parent
 sys.path.insert(0, str(project_root / "src"))
 
-# Use absolute imports to avoid relative import issues
-try:
-    from dendritic_modeling.scripts.sweeps.unified.base_sweep import BaseSweepGenerator
-except ImportError:
-    # Fallback for when run as script
-    sys.path.insert(0, str(Path(__file__).parent.parent))
-    from base_sweep import BaseSweepGenerator
+# Import after path setup
+from dendritic_modeling.scripts.sweeps.unified.base_sweep import (  # noqa: E402
+    BaseSweepGenerator,
+)
 
 
 def expand_ranges(param_value):
     """
     Handle parameter values that are specified as ranges.
     A range is specified as [start, end, step].
-    From the old branch sweep code - handles both int and float ranges.
-    Works with both regular lists and OmegaConf ListConfig objects.
     """
-    # Convert OmegaConf objects to regular Python objects for processing
-    if hasattr(param_value, "_content"):  # OmegaConf object
+    if hasattr(param_value, "_content"):
         param_value = OmegaConf.to_container(param_value, resolve=True)
 
     if (

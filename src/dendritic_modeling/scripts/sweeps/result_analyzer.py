@@ -41,21 +41,10 @@ from typing import Any, Optional
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import seaborn as sns
 from matplotlib.ticker import ScalarFormatter
 from omegaconf import OmegaConf
 from scipy.ndimage import gaussian_filter1d
-
-# Try importing seaborn with compatibility handling
-try:
-    import seaborn as sns
-except AttributeError:
-    import matplotlib
-
-    if hasattr(matplotlib.cm, "register_cmap"):
-        import seaborn as sns
-    else:
-        matplotlib.cm.register_cmap = matplotlib.colormaps.register
-        import seaborn as sns
 
 # Add the project root to the path
 project_root = Path(__file__).parent.parent.parent.parent

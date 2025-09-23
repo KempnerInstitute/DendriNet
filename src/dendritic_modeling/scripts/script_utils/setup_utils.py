@@ -14,7 +14,7 @@ import torch
 import wandb
 from omegaconf import OmegaConf
 
-from dendritic_modeling.config import ModelConfig
+from dendritic_modeling.config import DataConfig, ModelConfig, TrainingConfig
 from dendritic_modeling.datasets import get_unified_datasets
 from dendritic_modeling.models import Classifier, Regressor
 from dendritic_modeling.networks import Identity
@@ -28,31 +28,84 @@ logger_manager = LoggerManager()
 
 def initialize_model(model_config: ModelConfig):
     """Initialize the model based on configuration."""
-    encoder_network_config = model_config.encoder_network
-    core_network_config = model_config.core_network
-    decoder_network_config = model_config.decoder_network
+    encoder_config = model_config.encoder
+    core_config = model_config.core
+    decoder_config = model_config.decoder
 
-    encoder_network = get_architecture(
-        encoder_network_config.type,
-        OmegaConf.to_container(encoder_network_config.parameters, resolve=True),
-    )
+    # Build encoder parameters dict
+    encoder_params = {}
+    if encoder_config.type.lower() == "identity":
+        encoder_params["input_dim"] = encoder_config.params.input_dim or 784
+    else:
+        encoder_params = OmegaConf.to_container(encoder_config.params, resolve=True)
+
+    # Create encoder
+    encoder_network = get_architecture(encoder_config.type, encoder_params)
     if isinstance(encoder_network, Identity):
         encoder = encoder_network
     else:
         encoder = encoder_network.encoder
 
-    core_network_config.parameters.input_dim = encoder.output_dim
-    core_network = get_architecture(
-        core_network_config.type,
-        OmegaConf.to_container(core_network_config.parameters, resolve=True),
+    # Build core network parameters dict by flattening the structured config
+    architecture_dict = OmegaConf.to_container(core_config.architecture, resolve=True)
+    connectivity_dict = OmegaConf.to_container(core_config.connectivity, resolve=True)
+    transfer_dict = OmegaConf.to_container(core_config.transfer, resolve=True)
+    morphology_dict = OmegaConf.to_container(core_config.morphology, resolve=True)
+    implementation_dict = OmegaConf.to_container(
+        core_config.implementation, resolve=True
     )
 
-    decoder_network_config.parameters.input_dim = core_network.output_dim
-    decoder_network = get_architecture(
-        decoder_network_config.type,
-        OmegaConf.to_container(decoder_network_config.parameters, resolve=True),
-    )
+    core_params = {
+        "input_dim": encoder.output_dim,
+        **architecture_dict,
+        **connectivity_dict,
+        "transfer_params": transfer_dict,
+        **morphology_dict,
+        **implementation_dict,
+    }
 
+    # Add sparsity parameters
+    sparsity_dict = OmegaConf.to_container(core_config.sparsity, resolve=True)
+    for key, value in sparsity_dict.items():
+        if key == "deepst":
+            for deepst_key, deepst_value in value.items():
+                core_params[deepst_key] = deepst_value
+        else:
+            core_params[f"topk_{key}"] = value
+
+    # Add reactivation parameters
+    reactivation_dict = OmegaConf.to_container(core_config.reactivation, resolve=True)
+    core_params["reactivate"] = reactivation_dict.pop("enabled", True)
+    for key, value in reactivation_dict.items():
+        if key == "type":
+            core_params["reactivation_type"] = value
+        elif key.startswith("init_"):
+            core_params[f"reactivation_{key}"] = value
+        else:
+            core_params[f"reactivation_{key}"] = value
+
+    # Add blocklinear parameters
+    blocklinear_dict = OmegaConf.to_container(core_config.blocklinear, resolve=True)
+    for key, value in blocklinear_dict.items():
+        if key == "efficient":
+            core_params["efficient_blocklinear"] = value
+        else:
+            core_params[f"blocklinear_{key}"] = value
+
+    # Create core network
+    core_network = get_architecture(core_config.type, core_params)
+
+    # Build decoder parameters
+    decoder_params_dict = OmegaConf.to_container(decoder_config.params, resolve=True)
+    decoder_params = {
+        "input_dim": core_network.output_dim,
+        **decoder_params_dict,
+    }
+
+    # Create decoder
+    decoder_network = get_architecture(decoder_config.type, decoder_params)
+
+    # Create model based on task
     if model_config.task == "classification":
         model = Classifier(encoder, core_network, decoder_network)
     elif model_config.task == "regression":
@@ -66,54 +119,31 @@ def initialize_model(model_config: ModelConfig):
 
 
 def setup_environment(
-    model_config,
-    train_config,
-    task_config,
+    model_config: ModelConfig,
+    training_config: TrainingConfig,
+    data_config: DataConfig,
     wandb_config,
     outputs_config,
-    run_config=None,
+    experiment_config,
 ):
-    """
-    Set up the environment for training.
+    """Setup training environment."""
 
-    Returns:
-        Tuple of (run_save_path, train_ds, valid_ds, test_ds, model, encoder_network)
-    """
-    # Set random seed
-    set_seed(train_config.seed)
+    # Set seed
+    seed = experiment_config.seed
+    set_seed(seed)
+    logger.info(f"Set random seed to {seed}")
 
-    # Create run directory using run_config.dir if available, fallback to outputs_config.dir
-    output_dir = (
-        run_config.dir
-        if run_config and hasattr(run_config, "dir")
-        else outputs_config.dir
-    )
+    # Setup output directory
+    output_dir = outputs_config.results_dir
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir, exist_ok=True)
+        logger.info(f"Created output directory: {output_dir}")
 
-    # Check if we're in a sweep context by looking for sweep-specific directory patterns
-    # Sweep directories typically end with config_X where X is a number
-    is_sweep_context = output_dir and (
-        # Check if path ends with config_X pattern (sweep context)
-        (
-            str(output_dir).split("/")[-1].startswith("config_")
-            and str(output_dir).split("/")[-1].replace("config_", "").isdigit()
-        )
-        or
-        # Or if "sweep" or "unified_" is in the path
-        "sweep" in str(output_dir).lower()
-        or "unified_" in str(output_dir)
-    )
-
-    if is_sweep_context:
-        # We're in a sweep - use the provided directory directly
-        run_save_path = output_dir
-        logger.info(f"Using sweep output directory directly: {run_save_path}")
-    else:
-        # Standard single experiment - create timestamped directory
-        # Use outputs_config.run_name as primary, fallback to train_config.run_name for compatibility
-        run_name = getattr(outputs_config, 'run_name', None) or getattr(train_config, 'run_name', 'experiment')
-        run_id = f"{run_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-        run_save_path = os.path.join(output_dir, run_id)
-        logger.info(f"Created timestamped experiment directory: {run_save_path}")
+    run_name = outputs_config.run_name
+    run_id = f"{run_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    run_save_path = os.path.join(output_dir, run_id)
+    os.makedirs(run_save_path, exist_ok=True)
+    logger.info(f"Created run directory: {run_save_path}")
 
     # Set the logger manager to use the same directory for the main log file
     logger_manager.set_log_directory(run_save_path)
@@ -126,7 +156,8 @@ def setup_environment(
     logger.addHandler(file_handler)
     logger.info(f"Logging to {log_file}")
 
-    if hasattr(wandb_config, "use_wandb") and wandb_config.use_wandb:
+    # Setup wandb if enabled
+    if wandb_config.use_wandb:
         try:
             wandb.init(
                 entity=wandb_config.entity,
@@ -134,7 +165,12 @@ def setup_environment(
                 group=wandb_config.group,
                 tags=wandb_config.tags,
                 name=run_name,
-                config=asdict(train_config),
+                config={
+                    "model": asdict(model_config),
+                    "training": asdict(training_config),
+                    "data": asdict(data_config),
+                    "experiment": asdict(experiment_config),
+                },
             )
             logger.info("Successfully initialized W&B")
         except Exception as e:
@@ -142,21 +178,40 @@ def setup_environment(
             logger.error("Continuing without W&B logging")
             wandb_config.use_wandb = False
 
-    # Get datasets using a shared dataset directory (not the individual run directory)
-    # This prevents each config from saving its own copy of the dataset
-    if hasattr(outputs_config, "dataset_dir") and outputs_config.dataset_dir:
-        # Use explicitly configured dataset directory
-        shared_dataset_dir = outputs_config.dataset_dir
-    elif hasattr(outputs_config, "dir") and outputs_config.dir:
-        # Use outputs directory as fallback
-        shared_dataset_dir = outputs_config.dir
-    else:
-        # Use parent of output_dir as final fallback
-        shared_dataset_dir = os.path.dirname(output_dir)
+    base_dir = data_config.base_dir or output_dir
+    dataset_specific_params = {}
+    if hasattr(data_config.dataset_params, data_config.dataset_name):
+        dataset_specific_params = getattr(
+            data_config.dataset_params, data_config.dataset_name, {}
+        )
+
+    task_cfg = type(
+        "TaskConfig",
+        (),
+        {
+            "dataset": data_config.dataset_name,
+            "data_path": os.path.join(base_dir, data_config.dataset_name)
+            if base_dir
+            else None,
+            "parameters": {
+                **data_config.processing.__dict__,
+                **dataset_specific_params,
+            },
+        },
+    )()
+
+    train_cfg = type(
+        "TrainConfig",
+        (),
+        {
+            "seed": experiment_config.seed,
+            "train_valid_split": experiment_config.train_valid_split,
+        },
+    )()
 
     unified_datasets = get_unified_datasets(
-        task_cfg=task_config,
-        train_cfg=train_config,
+        task_cfg=task_cfg,
+        train_cfg=train_cfg,
     )
     train_ds, valid_ds, test_ds = unified_datasets
 
@@ -164,26 +219,12 @@ def setup_environment(
         f"Loaded datasets: {len(train_ds)} training, {len(valid_ds)} validation, {len(test_ds)} test samples"
     )
 
+    # Update encoder input dimension
     input_sample: torch.Tensor = train_ds[0][0]
-    model_config.encoder_network.parameters.input_dim = input_sample.numel()
-    model_config.encoder_network.parameters.input_shape = tuple(input_sample.shape)
+    model_config.encoder.params.input_dim = input_sample.numel()
+    model_config.encoder.params.input_shape = list(input_sample.shape)
 
+    # Initialize model
     model, encoder_network = initialize_model(model_config)
 
     return run_save_path, train_ds, valid_ds, test_ds, model, encoder_network
-
-
-def save_model(model: torch.nn.Module, save_path: str, filename: str):
-    """Save a model to the specified path."""
-    os.makedirs(save_path, exist_ok=True)
-    full_path = os.path.join(save_path, filename)
-    torch.save(model.state_dict(), full_path)
-    logger.info(f"Saved model to {full_path}")
-    return full_path
-
-
-def load_model(model: torch.nn.Module, load_path: str):
-    """Load a model from the specified path."""
-    model.load_state_dict(torch.load(load_path))
-    logger.info(f"Loaded model from {load_path}")
-    return model

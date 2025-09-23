@@ -5,113 +5,166 @@ from dendritic_modeling.config.base import BaseConfig
 
 
 @dataclass
-class TransferFunctionParams(BaseConfig):
-    input_mode: int = 0
+class TransferFunctionConfig(BaseConfig):
+    """Transfer function parameters."""
+
+    input_mode: int = 1
     independent_pathways: bool = False
     excitatory_dim: Optional[int] = None
     inhibitory_dim: Optional[int] = None
-    output_activation: Optional[str] = (
-        None  # Options: "sigmoid", "relu", "tanh", "softplus", None
-    )
+    output_activation: Optional[str] = None
 
 
 @dataclass
-class EINetParameters(BaseConfig):
-    input_dim: int = 784
-    transfer_params: TransferFunctionParams = field(
-        default_factory=TransferFunctionParams
-    )
-    excitatory_layer_sizes: list[int] = field(default_factory=lambda: [10])
-    inhibitory_layer_sizes: list[int] = field(default_factory=lambda: [20])
-    excitatory_branch_factors: list[int] = field(default_factory=lambda: [2, 2])
-    inhibitory_branch_factors: list[int] = field(default_factory=list)
-    ee_synapses_per_branch_per_layer: list[int] = field(default_factory=lambda: [24])
-    ei_synapses_per_branch_per_layer: list[int] = field(default_factory=lambda: [200])
-    ie_synapses_per_branch_per_layer: list[int] = field(default_factory=lambda: [1])
-    ii_synapses_per_branch_per_layer: list[int] = field(default_factory=list)
-    inhibitory_network_type: str = "dendritic"
-    mlp_inhibitory_network_params: dict = field(default_factory=dict)
-    reactivate: bool = True
-    reactivation_init_m: float = 1.5
-    reactivation_init_b: float = 0.5
-    dbl_init_method: str = "analytical_expectation"
-    somatic_synapses: bool = True
-    topk_init_method: str = "xavier_normal"
-    topk_noise_level: float = 0.0
-    topk_type: str = "standard"  # can be "standard", "stochastic", or "variance"
-    topk_temperature: float = 0.5
-    topk_ultrafast: bool = False
-    topk_strategy: str = "conductance_dynamic"
+class ArchitectureConfig(BaseConfig):
+    """Core network architecture configuration."""
+
+    excitatory_layer_sizes: list[int] = field(default_factory=lambda: [20])
+    inhibitory_layer_sizes: list[int] = field(default_factory=list)
+    excitatory_branch_factors: list[int] = field(default_factory=lambda: [3, 3, 3, 3])
+    inhibitory_branch_factors: list[int] = field(default_factory=lambda: [1])
+
+
+@dataclass
+class ConnectivityConfig(BaseConfig):
+    """Synaptic connectivity configuration."""
+
+    ee_synapses_per_branch_per_layer: list[int] = field(default_factory=lambda: [40])
+    ei_synapses_per_branch_per_layer: list[int] = field(default_factory=lambda: [0])
+    ie_synapses_per_branch_per_layer: list[int] = field(default_factory=lambda: [10])
+    ii_synapses_per_branch_per_layer: list[int] = field(default_factory=lambda: [0])
+
+
+@dataclass
+class MorphologyConfig(BaseConfig):
+    """Morphological features configuration."""
+
+    somatic_synapses: bool = False
     use_shunting: bool = True
-    reactivation_type: str = "param_tanh"
-    reactivation_strategy: str = "inverse"
-    blocklinear_strategy: str = "conductance_dynamic"
-    print_hooks: bool = False  # Whether to print gradient statistics in hooks
-    efficient_blocklinear: bool = False  # use memory-efficient implementation
-    excitatory_target_density: float = 0.1
-    inhibitory_target_density: float = 0.1
-    use_noise: bool = True
-    sigma: float = 0.05
-    rewiring_mode: str = "global"
-    rewire_frequency: int = 1
-    synapses_per_branch: Optional[int] = None
-    freeze_excitatory_connectivity: bool = False
-    freeze_inhibitory_connectivity: bool = False
+    weight_transform: str = "softplus"
+    dbl_init_method: str = "analytical_expectation"
+
+
+@dataclass
+class SparsityConfig(BaseConfig):
+    """Sparsity configuration."""
+
     init_method: str = "xavier_normal"
-    weight_threshold: float = 1e-6
-    adaptive_initialization: bool = True  # use network-aware weight scaling
-    epsilon: float = 1e-8  # numerical stability constant for shunting computation
-    
-    # Weight transformation for positive weights
-    weight_transform: str = "exp"  # Options: "exp", "relu", "softplus"
+    noise_level: float = 0.0
+    type: str = "standard"
+    temperature: float = 0.0
+    strategy: str = "none"
+
+    deepst: dict = field(
+        default_factory=lambda: {
+            "excitatory_target_density": 0.1,
+            "inhibitory_target_density": 0.1,
+            "use_noise": True,
+            "sigma": 0.05,
+            "rewiring_mode": "global",
+            "rewire_frequency": 1,
+            "synapses_per_branch": None,
+            "freeze_excitatory_connectivity": False,
+            "freeze_inhibitory_connectivity": False,
+            "init_method": "xavier_normal",
+            "weight_threshold": 1e-6,
+        }
+    )
 
 
 @dataclass
-class CoreNetworkConfig(BaseConfig):
-    type: str = "EINet"
-    parameters: EINetParameters = field(default_factory=EINetParameters)
+class ReactivationConfig(BaseConfig):
+    """Reactivation function configuration."""
+
+    enabled: bool = True
+    type: str = "param_tanh"
+    init_m: float = 1.5
+    init_b: float = 0.5
+    strategy: str = "none"
 
 
 @dataclass
-class EncoderNetworkParameters(BaseConfig):
-    input_dim: int = None
-    input_shape: tuple[int, int, int] = None
+class BlockLinearConfig(BaseConfig):
+    """BlockLinear configuration."""
+
+    strategy: str = "none"
+    efficient: bool = False
+
+
+@dataclass
+class ImplementationConfig(BaseConfig):
+    """Implementation optimization settings."""
+
+    adaptive_initialization: bool = False
+    print_hooks: bool = False
+
+
+@dataclass
+class EncoderParamsConfig(BaseConfig):
+    """Encoder network parameters."""
+
+    input_dim: Optional[int] = None
+    input_shape: list[int] = field(default_factory=lambda: [3, 32, 32])
     encoder_hidden_dims: list[int] = field(default_factory=lambda: [128, 64])
     encoder_kernel_sizes: list[int] = field(default_factory=lambda: [3, 3])
     encoder_strides: list[int] = field(default_factory=lambda: [2, 2])
-    latent_dim: int = None
-    latent_shape: tuple[int, int, int] = None
+    latent_dim: Optional[int] = None
+    latent_shape: Optional[list[int]] = None
     decoder_hidden_dims: list[int] = field(default_factory=lambda: [64, 128])
     activation: str = "relu"
 
 
 @dataclass
-class EncoderNetworkConfig(BaseConfig):
-    type: str = "MLPAutoencoder"
-    parameters: EncoderNetworkParameters = field(
-        default_factory=EncoderNetworkParameters
-    )
+class EncoderConfig(BaseConfig):
+    """Encoder network configuration."""
+
+    type: str = "identity"
+    load_save_root: str = "./trained_encoder_networks/"
+    params: EncoderParamsConfig = field(default_factory=EncoderParamsConfig)
 
 
 @dataclass
-class DecoderNetworkParameters(BaseConfig):
-    input_dim: int = None
-    hidden_dims: list[int] = field(default_factory=lambda: [32, 16])
+class CoreConfig(BaseConfig):
+    """Core network configuration."""
+
+    type: str = "EINet"
+
+    architecture: ArchitectureConfig = field(default_factory=ArchitectureConfig)
+    connectivity: ConnectivityConfig = field(default_factory=ConnectivityConfig)
+    transfer: TransferFunctionConfig = field(default_factory=TransferFunctionConfig)
+    morphology: MorphologyConfig = field(default_factory=MorphologyConfig)
+    sparsity: SparsityConfig = field(
+        default_factory=SparsityConfig
+    )  # Renamed from topk
+    reactivation: ReactivationConfig = field(default_factory=ReactivationConfig)
+    blocklinear: BlockLinearConfig = field(default_factory=BlockLinearConfig)
+    implementation: ImplementationConfig = field(default_factory=ImplementationConfig)
+
+
+@dataclass
+class DecoderParamsConfig(BaseConfig):
+    """Decoder network parameters."""
+
+    input_dim: int = 20
+    hidden_dims: list[int] = field(default_factory=lambda: [16])
     activation: str = "relu"
-    output_dim: int = None
+    output_dim: int = 10
 
 
 @dataclass
-class DecoderNetworkConfig(BaseConfig):
+class DecoderConfig(BaseConfig):
+    """Decoder network configuration."""
+
     type: str = "MLP"
-    parameters: DecoderNetworkParameters = field(
-        default_factory=DecoderNetworkParameters
-    )
+    params: DecoderParamsConfig = field(default_factory=DecoderParamsConfig)
 
 
 @dataclass
 class ModelConfig(BaseConfig):
+    """Complete model configuration."""
+
     task: str = "classification"
-    encoder_network: EncoderNetworkConfig = field(default_factory=EncoderNetworkConfig)
-    core_network: CoreNetworkConfig = field(default_factory=CoreNetworkConfig)
-    decoder_network: DecoderNetworkConfig = field(default_factory=DecoderNetworkConfig)
+
+    encoder: EncoderConfig = field(default_factory=EncoderConfig)
+    core: CoreConfig = field(default_factory=CoreConfig)
+    decoder: DecoderConfig = field(default_factory=DecoderConfig)
