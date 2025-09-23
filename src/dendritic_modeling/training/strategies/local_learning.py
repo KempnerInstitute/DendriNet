@@ -97,8 +97,9 @@ class LocalRuleConfig:
     hsic_sigma: float = 1.0  # RBF kernel bandwidth (gamma = 1/(2*sigma^2))
     hsic_degree: int = 2  # Polynomial kernel degree
     hsic_coef0: float = 1.0  # Polynomial kernel coefficient
-    hsic_grad_clip_value: float = 0.1  # Elementwise clip for HSIC grads
-    hsic_warmup_epochs: int = 5  # Linearly ramp HSIC weights over first N epochs
+    # HSIC stability options
+    hsic_grad_clip_value: float = 0.0  # Clip HSIC gradients elementwise if > 0
+    hsic_warmup_epochs: int = 0  # Linearly ramp HSIC weights over first N epochs
     hsic_apply_last_layer_only: bool = False  # Apply HSIC only on last dendritic layer
     # Decoder update strategy: "backprop" or "none"
     decoder_update_mode: str = "backprop"
@@ -723,10 +724,33 @@ class LocalCreditAssignment(Trainer):
                 v_out = rec.get("v_out")
                 if v_out is not None:
                     z = v_out - v_out.mean(dim=0, keepdim=True)  # [B, out]
+                    # Optional warmup for HSIC weights over initial epochs
+                    hsic_warm = 1.0
+                    if (
+                        getattr(self.local_cfg, "hsic_warmup_epochs", 0)
+                        and self.epoch_counter < self.local_cfg.hsic_warmup_epochs
+                    ):
+                        hsic_warm = max(
+                            0.0,
+                            float(self.epoch_counter)
+                            / float(max(1, self.local_cfg.hsic_warmup_epochs)),
+                        )
+                    # Optionally restrict HSIC to last dendritic layer only
+                    if getattr(self.local_cfg, "hsic_apply_last_layer_only", False):
+                        is_last = layer_idx == len(layer_records) - 1
+                        if not is_last:
+                            hsic_warm = 0.0
                     if self.local_cfg.hsic_self_weight != 0.0:
                         grad_z_self = self._compute_hsic_gradient(
-                            z, z, self.local_cfg.hsic_self_weight, "self"
+                            z, z, self.local_cfg.hsic_self_weight * hsic_warm, "self"
                         )
+                        # Optional HSIC grad clipping
+                        if getattr(self.local_cfg, "hsic_grad_clip_value", 0.0) > 0:
+                            grad_z_self = torch.clamp(
+                                grad_z_self,
+                                min=-self.local_cfg.hsic_grad_clip_value,
+                                max=self.local_cfg.hsic_grad_clip_value,
+                            )
                         if exc_layer is not None and rec.get("x_exc") is not None:
                             x_exc = rec["x_exc"]
                             grad_g_self = grad_z_self.t() @ x_exc
@@ -752,8 +776,17 @@ class LocalCreditAssignment(Trainer):
                     ):
                         y_centered = y_target - y_target.mean(dim=0, keepdim=True)
                         grad_z_tgt = self._compute_hsic_gradient(
-                            z, y_centered, self.local_cfg.hsic_target_weight, "target"
+                            z,
+                            y_centered,
+                            self.local_cfg.hsic_target_weight * hsic_warm,
+                            "target",
                         )
+                        if getattr(self.local_cfg, "hsic_grad_clip_value", 0.0) > 0:
+                            grad_z_tgt = torch.clamp(
+                                grad_z_tgt,
+                                min=-self.local_cfg.hsic_grad_clip_value,
+                                max=self.local_cfg.hsic_grad_clip_value,
+                            )
                         if exc_layer is not None and rec.get("x_exc") is not None:
                             x_exc = rec["x_exc"]
                             grad_g_tgt = grad_z_tgt.t() @ x_exc
@@ -847,20 +880,27 @@ class LocalCreditAssignment(Trainer):
             )
             if grad_type == "self":
                 # Self-dependence: encourage diversity (negative correlation)
-                K_zz = self._compute_kernel_matrix(z, z)
-                # Gradient of tr(K_zz) w.r.t. z_i = 2 * gamma * K_ii * (z_i - z_mean)
+                K_zz = self._compute_kernel_matrix(z, z)  # [B, B]
                 z_expanded = z.unsqueeze(1)  # [B, 1, d]
                 z_diff = z_expanded - z.unsqueeze(0)  # [B, B, d]
                 K_expanded = K_zz.unsqueeze(-1)  # [B, B, 1]
                 grad_z = -2.0 * gamma * (K_expanded * z_diff).sum(dim=1)  # [B, d]
                 return grad_z * weight / float(batch_size)
             else:  # target
-                # Target dependence: maximize HSIC(z, y)
-                K_zy = self._compute_kernel_matrix(z, y)
+                # Use Z-Z kernel and Y-Y kernel; weight Z pairwise diffs by centered Y kernel
+                K_zz = self._compute_kernel_matrix(z, z)  # [B, B]
+                L_yy = self._compute_kernel_matrix(y, y)  # [B, B]
+                # Center L_yy
+                Lc = (
+                    L_yy
+                    - L_yy.mean(dim=0, keepdim=True)
+                    - L_yy.mean(dim=1, keepdim=True)
+                    + L_yy.mean()
+                )
                 z_expanded = z.unsqueeze(1)  # [B, 1, d_z]
                 z_diff = z_expanded - z.unsqueeze(0)  # [B, B, d_z]
-                K_expanded = K_zy.unsqueeze(-1)  # [B, B, 1]
-                grad_z = 2.0 * gamma * (K_expanded * z_diff).sum(dim=1)  # [B, d_z]
+                weight_mat = (K_zz * Lc).unsqueeze(-1)  # [B, B, 1]
+                grad_z = 2.0 * gamma * (weight_mat * z_diff).sum(dim=1)  # [B, d_z]
                 return grad_z * self.local_cfg.hsic_weight * weight / float(batch_size)
 
         elif kernel_type in ["polynomial", "poly"]:
@@ -871,16 +911,25 @@ class LocalCreditAssignment(Trainer):
                 # Self-dependence gradient
                 dot_zz = z @ z.t()  # [B, B]
                 poly_base = coef0 + dot_zz  # [B, B]
-                # d/dz_i (coef0 + z_i^T z_j)^degree = degree * (coef0 + z_i^T z_j)^(degree-1) * z_j
                 poly_grad_coef = degree * (poly_base ** (degree - 1))  # [B, B]
                 grad_z = (poly_grad_coef @ z) * 2.0  # [B, d] (factor 2 for symmetry)
                 return grad_z * weight / float(batch_size)
             else:  # target
-                # Target dependence gradient
-                dot_zy = z @ y.t()  # [B, B]
-                poly_base = coef0 + dot_zy  # [B, B]
-                poly_grad_coef = degree * (poly_base ** (degree - 1))  # [B, B]
-                grad_z = poly_grad_coef @ y  # [B, d_z]
+                # Use Z-Z polynomial kernel and Y-Y polynomial kernel; weight by centered Y kernel
+                dot_zz = z @ z.t()  # [B, B]
+                K_base = coef0 + dot_zz
+                K_coef = degree * (K_base ** (degree - 1))  # [B, B]
+                dot_yy = y @ y.t()  # [B, B]
+                L_base = coef0 + dot_yy
+                L_yy = L_base**degree  # kernel values (only for centering/weighting)
+                Lc = (
+                    L_yy
+                    - L_yy.mean(dim=0, keepdim=True)
+                    - L_yy.mean(dim=1, keepdim=True)
+                    + L_yy.mean()
+                )
+                weight_mat = K_coef * Lc  # [B, B]
+                grad_z = (weight_mat @ z) * 2.0  # symmetry factor
                 return grad_z * self.local_cfg.hsic_weight * weight / float(batch_size)
 
         else:
