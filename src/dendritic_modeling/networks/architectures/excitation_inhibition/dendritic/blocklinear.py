@@ -5,7 +5,6 @@ This module implements a custom linear layer that aggregates information
 from converging branches in a previous branch layer.
 """
 
-import traceback
 from math import floor
 
 import torch
@@ -165,11 +164,17 @@ class BlockLinear(nn.Module):
         if x.dim() == 1:
             x = x.unsqueeze(0)
 
-        # If x is not 2D at this point, we can't do matrix multiplication
-        # if x.dim() != 2:
-        #     raise ValueError(
-        #         f"Expected input to be a 2D tensor, got shape {x.shape} with {x.dim()} dimensions"
-        #     )
+        # BlockLinear expects 2D input
+        if x.dim() != 2:
+            raise ValueError(
+                f"BlockLinear expects 2D input tensor, got shape {x.shape} with {x.dim()} dimensions"
+            )
+
+        # Validate input dimension
+        if x.shape[1] != self.in_features:
+            raise ValueError(
+                f"Input feature dimension mismatch: got {x.shape[1]}, expected {self.in_features}"
+            )
 
         return torch.matmul(x, self.block().t())
 
@@ -196,27 +201,43 @@ class EfficientBlockLinear(BlockLinear):
         if not isinstance(x, torch.Tensor):
             raise TypeError(f"Expected tensor, got {type(x)}")
 
+        original_shape = x.shape
+
         if x.dim() == 1:
             x = x.unsqueeze(0)
+        elif x.dim() > 2:
+            # Handle higher dimensional inputs by flattening batch dimensions
+            # This is common during analysis when data has extra batch dimensions
+            feature_dim = x.shape[-1]
+            x = x.reshape(-1, feature_dim)
 
-        # x has shape (B, out_features * block_size)
+        # x should now be 2D: [B, features]
         B = x.shape[0]
         expected_dim = self.out_features * self.block_size
-        if x.shape[1] != expected_dim:
-            # Try to provide more context about where this error is occurring
-            tb_str = "".join(
-                traceback.format_stack()[-3:-1]
-            )  # Get last few stack frames
-            print(
-                f"Error computing metric: Input feature dimension {x.shape[1]} does not match expected {expected_dim} (= out_features*block_size)"
-            )
-            print(
-                "This suggests data is flowing incorrectly through the network. Stack trace:"
-            )
-            print(tb_str)
 
-            # Return zeros instead of crashing to allow analysis to continue
-            return torch.zeros(B, self.out_features, device=x.device, dtype=x.dtype)
+        # Validate input dimension
+        if x.shape[1] != expected_dim:
+            # Check if this might be a transposed or mishaped tensor
+            if x.shape[1] % self.block_size == 0:
+                # Could be wrong number of output features
+                implied_out = x.shape[1] // self.block_size
+                print(
+                    f"Warning: EfficientBlockLinear expecting {expected_dim} features (out={self.out_features}, block={self.block_size}), "
+                    f"but got {x.shape[1]} features. This implies out_features should be {implied_out}."
+                )
+
+            # Return zeros to allow analysis to continue
+            print(
+                f"Warning: EfficientBlockLinear input shape mismatch: original shape {original_shape}, "
+                f"reshaped to {x.shape}, expected [B, {expected_dim}]. Returning zeros."
+            )
+
+            # If original was higher-dim, return zeros with appropriate shape
+            if len(original_shape) > 2:
+                out_shape = [*original_shape[:-1], self.out_features]
+                return torch.zeros(out_shape, device=x.device, dtype=x.dtype)
+            else:
+                return torch.zeros(B, self.out_features, device=x.device, dtype=x.dtype)
 
         x_reshaped = x.view(B, self.out_features, self.block_size)
         weights = apply_weight_transform(

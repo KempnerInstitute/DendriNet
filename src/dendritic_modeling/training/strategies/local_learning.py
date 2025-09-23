@@ -1204,6 +1204,10 @@ class LocalCreditAssignment(Trainer):
         if self.load_best_state_dict:
             model.load_state_dict(self.best_state_dict)
 
+        # Log best model information like standard training
+        logger.info(f"Best epoch: {self.best_epoch}, Best loss: {self.best_loss:.4f}")
+        logger.info("Final model loaded from best checkpoint")
+
         results = {
             "best_epoch": self.best_epoch,
             "best_loss": self.best_loss,
