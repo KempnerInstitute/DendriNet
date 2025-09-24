@@ -73,9 +73,8 @@ class AnalysisManager:
 
         # Initialize Synaptic Turnover Analysis
         if self.config.synapse_turnover_analysis.enabled:
-            params = self.config.synapse_turnover_analysis.params
             self.syn_turnover_analyzer = SynapticTurnoverAnalyzer(
-                model=model, snapshot_interval=params.snapshot_interval
+                model=model, params=self.config.synapse_turnover_analysis.params
             )
 
         # Initialize Noise Perturbation Analysis
