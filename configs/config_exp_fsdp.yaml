@@ -196,7 +196,7 @@ model:
       inhibitory_layer_sizes: []
     blocklinear:
       efficient: false
-      strategy: none
+      gradient_scaling: none
     connectivity:
       ee_synapses_per_branch_per_layer:
       - 40
@@ -218,7 +218,7 @@ model:
       enabled: true
       init_b: 0.5
       init_m: 1.5
-      strategy: none
+      gradient_scaling: none
       type: param_tanh
     sparsity:
       deepst:
@@ -235,7 +235,7 @@ model:
         weight_threshold: 1.0e-06
       init_method: xavier_normal
       noise_level: 0.0
-      strategy: none
+      gradient_scaling: none
       temperature: 0.0
       type: standard
     transfer:

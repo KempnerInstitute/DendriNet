@@ -131,7 +131,7 @@ model:
       noise_level: 0.0                  # Noise level for stochastic sparsity (0.0-1.0)
       type: "standard"                  # Sparsity type: "standard", "stochastic", "variance", "deepst"
       temperature: 0.0                  # Temperature for stochastic selection (0.1-1.0)
-      strategy: "none"                  # Gradient scaling strategy: "none", "conductance_dynamic"
+      gradient_scaling: "none"          # Gradient scaling strategy: "none", "conductance_dynamic"
 
       deepst:                           # DeepST-specific parameters (only used when type: "deepst")
         excitatory_target_density: 0.1  # Target density for excitatory connections (0.0-1.0)
@@ -151,10 +151,10 @@ model:
       type: "param_tanh"                # Reactivation type: "param_tanh", "tanh", "sigmoid"
       init_m: 1.5                       # Reactivation parameter m (slope)
       init_b: 0.5                       # Reactivation parameter b (bias)
-      strategy: "none"                  # Gradient scaling: "none", "inverse", "conductance_dynamic"
+      gradient_scaling: "none"          # Gradient scaling: "none", "inverse", "conductance_dynamic"
 
     blocklinear:
-      strategy: "none"                  # BlockLinear strategy: "none", "conductance_dynamic"
+      gradient_scaling: "none"          # BlockLinear strategy: "none", "conductance_dynamic"
       efficient: false                  # Use memory-efficient implementation (true/false)
 
     implementation:

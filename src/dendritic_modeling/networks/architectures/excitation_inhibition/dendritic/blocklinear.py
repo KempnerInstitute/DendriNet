@@ -156,18 +156,24 @@ class BlockLinear(nn.Module):
             self.log_weight.data -= weight_decay
 
     def forward(self, x):
-        # Ensure x is a 2D tensor for matrix multiplication
+        # Ensure x is a tensor
         if not isinstance(x, torch.Tensor):
             raise TypeError(f"Expected input to be a tensor, got {type(x)}")
 
-        # If x is a 1D tensor, unsqueeze to make it 2D [1, features]
+        original_shape = x.shape
+
+        # Handle different input dimensions
         if x.dim() == 1:
             x = x.unsqueeze(0)
+        elif x.dim() > 2:
+            # Handle higher dimensional inputs by flattening batch dimensions
+            # This is common during analysis when data has extra batch dimensions
+            x = x.reshape(-1, x.shape[-1])
 
-        # BlockLinear expects 2D input
+        # x should now be 2D: [batch_size, features]
         if x.dim() != 2:
             raise ValueError(
-                f"BlockLinear expects 2D input tensor, got shape {x.shape} with {x.dim()} dimensions"
+                f"BlockLinear expects 2D input tensor after reshaping, got shape {x.shape} with {x.dim()} dimensions"
             )
 
         # Validate input dimension
@@ -176,7 +182,16 @@ class BlockLinear(nn.Module):
                 f"Input feature dimension mismatch: got {x.shape[1]}, expected {self.in_features}"
             )
 
-        return torch.matmul(x, self.block().t())
+        # Perform the forward computation
+        output = torch.matmul(x, self.block().t())
+
+        # Reshape output to match input shape structure if needed
+        if len(original_shape) > 2:
+            # Restore the original batch dimensions
+            output_shape = [*original_shape[:-1], self.out_features]
+            output = output.reshape(output_shape)
+
+        return output
 
     def sum_conductances(self):
         return self.weight().sum(dim=1)
@@ -244,6 +259,13 @@ class EfficientBlockLinear(BlockLinear):
             self.log_weight, self.weight_transform
         )  # (out_features, block_size)
         output = (x_reshaped * weights).sum(dim=-1)  # (B, out_features)
+
+        # Reshape output to match input shape structure if needed
+        if len(original_shape) > 2:
+            # Restore the original batch dimensions
+            output_shape = [*original_shape[:-1], self.out_features]
+            output = output.reshape(output_shape)
+
         return output
 
 

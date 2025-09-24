@@ -368,7 +368,7 @@ def main(config_path: str, args=None):
         ]
     )
 
-    if any_analysis_enabled and main_train_config.learning_strategy != "multi_stage":
+    if any_analysis_enabled and main_train_config.strategy != "multi_stage":
         run_analysis(
             model=model,
             train_ds=train_ds,
@@ -378,7 +378,7 @@ def main(config_path: str, args=None):
             analysis_manager=analysis_manager,
             training=False,
         )
-    elif main_train_config.learning_strategy == "multi_stage":
+    elif main_train_config.strategy == "multi_stage":
         if analysis_config.performance_analysis.training:
             performance_dir = os.path.join(run_save_path, "performance", "epochs")
             if os.path.exists(performance_dir):

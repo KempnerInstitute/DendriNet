@@ -53,7 +53,7 @@ class SparsityConfig(BaseConfig):
     noise_level: float = 0.0
     type: str = "standard"
     temperature: float = 0.0
-    strategy: str = "none"
+    gradient_scaling: str = "none"
 
     deepst: dict = field(
         default_factory=lambda: {
@@ -80,14 +80,14 @@ class ReactivationConfig(BaseConfig):
     type: str = "param_tanh"
     init_m: float = 1.5
     init_b: float = 0.5
-    strategy: str = "none"
+    gradient_scaling: str = "none"
 
 
 @dataclass
 class BlockLinearConfig(BaseConfig):
     """BlockLinear configuration."""
 
-    strategy: str = "none"
+    gradient_scaling: str = "none"
     efficient: bool = False
 
 

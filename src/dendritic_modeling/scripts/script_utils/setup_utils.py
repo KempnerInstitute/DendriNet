@@ -70,6 +70,8 @@ def initialize_model(model_config: ModelConfig):
         if key == "deepst":
             for deepst_key, deepst_value in value.items():
                 core_params[deepst_key] = deepst_value
+        elif key == "gradient_scaling":
+            core_params["topk_strategy"] = value
         else:
             core_params[f"topk_{key}"] = value
 
@@ -79,6 +81,8 @@ def initialize_model(model_config: ModelConfig):
     for key, value in reactivation_dict.items():
         if key == "type":
             core_params["reactivation_type"] = value
+        elif key == "gradient_scaling":
+            core_params["reactivation_strategy"] = value
         elif key.startswith("init_"):
             core_params[f"reactivation_{key}"] = value
         else:
@@ -89,6 +93,8 @@ def initialize_model(model_config: ModelConfig):
     for key, value in blocklinear_dict.items():
         if key == "efficient":
             core_params["efficient_blocklinear"] = value
+        elif key == "gradient_scaling":
+            core_params["blocklinear_strategy"] = value
         else:
             core_params[f"blocklinear_{key}"] = value
 

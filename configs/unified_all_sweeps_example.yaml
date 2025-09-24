@@ -94,9 +94,9 @@ base_config:
     # ==========================================
     # ENCODER NETWORK (Input Processing Stage)
     # ==========================================
-    encoder_network:
-      type: identity
-      parameters:
+    encoder:
+      type: "identity"
+      params:
         input_dim: null
         input_shape: [3, 32, 32]
         encoder_hidden_dims: [128, 64]
@@ -105,55 +105,70 @@ base_config:
         latent_dim: null
         latent_shape: null
         decoder_hidden_dims: [64, 128]
-        activation: relu
+        activation: "relu"
 
     # ==========================================
-    # CORE DENDRITIC NETWORK (Main Processing)
+    # CORE CONFIGURATION (Standard Structure)
     # ==========================================
-    core_network:
-      type: EINet
-      parameters:
-        # Transfer function parameters
-        transfer_params:
-          input_mode: 1
-          independent_pathways: false
-          excitatory_dim: null
-          inhibitory_dim: null
-          output_activation: null
+    core:
+      type: "EINet"
 
-        # Morphological architecture
+      architecture:
         excitatory_layer_sizes: [10]
         inhibitory_layer_sizes: []
-        excitatory_branch_factors: [3,3]
+        excitatory_branch_factors: [3, 3]
         inhibitory_branch_factors: []
 
-        # EI Synapse configuration (overridden by EI sweeps)
-        ee_synapses_per_branch_per_layer: [40]  # Default value
+      connectivity:
+        ee_synapses_per_branch_per_layer: [40]
         ei_synapses_per_branch_per_layer: [0]
-        ie_synapses_per_branch_per_layer: [10]  # Default value
+        ie_synapses_per_branch_per_layer: [10]
         ii_synapses_per_branch_per_layer: [0]
 
-        # Morphological features
+      transfer:
+        input_mode: 1
+        independent_pathways: false
+        excitatory_dim: null
+        inhibitory_dim: null
+        output_activation: null
+
+      morphology:
         somatic_synapses: true
-        use_shunting: true               # Can be overridden by sweep_config
+        use_shunting: true
+        weight_transform: "exp"
+        dbl_init_method: "analytical_expectation"
 
-        # Weight transformation for positive weights
-        weight_transform: exp            # Options: "exp", "relu", "softplus"
-        dbl_init_method: analytical_expectation
+      sparsity:
+        init_method: "xavier_normal"
+        noise_level: 0.0
+        type: "standard"
+        temperature: 0.0
+        gradient_scaling: "none"
 
-        # Implementation optimizations
+      reactivation:
+        enabled: true
+        type: "param_tanh"
+        init_m: 1.5
+        init_b: 0.5
+        gradient_scaling: "none"
+
+      blocklinear:
+        gradient_scaling: "none"
+        efficient: false
+
+      implementation:
         adaptive_initialization: false
         print_hooks: false
 
     # ==========================================
     # DECODER NETWORK (Output Stage)
     # ==========================================
-    decoder_network:
-      type: MLP
-      parameters:
+    decoder:
+      type: "MLP"
+      params:
         input_dim: null
         hidden_dims: [16]
-        activation: relu
+        activation: "relu"
         output_dim: 10
 
 # ============================================================================
@@ -629,9 +644,19 @@ analysis:
 # Result: 5 EI combos × 2 LR × 3 depths = 30 configurations
 
 # ============================================================================
+# DATA CONFIGURATION
+# ============================================================================
+data:
+  dataset_name: "cifar10"
+  base_dir: ""  # Base directory for datasets (empty = auto-detect)
+
+  processing:
+    flatten: true
+    normalize: false
+
+# ============================================================================
 # OUTPUT CONFIGURATION
 # ============================================================================
 outputs:
   run_name: unified_sweep
-  dir: results/
-  dataset_dir: "results/"  # Shared dataset directory for all sweep configs
+  results_dir: "results/"
