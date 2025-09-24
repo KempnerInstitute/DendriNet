@@ -24,6 +24,12 @@ class ArchitectureConfig(BaseConfig):
     excitatory_branch_factors: list[int] = field(default_factory=lambda: [3, 3, 3, 3])
     inhibitory_branch_factors: list[int] = field(default_factory=lambda: [1])
 
+    # Inhibitory network type and MLP parameters
+    inhibitory_network_type: str = "dendritic"  # Options: "dendritic", "mlp"
+    mlp_inhibitory_network_params: dict = field(
+        default_factory=lambda: {"hidden_dims": [200], "activation": "relu"}
+    )
+
 
 @dataclass
 class ConnectivityConfig(BaseConfig):

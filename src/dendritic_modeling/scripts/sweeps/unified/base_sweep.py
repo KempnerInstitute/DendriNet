@@ -300,6 +300,13 @@ class SweepJobManager:
                 f"#SBATCH --cpus-per-task={self.slurm_config.get('cpus_per_task', 4)}\n"
             )
             f.write(f"#SBATCH --mem={self.slurm_config.get('mem', '32G')}\n")
+
+            # Exclude specific nodes if specified
+            exclude_nodes = self.slurm_config.get("exclude_nodes", [])
+            if exclude_nodes:
+                exclude_list = ",".join(exclude_nodes)
+                f.write(f"#SBATCH --exclude={exclude_list}\n")
+
             f.write(f"#SBATCH --output={output_dir}/jobs/%j.out\n")
             f.write(f"#SBATCH --error={output_dir}/jobs/%j.err\n\n")
 
@@ -382,6 +389,12 @@ class SweepJobManager:
                 f"#SBATCH --cpus-per-task={self.slurm_config.get('cpus_per_task', 4)}\n"
             )
             f.write(f"#SBATCH --mem={self.slurm_config.get('mem', '32G')}\n")
+
+            # Exclude specific nodes if specified
+            exclude_nodes = self.slurm_config.get("exclude_nodes", [])
+            if exclude_nodes:
+                exclude_list = ",".join(exclude_nodes)
+                f.write(f"#SBATCH --exclude={exclude_list}\n")
 
             # Array job with optional concurrent limit
             if num_configs > max_concurrent:

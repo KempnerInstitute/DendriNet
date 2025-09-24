@@ -195,6 +195,12 @@ model:
       inhibitory_branch_factors:
       - 1
       inhibitory_layer_sizes: []
+
+      # Inhibitory network configuration
+      inhibitory_network_type: "dendritic"  # Options: "dendritic", "mlp"
+      mlp_inhibitory_network_params:     # Parameters for MLP inhibitory network (used when type="mlp")
+        hidden_dims: [200]               # Hidden layer dimensions for MLP inhibitory network
+        activation: "relu"               # Activation function for MLP inhibitory network
     blocklinear:
       efficient: false
       gradient_scaling: none

@@ -107,6 +107,12 @@ model:
       excitatory_branch_factors: [3, 3, 3, 3]  # Branching factors for excitatory dendrites
       inhibitory_branch_factors: [1]    # Branching factors for inhibitory dendrites
 
+      # Inhibitory network configuration
+      inhibitory_network_type: "dendritic"  # Options: "dendritic", "mlp"
+      mlp_inhibitory_network_params:     # Parameters for MLP inhibitory network (used when type="mlp")
+        hidden_dims: [200]               # Hidden layer dimensions for MLP inhibitory network
+        activation: "relu"               # Activation function for MLP inhibitory network
+
     connectivity:
       ee_synapses_per_branch_per_layer: [40]  # Excitatory-to-excitatory synapses per branch
       ei_synapses_per_branch_per_layer: [0]   # Excitatory-to-inhibitory synapses per branch

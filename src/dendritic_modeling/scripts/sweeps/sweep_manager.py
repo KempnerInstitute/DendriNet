@@ -72,6 +72,7 @@ class SweepManager:
         output_dir: Optional[str] = None,
         split_jobs: Optional[int] = None,
         use_array_jobs: bool = True,
+        exclude_nodes: Optional[list[str]] = None,
     ) -> dict:
         """
         Generate sweep configurations and job scripts.
@@ -135,6 +136,12 @@ class SweepManager:
         slurm_config = config.get("slurm_config", {})
         # Add run_name to slurm_config so it can be used for job naming
         slurm_config["run_name"] = run_name
+
+        # Override exclude_nodes from command line if provided
+        if exclude_nodes:
+            slurm_config["exclude_nodes"] = exclude_nodes
+            print(f"Excluding nodes from command line: {exclude_nodes}")
+
         job_manager = SweepJobManager(slurm_config)
         job_scripts = job_manager.create_job_scripts(
             config_paths, sweep_output_dir, split_jobs, use_array_jobs
@@ -249,7 +256,11 @@ class SweepManager:
         return analysis_info
 
     def run_full_sweep(
-        self, config_path: str, split_jobs: Optional[int] = None, dry_run: bool = False
+        self,
+        config_path: str,
+        split_jobs: Optional[int] = None,
+        dry_run: bool = False,
+        exclude_nodes: Optional[list[str]] = None,
     ) -> dict:
         """
         Run a complete sweep: generate configs, submit jobs.
@@ -265,7 +276,9 @@ class SweepManager:
         print("Running full sweep")
 
         # Generate sweep
-        sweep_info = self.generate_sweep(config_path, split_jobs=split_jobs)
+        sweep_info = self.generate_sweep(
+            config_path, split_jobs=split_jobs, exclude_nodes=exclude_nodes
+        )
 
         # Submit jobs
         if not dry_run:
@@ -333,6 +346,11 @@ Examples:
         "--output-dir",
         help="Output directory for sweep (auto-generated if not specified)",
     )
+    parser.add_argument(
+        "--exclude-nodes",
+        nargs="+",
+        help="List of nodes to exclude from job scheduling (e.g., --exclude-nodes node1 node2)",
+    )
 
     # Options for analysis
     parser.add_argument(
@@ -367,7 +385,10 @@ def main():
             if args.generate_only:
                 # Generate only
                 sweep_info = manager.generate_sweep(
-                    args.config, output_dir=args.output_dir, split_jobs=args.split_jobs
+                    args.config,
+                    output_dir=args.output_dir,
+                    split_jobs=args.split_jobs,
+                    exclude_nodes=args.exclude_nodes,
                 )
 
                 print("\nTo submit jobs, run:")
@@ -376,7 +397,10 @@ def main():
             else:
                 # Default behavior: generate and submit (--run is now default)
                 manager.run_full_sweep(
-                    args.config, split_jobs=args.split_jobs, dry_run=args.dry_run
+                    args.config,
+                    split_jobs=args.split_jobs,
+                    dry_run=args.dry_run,
+                    exclude_nodes=args.exclude_nodes,
                 )
 
     except Exception as e:
