@@ -80,9 +80,21 @@ class InformationAnalysisConfig(BaseConfig):
 
 
 @dataclass
+class SynapseTurnoverAnalysisParams(BaseConfig):
+    """Parameters for synapse turnover analysis."""
+
+    snapshot_interval: int = 1  # Snapshot frequency in epochs
+    synaptic_analysis: bool = True  # Enable synaptic connectivity analysis
+    save_synaptic_report: bool = True  # Save synaptic analysis report
+
+
+@dataclass
 class SynapseTurnoverAnalysisConfig(BaseConfig):
     enabled: bool = False
     training: bool = False
+    params: SynapseTurnoverAnalysisParams = field(
+        default_factory=SynapseTurnoverAnalysisParams
+    )
 
 
 @dataclass

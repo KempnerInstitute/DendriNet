@@ -93,9 +93,32 @@ class SweepManager:
         if not self.generator.validate_config(config):
             raise ValueError("Configuration validation failed")
 
-        # Create output directory
-        base_dir = output_dir or config.get("output_dir", "output")
-        sweep_output_dir = self.generator.create_output_directory(base_dir)
+        # Create output directory - check multiple possible locations
+        if output_dir:
+            base_dir = output_dir
+        else:
+            # Try different locations for output directory in priority order
+            base_dir = (
+                config.get("output_dir")  # Top-level output_dir (old format)
+                or config.get("outputs", {}).get(
+                    "dir"
+                )  # Top-level outputs.dir (new format)
+                or config.get("base_config", {})
+                .get("outputs", {})
+                .get("results_dir")  # base_config.outputs.results_dir
+                or "output"  # Default fallback
+            )
+
+        # Get run_name for directory naming
+        run_name = (
+            config.get("outputs", {}).get("run_name")
+            or config.get("base_config", {}).get("outputs", {}).get("run_name")
+            or "unified_sweep"
+        )
+
+        sweep_output_dir = self.generator.create_output_directory(
+            base_dir, prefix=run_name
+        )
         print(f"Created output directory: {sweep_output_dir}")
 
         # Generate configurations
@@ -110,6 +133,8 @@ class SweepManager:
         # Create job scripts
         print("Creating job scripts...")
         slurm_config = config.get("slurm_config", {})
+        # Add run_name to slurm_config so it can be used for job naming
+        slurm_config["run_name"] = run_name
         job_manager = SweepJobManager(slurm_config)
         job_scripts = job_manager.create_job_scripts(
             config_paths, sweep_output_dir, split_jobs, use_array_jobs

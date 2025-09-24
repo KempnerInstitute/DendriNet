@@ -36,18 +36,18 @@ Sweep any configuration parameter:
 
 ```yaml
 sweep_config:
-  # EI Parameters
-  model.core_network.parameters.ee_synapses_per_branch_per_layer: [[1],[2],[3]]
-  model.core_network.parameters.ie_synapses_per_branch_per_layer: [[1],[2],[3]]
-  model.core_network.parameters.use_shunting: [true, false]
+  # EI Parameters (New Structure)
+  model.core.connectivity.ee_synapses_per_branch_per_layer: [[1],[2],[3]]
+  model.core.connectivity.ie_synapses_per_branch_per_layer: [[1],[2],[3]]
+  model.core.morphology.use_shunting: [true, false]
 
-  # Training Parameters
-  train.main.param_groups.lr: [0.001, 0.01, 0.1]
-  train.main.trainer.batch_size: [32, 64, 128]
+  # Training Parameters (New Structure)
+  training.main.common.param_groups.lr: [0.001, 0.01, 0.1]
+  training.main.common.batch_size: [32, 64, 128]
 
-  # Model Architecture
-  model.core_network.parameters.layer_sizes: [[32,10], [64,32,10], [128,64,32,10]]
-  model.encoder_network.parameters.hidden_sizes: [[32], [64], [128]]
+  # Model Architecture (New Structure)
+  model.core.architecture.excitatory_layer_sizes: [[10], [20], [30]]
+  model.encoder.params.encoder_hidden_dims: [[32], [64], [128]]
 
   # Use ranges: [start, end, step]
   some_parameter: [0.1, 1.0, 0.1]  # Creates [0.1, 0.2, ..., 1.0]
@@ -132,9 +132,9 @@ Mix EI filtering with branch sweeps:
 
 ```yaml
 sweep_config:
-  model.core_network.parameters.ee_synapses_per_branch_per_layer: [[1],[2],[3]]
-  model.core_network.parameters.ie_synapses_per_branch_per_layer: [[1],[2],[3]]
-  train.main.param_groups.lr: [0.001, 0.01]
+  model.core.connectivity.ee_synapses_per_branch_per_layer: [[1],[2],[3]]
+  model.core.connectivity.ie_synapses_per_branch_per_layer: [[1],[2],[3]]
+  training.main.common.param_groups.lr: [0.001, 0.01]
 
 filter_config:
   # EI Filtering: Only E+I=4 combinations
@@ -197,8 +197,8 @@ base_config:
 EI Sweep Only:
 ```yaml
 sweep_config:
-  model.core_network.parameters.ee_synapses_per_branch_per_layer: [[1],[2],[3]]
-  model.core_network.parameters.ie_synapses_per_branch_per_layer: [[1],[2],[3]]
+  model.core.connectivity.ee_synapses_per_branch_per_layer: [[1],[2],[3]]
+  model.core.connectivity.ie_synapses_per_branch_per_layer: [[1],[2],[3]]
 filter_config:
   mode: "ei-sum"
   value: 4

@@ -256,6 +256,7 @@ training:
       enable_nan_checking: false        # Enable NaN checking (true/false)
       enable_adaptive_clipping: false   # Enable adaptive gradient clipping (true/false)
       weight_decay_rate: 0.0            # Weight decay rate (0.0-0.1)
+      weight_boosting: false            # Enable weight boosting during decay (true/false)
 
       param_groups:                     # Parameter-specific learning rates
         lr: 0.001                       # Base learning rate
@@ -522,9 +523,10 @@ analysis:
   synapse_turnover_analysis:
     enabled: true                       # Enable synapse turnover analysis (true/false)
     training: true                      # Run during training (true/false)
-    snapshot_interval: 1                # Snapshot frequency in epochs
-    synaptic_analysis: true             # Enable synaptic connectivity analysis (true/false)
-    save_synaptic_report: true          # Save synaptic analysis report (true/false)
+    params:
+      snapshot_interval: 1              # Snapshot frequency in epochs
+      synaptic_analysis: true           # Enable synaptic connectivity analysis (true/false)
+      save_synaptic_report: true        # Save synaptic analysis report (true/false)
 
   noise_perturbation_analysis:
     enabled: true                       # Enable noise perturbation analysis (true/false)

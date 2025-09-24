@@ -98,10 +98,11 @@ analysis:
     training: false
   synapse_turnover_analysis:
     enabled: false
-    save_synaptic_report: false
-    snapshot_interval: 10
-    synaptic_analysis: false
     training: false
+    params:
+      snapshot_interval: 10
+      synaptic_analysis: false
+      save_synaptic_report: false
   synaptic_activation_analysis:
     enabled: false
     params:

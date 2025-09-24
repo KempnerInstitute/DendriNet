@@ -47,9 +47,9 @@ Template: `configs/unified_all_sweeps_example.yaml`
 
 ```yaml
 sweep_config:
-  model.core_network.parameters.ee_synapses_per_branch_per_layer: [[1],[2],[3]]
-  model.core_network.parameters.ie_synapses_per_branch_per_layer: [[1],[2],[3]]
-  model.core_network.parameters.use_shunting: [true, false]
+  model.core.connectivity.ee_synapses_per_branch_per_layer: [[1],[2],[3]]
+  model.core.connectivity.ie_synapses_per_branch_per_layer: [[1],[2],[3]]
+  model.core.morphology.use_shunting: [true, false]
 
 filter_config:
   mode: "ei-sum"  # E + I = value
