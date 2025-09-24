@@ -303,7 +303,7 @@ base_config:
     # MAIN TRAINING
     # ==========================================
     main:
-      strategy: "local_ca"                # Training strategy
+      strategy: "standard"                # Training strategy
       # Options: "standard", "voltage_stabilization", "homeostatic_control",
       #          "freeze_layers", "freeze_branches", "local_ca", "multi_stage"
 
