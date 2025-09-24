@@ -267,13 +267,6 @@ training:
   encoder:
     common:
       lr: 0.001
-    strategies:
-      freeze_branch_kl: {}
-      freeze_branches: {}
-      freeze_layers: {}
-      homeostatic_control: {}
-      standard: {}
-      voltage_stabilization: {}
     strategy: standard
   main:
     common:

@@ -203,40 +203,6 @@ training:
       enable_nan_checking: false        # Enable NaN checking (true/false)
       enable_adaptive_clipping: false   # Enable adaptive gradient clipping (true/false)
 
-    strategies:
-      standard: {}
-
-      voltage_stabilization:
-        pretrain_epochs: 50             # Pretraining epochs
-        stabilize_mode: "vout"          # Stabilization mode: "vout", "vinf"
-        target_voltage: 0.5             # Target voltage value (0.0-1.0)
-        loss_metric: "mse"              # Loss metric: "mse", "log_mse"
-
-      homeostatic_control:
-        pretrain_epochs: 50
-        stabilize_mode: "vinf"
-        target_voltage: 0.5
-        loss_metric: "mse"
-
-      freeze_layers:
-        pretrain_epochs: 10             # Initial pretraining epochs
-        reverse_training: false         # Train layers in reverse order (true/false)
-        epochs_per_layer: 50            # Training epochs per layer
-        final_tune_epochs: 10           # Final fine-tuning epochs
-
-      freeze_branches:
-        pretrain_epochs: 10
-        reverse_training: false
-        epochs_per_branch: 50           # Training epochs per branch
-        final_tune_epochs: 10
-
-      freeze_branch_kl:
-        pretrain_epochs: 10
-        reverse_training: false
-        epochs_per_branch: 50
-        final_tune_epochs: 10
-        kl_weight: 0.1                  # KL divergence weight (0.0-1.0)
-
   # ==========================================
   # MAIN TRAINING
   # ==========================================
