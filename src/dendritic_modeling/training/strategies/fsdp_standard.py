@@ -129,8 +129,13 @@ class FSDPTrainer(Trainer):
         model = model.to(self.device)
 
         # Wrap with FSDP
-        if hasattr(model, "net"):
+        if hasattr(model, "core_network"):
             # For models with separate encoder/decoder
+            model.core_network = wrap_model_with_fsdp(
+                model.core_network, self.fsdp_config
+            )
+        elif hasattr(model, "net"):
+            # For models with separate encoder/decoder (legacy)
             model.net = wrap_model_with_fsdp(model.net, self.fsdp_config)
 
             # Optionally wrap encoder/decoder if they're large

@@ -1,4 +1,3 @@
-
 # ============================================================================
 # STANDARD DENDRITIC MODELING EXPERIMENT CONFIGURATION
 # ============================================================================
@@ -15,588 +14,630 @@
 #   Available command line options:
 #   --output_dir: Override output directory
 #   --run_name: Override experiment name
-#   --learning_strategy: Override learning strategy (mle, freeze_branches, two_step, etc.)
+#   --learning_strategy: Override learning strategy
 #
 # NOTE: For large models requiring multi-GPU/FSDP training, use config_exp_fsdp.yaml instead.
 # NOTE: For parameter sweeps, use unified_all_sweeps_example.yaml instead.
 
-model:
-  task: classification  # Options: "classification", "regression"
-
-  # ==========================================
-  # ENCODER NETWORK (Input Processing Stage)
-  # ==========================================
-  encoder_network:
-    type: identity  # Options: "identity", "mlpautoencoder", "cnnautoencoder", "mlpvariationalautoencoder", "cnnvariationalautoencoder"
-    parameters:
-      input_dim: null             # For MLP encoders
-      input_shape: [3, 32, 32]   # For CNN encoders [channels, height, width]
-      encoder_hidden_dims: [128, 64]  # Hidden dimensions for MLP encoders
-      encoder_kernel_sizes: [3, 3]    # Kernel sizes for CNN encoders
-      encoder_strides: [2, 2]         # Strides for CNN encoders
-      latent_dim: null            # For autoencoders
-      latent_shape: null          # For CNN autoencoders [channels, height, width]
-      decoder_hidden_dims: [64, 128]  # Hidden dimensions for autoencoder decoders
-      activation: relu            # Activation function
-
-  # ==========================================
-  # CORE NETWORK (Main Processing Stage)
-  # ==========================================
-  core_network:
-    type: EINet  # Options: "EINet", "MLP", "MatchedParamMLP", "EffectiveMatchedParamMLP"
-    parameters:
-      # Core network structure
-      #input_dim: 784
-
-      # Transfer function parameters
-      transfer_params:
-        input_mode: 1
-        independent_pathways: false
-        excitatory_dim: null        # Dimensions for excitatory pathways (input_mode 1)
-        inhibitory_dim: null        # Dimensions for inhibitory pathways (input_mode 1)
-        output_activation: null     # Options: "sigmoid", "relu", "tanh", "softplus", null
-
-      # ==========================================
-      # MORPHOLOGICAL ARCHITECTURE
-      # ==========================================
-      excitatory_layer_sizes: [20]         # Neurons per excitatory layer
-      inhibitory_layer_sizes: []         # Neurons per inhibitory layer
-      excitatory_branch_factors: [3,3]       # Branches per excitatory neuron (fixed: should match layer count)
-      inhibitory_branch_factors: []       # Branches per inhibitory neuron (fixed: was empty)
-
-      # Synaptic connectivity patterns
-      ee_synapses_per_branch_per_layer: [10]   # Excitatory-to-excitatory synapses
-      ei_synapses_per_branch_per_layer: [0]   # No E→I connections since no inhibitory neurons exist
-      ie_synapses_per_branch_per_layer: [1]   # Input→E inhibitory synapses (input_mode=1 provides inhibitory signals)
-      ii_synapses_per_branch_per_layer: [0]   # No I→I connections since no inhibitory neurons exist
-
-      # Morphological features
-      somatic_synapses: true      # Include somatic (non-dendritic) synapses
-      use_shunting: true          # Use shunting inhibition
-
-      # Weight transformation for positive weights
-      weight_transform: exp       # Options: "exp", "relu", "softplus"
-      dbl_init_method: analytical_expectation
-
-      # ==========================================
-      # TOPK SPARSITY PARAMETERS
-      # ==========================================
-      topk_init_method: xavier_normal    # Weight initialization method
-      topk_noise_level: 0.0              # Noise level for stochastic TopK
-      topk_type: standard              # Options: "standard", "stochastic", "variance", "deepst"
-      topk_temperature: 0.0              # Stochastic selection sharpness (0.1-1.0)
-      topk_strategy: conductance_dynamic # TopK gradient scaling strategy
-
-      # ==========================================
-      # REACTIVATION PARAMETERS
-      # ==========================================
-      reactivate: true                   # Enable reactivation functions
-      reactivation_type: param_tanh      # Reactivation function type
-      reactivation_init_m: 1.5           # Reactivation parameter m
-      reactivation_init_b: 0.5           # Reactivation parameter b
-      reactivation_strategy: inverse     # Gradient scaling strategy
-
-      # ==========================================
-      # BLOCK LINEAR PARAMETERS
-      # ==========================================
-      blocklinear_strategy: conductance_dynamic # BlockLinear gradient scaling
-      efficient_blocklinear: false        # Use memory-efficient implementation
-
-      # ==========================================
-      # IMPLEMENTATION OPTIMIZATIONS
-      # ==========================================
-      adaptive_initialization: false      # Network-aware weight scaling
-      print_hooks: false                 # Print gradient statistics in hooks
-
-      # ==========================================
-      # DEEPST SPECIFIC PARAMETERS
-      # ==========================================
-      excitatory_target_density: 0.1     # Target density for excitatory connections
-      inhibitory_target_density: 0.1     # Target density for inhibitory connections
-      use_noise: true                    # Apply Gaussian noise during rewiring
-      sigma: 0.05                        # Standard deviation of Gaussian noise
-      rewiring_mode: global              # Options: "global", "local", "constant_branch"
-      rewire_frequency: 1                # Rewiring frequency (every N epochs)
-      synapses_per_branch: null          # For constant_branch mode
-      freeze_excitatory_connectivity: false  # Freeze excitatory connectivity
-      freeze_inhibitory_connectivity: false  # Freeze inhibitory connectivity
-      init_method: xavier_normal         # Weight initialization method
-      weight_threshold: 1e-6             # Pruning threshold
-
-  # ==========================================
-  # DECODER NETWORK (Output Processing Stage)
-  # ==========================================
-  decoder_network:
-    type: MLP  # Options: "MLP", "identity"
-    parameters:
-      input_dim: null           # Will be set automatically
-      hidden_dims: [16]     # Hidden layer dimensions
-      activation: relu          # Activation function
-      output_dim: 10          # Will be set automatically
-
 # ============================================================================
-# TRAINING CONFIGURATION - VALIDATED PARAMETERS ONLY
+# EXPERIMENT SETUP
 # ============================================================================
-train:
-  seed: 42
-  train_valid_split: 0.8
+experiment:
+  seed: 42                              # Random seed for reproducibility (any integer)
+  train_valid_split: 0.8                # Train/validation split ratio (0.0-1.0)
+  enable_amp: false                     # Enable automatic mixed precision (true/false)
+  enable_profiling: false               # Enable PyTorch profiler (true/false)
+  profiling_output_dir: "results/profiling/"  # Directory for profiling output
+  enable_hooks: true                    # Enable gradient hooks for analysis (true/false)
 
-
-
-  # ==========================================
-  # PERFORMANCE OPTIMIZATION SETTINGS
-  # ==========================================
-  enable_amp: false             # Enable automatic mixed precision
-  enable_profiling: false       # Enable PyTorch profiler
-  profiling_output_dir: "results/profiling/"
-  enable_hooks: true            # Enable hooks for analysis (set false for max speed)
-
-  # FSDP (Fully Sharded Data Parallel) Configuration
-  use_fsdp: false               # Enable FSDP for large models (>100M parameters)
-  fsdp_config: null             # FSDP configuration (null to disable, detailed config below when enabled)
-  # When use_fsdp: true, uncomment and configure the following:
-  # fsdp_config:
-  #   sharding_strategy: "FULL_SHARD"      # Options: "FULL_SHARD", "SHARD_GRAD_OP", "NO_SHARD", "HYBRID_SHARD"
-  #   mixed_precision: true                # Use FP16 for parameters, gradients, and buffers
-  #   cpu_offload: false                   # Offload parameters to CPU (slower but saves GPU memory)
-  #   min_num_params: 1000000             # Wrap layers with more than this many parameters
-  #   reduce_communication_overhead: true  # Enable communication optimizations
-  #   limit_all_gathers: true             # Reduce memory pressure during communication
-  #   forward_prefetch: true              # Prefetch parameters for forward pass
-  #   sync_module_states: true            # Synchronize module states across ranks
-  #   use_orig_params: true              # Important for dendritic models
-  #   backward_prefetch: "BACKWARD_PRE"   # Options: "BACKWARD_PRE", "BACKWARD_POST", null
-  #   gradient_checkpointing: false       # Trade compute for memory (slower but uses less memory)
-
-  # ==========================================
-  # CHECKPOINTING
-  # ==========================================
   checkpointing:
-    enabled: false
-    save_every_n_epochs: 10
-    checkpoint_dir: "results/checkpoints/"
+    enabled: false                      # Enable model checkpointing (true/false)
+    save_every_n_epochs: 10             # Checkpoint frequency in epochs (any positive integer)
+    checkpoint_dir: "results/checkpoints/"  # Directory for checkpoints
 
+# ============================================================================
+# DATA
+# ============================================================================
+data:
+  dataset_name: "cifar10"               # Dataset name
+  # Options: "mnist", "cifar10", "imagenet", "mnist_modulo10", "random_flip_mnist",
+  #          "poisson_generator", "multixor", "orientation_bars", "orthonet"
+
+  base_dir: ""                          # Base directory for datasets (empty = auto-detect)
+
+  processing:
+    flatten: true                       # Flatten input images to 1D (true/false)
+    normalize: false                    # Normalize input data (true/false)
+
+  dataset_params:
+    mnist_modulo10:
+      shuffle_iterations: 2             # Number of shuffle iterations (any positive integer)
+
+    poisson_generator:
+      base_dataset: "mnist"             # Base dataset for Poisson generation
+      rate_multiplier: 1.0              # Rate multiplier for Poisson process
+
+    multixor:
+      n_bits: 8                         # Number of bits for multi-XOR problem
+
+    orientation_bars:
+      n_orient_classes: 8               # Number of orientation classes
+
+    orthonet:
+      input_dim: 784                    # Input dimension
+      n_layers: 5                       # Number of layers
+      nonlinearity: "sigmoid"           # Nonlinearity: "sigmoid", "tanh", null
+      repeat_layers: false              # Repeat layer structure (true/false)
+      noise_std: 0.1                    # Noise standard deviation
+
+    random_flip_mnist:
+      flip_probability: 0.5             # Probability of flipping labels (0.0-1.0)
+
+# ============================================================================
+# MODEL
+# ============================================================================
+model:
+  task: "classification"                # Task type: "classification", "regression"
+
+  encoder:
+    type: "identity"                    # Encoder type
+    # Options: "identity", "mlpautoencoder", "cnnautoencoder",
+    #          "mlpvariationalautoencoder", "cnnvariationalautoencoder"
+
+    load_save_root: "./.trained_encoder_networks/"  # Directory for encoder checkpoints
+
+    params:
+      input_dim: null                   # Input dimension (auto-detected from data)
+      input_shape: [3, 32, 32]          # Input shape for CNN encoders [channels, height, width]
+      encoder_hidden_dims: [128, 64]    # Hidden layer dimensions for MLP encoders
+      encoder_kernel_sizes: [3, 3]      # Kernel sizes for CNN encoders
+      encoder_strides: [2, 2]           # Strides for CNN encoders
+      latent_dim: null                  # Latent dimension for autoencoders
+      latent_shape: null                # Latent shape for CNN autoencoders
+      decoder_hidden_dims: [64, 128]    # Decoder hidden dimensions
+      activation: "relu"                # Activation function: "relu", "tanh", "sigmoid", "gelu"
+
+  core:
+    type: "EINet"                       # Core network type
+    # Options: "EINet", "MLP", "MatchedParamMLP", "EffectiveMatchedParamMLP"
+
+    architecture:
+      excitatory_layer_sizes: [20]      # Number of excitatory neurons per layer
+      inhibitory_layer_sizes: []        # Number of inhibitory neurons per layer
+      excitatory_branch_factors: [3, 3, 3, 3]  # Branching factors for excitatory dendrites
+      inhibitory_branch_factors: [1]    # Branching factors for inhibitory dendrites
+
+    connectivity:
+      ee_synapses_per_branch_per_layer: [40]  # Excitatory-to-excitatory synapses per branch
+      ei_synapses_per_branch_per_layer: [0]   # Excitatory-to-inhibitory synapses per branch
+      ie_synapses_per_branch_per_layer: [10]  # Inhibitory-to-excitatory synapses per branch
+      ii_synapses_per_branch_per_layer: [0]   # Inhibitory-to-inhibitory synapses per branch
+
+    transfer:
+      input_mode: 1                     # Input mode: 0 (combined), 1 (separate E/I pathways)
+      independent_pathways: false       # Independent E/I pathways (true/false)
+      excitatory_dim: null              # Excitatory pathway dimension (for input_mode 1)
+      inhibitory_dim: null              # Inhibitory pathway dimension (for input_mode 1)
+      output_activation: null           # Output activation: "sigmoid", "relu", "tanh", "softplus", null
+
+    morphology:
+      somatic_synapses: false           # Include somatic synapses (true/false)
+      use_shunting: true                # Use shunting inhibition (true/false)
+      weight_transform: "softplus"      # Weight transformation: "exp", "relu", "softplus"
+      dbl_init_method: "analytical_expectation"  # DBL initialization: "analytical_expectation", "default"
+
+    sparsity:
+      init_method: "xavier_normal"      # Weight initialization: "xavier_normal", "xavier_uniform", "kaiming_normal"
+      noise_level: 0.0                  # Noise level for stochastic sparsity (0.0-1.0)
+      type: "standard"                  # Sparsity type: "standard", "stochastic", "variance", "deepst"
+      temperature: 0.0                  # Temperature for stochastic selection (0.1-1.0)
+      gradient_scaling: "none"          # Gradient scaling strategy: "none", "conductance_dynamic"
+
+      deepst:                           # DeepST-specific parameters (only used when type: "deepst")
+        excitatory_target_density: 0.1  # Target density for excitatory connections (0.0-1.0)
+        inhibitory_target_density: 0.1  # Target density for inhibitory connections (0.0-1.0)
+        use_noise: true                 # Apply Gaussian noise during rewiring (true/false)
+        sigma: 0.05                     # Standard deviation of Gaussian noise
+        rewiring_mode: "global"         # Rewiring mode: "global", "local", "constant_branch"
+        rewire_frequency: 1             # Rewiring frequency in epochs
+        synapses_per_branch: null       # Synapses per branch (for constant_branch mode)
+        freeze_excitatory_connectivity: false  # Freeze excitatory connectivity (true/false)
+        freeze_inhibitory_connectivity: false  # Freeze inhibitory connectivity (true/false)
+        init_method: "xavier_normal"    # Weight initialization method
+        weight_threshold: 1e-6          # Pruning threshold
+
+    reactivation:
+      enabled: true                     # Enable reactivation functions (true/false)
+      type: "param_tanh"                # Reactivation type: "param_tanh", "tanh", "sigmoid"
+      init_m: 1.5                       # Reactivation parameter m (slope)
+      init_b: 0.5                       # Reactivation parameter b (bias)
+      gradient_scaling: "none"          # Gradient scaling: "none", "inverse", "conductance_dynamic"
+
+    blocklinear:
+      gradient_scaling: "none"          # BlockLinear strategy: "none", "conductance_dynamic"
+      efficient: false                  # Use memory-efficient implementation (true/false)
+
+    implementation:
+      adaptive_initialization: false    # Network-aware weight scaling (true/false)
+      print_hooks: false                # Print gradient statistics (true/false)
+
+  decoder:
+    type: "MLP"                         # Decoder type: "MLP", "Identity"
+    params:
+      input_dim: 20                     # Input dimension (auto-set from core network)
+      hidden_dims: [32, 16]             # Hidden layer dimensions
+      activation: "relu"                # Activation: "relu", "tanh", "sigmoid", "gelu"
+      output_dim: 10                    # Output dimension (auto-set from dataset)
+
+# ============================================================================
+# TRAINING
+# ============================================================================
+training:
   # ==========================================
-  # ENCODER TRAINING CONFIGURATION
+  # ENCODER TRAINING
   # ==========================================
   encoder:
-    load_save_root: ./.trained_encoder_networks/  # Hash-based encoder model cache directory
-    lr: 0.001
-    trainer:
-      loss_function: mse        # Loss function for encoder
-      epochs: 50               # Encoder pre-training epochs
-      early_stopping: false    # Early stopping
-      patience: 10             # Patience
-      batch_size: 128          # Batch size
-      shuffle: true            # Shuffle data
-      grad_clip_value: 5.0     # Gradient clipping
-      load_best_state_dict: true
-      plot_losses: false
-      save_path: null
-      suppress_prints: false
-      print_every: 10
-      use_amp: false
-      # Performance optimization flags (disabled by default for speed)
-      enable_nan_checking: false      # Enable NaN detection during training (expensive)
-      enable_adaptive_clipping: false # Enable adaptive gradient clipping (expensive)
-      pretrain_epochs: 50
-      target_voltage: 0.5
-      kl_weight: 0.1
-      reverse_training: false
-      epochs_per_layer: 50
-      epochs_per_branch: 50
-      final_tune_epochs: 10
+    strategy: "standard"                # Training strategy: "standard", "voltage_stabilization",
+                                       # "homeostatic_control", "freeze_layers", "freeze_branches"
+
+    common:
+      lr: 0.001                         # Learning rate (any positive float)
+      loss_function: "log_mse"          # Loss function: "mse", "log_mse", "ce", "bce"
+      epochs: 500                       # Number of training epochs
+      early_stopping: true              # Enable early stopping (true/false)
+      patience: 100                     # Early stopping patience in epochs
+      batch_size: 512                   # Training batch size
+      shuffle: true                     # Shuffle training data (true/false)
+      grad_clip_value: 5.0              # Gradient clipping value (any positive float)
+      load_best_state_dict: true        # Load best model after training (true/false)
+      plot_losses: false                # Plot training curves (true/false)
+      suppress_prints: false            # Suppress training output (true/false)
+      print_every: 10                   # Print frequency in epochs
+      use_amp: false                    # Use automatic mixed precision (true/false)
+      enable_nan_checking: false        # Enable NaN checking (true/false)
+      enable_adaptive_clipping: false   # Enable adaptive gradient clipping (true/false)
+
+    strategies:
+      standard: {}
+
+      voltage_stabilization:
+        pretrain_epochs: 50             # Pretraining epochs
+        stabilize_mode: "vout"          # Stabilization mode: "vout", "vinf"
+        target_voltage: 0.5             # Target voltage value (0.0-1.0)
+        loss_metric: "mse"              # Loss metric: "mse", "log_mse"
+
+      homeostatic_control:
+        pretrain_epochs: 50
+        stabilize_mode: "vinf"
+        target_voltage: 0.5
+        loss_metric: "mse"
+
+      freeze_layers:
+        pretrain_epochs: 10             # Initial pretraining epochs
+        reverse_training: false         # Train layers in reverse order (true/false)
+        epochs_per_layer: 50            # Training epochs per layer
+        final_tune_epochs: 10           # Final fine-tuning epochs
+
+      freeze_branches:
+        pretrain_epochs: 10
+        reverse_training: false
+        epochs_per_branch: 50           # Training epochs per branch
+        final_tune_epochs: 10
+
+      freeze_branch_kl:
+        pretrain_epochs: 10
+        reverse_training: false
+        epochs_per_branch: 50
+        final_tune_epochs: 10
+        kl_weight: 0.1                  # KL divergence weight (0.0-1.0)
 
   # ==========================================
-  # MAIN NETWORK TRAINING
+  # MAIN TRAINING
   # ==========================================
   main:
-    learning_strategy: standard # Options: "standard", "voltage_stabilization", "homeostatic_control", "freeze_layers", "freeze_branches", "local_ca", "two_step"
-                               # Supports regularization, pruning, and parameter group features
-    weight_decay_rate: 0.01     # Use optimizer.weight_decay for internal optimizer creation
+    strategy: "local_ca"                # Training strategy
+    # Options: "standard", "voltage_stabilization", "homeostatic_control",
+    #          "freeze_layers", "freeze_branches", "local_ca", "multi_stage"
 
-    # Parameter groups with different learning rates
-    param_groups:
-      lr: 0.001                 # Default learning rate
-      split_params: true        # Split parameters into groups
-      topk_lr: 0.001           # Learning rate for TopK layers
-      blocklinear_lr: 0.0001   # Learning rate for BlockLinear layers
-      reactivation_lr: 0.0001  # Learning rate for reactivation layers
-      decoder_lr: 0.0001       # Learning rate for decoder network
+    common:
+      epochs: 1000                      # Number of training epochs
+      batch_size: 128                   # Training batch size
+      shuffle: true                     # Shuffle training data (true/false)
+      grad_clip_value: 5.0              # Gradient clipping value
+      loss_function: "cat_nll"          # Loss function: "ce", "cat_nll", "mse", "bce"
+      early_stopping: false             # Enable early stopping (true/false)
+      patience: 500                     # Early stopping patience in epochs
+      load_best_state_dict: true        # Load best model after training (true/false)
+      save_path: null                   # Custom save path (null = auto)
+      plot_losses: true                 # Plot training curves (true/false)
+      suppress_prints: false            # Suppress training output (true/false)
+      print_every: 10                   # Print frequency in epochs
+      use_amp: false                    # Use automatic mixed precision (true/false)
+      enable_nan_checking: false        # Enable NaN checking (true/false)
+      enable_adaptive_clipping: false   # Enable adaptive gradient clipping (true/false)
+      weight_decay_rate: 0.0            # Weight decay rate (0.0-0.1)
+      weight_boosting: false            # Enable weight boosting during decay (true/false)
 
-    trainer:
-      loss_function: ce        # Loss function
-      epochs: 50               # Main training epochs
-      early_stopping: false    # Early stopping
-      patience: 10             # Patience
-      batch_size: 128          # Batch size
-      shuffle: true            # Shuffle data
-      grad_clip_value: 5.0     # Gradient clipping
-      checkpointing: false
-      checkpoint_interval: 10
-      load_best_state_dict: true
-      plot_losses: true
-      save_path: null
-      suppress_prints: false
-      print_every: 10
-      use_amp: false
-      # Performance optimization flags (disabled by default for speed)
-      enable_nan_checking: false      # Enable NaN detection during training (expensive)
-      enable_adaptive_clipping: false # Enable adaptive gradient clipping (expensive)
+      param_groups:                     # Parameter-specific learning rates
+        lr: 0.001                       # Base learning rate
+        split_params: false             # Split parameters into groups (true/false)
+        topk_lr: 0.001                  # Learning rate for sparsity parameters
+        blocklinear_lr: 0.0001          # Learning rate for BlockLinear parameters
+        reactivation_lr: 0.0001         # Learning rate for reactivation parameters
+        decoder_lr: 0.01                # Learning rate for decoder parameters
 
-      # ==========================================
-      # STRATEGY-SPECIFIC CONFIG BLOCKS
-      # ==========================================
-      voltage_stabilization_config:
+    # ==========================================
+    # REGULARIZATION
+    # ==========================================
+    regularization:
+      l1_weight: 0.0                    # L1 regularization strength (0.0-0.1)
+      l2_weight: 0.0                    # L2 regularization strength (0.0-0.1)
+
+      selective:                        # Selective regularization application
+        layers: []                      # Layer indices to regularize (empty = all)
+        branches: []                    # Branch names to regularize (empty = all)
+        weight_types: ["all"]           # Weight types: "all", "excitatory", "inhibitory", "recurrent"
+
+      split_params: false               # Use parameter-specific regularization (true/false)
+      param_group_weights:              # Parameter group regularization weights
+        topk:
+          l1_weight: 0.0
+          l2_weight: 0.0
+        blocklinear:
+          l1_weight: 0.0
+          l2_weight: 0.0
+        reactivation:
+          l1_weight: 0.0
+          l2_weight: 0.0
+        decoder:
+          l1_weight: 0.0
+          l2_weight: 0.0
+
+      enforce_ei_weight_ratio: false    # Enforce E/I weight ratio (true/false)
+      target_ei_weight_ratio: 0.5       # Target E/I weight ratio (any positive float)
+      ei_ratio_loss_weight: 0.5         # E/I ratio loss weight (0.0-1.0)
+      ei_ratio_scope: "per_branch"      # E/I ratio scope: "per_branch", "per_layer", "global"
+      ei_ratio_metric: "mean"           # E/I ratio metric: "mean", "median", "rms"
+
+    # ==========================================
+    # PRUNING
+    # ==========================================
+    pruning:
+      enabled: false                    # Enable weight pruning (true/false)
+      threshold: 2                      # Pruning threshold (any positive float)
+      selective:
+        layers: []                      # Layer indices to prune (empty = all)
+        branches: []                    # Branch names to prune (empty = all)
+        weight_types: ["excitatory", "inhibitory"]  # Weight types to prune
+      re_evaluate_after: false          # Re-evaluate model after pruning (true/false)
+      dynamic_pruning: false            # Prune during training (true/false)
+      pruning_frequency: 10             # Dynamic pruning frequency in epochs
+
+      report_non_pruned: true           # Report non-pruned synapse count (true/false)
+      save_pruning_stats: false         # Save pruning statistics (true/false)
+      detailed_branch_report: true      # Detailed per-branch pruning report (true/false)
+      redo_analysis_after_pruning: false # Redo analysis after pruning (true/false)
+
+    # ==========================================
+    # TRAINING STRATEGIES
+    # ==========================================
+    strategies:
+      standard: {}                      # Standard backpropagation (no additional params)
+
+      multi_stage:                      # Multi-stage training configuration
+        analyze_between_stages: true    # Run analysis between stages (true/false)
+        use_best_from_each_stage: true  # Use best checkpoint from each stage (true/false)
+        continue_on_failure: false      # Continue if a stage fails (true/false)
+
+        stages:                         # List of training stages
+          - learning_strategy: "standard"
+            epochs: 100
+            batch_size: 512
+            save_checkpoint: false
+            param_groups:
+              lr: 0.01
+              split_params: true
+              topk_lr: 0.001
+              blocklinear_lr: 0.0001
+              reactivation_lr: 0.0001
+              decoder_lr: 0.001
+            trainer_config:
+              loss_function: "ce"
+              early_stopping: true
+              patience: 500
+
+          - learning_strategy: "local_ca"
+            epochs: 100
+            batch_size: 512
+            reset_optimizer: false
+            save_checkpoint: false
+            param_groups:
+              lr: 0.0001
+              split_params: true
+              topk_lr: 0.0001
+              blocklinear_lr: 0.00001
+              reactivation_lr: 0.00001
+              decoder_lr: 0.001
+            trainer_config:
+              loss_function: "ce"
+              early_stopping: false
+
+      local_ca:                         # Local credit assignment configuration
+        rule_variant: "5f"              # Rule variant: "3f", "4f", "5f"
+        error_mode: "auto"              # Error mode: "auto", "mse", "ce", "bce"
+        error_broadcast_mode: "scalar"  # Error broadcast: "scalar", "per_soma", "local_mismatch"
+        ema_alpha: 0.1                  # EMA alpha for statistics (0.0-1.0)
+        use_conductance_scaling: true   # Scale by conductance (true/false)
+        use_driving_force: true         # Use driving force (true/false)
+        theta: 0.0                      # Leak reversal potential
+        e_rev_exc: 1.0                  # Excitatory reversal potential
+        e_rev_inh: 0.0                  # Inhibitory reversal potential
+        clip_grad_value: 5.0            # Gradient clipping value
+        normalize_by_batch: false       # Normalize updates by batch (true/false)
+
+        phi_mode: "conditional"         # Information proxy mode: "conditional", "variance"
+        phi_ridge_lambda: 0.001         # Ridge regression lambda
+        rho_estimator: "ema"            # Rho estimator: "ema", "augment", "ema+augment"
+        phi_estimator: "conditional_ema" # Phi estimator: "conditional_ema", "variance_ema"
+        augment_k: 8                    # Micro-ensemble size for augmentation
+        augment_noise_sigma: 0.01       # Noise std for augmentation
+        rls_forgetting: 0.99            # Forgetting factor for RLS (0.0-1.0)
+        update_inactive_weights: false  # Update masked weights (true/false)
+
+        hsic_enabled: false             # Enable HSIC objective (true/false)
+        hsic_weight: 0.01               # HSIC strength
+        hsic_self_weight: 0.3           # Self-dependence weight
+        hsic_target_weight: 0.3         # Target dependence weight
+        hsic_target_source: "labels"    # Target source: "labels", "logits"
+        hsic_kernel: "rbf"              # Kernel type: "linear", "rbf", "polynomial"
+        hsic_sigma: 1.0                 # RBF kernel bandwidth
+        hsic_degree: 2                  # Polynomial kernel degree
+        hsic_coef0: 1.0                 # Polynomial kernel coefficient
+        hsic_grad_clip_value: 0.1       # HSIC gradient clipping
+        hsic_warmup_epochs: 5           # HSIC warmup epochs
+        hsic_apply_last_layer_only: false # Apply HSIC only to last layer (true/false)
+
+        rho_mode: "dot"                 # Morphology correlation: "pearson", "dot", "none"
+        decoder_update_mode: "backprop" # Decoder update: "backprop", "local", "none"
+        update_reactivation: true       # Update reactivation parameters (true/false)
+        freeze_reactivation_epochs: 20  # Epochs to freeze reactivation
+        freeze_decoder_epochs: 0        # Epochs to freeze decoder
+        training_schedule: []            # Custom training schedule (list of dicts)
+        layer_wise_rho_scale: 0.0       # Layer-wise rho scaling (0.0 = disabled)
+        layer_wise_phi_scale: 0.0       # Layer-wise phi scaling (0.0 = disabled)
+
+      voltage_stabilization:
         pretrain_epochs: 50
-        stabilize_mode: vout
+        stabilize_mode: "vout"          # Stabilization mode: "vout", "vinf"
         freeze_reactivation: true
         target_voltage: 0.5
         loss_metric: "mse"
 
-      homeostatic_control_config:
+      homeostatic_control:
         pretrain_epochs: 50
-        stabilize_mode: vinf
+        stabilize_mode: "vinf"
         freeze_reactivation: false
         target_voltage: 0.5
         loss_metric: "mse"
 
-      freeze_layers_config:
+      freeze_layers:
         pretrain_epochs: 10
         reverse_training: false
         epochs_per_layer: 50
         final_tune_epochs: 10
 
-      freeze_branches_config:
+      freeze_branches:
         pretrain_epochs: 10
         reverse_training: false
         epochs_per_branch: 50
         final_tune_epochs: 10
 
-      freeze_branch_kl_config:
+      freeze_branch_kl:
         pretrain_epochs: 10
         reverse_training: false
         epochs_per_branch: 50
         final_tune_epochs: 10
         kl_weight: 0.1
 
-      # Local multi-factor rule configuration (for learning_strategy: local_ca)
-      local_rule_config:
-        rule_variant: "3f"              # "3f", "4f", or "5f"
-        error_mode: "auto"             # "auto", "mse", "ce", "bce"
-        error_broadcast_mode: "scalar"  # "scalar", "per_soma", "local_mismatch"
-        ema_alpha: 0.05                 # EMA for rho/phi statistics
-        use_conductance_scaling: true   # Scale by 1 / (g_tot)
-        use_driving_force: true         # Use (E_rev - V_n) factor
-        theta: 0.0                      # Leak reversal when not using driving force
-        e_rev_exc: 1.0                  # Excitatory reversal
-        e_rev_inh: 0.0                  # Inhibitory reversal (shunting)
-        clip_grad_value: 5.0            # Clip absolute gradient values
-        normalize_by_batch: true        # Average updates over batch
-        # Information proxy configuration (used when rule_variant: "5f")
-        phi_mode: "conditional"         # "conditional" (parent regression) or "variance"
-        phi_ridge_lambda: 0.001         # Ridge for conditional regression
-        # Single-sample estimator options (work with batch size 1)
-        rho_estimator: "ema"            # "ema", "augment", "ema+augment"
-        phi_estimator: "conditional_ema" # "conditional_ema", "variance_ema"
-        augment_k: 8                    # Micro-ensemble forward passes when using augment
-        augment_noise_sigma: 0.01       # Std of Gaussian noise for augmentation
-        rls_forgetting: 0.99            # Forgetting factor for conditional EMA/RLS
-        # HSIC auxiliary dependence objective
-        hsic_enabled: false              # Enable auxiliary HSIC/pHSIC-like gradients
-        hsic_weight: 0.1                # Overall HSIC strength
-        hsic_self_weight: 1.0           # Weight for self-dependence (compression)
-        hsic_target_weight: 1.0         # Weight for target dependence (prediction)
-        hsic_target_source: "labels"    # "labels" or "logits"
-        hsic_kernel: "linear"           # "linear", "rbf", "polynomial"
-        hsic_sigma: 1.0                 # RBF kernel bandwidth (gamma = 1/(2*sigma^2))
-        hsic_degree: 2                  # Polynomial kernel degree
-        hsic_coef0: 1.0                 # Polynomial kernel coefficient
-        # Morphology correlation options (rho)
-        rho_mode: "pearson"             # "pearson", "dot", "none"
-        decoder_update_mode: backprop    # backprop | local | none
-        update_reactivation: true
-        freeze_reactivation_epochs: 0
-        freeze_decoder_epochs: 0
-        training_schedule: [] # [] | [{start_epoch: int, end_epoch: int, update_reactivation: bool, decoder_update_mode: str}]
-        layer_wise_rho_scale: 0.0       # Scale rho by 1/sqrt(layer_depth) if > 0
-        layer_wise_phi_scale: 0.0       # Scale phi by 1/sqrt(layer_depth) if > 0
-        update_inactive_weights: false   # Update all weights (mask only in forward)
-
-
-    # ==========================================
-    # ADVANCED TRAINING FEATURES
-    # ==========================================
-    # Regularization, pruning, and flexible optimizer configuration
-    # All features default to disabled, so no impact unless explicitly enabled
-
-    # Internal optimizer configuration (alternative to external optimizer creation)
-    # Note: When provided, respects param_groups learning rates above
-    # optimizer:
-    #   name: "adam"                    # Options: "adam", "sgd", "rmsprop", "adamw"
-    #   lr: 0.001                      # Learning rate (used when param_groups.split_params=false)
-    #   weight_decay: 0.0001           # Built-in L2 regularization (global)
-    #   momentum: 0.9                  # For SGD
-    #   betas: [0.9, 0.999]           # For Adam/AdamW
-    #   eps: 1e-8                      # For Adam/AdamW
-
-    # Unified regularization configuration
-    regularization:
-      l1_weight: 0.0               # Global L1 regularization strength (used when split_params=false)
-      l2_weight: 0.0                # Global L2 regularization strength (used when split_params=false)
-      selective:                     # Selective application
-        layers: []                   # List of layer indices (empty = all layers)
-        branches: []                 # List of branch names (empty = all branches)
-        weight_types: ["all"]        # Options: "all", "recurrent", "input", "output", "linear"
-
-      # Parameter group specific regularization
-      split_params: true             # Split parameters into groups for differential regularization
-      param_group_weights:
-        # Apply different regularization to different parameter groups (when split_params=true)
-        topk:                       # TopK layers
-          l1_weight: 0.0          # L1 for TopK layers
-          l2_weight: 0.0          # L2 for TopK layers
-        blocklinear:                # BlockLinear layers
-          l1_weight: 0.0            # No L1 for BlockLinear
-          l2_weight: 0.0          # No L2 for BlockLinear
-        reactivation:               # Reactivation layers
-          l1_weight: 0.0         # No L1 for reactivation
-          l2_weight: 0.0            # No L2 for reactivation
-        decoder:                    # Decoder network
-          l1_weight: 0.0          # No L1 for decoder
-          l2_weight: 0.0          # No L2 for decoder
-
-      # E/I Weight Ratio Regularization
-      enforce_ei_weight_ratio: false      # Enable E/I weight ratio regularization
-      target_ei_weight_ratio: 1.5         # Target excitatory/inhibitory weight ratio
-      ei_ratio_loss_weight: 0.1           # Regularization strength (fraction of total loss)
-      ei_ratio_scope: "per_branch"        # Options: "per_branch", "per_layer", "global"
-      ei_ratio_metric: "mean"             # Options: "mean", "median", "rms"
-
-    # Pruning configuration
-    pruning:
-      enabled: false                 # Enable pruning
-      threshold: 2               # Prune weights with abs(value) < threshold
-      selective:                     # Selective application
-        layers: []                   # List of layer indices (empty = all layers)
-        branches: []                 # List of branch names (empty = all branches)
-        weight_types: ["excitatory", "inhibitory"]        # Options: "all", "excitatory", "inhibitory", "recurrent", "input", "output", "linear"
-      re_evaluate_after: false        # Re-evaluate model after pruning
-      dynamic_pruning: false         # Whether to prune during training
-      pruning_frequency: 10          # Epochs between dynamic pruning (if enabled)
-
-    # Reporting configuration
-    reporting:
-      report_non_pruned: true        # Print detailed pruning report
-      save_pruning_stats: false       # Save pruning statistics to file
-      detailed_branch_report: true   # Include per-branch statistics
-      redo_analysis_after_pruning: false  # Redo all analyses after pruning for comparison
-
 # ============================================================================
-# DATASET/TASK CONFIGURATION - VALIDATED DATASETS ONLY
-# ============================================================================
-task:
-  # Validated dataset options (from datasets/__init__.py and synthetic_datasets.py)
-  dataset: cifar10
-  # Options:
-  # - Standard: "mnist", "cifar10", "imagenet"
-  # - Modified MNIST: "mnist_modulo10", "random_flip_mnist"
-
-  data_path: ""  # Custom data path
-
-  # Dataset-specific parameters
-  parameters:
-    # Common parameters
-    # train_size: 8000
-    # valid_size: 1000
-    # test_size: 1000
-    flatten: true
-    normalize: false
-
-    # # Synthetic dataset parameters
-    # image_size: 16           # For image-based synthetic datasets
-    # n_orient_classes: 8      # For orientation_bars
-    # n_bits: 8               # For multi_xor
-
-    # # Generated dataset parameters
-    # base_dataset: mnist      # For poisson_generator
-    # rate_multiplier: 1       # For poisson_generator
-    # input_dim: 10           # For orthonet
-    # n_layers: 5             # For orthonet
-    # nonlinearity: sigmoid   # For orthonet: "sigmoid", "tanh", None
-    # repeat_layers: false    # For orthonet
-    # noise_std: 0.1          # For orthonet
-
-# ============================================================================
-# WANDB LOGGING - VALIDATED PARAMETERS ONLY
-# ============================================================================
-wandb:
-  entity:
-  project:
-  group:
-  tags: []
-  use_wandb: false
-
-# ============================================================================
-# ANALYSIS CONFIGURATION - VALIDATED MODULES ONLY
+# ANALYSIS
 # ============================================================================
 analysis:
   performance_analysis:
-    enabled: true
-    training: true
+    enabled: true                       # Enable performance analysis (true/false)
+    training: true                      # Run during training (true/false)
     params:
-      accuracy: true
-      auc: true
-      categorical_loglikelihood: true
-      mse: false
-      cosine_similarity: false
+      accuracy: true                    # Compute accuracy (true/false)
+      auc: true                         # Compute AUC (true/false)
+      categorical_loglikelihood: true   # Compute categorical log-likelihood (true/false)
+      mse: false                        # Compute MSE (true/false)
+      cosine_similarity: false          # Compute cosine similarity (true/false)
 
   information_analysis:
-    enabled: true
+    enabled: true                       # Enable information analysis (true/false)
+    training: false                     # Run during training (true/false)
+    params:
+      method: "kraskov"                 # MI estimation method: "kraskov", "sklearn", "copula", "auto"
+      max_samples: 1000                 # Maximum samples for analysis (null = all)
+      n_neighbors: 10                   # K-NN neighbors for Kraskov estimator
+      n_bins: 20                        # Bins for histogram estimator
+      copula_type: "gaussian"           # Copula type: "gaussian", "kernel", "dvc"
+      compute_basic_mi: true            # Compute basic MI (true/false)
+      compute_pairwise_mi: true         # Compute pairwise MI (true/false)
+      compute_conditional_mi: true      # Compute conditional MI (true/false)
+      compute_pid: false                # Compute PID (true/false)
+      pid_binarize: true                # Binarize for PID (true/false)
+      pid_binarize_method: "median"     # Binarization method: "median", "mean", "quantile"
+      pid_binarize_threshold: 0.5       # Binarization threshold (0.0-1.0)
+      include_vinf: true                # Include soma activation (true/false)
+      normalize_mi: false               # Normalize MI by entropy (true/false)
+      verbose: false                    # Verbose output (true/false)
+      computation_level: "single_branch" # Computation level: "single_branch", "layer_branch", "all_branch"
+      branch_aggregation: "mean"        # Aggregation method: "mean", "multivariate", "sample"
+      per_neuron_analysis: false        # Per-neuron analysis (true/false)
+      per_einet_analysis: false         # Per-EI-network analysis (true/false)
+      per_layer_analysis: false         # Per-layer analysis (true/false)
+
+  correlation_analysis:
+    enabled: false                      # Enable correlation analysis (true/false)
     training: false
     params:
-      method: kraskov           # Options: "kraskov", "sklearn", "copula", "auto"
-      max_samples: null         # Limit samples for computation
-      n_neighbors: 10           # For kraskov k-NN estimator
-      n_bins: 20               # For sklearn histogram
-      copula_type: gaussian     # For copula method
-      compute_basic_mi: true    # I(E;C), I(I;C), I(Vout;C)
-      compute_pairwise_mi: true # I(E;I), I(E;Vout), I(I;Vout)
-      compute_conditional_mi: true # I(E;I|C), I(E;Vout|C), etc.
-      compute_pid: false        # Partial Information Decomposition
-      pid_binarize: true
-      pid_binarize_method: median # Options: "median", "mean", "quantile"
-      pid_binarize_threshold: 0.5
-      include_vinf: true        # Include soma activation
-      normalize_mi: false       # Normalize by entropy
-      verbose: false
+      computation_level: "layer_branch" # Computation level: "synaptic", "single_branch", "layer_branch", "all_branch"
+      compute_synaptic_correlations: true # Compute synaptic correlations (true/false)
+      compute_noise_correlations: true  # Compute noise correlations (true/false)
+      compute_signal_correlations: true # Compute signal correlations (true/false)
+      compute_total_correlations: true  # Compute total correlations (true/false)
+      compute_tuning_curves: true       # Compute tuning curves (true/false)
+      analyze_EE: true                  # Analyze E-E correlations (true/false)
+      analyze_II: true                  # Analyze I-I correlations (true/false)
+      analyze_EI: true                  # Analyze E-I correlations (true/false)
+      analyze_E_output: true            # Analyze E-output correlations (true/false)
+      analyze_I_output: true            # Analyze I-output correlations (true/false)
+      analyze_output_output: true       # Analyze output-output correlations (true/false)
+      per_layer_analysis: true          # Per-layer analysis (true/false)
+      per_einet_analysis: true          # Per-EI-network analysis (true/false)
+      per_neuron_analysis: false        # Per-neuron analysis (true/false)
+      n_synapse_pairs: 1000             # Number of synapse pairs to sample
+      sampling_strategy: "stratified"   # Sampling strategy: "random", "stratified", "importance"
+      stratified_categories: ["within_branch", "within_layer", "across_layer"]
+      max_pairs_per_category: 500       # Max pairs per category
+      max_samples: 2000                 # Max data samples for analysis
+      batch_process: true               # Process in batches (true/false)
 
-      # Computation Level Control - determines the granularity of information analysis
-      computation_level: layer_branch   # Options: "single_branch", "layer_branch", "all_branch"
-                                     # "single_branch": Individual branches (most granular and accurate)
-                                     # "layer_branch": Layer-level aggregation (treats each layer as a unit)
-                                     # "all_branch": Full network aggregation (most efficient)
-
-      # Branch aggregation method - only used when computation_level is "layer_branch" or "all_branch"
-      branch_aggregation: multivariate     # Options: "mean", "multivariate", "sample"
-
-
-      # Enhanced analysis modes
-      per_neuron_analysis: false   # If true, compute MI for each neuron separately
-      per_einet_analysis: false    # If true, analyze E and I networks separately
-      per_layer_analysis: false    # If true, compute enhanced analysis per layer
+  ablation_analysis:
+    enabled: true                       # Enable ablation analysis (true/false)
+    training: false
+    params:
+      layer_ablation: true              # Ablate entire layers (true/false)
+      compartment_ablation: false       # Ablate compartments (true/false)
+      ablate_all_synapses: true         # Ablate all synapses (true/false)
+      ablate_excitation: true           # Ablate excitatory synapses (true/false)
+      ablate_inhibition: true           # Ablate inhibitory synapses (true/false)
+      ablate_upstream: true             # Ablate upstream connections (true/false)
+      accuracy: true                    # Compute accuracy (true/false)
+      auc: true                         # Compute AUC (true/false)
+      categorical_loglikelihood: true   # Compute categorical log-likelihood (true/false)
+      mse: false                        # Compute MSE (true/false)
+      cosine_similarity: false          # Compute cosine similarity (true/false)
 
   synapse_turnover_analysis:
-    enabled: true
-    training: true
-    snapshot_interval: 5  # frequency of snapshots
-    synaptic_analysis: true        # Enable synaptic connectivity analysis
-    save_synaptic_report: true     # Save synaptic analysis to file
+    enabled: true                       # Enable synapse turnover analysis (true/false)
+    training: true                      # Run during training (true/false)
+    params:
+      snapshot_interval: 1              # Snapshot frequency in epochs
+      synaptic_analysis: true           # Enable synaptic connectivity analysis (true/false)
+      save_synaptic_report: true        # Save synaptic analysis report (true/false)
 
   noise_perturbation_analysis:
-    enabled: true
+    enabled: true                       # Enable noise perturbation analysis (true/false)
     training: false
     params:
-      uniform_noise: true
-      uniform_magnitudes: [0.1, 0.2]
-      gaussian_noise: true
-      gaussian_sdevs: [0.1, 0.2]
-      n_samples: 10
-      accuracy: true
-      auc: true
-      categorical_loglikelihood: true
-      mse: false
-      cosine_similarity: false
-
-  ablation_analysis:   ## needs test for the upstream values
-    enabled: true
-    training: false
-    params:
-      layer_ablation: true
-      compartment_ablation: false
-      ablate_all_synapses: true
-      ablate_excitation: true
-      ablate_inhibition: true
-      ablate_upstream: true
-      accuracy: true
-      auc: true
-      categorical_loglikelihood: true
-      mse: true
-      cosine_similarity: true
+      uniform_noise: true               # Test uniform noise (true/false)
+      uniform_magnitudes: [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]  # Noise magnitudes
+      gaussian_noise: true              # Test Gaussian noise (true/false)
+      gaussian_sdevs: [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]      # Noise standard deviations
+      n_samples: 10                     # Number of noise samples per magnitude
+      accuracy: true                    # Compute accuracy (true/false)
+      auc: true                         # Compute AUC (true/false)
+      categorical_loglikelihood: true   # Compute categorical log-likelihood (true/false)
+      mse: false                        # Compute MSE (true/false)
+      cosine_similarity: false          # Compute cosine similarity (true/false)
 
   weight_analysis:
-    enabled: true
+    enabled: true                       # Enable weight analysis (true/false)
     training: false
     params:
-      synapse_weights: true
-      branch_weights: true
-      computation_level: "single_branch"
-      branch_aggregation: "mean"
-      per_layer_analysis: true
-      per_einet_analysis: true
-      per_neuron_analysis: false
-
-      analyze_excitatory: true
-      analyze_inhibitory: true
-      analyze_branch_output: false
-      compute_mean: true
-      compute_variance: true
-      compute_percentiles: false
-      compute_min_max: true
-      compute_dendritic_strength: true
-      weight_threshold: 1e-6
-
-  synaptic_activation_analysis:
-    enabled: true
-    training: false
-    params:
-      network_summary: true
-      layer_summary: true
-      branch_summary: true
-      raw_summary: true
-      logspace: false
-      downsample: true
-      samples: 5
-
-  branch_activation_analysis:
-    enabled: true
-    training: false
-    params:
-      synapse_activations: true
-      branch_activations: true
-      network_summary: true
-      layer_summary: true
-      branch_summary: true
-      raw_summary: true
-      logspace: false
-      downsample: true
-      samples: 5
-
+      synapse_weights: true             # Analyze synapse weights (true/false)
+      branch_weights: true              # Analyze branch weights (true/false)
+      computation_level: "single_branch" # Computation level: "single_branch", "layer_branch", "all_branch"
+      branch_aggregation: "mean"        # Aggregation method: "mean", "multivariate", "sample"
+      per_layer_analysis: true          # Per-layer analysis (true/false)
+      per_einet_analysis: true          # Per-EI-network analysis (true/false)
+      per_neuron_analysis: false        # Per-neuron analysis (true/false)
+      analyze_excitatory: true          # Analyze excitatory weights (true/false)
+      analyze_inhibitory: true          # Analyze inhibitory weights (true/false)
+      analyze_branch_output: false      # Analyze branch-output weights (true/false)
+      compute_mean: true                # Compute mean weights (true/false)
+      compute_variance: true            # Compute weight variance (true/false)
+      compute_percentiles: false        # Compute percentiles (true/false)
+      compute_min_max: true             # Compute min/max (true/false)
+      compute_dendritic_strength: true  # Compute dendritic strength (true/false)
+      weight_threshold: 1e-6            # Weight threshold for "active" synapses
 
   single_layer_contribution:
-    enabled: true
+    enabled: false                      # Enable single layer contribution analysis (true/false)
     training: false
     params:
-      excitation_contribution: true
-      inhibition_contribution: true
-      both_contribution: true
-      accuracy: true
-      auc: true
-      categorical_loglikelihood: true
-      mse: true
-      cosine_similarity: true
+      excitation_contribution: true     # Analyze excitation contribution (true/false)
+      inhibition_contribution: true     # Analyze inhibition contribution (true/false)
+      both_contribution: true           # Analyze combined contribution (true/false)
+      accuracy: true                    # Compute accuracy (true/false)
+      auc: true                         # Compute AUC (true/false)
+      categorical_loglikelihood: true   # Compute categorical log-likelihood (true/false)
+      mse: true                         # Compute MSE (true/false)
+      cosine_similarity: true           # Compute cosine similarity (true/false)
 
-  correlation_analysis:    ## needs to be tested
-    enabled: false
+  synaptic_activation_analysis:
+    enabled: false                      # Enable synaptic activation analysis (true/false)
     training: false
     params:
-      compute_synaptic_correlations: true
-      compute_tuning_curves: true
+      network_summary: true             # Network-level summary (true/false)
+      layer_summary: true               # Layer-level summary (true/false)
+      branch_summary: true              # Branch-level summary (true/false)
+      raw_summary: true                 # Raw activation summary (true/false)
+      logspace: false                   # Use log space (true/false)
+      downsample: true                  # Downsample data (true/false)
+      samples: 5                        # Number of samples to analyze
+
+  branch_activation_analysis:
+    enabled: false                      # Enable branch activation analysis (true/false)
+    training: false
+    params:
+      synapse_activations: true         # Analyze synapse activations (true/false)
+      branch_activations: true          # Analyze branch activations (true/false)
+      network_summary: true             # Network-level summary (true/false)
+      layer_summary: true               # Layer-level summary (true/false)
+      branch_summary: true              # Branch-level summary (true/false)
+      raw_summary: true                 # Raw activation summary (true/false)
+      logspace: false                   # Use log space (true/false)
+      downsample: true                  # Downsample data (true/false)
+      samples: 5                        # Number of samples to analyze
 
 # ============================================================================
-# OUTPUT CONFIGURATION
+# LOGGING
+# ============================================================================
+wandb:
+  use_wandb: false                      # Enable Weights & Biases logging (true/false)
+  entity: ""                            # W&B entity name (string)
+  project: "dendritic-sweeps"           # W&B project name (string)
+  group: "unified_sweep"                # W&B group name (string)
+  tags: ["debug"]                       # W&B tags (list of strings)
+  enabled: true                         # Enable W&B features (true/false)
+  log_freq: 100                         # Logging frequency in steps
+  log_gradients: false                  # Log gradients (true/false)
+  log_parameters: false                 # Log parameters (true/false)
+  log_activations: false                # Log activations (true/false)
+
+# ============================================================================
+# OUTPUTS
 # ============================================================================
 outputs:
-  run_name: exp_run
-  dir: results/
-  dataset_dir: data                         # Optional: separate directory for shared datasets
+  run_name: "ei_sweep"                  # Experiment run name (string)
+  results_dir: "outputs"                # Results directory path (string)
+
+# ============================================================================
+# DISTRIBUTED/FSDP
+# ============================================================================
+fsdp:
+  use_fsdp: false                       # Enable Fully Sharded Data Parallel (true/false)
+  sharding_strategy: "FULL_SHARD"      # Sharding strategy: "FULL_SHARD", "SHARD_GRAD_OP", "NO_SHARD", "HYBRID_SHARD"
+  mixed_precision: true                 # Use mixed precision (true/false)
+  cpu_offload: false                    # Offload to CPU (true/false)
+  min_num_params: 1000000               # Minimum parameters for FSDP wrapping
+  reduce_communication_overhead: true   # Reduce communication overhead (true/false)
+  limit_all_gathers: true               # Limit all-gather operations (true/false)
+  forward_prefetch: true                # Prefetch in forward pass (true/false)
+  sync_module_states: true              # Synchronize module states (true/false)
+  use_orig_params: true                 # Use original parameters (true/false)
+  backward_prefetch: "BACKWARD_PRE"     # Backward prefetch: "BACKWARD_PRE", "BACKWARD_POST", null
+  gradient_checkpointing: false         # Enable gradient checkpointing (true/false)

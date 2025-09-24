@@ -18,10 +18,10 @@ except ImportError:
 from omegaconf import OmegaConf
 
 from dendritic_modeling.config import (
-    EncoderNetworkConfig,
-    EncoderTrainConfig,
-    TaskConfig,
-    TrainConfig,
+    DataConfig,
+    EncoderConfig,
+    EncoderTrainingConfig,
+    TrainingConfig,
     load_config,
 )
 from dendritic_modeling.datasets import get_unified_datasets
@@ -53,9 +53,9 @@ def dict_to_hash_text(
 
 
 def get_load_save_path(
-    encoder_network_config: EncoderNetworkConfig,
-    encoder_train_config: EncoderTrainConfig,
-    task_config: TaskConfig,
+    encoder_network_config: EncoderConfig,
+    encoder_train_config: EncoderTrainingConfig,
+    task_config: DataConfig,
 ) -> str:
     encoder_net_config_dict = OmegaConf.to_container(
         encoder_network_config, resolve=True
@@ -90,9 +90,9 @@ def get_load_save_path(
 
 
 def setup_environment(
-    encoder_network_config: EncoderNetworkConfig,
-    train_config: TrainConfig,
-    task_config: TaskConfig,
+    encoder_network_config: EncoderConfig,
+    train_config: TrainingConfig,
+    task_config: DataConfig,
 ) -> tuple[
     str,
     torch.utils.data.Dataset,
@@ -151,12 +151,12 @@ def setup_environment(
 
 def load_train_encoder_network(
     encoder_network: BaseAutoencoder,
-    encoder_train_config: EncoderTrainConfig,
+    encoder_train_config: EncoderTrainingConfig,
     train_ds: torch.utils.data.Dataset,
     valid_ds: torch.utils.data.Dataset,
     test_ds: torch.utils.data.Dataset,
-    encoder_network_config: Optional[EncoderNetworkConfig] = None,
-    task_config: Optional[TaskConfig] = None,
+    encoder_network_config: Optional[EncoderConfig] = None,
+    task_config: Optional[DataConfig] = None,
     load_save_path: Optional[str] = None,
 ) -> tuple[
     BaseAutoencoder,
@@ -329,13 +329,13 @@ def main(config_path: str):
     config = load_config(config_path)
     logger.info(f"Loaded configuration from {config_path}")
 
-    encoder_network_config = config.model.encoder_network
-    encoder_train_config = config.train.encoder
+    encoder_network_config = config.model.encoder
+    encoder_train_config = config.training.encoder
 
     (load_save_path, train_ds, valid_ds, test_ds, encoder_network) = setup_environment(
         encoder_network_config=encoder_network_config,
-        train_config=config.train,
-        task_config=config.task,
+        train_config=config.training,
+        task_config=config.data,
     )
 
     logger.info("Network architecture summary before training:")

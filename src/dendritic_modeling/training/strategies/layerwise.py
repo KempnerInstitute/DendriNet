@@ -82,11 +82,13 @@ class LayerWiseTrainer(Trainer):
             Training results dictionary
         """
 
-        if not isinstance(model.net, ExcitationInhibitionNetwork):
-            logger.info("Model has no 'net.layers'. " "Falling back to normal train.")
+        if not isinstance(model.core_network, ExcitationInhibitionNetwork):
+            logger.info(
+                "Model has no 'core_network.layers'. " "Falling back to normal train."
+            )
             return super().train(model, train_data, valid_data)
 
-        net_obj: ExcitationInhibitionNetwork = model.net
+        net_obj: ExcitationInhibitionNetwork = model.core_network
         n_layers = len(net_obj.layers)
 
         total_epochs = (

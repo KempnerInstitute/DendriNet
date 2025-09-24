@@ -21,28 +21,22 @@ from pathlib import Path
 import numpy as np
 from omegaconf import DictConfig, OmegaConf
 
-# Add project root to path
+# Setup module path
 project_root = Path(__file__).parent.parent.parent.parent.parent
 sys.path.insert(0, str(project_root / "src"))
 
-# Use absolute imports to avoid relative import issues
-try:
-    from dendritic_modeling.scripts.sweeps.unified.base_sweep import BaseSweepGenerator
-except ImportError:
-    # Fallback for when run as script
-    sys.path.insert(0, str(Path(__file__).parent.parent))
-    from base_sweep import BaseSweepGenerator
+# Import after path setup
+from dendritic_modeling.scripts.sweeps.unified.base_sweep import (  # noqa: E402
+    BaseSweepGenerator,
+)
 
 
 def expand_ranges(param_value):
     """
     Handle parameter values that are specified as ranges.
     A range is specified as [start, end, step].
-    From the old branch sweep code - handles both int and float ranges.
-    Works with both regular lists and OmegaConf ListConfig objects.
     """
-    # Convert OmegaConf objects to regular Python objects for processing
-    if hasattr(param_value, "_content"):  # OmegaConf object
+    if hasattr(param_value, "_content"):
         param_value = OmegaConf.to_container(param_value, resolve=True)
 
     if (
@@ -375,34 +369,29 @@ class UnifiedSweepGenerator(BaseSweepGenerator):
         experiment_settings = base_config.get("experiment_settings", {})
         filter_config = base_config.get("filter_config", {})
 
-        # Create complete base training config by copying the full structure
-        base_train_config = {
-            "model": base_config.get("base_config", {}).get(
-                "model", base_config.get("model", {})
-            ),
-            "train": base_config.get("train", {"seed": 42}),
-            "task": base_config.get(
-                "task",
-                {
-                    "dataset": "cifar10",
-                    "data_path": "",
-                    "parameters": {"flatten": True, "normalize": False},
-                },
-            ),
-            "wandb": base_config.get("wandb", {"use_wandb": False}),
-            "analysis": base_config.get("analysis", {}),
-            "outputs": base_config.get("outputs", {}),
-        }
+        # Create complete base training config by copying the full structure from base_config
+        base_train_config = base_config.get("base_config", {})
 
-        # Ensure shared dataset directory for sweep runs
-        # This prevents each config from creating its own copy of the dataset
-        if "outputs" in base_train_config:
-            outputs_config = base_train_config["outputs"]
-            # If dataset_dir is empty or not set, use the base output directory
-            if not outputs_config.get("dataset_dir"):
-                base_dir = outputs_config.get("dir", "results")
-                # Use the base directory (not individual config dirs) for shared datasets
-                outputs_config["dataset_dir"] = base_dir
+        # If base_config is empty, fall back to old structure for backward compatibility
+        if not base_train_config:
+            base_train_config = {
+                "model": base_config.get("model", {}),
+                "training": base_config.get("train", {"seed": 42}),
+                "data": base_config.get(
+                    "data",
+                    {
+                        "dataset_name": "cifar10",
+                        "base_dir": "",
+                        "processing": {"flatten": True, "normalize": False},
+                    },
+                ),
+                "wandb": base_config.get("wandb", {"use_wandb": False}),
+                "analysis": base_config.get("analysis", {}),
+                "outputs": base_config.get("outputs", {}),
+            }
+        else:
+            # Make a deep copy to avoid modifying the original
+            base_train_config = OmegaConf.create(deepcopy(base_train_config))
 
         # Expand sweep parameters (handle ranges like [start, end, step])
         param_values = {}
@@ -424,8 +413,15 @@ class UnifiedSweepGenerator(BaseSweepGenerator):
             param_values["_branch_config"] = branch_configs
 
         # Handle EI filtering if EI parameters are present
-        ee_param = "model.core_network.parameters.ee_synapses_per_branch_per_layer"
-        ie_param = "model.core_network.parameters.ie_synapses_per_branch_per_layer"
+        # Support both old and new parameter paths
+        ee_param_old = "model.core_network.parameters.ee_synapses_per_branch_per_layer"
+        ie_param_old = "model.core_network.parameters.ie_synapses_per_branch_per_layer"
+        ee_param_new = "model.core.connectivity.ee_synapses_per_branch_per_layer"
+        ie_param_new = "model.core.connectivity.ie_synapses_per_branch_per_layer"
+
+        # Determine which parameter format is being used
+        ee_param = ee_param_new if ee_param_new in param_values else ee_param_old
+        ie_param = ie_param_new if ie_param_new in param_values else ie_param_old
 
         # Apply EI filtering if EI parameters present AND filtering mode specified
         if (
@@ -485,33 +481,61 @@ class UnifiedSweepGenerator(BaseSweepGenerator):
                         # val is a dict with dendrite_tree_depth and dendrite_branches_per_layer
                         if "model" not in new_config:
                             new_config["model"] = {}
-                        if "core_network" not in new_config.model:
-                            new_config.model["core_network"] = {}
-                        if "parameters" not in new_config.model.core_network:
-                            new_config.model.core_network["parameters"] = {}
 
-                        new_config.model.core_network.parameters.dendrite_tree_depth = (
-                            val["dendrite_tree_depth"]
-                        )
-                        new_config.model.core_network.parameters.dendrite_branches_per_layer = val[
-                            "dendrite_branches_per_layer"
-                        ]
+                        # Support both old and new config structures
+                        if base_config.get("base_config"):
+                            # New structure - branch factors are in model.core.architecture
+                            if "core" not in new_config.model:
+                                new_config.model["core"] = {}
+                            if "architecture" not in new_config.model.core:
+                                new_config.model.core["architecture"] = {}
+                            # Map to the new structure's branch factors
+                            new_config.model.core.architecture.excitatory_branch_factors = val[
+                                "dendrite_branches_per_layer"
+                            ]
+                        else:
+                            # Old structure fallback
+                            if "core_network" not in new_config.model:
+                                new_config.model["core_network"] = {}
+                            if "parameters" not in new_config.model.core_network:
+                                new_config.model.core_network["parameters"] = {}
+                            new_config.model.core_network.parameters.dendrite_tree_depth = val[
+                                "dendrite_tree_depth"
+                            ]
+                            new_config.model.core_network.parameters.dendrite_branches_per_layer = val[
+                                "dendrite_branches_per_layer"
+                            ]
                     elif key == "_ei_config":
                         # Special handling for EI configurations
                         # val is a dict with ee and ie values
+                        # Support both old and new config structures
                         if "model" not in new_config:
                             new_config["model"] = {}
-                        if "core_network" not in new_config.model:
-                            new_config.model["core_network"] = {}
-                        if "parameters" not in new_config.model.core_network:
-                            new_config.model.core_network["parameters"] = {}
 
-                        new_config.model.core_network.parameters.ee_synapses_per_branch_per_layer = [
-                            val["ee"]
-                        ]
-                        new_config.model.core_network.parameters.ie_synapses_per_branch_per_layer = [
-                            val["ie"]
-                        ]
+                        # Use new structure (model.core.connectivity) if base_config exists
+                        if base_config.get("base_config"):
+                            if "core" not in new_config.model:
+                                new_config.model["core"] = {}
+                            if "connectivity" not in new_config.model.core:
+                                new_config.model.core["connectivity"] = {}
+                            new_config.model.core.connectivity.ee_synapses_per_branch_per_layer = [
+                                val["ee"]
+                            ]
+                            new_config.model.core.connectivity.ie_synapses_per_branch_per_layer = [
+                                val["ie"]
+                            ]
+                        else:
+                            # Fall back to old structure
+                            if "core_network" not in new_config.model:
+                                new_config.model["core_network"] = {}
+                            if "parameters" not in new_config.model.core_network:
+                                new_config.model.core_network["parameters"] = {}
+                            new_config.model.core_network.parameters.ee_synapses_per_branch_per_layer = [
+                                val["ee"]
+                            ]
+                            new_config.model.core_network.parameters.ie_synapses_per_branch_per_layer = [
+                                val["ie"]
+                            ]
                     else:
                         # Set nested params (e.g., model.core_network.parameters.foo = val)
                         keys = key.split(".")
@@ -526,10 +550,34 @@ class UnifiedSweepGenerator(BaseSweepGenerator):
             if seeds_per_condition > 1:
                 for seed_offset in range(seeds_per_condition):
                     seed_config = OmegaConf.create(deepcopy(new_config))
-                    seed_config.train.seed = base_seed + seed_offset
+                    # Set seed in the correct location based on config structure
+                    if "experiment" in seed_config:
+                        seed_config.experiment.seed = base_seed + seed_offset
+                    elif "training" in seed_config:
+                        # For new structure, seed is in experiment section, but fall back to training if needed
+                        if "experiment" not in seed_config:
+                            seed_config["experiment"] = {}
+                        seed_config.experiment.seed = base_seed + seed_offset
+                    else:
+                        # Old structure fallback
+                        if "train" not in seed_config:
+                            seed_config["train"] = {}
+                        seed_config.train.seed = base_seed + seed_offset
                     configs.append(seed_config)
             else:
-                new_config.train.seed = base_seed
+                # Set seed in the correct location based on config structure
+                if "experiment" in new_config:
+                    new_config.experiment.seed = base_seed
+                elif "training" in new_config:
+                    # For new structure, seed is in experiment section
+                    if "experiment" not in new_config:
+                        new_config["experiment"] = {}
+                    new_config.experiment.seed = base_seed
+                else:
+                    # Old structure fallback
+                    if "train" not in new_config:
+                        new_config["train"] = {}
+                    new_config.train.seed = base_seed
                 configs.append(new_config)
 
         return configs

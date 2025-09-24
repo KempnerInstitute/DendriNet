@@ -277,7 +277,7 @@ class SweepJobManager:
         with open(script_path, "w") as f:
             f.write("#!/bin/bash\n")
             f.write(
-                f"#SBATCH --job-name={self.slurm_config.get('job_name', 'sweep')}\n"
+                f"#SBATCH --job-name={self.slurm_config.get('run_name') or self.slurm_config.get('job_name', 'sweep')}\n"
             )
             f.write(
                 f"#SBATCH --account={self.slurm_config.get('account', 'kempner_dev')}\n"
@@ -285,7 +285,7 @@ class SweepJobManager:
             f.write(
                 f"#SBATCH --partition={self.slurm_config.get('partition', 'kempner')}\n"
             )
-            constraint = self.slurm_config.get('constraint', None)
+            constraint = self.slurm_config.get("constraint", None)
             if constraint:
                 f.write(f"#SBATCH --constraint={constraint}\n")
             f.write(f"#SBATCH --time={self.slurm_config.get('time', '02:00:00')}\n")
@@ -362,7 +362,7 @@ class SweepJobManager:
         with open(script_path, "w") as f:
             f.write("#!/bin/bash\n")
             f.write(
-                f"#SBATCH --job-name={self.slurm_config.get('job_name', 'sweep')}\n"
+                f"#SBATCH --job-name={self.slurm_config.get('run_name') or self.slurm_config.get('job_name', 'sweep')}\n"
             )
             f.write(
                 f"#SBATCH --account={self.slurm_config.get('account', 'kempner_dev')}\n"

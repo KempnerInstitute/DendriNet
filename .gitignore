@@ -30,6 +30,7 @@ notebooks/covnets/*
 notebooks/vision/*
 archive/*
 _archive/*
+checkpoints/*
 #ndb/ Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

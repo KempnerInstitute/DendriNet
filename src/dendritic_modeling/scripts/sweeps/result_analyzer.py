@@ -41,21 +41,10 @@ from typing import Any, Optional
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import seaborn as sns
 from matplotlib.ticker import ScalarFormatter
 from omegaconf import OmegaConf
 from scipy.ndimage import gaussian_filter1d
-
-# Try importing seaborn with compatibility handling
-try:
-    import seaborn as sns
-except AttributeError:
-    import matplotlib
-
-    if hasattr(matplotlib.cm, "register_cmap"):
-        import seaborn as sns
-    else:
-        matplotlib.cm.register_cmap = matplotlib.colormaps.register
-        import seaborn as sns
 
 # Add the project root to the path
 project_root = Path(__file__).parent.parent.parent.parent
@@ -345,12 +334,19 @@ class UnifiedResultAnalyzer:
 
             # Extract EE and IE values with multiple fallback strategies
             try:
-                # Try unified sweep structure first
-                if hasattr(config.model, "core_network") and hasattr(
+                # Try new structure first (model.core.connectivity)
+                net_params = None
+                if hasattr(config.model, "core") and hasattr(
+                    config.model.core, "connectivity"
+                ):
+                    net_params = config.model.core.connectivity
+                elif hasattr(config.model, "core_network") and hasattr(
                     config.model.core_network, "parameters"
                 ):
+                    # Fall back to old structure
                     net_params = config.model.core_network.parameters
 
+                if net_params:
                     # Look for EI-specific parameters
                     if hasattr(net_params, "ee_synapses_per_branch_per_layer"):
                         ee_values = net_params.ee_synapses_per_branch_per_layer
@@ -420,19 +416,32 @@ class UnifiedResultAnalyzer:
                     if hasattr(net_params, "use_shunting"):
                         data["use_shunting"] = net_params.use_shunting
 
-                # Extract seed
-                if hasattr(config.train, "seed"):
+                # Extract seed - support both old and new structures
+                if hasattr(config, "experiment") and hasattr(config.experiment, "seed"):
+                    data["seed"] = config.experiment.seed
+                elif hasattr(config, "train") and hasattr(config.train, "seed"):
                     data["seed"] = config.train.seed
 
                 # Extract local learning parameters
                 try:
-                    if (
-                        hasattr(config.train, "main")
+                    # Support both old and new config structures
+                    local_cfg = None
+                    if hasattr(config, "training") and hasattr(config.training, "main"):
+                        # New structure: training.main.strategies.local_ca
+                        if hasattr(config.training.main, "strategies") and hasattr(
+                            config.training.main.strategies, "local_ca"
+                        ):
+                            local_cfg = config.training.main.strategies.local_ca
+                    elif (
+                        hasattr(config, "train")
+                        and hasattr(config.train, "main")
                         and hasattr(config.train.main, "trainer")
                         and hasattr(config.train.main.trainer, "local_rule_config")
                     ):
+                        # Old structure: train.main.trainer.local_rule_config
                         local_cfg = config.train.main.trainer.local_rule_config
 
+                    if local_cfg:
                         if hasattr(local_cfg, "rule_variant"):
                             data["rule_variant"] = local_cfg.rule_variant
                         if hasattr(local_cfg, "rho_mode"):

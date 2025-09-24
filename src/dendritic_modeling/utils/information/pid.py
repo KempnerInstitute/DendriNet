@@ -1,25 +1,14 @@
-"""Utility functions for Partial Information Decomposition (PID).
-
-These helpers attempt to import the PID package located in the project
-``external`` directory.  If the package cannot be imported, the
-functions will raise ``ImportError``.  The intention is to keep the code
-self-contained while still allowing PID-based analyses when the
-external dependency is available.
-"""
+"""Utility functions for Partial Information Decomposition (PID)."""
 
 from __future__ import annotations
 
 import logging
 
-# typing imports removed - not needed
 import numpy as np
 
 try:
-    # The external PID library should be placed inside ``external``
-    # so that ``external.PID`` becomes importable.  Adjust the import as
-    # necessary for your local setup.
-    from external import PID  # type: ignore
-except Exception as e:  # pragma: no cover - best effort
+    from external import PID
+except Exception as e:
     PID = None
     pid_error: Exception = e
 else:
@@ -28,12 +17,8 @@ else:
 
 def check_pid_available() -> None:
     """Raise an ImportError if the PID package is not available."""
-
     if PID is None:
-        raise ImportError(
-            "PID package not found. Ensure the external PID library is "
-            "available in the 'external' directory."
-        ) from pid_error
+        raise ImportError("PID package not found.") from pid_error
 
 
 def pid_synergy_redundancy(
