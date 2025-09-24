@@ -854,7 +854,7 @@ class InformationAnalyzer(AbstractAnalyzer):
         Returns:
             Dictionary with per-neuron MI results
         """
-        n_samples, n_neurons = E_data.shape
+        _, n_neurons = E_data.shape
         per_neuron_results = []
 
         self.logger.info(f"Computing MI for {n_neurons} neurons individually...")

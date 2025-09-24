@@ -10,12 +10,12 @@ import logging
 import torch
 
 from dendritic_modeling.models import BaseModel
-from dendritic_modeling.training.loss.functions import (
-    VoltageStabilizationLoss,
-    ExcitationInhibitionBalanceLoss,
-    HomeostaticControlLoss
-)
 from dendritic_modeling.networks.activations import ParametricActivation
+from dendritic_modeling.training.loss.functions import (
+    ExcitationInhibitionBalanceLoss,
+    HomeostaticControlLoss,
+    VoltageStabilizationLoss,
+)
 from dendritic_modeling.training.strategies.standard import Trainer
 
 logger = logging.getLogger(__name__)
@@ -55,9 +55,9 @@ class VoltageStabilizationTrainer(Trainer):
         """
         voltage_stabilization_loss = VoltageStabilizationLoss(
             stabilize_mode=self.stabilize_mode,
-            target_voltage=self.target_voltage, 
+            target_voltage=self.target_voltage,
             loss_metric=self.loss_metric,
-            reduction=self.loss_function.reduction
+            reduction=self.loss_function.reduction,
         )
 
         handles = voltage_stabilization_loss.attach_forward_hooks(model)
@@ -226,7 +226,7 @@ class HomeostaticControlTrainer(Trainer):
             stabilize_mode=self.stabilize_mode,
             target_voltage=self.target_voltage,
             loss_metric=self.loss_metric,
-            reduction=self.loss_function.reduction
+            reduction=self.loss_function.reduction,
         )
 
         handles = homeostatic_control_loss.attach_forward_hooks(model)

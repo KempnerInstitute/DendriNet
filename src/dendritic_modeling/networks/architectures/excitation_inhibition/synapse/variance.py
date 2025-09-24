@@ -11,8 +11,8 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.top
     TopKLinear,
 )
 from dendritic_modeling.networks.utils.weight_transforms import (
-    apply_weight_transform, 
-    WeightTransformType
+    WeightTransformType,
+    apply_weight_transform,
 )
 
 
@@ -124,7 +124,9 @@ class VarianceTopKLinear(TopKLinear):
         # Expand variance to match weight shape [out_features, in_features]
         var_expanded = self.activation_var.expand_as(w_for_topk)
 
-        importance_scores = apply_weight_transform(w_for_topk, self.weight_transform) * var_expanded
+        importance_scores = (
+            apply_weight_transform(w_for_topk, self.weight_transform) * var_expanded
+        )
 
         # Perform topk selection per neuron
         topk_indices = torch.topk(

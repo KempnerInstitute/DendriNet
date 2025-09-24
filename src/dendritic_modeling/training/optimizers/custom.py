@@ -26,11 +26,11 @@ class CustomWeightDecayOptimizer:
     """
 
     def __init__(
-        self, 
-        model: BaseModel, 
-        optimizer: Optimizer, 
+        self,
+        model: BaseModel,
+        optimizer: Optimizer,
         weight_decay: float = 0.1,
-        weight_boosting: bool = False
+        weight_boosting: bool = False,
     ):
         self.model = model
         self.optimizer = optimizer
@@ -57,7 +57,7 @@ class CustomWeightDecayOptimizer:
         if self.weight_decay > 0:
             self.model.decay_weights(
                 weight_decay=lr * self.weight_decay,
-                weight_boosting=self.weight_boosting
+                weight_boosting=self.weight_boosting,
             )
         self.model.apply_rewiring()
         self.optimizer.step()

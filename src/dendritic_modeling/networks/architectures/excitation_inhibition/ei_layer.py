@@ -5,15 +5,15 @@ This module implements the ExcitationInhibitionLayer which models
 excitatory and inhibitory cell populations.
 """
 
-from typing import Optional, Any
+from typing import Any, Optional
 
 import torch
 import torch.nn as nn
 
+from dendritic_modeling.networks.architectures.classical.mlp.mlp import MLP
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.dendrinet import (
     DendriNet,
 )
-from dendritic_modeling.networks.architectures.classical.mlp.mlp import MLP
 
 
 class ExcitationInhibitionLayer(nn.Module):
@@ -64,9 +64,10 @@ class ExcitationInhibitionLayer(nn.Module):
 
         # Only build inhibitory cells if n_inhibitory_cells is not None and build_inhibitory_cells is True
         if build_inhibitory_cells and n_inhibitory_cells is not None:
-            assert inhibitory_network_type in ["dendritic", "mlp"], \
-                "inhibitory_network_type must be either 'dendritic' or 'mlp'." + \
-                f"Got inhibitory_network_type: {inhibitory_network_type}"
+            assert inhibitory_network_type in ["dendritic", "mlp"], (
+                "inhibitory_network_type must be either 'dendritic' or 'mlp'."
+                + f"Got inhibitory_network_type: {inhibitory_network_type}"
+            )
             if inhibitory_network_type == "dendritic":
                 self.inhibitory_cells = DendriNet(
                     n_soma=n_inhibitory_cells,
@@ -105,13 +106,15 @@ class ExcitationInhibitionLayer(nn.Module):
                     **kwargs,
                 )
             elif inhibitory_network_type == "mlp":
-                inh_mlp_kwargs: dict[str, Any] = kwargs.get("mlp_inhibitory_network_params", {})
+                inh_mlp_kwargs: dict[str, Any] = kwargs.get(
+                    "mlp_inhibitory_network_params", {}
+                )
                 inh_mlp = MLP(
-                        input_dim=excitatory_input_dim,
-                        hidden_dims=inh_mlp_kwargs.get("hidden_dims", []),
-                        activation=inh_mlp_kwargs.get("activation", "relu"),
-                        output_dim=n_inhibitory_cells
-                    )
+                    input_dim=excitatory_input_dim,
+                    hidden_dims=inh_mlp_kwargs.get("hidden_dims", []),
+                    activation=inh_mlp_kwargs.get("activation", "relu"),
+                    output_dim=n_inhibitory_cells,
+                )
                 nn.init.xavier_normal_(inh_mlp.layers[-1].weight)
                 nn.init.zeros_(inh_mlp.layers[-1].bias)
                 self.inhibitory_cells = nn.Sequential(inh_mlp, nn.Sigmoid())
@@ -164,17 +167,15 @@ class ExcitationInhibitionLayer(nn.Module):
         )
 
     def decay_weights(self, weight_decay: float, weight_boosting=False):
-        if (
-            self.inhibitory_cells is not None 
-            and hasattr(self.inhibitory_cells, "decay_weights")
+        if self.inhibitory_cells is not None and hasattr(
+            self.inhibitory_cells, "decay_weights"
         ):
             self.inhibitory_cells.decay_weights(weight_decay, weight_boosting)
         self.excitatory_cells.decay_weights(weight_decay, weight_boosting)
 
     def apply_rewiring(self):
-        if (
-            self.inhibitory_cells is not None 
-            and hasattr(self.inhibitory_cells, "apply_rewiring")
+        if self.inhibitory_cells is not None and hasattr(
+            self.inhibitory_cells, "apply_rewiring"
         ):
             self.inhibitory_cells.apply_rewiring()
         self.excitatory_cells.apply_rewiring()
@@ -194,7 +195,7 @@ class ExcitationInhibitionLayer(nn.Module):
             inhibitory_x = self.inhibitory_cells(excitatory_x, inhibitory_x)
         elif isinstance(self.inhibitory_cells, nn.Sequential):
             inhibitory_x = self.inhibitory_cells(excitatory_x)
-        
+
         excitatory_x = self.excitatory_cells(excitatory_x, inhibitory_x)
 
         return excitatory_x, inhibitory_x

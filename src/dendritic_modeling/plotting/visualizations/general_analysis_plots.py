@@ -6,7 +6,7 @@ import logging
 import os
 import re
 from collections import defaultdict
-from typing import Any, List, Optional
+from typing import Any, Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -187,7 +187,7 @@ def plot_layer_ablation(
     save_path: Optional[str] = None,
     filename: str = "final",
     somatic_synapses: bool = True,
-) -> Optional[List[plt.Figure]]:
+) -> Optional[list[plt.Figure]]:
     """
     Plot layer ablation results showing accuracy/log-likelihood decrease vs depth.
 
@@ -306,7 +306,9 @@ def plot_per_layer_ablation(layer_results: dict[str, dict[str, dict]], **kwargs)
             temp_layer_results[layer_name] = layer_data
 
         # Convert layer names using the standard function
-        convert_layer_names(temp_layer_results, somatic_synapses=somatic_synapses)
+        convert_layer_names(
+            temp_layer_results, somatic_synapses=kwargs.get("somatic_synapses", True)
+        )
 
         # Create mapping from original technical names to display names
         all_depths = set()
