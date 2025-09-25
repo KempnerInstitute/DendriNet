@@ -1,32 +1,15 @@
 #!/usr/bin/env python3
 """
-GPU Memory Requirements Estimator for Dendritic Models
-======================================================
+GPU Memory Requirements Estimator for Dendritic Networks
+========================================================
 
-This script provides a command-line interface for the GPU memory estimation utilities.
-It wraps the core GPUMemoryEstimator class from utils/gpu_estimation.py for easy CLI usage.
-
-This script estimates GPU memory requirements for different dendritic model configurations
-to help with resource planning and batch size optimization.
+This script analyzes a configuration file and estimates the GPU memory requirements
+for training dendritic networks. It provides detailed breakdowns of memory usage
+including model parameters, activations, gradients, and optimizer states.
 
 Usage:
-    python estimate_gpu_requirements.py --config config.yaml [--output results.json]
-"""
+    python estimate_gpu_requirements.py <config_file> [--batch-size <size>]
 
-import argparse
-import os
-import sys
-from pathlib import Path
-
-# Add src to path for imports
-sys.path.append(str(Path(__file__).parent.parent.parent))
-
-
-def main():
-    parser = argparse.ArgumentParser(
-        description="Estimate GPU requirements for dendritic models",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
 Examples:
     # Estimate requirements for a config
     python scripts/estimate_gpu_requirements.py configs/cifar10_ei_network.yaml
@@ -36,33 +19,190 @@ Examples:
 
     # Check distributed config
     python scripts/estimate_gpu_requirements.py configs/distributed/example_large_model_fsdp.yaml
+
+Output:
+    The script outputs a detailed breakdown including:
+    - Model parameter count and memory usage
+    - Activation memory requirements per layer
+    - Gradient memory requirements
+    - Optimizer state memory (Adam/SGD)
+    - Total estimated GPU memory usage
+    - Recommended GPU models based on memory requirements
+"""
+
+import argparse
+import logging
+import os
+import sys
+from pathlib import Path
+
+from dendritic_modeling.utils.gpu_estimation import estimate_from_config
+
+# Configure module logger
+logger = logging.getLogger(__name__)
+
+
+def parse_arguments() -> argparse.Namespace:
+    """Parse command line arguments with enhanced validation."""
+    parser = argparse.ArgumentParser(
+        description="Estimate GPU memory requirements for dendritic network configurations",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+    # Basic usage
+    %(prog)s configs/cifar10_ei_network.yaml
+
+    # Override batch size
+    %(prog)s configs/imagenet_large.yaml --batch-size 256
+
+    # With verbose output
+    %(prog)s configs/distributed/fsdp_config.yaml --verbose
+
+    # Save estimation details
+    %(prog)s configs/my_model.yaml --output-file gpu_estimate.txt
 """,
     )
 
-    parser.add_argument("config_file", help="Path to configuration file")
     parser.add_argument(
-        "--batch-size", type=int, default=None, help="Override batch size from config"
+        "config_file",
+        type=Path,
+        help="Path to configuration file (YAML format)",
+    )
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=None,
+        help="Override batch size from config (useful for testing different batch sizes)",
+    )
+    parser.add_argument(
+        "--verbose",
+        "-v",
+        action="store_true",
+        help="Enable verbose output with detailed breakdown",
+    )
+    parser.add_argument(
+        "--output-file",
+        "-o",
+        type=Path,
+        default=None,
+        help="Save estimation results to file",
+    )
+    parser.add_argument(
+        "--precision",
+        choices=["fp32", "fp16", "bf16"],
+        default=None,
+        help="Override precision setting (default: use config value)",
     )
 
-    args = parser.parse_args()
+    return parser.parse_args()
 
-    # Check if config exists
-    if not os.path.exists(args.config_file):
-        print(f"Error: Configuration file '{args.config_file}' not found!")
-        sys.exit(1)
 
-    # Estimate GPU requirements
+def validate_config_file(config_path: Path) -> None:
+    """Validate that the configuration file exists and is readable."""
+    if not config_path.exists():
+        raise FileNotFoundError(f"Configuration file not found: {config_path}")
+
+    if not config_path.is_file():
+        raise ValueError(f"Path is not a file: {config_path}")
+
+    if not os.access(config_path, os.R_OK):
+        raise PermissionError(f"Cannot read configuration file: {config_path}")
+
+    if config_path.suffix not in [".yaml", ".yml"]:
+        logger.warning(
+            f"Config file '{config_path}' does not have a standard YAML extension. "
+            "Expected .yaml or .yml"
+        )
+
+
+def configure_logging(verbose: bool) -> None:
+    """Configure logging based on verbosity level."""
+    log_level = logging.DEBUG if verbose else logging.INFO
+    log_format = (
+        "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+        if verbose
+        else "%(levelname)s: %(message)s"
+    )
+
+    logging.basicConfig(level=log_level, format=log_format, datefmt="%Y-%m-%d %H:%M:%S")
+
+
+def main():
+    """Main entry point for GPU requirements estimation."""
+    # Parse arguments
+    args = parse_arguments()
+
+    # Configure logging
+    configure_logging(args.verbose)
+
     try:
-        from dendritic_modeling.utils.gpu_estimation import estimate_from_config
+        # Validate configuration file
+        validate_config_file(args.config_file)
 
-        estimator, _ = estimate_from_config(args.config_file, args.batch_size)
+        # Log startup information
+        logger.info(f"Analyzing configuration: {args.config_file}")
+        if args.batch_size:
+            logger.info(f"Overriding batch size to: {args.batch_size}")
+        if args.precision:
+            logger.info(f"Overriding precision to: {args.precision}")
+
+        # Perform GPU memory estimation
+        estimator, model = estimate_from_config(
+            str(args.config_file),
+            batch_size=args.batch_size,
+        )
+
+        # Save results if requested
+        if args.output_file:
+            logger.info(f"Saving detailed results to: {args.output_file}")
+            with open(args.output_file, "w") as f:
+                # Redirect stdout temporarily to capture estimation output
+                import contextlib
+                import io
+
+                output_buffer = io.StringIO()
+                with contextlib.redirect_stdout(output_buffer):
+                    # Re-run estimation to capture output
+                    estimate_from_config(
+                        str(args.config_file),
+                        batch_size=args.batch_size,
+                    )
+
+                f.write(output_buffer.getvalue())
+                logger.info("Results saved successfully")
+
+        logger.info("GPU requirements estimation completed successfully")
+        return 0
+
+    except FileNotFoundError as e:
+        logger.error(f"File not found: {e}")
+        return 1
+
+    except PermissionError as e:
+        logger.error(f"Permission denied: {e}")
+        return 1
+
+    except ValueError as e:
+        logger.error(f"Invalid configuration or parameters: {e}")
+        if args.verbose:
+            logger.debug("Detailed error:", exc_info=True)
+        return 1
+
+    except ImportError as e:
+        logger.error(f"Import error - required module not found: {e}")
+        logger.error("Please ensure dendritic_modeling package is properly installed")
+        if args.verbose:
+            logger.debug("Detailed error:", exc_info=True)
+        return 1
+
     except Exception as e:
-        print(f"Error analyzing configuration: {e}")
-        import traceback
-
-        traceback.print_exc()
-        sys.exit(1)
+        logger.error(f"Unexpected error: {type(e).__name__}: {e}")
+        if args.verbose:
+            logger.debug("Full traceback:", exc_info=True)
+        else:
+            logger.info("Run with --verbose flag for detailed error information")
+        return 1
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

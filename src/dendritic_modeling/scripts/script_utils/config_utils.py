@@ -82,6 +82,25 @@ def prepare_trainer_config(
     trainer_config["enable_amp"] = experiment_config.enable_amp
     trainer_config["enable_hooks"] = experiment_config.enable_hooks
 
+    # Add strategy-specific configurations
+    if hasattr(main_train_config, "strategies"):
+        strategies = OmegaConf.to_container(main_train_config.strategies, resolve=True)
+
+        # Add local learning config if present
+        if "local_ca" in strategies:
+            trainer_config["local_rule_config"] = strategies["local_ca"]
+
+        # Add other strategy configs
+        for strategy_name in [
+            "voltage_stabilization",
+            "homeostatic_control",
+            "freeze_layers",
+            "freeze_branches",
+            "freeze_branch_kl",
+        ]:
+            if strategy_name in strategies:
+                trainer_config[f"{strategy_name}_config"] = strategies[strategy_name]
+
     return trainer_config
 
 

@@ -87,11 +87,11 @@ class ExcitationInhibitionNetwork(nn.Module):
         inhibitory_network_type: str = "dendritic",
         use_shunting: bool = True,
         reactivation_type: str = "param_tanh",
-        reactivation_strategy: str = "inverse",
-        blocklinear_strategy: str = "conductance_dynamic",
+        reactivation_strategy: str = "none",
+        blocklinear_strategy: str = "none",
         topk_init_method: str = "xavier_normal",
         topk_noise_level: float = 0.0,
-        topk_strategy: str = "conductance_dynamic",
+        topk_strategy: str = "none",
         topk_type: str = "standard",
         weight_transform="exp",  # Weight transformation for positive weights
         print_hooks: bool = False,
@@ -168,8 +168,7 @@ class ExcitationInhibitionNetwork(nn.Module):
 
     def setup_transfer_function(self):
         self.transfer_fn = TransferLayer(
-            input_dim=self.input_dim,
-            transfer_params=self.transfer_params
+            input_dim=self.input_dim, transfer_params=self.transfer_params
         )
 
     def setup_network_layers(self, **kwargs):
@@ -219,7 +218,9 @@ class ExcitationInhibitionNetwork(nn.Module):
             if ei_syn:
                 ei_syn.append(ei_syn[-1])
             elif has_inhibitory_neurons:
-                raise ValueError("ei_synapses_per_branch_per_layer cannot be empty when inhibitory neurons exist")
+                raise ValueError(
+                    "ei_synapses_per_branch_per_layer cannot be empty when inhibitory neurons exist"
+                )
             else:
                 # No inhibitory neurons, so E->I connections are not needed
                 ei_syn.append(0)
@@ -228,7 +229,9 @@ class ExcitationInhibitionNetwork(nn.Module):
         while len(ie_syn) < num_layers:
             if ie_syn:
                 ie_syn.append(ie_syn[-1])
-            elif self.transfer_params.get("input_mode", 0) == 1 or has_inhibitory_neurons:
+            elif (
+                self.transfer_params.get("input_mode", 0) == 1 or has_inhibitory_neurons
+            ):
                 raise ValueError("ie_synapses_per_branch_per_layer cannot be empty")
             else:
                 # No inhibitory input available, so I->E connections are not needed
@@ -239,7 +242,9 @@ class ExcitationInhibitionNetwork(nn.Module):
             if ii_syn:
                 ii_syn.append(ii_syn[-1])
             elif has_inhibitory_neurons:
-                raise ValueError("ii_synapses_per_branch_per_layer cannot be empty when inhibitory neurons exist")
+                raise ValueError(
+                    "ii_synapses_per_branch_per_layer cannot be empty when inhibitory neurons exist"
+                )
             else:
                 # No inhibitory neurons, so I->I connections are not needed
                 ii_syn.append(0)

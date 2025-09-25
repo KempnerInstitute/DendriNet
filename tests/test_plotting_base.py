@@ -123,7 +123,7 @@ class TestBasePlotter:
         """Test figure creation with custom parameters."""
         plotter = BasePlotter()
 
-        fig, ax = plotter._create_figure(figsize=(12, 8))
+        fig, _ = plotter._create_figure(figsize=(12, 8))
 
         assert fig.get_size_inches().tolist() == [12.0, 8.0]
         plt.close(fig)
@@ -235,7 +235,7 @@ class TestPlottingBaseEdgeCases:
     def test_save_plot_with_invalid_dir(self):
         """Test saving plot with invalid directory."""
         plotter = BasePlotter()
-        fig, ax = plotter._create_figure()
+        fig, _ = plotter._create_figure()
 
         # Should handle gracefully without crashing
         try:
@@ -261,7 +261,7 @@ class TestPlottingBaseEdgeCases:
 
         # Should handle gracefully
         try:
-            fig, ax = plotter._create_figure(figsize=(-1, -1))
+            fig, _ = plotter._create_figure(figsize=(-1, -1))
             plt.close(fig)
         except (ValueError, TypeError):
             pass  # Expected for invalid parameters

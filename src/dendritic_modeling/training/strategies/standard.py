@@ -159,10 +159,49 @@ class Trainer:
     def _dataloaders(
         self, train_data: torch.utils.data.Dataset, valid_data: torch.utils.data.Dataset
     ) -> tuple[DataLoader, DataLoader]:
+        # Determine number of workers automatically or use override
+        if hasattr(self, "num_workers") and self.num_workers is not None:
+            num_workers = self.num_workers
+        else:
+            # Automatically determine optimal number of workers
+            import multiprocessing
+
+            cpu_count = multiprocessing.cpu_count()
+
+            if torch.cuda.is_available():
+                # On GPU systems, use a reasonable fraction of CPUs
+                # Rule of thumb: 4 workers per GPU is often good, but cap at CPU count
+                num_workers = min(8, cpu_count)
+            else:
+                # On CPU-only systems, leave one core free for main process
+                num_workers = max(0, cpu_count - 1)
+
+            # Log the auto-detected value
+            if not self.suppress_prints:
+                logger.info(
+                    f"Auto-detected num_workers={num_workers} (available CPUs: {cpu_count})"
+                )
+
+        # Check if we should use pinned memory and persistent workers
+        use_pin_memory = torch.cuda.is_available() and num_workers > 0
+        use_persistent = num_workers > 0
+
         train_loader = DataLoader(
-            train_data, batch_size=self.batch_size, shuffle=self.shuffle
+            train_data,
+            batch_size=self.batch_size,
+            shuffle=self.shuffle,
+            num_workers=num_workers,
+            pin_memory=use_pin_memory,
+            persistent_workers=use_persistent,
         )
-        valid_loader = DataLoader(valid_data, batch_size=self.batch_size, shuffle=False)
+        valid_loader = DataLoader(
+            valid_data,
+            batch_size=self.batch_size,
+            shuffle=False,
+            num_workers=num_workers,
+            pin_memory=use_pin_memory,
+            persistent_workers=use_persistent,
+        )
         return train_loader, valid_loader
 
     def _initialize_attributes(self, model: BaseModel, total_epochs: int) -> None:
