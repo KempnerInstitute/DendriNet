@@ -219,12 +219,8 @@ def test_dataloader_optimization():
         torch.randn(50000, 10), torch.randint(0, 2, (50000,))
     )
 
-    small_train_loader, small_valid_loader = trainer._dataloaders(
-        small_data, small_data
-    )
-    large_train_loader, large_valid_loader = trainer._dataloaders(
-        large_data, large_data
-    )
+    small_train_loader, _ = trainer._dataloaders(small_data, small_data)
+    large_train_loader, _ = trainer._dataloaders(large_data, large_data)
 
     # Small dataset should use optimized settings
     assert small_train_loader.num_workers == 0

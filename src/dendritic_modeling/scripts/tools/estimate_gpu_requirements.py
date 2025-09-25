@@ -55,7 +55,7 @@ Examples:
     try:
         from dendritic_modeling.utils.gpu_estimation import estimate_from_config
 
-        estimator, model = estimate_from_config(args.config_file, args.batch_size)
+        estimator, _ = estimate_from_config(args.config_file, args.batch_size)
     except Exception as e:
         print(f"Error analyzing configuration: {e}")
         import traceback

@@ -1913,7 +1913,7 @@ class UnifiedResultAnalyzer:
                 continue
 
             try:
-                fig, ax = plt.subplots(figsize=(12, 6))
+                _, ax = plt.subplots(figsize=(12, 6))
 
                 for use_shunting in [True, False]:
                     shunt_data = type_data[type_data["use_shunting"] == use_shunting]
@@ -2313,7 +2313,7 @@ class UnifiedResultAnalyzer:
             metric_data = weight_metrics[metric_name]
 
             # Create plot for this metric across layers
-            fig, ax = plt.subplots(figsize=(12, 8))
+            _, ax = plt.subplots(figsize=(12, 8))
 
             # Plot each layer
             for layer_key, col_list in metric_data.items():
@@ -2404,7 +2404,7 @@ class UnifiedResultAnalyzer:
             metric_data = weight_metrics[metric_name]
 
             # Create heatmap showing metric across layers and E/I ratios
-            fig, ax = plt.subplots(figsize=(12, 8))
+            _, ax = plt.subplots(figsize=(12, 8))
 
             # Prepare data for heatmap
             ei_ratios = sorted(valid_data["ei_ratio"].unique())
@@ -2507,7 +2507,7 @@ class UnifiedResultAnalyzer:
         inh_data = weight_metrics["inh_weight_mean_mean"]
 
         # Create plot for excitatory/inhibitory weight ratio vs E/I ratio
-        fig, ax = plt.subplots(figsize=(12, 8))
+        _, ax = plt.subplots(figsize=(12, 8))
 
         # Plot each layer
         for layer_key in sorted(exc_data.keys()):
@@ -2644,7 +2644,7 @@ class UnifiedResultAnalyzer:
             layer_df = pd.DataFrame(layer_data)
 
             # Create separate heatmaps for shunting and non-shunting
-            fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 8))
+            _, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 8))
 
             # Calculate global min/max for consistent color scaling
             all_values = layer_df["ivc_value"].values
@@ -2837,7 +2837,7 @@ class UnifiedResultAnalyzer:
                     continue
 
                 # Create the comparison plot: first layer vs last layer
-                fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
+                _, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
 
                 for layer_idx, ax, title_suffix in [
                     (first_layer, ax1, f"First Layer (Layer {first_layer})"),
@@ -3167,7 +3167,7 @@ class UnifiedResultAnalyzer:
 
             for metric_col in metric_cols:
                 try:
-                    fig, ax = plt.subplots(figsize=(max(10, len(x_positions) * 0.6), 6))
+                    _, ax = plt.subplots(figsize=(max(10, len(x_positions) * 0.6), 6))
 
                     # Optional std column
                     std_col = metric_col.replace("_mean", "_std")

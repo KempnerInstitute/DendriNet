@@ -17,8 +17,8 @@ from dendritic_modeling.analysis.core.base import AbstractAnalyzer
 from dendritic_modeling.config import WeightAnalysisParams
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.networks import (
-    DendriticBranchLayer,
     DendriNet,
+    DendriticBranchLayer,
     ExcitationInhibitionNetwork,
 )
 from dendritic_modeling.utils import save_dict
@@ -701,7 +701,7 @@ class WeightAnalyzer(AbstractAnalyzer):
             colors = get_color_scheme()
 
             # Create 2-panel plot for enhanced statistics
-            fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+            _, axes = plt.subplots(1, 2, figsize=(12, 5))
 
             # Collect data
             depths = []
@@ -798,7 +798,7 @@ class WeightAnalyzer(AbstractAnalyzer):
             import matplotlib.pyplot as plt
 
             # Create histogram plots for global distributions
-            fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+            _, axes = plt.subplots(1, 3, figsize=(15, 5))
 
             weight_types = [
                 "excitatory_weights",

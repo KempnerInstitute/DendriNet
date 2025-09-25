@@ -636,9 +636,8 @@ def estimate_from_config(config_path: str, batch_size: Optional[int] = None):
     # Load real dataset to get accurate input shape (like train_experiments.py)
     try:
         # Get datasets using the same method as training scripts
-        train_ds, valid_ds, test_ds = get_unified_datasets(
+        train_ds, _, _ = get_unified_datasets(
             task_cfg=config.task,
-            train_cfg=config.train,
         )
 
         # Get sample input shape from real data
