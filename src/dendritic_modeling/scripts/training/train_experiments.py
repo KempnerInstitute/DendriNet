@@ -44,7 +44,6 @@ import torch
 # External imports
 import torchinfo
 import wandb
-from omegaconf import OmegaConf
 
 from dendritic_modeling.analysis import AnalysisManager
 from dendritic_modeling.config import load_config
@@ -53,6 +52,7 @@ from dendritic_modeling.networks import Identity
 from dendritic_modeling.plotting.visualizations.performance_plots import (
     PerformancePlotter,
 )
+from dendritic_modeling.scripts.script_utils.config_utils import prepare_trainer_config
 from dendritic_modeling.scripts.script_utils.setup_utils import setup_environment
 from dendritic_modeling.scripts.training.train_encoder_network import (
     load_train_encoder_network,
@@ -77,6 +77,7 @@ def run_analysis(
     analysis_manager: AnalysisManager | None = None,
     training: bool = False,
     training_results: dict | None = None,
+    training_config=None,
 ):
     """Run analysis using the AnalysisManager."""
     logger.info("Running analyses...")
@@ -104,15 +105,12 @@ def run_analysis(
                     # Get final epoch from training config if available
                     final_epoch = None
                     if (
-                        hasattr(analysis_manager, "train_config")
-                        and analysis_manager.train_config
-                        and hasattr(analysis_manager.train_config, "main")
-                        and hasattr(analysis_manager.train_config.main, "trainer")
-                        and hasattr(
-                            analysis_manager.train_config.main.trainer, "epochs"
-                        )
+                        training_config is not None
+                        and hasattr(training_config, "main")
+                        and hasattr(training_config.main, "common")
+                        and hasattr(training_config.main.common, "epochs")
                     ):
-                        final_epoch = analysis_manager.train_config.main.trainer.epochs
+                        final_epoch = training_config.main.common.epochs
 
                     # Get pruning results if available
                     pruning_performance = getattr(
@@ -236,7 +234,6 @@ def main(config_path: str, args=None):
         analysis_config=analysis_config,
         save_root=run_save_path,
         device="cuda" if torch.cuda.is_available() else "cpu",
-        train_config=training_config,
     )
 
     # Fix for Identity encoder
@@ -250,57 +247,13 @@ def main(config_path: str, args=None):
 
     # Get main training config
     main_train_config = training_config.main
-    main_train_config.common.save_path = main_net_save_path
-    main_trainer_config_dict = OmegaConf.to_container(
-        main_train_config.common, resolve=True
+
+    # Prepare trainer configuration
+    main_trainer_config_dict = prepare_trainer_config(
+        main_train_config=main_train_config,
+        experiment_config=experiment_config,
+        save_path=main_net_save_path,
     )
-
-    # Add parameter groups
-    main_trainer_config_dict["param_groups"] = OmegaConf.to_container(
-        main_train_config.common.param_groups, resolve=True
-    )
-
-    # Add regularization and pruning
-    main_trainer_config_dict["regularization"] = OmegaConf.to_container(
-        main_train_config.regularization, resolve=True
-    )
-
-    main_trainer_config_dict["pruning"] = OmegaConf.to_container(
-        main_train_config.pruning, resolve=True
-    )
-
-    # Add reporting config
-    pruning_config = main_train_config.pruning
-    main_trainer_config_dict["reporting"] = {
-        "report_non_pruned": pruning_config.report_non_pruned,
-        "save_pruning_stats": pruning_config.save_pruning_stats,
-        "detailed_branch_report": pruning_config.detailed_branch_report,
-        "redo_analysis_after_pruning": pruning_config.redo_analysis_after_pruning,
-    }
-
-    # Add checkpointing config if enabled
-    if experiment_config.checkpointing.get("enabled", False):
-        save_every_n_epochs = experiment_config.checkpointing.get(
-            "save_every_n_epochs", 10
-        )
-        main_trainer_config_dict["save_every_n_epochs"] = save_every_n_epochs
-        main_trainer_config_dict["checkpoint_dir"] = (
-            experiment_config.checkpointing.get("checkpoint_dir", run_save_path)
-        )
-
-    # Add profiling configuration if specified
-    if experiment_config.enable_profiling:
-        main_trainer_config_dict["enable_profiling"] = True
-        main_trainer_config_dict["profiling_output_dir"] = os.path.join(
-            run_save_path, "profiling"
-        )
-        logger.info("Profiling enabled for this training run")
-
-    # Add AMP configuration
-    main_trainer_config_dict["enable_amp"] = experiment_config.enable_amp
-
-    # Add hooks configuration
-    main_trainer_config_dict["enable_hooks"] = experiment_config.enable_hooks
 
     optimizer = CustomWeightDecayOptimizer(
         model=model,
@@ -376,6 +329,7 @@ def main(config_path: str, args=None):
             test_ds=test_ds,
             run_save_path=run_save_path,
             analysis_manager=analysis_manager,
+            training_config=training_config,
             training=False,
         )
     elif main_train_config.strategy == "multi_stage":

@@ -66,10 +66,10 @@ def _extract_enhanced_configs(trainer_config_dict: dict[str, Any]) -> dict[str, 
         else:
             enhanced_configs["regularization_config"] = reg_config
     else:
-        # Create default regularization config and check for legacy E/I parameters
+        # Create default regularization config and check for E/I parameters
         reg_config_dict = {}
 
-        # Check for legacy E/I regularization parameters in trainer config
+        # Check for E/I regularization parameters in trainer config
         ei_params = [
             "enforce_ei_weight_ratio",
             "target_ei_weight_ratio",
@@ -81,7 +81,7 @@ def _extract_enhanced_configs(trainer_config_dict: dict[str, Any]) -> dict[str, 
             if param in trainer_config_dict:
                 reg_config_dict[param] = trainer_config_dict.pop(param)
 
-        # Create regularization config with legacy parameters if found
+        # Create regularization config with parameters if found
         if reg_config_dict:
             enhanced_configs["regularization_config"] = RegularizationConfig(
                 **reg_config_dict
@@ -184,14 +184,9 @@ def get_trainer(
         return Trainer(**trainer_config_dict)
 
     elif strategy == "enhanced":
-        # For backward compatibility: redirect to standard with warning
-        logger.warning(
-            "learning_strategy 'enhanced' is deprecated. All features are now available in 'standard' strategy."
-        )
-
+        # Redirect to standard strategy
         enhanced_configs = _extract_enhanced_configs(trainer_config_dict)
         trainer_config_dict.update(enhanced_configs)
-
         return Trainer(**trainer_config_dict)
 
     elif strategy == "freeze_layers":
@@ -219,8 +214,7 @@ def get_trainer(
         trainer_config_dict.update(enhanced_configs)
         return HomeostaticControlTrainer(**trainer_config_dict)
     elif strategy == "fsdp" or strategy == "fsdp_standard":
-        # Note: FSDP requires additional setup (distributed init, special config)
-        # This would need to be called from a distributed context
+        # FSDP requires additional setup (distributed init, special config)
         from dendritic_modeling.training.fsdp_utils import get_fsdp_config
         from dendritic_modeling.training.strategies.fsdp_standard import FSDPTrainer
 

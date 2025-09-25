@@ -87,7 +87,7 @@ def setup_wandb(config, rank, world_size):
     run = wandb.init(
         project=wandb_config.project or "dendritic-modeling",
         entity=wandb_config.entity or None,
-                        name=getattr(wandb_config, "name", None) or config.outputs.run_name,
+        name=getattr(wandb_config, "name", None) or config.outputs.run_name,
         tags=wandb_config.tags,
         notes=getattr(wandb_config, "notes", None),
         config={
@@ -406,7 +406,7 @@ def main(config_path):
         logger.info("Using FSDP configuration from config file")
         fsdp_config = get_fsdp_config(fsdp_config_dict=config.train.fsdp_config)
     else:
-        # Fall back to legacy method
+        # Fall back to default method
         logger.info("Using default FSDP configuration")
         fsdp_config = get_fsdp_config(
             mixed_precision=getattr(

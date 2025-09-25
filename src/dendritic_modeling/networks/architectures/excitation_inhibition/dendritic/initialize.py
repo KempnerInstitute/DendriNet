@@ -105,7 +105,7 @@ def _compute_expectation_truncated_relu(
     Approximate E[ReLU(X) | X > alpha]. Since conditioning ensures X > alpha,
     and for typical TopK alpha is positive, we use E[X | X > alpha] as a good approximation.
     """
-    alpha, mu_c, _ = _truncated_normal_moments(mean, std, upper_quantile)
+    _, mu_c, _ = _truncated_normal_moments(mean, std, upper_quantile)
     # If alpha <= 0 but mu_c still small, ensure non-negativity
     return max(0.0, mu_c)
 

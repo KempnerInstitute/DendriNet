@@ -583,5 +583,4 @@ class UnifiedSweepGenerator(BaseSweepGenerator):
         return configs
 
 
-# Note: Analysis should be done using the unified result_analyzer.py
-# which has full capabilities including those from experiments/dendrinet_simulations/analyze_dendrinet_results.py
+# Analysis should be done using the unified result_analyzer.py

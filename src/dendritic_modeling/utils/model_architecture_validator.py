@@ -16,8 +16,19 @@ This is separate from training stability validation and runs during model setup.
 """
 
 import logging
+from typing import Any, Union
 
 logger = logging.getLogger(__name__)
+
+
+def _get_config_value(
+    config: Union[dict, object], key: str, default: Any = None
+) -> Any:
+    """Safely get a value from a config object, handling both dict and attribute access."""
+    if isinstance(config, dict):
+        return config.get(key, default)
+    else:
+        return getattr(config, key, default)
 
 
 class ModelArchitectureValidator:
@@ -26,27 +37,35 @@ class ModelArchitectureValidator:
     def __init__(self, config):
         self.config = config
 
-        # Convert config to dict if it's a Config object
-        if hasattr(config, "__dict__"):
-            config_dict = config.__dict__ if hasattr(config, "__dict__") else {}
-        else:
-            config_dict = config
+        # Extract network configuration using standard structure
+        if hasattr(config, "model") and hasattr(config.model, "core"):
+            core_config = config.model.core
+            # Combine all network parameters from different sections
+            self.network_config = {}
 
-        # Try different paths for network config
-        if hasattr(config, "model") and hasattr(config.model, "core_network"):
-            self.network_config = getattr(config.model.core_network, "parameters", {})
-            if hasattr(self.network_config, "__dict__"):
-                self.network_config = self.network_config.__dict__
-        elif "model" in config_dict and "core_network" in config_dict["model"]:
-            self.network_config = config_dict["model"]["core_network"].get(
-                "parameters", {}
-            )
-        elif hasattr(config, "network"):
-            self.network_config = getattr(config, "network", {})
-            if hasattr(self.network_config, "__dict__"):
-                self.network_config = self.network_config.__dict__
-        elif "network" in config_dict:
-            self.network_config = config_dict.get("network", {})
+            # Add architecture parameters
+            if hasattr(core_config, "architecture"):
+                arch_config = core_config.architecture
+                if hasattr(arch_config, "__dict__"):
+                    self.network_config.update(arch_config.__dict__)
+                else:
+                    self.network_config.update(arch_config)
+
+            # Add connectivity parameters
+            if hasattr(core_config, "connectivity"):
+                conn_config = core_config.connectivity
+                if hasattr(conn_config, "__dict__"):
+                    self.network_config.update(conn_config.__dict__)
+                else:
+                    self.network_config.update(conn_config)
+
+            # Add morphology parameters
+            if hasattr(core_config, "morphology"):
+                morph_config = core_config.morphology
+                if hasattr(morph_config, "__dict__"):
+                    self.network_config.update(morph_config.__dict__)
+                else:
+                    self.network_config.update(morph_config)
         else:
             self.network_config = {}
 
@@ -55,14 +74,7 @@ class ModelArchitectureValidator:
 
     def _get_config_value(self, key: str, default=None):
         """Safely get configuration value from Config object or dict."""
-        if hasattr(self.config, key):
-            return getattr(self.config, key, default)
-        elif hasattr(self.config, "get"):
-            return self.config.get(key, default)
-        elif hasattr(self.config, "__dict__") and key in self.config.__dict__:
-            return self.config.__dict__[key]
-        else:
-            return default
+        return _get_config_value(self.config, key, default)
 
     def validate(self) -> bool:
         """Validate all constraints and return True if config is valid"""
@@ -95,26 +107,9 @@ class ModelArchitectureValidator:
             "independent_pathways", False
         )
 
-        # Get input dimension from task config (preferred) or data config (fallback)
-        task_config = self._get_config_value("task", {})
+        # Get dataset name from data config
         data_config = self._get_config_value("data", {})
-
-        # Handle task_config if it's a Config object
-        if hasattr(task_config, "dataset"):
-            dataset_name = getattr(task_config, "dataset", "")
-        elif hasattr(task_config, "get"):
-            dataset_name = task_config.get("dataset", "")
-        else:
-            dataset_name = ""
-
-        # Fallback to data_config
-        if not dataset_name:
-            if hasattr(data_config, "dataset_name"):
-                dataset_name = getattr(data_config, "dataset_name", "")
-            elif hasattr(data_config, "get"):
-                dataset_name = data_config.get("dataset_name", "")
-            else:
-                dataset_name = ""
+        dataset_name = _get_config_value(data_config, "dataset_name", "")
 
         if dataset_name == "cifar10":
             self.input_dim = 3072  # 32x32x3

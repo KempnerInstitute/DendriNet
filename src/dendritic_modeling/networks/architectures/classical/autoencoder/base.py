@@ -128,7 +128,7 @@ class CNNAutoencoder(BaseAutoencoder):
     ) -> tuple[list[int], list[int]]:
         """Calculate convolution parameters to downsample from input_shape to latent_shape.
 
-        Note: CNNDownsample uses padding=0, so we work with that constraint.
+        CNNDownsample uses padding=0, so we work with that constraint.
         Formula: output_size = (input_size - kernel_size) // stride + 1
         """
 

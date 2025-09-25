@@ -33,13 +33,13 @@ def validate_training_stability(config) -> bool:
 
     # Extract configuration values safely
     enable_amp = (
-        getattr(config.train, "enable_amp", False)
-        if hasattr(config, "train")
+        getattr(config.training, "enable_amp", False)
+        if hasattr(config, "training")
         else False
     )
     enable_hooks = (
-        getattr(config.train, "enable_hooks", True)
-        if hasattr(config, "train")
+        getattr(config.training, "enable_hooks", True)
+        if hasattr(config, "training")
         else True
     )
 
@@ -47,10 +47,10 @@ def validate_training_stability(config) -> bool:
     model_params = {}
     if (
         hasattr(config, "model")
-        and hasattr(config.model, "core_network")
-        and hasattr(config.model.core_network, "parameters")
+        and hasattr(config.model, "core")
+        and hasattr(config.model.core, "architecture")
     ):
-        model_params = config.model.core_network.parameters
+        model_params = config.model.core.architecture
 
     topk_ultrafast = getattr(model_params, "topk_ultrafast", False)
     efficient_blocklinear = getattr(model_params, "efficient_blocklinear", False)
@@ -64,17 +64,17 @@ def validate_training_stability(config) -> bool:
     # Training parameters
     trainer_params = {}
     if (
-        hasattr(config, "train")
-        and hasattr(config.train, "main")
-        and hasattr(config.train.main, "trainer")
+        hasattr(config, "training")
+        and hasattr(config.training, "main")
+        and hasattr(config.training.main, "common")
     ):
-        trainer_params = config.train.main.trainer
+        trainer_params = config.training.main.common
 
     learning_rate = (
-        getattr(config.train.main.param_groups, "lr", 0.001)
-        if hasattr(config, "train")
-        and hasattr(config.train, "main")
-        and hasattr(config.train.main, "param_groups")
+        getattr(config.training.main.param_groups, "lr", 0.001)
+        if hasattr(config, "training")
+        and hasattr(config.training, "main")
+        and hasattr(config.training.main, "param_groups")
         else 0.001
     )
 
@@ -117,11 +117,15 @@ def validate_training_stability(config) -> bool:
 
     # 3. FSDP Configuration Recommendations
     use_fsdp = (
-        getattr(config.train, "use_fsdp", False) if hasattr(config, "train") else False
+        getattr(config.training, "use_fsdp", False)
+        if hasattr(config, "training")
+        else False
     )
     if use_fsdp:
         fsdp_config = (
-            getattr(config.train, "fsdp_config", {}) if hasattr(config, "train") else {}
+            getattr(config.training, "fsdp_config", {})
+            if hasattr(config, "training")
+            else {}
         )
         sharding_strategy = fsdp_config.get("sharding_strategy", "full")
 
@@ -221,11 +225,11 @@ def apply_automatic_safeguards(config) -> None:
     """
     # Auto-enable adaptive clipping for risky combinations
     if (
-        hasattr(config, "train")
-        and hasattr(config.train, "main")
-        and hasattr(config.train.main, "trainer")
+        hasattr(config, "training")
+        and hasattr(config.training, "main")
+        and hasattr(config.training.main, "common")
     ):
-        enable_amp = getattr(config.train, "enable_amp", False)
+        enable_amp = getattr(config.training, "enable_amp", False)
 
         # Check if gradient scaling is enabled
         gradient_scaling_enabled = False
@@ -246,12 +250,12 @@ def apply_automatic_safeguards(config) -> None:
 
         # Auto-enable adaptive clipping for AMP + gradient scaling
         if enable_amp and gradient_scaling_enabled:
-            if not hasattr(config.train.main.trainer, "enable_adaptive_clipping"):
-                config.train.main.trainer.enable_adaptive_clipping = True
+            if not hasattr(config.training.main.common, "enable_adaptive_clipping"):
+                config.training.main.common.enable_adaptive_clipping = True
                 logger.info(
                     "Auto-enabled adaptive gradient clipping for AMP + gradient scaling combination"
                 )
 
-            if not hasattr(config.train.main.trainer, "disable_hooks_with_amp"):
-                config.train.main.trainer.disable_hooks_with_amp = True
+            if not hasattr(config.training.main.common, "disable_hooks_with_amp"):
+                config.training.main.common.disable_hooks_with_amp = True
                 logger.info("Auto-enabled hook disabling with AMP for compatibility")

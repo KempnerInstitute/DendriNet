@@ -47,16 +47,14 @@ class AnalysisManager:
         analysis_config: AnalysisConfig,
         save_root: Optional[str] = None,
         device: str = "cpu",
-        train_config: Optional[dict] = None,
     ):
         self.model = model
         self.data = data
         self.config = analysis_config
-        self.train_config = train_config or {}
         self.save_root = save_root
         self.device = device
         os.makedirs(self.save_root, exist_ok=True)
-        # Note: Logging should be configured externally at the application startup.
+        # Logging should be configured externally at the application startup
         self.logger = logging.getLogger(__name__)
 
         # Initialize Performance Analysis

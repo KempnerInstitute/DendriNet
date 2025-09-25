@@ -39,7 +39,7 @@ from .information_plots import (
 # Network visualizations module exists but all functions have been removed as unused
 
 __all__ = [
-    # Legacy data utilities
+    # Data utilities
     "dendritic_activations_todict",
     "einet_activations_todict",
     # General analysis

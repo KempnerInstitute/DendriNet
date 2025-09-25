@@ -546,29 +546,29 @@ base_config:
         max_samples: 2000                 # Max data samples for analysis
         batch_process: true               # Process in batches (true/false)
 
-      ablation_analysis:
-        enabled: true                       # Enable ablation analysis (true/false)
-        training: false
-        params:
-          layer_ablation: true              # Ablate entire layers (true/false)
-          compartment_ablation: false       # Ablate compartments (true/false)
-          ablate_all_synapses: true         # Ablate all synapses (true/false)
-          ablate_excitation: true           # Ablate excitatory synapses (true/false)
-          ablate_inhibition: true           # Ablate inhibitory synapses (true/false)
-          ablate_upstream: true             # Ablate upstream connections (true/false)
-          accuracy: true                    # Compute accuracy (true/false)
-          auc: true                         # Compute AUC (true/false)
-          categorical_loglikelihood: true   # Compute categorical log-likelihood (true/false)
-          mse: false                        # Compute MSE (true/false)
-          cosine_similarity: false          # Compute cosine similarity (true/false)
+    ablation_analysis:
+      enabled: true                       # Enable ablation analysis (true/false)
+      training: false
+      params:
+        layer_ablation: true              # Ablate entire layers (true/false)
+        compartment_ablation: false       # Ablate compartments (true/false)
+        ablate_all_synapses: true         # Ablate all synapses (true/false)
+        ablate_excitation: true           # Ablate excitatory synapses (true/false)
+        ablate_inhibition: true           # Ablate inhibitory synapses (true/false)
+        ablate_upstream: true             # Ablate upstream connections (true/false)
+        accuracy: true                    # Compute accuracy (true/false)
+        auc: true                         # Compute AUC (true/false)
+        categorical_loglikelihood: true   # Compute categorical log-likelihood (true/false)
+        mse: false                        # Compute MSE (true/false)
+        cosine_similarity: false          # Compute cosine similarity (true/false)
 
     synapse_turnover_analysis:
-        enabled: true                       # Enable synapse turnover analysis (true/false)
-        training: true                      # Run during training (true/false)
-        params:
-          snapshot_interval: 1              # Snapshot frequency in epochs
-          synaptic_analysis: true           # Enable synaptic connectivity analysis (true/false)
-          save_synaptic_report: true        # Save synaptic analysis report (true/false)
+      enabled: true                       # Enable synapse turnover analysis (true/false)
+      training: true                      # Run during training (true/false)
+      params:
+        snapshot_interval: 1              # Snapshot frequency in epochs
+        synaptic_analysis: true           # Enable synaptic connectivity analysis (true/false)
+        save_synaptic_report: true        # Save synaptic analysis report (true/false)
 
     noise_perturbation_analysis:
       enabled: true                       # Enable noise perturbation analysis (true/false)
@@ -620,16 +620,16 @@ base_config:
         cosine_similarity: true           # Compute cosine similarity (true/false)
 
     synaptic_activation_analysis:
-        enabled: false                      # Enable synaptic activation analysis (true/false)
-        training: false
-        params:
-          network_summary: true             # Network-level summary (true/false)
-          layer_summary: true               # Layer-level summary (true/false)
-          branch_summary: true              # Branch-level summary (true/false)
-          raw_summary: true                 # Raw activation summary (true/false)
-          logspace: false                   # Use log space (true/false)
-          downsample: true                  # Downsample data (true/false)
-          samples: 5                        # Number of samples to analyze
+      enabled: false                      # Enable synaptic activation analysis (true/false)
+      training: false
+      params:
+        network_summary: true             # Network-level summary (true/false)
+        layer_summary: true               # Layer-level summary (true/false)
+        branch_summary: true              # Branch-level summary (true/false)
+        raw_summary: true                 # Raw activation summary (true/false)
+        logspace: false                   # Use log space (true/false)
+        downsample: true                  # Downsample data (true/false)
+        samples: 5                        # Number of samples to analyze
 
     branch_activation_analysis:
       enabled: false                      # Enable branch activation analysis (true/false)

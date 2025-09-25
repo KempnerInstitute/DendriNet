@@ -9,13 +9,13 @@ by a broadcast soma error and optional morphology/information factors.
 """
 
 import logging
-from dataclasses import dataclass
 from typing import Any, Optional
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as functional
 
+from dendritic_modeling.config.training import LocalRuleConfig
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.networks import (
     DendriticBranchLayer,
@@ -28,94 +28,6 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.top
 from dendritic_modeling.training.strategies.standard import Trainer
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass
-class LocalRuleConfig:
-    """Configuration for local learning rules.
-
-    Attributes
-    ----------
-    rule_variant: str
-        '3f' for three-factor, '4f' to include morphology correlation, '5f' to
-        include both morphology and information proxy.
-    error_mode: str
-        'auto', 'mse', 'ce', or 'bce' for deriving the soma error signal.
-    error_broadcast_mode: str
-        How to broadcast the soma error to compartments: 'scalar' (default, per-sample
-        scalar broadcast to all somas), 'per_soma' (map output-dim error to per-soma),
-        or 'local_mismatch' (modulate scalar error by local parent-vs-soma mismatch).
-    ema_alpha: float
-        EMA smoothing for morphology/information statistics.
-    use_conductance_scaling: bool
-        If True, scale updates by R_tot = 1 / (g_tot) per compartment.
-    use_driving_force: bool
-        If True, include (E_rev - V_n) multiplier for synapses.
-    theta: float
-        Leak reversal potential (post term uses V_n - theta if driving_force=False).
-    e_rev_exc: float
-        Excitatory reversal potential used for driving force.
-    e_rev_inh: float
-        Inhibitory reversal potential proxy (typically 0 for shunting).
-    clip_grad_value: float
-        Clip absolute gradient values before optimizer.step().
-    normalize_by_batch: bool
-        If True, average updates over batch.
-    """
-
-    rule_variant: str = "3f"
-    error_mode: str = "auto"
-    error_broadcast_mode: str = "scalar"
-    ema_alpha: float = 0.05
-    use_conductance_scaling: bool = True
-    use_driving_force: bool = True
-    theta: float = 0.0
-    e_rev_exc: float = 1.0
-    e_rev_inh: float = 0.0
-    clip_grad_value: float = 5.0
-    normalize_by_batch: bool = True
-    # If True, update inactive TopK weights too (mask only applied in forward)
-    update_inactive_weights: bool = False
-    # phi (information proxy) configuration
-    phi_mode: str = "conditional"  # "conditional" uses parent voltages; "variance" uses layer variance
-    phi_ridge_lambda: float = 1e-3  # Regularization for conditional regression
-    # Single-sample estimators
-    rho_estimator: str = "ema"  # "ema", "augment", "ema+augment"
-    phi_estimator: str = "conditional_ema"  # "conditional_ema", "variance_ema"
-    augment_k: int = 8
-    augment_noise_sigma: float = 0.01
-    rls_forgetting: float = 0.99
-    # Rho (morphology factor) mode: "pearson" uses correlation; "dot" uses dot-product proxy; "none" disables
-    rho_mode: str = "pearson"
-    # HSIC/pHSIC auxiliary loss configuration
-    hsic_enabled: bool = False
-    hsic_weight: float = 0.0
-    hsic_self_weight: float = 1.0
-    hsic_target_weight: float = 1.0
-    hsic_target_source: str = "labels"  # "labels" or "logits"
-    hsic_kernel: str = "linear"  # "linear", "rbf", "polynomial"
-    hsic_sigma: float = 1.0  # RBF kernel bandwidth (gamma = 1/(2*sigma^2))
-    hsic_degree: int = 2  # Polynomial kernel degree
-    hsic_coef0: float = 1.0  # Polynomial kernel coefficient
-    # HSIC stability options
-    hsic_grad_clip_value: float = 0.0  # Clip HSIC gradients elementwise if > 0
-    hsic_warmup_epochs: int = 0  # Linearly ramp HSIC weights over first N epochs
-    hsic_apply_last_layer_only: bool = False  # Apply HSIC only on last dendritic layer
-    # Decoder update strategy: "backprop" or "none"
-    decoder_update_mode: str = "backprop"
-    # Gate reactivation parameter updates
-    update_reactivation: bool = True
-    # Optional epoch-based freezing and phased training
-    freeze_reactivation_epochs: int = (
-        0  # Freeze reactivation params for initial N epochs
-    )
-    freeze_decoder_epochs: int = 0  # Freeze decoder for initial N epochs
-    # Optional per-epoch schedule overriding the above. Each entry may include:
-    # { start_epoch: int, end_epoch: int, update_reactivation: bool, decoder_update_mode: str }
-    training_schedule: Optional[list[dict[str, Any]]] = None
-    # Layer-wise scaling for morphology factors
-    layer_wise_rho_scale: float = 1.0  # Scale rho by 1/sqrt(layer_depth) if > 0
-    layer_wise_phi_scale: float = 1.0  # Scale phi by 1/sqrt(layer_depth) if > 0
 
 
 class _LayerStats:
@@ -986,11 +898,40 @@ class LocalCreditAssignment(Trainer):
             estimator = self.local_cfg.rho_estimator.lower()
 
             if estimator in ["ema", "ema+augment"]:
-                # Proper online EMA with running means (Welford-like)
-                a_sample = (
-                    a.mean().item()
-                )  # Scalar average over batch (B=1) and neurons
-                b_sample = b.mean().item()
+                if estimator == "ema+augment":
+                    # Combined EMA + augmentation: use augmented samples for EMA update
+                    K = self.local_cfg.augment_k
+                    noise_sigma = self.local_cfg.augment_noise_sigma
+
+                    # Collect statistics from K noisy versions
+                    a_samples = []
+                    b_samples = []
+
+                    # Original values (for adding noise)
+                    a_orig = a.clone()
+                    b_orig = b.clone()
+
+                    for _ in range(K):
+                        # Add Gaussian noise to create augmented samples
+                        noise_a = torch.randn_like(a_orig) * noise_sigma
+                        noise_b = torch.randn_like(b_orig) * noise_sigma
+
+                        a_noisy = a_orig + noise_a
+                        b_noisy = b_orig + noise_b
+
+                        # Collect scalar statistics
+                        a_samples.append(a_noisy.mean().item())
+                        b_samples.append(b_noisy.mean().item())
+
+                    # Use mean of augmented samples as the current sample
+                    a_sample = sum(a_samples) / K
+                    b_sample = sum(b_samples) / K
+                else:
+                    # Standard EMA: use original sample
+                    a_sample = (
+                        a.mean().item()
+                    )  # Scalar average over batch (B=1) and neurons
+                    b_sample = b.mean().item()
 
                 # Initialize
                 if stats.ema_mean_y is None:
@@ -1023,16 +964,54 @@ class LocalCreditAssignment(Trainer):
                 return float(max(0.1, min(2.0, rho_ema)))  # Clamp for stability
 
             elif estimator == "augment":
-                # TODO: Implement micro-ensemble augmentation (K noisy forwards)
-                logger.warning(
-                    "Augment estimator not yet implemented; using EMA fallback."
+                # Micro-ensemble augmentation: K noisy forward passes
+                K = self.local_cfg.augment_k
+                noise_sigma = self.local_cfg.augment_noise_sigma
+
+                # Collect statistics from K noisy versions
+                a_samples = []
+                b_samples = []
+
+                # Original values (for adding noise)
+                a_orig = a.clone()
+                b_orig = b.clone()
+
+                for _ in range(K):
+                    # Add Gaussian noise to create augmented samples
+                    noise_a = torch.randn_like(a_orig) * noise_sigma
+                    noise_b = torch.randn_like(b_orig) * noise_sigma
+
+                    a_noisy = a_orig + noise_a
+                    b_noisy = b_orig + noise_b
+
+                    # Collect scalar statistics
+                    a_samples.append(a_noisy.mean().item())
+                    b_samples.append(b_noisy.mean().item())
+
+                # Convert to tensors for easier computation
+                a_samples = torch.tensor(a_samples)
+                b_samples = torch.tensor(b_samples)
+
+                # Compute correlation from augmented samples
+                a_centered = a_samples - a_samples.mean()
+                b_centered = b_samples - b_samples.mean()
+
+                # Compute correlation coefficient
+                denom = (
+                    a_centered.std(unbiased=False) * b_centered.std(unbiased=False)
+                    + 1e-8
                 )
-                # Recursive call to EMA path by changing estimator temporarily
-                old_estimator = self.local_cfg.rho_estimator
-                self.local_cfg.rho_estimator = "ema"
-                result = self._compute_layer_rho(rec, v0)
-                self.local_cfg.rho_estimator = old_estimator
-                return result
+                rho_augment = float(
+                    (a_centered * b_centered).mean().item() / denom.item()
+                )
+
+                # Update EMA if tracking
+                if stats.rho_ema is None:
+                    stats.rho_ema = rho_augment
+                else:
+                    stats.rho_ema = decay * stats.rho_ema + alpha * rho_augment
+
+                return float(max(0.1, min(2.0, rho_augment)))  # Clamp for stability
 
             else:
                 logger.warning(f"Unknown rho_estimator '{estimator}'; returning 1.0")

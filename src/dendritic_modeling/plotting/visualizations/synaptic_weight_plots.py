@@ -92,7 +92,7 @@ def _plot_total_synaptic_strength(
     """Plot total synaptic strength (active_synapse_count x expected_weight) across layers."""
     colors = get_color_scheme()
 
-    fig, ax = plt.subplots(1, 1, figsize=(12, 8))
+    _, ax = plt.subplots(1, 1, figsize=(12, 8))
 
     # Collect data for both excitatory and inhibitory
     depths = []
@@ -186,7 +186,7 @@ def _plot_weight_comparisons(
     """Plot simplified excitatory vs inhibitory weight comparisons: mean and variance only."""
     colors = get_color_scheme()
 
-    fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+    _, axes = plt.subplots(1, 2, figsize=(12, 5))
 
     # Collect data for simplified 2-panel plot
     depths = []
@@ -288,7 +288,7 @@ def _plot_active_synapse_counts(
     """Plot active synapse counts across layers."""
     colors = get_color_scheme()
 
-    fig, ax = create_figure(figsize=(12, 6))
+    _, ax = create_figure(figsize=(12, 6))
 
     depths = []
     exc_counts = []
@@ -366,7 +366,7 @@ def plot_detailed_weight_distributions(
         layer_names = list(converted_results.keys())
 
         # Create comprehensive weight analysis plots
-        fig, axes = plt.subplots(2, 3, figsize=(18, 12))
+        _, axes = plt.subplots(2, 3, figsize=(18, 12))
 
         # Plot 1: Excitatory weight means
         _plot_single_metric(

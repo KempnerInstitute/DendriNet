@@ -332,21 +332,12 @@ class UnifiedResultAnalyzer:
                 "update_inactive_weights": None,
             }
 
-            # Extract EE and IE values with multiple fallback strategies
+            # Extract EE and IE values
             try:
-                # Try new structure first (model.core.connectivity)
-                net_params = None
                 if hasattr(config.model, "core") and hasattr(
                     config.model.core, "connectivity"
                 ):
                     net_params = config.model.core.connectivity
-                elif hasattr(config.model, "core_network") and hasattr(
-                    config.model.core_network, "parameters"
-                ):
-                    # Fall back to old structure
-                    net_params = config.model.core_network.parameters
-
-                if net_params:
                     # Look for EI-specific parameters
                     if hasattr(net_params, "ee_synapses_per_branch_per_layer"):
                         ee_values = net_params.ee_synapses_per_branch_per_layer
@@ -379,69 +370,20 @@ class UnifiedResultAnalyzer:
                     if hasattr(net_params, "use_shunting"):
                         data["use_shunting"] = net_params.use_shunting
 
-                # Try old structure
-                elif hasattr(config.model, "network") and hasattr(
-                    config.model.network, "parameters"
-                ):
-                    net_params = config.model.network.parameters
-
-                    if hasattr(net_params, "ee_synapses_per_branch_per_layer"):
-                        ee_values = net_params.ee_synapses_per_branch_per_layer
-                        data["ee_value"] = (
-                            ee_values[0]
-                            if isinstance(ee_values, list) and len(ee_values) == 1
-                            else ee_values
-                        )
-
-                    if hasattr(net_params, "ie_synapses_per_branch_per_layer"):
-                        ie_values = net_params.ie_synapses_per_branch_per_layer
-                        data["ie_value"] = (
-                            ie_values[0]
-                            if isinstance(ie_values, list) and len(ie_values) == 1
-                            else ie_values
-                        )
-
-                    if hasattr(net_params, "excitatory_branch_factors"):
-                        branch_factors = net_params.excitatory_branch_factors
-                        if (
-                            isinstance(branch_factors, list)
-                            and len(branch_factors) == 1
-                        ):
-                            data["branch_factors"] = branch_factors[0]
-                        else:
-                            data["branch_factors"] = "-".join(
-                                str(x) for x in branch_factors
-                            )
-
-                    if hasattr(net_params, "use_shunting"):
-                        data["use_shunting"] = net_params.use_shunting
-
-                # Extract seed - support both old and new structures
+                # Extract seed
                 if hasattr(config, "experiment") and hasattr(config.experiment, "seed"):
                     data["seed"] = config.experiment.seed
-                elif hasattr(config, "train") and hasattr(config.train, "seed"):
-                    data["seed"] = config.train.seed
 
                 # Extract local learning parameters
                 try:
-                    # Support both old and new config structures
-                    local_cfg = None
-                    if hasattr(config, "training") and hasattr(config.training, "main"):
-                        # New structure: training.main.strategies.local_ca
-                        if hasattr(config.training.main, "strategies") and hasattr(
-                            config.training.main.strategies, "local_ca"
-                        ):
-                            local_cfg = config.training.main.strategies.local_ca
-                    elif (
-                        hasattr(config, "train")
-                        and hasattr(config.train, "main")
-                        and hasattr(config.train.main, "trainer")
-                        and hasattr(config.train.main.trainer, "local_rule_config")
+                    if (
+                        hasattr(config, "training")
+                        and hasattr(config.training, "main")
+                        and hasattr(config.training.main, "strategies")
+                        and hasattr(config.training.main.strategies, "local_ca")
                     ):
-                        # Old structure: train.main.trainer.local_rule_config
-                        local_cfg = config.train.main.trainer.local_rule_config
+                        local_cfg = config.training.main.strategies.local_ca
 
-                    if local_cfg:
                         if hasattr(local_cfg, "rule_variant"):
                             data["rule_variant"] = local_cfg.rule_variant
                         if hasattr(local_cfg, "rho_mode"):

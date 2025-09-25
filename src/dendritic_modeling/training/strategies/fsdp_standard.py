@@ -135,7 +135,7 @@ class FSDPTrainer(Trainer):
                 model.core_network, self.fsdp_config
             )
         elif hasattr(model, "net"):
-            # For models with separate encoder/decoder (legacy)
+            # For models with separate encoder/decoder
             model.net = wrap_model_with_fsdp(model.net, self.fsdp_config)
 
             # Optionally wrap encoder/decoder if they're large

@@ -46,60 +46,10 @@ def initialize_model(model_config: ModelConfig):
     else:
         encoder = encoder_network.encoder
 
-    # Build core network parameters dict by flattening the structured config
-    architecture_dict = OmegaConf.to_container(core_config.architecture, resolve=True)
-    connectivity_dict = OmegaConf.to_container(core_config.connectivity, resolve=True)
-    transfer_dict = OmegaConf.to_container(core_config.transfer, resolve=True)
-    morphology_dict = OmegaConf.to_container(core_config.morphology, resolve=True)
-    implementation_dict = OmegaConf.to_container(
-        core_config.implementation, resolve=True
-    )
-
-    core_params = {
-        "input_dim": encoder.output_dim,
-        **architecture_dict,
-        **connectivity_dict,
-        "transfer_params": transfer_dict,
-        **morphology_dict,
-        **implementation_dict,
-    }
-
-    # Add sparsity parameters
-    sparsity_dict = OmegaConf.to_container(core_config.sparsity, resolve=True)
-    for key, value in sparsity_dict.items():
-        if key == "deepst":
-            for deepst_key, deepst_value in value.items():
-                core_params[deepst_key] = deepst_value
-        elif key == "gradient_scaling":
-            core_params["topk_strategy"] = value
-        else:
-            core_params[f"topk_{key}"] = value
-
-    # Add reactivation parameters
-    reactivation_dict = OmegaConf.to_container(core_config.reactivation, resolve=True)
-    core_params["reactivate"] = reactivation_dict.pop("enabled", True)
-    for key, value in reactivation_dict.items():
-        if key == "type":
-            core_params["reactivation_type"] = value
-        elif key == "gradient_scaling":
-            core_params["reactivation_strategy"] = value
-        elif key.startswith("init_"):
-            core_params[f"reactivation_{key}"] = value
-        else:
-            core_params[f"reactivation_{key}"] = value
-
-    # Add blocklinear parameters
-    blocklinear_dict = OmegaConf.to_container(core_config.blocklinear, resolve=True)
-    for key, value in blocklinear_dict.items():
-        if key == "efficient":
-            core_params["efficient_blocklinear"] = value
-        elif key == "gradient_scaling":
-            core_params["blocklinear_strategy"] = value
-        else:
-            core_params[f"blocklinear_{key}"] = value
-
     # Create core network
-    core_network = get_architecture(core_config.type, core_params)
+    core_network = get_architecture(
+        core_config.type, core_config, input_dim=encoder.output_dim
+    )
 
     # Build decoder parameters
     decoder_params_dict = OmegaConf.to_container(decoder_config.params, resolve=True)
@@ -199,6 +149,7 @@ def setup_environment(
             "data_path": os.path.join(base_dir, data_config.dataset_name)
             if base_dir
             else None,
+            "train_valid_split": experiment_config.train_valid_split,
             "parameters": {
                 **data_config.processing.__dict__,
                 **dataset_specific_params,
@@ -206,18 +157,8 @@ def setup_environment(
         },
     )()
 
-    train_cfg = type(
-        "TrainConfig",
-        (),
-        {
-            "seed": experiment_config.seed,
-            "train_valid_split": experiment_config.train_valid_split,
-        },
-    )()
-
     unified_datasets = get_unified_datasets(
         task_cfg=task_cfg,
-        train_cfg=train_cfg,
     )
     train_ds, valid_ds, test_ds = unified_datasets
 

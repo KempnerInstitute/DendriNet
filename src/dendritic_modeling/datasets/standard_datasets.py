@@ -6,11 +6,21 @@ like MNIST, CIFAR-10, and ImageNet.
 """
 
 import os
-from typing import Optional
+from typing import Any, Optional, Union
 
 import torch
 from torch.utils.data import Dataset, TensorDataset
 from torchvision import datasets, transforms
+
+
+def _get_config_value(
+    config: Union[dict, object], key: str, default: Any = None
+) -> Any:
+    """Safely get a value from a config object, handling both dict and attribute access."""
+    if isinstance(config, dict):
+        return config.get(key, default)
+    else:
+        return getattr(config, key, default)
 
 
 def get_data_directory(data_type, task_data_path=None):
@@ -427,31 +437,25 @@ def load_imagenet_as_datasets(
     return train_dataset, valid_dataset, test_dataset
 
 
-def get_unified_datasets(task_cfg, train_cfg):
+def get_unified_datasets(task_cfg):
     """
     Get datasets based on configuration.
 
     Args:
-        task_cfg: Task configuration
-        train_cfg: Training configuration
+        task_cfg: Task configuration (must include train_valid_split)
 
     Returns:
         tuple: (train_dataset, valid_dataset, test_dataset)
     """
-    try:
-        dataset_name = task_cfg["dataset"]
-        task_data_path = task_cfg.get("data_path", None)
-        p = task_cfg.get("parameters", {})
-    except TypeError:
-        dataset_name = task_cfg.dataset
-        task_data_path = getattr(task_cfg, "data_path", None)
-        p = task_cfg.parameters
+    dataset_name = _get_config_value(task_cfg, "dataset")
+    task_data_path = _get_config_value(task_cfg, "data_path", None)
+    p = _get_config_value(task_cfg, "parameters", {})
 
     # If task_data_path is empty string, set it to None
     if task_data_path == "":
         task_data_path = None
 
-    train_valid_split = getattr(train_cfg, "train_valid_split", 1.0)
+    train_valid_split = _get_config_value(task_cfg, "train_valid_split", 1.0)
     flatten = p.get("flatten", True)
     normalize = p.get("normalize", False)
     base_dataset = p.get("base_dataset", "mnist")
@@ -523,7 +527,7 @@ def get_unified_datasets(task_cfg, train_cfg):
                 get_unified_datasets as get_synthetic_datasets,
             )
 
-            return get_synthetic_datasets(task_cfg, train_cfg)
+            return get_synthetic_datasets(task_cfg)
         except ImportError as e:
             raise ValueError(
                 f"Unknown dataset name: {dataset_name}. Synthetic datasets not available: {e}"

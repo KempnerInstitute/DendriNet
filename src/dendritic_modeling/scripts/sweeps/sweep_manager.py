@@ -63,7 +63,7 @@ class SweepManager:
     def __init__(self):
         # Use unified generator for all sweep types
         self.generator = UnifiedSweepGenerator()
-        # Note: Analysis is handled by separate result_analyzer.py to avoid circular imports
+        # Analysis is handled by separate result_analyzer.py to avoid circular imports
         self.sweep_type = "unified"  # For backward compatibility in output
 
     def generate_sweep(
@@ -233,7 +233,7 @@ class SweepManager:
 
         # For unified sweeps, we recommend using the separate result_analyzer.py
         # to avoid circular dependencies and provide full analysis capabilities
-        print("Note: For comprehensive analysis, use:")
+        print("For comprehensive analysis, use:")
         print(
             f"python -m src.dendritic_modeling.scripts.sweeps.result_analyzer --results-dir {results_dir} --auto-detect"
         )

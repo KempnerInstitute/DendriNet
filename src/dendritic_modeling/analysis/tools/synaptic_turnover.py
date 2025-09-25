@@ -40,8 +40,7 @@ class SynapticTurnoverAnalyzer:
             model: The model to analyze (must have ExcitationInhibitionNetwork)
             params: Parameters object containing snapshot_interval, synaptic_analysis, save_synaptic_report
 
-        Note:
-            This automatically takes an initial snapshot of the model's synaptic masks.
+        This automatically takes an initial snapshot of the model's synaptic masks.
         """
         assert isinstance(model.core_network, ExcitationInhibitionNetwork), (
             "model.core_network must be an instance of ExcitationInhibitionNetwork. "
@@ -91,7 +90,7 @@ class SynapticTurnoverAnalyzer:
         )
 
         # Estimate average synapses per layer for each type
-        # Note: This is an approximation since we don't have exact layer-wise breakdowns
+        # This is an approximation since we don't have exact layer-wise breakdowns
         # from the mask data. We use the configuration ratios as a guide.
         total_ee_config = sum(ee_config) if ee_config else 0
         total_ei_config = sum(ei_config) if ei_config else 0

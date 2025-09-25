@@ -203,12 +203,12 @@ class CNNVariationalAutoencoder(BaseVariationalAutoencoder):
     ) -> tuple[list[int], list[int]]:
         """Calculate convolution parameters to downsample from input_shape to latent_shape.
 
-        Note: CNNDownsample uses padding=0, so we work with that constraint.
+        CNNDownsample uses padding=0, so we work with that constraint.
         Formula: output_size = (input_size - kernel_size) // stride + 1
         """
 
-        input_c, input_h, input_w = input_shape
-        latent_c, latent_h, latent_w = latent_shape
+        _, input_h, input_w = input_shape
+        _, latent_h, latent_w = latent_shape
 
         if input_h != input_w or latent_h != latent_w:
             raise ValueError("Currently only supports square spatial dimensions")
