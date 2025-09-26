@@ -184,6 +184,36 @@ class WeightAnalysisConfig(BaseConfig):
 
 
 @dataclass
+class CompartmentStatisticsAnalysisParams(BaseConfig):
+    """Enhanced configuration for compartment statistics analysis."""
+
+    synapse_weights: bool = True  # Analyze excitatory and inhibitory synapse weights
+    branch_weights: bool = True  # Analyze branch-to-output connection weights
+
+    inputs: bool = True  # Analyze inputs
+    activations: bool = True  # Analyze activations
+
+    global_analysis: bool = True  # Analyze global statistics
+    layer_analysis: bool = True  # Analyze layer statistics
+    branch_analysis: bool = True  # Analyze branch statistics
+
+    compute_mean: bool = True  # Compute mean weights per branch
+    compute_variance: bool = True  # Compute variance of weights per branch
+    compute_percentiles: bool = True  # Compute percentiles (median, quartiles)
+    compute_min_max: bool = True  # Compute min/max per layer
+    compute_entropy: bool = True  # Compute entropy per layer
+
+    n_samples: Optional[int] = None  # Number of samples to analyze
+
+
+@dataclass
+class CompartmentStatisticsAnalysisConfig(BaseConfig):
+    enabled: bool = True
+    training: bool = False
+    params: CompartmentStatisticsAnalysisParams = field(default_factory=CompartmentStatisticsAnalysisParams)
+
+
+@dataclass
 class SynapticActivationAnalysisParams(BaseConfig):
     network_summary: bool = True
     layer_summary: bool = True
@@ -320,6 +350,11 @@ class AnalysisConfig(BaseConfig):
         default_factory=AblationAnalysisConfig
     )
     weight_analysis: WeightAnalysisConfig = field(default_factory=WeightAnalysisConfig)
+
+    compartment_statistics_analysis: CompartmentStatisticsAnalysisConfig = field(
+        default_factory=CompartmentStatisticsAnalysisConfig
+    )
+    
     synaptic_activation_analysis: SynapticActivationAnalysisConfig = field(
         default_factory=SynapticActivationAnalysisConfig
     )

@@ -112,6 +112,7 @@ class DendriticBranchLayer(nn.Module):
     ):
         super().__init__()
         self.layer_idx = layer_idx
+        self.n_branches = output_dim
         self.reactivation_strategy = reactivation_strategy
         self.blocklinear_strategy = blocklinear_strategy
         self.efficient_blocklinear = efficient_blocklinear

@@ -25,6 +25,8 @@ from dendritic_modeling.config.analysis import (
     SynapticActivationAnalysisParams,
     WeightAnalysisConfig,
     WeightAnalysisParams,
+    CompartmentStatisticsAnalysisConfig,
+    CompartmentStatisticsAnalysisParams,
 )
 from dendritic_modeling.config.base import BaseConfig
 from dendritic_modeling.config.config import (
@@ -139,5 +141,7 @@ __all__ = [
     "WandbConfig",
     "WeightAnalysisConfig",
     "WeightAnalysisParams",
+    "CompartmentStatisticsAnalysisConfig",
+    "CompartmentStatisticsAnalysisParams",
     "load_config",
 ]
