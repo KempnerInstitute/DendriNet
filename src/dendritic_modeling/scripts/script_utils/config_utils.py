@@ -1,8 +1,14 @@
 """Utilities for configuration handling and transformation."""
 
+import logging
 from typing import Any, Union
 
 from omegaconf import DictConfig, OmegaConf
+
+logger = logging.getLogger(__name__)
+
+# Cache for converted configs to avoid repeated conversions
+_config_cache = {}
 
 
 def get_config_value(config: Union[dict, object], key: str, default: Any = None) -> Any:
@@ -21,6 +27,107 @@ def get_config_value(config: Union[dict, object], key: str, default: Any = None)
         return config.get(key, default)
     else:
         return getattr(config, key, default)
+
+
+def prepare_ei_network_params(
+    config: Union[dict, DictConfig], input_dim: int
+) -> dict[str, Any]:
+    """
+    Prepare parameters for ExcitationInhibitionNetwork from structured config.
+
+    Args:
+        config: Either a dict or DictConfig with structured parameters
+        input_dim: Input dimension from encoder
+
+    Returns:
+        Flattened parameter dictionary ready for EINet initialization
+    """
+    # Create a cache key (excluding input_dim since it changes the params)
+    cache_key = id(config) if isinstance(config, DictConfig) else None
+
+    # Check cache first
+    if cache_key and cache_key in _config_cache:
+        logger.debug("Using cached config conversion for EINet initialization")
+        cached_params = _config_cache[cache_key].copy()
+        cached_params["input_dim"] = input_dim
+        return cached_params
+
+    logger.info(
+        "Converting DictConfig to dict for EINet initialization (this should happen only once)"
+    )
+
+    # Convert to regular dict if needed - do this ONCE
+    if isinstance(config, DictConfig):
+        # Single conversion of entire config
+        config_dict = OmegaConf.to_container(config, resolve=True)
+        architecture_dict = config_dict.get("architecture", {})
+        connectivity_dict = config_dict.get("connectivity", {})
+        transfer_dict = config_dict.get("transfer", {})
+        morphology_dict = config_dict.get("morphology", {})
+        implementation_dict = config_dict.get("implementation", {})
+        sparsity_dict = config_dict.get("sparsity", {})
+        reactivation_dict = config_dict.get("reactivation", {})
+        blocklinear_dict = config_dict.get("blocklinear", {})
+    else:
+        architecture_dict = config.get("architecture", {})
+        connectivity_dict = config.get("connectivity", {})
+        transfer_dict = config.get("transfer", {})
+        morphology_dict = config.get("morphology", {})
+        implementation_dict = config.get("implementation", {})
+        sparsity_dict = config.get("sparsity", {})
+        reactivation_dict = config.get("reactivation", {})
+        blocklinear_dict = config.get("blocklinear", {})
+
+    # Build base parameters
+    params = {
+        "input_dim": input_dim,
+        **architecture_dict,
+        **connectivity_dict,
+        "transfer_params": transfer_dict,
+        **morphology_dict,
+        **implementation_dict,
+    }
+
+    # Add sparsity parameters with proper naming
+    for key, value in sparsity_dict.items():
+        if key == "deepst":
+            for deepst_key, deepst_value in value.items():
+                params[deepst_key] = deepst_value
+        elif key == "gradient_scaling":
+            params["topk_strategy"] = value
+        else:
+            params[f"topk_{key}"] = value
+
+    # Add reactivation parameters with proper naming
+    params["reactivate"] = (
+        reactivation_dict.pop("enabled", True) if reactivation_dict else True
+    )
+    for key, value in reactivation_dict.items():
+        if key == "type":
+            params["reactivation_type"] = value
+        elif key == "gradient_scaling":
+            params["reactivation_strategy"] = value
+        elif key.startswith("init_"):
+            params[f"reactivation_{key}"] = value
+        else:
+            params[f"reactivation_{key}"] = value
+
+    # Add blocklinear parameters
+    for key, value in blocklinear_dict.items():
+        if key == "efficient":
+            params["efficient_blocklinear"] = value
+        elif key == "gradient_scaling":
+            params["blocklinear_strategy"] = value
+        else:
+            params[f"blocklinear_{key}"] = value
+
+    # Cache the result (without input_dim)
+    if cache_key:
+        cached_params = params.copy()
+        cached_params.pop("input_dim", None)
+        _config_cache[cache_key] = cached_params
+
+    return params
 
 
 def prepare_trainer_config(

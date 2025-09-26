@@ -21,13 +21,13 @@
 # NOTE: For parameter sweeps, use unified_all_sweeps_example.yaml instead.
 
 model:
-  task: classification  # Options: "classification", "regression"
+  task: "classification"  # Options: "classification", "regression"
 
   # ==========================================
   # ENCODER NETWORK (Input Processing Stage)
   # ==========================================
   encoder_network:
-    type: identity  # Options: "identity", "mlpautoencoder", "cnnautoencoder", "mlpvariationalautoencoder", "cnnvariationalautoencoder"
+    type: "identity"  # Options: "identity", "mlpautoencoder", "cnnautoencoder", "mlpvariationalautoencoder", "cnnvariationalautoencoder"
     parameters:
       input_dim: null             # For MLP encoders
       input_shape: [3, 32, 32]   # For CNN encoders [channels, height, width]
@@ -43,7 +43,7 @@ model:
   # CORE NETWORK (Main Processing Stage)
   # ==========================================
   core_network:
-    type: EINet  # Options: "EINet", "MLP", "MatchedParamMLP", "EffectiveMatchedParamMLP"
+    type: "EINet"  # Options: "EINet", "MLP", "MatchedParamMLP", "EffectiveMatchedParamMLP"
     parameters:
       # Core network structure
       #input_dim: 784
@@ -61,45 +61,45 @@ model:
       # ==========================================
       excitatory_layer_sizes: [20]         # Neurons per excitatory layer
       inhibitory_layer_sizes: []         # Neurons per inhibitory layer
-      excitatory_branch_factors: [3,3,3,3]       # Branches per excitatory neuron (fixed: should match layer count)
+      excitatory_branch_factors: [3, 3, 3, 3]  # Branches per excitatory neuron (fixed: should match layer count)
       inhibitory_branch_factors: []       # Branches per inhibitory neuron (fixed: was empty)
 
       # Synaptic connectivity patterns
-      ee_synapses_per_branch_per_layer: [40]   # Excitatory-to-excitatory synapses
+      ee_synapses_per_branch_per_layer: [40]  # Excitatory-to-excitatory synapses
       ei_synapses_per_branch_per_layer: [0]   # No E→I connections since no inhibitory neurons exist
-      ie_synapses_per_branch_per_layer: [10]   # Input→E inhibitory synapses (input_mode=1 provides inhibitory signals)
+      ie_synapses_per_branch_per_layer: [10]  # Input→E inhibitory synapses (input_mode=1 provides inhibitory signals)
       ii_synapses_per_branch_per_layer: [0]   # No I→I connections since no inhibitory neurons exist
 
       # Morphological features
-      somatic_synapses: false      # Include somatic (non-dendritic) synapses
+      somatic_synapses: false     # Include somatic (non-dendritic) synapses
       use_shunting: true          # Use shunting inhibition
 
       # Weight transformation for positive weights
-      weight_transform: softplus       # Options: "exp", "relu", "softplus"
-      dbl_init_method: analytical_expectation
+      weight_transform: "softplus"  # Options: "exp", "relu", "softplus"
+      dbl_init_method: "analytical_expectation"
 
       # ==========================================
       # TOPK SPARSITY PARAMETERS
       # ==========================================
-      topk_init_method: xavier_normal    # Weight initialization method
+      topk_init_method: "xavier_normal"    # Weight initialization method
       topk_noise_level: 0.0              # Noise level for stochastic TopK
       topk_type: standard              # Options: "standard", "stochastic", "variance", "deepst"
       topk_temperature: 0.0              # Stochastic selection sharpness (0.1-1.0)
-      topk_strategy: none # TopK gradient scaling strategy
+      topk_strategy: "none" # TopK gradient scaling strategy
 
       # ==========================================
       # REACTIVATION PARAMETERS
       # ==========================================
       reactivate: true                   # Enable reactivation functions
-      reactivation_type: param_tanh      # Reactivation function type
+      reactivation_type: "param_tanh"      # Reactivation function type
       reactivation_init_m: 1.5           # Reactivation parameter m
       reactivation_init_b: 0.5           # Reactivation parameter b
-      reactivation_strategy: none     # Gradient scaling strategy
+      reactivation_strategy: "none"     # Gradient scaling strategy
 
       # ==========================================
       # BLOCK LINEAR PARAMETERS
       # ==========================================
-      blocklinear_strategy: none # BlockLinear gradient scaling
+      blocklinear_strategy: "none" # BlockLinear gradient scaling
       efficient_blocklinear: false        # Use memory-efficient implementation
 
       # ==========================================
@@ -127,11 +127,11 @@ model:
   # DECODER NETWORK (Output Processing Stage)
   # ==========================================
   decoder_network:
-    type: MLP  # Options: "MLP", "identity"
+    type: "MLP"  # Options: "MLP", "identity"
     parameters:
       input_dim: null           # Will be set automatically
-      hidden_dims: [32,16]     # Hidden layer dimensions
-      activation: relu          # Activation function
+      hidden_dims: [32, 16] # Hidden layer dimensions
+      activation: "relu"          # Activation function
       output_dim: 10          # Will be set automatically
 
 # ============================================================================
@@ -183,11 +183,11 @@ train:
     load_save_root: ./.trained_encoder_networks/  # Hash-based encoder model cache directory
     lr: 0.001
     trainer:
-      loss_function: mse        # Loss function for encoder
-      epochs: 50               # Encoder pre-training epochs
-      early_stopping: false    # Early stopping
-      patience: 10             # Patience
-      batch_size: 128          # Batch size
+      loss_function: log_mse    # Loss function for encoder
+      epochs: 500              # Encoder pre-training epochs
+      early_stopping: true     # Early stopping
+      patience: 100            # Patience
+      batch_size: 512          # Batch size
       shuffle: true            # Shuffle data
       grad_clip_value: 5.0     # Gradient clipping
       load_best_state_dict: true
@@ -211,25 +211,25 @@ train:
   # MAIN NETWORK TRAINING
   # ==========================================
   main:
-    learning_strategy: standard # Options: "standard", "voltage_stabilization", "homeostatic_control", "freeze_layers", "freeze_branches", "local_ca", "two_step"
+    learning_strategy: "standard" # Options: "standard", "voltage_stabilization", "homeostatic_control", "freeze_layers", "freeze_branches", "local_ca", "two_step"
                                # Supports regularization, pruning, and parameter group features
-    weight_decay_rate: 0.0     # Use optimizer.weight_decay for internal optimizer creation
-    weight_boosting: false            # Enable weight boosting during decay (true/false)
+    weight_decay_rate: 0.0      # Use optimizer.weight_decay for internal optimizer creation
+    weight_boosting: false      # Enable weight boosting during decay (true/false)
 
     # Parameter groups with different learning rates
     param_groups:
       lr: 0.001                 # Default learning rate
-      split_params: false        # Split parameters into groups
+      split_params: false       # Split parameters into groups
       topk_lr: 0.001           # Learning rate for TopK layers
       blocklinear_lr: 0.0001   # Learning rate for BlockLinear layers
       reactivation_lr: 0.0001  # Learning rate for reactivation layers
-      decoder_lr: 0.01       # Learning rate for decoder network
+      decoder_lr: 0.01         # Learning rate for decoder network
 
     trainer:
-      loss_function: cat_nll        # Loss function
-      epochs: 100               # Main training epochs
+      loss_function: "cat_nll"   # Loss function
+      epochs: 100              # Main training epochs
       early_stopping: false    # Early stopping
-      patience: 10             # Patience
+      patience: 500            # Patience
       batch_size: 128          # Batch size
       shuffle: true            # Shuffle data
       grad_clip_value: 5.0     # Gradient clipping
@@ -289,7 +289,7 @@ train:
         weight_types: ["all"]        # Options: "all", "recurrent", "input", "output", "linear"
 
       # Parameter group specific regularization
-      split_params: true             # Split parameters into groups for differential regularization
+      split_params: false            # Split parameters into groups for differential regularization
       param_group_weights:
         # Apply different regularization to different parameter groups (when split_params=true)
         topk:                       # TopK layers
@@ -336,12 +336,12 @@ train:
 # ============================================================================
 task:
   # Validated dataset options (from datasets/__init__.py and synthetic_datasets.py)
-  dataset: cifar10
+  dataset: "cifar10"
   # Options:
   # - Standard: "mnist", "cifar10", "imagenet"
   # - Modified MNIST: "mnist_modulo10", "random_flip_mnist"
 
-  data_path: ""  # Custom data path
+  data_path: "/n/netscratch/bsabatini_lab/Everyone/mrichards/HS/"  # Base directory for datasets
 
   # Dataset-specific parameters
   parameters:

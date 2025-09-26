@@ -20,7 +20,7 @@ from dendritic_modeling.networks.architectures.classical.mlp import (
     EffectiveMatchedParamMLP,
     MatchedParamMLP,
 )
-from dendritic_modeling.networks.architectures.excitation_inhibition.config_adapter import (
+from dendritic_modeling.networks.architectures.excitation_inhibition import (
     ConfigurableEINetwork,
 )
 

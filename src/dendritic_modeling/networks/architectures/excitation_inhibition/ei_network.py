@@ -6,10 +6,11 @@ excitatory and inhibitory pathways with dendritic computation.
 """
 
 from copy import deepcopy
-from typing import Any, Optional
+from typing import Any, Optional, Union
 
 import torch
 import torch.nn as nn
+from omegaconf import DictConfig
 
 # Import dynamo config for JIT compilation optimization
 try:
@@ -514,4 +515,29 @@ class ExcitationInhibitionNetwork(nn.Module):
         return effective
 
 
-__all__ = ["ExcitationInhibitionNetwork"]
+class ConfigurableEINetwork(ExcitationInhibitionNetwork):
+    """
+    ExcitationInhibitionNetwork that is initialized from structured config.
+
+    This provides a clean way to create EINet instances from structured configuration,
+    separating configuration structure from implementation details.
+    """
+
+    def __init__(self, config: Union[dict, DictConfig], input_dim: int):
+        """
+        Initialize from structured config.
+
+        Args:
+            config: Structured configuration (e.g., core_config from YAML)
+                   Must contain 'architecture', 'connectivity', 'transfer', etc. sections
+            input_dim: Input dimension from encoder
+        """
+        from dendritic_modeling.scripts.script_utils.config_utils import (
+            prepare_ei_network_params,
+        )
+
+        params = prepare_ei_network_params(config, input_dim)
+        super().__init__(**params)
+
+
+__all__ = ["ConfigurableEINetwork", "ExcitationInhibitionNetwork"]
