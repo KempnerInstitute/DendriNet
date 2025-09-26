@@ -457,7 +457,7 @@ class TestGetUnifiedDatasets(unittest.TestCase):
 
         # Verify the function was called with correct parameters
         mock_load_mnist.assert_called_once()
-        args, kwargs = mock_load_mnist.call_args
+        _, kwargs = mock_load_mnist.call_args
         self.assertEqual(kwargs["output_dir"], self.temp_dir)
 
     def test_invalid_dataset(self):
@@ -467,9 +467,7 @@ class TestGetUnifiedDatasets(unittest.TestCase):
         self.task_cfg.parameters = {}
 
         with self.assertRaises(ValueError):
-            get_unified_datasets(
-                self.task_cfg, self.train_cfg
-            )
+            get_unified_datasets(self.task_cfg, self.train_cfg)
 
 
 class TestSpecializedDatasets(unittest.TestCase):

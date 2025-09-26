@@ -288,14 +288,19 @@ class GPUMemoryEstimator:
                 elif "BlockLinear" in type(module).__name__:
                     # BlockLinear combines branches
                     if hasattr(module, "weight"):
-                        weight_shape = module.weight.shape
-                        layer_activation = (
-                            batch_size
-                            * np.prod(weight_shape)
-                            * self.bytes_per_param
-                            * 2
-                        )
-                        activation_memory_bytes += layer_activation
+                        weight = module.weight
+                        # Handle case where weight might be a property/function
+                        if callable(weight):
+                            continue  # Skip if weight is a function
+                        if hasattr(weight, "shape"):
+                            weight_shape = weight.shape
+                            layer_activation = (
+                                batch_size
+                                * np.prod(weight_shape)
+                                * self.bytes_per_param
+                                * 2
+                            )
+                            activation_memory_bytes += layer_activation
 
                 elif isinstance(module, torch.nn.Linear):
                     in_features = getattr(module, "in_features", 0)
@@ -621,24 +626,45 @@ def estimate_from_config(config_path: str, batch_size: Optional[int] = None):
     # Load configuration
     config = load_config(config_path)
 
-    # Get batch size
+    # Get batch size - handle both old (train) and new (training) structure
     if batch_size is None:
-        trainer_params = (
-            config.train.main.trainer.__dict__
-            if hasattr(config.train.main, "trainer")
-            else {}
-        )
-        batch_size = trainer_params.get("batch_size", 32)
+        batch_size = 32  # Default fallback
 
-    # Initialize task_params for later use
-    task_params = config.task.parameters or {}
+        # Try new structure first
+        if hasattr(config, "training") and hasattr(config.training, "main"):
+            if hasattr(config.training.main, "common"):
+                batch_size = getattr(
+                    config.training.main.common, "batch_size", batch_size
+                )
+            elif hasattr(config.training.main, "trainer"):
+                trainer_params = config.training.main.trainer.__dict__
+                batch_size = trainer_params.get("batch_size", batch_size)
+        # Fall back to old structure
+        elif hasattr(config, "train") and hasattr(config.train, "main"):
+            if hasattr(config.train.main, "trainer"):
+                trainer_params = config.train.main.trainer.__dict__
+                batch_size = trainer_params.get("batch_size", batch_size)
+
+    # Get task configuration - handle both old (task) and new (data) structure
+    if hasattr(config, "task"):
+        task_cfg = config.task
+        task_params = getattr(task_cfg, "parameters", {}) or {}
+    else:
+        # Create a task config from data config for compatibility
+        task_cfg = type("TaskConfig", (), {})()
+        task_cfg.dataset = config.data.dataset_name
+        task_cfg.data_path = getattr(config.data, "base_dir", None)
+        task_cfg.parameters = getattr(config.data, "processing", {})
+        task_cfg.train_valid_split = getattr(
+            config.experiment, "train_valid_split", 0.8
+        )
+        task_params = task_cfg.parameters or {}
 
     # Load real dataset to get accurate input shape (like train_experiments.py)
     try:
         # Get datasets using the same method as training scripts
-        train_ds, valid_ds, test_ds = get_unified_datasets(
-            task_cfg=config.task,
-            train_cfg=config.train,
+        train_ds, _, _ = get_unified_datasets(
+            task_cfg=task_cfg,
         )
 
         # Get sample input shape from real data
@@ -651,11 +677,12 @@ def estimate_from_config(config_path: str, batch_size: Optional[int] = None):
         print(f"Failed to load dataset, falling back to hardcoded shapes: {e}")
 
         # Fallback to hardcoded input dimensions if dataset loading fails
-        if config.task.dataset == "mnist":
+        dataset_name = getattr(task_cfg, "dataset", "cifar10")
+        if dataset_name == "mnist":
             input_shape = (784,)  # Flattened
-        elif config.task.dataset == "cifar10":
+        elif dataset_name == "cifar10":
             input_shape = (3072,)  # Flattened
-        elif config.task.dataset == "imagenet":
+        elif dataset_name == "imagenet":
             if task_params.get("flatten", False):
                 input_shape = (150528,)  # Flattened
             else:
@@ -667,26 +694,47 @@ def estimate_from_config(config_path: str, batch_size: Optional[int] = None):
     # Create model (similar to train scripts)
     model_config = config.model
 
-    # Create encoder
-    encoder_config = model_config.encoder_network
+    # Create encoder - handle both old (encoder_network) and new (encoder) structure
+    encoder_config = (
+        getattr(model_config, "encoder_network", None) or model_config.encoder
+    )
     if encoder_config.type.lower() == "identity":
         encoder = Identity(
             input_shape[0] if len(input_shape) == 1 else np.prod(input_shape)
         )
     else:
-        encoder_params = (
-            dict(encoder_config.parameters) if encoder_config.parameters else {}
+        encoder_params = dict(
+            getattr(encoder_config, "parameters", {})
+            or getattr(encoder_config, "params", {})
         )
         encoder_params["input_dim"] = (
             input_shape[0] if len(input_shape) == 1 else np.prod(input_shape)
         )
         encoder = get_architecture(encoder_config.type, encoder_params)
 
-    # Create core network
-    core_config = model_config.core_network
-    core_params = dict(core_config.parameters) if core_config.parameters else {}
-    core_params["input_dim"] = encoder.output_dim
-    core_network = get_architecture(core_config.type, core_params)
+    # Create core network - handle both old (core_network) and new (core) structure
+    core_config = getattr(model_config, "core_network", None) or model_config.core
+
+    if core_config.type.lower() == "einet" and hasattr(core_config, "architecture"):
+        # For EINet with structured config, pass the entire config
+        core_network = get_architecture(
+            core_config.type, core_config, encoder.output_dim
+        )
+    else:
+        # Handle parameter structure - combine architecture, connectivity, etc.
+        core_params = {}
+        if hasattr(core_config, "parameters"):
+            core_params = dict(core_config.parameters)
+        else:
+            # New structure: combine different sections
+            if hasattr(core_config, "architecture"):
+                core_params.update(dict(core_config.architecture.__dict__))
+            if hasattr(core_config, "connectivity"):
+                core_params.update(dict(core_config.connectivity.__dict__))
+            if hasattr(core_config, "morphology"):
+                core_params.update(dict(core_config.morphology.__dict__))
+        core_params["input_dim"] = encoder.output_dim
+        core_network = get_architecture(core_config.type, core_params)
 
     # Get task type and number of classes
     task_type = model_config.task  # task is on model config, not task config
@@ -697,18 +745,21 @@ def estimate_from_config(config_path: str, batch_size: Optional[int] = None):
             "imagenet": 1000,
         }
         n_classes = n_classes_map.get(
-            config.task.dataset, task_params.get("n_classes", 10)
+            getattr(task_cfg, "dataset", "cifar10"), task_params.get("n_classes", 10)
         )
     else:
         n_classes = 1
 
-    # Create decoder
-    decoder_config = model_config.decoder_network
+    # Create decoder - handle both old (decoder_network) and new (decoder) structure
+    decoder_config = (
+        getattr(model_config, "decoder_network", None) or model_config.decoder
+    )
     if decoder_config.type.lower() == "identity":
         decoder = Identity(core_network.output_dim)
     else:
-        decoder_params = (
-            dict(decoder_config.parameters) if decoder_config.parameters else {}
+        decoder_params = dict(
+            getattr(decoder_config, "parameters", {})
+            or getattr(decoder_config, "params", {})
         )
         decoder_params["input_dim"] = core_network.output_dim
         decoder_params["output_dim"] = n_classes
@@ -728,12 +779,16 @@ def estimate_from_config(config_path: str, batch_size: Optional[int] = None):
             decoder_network=decoder,
         )
 
-    # Get precision from config
-    trainer_params = (
-        config.train.main.trainer.__dict__
-        if hasattr(config.train.main, "trainer")
-        else {}
-    )
+    # Get precision from config - handle both old and new structure
+    trainer_params = {}
+    if hasattr(config, "training") and hasattr(config.training, "main"):
+        if hasattr(config.training.main, "common"):
+            trainer_params = config.training.main.common.__dict__
+        elif hasattr(config.training.main, "trainer"):
+            trainer_params = config.training.main.trainer.__dict__
+    elif hasattr(config, "train") and hasattr(config.train, "main"):
+        if hasattr(config.train.main, "trainer"):
+            trainer_params = config.train.main.trainer.__dict__
     dtype = trainer_params.get("dtype", "fp16")
 
     # Get optimizer type - it's not directly specified in the config, default to adam

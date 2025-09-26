@@ -277,7 +277,7 @@ class SweepJobManager:
         with open(script_path, "w") as f:
             f.write("#!/bin/bash\n")
             f.write(
-                f"#SBATCH --job-name={self.slurm_config.get('job_name', 'sweep')}\n"
+                f"#SBATCH --job-name={self.slurm_config.get('run_name') or self.slurm_config.get('job_name', 'sweep')}\n"
             )
             f.write(
                 f"#SBATCH --account={self.slurm_config.get('account', 'kempner_dev')}\n"
@@ -285,6 +285,9 @@ class SweepJobManager:
             f.write(
                 f"#SBATCH --partition={self.slurm_config.get('partition', 'kempner')}\n"
             )
+            constraint = self.slurm_config.get("constraint", None)
+            if constraint:
+                f.write(f"#SBATCH --constraint={constraint}\n")
             f.write(f"#SBATCH --time={self.slurm_config.get('time', '02:00:00')}\n")
             f.write(f"#SBATCH --nodes={self.slurm_config.get('nodes', 1)}\n")
             f.write(
@@ -297,6 +300,13 @@ class SweepJobManager:
                 f"#SBATCH --cpus-per-task={self.slurm_config.get('cpus_per_task', 4)}\n"
             )
             f.write(f"#SBATCH --mem={self.slurm_config.get('mem', '32G')}\n")
+
+            # Exclude specific nodes if specified
+            exclude_nodes = self.slurm_config.get("exclude_nodes", [])
+            if exclude_nodes:
+                exclude_list = ",".join(exclude_nodes)
+                f.write(f"#SBATCH --exclude={exclude_list}\n")
+
             f.write(f"#SBATCH --output={output_dir}/jobs/%j.out\n")
             f.write(f"#SBATCH --error={output_dir}/jobs/%j.err\n\n")
 
@@ -359,7 +369,7 @@ class SweepJobManager:
         with open(script_path, "w") as f:
             f.write("#!/bin/bash\n")
             f.write(
-                f"#SBATCH --job-name={self.slurm_config.get('job_name', 'sweep')}\n"
+                f"#SBATCH --job-name={self.slurm_config.get('run_name') or self.slurm_config.get('job_name', 'sweep')}\n"
             )
             f.write(
                 f"#SBATCH --account={self.slurm_config.get('account', 'kempner_dev')}\n"
@@ -379,6 +389,12 @@ class SweepJobManager:
                 f"#SBATCH --cpus-per-task={self.slurm_config.get('cpus_per_task', 4)}\n"
             )
             f.write(f"#SBATCH --mem={self.slurm_config.get('mem', '32G')}\n")
+
+            # Exclude specific nodes if specified
+            exclude_nodes = self.slurm_config.get("exclude_nodes", [])
+            if exclude_nodes:
+                exclude_list = ",".join(exclude_nodes)
+                f.write(f"#SBATCH --exclude={exclude_list}\n")
 
             # Array job with optional concurrent limit
             if num_configs > max_concurrent:

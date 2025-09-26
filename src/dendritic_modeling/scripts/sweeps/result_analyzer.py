@@ -41,21 +41,10 @@ from typing import Any, Optional
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import seaborn as sns
 from matplotlib.ticker import ScalarFormatter
 from omegaconf import OmegaConf
 from scipy.ndimage import gaussian_filter1d
-
-# Try importing seaborn with compatibility handling
-try:
-    import seaborn as sns
-except AttributeError:
-    import matplotlib
-
-    if hasattr(matplotlib.cm, "register_cmap"):
-        import seaborn as sns
-    else:
-        matplotlib.cm.register_cmap = matplotlib.colormaps.register
-        import seaborn as sns
 
 # Add the project root to the path
 project_root = Path(__file__).parent.parent.parent.parent
@@ -343,14 +332,12 @@ class UnifiedResultAnalyzer:
                 "update_inactive_weights": None,
             }
 
-            # Extract EE and IE values with multiple fallback strategies
+            # Extract EE and IE values
             try:
-                # Try unified sweep structure first
-                if hasattr(config.model, "core_network") and hasattr(
-                    config.model.core_network, "parameters"
+                if hasattr(config.model, "core") and hasattr(
+                    config.model.core, "connectivity"
                 ):
-                    net_params = config.model.core_network.parameters
-
+                    net_params = config.model.core.connectivity
                     # Look for EI-specific parameters
                     if hasattr(net_params, "ee_synapses_per_branch_per_layer"):
                         ee_values = net_params.ee_synapses_per_branch_per_layer
@@ -383,55 +370,19 @@ class UnifiedResultAnalyzer:
                     if hasattr(net_params, "use_shunting"):
                         data["use_shunting"] = net_params.use_shunting
 
-                # Try old structure
-                elif hasattr(config.model, "network") and hasattr(
-                    config.model.network, "parameters"
-                ):
-                    net_params = config.model.network.parameters
-
-                    if hasattr(net_params, "ee_synapses_per_branch_per_layer"):
-                        ee_values = net_params.ee_synapses_per_branch_per_layer
-                        data["ee_value"] = (
-                            ee_values[0]
-                            if isinstance(ee_values, list) and len(ee_values) == 1
-                            else ee_values
-                        )
-
-                    if hasattr(net_params, "ie_synapses_per_branch_per_layer"):
-                        ie_values = net_params.ie_synapses_per_branch_per_layer
-                        data["ie_value"] = (
-                            ie_values[0]
-                            if isinstance(ie_values, list) and len(ie_values) == 1
-                            else ie_values
-                        )
-
-                    if hasattr(net_params, "excitatory_branch_factors"):
-                        branch_factors = net_params.excitatory_branch_factors
-                        if (
-                            isinstance(branch_factors, list)
-                            and len(branch_factors) == 1
-                        ):
-                            data["branch_factors"] = branch_factors[0]
-                        else:
-                            data["branch_factors"] = "-".join(
-                                str(x) for x in branch_factors
-                            )
-
-                    if hasattr(net_params, "use_shunting"):
-                        data["use_shunting"] = net_params.use_shunting
-
                 # Extract seed
-                if hasattr(config.train, "seed"):
-                    data["seed"] = config.train.seed
+                if hasattr(config, "experiment") and hasattr(config.experiment, "seed"):
+                    data["seed"] = config.experiment.seed
 
                 # Extract local learning parameters
                 try:
                     if (
-                        hasattr(config.train, "main")
-                        and hasattr(config.train.main, "trainer")
-                        and hasattr(config.train.main.trainer, "local_rule_config")
+                        hasattr(config, "training")
+                        and hasattr(config.training, "main")
+                        and hasattr(config.training.main, "strategies")
+                        and hasattr(config.training.main.strategies, "local_ca")
                     ):
-                        local_cfg = config.train.main.trainer.local_rule_config
+                        local_cfg = config.training.main.strategies.local_ca
 
                         if hasattr(local_cfg, "rule_variant"):
                             data["rule_variant"] = local_cfg.rule_variant
@@ -1962,7 +1913,7 @@ class UnifiedResultAnalyzer:
                 continue
 
             try:
-                fig, ax = plt.subplots(figsize=(12, 6))
+                _, ax = plt.subplots(figsize=(12, 6))
 
                 for use_shunting in [True, False]:
                     shunt_data = type_data[type_data["use_shunting"] == use_shunting]
@@ -2362,7 +2313,7 @@ class UnifiedResultAnalyzer:
             metric_data = weight_metrics[metric_name]
 
             # Create plot for this metric across layers
-            fig, ax = plt.subplots(figsize=(12, 8))
+            _, ax = plt.subplots(figsize=(12, 8))
 
             # Plot each layer
             for layer_key, col_list in metric_data.items():
@@ -2453,7 +2404,7 @@ class UnifiedResultAnalyzer:
             metric_data = weight_metrics[metric_name]
 
             # Create heatmap showing metric across layers and E/I ratios
-            fig, ax = plt.subplots(figsize=(12, 8))
+            _, ax = plt.subplots(figsize=(12, 8))
 
             # Prepare data for heatmap
             ei_ratios = sorted(valid_data["ei_ratio"].unique())
@@ -2556,7 +2507,7 @@ class UnifiedResultAnalyzer:
         inh_data = weight_metrics["inh_weight_mean_mean"]
 
         # Create plot for excitatory/inhibitory weight ratio vs E/I ratio
-        fig, ax = plt.subplots(figsize=(12, 8))
+        _, ax = plt.subplots(figsize=(12, 8))
 
         # Plot each layer
         for layer_key in sorted(exc_data.keys()):
@@ -2693,7 +2644,7 @@ class UnifiedResultAnalyzer:
             layer_df = pd.DataFrame(layer_data)
 
             # Create separate heatmaps for shunting and non-shunting
-            fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 8))
+            _, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 8))
 
             # Calculate global min/max for consistent color scaling
             all_values = layer_df["ivc_value"].values
@@ -2886,7 +2837,7 @@ class UnifiedResultAnalyzer:
                     continue
 
                 # Create the comparison plot: first layer vs last layer
-                fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
+                _, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
 
                 for layer_idx, ax, title_suffix in [
                     (first_layer, ax1, f"First Layer (Layer {first_layer})"),
@@ -3216,7 +3167,7 @@ class UnifiedResultAnalyzer:
 
             for metric_col in metric_cols:
                 try:
-                    fig, ax = plt.subplots(figsize=(max(10, len(x_positions) * 0.6), 6))
+                    _, ax = plt.subplots(figsize=(max(10, len(x_positions) * 0.6), 6))
 
                     # Optional std column
                     std_col = metric_col.replace("_mean", "_std")

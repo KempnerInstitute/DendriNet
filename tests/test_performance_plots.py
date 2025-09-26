@@ -91,7 +91,7 @@ class TestPerformancePlotter:
         valid_losses = [1.1, 0.6, 0.4]
 
         with tempfile.TemporaryDirectory() as tmp_dir:
-            fig, ax = plotter.plot_loss_curves(
+            fig, _ = plotter.plot_loss_curves(
                 train_losses,
                 valid_losses,
                 "Loss",
@@ -342,19 +342,19 @@ class TestPerformancePlotterIntegration:
 
         # Test with single data point
         single_loss = [0.5]
-        fig, ax = plotter.plot_loss_curves(single_loss, [], "Loss")
+        fig, _ = plotter.plot_loss_curves(single_loss, [], "Loss")
         assert isinstance(fig, plt.Figure)
         plt.close(fig)
 
         # Test with NaN values
         nan_losses = [1.0, 0.8, float("nan"), 0.4]
-        fig, ax = plotter.plot_loss_curves(nan_losses, [], "Loss")
+        fig, _ = plotter.plot_loss_curves(nan_losses, [], "Loss")
         assert isinstance(fig, plt.Figure)
         plt.close(fig)
 
         # Test with very large values
         large_losses = [1e6, 1e5, 1e4]
-        fig, ax = plotter.plot_loss_curves(large_losses, [], "Loss")
+        fig, _ = plotter.plot_loss_curves(large_losses, [], "Loss")
         assert isinstance(fig, plt.Figure)
         plt.close(fig)
 
@@ -381,7 +381,7 @@ class TestPerformancePlotterIntegration:
         # Create many plots and close them
         for i in range(10):
             losses = [1.0 / (i + 1), 0.5 / (i + 1)]
-            fig, ax = plotter.plot_loss_curves(losses, [], "Test")
+            fig, _ = plotter.plot_loss_curves(losses, [], "Test")
             plt.close(fig)
 
         # Test should complete without memory issues
@@ -397,7 +397,7 @@ class TestPerformancePlotterEdgeCases:
         # Test with string data - this will likely cause an error, so we'll catch it
         invalid_losses = ["1.0", "0.8", "0.6"]
         try:
-            fig, ax = plotter.plot_loss_curves(invalid_losses, [], "Loss")
+            fig, _ = plotter.plot_loss_curves(invalid_losses, [], "Loss")
             # If it doesn't error, test that it's a figure
             assert isinstance(fig, plt.Figure)
             plt.close(fig)
@@ -412,7 +412,7 @@ class TestPerformancePlotterEdgeCases:
         train_losses = [1.0, 0.8, 0.6, 0.4, 0.3]
         valid_losses = [1.2, 0.9]  # Shorter
 
-        fig, ax = plotter.plot_loss_curves(train_losses, valid_losses, "Loss")
+        fig, _ = plotter.plot_loss_curves(train_losses, valid_losses, "Loss")
         assert isinstance(fig, plt.Figure)
         plt.close(fig)
 

@@ -51,7 +51,7 @@ dependencies:
   # Code quality and formatting
   - ruff>=0.1.0
   - mypy>=1.0  # Removed upper bound to allow Python 3.11 compatibility
-  - black>=23.1
+  - black>=24.3.0  # Updated to fix PYSEC-2024-48 vulnerability
   - isort>=5.12
   - pre-commit>=3.0.0
 

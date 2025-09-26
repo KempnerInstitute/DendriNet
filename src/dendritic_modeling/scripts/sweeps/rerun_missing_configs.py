@@ -16,10 +16,8 @@ Usage:
 import argparse
 import glob
 import os
-import re
 import sys
 from datetime import datetime
-from pathlib import Path
 
 import yaml
 
@@ -113,12 +111,12 @@ def get_config_ids(configs_dir, verbose=False):
     for config_file in config_files:
         # Extract the config ID from the filename (e.g., sweep_config_42.yaml -> 42)
         filename = os.path.basename(config_file)
-        
+
         # Handle different naming patterns
         # Look for patterns like: sweep_config_42.yaml, config_42.yaml, unified_config_42.yaml
         if filename.startswith("sweep_metadata"):
             continue  # Skip metadata files
-            
+
         parts = filename.replace(".yaml", "").split("_")
         for part in reversed(parts):  # Check from the end for the ID
             try:
@@ -157,16 +155,18 @@ def check_result_for_config(
             print(f"Found config directory: {config_dir}")
 
         # Check output log for completion message
-        output_log = os.path.join(config_dir, "output.log")
+        # output_log = os.path.join(config_dir, "output.log")
+        output_log = os.path.join(config_dir, "dendritic_modeling.log")
         if os.path.exists(output_log):
             if verbose:
                 print(f"Found output log: {output_log}")
 
             # Check if log contains success message
             try:
-                with open(output_log, "r") as f:
+                with open(output_log) as f:
                     content = f.read()
-                    if "Training experiment completed successfully" in content:
+                    # if "Training experiment completed successfully" in content:
+                    if "Saved model to" in content:
                         if verbose:
                             print(
                                 f"FOUND: 'Training experiment completed successfully' in {output_log}"
@@ -249,11 +249,9 @@ def find_missing_configs(
                     )
 
     if verbose:
-        print(f"\nCompletion check summary:")
+        print("\nCompletion check summary:")
         print(f"- Total configs checked: {len(config_ids)}")
-        print(
-            f"- Completed configs: {len(completed_ids)} - {sorted(list(completed_ids))}"
-        )
+        print(f"- Completed configs: {len(completed_ids)} - {sorted(completed_ids)}")
         print(
             f"- Missing/incomplete configs: {len(missing_ids)} - {sorted(missing_ids)}"
         )
@@ -267,7 +265,7 @@ def get_base_dir_from_config(config_file, verbose=False):
         print(f"Reading base directory from config file: {config_file}")
 
     try:
-        with open(config_file, "r") as f:
+        with open(config_file) as f:
             config = yaml.safe_load(f)
 
             # Check for output_dir at top level (new unified structure)
@@ -308,22 +306,23 @@ def get_base_dir_from_config(config_file, verbose=False):
 def get_original_slurm_config(sweep_dir):
     """Get the original SLURM configuration used for this sweep."""
     # Try to find the sweep_params.yaml file (old structure)
-    sweep_params_path = os.path.join(sweep_dir, "configs", "sweep_params.yaml")
-    
+    # sweep_params_path = os.path.join(sweep_dir, "configs", "sweep_params.yaml")
+    sweep_params_path = os.path.join(sweep_dir, "original_config.yaml")
+
     # Also try sweep_metadata.yaml (new structure)
     metadata_path = os.path.join(sweep_dir, "configs", "sweep_metadata.yaml")
 
     config_file = None
-    if os.path.exists(metadata_path):
-        config_file = metadata_path
-    elif os.path.exists(sweep_params_path):
+    if os.path.exists(sweep_params_path):
         config_file = sweep_params_path
+    elif os.path.exists(metadata_path):
+        config_file = metadata_path
     else:
         print(f"Error: Could not find sweep configuration in {sweep_dir}/configs")
         return None
 
     # Load the sweep config file
-    with open(config_file, "r") as f:
+    with open(config_file) as f:
         try:
             config = yaml.safe_load(f)
             if "slurm_config" in config:
@@ -497,9 +496,9 @@ def generate_rerun_script(
     lines.extend(
         [
             "# Find the config file for this array task ID",
-            "CONFIG_FILE=$(find ${CONFIG_DIR} -name \"*_${SLURM_ARRAY_TASK_ID}.yaml\" | head -1)",
-            "if [ -z \"$CONFIG_FILE\" ]; then",
-            "    echo \"Error: Could not find config file for task ID ${SLURM_ARRAY_TASK_ID}\"",
+            'CONFIG_FILE=$(find ${CONFIG_DIR} -name "*_${SLURM_ARRAY_TASK_ID}.yaml" | head -1)',
+            'if [ -z "$CONFIG_FILE" ]; then',
+            '    echo "Error: Could not find config file for task ID ${SLURM_ARRAY_TASK_ID}"',
             "    exit 1",
             "fi",
             "",
@@ -536,10 +535,18 @@ def generate_rerun_script(
 
     # Training command
     training_script = slurm_config.get("training_script", "")
+    # if training_script.startswith("/"):
+    #     lines.append("  ${PYTHON} -u ${TRAINING_SCRIPT} ${CONFIG_FILE}")
+    # else:
+    #     lines.append("  ${PYTHON} -u $(pwd)/${TRAINING_SCRIPT} ${CONFIG_FILE}")
     if training_script.startswith("/"):
-        lines.append("  ${PYTHON} -u ${TRAINING_SCRIPT} ${CONFIG_FILE}")
+        lines.append(
+            '  ${PYTHON} -u ${TRAINING_SCRIPT} "${CONFIG_FILE}" --output_dir "${CONFIG_FOLDER_PATH}"'
+        )
     else:
-        lines.append("  ${PYTHON} -u $(pwd)/${TRAINING_SCRIPT} ${CONFIG_FILE}")
+        lines.append(
+            '  ${PYTHON} -u $(pwd)/${TRAINING_SCRIPT} "${CONFIG_FILE}" --output_dir "${CONFIG_FOLDER_PATH}"'
+        )
 
     # Finish
     lines.extend(
@@ -589,7 +596,7 @@ def main():
     else:
         # Look for unified sweep directories (adapted from ei_ to unified_)
         sweep_dir = os.path.join(base_dir, f"unified_{args.timestamp}")
-        
+
         # Fallback: also check for timestamped directories without prefix
         if not os.path.isdir(sweep_dir):
             potential_dirs = [
@@ -613,7 +620,7 @@ def main():
     results_dir = os.path.join(sweep_dir, "results")
 
     if not os.path.isdir(configs_dir) or not os.path.isdir(results_dir):
-        print(f"ERROR: Could not find configs or results directories")
+        print("ERROR: Could not find configs or results directories")
         sys.exit(1)
 
     # Find missing configurations
@@ -626,7 +633,7 @@ def main():
         force_config_ids=force_config_ids,
     )
 
-    print(f"\nSUMMARY:")
+    print("\nSUMMARY:")
     print(f"Found {len(config_ids)} total configurations")
     print(
         f"Found {len(completed_ids)} completed configurations (with successful completion messages)"

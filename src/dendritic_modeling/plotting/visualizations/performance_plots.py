@@ -160,9 +160,15 @@ class PerformancePlotter(TimeSeriesPlotter):
         perf_files = []
         if os.path.exists(performance_dir):
             for f in os.listdir(performance_dir):
-                if f.startswith("epoch") and f.replace("epoch", "").isdigit():
-                    epoch = int(f.replace("epoch", ""))
-                    perf_files.append((epoch, os.path.join(performance_dir, f)))
+                if f.startswith("epoch"):
+                    # Handle both "epoch1" and "epoch1.json" formats
+                    epoch_str = f.replace("epoch", "")
+                    if epoch_str.endswith(".json"):
+                        epoch_str = epoch_str[:-5]  # Remove .json extension
+
+                    if epoch_str.isdigit():
+                        epoch = int(epoch_str)
+                        perf_files.append((epoch, os.path.join(performance_dir, f)))
 
         if not perf_files:
             fig, ax = self._create_error_plot(
@@ -227,10 +233,9 @@ class PerformancePlotter(TimeSeriesPlotter):
             plots["error"] = (fig, ax)
             return plots
 
-        # Group metrics by type for separate plots
         metric_groups = {}
         for key in metrics_data.keys():
-            base_metric = key.split("_")[0]  # accuracy, auc, etc.
+            base_metric = key.split("_")[0]
             if base_metric not in metric_groups:
                 metric_groups[base_metric] = []
             metric_groups[base_metric].append(key)
@@ -255,18 +260,6 @@ class PerformancePlotter(TimeSeriesPlotter):
                     linewidth=2,
                     markersize=4,
                 )
-
-                # Add smoothed line if enough data
-                if len(values) > 5:
-                    smooth_values = self._smooth_data(np.array(values), window_size=3)
-                    ax.plot(
-                        epochs[1 : len(smooth_values) + 1],
-                        smooth_values,
-                        "-",
-                        color=color,
-                        linewidth=3,
-                        alpha=0.9,
-                    )
 
                 # Add pruning performance markers if available
                 if pruning_performance and final_epoch is not None:

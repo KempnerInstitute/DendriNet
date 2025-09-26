@@ -15,6 +15,7 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.ei_layer im
     ExcitationInhibitionLayer,
 )
 from dendritic_modeling.networks.architectures.excitation_inhibition.ei_network import (
+    ConfigurableEINetwork,
     ExcitationInhibitionNetwork,
 )
 from dendritic_modeling.networks.architectures.excitation_inhibition.input_transform import (
@@ -30,18 +31,19 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.synapse imp
 )
 
 __all__ = [
-    "BlockLinear"
-    "DeepstLinear"
-    "DendriNet"
-    "DendriticBranchLayer"
-    "ExcitationInhibitionLayer"
-    "ExcitationInhibitionNetwork"
-    "GradientScaler"
-    "IdentityInputTransform"
-    "IndexInputTransform"
-    "analytical_expectation_dbl_init"
-    "StochasticTopKLinear"
-    "TopKLinear"
-    "TransferLayer"
-    "VarianceTopKLinear"
+    "BlockLinear",
+    "ConfigurableEINetwork",
+    "DeepstLinear",
+    "DendriNet",
+    "DendriticBranchLayer",
+    "ExcitationInhibitionLayer",
+    "ExcitationInhibitionNetwork",
+    "GradientScaler",
+    "IdentityInputTransform",
+    "IndexInputTransform",
+    "StochasticTopKLinear",
+    "TopKLinear",
+    "TransferLayer",
+    "VarianceTopKLinear",
+    "analytical_expectation_dbl_init",
 ]

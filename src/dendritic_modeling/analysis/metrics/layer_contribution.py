@@ -6,26 +6,27 @@ model performance by testing each layer in isolation and measuring its individua
 """
 
 import logging
+import os
 from copy import deepcopy
-from typing import Optional, Callable, List
-import torch
-from torch.utils.data import TensorDataset
+from typing import Callable, Optional
+
 import matplotlib.pyplot as plt
 import numpy as np
-import os
+import torch
+from torch.utils.data import TensorDataset
 
+from dendritic_modeling.config import SingleLayerContributionAnalysisParams
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.networks import (
+    DendriticBranchLayer,
     ExcitationInhibitionNetwork,
-    DendriticBranchLayer
 )
-from dendritic_modeling.config import SingleLayerContributionAnalysisParams
 from dendritic_modeling.training.utils.evaluation import (
     evaluate_accuracy,
     evaluate_auc,
     evaluate_categorical_loglikelihood,
-    evaluate_mse,
     evaluate_cosine_similarity,
+    evaluate_mse,
 )
 from dendritic_modeling.utils import save_dict
 
@@ -56,11 +57,11 @@ class SingleLayerContributionAnalyzer:
         module_name: str,
         contribution_type: str,
         results_dict: dict,
-        state_dict: dict
+        state_dict: dict,
     ):
         results_dict[contribution_type][module_name] = {}
         results_dict[contribution_type][module_name]["depth"] = module.layer_idx
-    
+
         for mod, name in model.named_modules():
             if isinstance(mod, DendriticBranchLayer):
                 if (
@@ -70,47 +71,37 @@ class SingleLayerContributionAnalyzer:
                 ):
                     mod.branch_excitation.pre_w.data.fill_(-1000)
                     mod.branch_inhibition.pre_w.data.fill_(-1000)
-        
+
         if contribution_type == "excitation":
             module.branch_inhibition.pre_w.data.fill_(-1000)
         if contribution_type == "inhibition":
             module.branch_excitation.pre_w.data.fill_(-1000)
-        
+
         def _evaluate_metric(metric_func: Callable, metric_key: str):
-            metric_score = metric_func(
-                model, test_ds=test_dataset, move_device=False
-            )[-1]
+            metric_score = metric_func(model, test_ds=test_dataset, move_device=False)[
+                -1
+            ]
             results_dict[contribution_type][module_name][metric_key] = metric_score
 
         if self.accuracy:
-            _evaluate_metric(
-                metric_func=evaluate_accuracy,
-                metric_key="accuracy"
-            )
+            _evaluate_metric(metric_func=evaluate_accuracy, metric_key="accuracy")
         if self.auc:
-            _evaluate_metric(
-                metric_func=evaluate_auc,
-                metric_key="auc"
-            )
+            _evaluate_metric(metric_func=evaluate_auc, metric_key="auc")
         if self.categorical_ll:
             _evaluate_metric(
                 metric_func=evaluate_categorical_loglikelihood,
-                metric_key="log likelihood"
+                metric_key="log likelihood",
             )
         if self.mse:
-            _evaluate_metric(
-                metric_func=evaluate_mse,
-                metric_key="mse"
-            )
+            _evaluate_metric(metric_func=evaluate_mse, metric_key="mse")
         if self.cosine_similarity:
             _evaluate_metric(
-                metric_func=evaluate_cosine_similarity,
-                metric_key="cosine similarity"
+                metric_func=evaluate_cosine_similarity, metric_key="cosine similarity"
             )
-        
+
         model.load_state_dict(state_dict)
-        
-        return results_dict        
+
+        return results_dict
 
     def analyze(
         self,
@@ -124,9 +115,11 @@ class SingleLayerContributionAnalyzer:
         self.logger.info("Starting single layer contribution analysis...")
 
         try:
-            assert isinstance(model.core_network, ExcitationInhibitionNetwork), \
-                "Model must be an instance of ExcitationInhibitionNetwork" + \
-                "but got " + str(type(model.core_network))
+            assert isinstance(model.core_network, ExcitationInhibitionNetwork), (
+                "Model must be an instance of ExcitationInhibitionNetwork"
+                + "but got "
+                + str(type(model.core_network))
+            )
         except AssertionError as e:
             self.logger.error(e)
             return
@@ -140,7 +133,7 @@ class SingleLayerContributionAnalyzer:
         test_dataset = TensorDataset(inputs, labels)
 
         state_dict = deepcopy(model.state_dict())
-        
+
         results = {}
         if self.excitation_contribution:
             results["excitation"] = {}
@@ -148,7 +141,7 @@ class SingleLayerContributionAnalyzer:
             results["inhibition"] = {}
         if self.both_contribution:
             results["both"] = {}
-        
+
         for name, module in model.named_modules():
             if (
                 isinstance(module, DendriticBranchLayer)
@@ -163,9 +156,9 @@ class SingleLayerContributionAnalyzer:
                         module_name=name,
                         contribution_type="both",
                         results_dict=results,
-                        state_dict=state_dict
+                        state_dict=state_dict,
                     )
-                
+
                 if self.excitation_contribution:
                     results = self.evaluate_layer_contribution(
                         model=model,
@@ -174,7 +167,7 @@ class SingleLayerContributionAnalyzer:
                         module_name=name,
                         contribution_type="excitation",
                         results_dict=results,
-                        state_dict=state_dict
+                        state_dict=state_dict,
                     )
 
                 if self.inhibition_contribution:
@@ -185,46 +178,41 @@ class SingleLayerContributionAnalyzer:
                         module_name=name,
                         contribution_type="inhibition",
                         results_dict=results,
-                        state_dict=state_dict
+                        state_dict=state_dict,
                     )
-        
+
         if save_path is not None:
             save_dict(results, save_path, filename)
             plot_layer_contribution(
-                results=results,
-                save_path=save_path,
-                filename=filename
+                results=results, save_path=save_path, filename=filename
             )
         else:
             return results
 
 
-
 def plot_layer_contribution(
-    results: dict,
-    save_path: Optional[str] = None,
-    filename: str = "final"
-) -> Optional[List[plt.Figure]]:
+    results: dict, save_path: Optional[str] = None, filename: str = "final"
+) -> Optional[list[plt.Figure]]:
     """
     Plot layer ablation results showing accuracy/log-likelihood decrease vs depth.
-    
+
     Args:
         layer_results: Dictionary containing ablation results by type and layer
         save_path: Path to save plots. If None, returns list of figures
         filename: Base filename for saved plots
-        
+
     Returns:
         List of figures if save_path is None, otherwise None
     """
     if save_path is None:
         fig_list = []
-    
+
     metric_mapping = {
         "accuracy": "Accuracy",
         "auc": "AUC",
         "log likelihood": "Log Likelihood",
         "mse": "MSE",
-        "cosine similarity": "Cosine Similarity"
+        "cosine similarity": "Cosine Similarity",
     }
 
     def has_key_nested(dictionary, key):
@@ -251,7 +239,7 @@ def plot_layer_contribution(
         synapse_ablation_types.append("inhibition")
     if "both" in results:
         synapse_ablation_types.append("both")
-    
+
     for metric in metrics:
         res = {}
         for ablation_type in synapse_ablation_types:
@@ -261,7 +249,7 @@ def plot_layer_contribution(
                 data_dict["depth"].append(layer_dict["depth"])
                 data_dict["performance"].append(layer_dict[metric])
             res[ablation_type] = data_dict
-                
+
         fig, ax = plt.subplots(figsize=(10, 8))
         n_ablation_types = len(synapse_ablation_types)
         depths = res[synapse_ablation_types[0]]["depth"]
@@ -269,10 +257,7 @@ def plot_layer_contribution(
         for i, ablation_type in enumerate(synapse_ablation_types):
             x = np.array(depths) + width * (i - (n_ablation_types - 1) / 2)
             ax.bar(
-                x,
-                res[ablation_type]["performance"],
-                width=width,
-                label=ablation_type
+                x, res[ablation_type]["performance"], width=width, label=ablation_type
             )
         # Create depth labels - correct soma/distal ordering
         # Lower depth values = closer to soma, higher = more distal
@@ -284,7 +269,7 @@ def plot_layer_contribution(
                 # Calculate distal layer number based on distance from soma
                 distal_layer = depth - min(depths)
                 depth_labels.append(f"Distal {distal_layer}")
-        
+
         ax.set_xticks(depths)
         ax.set_xticklabels(depth_labels, rotation=45)
         ax.set_xlabel("Branch Depth (Soma → Distal)")
@@ -292,15 +277,13 @@ def plot_layer_contribution(
         ax.set_title(f"{metric_mapping[metric]} vs. Branch Depth")
         ax.legend()
         ax.grid(True, axis="y", alpha=0.3)
-        
+
         if save_path is not None:
-            plot_path = os.path.join(
-                save_path, f"{filename}_{metric}.png"
-            )
+            plot_path = os.path.join(save_path, f"{filename}_{metric}.png")
             fig.savefig(plot_path, dpi=300, bbox_inches="tight")
             plt.close()
         else:
             fig_list.append(fig)
-    
+
     if save_path is None:
         return fig_list

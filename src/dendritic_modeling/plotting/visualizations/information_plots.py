@@ -1111,7 +1111,7 @@ def plot_info_vs_ei_depth_per_dendritic_layer(
                                         if distal_number == 0
                                         else f"Distal Layer {distal_number}"
                                     )
-                                # Note: distal_number never 0 here; Soma is provided via synthetic_soma
+                                # distal_number never 0 here; Soma is provided via synthetic_soma
                             else:
                                 # Fallback
                                 branch_label = f"Distal Layer {branch_idx}"

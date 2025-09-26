@@ -5,11 +5,12 @@ This module implements the ExcitationInhibitionLayer which models
 excitatory and inhibitory cell populations.
 """
 
-from typing import Optional
+from typing import Any, Optional
 
 import torch
 import torch.nn as nn
 
+from dendritic_modeling.networks.architectures.classical.mlp.mlp import MLP
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.dendrinet import (
     DendriNet,
 )
@@ -26,6 +27,7 @@ class ExcitationInhibitionLayer(nn.Module):
         ee_synapses_per_branch,
         ei_synapses_per_branch,
         build_inhibitory_cells=True,
+        inhibitory_network_type="dendritic",
         inhibitory_input_dim=None,
         ie_synapses_per_branch=None,
         ii_synapses_per_branch=None,
@@ -41,6 +43,7 @@ class ExcitationInhibitionLayer(nn.Module):
         reactivation_type="param_tanh",
         topk_noise_level=0.0,
         topk_type="standard",
+        weight_transform="exp",  # Weight transformation for positive weights
         topk_strategy="none",
         print_hooks=False,
         excitatory_target_density=0.1,
@@ -55,49 +58,66 @@ class ExcitationInhibitionLayer(nn.Module):
         init_method="xavier_normal",
         weight_threshold=1e-6,
         adaptive_initialization=True,
-        weight_transform="exp",  # Weight transformation for positive weights
         **kwargs,
     ):
         super().__init__()
 
         # Only build inhibitory cells if n_inhibitory_cells is not None and build_inhibitory_cells is True
         if build_inhibitory_cells and n_inhibitory_cells is not None:
-            self.inhibitory_cells = DendriNet(
-                n_soma=n_inhibitory_cells,
-                branch_factors=inhibitory_branch_factors,
-                excitatory_input_dim=excitatory_input_dim,
-                excitatory_synapses_per_branch=ei_synapses_per_branch,
-                inhibitory_input_dim=inhibitory_input_dim,
-                inhibitory_synapses_per_branch=ii_synapses_per_branch,
-                reactivate=reactivate,
-                reactivation_init_m=reactivation_init_m,
-                reactivation_init_b=reactivation_init_b,
-                dbl_init_method=dbl_init_method,
-                somatic_synapses=somatic_synapses,
-                topk_init_method=topk_init_method,
-                use_shunting=use_shunting,
-                reactivation_type=reactivation_type,
-                reactivation_strategy=reactivation_strategy,
-                blocklinear_strategy=blocklinear_strategy,
-                topk_noise_level=topk_noise_level,
-                topk_strategy=topk_strategy,
-                topk_type=topk_type,
-                print_hooks=print_hooks,
-                excitatory_target_density=excitatory_target_density,
-                inhibitory_target_density=inhibitory_target_density,
-                use_noise=use_noise,
-                sigma=sigma,
-                rewiring_mode=rewiring_mode,
-                rewire_frequency=rewire_frequency,
-                synapses_per_branch=synapses_per_branch,
-                freeze_excitatory_connectivity=freeze_excitatory_connectivity,
-                freeze_inhibitory_connectivity=freeze_inhibitory_connectivity,
-                init_method=init_method,
-                weight_threshold=weight_threshold,
-                adaptive_initialization=adaptive_initialization,
-                weight_transform=weight_transform,
-                **kwargs,
+            assert inhibitory_network_type in ["dendritic", "mlp"], (
+                "inhibitory_network_type must be either 'dendritic' or 'mlp'."
+                + f"Got inhibitory_network_type: {inhibitory_network_type}"
             )
+            if inhibitory_network_type == "dendritic":
+                self.inhibitory_cells = DendriNet(
+                    n_soma=n_inhibitory_cells,
+                    branch_factors=inhibitory_branch_factors,
+                    excitatory_input_dim=excitatory_input_dim,
+                    excitatory_synapses_per_branch=ei_synapses_per_branch,
+                    inhibitory_input_dim=inhibitory_input_dim,
+                    inhibitory_synapses_per_branch=ii_synapses_per_branch,
+                    reactivate=reactivate,
+                    reactivation_init_m=reactivation_init_m,
+                    reactivation_init_b=reactivation_init_b,
+                    dbl_init_method=dbl_init_method,
+                    somatic_synapses=somatic_synapses,
+                    topk_init_method=topk_init_method,
+                    use_shunting=use_shunting,
+                    reactivation_type=reactivation_type,
+                    reactivation_strategy=reactivation_strategy,
+                    blocklinear_strategy=blocklinear_strategy,
+                    topk_noise_level=topk_noise_level,
+                    topk_strategy=topk_strategy,
+                    topk_type=topk_type,
+                    weight_transform=weight_transform,
+                    print_hooks=print_hooks,
+                    excitatory_target_density=excitatory_target_density,
+                    inhibitory_target_density=inhibitory_target_density,
+                    use_noise=use_noise,
+                    sigma=sigma,
+                    rewiring_mode=rewiring_mode,
+                    rewire_frequency=rewire_frequency,
+                    synapses_per_branch=synapses_per_branch,
+                    freeze_excitatory_connectivity=freeze_excitatory_connectivity,
+                    freeze_inhibitory_connectivity=freeze_inhibitory_connectivity,
+                    init_method=init_method,
+                    weight_threshold=weight_threshold,
+                    adaptive_initialization=adaptive_initialization,
+                    **kwargs,
+                )
+            elif inhibitory_network_type == "mlp":
+                inh_mlp_kwargs: dict[str, Any] = kwargs.get(
+                    "mlp_inhibitory_network_params", {}
+                )
+                inh_mlp = MLP(
+                    input_dim=excitatory_input_dim,
+                    hidden_dims=inh_mlp_kwargs.get("hidden_dims", []),
+                    activation=inh_mlp_kwargs.get("activation", "relu"),
+                    output_dim=n_inhibitory_cells,
+                )
+                nn.init.xavier_normal_(inh_mlp.layers[-1].weight)
+                nn.init.zeros_(inh_mlp.layers[-1].bias)
+                self.inhibitory_cells = nn.Sequential(inh_mlp, nn.Sigmoid())
         else:
             self.inhibitory_cells = None
 
@@ -129,6 +149,7 @@ class ExcitationInhibitionLayer(nn.Module):
             topk_noise_level=topk_noise_level,
             topk_strategy=topk_strategy,
             topk_type=topk_type,
+            weight_transform=weight_transform,
             print_hooks=print_hooks,
             excitatory_target_density=excitatory_target_density,
             inhibitory_target_density=inhibitory_target_density,
@@ -142,17 +163,20 @@ class ExcitationInhibitionLayer(nn.Module):
             init_method=init_method,
             weight_threshold=weight_threshold,
             adaptive_initialization=adaptive_initialization,
-            weight_transform=weight_transform,
             **kwargs,
         )
 
-    def decay_weights(self, weight_decay: float):
-        if self.inhibitory_cells is not None:
-            self.inhibitory_cells.decay_weights(weight_decay)
-        self.excitatory_cells.decay_weights(weight_decay)
+    def decay_weights(self, weight_decay: float, weight_boosting=False):
+        if self.inhibitory_cells is not None and hasattr(
+            self.inhibitory_cells, "decay_weights"
+        ):
+            self.inhibitory_cells.decay_weights(weight_decay, weight_boosting)
+        self.excitatory_cells.decay_weights(weight_decay, weight_boosting)
 
     def apply_rewiring(self):
-        if self.inhibitory_cells is not None:
+        if self.inhibitory_cells is not None and hasattr(
+            self.inhibitory_cells, "apply_rewiring"
+        ):
             self.inhibitory_cells.apply_rewiring()
         self.excitatory_cells.apply_rewiring()
 
@@ -167,8 +191,10 @@ class ExcitationInhibitionLayer(nn.Module):
         Returns:
             excitatory_output, inhibitory_output
         """
-        if self.inhibitory_cells is not None:
+        if isinstance(self.inhibitory_cells, DendriNet):
             inhibitory_x = self.inhibitory_cells(excitatory_x, inhibitory_x)
+        elif isinstance(self.inhibitory_cells, nn.Sequential):
+            inhibitory_x = self.inhibitory_cells(excitatory_x)
 
         excitatory_x = self.excitatory_cells(excitatory_x, inhibitory_x)
 

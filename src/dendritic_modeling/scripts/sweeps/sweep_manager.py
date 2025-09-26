@@ -63,7 +63,7 @@ class SweepManager:
     def __init__(self):
         # Use unified generator for all sweep types
         self.generator = UnifiedSweepGenerator()
-        # Note: Analysis is handled by separate result_analyzer.py to avoid circular imports
+        # Analysis is handled by separate result_analyzer.py to avoid circular imports
         self.sweep_type = "unified"  # For backward compatibility in output
 
     def generate_sweep(
@@ -72,6 +72,7 @@ class SweepManager:
         output_dir: Optional[str] = None,
         split_jobs: Optional[int] = None,
         use_array_jobs: bool = True,
+        exclude_nodes: Optional[list[str]] = None,
     ) -> dict:
         """
         Generate sweep configurations and job scripts.
@@ -93,9 +94,32 @@ class SweepManager:
         if not self.generator.validate_config(config):
             raise ValueError("Configuration validation failed")
 
-        # Create output directory
-        base_dir = output_dir or config.get("output_dir", "output")
-        sweep_output_dir = self.generator.create_output_directory(base_dir)
+        # Create output directory - check multiple possible locations
+        if output_dir:
+            base_dir = output_dir
+        else:
+            # Try different locations for output directory in priority order
+            base_dir = (
+                config.get("output_dir")  # Top-level output_dir (old format)
+                or config.get("outputs", {}).get(
+                    "dir"
+                )  # Top-level outputs.dir (new format)
+                or config.get("base_config", {})
+                .get("outputs", {})
+                .get("results_dir")  # base_config.outputs.results_dir
+                or "output"  # Default fallback
+            )
+
+        # Get run_name for directory naming
+        run_name = (
+            config.get("outputs", {}).get("run_name")
+            or config.get("base_config", {}).get("outputs", {}).get("run_name")
+            or "unified_sweep"
+        )
+
+        sweep_output_dir = self.generator.create_output_directory(
+            base_dir, prefix=run_name
+        )
         print(f"Created output directory: {sweep_output_dir}")
 
         # Generate configurations
@@ -110,6 +134,14 @@ class SweepManager:
         # Create job scripts
         print("Creating job scripts...")
         slurm_config = config.get("slurm_config", {})
+        # Add run_name to slurm_config so it can be used for job naming
+        slurm_config["run_name"] = run_name
+
+        # Override exclude_nodes from command line if provided
+        if exclude_nodes:
+            slurm_config["exclude_nodes"] = exclude_nodes
+            print(f"Excluding nodes from command line: {exclude_nodes}")
+
         job_manager = SweepJobManager(slurm_config)
         job_scripts = job_manager.create_job_scripts(
             config_paths, sweep_output_dir, split_jobs, use_array_jobs
@@ -201,7 +233,7 @@ class SweepManager:
 
         # For unified sweeps, we recommend using the separate result_analyzer.py
         # to avoid circular dependencies and provide full analysis capabilities
-        print("Note: For comprehensive analysis, use:")
+        print("For comprehensive analysis, use:")
         print(
             f"python -m src.dendritic_modeling.scripts.sweeps.result_analyzer --results-dir {results_dir} --auto-detect"
         )
@@ -224,7 +256,11 @@ class SweepManager:
         return analysis_info
 
     def run_full_sweep(
-        self, config_path: str, split_jobs: Optional[int] = None, dry_run: bool = False
+        self,
+        config_path: str,
+        split_jobs: Optional[int] = None,
+        dry_run: bool = False,
+        exclude_nodes: Optional[list[str]] = None,
     ) -> dict:
         """
         Run a complete sweep: generate configs, submit jobs.
@@ -240,7 +276,9 @@ class SweepManager:
         print("Running full sweep")
 
         # Generate sweep
-        sweep_info = self.generate_sweep(config_path, split_jobs=split_jobs)
+        sweep_info = self.generate_sweep(
+            config_path, split_jobs=split_jobs, exclude_nodes=exclude_nodes
+        )
 
         # Submit jobs
         if not dry_run:
@@ -308,6 +346,11 @@ Examples:
         "--output-dir",
         help="Output directory for sweep (auto-generated if not specified)",
     )
+    parser.add_argument(
+        "--exclude-nodes",
+        nargs="+",
+        help="List of nodes to exclude from job scheduling (e.g., --exclude-nodes node1 node2)",
+    )
 
     # Options for analysis
     parser.add_argument(
@@ -342,7 +385,10 @@ def main():
             if args.generate_only:
                 # Generate only
                 sweep_info = manager.generate_sweep(
-                    args.config, output_dir=args.output_dir, split_jobs=args.split_jobs
+                    args.config,
+                    output_dir=args.output_dir,
+                    split_jobs=args.split_jobs,
+                    exclude_nodes=args.exclude_nodes,
                 )
 
                 print("\nTo submit jobs, run:")
@@ -351,7 +397,10 @@ def main():
             else:
                 # Default behavior: generate and submit (--run is now default)
                 manager.run_full_sweep(
-                    args.config, split_jobs=args.split_jobs, dry_run=args.dry_run
+                    args.config,
+                    split_jobs=args.split_jobs,
+                    dry_run=args.dry_run,
+                    exclude_nodes=args.exclude_nodes,
                 )
 
     except Exception as e:

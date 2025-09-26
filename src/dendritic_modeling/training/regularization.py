@@ -14,6 +14,7 @@ import torch
 import torch.nn as nn
 
 from dendritic_modeling.config.training import PruningConfig, RegularizationConfig
+from dendritic_modeling.training.loss.functions import EIWeightRatioLoss
 
 
 class RegularizationManager:
@@ -26,22 +27,25 @@ class RegularizationManager:
         self.selective = config.selective
         self.split_params = config.split_params
         self.param_group_weights = config.param_group_weights
-        
+
         # E/I Weight Ratio Regularization
-        self.enforce_ei_weight_ratio = getattr(config, 'enforce_ei_weight_ratio', False)
+        self.enforce_ei_weight_ratio = getattr(config, "enforce_ei_weight_ratio", False)
         if self.enforce_ei_weight_ratio:
-            from dendritic_modeling.training.loss.functions import EIWeightRatioLoss
             self.ei_ratio_loss = EIWeightRatioLoss(
-                target_ratio=getattr(config, 'target_ei_weight_ratio', 1.5),
-                loss_weight=getattr(config, 'ei_ratio_loss_weight', 0.1),
-                scope=getattr(config, 'ei_ratio_scope', 'per_branch'),
-                metric=getattr(config, 'ei_ratio_metric', 'mean'),
+                target_ratio=getattr(config, "target_ei_weight_ratio", 1.5),
+                loss_weight=getattr(config, "ei_ratio_loss_weight", 0.1),
+                scope=getattr(config, "ei_ratio_scope", "per_branch"),
+                metric=getattr(config, "ei_ratio_metric", "mean"),
             )
         else:
             self.ei_ratio_loss = None
 
     def compute_regularization_loss(
-        self, model: nn.Module, x: Optional[torch.Tensor] = None, y: Optional[torch.Tensor] = None, param_groups: Optional[list] = None
+        self,
+        model: nn.Module,
+        x: Optional[torch.Tensor] = None,
+        y: Optional[torch.Tensor] = None,
+        param_groups: Optional[list] = None,
     ) -> torch.Tensor:
         """
         Compute all regularization losses based on configuration.
@@ -70,7 +74,10 @@ class RegularizationManager:
         return total_reg_loss
 
     def _compute_l1_l2_regularization(
-        self, model: nn.Module, param_groups: Optional[list] = None, device: Optional[torch.device] = None
+        self,
+        model: nn.Module,
+        param_groups: Optional[list] = None,
+        device: Optional[torch.device] = None,
     ) -> torch.Tensor:
         """
         Compute L1/L2 regularization loss.
@@ -85,7 +92,7 @@ class RegularizationManager:
         """
         if device is None:
             device = next(model.parameters()).device
-        
+
         l1_l2_loss = torch.tensor(0.0, device=device)
 
         # If split_params is enabled and parameter group weights are specified and param_groups are provided
@@ -250,9 +257,9 @@ class PruningManager:
                         "pruned": 0,
                     }
 
-                pruning_stats["layer_stats"][layer_key][
-                    "total_before"
-                ] += original_count
+                pruning_stats["layer_stats"][layer_key]["total_before"] += (
+                    original_count
+                )
                 pruning_stats["layer_stats"][layer_key]["remaining"] += remaining_count
                 pruning_stats["layer_stats"][layer_key]["pruned"] += pruned_count
 
@@ -266,12 +273,12 @@ class PruningManager:
                             "pruned": 0,
                         }
 
-                    pruning_stats["branch_stats"][branch_name][
-                        "total_before"
-                    ] += original_count
-                    pruning_stats["branch_stats"][branch_name][
-                        "remaining"
-                    ] += remaining_count
+                    pruning_stats["branch_stats"][branch_name]["total_before"] += (
+                        original_count
+                    )
+                    pruning_stats["branch_stats"][branch_name]["remaining"] += (
+                        remaining_count
+                    )
                     pruning_stats["branch_stats"][branch_name]["pruned"] += pruned_count
 
                 # Weight type statistics
@@ -283,15 +290,15 @@ class PruningManager:
                         "pruned": 0,
                     }
 
-                pruning_stats["weight_type_stats"][weight_type][
-                    "total_before"
-                ] += original_count
-                pruning_stats["weight_type_stats"][weight_type][
-                    "remaining"
-                ] += remaining_count
-                pruning_stats["weight_type_stats"][weight_type][
-                    "pruned"
-                ] += pruned_count
+                pruning_stats["weight_type_stats"][weight_type]["total_before"] += (
+                    original_count
+                )
+                pruning_stats["weight_type_stats"][weight_type]["remaining"] += (
+                    remaining_count
+                )
+                pruning_stats["weight_type_stats"][weight_type]["pruned"] += (
+                    pruned_count
+                )
 
                 pruning_stats["total_params_after"] += remaining_count
                 pruning_stats["pruned_params"] += pruned_count

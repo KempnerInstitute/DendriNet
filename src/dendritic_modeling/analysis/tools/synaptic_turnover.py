@@ -15,10 +15,10 @@ from dendritic_modeling.networks import (
     DendriticBranchLayer,
     ExcitationInhibitionNetwork,
 )
-from dendritic_modeling.utils import save_dict
 from dendritic_modeling.plotting.visualizations.general_analysis_plots import (
-    plot_synapse_turnover
+    plot_synapse_turnover,
 )
+from dendritic_modeling.utils import save_dict
 
 logger = logging.getLogger(__name__)
 
@@ -32,16 +32,15 @@ class SynapticTurnoverAnalyzer:
     excitatory and inhibitory connections.
     """
 
-    def __init__(self, model: BaseModel, snapshot_interval: int = 1):
+    def __init__(self, model: BaseModel, params):
         """
         Initialize the synaptic turnover analyzer.
 
         Args:
             model: The model to analyze (must have ExcitationInhibitionNetwork)
-            snapshot_interval: Collect snapshots every N epochs (default=1 for every epoch)
+            params: Parameters object containing snapshot_interval, synaptic_analysis, save_synaptic_report
 
-        Note:
-            This automatically takes an initial snapshot of the model's synaptic masks.
+        This automatically takes an initial snapshot of the model's synaptic masks.
         """
         assert isinstance(model.core_network, ExcitationInhibitionNetwork), (
             "model.core_network must be an instance of ExcitationInhibitionNetwork. "
@@ -49,8 +48,12 @@ class SynapticTurnoverAnalyzer:
         )
 
         self.data_dict_list = []
-        self.snapshot_interval = snapshot_interval
+        self.snapshot_interval = params.snapshot_interval
         self.epoch_counter = 0
+
+        # Store additional params for potential future use
+        self.synaptic_analysis = getattr(params, "synaptic_analysis", True)
+        self.save_synaptic_report = getattr(params, "save_synaptic_report", True)
 
         # Store synapse configuration for layer-wise analysis
         self.synapse_config = {
@@ -87,7 +90,7 @@ class SynapticTurnoverAnalyzer:
         )
 
         # Estimate average synapses per layer for each type
-        # Note: This is an approximation since we don't have exact layer-wise breakdowns
+        # This is an approximation since we don't have exact layer-wise breakdowns
         # from the mask data. We use the configuration ratios as a guide.
         total_ee_config = sum(ee_config) if ee_config else 0
         total_ei_config = sum(ei_config) if ei_config else 0
@@ -408,7 +411,7 @@ class SynapticTurnoverAnalyzer:
 
             if save_path is not None:
                 save_dict(turnover_dict, save_path, filename)
-                
+
                 # Generate turnover plots
                 self._plot_turnover_results(turnover_dict, save_path, filename)
             else:

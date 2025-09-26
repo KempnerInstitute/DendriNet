@@ -14,7 +14,7 @@ from typing import Optional
 import torch
 import torch.utils.data
 import wandb
-from torch.cuda.amp import autocast
+from torch.cuda.amp import GradScaler, autocast
 from torch.nn.utils import clip_grad_value_
 from torch.utils.data import DataLoader
 
@@ -23,10 +23,10 @@ from dendritic_modeling.config.training import (
     RegularizationConfig,
     ReportingConfig,
 )
-from dendritic_modeling.training.regularization import RegularizationManager
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.plotting import plot_loss_curves
 from dendritic_modeling.training.loss.functions import LossFunction, get_loss_function
+from dendritic_modeling.training.regularization import RegularizationManager
 
 logger = logging.getLogger(__name__)
 
@@ -77,18 +77,22 @@ class Trainer:
         self.regularization_config = regularization_config or RegularizationConfig()
         self.pruning_config = pruning_config or PruningConfig()
         self.reporting_config = reporting_config or ReportingConfig()
-        
+
         # Initialize RegularizationManager
         self.regularization_manager = RegularizationManager(self.regularization_config)
-        
+
         # Log regularization settings
-        if self.regularization_config.l1_weight > 0 or self.regularization_config.l2_weight > 0:
-            logger.info(f"L1/L2 regularization enabled: l1_weight={self.regularization_config.l1_weight}, l2_weight={self.regularization_config.l2_weight}")
+        if (
+            self.regularization_config.l1_weight > 0
+            or self.regularization_config.l2_weight > 0
+        ):
+            logger.info(
+                f"L1/L2 regularization enabled: l1_weight={self.regularization_config.l1_weight}, l2_weight={self.regularization_config.l2_weight}"
+            )
         if self.regularization_config.enforce_ei_weight_ratio:
-            logger.info(f"E/I weight ratio regularization enabled: target_ratio={self.regularization_config.target_ei_weight_ratio}, loss_weight={self.regularization_config.ei_ratio_loss_weight}")
-        if (self.regularization_config.l1_weight <= 0 and self.regularization_config.l2_weight <= 0 and 
-            not self.regularization_config.enforce_ei_weight_ratio):
-            logger.info("No regularization enabled - zero computational overhead")
+            logger.info(
+                f"E/I weight ratio regularization enabled: target_ratio={self.regularization_config.target_ei_weight_ratio}, loss_weight={self.regularization_config.ei_ratio_loss_weight}"
+            )
 
         # Performance optimization flags (disabled by default for speed)
         self.enable_nan_checking = kwargs.get("enable_nan_checking", False)
@@ -97,8 +101,6 @@ class Trainer:
         self.enable_amp = kwargs.get("enable_amp", torch.cuda.is_available())
         if self.enable_amp and torch.cuda.is_available():
             try:
-                from torch.cuda.amp import GradScaler
-
                 self.scaler = GradScaler()
                 logger.info("Mixed precision training enabled")
             except ImportError:
@@ -157,10 +159,49 @@ class Trainer:
     def _dataloaders(
         self, train_data: torch.utils.data.Dataset, valid_data: torch.utils.data.Dataset
     ) -> tuple[DataLoader, DataLoader]:
+        # Determine number of workers automatically or use override
+        if hasattr(self, "num_workers") and self.num_workers is not None:
+            num_workers = self.num_workers
+        else:
+            # Automatically determine optimal number of workers
+            import multiprocessing
+
+            cpu_count = multiprocessing.cpu_count()
+
+            if torch.cuda.is_available():
+                # On GPU systems, use a reasonable fraction of CPUs
+                # Rule of thumb: 4 workers per GPU is often good, but cap at CPU count
+                num_workers = min(8, cpu_count)
+            else:
+                # On CPU-only systems, leave one core free for main process
+                num_workers = max(0, cpu_count - 1)
+
+            # Log the auto-detected value
+            if not self.suppress_prints:
+                logger.info(
+                    f"Auto-detected num_workers={num_workers} (available CPUs: {cpu_count})"
+                )
+
+        # Check if we should use pinned memory and persistent workers
+        use_pin_memory = torch.cuda.is_available() and num_workers > 0
+        use_persistent = num_workers > 0
+
         train_loader = DataLoader(
-            train_data, batch_size=self.batch_size, shuffle=self.shuffle
+            train_data,
+            batch_size=self.batch_size,
+            shuffle=self.shuffle,
+            num_workers=num_workers,
+            pin_memory=use_pin_memory,
+            persistent_workers=use_persistent,
         )
-        valid_loader = DataLoader(valid_data, batch_size=self.batch_size, shuffle=False)
+        valid_loader = DataLoader(
+            valid_data,
+            batch_size=self.batch_size,
+            shuffle=False,
+            num_workers=num_workers,
+            pin_memory=use_pin_memory,
+            persistent_workers=use_persistent,
+        )
         return train_loader, valid_loader
 
     def _initialize_attributes(self, model: BaseModel, total_epochs: int) -> None:
@@ -291,7 +332,9 @@ class Trainer:
                     loss = self.loss_function(model, x_batch, y_batch)
 
                     # Add all regularization losses
-                    reg_loss = self.regularization_manager.compute_regularization_loss(model, x_batch, y_batch)
+                    reg_loss = self.regularization_manager.compute_regularization_loss(
+                        model, x_batch, y_batch
+                    )
                     loss = loss + reg_loss
 
                 self.optimizer.zero_grad()
@@ -321,7 +364,9 @@ class Trainer:
                 loss: torch.Tensor = self.loss_function(model, x_batch, y_batch)
 
                 # Add all regularization losses
-                reg_loss = self.regularization_manager.compute_regularization_loss(model, x_batch, y_batch)
+                reg_loss = self.regularization_manager.compute_regularization_loss(
+                    model, x_batch, y_batch
+                )
                 loss = loss + reg_loss
 
                 self.optimizer.zero_grad()
@@ -391,7 +436,7 @@ class Trainer:
 
     def _analyze(self):
         if self.analysis_manager is not None:
-            # Conditional import to avoid circular dependency
+            # Lazy import to avoid circular dependency
             from dendritic_modeling.analysis import AnalysisManager
 
             if isinstance(self.analysis_manager, AnalysisManager):

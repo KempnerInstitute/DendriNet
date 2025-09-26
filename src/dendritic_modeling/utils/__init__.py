@@ -58,7 +58,7 @@ __all__ = [
     "validate_model_architecture",
     "validate_training_only",
     "validate_training_stability",
-    # Note: Backward compatibility imports commented out due to circular imports
+    # Backward compatibility imports commented out due to circular imports
     # "accuracy_score",
     # "split_MNIST_inputs",
     # "load_MNIST_modulo10"

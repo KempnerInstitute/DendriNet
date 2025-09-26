@@ -17,6 +17,7 @@ from dendritic_modeling.analysis.core.base import AbstractAnalyzer
 from dendritic_modeling.config import WeightAnalysisParams
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.networks import (
+    DendriNet,
     DendriticBranchLayer,
     ExcitationInhibitionNetwork,
 )
@@ -220,20 +221,7 @@ class WeightAnalyzer(AbstractAnalyzer):
                     and self.analyze_branch_output
                     and hasattr(module, "branches_to_output")
                 ):
-                    # Use the appropriate weight transformation
-                    if hasattr(module.branches_to_output, "weight_transform"):
-                        from dendritic_modeling.networks.utils.weight_transforms import (
-                            apply_weight_transform,
-                        )
-
-                        branch_w = apply_weight_transform(
-                            module.branches_to_output.log_weight,
-                            module.branches_to_output.weight_transform,
-                        ).flatten()
-                    else:
-                        # Fallback to exp for backward compatibility
-                        branch_w = module.branches_to_output.log_weight.exp().flatten()
-                    branch_w = branch_w.cpu()
+                    branch_w = module.branches_to_output.weight().cpu()
                     branch_weights.append(branch_w)
 
         global_stats = {}
@@ -315,7 +303,7 @@ class WeightAnalyzer(AbstractAnalyzer):
                         )
 
             # Include inhibitory DendriNet branch layers as well (for fuller coverage)
-            if in_dn is not None:
+            if isinstance(in_dn, DendriNet):
                 for depth_idx, branch_layer in enumerate(in_dn.branch_layers):
                     layer_idx_attr = getattr(branch_layer, "layer_idx", depth_idx)
                     stats_dict = self._compute_branch_weight_statistics(
@@ -537,7 +525,7 @@ class WeightAnalyzer(AbstractAnalyzer):
 
             # Helper to process a DendriNet's branch layers
             def process_dn(dn):
-                if dn is None:
+                if not isinstance(dn, DendriNet):
                     return
                 for branch_layer in dn.branch_layers:
                     layer_idx_attr = getattr(branch_layer, "layer_idx", None)
@@ -713,7 +701,7 @@ class WeightAnalyzer(AbstractAnalyzer):
             colors = get_color_scheme()
 
             # Create 2-panel plot for enhanced statistics
-            fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+            _, axes = plt.subplots(1, 2, figsize=(12, 5))
 
             # Collect data
             depths = []
@@ -810,7 +798,7 @@ class WeightAnalyzer(AbstractAnalyzer):
             import matplotlib.pyplot as plt
 
             # Create histogram plots for global distributions
-            fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+            _, axes = plt.subplots(1, 3, figsize=(15, 5))
 
             weight_types = [
                 "excitatory_weights",

@@ -19,7 +19,7 @@ Usage:
 Options:
     --device: Device to use (cuda or cpu)
     --wandb: Enable W&B logging
-    --save_model: Save the trained model
+    --save_model: Save the trained model (deprecated)
     --save_results: Save training results
     --run_analysis: Run post-training analysis
 """
@@ -36,40 +36,29 @@ os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"  # Disable oneDNN optimizations warnin
 
 # Core imports
 import argparse
-import warnings
+import logging
 from dataclasses import asdict
 
-# Optional imports (with fallbacks)
-try:
-    import torchinfo
-
-    TORCHINFO_AVAILABLE = True
-except ImportError:
-    TORCHINFO_AVAILABLE = False
-    warnings.warn(
-        "torchinfo not available. Model summary will be skipped.", stacklevel=2
-    )
-
-
-import logging
-
 import torch
+
+# External imports
+import torchinfo
 import wandb
-from omegaconf import OmegaConf
 
 from dendritic_modeling.analysis import AnalysisManager
 from dendritic_modeling.config import load_config
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.networks import Identity
-from dendritic_modeling.scripts.script_utils.setup_utils import (
-    save_model,
-    setup_environment,
+from dendritic_modeling.plotting.visualizations.performance_plots import (
+    PerformancePlotter,
 )
+from dendritic_modeling.scripts.script_utils.config_utils import prepare_trainer_config
+from dendritic_modeling.scripts.script_utils.setup_utils import setup_environment
 from dendritic_modeling.scripts.training.train_encoder_network import (
     load_train_encoder_network,
 )
 from dendritic_modeling.training import CustomWeightDecayOptimizer, get_trainer
-from dendritic_modeling.utils import save_dict, validate_full_config
+from dendritic_modeling.utils import save_dict
 from dendritic_modeling.utils.training_stability_validator import (
     apply_automatic_safeguards,
     suggest_optimal_config_for_model_size,
@@ -88,6 +77,7 @@ def run_analysis(
     analysis_manager: AnalysisManager | None = None,
     training: bool = False,
     training_results: dict | None = None,
+    training_config=None,
 ):
     """Run analysis using the AnalysisManager."""
     logger.info("Running analyses...")
@@ -100,31 +90,36 @@ def run_analysis(
             analysis_manager.set_pruning_results(training_results)
 
         analysis_manager.run_analysis(filename="final", training=training)
-        
+
         # Generate performance evolution plots if this is final analysis and training tracking was enabled
         if not training and analysis_manager.config.performance_analysis.training:
             performance_dir = os.path.join(run_save_path, "performance", "epochs")
-            logger.info(f"Checking for performance evolution data in: {performance_dir}")
+            logger.info(
+                f"Checking for performance evolution data in: {performance_dir}"
+            )
             if os.path.exists(performance_dir):
-                logger.info("Performance directory exists. Generating performance evolution plots...")
+                logger.info(
+                    "Performance directory exists. Generating performance evolution plots..."
+                )
                 try:
-                    from dendritic_modeling.plotting.visualizations.performance_plots import PerformancePlotter
-                    
                     # Get final epoch from training config if available
                     final_epoch = None
                     if (
-                        hasattr(analysis_manager, 'train_config')
-                        and analysis_manager.train_config
-                        and hasattr(analysis_manager.train_config, "main")
-                        and hasattr(analysis_manager.train_config.main, "trainer")
-                        and hasattr(analysis_manager.train_config.main.trainer, "epochs")
+                        training_config is not None
+                        and hasattr(training_config, "main")
+                        and hasattr(training_config.main, "common")
+                        and hasattr(training_config.main.common, "epochs")
                     ):
-                        final_epoch = analysis_manager.train_config.main.trainer.epochs
-                    
+                        final_epoch = training_config.main.common.epochs
+
                     # Get pruning results if available
-                    pruning_performance = getattr(analysis_manager, 'pruning_results', None)
-                    logger.info(f"Pruning results available: {pruning_performance is not None}")
-                    
+                    pruning_performance = getattr(
+                        analysis_manager, "pruning_results", None
+                    )
+                    logger.info(
+                        f"Pruning results available: {pruning_performance is not None}"
+                    )
+
                     plotter = PerformancePlotter()
                     plotter.plot_performance_evolution(
                         performance_dir=performance_dir,
@@ -136,10 +131,13 @@ def run_analysis(
                 except Exception as e:
                     logger.error(f"Failed to generate performance evolution plots: {e}")
                     import traceback
+
                     logger.error(traceback.format_exc())
             else:
-                logger.warning(f"Performance directory does not exist: {performance_dir}")
-        
+                logger.warning(
+                    f"Performance directory does not exist: {performance_dir}"
+                )
+
         logger.info("Analysis completed")
 
 
@@ -147,20 +145,7 @@ def main(config_path: str, args=None):
     config = load_config(config_path)
     logger.info(f"Loaded configuration from {config_path}")
 
-    # Validate configuration before proceeding
     logger.info("Validating configuration...")
-
-    # Convert config to dict for validation
-    config_dict = asdict(config) if hasattr(config, "__dataclass_fields__") else config
-
-    if not validate_full_config(config_dict, strict=False):
-        logger.error("Configuration validation failed. Please fix the errors above.")
-        raise ValueError("Invalid configuration")
-
-    logger.info("Configuration validation passed")
-
-    # Apply configuration safeguards and warnings
-    logger.info("Applying configuration safeguards...")
     validation_passed = validate_training_stability(config)
     if not validation_passed:
         logger.error(
@@ -168,69 +153,59 @@ def main(config_path: str, args=None):
         )
         raise ValueError("Invalid configuration - critical errors detected")
 
-    # Apply automatic safeguards
     apply_automatic_safeguards(config)
     logger.info("Configuration safeguards applied")
 
     if args:
         if args.learning_strategy:
-            config.train.learning_strategy = args.learning_strategy
+            config.training.main.strategy = args.learning_strategy
             logger.info(f"Override learning strategy: {args.learning_strategy}")
         if args.output_dir:
-            # Override run_config.dir if it exists, otherwise create run_config
-            if hasattr(config, "run_config") and config.run_config:
-                config.run_config.dir = args.output_dir
-            else:
-                # For backwards compatibility, still update outputs.dir if run_config doesn't exist
-                config.outputs.dir = args.output_dir
+            config.outputs.results_dir = args.output_dir
             logger.info(f"Override output directory: {args.output_dir}")
         if args.run_name:
             config.outputs.run_name = args.run_name
             logger.info(f"Override run name: {args.run_name}")
 
+    # Extract config sections
+    experiment_config = config.experiment
+    data_config = config.data
     model_config = config.model
-    train_config = config.train
-    task_config = config.task
-    wandb_config = config.wandb
+    training_config = config.training
     analysis_config = config.analysis
+    wandb_config = config.wandb
     outputs_config = config.outputs
-    run_config = getattr(config, "run_config", None)
-
-    # EI config validation removed - let model initialization handle validation
 
     (run_save_path, train_ds, valid_ds, test_ds, model, encoder_network) = (
         setup_environment(
             model_config=model_config,
-            train_config=train_config,
-            task_config=task_config,
+            training_config=training_config,
+            data_config=data_config,
             wandb_config=wandb_config,
             outputs_config=outputs_config,
-            run_config=run_config,
+            experiment_config=experiment_config,
         )
     )
 
     logger.info("Network architecture summary before training:")
     try:
         sample_input: torch.Tensor = train_ds[0][0]
-        if TORCHINFO_AVAILABLE:
-            summary = torchinfo.summary(
-                model,
-                input_size=(100, *sample_input.shape),
-                col_names=["input_size", "output_size", "num_params"],
-                col_width=25,
-                row_settings=["depth"],
-                depth=7,
+        summary = torchinfo.summary(
+            model,
+            input_size=(100, *sample_input.shape),
+            col_names=["input_size", "output_size", "num_params"],
+            col_width=25,
+            row_settings=["depth"],
+            depth=7,
+        )
+        logger.info("Model summary generated (see console output)")
+        if wandb.run:
+            wandb.log(
+                {
+                    "total_params": summary.total_params,
+                    "trainable_params": summary.trainable_params,
+                }
             )
-            logger.info("Model summary generated (see console output)")
-            if wandb.run:
-                wandb.log(
-                    {
-                        "total_params": summary.total_params,
-                        "trainable_params": summary.trainable_params,
-                    }
-                )
-        else:
-            logger.warning("torchinfo is not available. Model summary not generated.")
     except Exception as e:
         logger.error(f"Failed to generate model summary before training: {e}")
 
@@ -239,12 +214,12 @@ def main(config_path: str, args=None):
     (encoder_network, encoded_train_ds, encoded_valid_ds, encoded_test_ds) = (
         load_train_encoder_network(
             encoder_network=encoder_network,
-            encoder_train_config=train_config.encoder,
+            encoder_train_config=training_config.encoder,
             train_ds=train_ds,
             valid_ds=valid_ds,
             test_ds=test_ds,
-            encoder_network_config=model_config.encoder_network,
-            task_config=task_config,
+            encoder_network_config=model_config.encoder,
+            task_config=data_config,
         )
     )
 
@@ -259,7 +234,6 @@ def main(config_path: str, args=None):
         analysis_config=analysis_config,
         save_root=run_save_path,
         device="cuda" if torch.cuda.is_available() else "cpu",
-        train_config=train_config,
     )
 
     # Fix for Identity encoder
@@ -271,86 +245,43 @@ def main(config_path: str, args=None):
     main_net_save_path = os.path.join(run_save_path, "main_network")
     os.makedirs(main_net_save_path, exist_ok=True)
 
-    # Use 245MR-compatible structure with advanced features preserved
-    main_train_config = train_config.main
-    main_train_config.trainer.save_path = main_net_save_path
-    main_trainer_config_dict = OmegaConf.to_container(
-        main_train_config.trainer, resolve=True
+    # Get main training config
+    main_train_config = training_config.main
+
+    # Prepare trainer configuration
+    main_trainer_config_dict = prepare_trainer_config(
+        main_train_config=main_train_config,
+        experiment_config=experiment_config,
+        save_path=main_net_save_path,
     )
-
-    # Add all advanced configuration features from 294 branch
-    # Parameter groups (always present in 245MR-style)
-    main_trainer_config_dict["param_groups"] = OmegaConf.to_container(
-        main_train_config.param_groups, resolve=True
-    )
-
-    # Advanced 294 features added to the main config
-    if hasattr(main_train_config, "regularization"):
-        main_trainer_config_dict["regularization"] = OmegaConf.to_container(
-            main_train_config.regularization, resolve=True
-        )
-
-    if hasattr(main_train_config, "pruning"):
-        main_trainer_config_dict["pruning"] = OmegaConf.to_container(
-            main_train_config.pruning, resolve=True
-        )
-
-    if hasattr(main_train_config, "reporting"):
-        main_trainer_config_dict["reporting"] = OmegaConf.to_container(
-            main_train_config.reporting, resolve=True
-        )
-
-    if hasattr(main_train_config, "optimizer"):
-        main_trainer_config_dict["optimizer"] = OmegaConf.to_container(
-            main_train_config.optimizer, resolve=True
-        )
-
-    # Add advanced 294 features from train config if present
-    if hasattr(train_config, "checkpointing") and train_config.checkpointing.get(
-        "enabled", False
-    ):
-        save_every_n_epochs = train_config.checkpointing.get("save_every_n_epochs")
-        if save_every_n_epochs is not None:
-            main_trainer_config_dict["save_every_n_epochs"] = save_every_n_epochs
-            main_trainer_config_dict["checkpoint_dir"] = run_save_path
-
-    # Add profiling configuration if specified
-    enable_profiling = getattr(train_config, "enable_profiling", False)
-    if enable_profiling:
-        main_trainer_config_dict["enable_profiling"] = True
-        main_trainer_config_dict["profiling_output_dir"] = os.path.join(
-            run_save_path, "profiling"
-        )
-        logger.info("Profiling enabled for this training run")
-
-    # Add AMP configuration
-    enable_amp = getattr(train_config, "enable_amp", False)
-    main_trainer_config_dict["enable_amp"] = enable_amp
-
-    # Add hooks configuration
-    enable_hooks = getattr(train_config, "enable_hooks", True)
-    main_trainer_config_dict["enable_hooks"] = enable_hooks
 
     optimizer = CustomWeightDecayOptimizer(
         model=model,
         optimizer=torch.optim.Adam(
-            model.get_param_groups(main_train_config.param_groups)
+            model.get_param_groups(main_train_config.common.param_groups)
         ),
-        weight_decay=main_train_config.weight_decay_rate,
+        weight_decay=main_train_config.common.weight_decay_rate,
+        weight_boosting=getattr(main_train_config, "weight_boosting", False),
     )
 
-    # Store original pruning config and temporarily disable it for initial training
     original_pruning_config = main_trainer_config_dict.get("pruning", {})
-    main_trainer_config_dict["pruning"] = (
-        {}
-    )  # Temporarily disable pruning for initial training
+    main_trainer_config_dict["pruning"] = {}
+
+    # Check if using multi-stage training
+    if main_train_config.strategy == "multi_stage":
+        if "multi_stage_config" not in main_trainer_config_dict:
+            raise ValueError(
+                "Learning strategy is 'multi_stage' but no 'multi_stage_config' found"
+            )
+        logger.info("Using multi-stage training strategy")
 
     main_trainer = get_trainer(
-        strategy=main_train_config.learning_strategy,
+        strategy=main_train_config.strategy,
         optimizer=optimizer,
         trainer_config_dict=main_trainer_config_dict,
         analysis_manager=analysis_manager,
     )
+
     training_results = main_trainer.train(
         model=model, train_data=encoded_train_ds, valid_data=encoded_valid_ds
     )
@@ -362,23 +293,18 @@ def main(config_path: str, args=None):
         wandb.log({"nparams": nparams})
     save_dict({"nparams": nparams}, run_save_path, "nparams")
 
-    # Provide configuration suggestions based on model size
     suggestions = suggest_optimal_config_for_model_size(nparams)
     if suggestions:
         logger.info(
             f"=== MODEL SIZE RECOMMENDATIONS (Model has {nparams:,} parameters) ==="
         )
         for key, value in suggestions.items():
-            current_value = (
-                getattr(config.train, key, "Not set")
-                if hasattr(config.train, key)
-                else "Not available"
-            )
+            current_value = getattr(config.training, key, "Not available")
             if current_value != value:
                 logger.info(f"  Consider: {key} = {value} (current: {current_value})")
         logger.info("=" * 50)
 
-    # Only run analysis if any analysis is enabled (excluding training-only analysis)
+    # Run analysis if enabled
     any_analysis_enabled = any(
         [
             analysis_config.performance_analysis.enabled,
@@ -395,9 +321,7 @@ def main(config_path: str, args=None):
         ]
     )
 
-    # Run original analysis BEFORE pruning
-    if any_analysis_enabled:
-        logger.info("Running original analysis before pruning...")
+    if any_analysis_enabled and main_train_config.strategy != "multi_stage":
         run_analysis(
             model=model,
             train_ds=train_ds,
@@ -405,11 +329,30 @@ def main(config_path: str, args=None):
             test_ds=test_ds,
             run_save_path=run_save_path,
             analysis_manager=analysis_manager,
-            training=False,  # Final analysis, not during training
+            training_config=training_config,
+            training=False,
         )
-        logger.info("Original analysis completed")
-    else:
-        logger.info("No analysis enabled - skipping original analysis")
+    elif main_train_config.strategy == "multi_stage":
+        if analysis_config.performance_analysis.training:
+            performance_dir = os.path.join(run_save_path, "performance", "epochs")
+            if os.path.exists(performance_dir):
+                try:
+                    total_epochs = sum(
+                        stage.get("epochs", main_train_config.common.epochs)
+                        for stage in main_train_config.strategies.multi_stage.stages
+                    )
+
+                    plotter = PerformancePlotter()
+                    plotter.plot_performance_evolution(
+                        performance_dir=performance_dir,
+                        save_path=os.path.join(run_save_path, "performance"),
+                        pruning_performance=getattr(
+                            analysis_manager, "pruning_results", None
+                        ),
+                        final_epoch=total_epochs,
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to generate performance plots: {e}")
 
     # Now apply pruning if enabled (separate step)
     if original_pruning_config and original_pruning_config.get("enabled", False):
@@ -421,7 +364,7 @@ def main(config_path: str, args=None):
         )
 
         pruning_trainer = get_trainer(
-            strategy=main_train_config.learning_strategy,
+            strategy=main_train_config.strategy,
             optimizer=optimizer,
             trainer_config_dict=main_trainer_config_dict,
             analysis_manager=analysis_manager,
@@ -442,7 +385,7 @@ def main(config_path: str, args=None):
         model.encoder_network = encoder_network
     else:
         model.encoder_network = encoder_network.encoder
-    save_model(model, run_save_path, "final_model.pt")
+    torch.save(model.state_dict(), os.path.join(run_save_path, "final_model.pt"))
 
     if (
         hasattr(wandb_config, "use_wandb")

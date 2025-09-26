@@ -12,43 +12,25 @@ import glob
 import itertools
 import json
 import os
+import sys
 from copy import deepcopy
+from pathlib import Path
 from typing import Any
 
 import matplotlib.pyplot as plt
 import pandas as pd
-
-try:
-    import seaborn as sns
-except AttributeError:
-    # Handle seaborn version compatibility issue
-    import matplotlib
-
-    if hasattr(matplotlib.cm, "register_cmap"):
-        import seaborn as sns
-    else:
-        matplotlib.cm.register_cmap = matplotlib.colormaps.register
-        import seaborn as sns
-
-import sys
-from pathlib import Path
-
+import seaborn as sns
 from omegaconf import DictConfig, ListConfig, OmegaConf
 
-# Add project root to path
+# Setup module path
 project_root = Path(__file__).parent.parent.parent.parent.parent
 sys.path.insert(0, str(project_root / "src"))
 
-# Use absolute imports to avoid relative import issues
-try:
-    from dendritic_modeling.scripts.sweeps.unified.base_sweep import (
-        BaseSweepAnalyzer,
-        BaseSweepGenerator,
-    )
-except ImportError:
-    # Fallback for when run as script
-    sys.path.insert(0, str(Path(__file__).parent.parent))
-    from base_sweep import BaseSweepAnalyzer, BaseSweepGenerator
+# Import after path setup
+from dendritic_modeling.scripts.sweeps.unified.base_sweep import (  # noqa: E402
+    BaseSweepAnalyzer,
+    BaseSweepGenerator,
+)
 
 
 class GeneralSweepGenerator(BaseSweepGenerator):

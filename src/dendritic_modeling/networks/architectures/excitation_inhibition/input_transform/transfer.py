@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Optional
+from typing import Any
 
 import torch
 from torch import nn
@@ -15,11 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 class TransferLayer(nn.Module):
-    def __init__(
-        self,
-        input_dim: int,
-        transfer_params: dict[str, Any]
-    ):
+    def __init__(self, input_dim: int, transfer_params: dict[str, Any]):
         super().__init__()
 
         self.input_mode = input_mode = transfer_params.get("input_mode", 0)

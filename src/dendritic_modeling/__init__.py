@@ -18,8 +18,11 @@ Package Structure:
 For detailed documentation on each module, see the respective module docstrings.
 """
 
+# Set up the logging environment
+from dendritic_modeling.utils.logging_config import LoggerManager
+
 # Core imports
-from dendritic_modeling import (
+from . import (
     analysis,
     config,
     datasets,
@@ -30,9 +33,6 @@ from dendritic_modeling import (
     training,
     utils,
 )
-
-# Set up the logging environment
-from dendritic_modeling.utils.logging_config import LoggerManager
 
 logger_manager = LoggerManager()
 logger = logger_manager.get_logger()

@@ -263,7 +263,7 @@ class SklearnEstimator(BaseInformationEstimator):
     def _histogram_mi(self, x: np.ndarray, y: np.ndarray) -> float:
         """Compute MI using histogram-based estimation."""
         # Create 2D histogram
-        hist, x_edges, y_edges = np.histogram2d(x, y, bins=self.n_bins)
+        hist, _, _ = np.histogram2d(x, y, bins=self.n_bins)
 
         # Convert to probabilities
         pxy = hist / np.sum(hist)

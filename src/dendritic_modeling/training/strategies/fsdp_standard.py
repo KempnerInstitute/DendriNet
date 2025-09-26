@@ -15,7 +15,6 @@ import torch.distributed as dist
 from torch.cuda.amp import GradScaler, autocast
 from torch.utils.data import DataLoader
 
-from dendritic_modeling.analysis import AnalysisManager
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.training.fsdp_utils import (
     get_fsdp_config,
@@ -130,7 +129,12 @@ class FSDPTrainer(Trainer):
         model = model.to(self.device)
 
         # Wrap with FSDP
-        if hasattr(model, "net"):
+        if hasattr(model, "core_network"):
+            # For models with separate encoder/decoder
+            model.core_network = wrap_model_with_fsdp(
+                model.core_network, self.fsdp_config
+            )
+        elif hasattr(model, "net"):
             # For models with separate encoder/decoder
             model.net = wrap_model_with_fsdp(model.net, self.fsdp_config)
 
@@ -328,6 +332,9 @@ class FSDPTrainer(Trainer):
                 try:
                     # Run analysis if enabled and we have the manager
                     if self.analysis_manager is not None:
+                        # Lazy import to avoid circular dependency
+                        from dendritic_modeling.analysis import AnalysisManager
+
                         if isinstance(self.analysis_manager, AnalysisManager):
                             # Only log analysis runs every 10 epochs to reduce verbosity
                             if epoch % 10 == 0:
