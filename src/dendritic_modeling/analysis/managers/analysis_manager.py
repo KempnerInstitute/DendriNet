@@ -27,6 +27,7 @@ from dendritic_modeling.analysis.tools.synaptic_activation import (
 )
 from dendritic_modeling.analysis.tools.synaptic_turnover import SynapticTurnoverAnalyzer
 from dendritic_modeling.analysis.tools.weight import WeightAnalyzer
+from dendritic_modeling.analysis.tools.compartment_statistics import CompartmentStatisticsAnalyzer
 from dendritic_modeling.config import AnalysisConfig
 from dendritic_modeling.models import BaseModel
 
@@ -96,6 +97,12 @@ class AnalysisManager:
         # Initialize Weight Analysis
         if self.config.weight_analysis.enabled:
             self.weight_analyzer = WeightAnalyzer(self.config.weight_analysis.params)
+        
+        # Initialize Compartment Statistics Analysis
+        if self.config.compartment_statistics_analysis.enabled:
+            self.compartment_statistics_analyzer = CompartmentStatisticsAnalyzer(
+                self.config.compartment_statistics_analysis.params
+            )
 
         # Initialize Synaptic Activation Analysis
         if self.config.synaptic_activation_analysis.enabled:
@@ -230,6 +237,19 @@ class AnalysisManager:
                 save_path=os.path.join(self.save_root, "weight_analysis"),
                 filename=filename,
                 training=training,
+            )
+        
+        # Compartment Statistics Analysis
+        if self.config.compartment_statistics_analysis.enabled and (
+            (self.config.compartment_statistics_analysis.training and training) or not training
+        ):
+            self.compartment_statistics_analyzer.analyze(
+                model=self.model,
+                test_dataset=self.data["test"],
+                device=self.device,
+                save_path=os.path.join(self.save_root, "compartment_statistics_analysis"),
+                filename=filename,
+                training=training
             )
 
         # Synaptic Activation Analysis

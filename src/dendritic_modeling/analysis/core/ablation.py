@@ -13,7 +13,7 @@ from torch.utils.data import TensorDataset
 
 from dendritic_modeling.analysis.core.base import AbstractAnalyzer
 from dendritic_modeling.config.analysis import AblationAnalysisParams
-from dendritic_modeling.models import BaseModel, Regressor
+from dendritic_modeling.models import BaseModel, Regressor, Classifier
 from dendritic_modeling.networks import ExcitationInhibitionNetwork
 from dendritic_modeling.networks.architectures import DendriticBranchLayer
 from dendritic_modeling.plotting.visualizations.general_analysis_plots import (
@@ -292,40 +292,43 @@ class AblationAnalyzer(AbstractAnalyzer):
         # Calculate baseline performance using correct function signatures
         baselines = {}
         if self.accuracy:
-            baselines["accuracy"] = evaluate_accuracy(
-                classifier=model, test_ds=test_dataset, move_device=False
-            )[-1]
+            if isinstance(model, Classifier):
+                baselines["accuracy"] = evaluate_accuracy(
+                    classifier=model, test_ds=test_dataset, move_device=False
+                )[-1]
+            else:
+                self.accuracy = False
+
         if self.auc:
-            baselines["auc"] = evaluate_auc(
-                classifier=model, test_ds=test_dataset, move_device=False
-            )[-1]
+            if isinstance(model, Classifier):
+                baselines["auc"] = evaluate_auc(
+                    classifier=model, test_ds=test_dataset, move_device=False
+                )[-1]
+            else:
+                self.auc = False
+
         if self.categorical_ll:
-            baselines["categorical_loglikelihood"] = evaluate_categorical_loglikelihood(
-                classifier=model, test_ds=test_dataset, move_device=False
-            )[-1]
+            if isinstance(model, Classifier):
+                baselines["categorical_loglikelihood"] = evaluate_categorical_loglikelihood(
+                    classifier=model, test_ds=test_dataset, move_device=False
+                )[-1]
+            else:
+                self.categorical_ll = False
+
         if self.mse:
-            # Check if model is a regressor before using MSE
             if isinstance(model, Regressor):
                 baselines["mse"] = evaluate_mse(
                     regressor=model, test_ds=test_dataset, move_device=False
                 )[-1]
             else:
-                # Skip MSE for non-regressor models
-                print(
-                    f"Warning: MSE evaluation skipped for {type(model).__name__} model"
-                )
                 self.mse = False
+
         if self.cosine_similarity:
-            # Check if model is a regressor before using cosine similarity
             if isinstance(model, Regressor):
                 baselines["cosine similarity"] = evaluate_cosine_similarity(
                     regressor=model, test_ds=test_dataset, move_device=False
                 )[-1]
             else:
-                # Skip cosine similarity for non-regressor models
-                print(
-                    f"Warning: Cosine similarity evaluation skipped for {type(model).__name__} model"
-                )
                 self.cosine_similarity = False
 
         if self.layer_ablation:
