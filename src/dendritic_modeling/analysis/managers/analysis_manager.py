@@ -28,6 +28,7 @@ from dendritic_modeling.analysis.tools.synaptic_activation import (
 from dendritic_modeling.analysis.tools.synaptic_turnover import SynapticTurnoverAnalyzer
 from dendritic_modeling.analysis.tools.weight import WeightAnalyzer
 from dendritic_modeling.analysis.tools.compartment_statistics import CompartmentStatisticsAnalyzer
+from dendritic_modeling.analysis.tools.receptive_fields import ReceptiveFieldAnalyzer
 from dendritic_modeling.config import AnalysisConfig
 from dendritic_modeling.models import BaseModel
 
@@ -102,6 +103,12 @@ class AnalysisManager:
         if self.config.compartment_statistics_analysis.enabled:
             self.compartment_statistics_analyzer = CompartmentStatisticsAnalyzer(
                 self.config.compartment_statistics_analysis.params
+            )
+
+        # Initialize Receptive Field Analysis
+        if self.config.receptive_field_analysis.enabled:
+            self.receptive_field_analyzer = ReceptiveFieldAnalyzer(
+                self.config.receptive_field_analysis.params
             )
 
         # Initialize Synaptic Activation Analysis
@@ -250,6 +257,16 @@ class AnalysisManager:
                 save_path=os.path.join(self.save_root, "compartment_statistics_analysis"),
                 filename=filename,
                 training=training
+            )
+
+        # Receptive Field Analysis
+        if self.config.receptive_field_analysis.enabled and (
+            (self.config.receptive_field_analysis.training and training) or not training
+        ):
+            self.receptive_field_analyzer.analyze(
+                model=self.model,
+                save_path=os.path.join(self.save_root, "receptive_field_analysis"),
+                filename=filename,
             )
 
         # Synaptic Activation Analysis

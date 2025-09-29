@@ -15,6 +15,8 @@ from typing import Any, Optional
 
 import numpy as np
 import torch
+import pandas as pd
+import seaborn as sns
 from scipy.stats import differential_entropy
 from math import exp
 
@@ -51,8 +53,8 @@ class CompartmentStatisticsAnalyzer(AbstractAnalyzer):
     """
 
     def __init__(self, params: CompartmentStatisticsAnalysisParams):
-        """Initialize the unified weight analyzer."""
-        super().__init__("WeightAnalyzer")
+        """Initialize the unified compartment statistics analyzer."""
+        super().__init__("CompartmentStatisticsAnalyzer")
 
         self.synapse_weights = getattr(params, "synapse_weights", True)
         self.branch_weights = getattr(params, "branch_weights", True)
@@ -70,6 +72,7 @@ class CompartmentStatisticsAnalyzer(AbstractAnalyzer):
         self.compute_min_max = getattr(params, "compute_min_max", True)
 
         self.compute_entropy = getattr(params, "compute_entropy", True)
+        self.dequantize = getattr(params, "dequantize", True)
         # self.n_neighbors = getattr(params, "n_neighbors", 10)
 
         self.n_samples = getattr(params, "n_samples", None)
@@ -200,6 +203,13 @@ class CompartmentStatisticsAnalyzer(AbstractAnalyzer):
                         )
                     
                     if self.compute_entropy:
+                        if self.dequantize and (
+                            "inputs" in prefix 
+                            or "activations" in prefix
+                        ):
+                            u = torch.unique(data_tensor.flatten())
+                            step = torch.median(u[1:] - u[:-1])
+                            data_tensor = data_tensor + ((torch.rand_like(data_tensor) - 0.5) * step)
                         if "inputs" in prefix:
                             branch_stats[f"{prefix}_entropy"] = differential_entropy(
                                 data_tensor.flatten(0,-2).mean(dim=-1).numpy(),
@@ -210,6 +220,10 @@ class CompartmentStatisticsAnalyzer(AbstractAnalyzer):
                                 data_tensor.flatten(0,-1).numpy(),
                                 method="vasicek"
                             )
+                        if "inputs" in prefix or "activations" in prefix:
+                            if np.isnan(branch_stats[f"{prefix}_entropy"]) or np.isinf(branch_stats[f"{prefix}_entropy"]):
+                                print(branch_stats, flush=True)
+                                print(data_tensor, flush=True)
                 branch_statistics[layer_key][branch_idx] = branch_stats
         
         return branch_statistics
@@ -604,8 +618,6 @@ def plot_synapse_weight_comparison(
 
 
 def plot_ratio_comparison(
-    # fields: list[str],
-    # summ_stats: list[str], 
     branch_statistics: dict[str, dict[int, dict[str, float]]], 
     save_path: str
 ):
@@ -621,18 +633,14 @@ def plot_ratio_comparison(
             if "ei_act_mean_ratio" not in agg_data[f"depth {depth}"].keys():
                 agg_data[f"depth {depth}"][f"ei_act_mean_ratio"] = []
 
-            if "ei_inputs_eff_std_ratio" not in agg_data[f"depth {depth}"].keys():
-                agg_data[f"depth {depth}"][f"ei_inputs_eff_std_ratio"] = []
-            if "ei_inputs_eff_var_ratio" not in agg_data[f"depth {depth}"].keys():
-                agg_data[f"depth {depth}"][f"ei_inputs_eff_var_ratio"] = []
             if "ei_acts_eff_std_ratio" not in agg_data[f"depth {depth}"].keys():
                 agg_data[f"depth {depth}"][f"ei_acts_eff_std_ratio"] = []
-            if "ei_acts_eff_var_ratio" not in agg_data[f"depth {depth}"].keys():
-                agg_data[f"depth {depth}"][f"ei_acts_eff_var_ratio"] = []
+            if "ei_acts_emp_std_ratio" not in agg_data[f"depth {depth}"].keys():
+                agg_data[f"depth {depth}"][f"ei_acts_emp_std_ratio"] = []
             
             ei_expected_act_ratio = (
                 branch_data["exc_inputs_mean"] * branch_data["exc_weights_mean"]
-            ) / (
+                ) / (
                 branch_data["inh_inputs_mean"] * branch_data["inh_weights_mean"] + 1e-8
             )
             agg_data[f"depth {depth}"][f"ei_expected_act_ratio"].append(ei_expected_act_ratio)
@@ -643,45 +651,102 @@ def plot_ratio_comparison(
             agg_data[f"depth {depth}"][f"ei_act_mean_ratio"].append(ei_act_mean_ratio)
             
 
-            ei_inputs_entropy_diff = branch_data["exc_inputs_entropy"] - branch_data["inh_inputs_entropy"]
-            ei_inputs_eff_std_ratio = exp(ei_inputs_entropy_diff)
-            agg_data[f"depth {depth}"][f"ei_inputs_eff_std_ratio"].append(ei_inputs_eff_std_ratio)
-            agg_data[f"depth {depth}"][f"ei_inputs_eff_var_ratio"].append(ei_inputs_eff_std_ratio**2)
-
             ei_acts_entropy_diff = branch_data["exc_activations_entropy"] - branch_data["inh_activations_entropy"]
             ei_acts_eff_std_ratio = exp(ei_acts_entropy_diff)
             agg_data[f"depth {depth}"][f"ei_acts_eff_std_ratio"].append(ei_acts_eff_std_ratio)
-            agg_data[f"depth {depth}"][f"ei_acts_eff_var_ratio"].append(ei_acts_eff_std_ratio**2)            
+            agg_data[f"depth {depth}"][f"ei_acts_emp_std_ratio"].append(
+                branch_data["exc_activations_std"] / (branch_data["inh_activations_std"] + 1e-8)
+            )            
     
 
     indeps = ["ei_expected_act_ratio", "ei_act_mean_ratio"]
-    deps = [
-        "ei_inputs_eff_std_ratio", "ei_inputs_eff_var_ratio", 
-        "ei_acts_eff_std_ratio", "ei_acts_eff_var_ratio"
-    ]
+    deps = ["ei_acts_eff_std_ratio", "ei_acts_emp_std_ratio"]
     
-    fig, axes = plt.subplots(4, 2, figsize=(24, 16), sharex="col", sharey="row")
-    for i, dep in enumerate(deps):
-        for j, indep in enumerate(indeps):
-            for depth, data in agg_data.items():
-                axes[i, j].scatter(
-                    data[indep], 
-                    data[dep], 
-                    label=depth.title(), 
-                    marker="o", s=5, alpha=0.5
-                )
-            axes[i, j].legend()
-            axes[i, j].grid(True)
-    
-    axes[-1, 0].set_xlabel(r"$\frac{X_{exc}}{X_{inh}}*\frac{W_{exc}}{W_{inh}}$")
-    axes[-1, -1].set_xlabel(r"$\frac{E}{I}$")
-    axes[0, 0].set_ylabel(r"$\sqrt{\frac{N(X_{exc})}{N(X_{inh})}}$")
-    axes[1, 0].set_ylabel(r"$\frac{N(X_{exc})}{N(X_{inh})}$")
-    axes[2, 0].set_ylabel(r"$\sqrt{\frac{N(E)}{N(I)}}$")
-    axes[3, 0].set_ylabel(r"$\frac{N(E)}{N(I)}$")
+    # Build long-form DataFrame from agg_data
+    rows = []
+    for depth, data in agg_data.items():
+        for dep in deps:          # y
+            for indep in indeps:  # x
+                x = np.asarray(data[indep]); y = np.asarray(data[dep])
+                rows.append(pd.DataFrame({
+                    'x': x, 'y': y, 'depth': depth,
+                    'row': dep, 'col': indep
+                }))
+    df = pd.concat(rows, ignore_index=True)
+
+    # Labels
+    xlabels = {
+        "ei_expected_act_ratio": r"$\frac{X_{exc}}{X_{inh}}*\frac{W_{exc}}{W_{inh}}$",
+        "ei_act_mean_ratio":     r"$\frac{E}{I}$",
+    }
+    ylabels = {
+        "ei_acts_eff_std_ratio": r"$\sqrt{\frac{N(E)}{N(I)}}$",
+        "ei_acts_emp_std_ratio": r"$\frac{\sigma_{E}}{\sigma_{I}}$",
+    }
+
+    # Scatter faceted by (row=dep, col=indep) with hue=depth
+    g = sns.relplot(
+        data=df, x='x', y='y', hue='depth',
+        row='row', col='col', kind='scatter',
+        row_order=deps, col_order=indeps,
+        facet_kws=dict(sharex="col", sharey="row"),
+        height=4, aspect=1.2, s=10, alpha=0.5
+    )
+
+    # Add one global regression line per facet and annotate slope/intercept
+    def add_regline_and_stats(data: pd.DataFrame, color: Optional[str] = None, **kws):
+        ax = plt.gca()
+        x = data['x'].to_numpy()
+        y = data['y'].to_numpy()
+        m = np.isfinite(x) & np.isfinite(y)
+        if m.sum() >= 2:
+            slope, intercept = np.polyfit(x[m], y[m], 1)
+            xx = np.linspace(x[m].min(), x[m].max(), 200)
+            ax.plot(xx, slope * xx + intercept, color='k', lw=2)
+            ax.text(0.02, 0.98, f"y={slope:.2g}x+{intercept:.2g}",
+                    transform=ax.transAxes, ha='left', va='top',
+                    fontsize=9, color='k')
+
+    g.map_dataframe(add_regline_and_stats)
+
+    # Axis labels per row/col (only outer axes)
+    for i, row_key in enumerate(deps):
+        for j, col_key in enumerate(indeps):
+            ax = g.axes[i, j]
+            ax.grid(True)
+            if i == len(deps) - 1:
+                ax.set_xlabel(xlabels[col_key])
+            else:
+                ax.set_xlabel("")
+            if j == 0:
+                ax.set_ylabel(ylabels[row_key])
+            else:
+                ax.set_ylabel("")
+
     plt.tight_layout()
-    fig.savefig(os.path.join(save_path, "another_comparison.png"), dpi=300, bbox_inches="tight")
-    plt.close(fig)
+    g.figure.savefig(os.path.join(save_path, "another_comparison.png"), dpi=300, bbox_inches="tight")
+    plt.close(g.figure)
+
+    # fig, axes = plt.subplots(2, 2, figsize=(12, 16), sharex="col", sharey="row")
+    # for i, dep in enumerate(deps):
+    #     for j, indep in enumerate(indeps):
+    #         for depth, data in agg_data.items():
+    #             axes[i, j].scatter(
+    #                 data[indep], 
+    #                 data[dep], 
+    #                 label=depth.title(), 
+    #                 marker="o", s=5, alpha=0.5
+    #             )
+    #         axes[i, j].legend()
+    #         axes[i, j].grid(True)
+    
+    # axes[-1, 0].set_xlabel(r"$\frac{X_{exc}}{X_{inh}}*\frac{W_{exc}}{W_{inh}}$")
+    # axes[-1, -1].set_xlabel(r"$\frac{E}{I}$")
+    # axes[0, 0].set_ylabel(r"$\sqrt{\frac{N(E)}{N(I)}}$")
+    # axes[1, 0].set_ylabel(r"$\frac{\sigma_{E}}{\sigma_{I}}$")
+    # plt.tight_layout()
+    # fig.savefig(os.path.join(save_path, "another_comparison.png"), dpi=300, bbox_inches="tight")
+    # plt.close(fig)
 
 
 __all__ = ["CompartmentStatisticsAnalyzer"]

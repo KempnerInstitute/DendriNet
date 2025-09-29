@@ -208,7 +208,7 @@ class CompartmentStatisticsAnalysisParams(BaseConfig):
 
 @dataclass
 class CompartmentStatisticsAnalysisConfig(BaseConfig):
-    enabled: bool = True
+    enabled: bool = False
     training: bool = False
     params: CompartmentStatisticsAnalysisParams = field(default_factory=CompartmentStatisticsAnalysisParams)
 
@@ -273,6 +273,23 @@ class SingleLayerContributionAnalysisConfig(BaseConfig):
     training: bool = False
     params: SingleLayerContributionAnalysisParams = field(
         default_factory=SingleLayerContributionAnalysisParams
+    )
+
+
+@dataclass
+class ReceptiveFieldAnalysisParams(BaseConfig):
+    n_rows: int = 2
+    n_cols: int = 2
+    exc_rf_shape: Optional[tuple[int, int]] = None
+    inh_rf_shape: Optional[tuple[int, int]] = None
+
+
+@dataclass
+class ReceptiveFieldAnalysisConfig(BaseConfig):
+    enabled: bool = True
+    training: bool = False
+    params: ReceptiveFieldAnalysisParams = field(
+        default_factory=ReceptiveFieldAnalysisParams
     )
 
 
@@ -363,6 +380,9 @@ class AnalysisConfig(BaseConfig):
     )
     information_analysis: InformationAnalysisConfig = field(
         default_factory=InformationAnalysisConfig
+    )
+    receptive_field_analysis: ReceptiveFieldAnalysisConfig = field(
+        default_factory=ReceptiveFieldAnalysisConfig
     )
     correlation_analysis: CorrelationAnalysisConfig = field(
         default_factory=CorrelationAnalysisConfig
