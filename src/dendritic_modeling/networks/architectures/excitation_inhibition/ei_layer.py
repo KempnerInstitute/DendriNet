@@ -11,8 +11,9 @@ import torch
 import torch.nn as nn
 
 from dendritic_modeling.networks.architectures.classical.mlp.mlp import MLP
-from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.dendrinet import (
+from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic import (
     DendriNet,
+    DeepstNet,
 )
 
 
@@ -62,6 +63,11 @@ class ExcitationInhibitionLayer(nn.Module):
     ):
         super().__init__()
 
+        if topk_type == "deepst":
+            NetworkClass = DeepstNet
+        else:
+            NetworkClass = DendriNet
+
         # Only build inhibitory cells if n_inhibitory_cells is not None and build_inhibitory_cells is True
         if build_inhibitory_cells and n_inhibitory_cells is not None:
             assert inhibitory_network_type in ["dendritic", "mlp"], (
@@ -69,7 +75,7 @@ class ExcitationInhibitionLayer(nn.Module):
                 + f"Got inhibitory_network_type: {inhibitory_network_type}"
             )
             if inhibitory_network_type == "dendritic":
-                self.inhibitory_cells = DendriNet(
+                self.inhibitory_cells = NetworkClass(
                     n_soma=n_inhibitory_cells,
                     branch_factors=inhibitory_branch_factors,
                     excitatory_input_dim=excitatory_input_dim,
@@ -129,7 +135,7 @@ class ExcitationInhibitionLayer(nn.Module):
             else inhibitory_input_dim
         )
 
-        self.excitatory_cells = DendriNet(
+        self.excitatory_cells = NetworkClass(
             n_soma=n_excitatory_cells,
             branch_factors=excitatory_branch_factors,
             excitatory_input_dim=excitatory_input_dim,
@@ -191,7 +197,10 @@ class ExcitationInhibitionLayer(nn.Module):
         Returns:
             excitatory_output, inhibitory_output
         """
-        if isinstance(self.inhibitory_cells, DendriNet):
+        if (
+            isinstance(self.inhibitory_cells, DendriNet) 
+            or isinstance(self.inhibitory_cells, DeepstNet)
+        ):
             inhibitory_x = self.inhibitory_cells(excitatory_x, inhibitory_x)
         elif isinstance(self.inhibitory_cells, nn.Sequential):
             inhibitory_x = self.inhibitory_cells(excitatory_x)

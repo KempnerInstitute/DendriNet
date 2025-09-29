@@ -14,6 +14,9 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.b
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.dendrinet import (
     DendriNet,
 )
+from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.deepstnet import (
+    DeepstNet,
+)
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.gradient_scaling import (
     GradientScaler,
 )
@@ -40,6 +43,7 @@ __all__ = [
     "create_gabor_unit"
     "create_motion_unit"
     "DendriNet"
+    "DeepstNet"
     "DendriticBranchLayer"
     "GradientScaler"
     "initialize_dendritic_branch_layer"
