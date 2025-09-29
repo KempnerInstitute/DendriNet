@@ -14,7 +14,7 @@ notebook/wandb/*
 notebook/votage_plots/*
 notebook/*.log
 notebook/test/*
-experiments/*
+# experiments/* - now using submodule
 data/*
 configs/*.txt
 src/data/*
@@ -213,4 +213,5 @@ encoder_networks/*
 notebooks_backup/
 docs_notebooks_backup/
 scripts_backup/
-experiments/
+# Ignore experiments folder completely (managed as separate repo)
+/experiments/

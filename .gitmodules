@@ -1,3 +1,0 @@
-[submodule "experiments"]
-	path = experiments
-	url = git@github.com:KempnerInstitute/hs-scratch.git
