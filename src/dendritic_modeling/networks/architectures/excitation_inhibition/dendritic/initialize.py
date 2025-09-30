@@ -324,6 +324,10 @@ def analytical_expectation_dbl_init(dbl, adaptive=True, branch_factors=None):
                 m = 0.1
 
         if not isinstance(dbl.reactivation, torch.nn.Identity):
+            if dbl.reactivation_init_m is not None:
+                m = dbl.reactivation_init_m
+            if dbl.reactivation_init_b is not None:
+                E_Vinf = dbl.reactivation_init_b
             dbl.reactivation.initialize(m, E_Vinf)
 
 
@@ -423,6 +427,10 @@ def ei_equivalence_dbl_init(dbl):
                 m = 0.1
 
         if not isinstance(dbl.reactivation, torch.nn.Identity):
+            if dbl.reactivation_init_m is not None:
+                m = dbl.reactivation_init_m
+            if dbl.reactivation_init_b is not None:
+                E_Vinf = dbl.reactivation_init_b
             dbl.reactivation.initialize(m, E_Vinf)
 
 
@@ -481,6 +489,10 @@ def naive_dbl_init(dbl):
                 m = 0.1
 
         if not isinstance(dbl.reactivation, torch.nn.Identity):
+            if dbl.reactivation_init_m is not None:
+                m = dbl.reactivation_init_m
+            if dbl.reactivation_init_b is not None:
+                E_Vinf = dbl.reactivation_init_b
             dbl.reactivation.initialize(m, E_Vinf)
 
 
@@ -529,6 +541,8 @@ def default_dbl_init(dbl):
             dbl.branches_to_output.initialize(g_branch=g_branch)
 
         if not isinstance(dbl.reactivation, torch.nn.Identity):
-            dbl.reactivation.initialize(
-                1.5 if dbl.use_shunting else 0.1, 0.5 if dbl.use_shunting else 0.0
-            )
+            if dbl.reactivation_init_m is not None:
+                m = dbl.reactivation_init_m if dbl.use_shunting else 0.1
+            if dbl.reactivation_init_b is not None:
+                E_Vinf = dbl.reactivation_init_b if dbl.use_shunting else 0.0
+            dbl.reactivation.initialize(m, E_Vinf)

@@ -116,6 +116,8 @@ class DendriticBranchLayer(nn.Module):
         self.blocklinear_strategy = blocklinear_strategy
         self.efficient_blocklinear = efficient_blocklinear
         self.use_shunting = use_shunting
+        self.reactivation_init_m = reactivation_init_m
+        self.reactivation_init_b = reactivation_init_b
         self.dbl_init_method = dbl_init_method
         self.epsilon = epsilon  # Store epsilon for numerical stability
         self.topk_type = topk_type  # Store the strategy

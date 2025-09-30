@@ -84,8 +84,8 @@ class ReactivationConfig(BaseConfig):
 
     enabled: bool = True
     type: str = "param_tanh"
-    init_m: float = 1.5
-    init_b: float = 0.5
+    init_m: Optional[float] = None
+    init_b: Optional[float] = None
     gradient_scaling: str = "none"
 
 

@@ -198,6 +198,8 @@ class ParametricLinearTanhTransition(ParametricActivation):
         trainable_transition_slope=True,
     ):
         super().__init__()
+        self.trainable_threshold = trainable_threshold
+        self.trainable_transition_slope = trainable_transition_slope
 
         if not isinstance(output_dim, int) or output_dim <= 0:
             raise ValueError("output_dim must be a positive integer.")
@@ -264,6 +266,43 @@ class ParametricLinearTanhTransition(ParametricActivation):
                 )
         else:
             raise TypeError(f"Unsupported type for {name}: {type(init_val)}")
+
+    def initialize(self, init_transition_slope, init_threshold):
+        # --- Initialize Threshold ---
+        max_init_threshold = (1.0 / self.linear_slope) - 1e-6
+        threshold_vals = self._initialize_param_val(
+            init_threshold, self.output_dim, "init_threshold"
+        )
+        # Clamp initial values
+        clamped_threshold_vals = torch.clamp(threshold_vals, max=max_init_threshold)
+        if torch.any(threshold_vals > max_init_threshold):
+            logging.warning(
+                f"Some initial thresholds violated constraint threshold < {1.0/self.linear_slope:.4f}. They were clamped."
+            )
+
+        if self.trainable_threshold:
+            self.threshold = nn.Parameter(clamped_threshold_vals)
+        else:
+            self.register_buffer("threshold", clamped_threshold_vals)
+
+        # --- Initialize Transition Slope ---
+        if init_transition_slope is None:
+            # Default to linear_slope if not provided
+            init_transition_slope = self.linear_slope
+        transition_slope_vals = self._initialize_param_val(
+            init_transition_slope, self.output_dim, "init_transition_slope"
+        )
+        # Clamp initial values to be positive
+        clamped_transition_slope_vals = torch.clamp(transition_slope_vals, min=1e-9)
+        if torch.any(transition_slope_vals <= 0):
+            logging.warning(
+                "Some initial transition slopes were <= 0. They were clamped to min=1e-9."
+            )
+
+        if self.trainable_transition_slope:
+            self.transition_slope = nn.Parameter(clamped_transition_slope_vals)
+        else:
+            self.register_buffer("transition_slope", clamped_transition_slope_vals)
 
     def forward(self, x):
         # x shape: (batch_size, ..., output_dim) or (output_dim,)
