@@ -563,6 +563,9 @@ class UnifiedSweepGenerator(BaseSweepGenerator):
                         if "train" not in seed_config:
                             seed_config["train"] = {}
                         seed_config.train.seed = base_seed + seed_offset
+
+                    # Add metadata for sweep result tracking
+                    seed_config["_sweep_config_id"] = f"config_{len(configs)}"
                     configs.append(seed_config)
             else:
                 # Set seed in the correct location based on config structure
@@ -578,6 +581,9 @@ class UnifiedSweepGenerator(BaseSweepGenerator):
                     if "train" not in new_config:
                         new_config["train"] = {}
                     new_config.train.seed = base_seed
+
+                # Add metadata for sweep result tracking
+                new_config["_sweep_config_id"] = f"config_{len(configs)}"
                 configs.append(new_config)
 
         return configs

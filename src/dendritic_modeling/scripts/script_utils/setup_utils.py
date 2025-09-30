@@ -99,11 +99,23 @@ def setup_environment(
         os.makedirs(output_dir, exist_ok=True)
         logger.info(f"Created output directory: {output_dir}")
 
-    run_name = outputs_config.run_name
-    run_id = f"{run_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-    run_save_path = os.path.join(output_dir, run_id)
-    os.makedirs(run_save_path, exist_ok=True)
-    logger.info(f"Created run directory: {run_save_path}")
+    # Check if this is part of a sweep (has _sweep_config_id)
+    # If so, output_dir should already point to the correct location
+    # Otherwise, create a timestamped run directory
+    if hasattr(outputs_config, "_sweep_config_id") or (
+        hasattr(outputs_config, "run_name")
+        and "/config_" in str(outputs_config.results_dir)
+    ):
+        # Running as part of a sweep - use output_dir directly
+        run_save_path = output_dir
+        logger.info(f"Sweep mode detected - using directory: {run_save_path}")
+    else:
+        # Standalone run - create timestamped directory
+        run_name = outputs_config.run_name
+        run_id = f"{run_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        run_save_path = os.path.join(output_dir, run_id)
+        os.makedirs(run_save_path, exist_ok=True)
+        logger.info(f"Created run directory: {run_save_path}")
 
     # Set the logger manager to use the same directory for the main log file
     logger_manager.set_log_directory(run_save_path)
