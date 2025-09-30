@@ -9,8 +9,10 @@ import os
 from typing import Any, Optional, Union
 
 import torch
-from torch.utils.data import Dataset, TensorDataset
+from torch.utils.data import Dataset, TensorDataset, random_split
 from torchvision import datasets, transforms
+
+from .structured_correlation import StructuredCorrelationDataset
 
 
 def _get_config_value(
@@ -506,6 +508,49 @@ def get_unified_datasets(task_cfg):
             valid_ds = data["test"]
         test_ds = data["test"]
         return train_ds, valid_ds, test_ds
+    elif dataset_name == "structured_correlation":
+        n_train_samples = p.get('n_train_samples', 10000)
+        n_test_samples = p.get('n_test_samples', 1000)
+        n_dims = p.get('n_dims', 10)
+        block_size = p.get('block_size', 2)
+        mean = p.get('mean', 0)
+        sigma = p.get('sigma', 0.5)
+        rho_modular = p.get('rho_modular', 0.9)
+        rho_nested_local = p.get('rho_nested_local', 0.9)
+        rho_nested_global = p.get('rho_nested_global', 0.3)
+        condition = p.get('condition', 'intra_block_corr')
+        
+        # Get the raw values
+        shift = p.get('shift', 0.0)
+        difference = p.get('difference', 0.2)
+        # Convert to float
+        shift = float(shift)
+        difference = float(difference)
+        permute_ratio = p.get('permute_ratio', None)
+        noise_ratio = p.get('noise_ratio', 0.5)
+        seed = p.get('seed', 0)
+
+        n_samples = n_train_samples + n_test_samples
+        full_ds = StructuredCorrelationDataset(
+            n_samples=n_samples,
+            n_dims=n_dims,
+            block_size=block_size,
+            mean=mean,
+            sigma=sigma,
+            rho_modular=rho_modular,
+            rho_nested_local=rho_nested_local,
+            rho_nested_global=rho_nested_global,
+            condition=condition,
+            shift=shift,
+            difference=difference,
+            permute_ratio=permute_ratio,
+            noise_ratio=noise_ratio,
+            seed=seed
+        )
+        train_size = int(n_train_samples * train_valid_split)
+        valid_size = n_train_samples - train_size
+        test_size = n_test_samples
+        return random_split(full_ds, [train_size, valid_size, test_size])
     else:
         # For synthetic/experimental datasets, delegate to the experiments folder
         try:

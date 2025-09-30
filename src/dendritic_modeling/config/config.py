@@ -75,6 +75,23 @@ class DatasetParamsConfig(BaseConfig):
             "noise_std": 0.1,
         }
     )
+    structured_correlation: dict[str, Any] = field(
+        default_factory=lambda: {
+            "n_train_samples": 10000,
+            "n_test_samples": 1000,
+            "n_dims": 200,
+            "block_size": 10,
+            "rho_modular": 0.9,
+            "rho_nested_local": 0.9,
+            "rho_nested_global": 0.3,
+            "condition": "noisy_permute",
+            "shift": 0.3,
+            "difference": 0.5,
+            "permute_ratio": 0.8,
+            "noise_ratio": 0.8,
+            "seed": 0,
+        }
+    )
 
 
 @dataclass
