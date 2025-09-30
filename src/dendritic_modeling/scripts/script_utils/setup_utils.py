@@ -53,6 +53,10 @@ def initialize_model(model_config: ModelConfig):
 
     # Build decoder parameters
     decoder_params_dict = OmegaConf.to_container(decoder_config.params, resolve=True)
+    # Filter out None values to allow auto-setting
+    decoder_params_dict = {
+        k: v for k, v in decoder_params_dict.items() if v is not None
+    }
     decoder_params = {
         "input_dim": core_network.output_dim,
         **decoder_params_dict,

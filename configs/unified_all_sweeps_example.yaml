@@ -239,7 +239,7 @@ base_config:
     decoder:
       type: "MLP"                         # Decoder type: "MLP", "Identity"
       params:
-        input_dim: 20                     # Input dimension (auto-set from core network)
+        input_dim: null                   # Input dimension (auto-set from core network)
         hidden_dims: [32, 16]             # Hidden layer dimensions
         activation: "relu"                # Activation: "relu", "tanh", "sigmoid", "gelu"
         output_dim: 10                    # Output dimension (auto-set from dataset)
@@ -644,6 +644,25 @@ base_config:
         logspace: false                   # Use log space (true/false)
         downsample: true                  # Downsample data (true/false)
         samples: 5                        # Number of samples to analyze
+
+    compartment_statistics_analysis:
+      enabled: true                       # Enable compartment statistics analysis (true/false)
+      training: false                     # Run during training (true/false)
+      params:
+        synapse_weights: true             # Analyze excitatory and inhibitory synapse weights (true/false)
+        branch_weights: true              # Analyze branch-to-output connection weights (true/false)
+        inputs: true                      # Analyze inputs (true/false)
+        activations: true                 # Analyze activations (true/false)
+        global_analysis: true             # Analyze global statistics (true/false)
+        layer_analysis: true              # Analyze layer statistics (true/false)
+        branch_analysis: true             # Analyze branch statistics (true/false)
+        compute_mean: true                # Compute mean weights per branch (true/false)
+        compute_variance: true            # Compute variance of weights per branch (true/false)
+        compute_percentiles: true         # Compute percentiles (median, quartiles) (true/false)
+        compute_min_max: true             # Compute min/max per layer (true/false)
+        compute_entropy: true             # Compute entropy per layer (true/false)
+        per_class_analysis: false         # Analyze statistics separately for each class (true/false)
+        n_samples: 1000                   # Number of samples to analyze (null = all)
 
   # ============================================================================
   # LOGGING

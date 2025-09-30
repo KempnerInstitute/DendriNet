@@ -261,7 +261,7 @@ def main(config_path: str, args=None):
             model.get_param_groups(main_train_config.common.param_groups)
         ),
         weight_decay=main_train_config.common.weight_decay_rate,
-        weight_boosting=getattr(main_train_config, "weight_boosting", False),
+        weight_boosting=getattr(main_train_config.common, "weight_boosting", False),
     )
 
     original_pruning_config = main_trainer_config_dict.get("pruning", {})

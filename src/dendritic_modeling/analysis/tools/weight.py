@@ -762,7 +762,7 @@ class WeightAnalyzer(AbstractAnalyzer):
                     x_pos,
                     dendritic_strengths,
                     width * 2,
-                    color=colors["mixed"],
+                    color=colors["combined"],
                     alpha=0.7,
                 )
 

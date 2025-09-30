@@ -232,19 +232,25 @@ class Trainer:
 
         train_losses = []
         valid_losses = []
+        train_losses_base = []
+        train_losses_reg = []
 
         self._initialize_attributes(model, self.epochs)
         self._save_checkpoint(model)
 
-        train_losses, valid_losses = self._run_training_loop(
-            n_epochs=self.epochs,
-            model=model,
-            train_loader=train_loader,
-            valid_loader=valid_loader,
-            train_losses=train_losses,
-            valid_losses=valid_losses,
-            logger_info=self.logger_info_prefix,
-            wandb_info={},
+        train_losses, valid_losses, train_losses_base, train_losses_reg = (
+            self._run_training_loop(
+                n_epochs=self.epochs,
+                model=model,
+                train_loader=train_loader,
+                valid_loader=valid_loader,
+                train_losses=train_losses,
+                valid_losses=valid_losses,
+                train_losses_base=train_losses_base,
+                train_losses_reg=train_losses_reg,
+                logger_info=self.logger_info_prefix,
+                wandb_info={},
+            )
         )
 
         logger.info(
@@ -260,9 +266,13 @@ class Trainer:
             "best_state_dict": self.best_state_dict,
             "train_losses": train_losses,
             "valid_losses": valid_losses,
+            "train_losses_base": train_losses_base,
+            "train_losses_reg": train_losses_reg,
         }
 
-        self._loss_plotting(train_losses, valid_losses)
+        self._loss_plotting(
+            train_losses, valid_losses, train_losses_base, train_losses_reg
+        )
 
         return results
 
@@ -274,26 +284,32 @@ class Trainer:
         valid_loader: DataLoader,
         train_losses: list[float],
         valid_losses: list[float],
+        train_losses_base: list[float],
+        train_losses_reg: list[float],
         logger_info: str = "",
         wandb_info: dict | None = None,
-    ) -> tuple[list[float], list[float]]:
+    ) -> tuple[list[float], list[float], list[float], list[float]]:
         if wandb_info is None:
             wandb_info = {}
         for _ in range(1, n_epochs + 1):
-            train_losses, valid_losses = self._run_epoch(
-                model=model,
-                train_loader=train_loader,
-                valid_loader=valid_loader,
-                train_losses=train_losses,
-                valid_losses=valid_losses,
-                logger_info=logger_info,
-                wandb_info=wandb_info,
+            train_losses, valid_losses, train_losses_base, train_losses_reg = (
+                self._run_epoch(
+                    model=model,
+                    train_loader=train_loader,
+                    valid_loader=valid_loader,
+                    train_losses=train_losses,
+                    valid_losses=valid_losses,
+                    train_losses_base=train_losses_base,
+                    train_losses_reg=train_losses_reg,
+                    logger_info=logger_info,
+                    wandb_info=wandb_info,
+                )
             )
 
             if self._check_early_stopping():
                 break
 
-        return train_losses, valid_losses
+        return train_losses, valid_losses, train_losses_base, train_losses_reg
 
     def _run_epoch(
         self,
@@ -302,43 +318,71 @@ class Trainer:
         valid_loader: DataLoader,
         train_losses: list[float],
         valid_losses: list[float],
+        train_losses_base: list[float],
+        train_losses_reg: list[float],
         logger_info: str = "",
         wandb_info: dict | None = None,
-    ) -> tuple[list[float], list[float]]:
+    ) -> tuple[list[float], list[float], list[float], list[float]]:
         if wandb_info is None:
             wandb_info = {}
         self.epoch_counter += 1
 
-        train_loss = self._epoch_train(model, train_loader)
-        train_losses.append(train_loss)
+        train_loss_total, train_loss_base, train_loss_reg = self._epoch_train(
+            model, train_loader
+        )
+        train_losses.append(train_loss_total)
+        train_losses_base.append(train_loss_base)
+        train_losses_reg.append(train_loss_reg)
         valid_loss = self._epoch_valid(model, valid_loader)
         valid_losses.append(valid_loss)
 
         self._update_best(model, valid_loss)
         self._save_checkpoint(model)
         self._analyze()
-        self._tracking(train_loss, valid_loss, logger_info, wandb_info)
-        return train_losses, valid_losses
+        self._tracking(
+            train_loss_total,
+            valid_loss,
+            logger_info,
+            wandb_info,
+            train_loss_base=train_loss_base,
+            train_loss_reg=train_loss_reg,
+        )
+        return train_losses, valid_losses, train_losses_base, train_losses_reg
 
-    def _epoch_train(self, model: BaseModel, train_loader: DataLoader) -> float:
+    def _epoch_train(
+        self, model: BaseModel, train_loader: DataLoader
+    ) -> tuple[float, float, float]:
         model.train()
-        train_loss = 0
+        train_loss_total = 0
+        train_loss_base = 0
+        train_loss_reg = 0
+
+        # Check once if regularization is enabled to avoid repeated checks
+        has_regularization = self.regularization_manager.has_regularization()
+
         for x_batch, y_batch in train_loader:
             x_batch, y_batch = x_batch.to(self.device), y_batch.to(self.device)
 
             if self.enable_amp:
                 # Mixed precision forward pass
                 with autocast():
-                    loss = self.loss_function(model, x_batch, y_batch)
+                    base_loss = self.loss_function(model, x_batch, y_batch)
 
-                    # Add all regularization losses
-                    reg_loss = self.regularization_manager.compute_regularization_loss(
-                        model, x_batch, y_batch
-                    )
-                    loss = loss + reg_loss
+                    # Add all regularization losses only if regularization is enabled
+                    if has_regularization:
+                        reg_loss = (
+                            self.regularization_manager.compute_regularization_loss(
+                                model, x_batch, y_batch
+                            )
+                        )
+                        total_loss = base_loss + reg_loss
+                        reg_loss_item = reg_loss.item()
+                    else:
+                        total_loss = base_loss
+                        reg_loss_item = 0.0
 
                 self.optimizer.zero_grad()
-                self.scaler.scale(loss).backward()
+                self.scaler.scale(total_loss).backward()
 
                 # Optional expensive operations (configurable for performance)
                 if self.enable_nan_checking:
@@ -361,16 +405,21 @@ class Trainer:
                 self.scaler.update()
             else:
                 # Standard precision training
-                loss: torch.Tensor = self.loss_function(model, x_batch, y_batch)
+                base_loss: torch.Tensor = self.loss_function(model, x_batch, y_batch)
 
-                # Add all regularization losses
-                reg_loss = self.regularization_manager.compute_regularization_loss(
-                    model, x_batch, y_batch
-                )
-                loss = loss + reg_loss
+                # Add all regularization losses only if regularization is enabled
+                if has_regularization:
+                    reg_loss = self.regularization_manager.compute_regularization_loss(
+                        model, x_batch, y_batch
+                    )
+                    total_loss = base_loss + reg_loss
+                    reg_loss_item = reg_loss.item()
+                else:
+                    total_loss = base_loss
+                    reg_loss_item = 0.0
 
                 self.optimizer.zero_grad()
-                loss.backward()
+                total_loss.backward()
 
                 # Optional expensive operations (configurable for performance)
                 if self.enable_nan_checking:
@@ -386,10 +435,14 @@ class Trainer:
                     clip_grad_value_(model.parameters(), self.grad_clip_value)
                 self.optimizer.step()
 
-            train_loss += loss.item()
+            train_loss_total += total_loss.item()
+            train_loss_base += base_loss.item()
+            train_loss_reg += reg_loss_item
 
-        train_loss /= len(train_loader)
-        return train_loss
+        train_loss_total /= len(train_loader)
+        train_loss_base /= len(train_loader)
+        train_loss_reg /= len(train_loader)
+        return train_loss_total, train_loss_base, train_loss_reg
 
     def _epoch_valid(self, model: BaseModel, valid_loader: DataLoader) -> float:
         model.eval()
@@ -450,18 +503,29 @@ class Trainer:
         valid_loss: float,
         logger_info: str = "",
         wandb_info: dict | None = None,
+        train_loss_base: Optional[float] = None,
+        train_loss_reg: Optional[float] = None,
     ) -> None:
         if wandb_info is None:
             wandb_info = {}
         elapsed = time.time() - self.start_time
         if not self.suppress_prints and (self.epoch_counter % self.print_every == 0):
-            logger_info = (
-                logger_info
-                + f"epoch={self.epoch_counter}/{self.total_epochs}, "
-                + f"train_loss={train_loss:.4f}, "
-                + f"valid_loss={valid_loss:.4f}, "
-                + f"elapsed={elapsed:.1f}s"
-            )
+            if train_loss_base is not None and train_loss_reg is not None:
+                logger_info = (
+                    logger_info
+                    + f"epoch={self.epoch_counter}/{self.total_epochs}, "
+                    + f"train_loss={train_loss:.4f} (base={train_loss_base:.4f}, reg={train_loss_reg:.4f}), "
+                    + f"valid_loss={valid_loss:.4f}, "
+                    + f"elapsed={elapsed:.1f}s"
+                )
+            else:
+                logger_info = (
+                    logger_info
+                    + f"epoch={self.epoch_counter}/{self.total_epochs}, "
+                    + f"train_loss={train_loss:.4f}, "
+                    + f"valid_loss={valid_loss:.4f}, "
+                    + f"elapsed={elapsed:.1f}s"
+                )
             logger.info(logger_info)
 
         if wandb.run is not None:
@@ -469,6 +533,10 @@ class Trainer:
             wandb_info["train_loss"] = train_loss
             wandb_info["valid_loss"] = valid_loss
             wandb_info["elapsed"] = elapsed
+            if train_loss_base is not None:
+                wandb_info["train_loss_base"] = train_loss_base
+            if train_loss_reg is not None:
+                wandb_info["train_loss_reg"] = train_loss_reg
             wandb.log(wandb_info)
 
     def _check_early_stopping(self) -> bool:
@@ -482,7 +550,11 @@ class Trainer:
             return False
 
     def _loss_plotting(
-        self, train_losses: list[float], valid_losses: list[float]
+        self,
+        train_losses: list[float],
+        valid_losses: list[float],
+        train_losses_base: Optional[list[float]] = None,
+        train_losses_reg: Optional[list[float]] = None,
     ) -> None:
         if self.plot_losses and len(train_losses) > 1:
             if self.save_path and os.path.exists(self.save_path):
@@ -492,6 +564,8 @@ class Trainer:
                     loss_name=self.loss_function._loss_name,
                     save_dir=self.save_path,
                     filename_prefix=self.filename_prefix,
+                    train_losses_base=train_losses_base,
+                    train_losses_reg=train_losses_reg,
                 )
 
     def _check_and_handle_nan_gradients(self, model: BaseModel) -> bool:

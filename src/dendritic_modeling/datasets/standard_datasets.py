@@ -2,7 +2,7 @@
 Standard dataset loading utilities for dendritic modeling.
 
 This module contains functions for loading and preprocessing standard datasets
-like MNIST, CIFAR-10, and ImageNet.
+like MNIST, CIFAR-10, and ImageNet, as well as synthetic datasets for theoretical validation.
 """
 
 import os
@@ -11,6 +11,8 @@ from typing import Any, Optional, Union
 import torch
 from torch.utils.data import Dataset, TensorDataset
 from torchvision import datasets, transforms
+
+from .synthetic_datasets import get_synthetic_datasets
 
 
 def _get_config_value(
@@ -506,6 +508,18 @@ def get_unified_datasets(task_cfg):
             valid_ds = data["test"]
         test_ds = data["test"]
         return train_ds, valid_ds, test_ds
+    elif dataset_name in [
+        "correlated_gaussian",
+        "nonlinear_interaction",
+        "linear_separable",
+        "nonlinear_separable",
+        "block_correlated",
+        "balanced_information",
+    ]:
+        # Handle synthetic datasets for theoretical validation
+        dataset_config = p.copy()
+        dataset_config["type"] = dataset_name
+        return get_synthetic_datasets(dataset_config)
     else:
         # For synthetic/experimental datasets, delegate to the experiments folder
         try:
@@ -524,10 +538,10 @@ def get_unified_datasets(task_cfg):
                 sys.path.insert(0, experiments_path)
 
             from data_generation.synthetic_datasets import (
-                get_unified_datasets as get_synthetic_datasets,
+                get_unified_datasets as get_experimental_datasets,
             )
 
-            return get_synthetic_datasets(task_cfg)
+            return get_experimental_datasets(task_cfg)
         except ImportError as e:
             raise ValueError(
                 f"Unknown dataset name: {dataset_name}. Synthetic datasets not available: {e}"

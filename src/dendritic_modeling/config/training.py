@@ -37,6 +37,7 @@ class CommonTrainerConfig(BaseConfig):
     enable_nan_checking: bool = False
     enable_adaptive_clipping: bool = False
     weight_decay_rate: float = 0.01
+    weight_boosting: bool = False
 
     param_groups: ParamGroupsConfig = field(default_factory=ParamGroupsConfig)
 
@@ -232,7 +233,6 @@ class EncoderTrainingConfig(BaseConfig):
 
     common: CommonTrainerConfig = field(
         default_factory=lambda: CommonTrainerConfig(
-            lr=0.001,
             loss_function="log_mse",
             epochs=500,
             early_stopping=True,
