@@ -104,6 +104,7 @@ class DendriticBranchLayer(nn.Module):
         freeze_inhibitory_connectivity=False,
         init_method=None,
         weight_threshold=1e-6,
+        weight_init=0.01,
         adaptive_initialization=True,
         branch_factors=None,  # Add branch_factors parameter
         epsilon=1e-8,  # Add configurable epsilon for numerical stability
@@ -139,6 +140,7 @@ class DendriticBranchLayer(nn.Module):
         self.freeze_inhibitory_connectivity = freeze_inhibitory_connectivity
         self.init_method = init_method
         self.weight_threshold = weight_threshold
+        self.weight_init = weight_init
         self.adaptive_initialization = adaptive_initialization
         self.branch_factors = branch_factors  # Store branch_factors
         self.weight_transform = weight_transform
@@ -285,6 +287,7 @@ class DendriticBranchLayer(nn.Module):
                     else self.freeze_inhibitory_connectivity
                 ),
                 weight_threshold=self.weight_threshold,
+                weight_init=self.weight_init,
                 weight_transform=self.weight_transform,
             )
         else:

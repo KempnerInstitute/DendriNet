@@ -34,6 +34,7 @@ class DeepstLinear(nn.Module):
         init_method=None,  # Add initialization method parameter
         freeze_connectivity=False,  # New: flag to freeze synapse locations
         weight_threshold=1e-6,  # New: threshold for weight pruning
+        weight_init=0.01,
         weight_transform: WeightTransformType = "exp",
     ):
         super().__init__()
@@ -63,6 +64,7 @@ class DeepstLinear(nn.Module):
         self.weight_init_range = weight_init_range
         self.freeze_connectivity = freeze_connectivity
         self.weight_threshold = weight_threshold
+        self.weight_init = weight_init
 
         # For constant_branch mode
         if rewiring_mode == "constant_branch":

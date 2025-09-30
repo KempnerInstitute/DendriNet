@@ -58,6 +58,7 @@ class ExcitationInhibitionLayer(nn.Module):
         freeze_inhibitory_connectivity=False,
         init_method="xavier_normal",
         weight_threshold=1e-6,
+        weight_init=0.01,
         adaptive_initialization=True,
         **kwargs,
     ):
@@ -108,6 +109,7 @@ class ExcitationInhibitionLayer(nn.Module):
                     freeze_inhibitory_connectivity=freeze_inhibitory_connectivity,
                     init_method=init_method,
                     weight_threshold=weight_threshold,
+                    weight_init=weight_init,
                     adaptive_initialization=adaptive_initialization,
                     **kwargs,
                 )
@@ -168,6 +170,7 @@ class ExcitationInhibitionLayer(nn.Module):
             freeze_inhibitory_connectivity=freeze_inhibitory_connectivity,
             init_method=init_method,
             weight_threshold=weight_threshold,
+            weight_init=weight_init,
             adaptive_initialization=adaptive_initialization,
             **kwargs,
         )

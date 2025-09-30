@@ -772,23 +772,16 @@ class DeepstNet(nn.Module):
 
     def _initialize_new_weights_batch(self, deepst_layer, num_weights): #TODO: use weight threshold or change topk_init_methods, make consistent regardless
         """Initialize new weights in batch using vectorized operations."""
-        if hasattr(deepst_layer, 'init_method') and deepst_layer.init_method is not None:
-            # Use the layer's initialization method
-            
-            if deepst_layer.init_method in TOPK_INIT_METHODS:
-                # Create batch of initialized weights
-                temp = torch.zeros(num_weights, device=deepst_layer.pre_w.device)
-                TOPK_INIT_METHODS[deepst_layer.init_method](temp.unsqueeze(0).unsqueeze(0))
-                values = temp.squeeze()
-                
-                # Apply transformations in batch
-                if deepst_layer.param_space == 'log':
-                    values = torch.log(torch.tensor(deepst_layer.weight_threshold))
-                elif deepst_layer.param_space == 'presigmoid':
-                    values = torch.clamp(values, min=1e-6, max=1-1e-6)
-                    values = torch.log(values / (1 - values))
-                
-                return values
+        if deepst_layer.weight_transform == 'exp':
+            values = torch.exp(torch.tensor(deepst_layer.weight_init))
+        elif deepst_layer.weight_transform == 'relu':
+            values = torch.relu(torch.tensor(deepst_layer.weight_init))
+        elif deepst_layer.weight_transform == 'softplus':
+            values = torch.softplus(torch.tensor(deepst_layer.weight_init))
+        else:
+            raise ValueError(f"Unsupported weight transform type: {deepst_layer.weight_transform}")
+        
+        return values
 
     def decay_weights(self, weight_decay, weight_boosting=False):
         for branch_layer in self.branch_layers:

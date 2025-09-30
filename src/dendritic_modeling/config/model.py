@@ -74,6 +74,7 @@ class SparsityConfig(BaseConfig):
             "freeze_inhibitory_connectivity": False,
             "init_method": "xavier_normal",
             "weight_threshold": 1e-6,
+            "weight_init": 0.01,
         }
     )
 
