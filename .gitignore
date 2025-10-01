@@ -215,3 +215,4 @@ docs_notebooks_backup/
 scripts_backup/
 # Ignore experiments folder completely (managed as separate repo)
 /experiments/
+drafts/*
