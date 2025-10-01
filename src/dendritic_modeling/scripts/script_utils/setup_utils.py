@@ -182,10 +182,20 @@ def setup_environment(
         f"Loaded datasets: {len(train_ds)} training, {len(valid_ds)} validation, {len(test_ds)} test samples"
     )
 
-    # Update encoder input dimension
+    # Update encoder input dimension (only if params exists)
     input_sample: torch.Tensor = train_ds[0][0]
-    model_config.encoder.params.input_dim = input_sample.numel()
-    model_config.encoder.params.input_shape = list(input_sample.shape)
+    if (
+        hasattr(model_config.encoder, "params")
+        and model_config.encoder.params is not None
+    ):
+        model_config.encoder.params.input_dim = input_sample.numel()
+        model_config.encoder.params.input_shape = list(input_sample.shape)
+    else:
+        # Create params if it doesn't exist (e.g., for identity encoder)
+        model_config.encoder.params = {
+            "input_dim": input_sample.numel(),
+            "input_shape": list(input_sample.shape),
+        }
 
     # Initialize model
     model, encoder_network = initialize_model(model_config)

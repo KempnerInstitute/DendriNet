@@ -740,6 +740,517 @@ def _balance_classes(
     return data[balanced_indices], labels[balanced_indices]
 
 
+def create_heterogeneous_information_dataset(
+    n_samples: int = 2000,
+    input_dim: int = 100,
+    n_classes: int = 10,
+    ne: int = 50,
+    ni: int = 50,
+    n_high_info_dims: int = 10,
+    high_info_strength: float = 2.0,
+    low_info_strength: float = 0.1,
+    noise_std: float = 0.2,
+    rho_ee: float = 0.0,
+    rho_ii: float = 0.0,
+    rho_ei: float = 0.0,
+    seed: Optional[int] = None,
+) -> tuple[TensorDataset, TensorDataset, TensorDataset]:
+    """
+    Create dataset with heterogeneous information across dimensions.
+
+    Different dimensions carry different amounts of class-relevant information.
+    Tests optimal synapse sampling strategies for shunting vs. linear.
+
+    Args:
+        n_samples: Samples per class
+        input_dim: Total dimensions (ne + ni)
+        n_classes: Number of classes
+        ne, ni: E and I dimension counts
+        n_high_info_dims: Number of highly informative dimensions
+        high_info_strength: Signal strength for high-info dims
+        low_info_strength: Signal strength for low-info dims
+        noise_std: Within-class noise
+        rho_ee, rho_ii, rho_ei: Correlation structure
+        seed: Random seed
+
+    Returns:
+        train, valid, test datasets
+    """
+    if seed is not None:
+        torch.manual_seed(seed)
+        np.random.seed(seed)
+
+    assert ne + ni == input_dim
+
+    # Create correlation matrix
+    cov_matrix = _create_correlation_matrix(
+        input_dim, ne, ni, rho_ee, rho_ii, rho_ei, noise_std
+    )
+
+    # Create heterogeneous class means
+    all_data = []
+    all_labels = []
+
+    for class_id in range(n_classes):
+        class_mean = torch.zeros(input_dim)
+
+        # High-information dimensions get strong class-specific signal
+        # Low-information dimensions get weak signal
+        for j in range(input_dim):
+            if j < n_high_info_dims:
+                # High information: strong class-dependent signal
+                class_mean[j] = high_info_strength * (class_id / n_classes)
+            else:
+                # Low information: weak signal
+                class_mean[j] = low_info_strength * (class_id / n_classes)
+
+        # Generate samples
+        dist = MultivariateNormal(class_mean, cov_matrix)
+        class_data = dist.sample((n_samples,))
+        class_data = torch.clamp(class_data, 0, 1)
+
+        all_data.append(class_data)
+        all_labels.append(torch.full((n_samples,), class_id, dtype=torch.long))
+
+    data = torch.cat(all_data, dim=0)
+    labels = torch.cat(all_labels, dim=0)
+
+    # Shuffle
+    perm = torch.randperm(len(data))
+    data, labels = data[perm], labels[perm]
+
+    return _split_dataset(data, labels)
+
+
+def create_nonlinear_transformation_dataset(
+    n_samples: int = 2000,
+    n_classes: int = 2,
+    nonlinearity_type: str = "xor",
+    ne: int = 2,
+    ni: int = 2,
+    noise_std: float = 0.1,
+    seed: Optional[int] = None,
+) -> tuple[TensorDataset, TensorDataset, TensorDataset]:
+    """
+    Create dataset specifically designed to test linearity transformation.
+
+    Inputs have nonlinear structure (XOR, quadratic, multiplicative).
+    Tests whether shunting output is more linear than input.
+
+    Args:
+        n_samples: Samples per class
+        n_classes: Number of classes (2 for XOR)
+        nonlinearity_type: 'xor', 'quadratic', 'multiplicative'
+        ne, ni: E and I input dimensions
+        noise_std: Noise level
+        seed: Random seed
+
+    Returns:
+        train, valid, test datasets
+    """
+    if seed is not None:
+        torch.manual_seed(seed)
+        np.random.seed(seed)
+
+    input_dim = ne + ni
+    all_data = []
+    all_labels = []
+
+    for _ in range(n_samples * n_classes):
+        if nonlinearity_type == "xor":
+            # XOR on first two dimensions
+            x1 = torch.rand(1).item()
+            x2 = torch.rand(1).item()
+            label = int((x1 > 0.5) != (x2 > 0.5))  # XOR
+
+            # E dimensions: linear combinations
+            x_e = torch.tensor([x1, x2] + [torch.rand(1).item() for _ in range(ne - 2)])
+            # I dimensions: multiplicative
+            x_i = torch.tensor(
+                [x1 * x2, (1 - x1) * (1 - x2)]
+                + [torch.rand(1).item() for _ in range(ni - 2)]
+            )
+
+        elif nonlinearity_type == "quadratic":
+            # Quadratic boundary: x1^2 + x2^2 > r^2
+            x1 = torch.rand(1).item()
+            x2 = torch.rand(1).item()
+            r = 0.5
+            label = int(x1**2 + x2**2 > r**2)
+
+            x_e = torch.tensor([x1, x2] + [torch.rand(1).item() for _ in range(ne - 2)])
+            x_i = torch.tensor(
+                [x1**2, x2**2] + [torch.rand(1).item() for _ in range(ni - 2)]
+            )
+
+        elif nonlinearity_type == "multiplicative":
+            # Multiplicative interactions
+            x1 = torch.rand(1).item()
+            x2 = torch.rand(1).item()
+            x3 = torch.rand(1).item()
+            label = int(x1 * x2 + x2 * x3 > 0.5)
+
+            x_e = torch.tensor(
+                [x1, x2, x3] + [torch.rand(1).item() for _ in range(max(0, ne - 3))]
+            )
+            x_i = torch.tensor(
+                [x1 * x2, x2 * x3, x1 * x3]
+                + [torch.rand(1).item() for _ in range(max(0, ni - 3))]
+            )
+
+        else:
+            raise ValueError(f"Unknown nonlinearity type: {nonlinearity_type}")
+
+        # Pad to correct dimensionality
+        x = torch.cat([x_e[:ne], x_i[:ni]])
+
+        # Add noise
+        x = x + torch.randn(input_dim) * noise_std
+        x = torch.clamp(x, 0, 1)
+
+        all_data.append(x)
+        all_labels.append(label)
+
+    data = torch.stack(all_data)
+    labels = torch.tensor(all_labels, dtype=torch.long)
+
+    return _split_dataset(data, labels)
+
+
+def create_asymmetric_noise_dataset(
+    n_samples: int = 2000,
+    input_dim: int = 100,
+    n_classes: int = 10,
+    ne: int = 50,
+    ni: int = 50,
+    sigma_e: float = 0.2,
+    sigma_i: float = 0.1,
+    class_separation: float = 0.2,
+    rho_ee: float = 0.0,
+    rho_ii: float = 0.0,
+    rho_ei: float = 0.0,
+    seed: Optional[int] = None,
+) -> tuple[TensorDataset, TensorDataset, TensorDataset]:
+    """
+    Create dataset with asymmetric noise in E vs I dimensions.
+
+    Tests exact theoretical prediction: (I_E/I_I)* = (sigma_I/sigma_E)^2
+
+    Args:
+        n_samples: Samples per class
+        input_dim: Total dimensions (ne + ni)
+        n_classes: Number of classes
+        ne, ni: E and I dimension counts
+        sigma_e: Noise std for E dimensions (can differ from sigma_i)
+        sigma_i: Noise std for I dimensions
+        class_separation: Signal strength (same for E and I)
+        rho_ee, rho_ii, rho_ei: Correlations
+        seed: Random seed
+
+    Returns:
+        train, valid, test datasets
+    """
+    if seed is not None:
+        torch.manual_seed(seed)
+        np.random.seed(seed)
+
+    assert ne + ni == input_dim
+
+    # Create separate covariance matrices for E and I
+    cov_e = torch.eye(ne) * (sigma_e**2)
+    cov_i = torch.eye(ni) * (sigma_i**2)
+
+    # Add correlations within E
+    for i in range(ne):
+        for j in range(i + 1, ne):
+            cov_e[i, j] = cov_e[j, i] = rho_ee * sigma_e**2
+
+    # Add correlations within I
+    for i in range(ni):
+        for j in range(i + 1, ni):
+            cov_i[i, j] = cov_i[j, i] = rho_ii * sigma_i**2
+
+    # Build full covariance with cross-correlations
+    cov_matrix = torch.zeros(input_dim, input_dim)
+    cov_matrix[:ne, :ne] = cov_e
+    cov_matrix[ne:, ne:] = cov_i
+
+    # Add E-I cross-correlations
+    for i in range(ne):
+        for j in range(ne, input_dim):
+            cov_matrix[i, j] = cov_matrix[j, i] = rho_ei * sigma_e * sigma_i
+
+    # Ensure PSD
+    eigenvals = torch.linalg.eigvals(cov_matrix).real
+    if eigenvals.min() <= 0:
+        logger.warning("Cov matrix not PSD, adding regularization")
+        cov_matrix += torch.eye(input_dim) * (1e-6 - eigenvals.min())
+
+    # Generate class means (same separation for E and I to isolate noise effect)
+    all_data = []
+    all_labels = []
+
+    for class_id in range(n_classes):
+        class_mean = torch.zeros(input_dim)
+        # Same signal strength for E and I dimensions
+        class_mean[:] = class_separation * (class_id / n_classes)
+
+        # Generate samples
+        dist = MultivariateNormal(class_mean, cov_matrix)
+        class_data = dist.sample((n_samples,))
+        class_data = torch.clamp(class_data, 0, 1)
+
+        all_data.append(class_data)
+        all_labels.append(torch.full((n_samples,), class_id, dtype=torch.long))
+
+    data = torch.cat(all_data, dim=0)
+    labels = torch.cat(all_labels, dim=0)
+
+    perm = torch.randperm(len(data))
+    data, labels = data[perm], labels[perm]
+
+    return _split_dataset(data, labels)
+
+
+def create_population_code_dataset(
+    n_samples: int = 2000,
+    pop_dim: int = 200,
+    ne: int = 50,
+    ni: int = 50,
+    n_classes: int = 2,
+    code_type: str = "mixed_selectivity",
+    noise_std: float = 0.1,
+    kappa: float = 2.0,
+    seed: Optional[int] = None,
+) -> tuple[TensorDataset, TensorDataset, TensorDataset]:
+    """
+    Create datasets that simulate complex population codes from an upstream layer.
+
+    This generator models cases reported in systems neuroscience where downstream
+    neurons read out from complex, nonlinear population representations:
+      - mixed_selectivity: random nonlinear mixing of latent variables (Rigotti et al. 2013)
+      - ring: circular manifold with von Mises tuning (orientation/head-direction)
+
+    The upstream population (size pop_dim) is mixed through random synaptic
+    projections into E and I input dimensions (ne, ni), bounded to [0,1].
+
+    Args:
+        n_samples: Samples per class (balanced expected)
+        pop_dim: Size of upstream population code
+        ne: Number of excitatory synaptic inputs
+        ni: Number of inhibitory synaptic inputs
+        n_classes: Number of classes (2 supported)
+        code_type: 'mixed_selectivity' or 'ring'
+        noise_std: Observation noise level in synaptic inputs
+        kappa: Concentration parameter for von Mises (ring)
+        seed: Random seed
+
+    Returns:
+        train, valid, test datasets
+    """
+    if seed is not None:
+        torch.manual_seed(seed)
+        np.random.seed(seed)
+
+    assert (
+        n_classes == 2
+    ), "population_code dataset currently supports binary classification"
+
+    total_samples = n_samples * n_classes
+
+    # Upstream population responses r: (total_samples, pop_dim)
+    if code_type == "mixed_selectivity":
+        # Latent variables s in R^2
+        S = torch.rand(total_samples, 2) * 2.0 - 1.0  # Uniform in [-1,1]^2
+
+        # Binary labels are linear in latent space
+        a = torch.randn(2)
+        a = a / (a.norm() + 1e-8)
+        y = (S @ a > 0).long()
+
+        # Upstream nonlinear mixed selectivity: r = sigmoid(tanh(W s + b) + noise)
+        W = torch.randn(pop_dim, 2)
+        b = 0.2 * torch.randn(pop_dim)
+        z = torch.tanh(S @ W.T + b)
+        r = torch.sigmoid(z + torch.randn_like(z) * noise_std)
+
+    elif code_type == "ring":
+        # Latent variable: angle on a ring
+        theta = torch.rand(total_samples) * 2 * torch.pi
+
+        # Labels: two halves of the ring (linear in sin/cos space)
+        y = (torch.cos(theta) > 0).long()
+
+        # Upstream population: von Mises tuning curves with centers phi_k
+        phi = torch.linspace(0, 2 * torch.pi, pop_dim, endpoint=False)
+        # r_k(theta) = exp(kappa cos(theta - phi_k)), then scale to [0,1]
+        cos_diffs = torch.cos(theta.view(-1, 1) - phi.view(1, -1))
+        vm = torch.exp(kappa * cos_diffs)
+        vm_min = torch.exp(torch.tensor(-kappa))
+        vm_max = torch.exp(torch.tensor(kappa))
+        r = (vm - vm_min) / (vm_max - vm_min + 1e-8)
+        r = torch.clamp(r + torch.randn_like(r) * noise_std, 0.0, 1.0)
+
+    else:
+        raise ValueError(f"Unknown population code_type: {code_type}")
+
+    # Random E/I mixing from population to synapses
+    # Use small weights to keep values in a reasonable range before sigmoid
+    A_e = torch.randn(ne, pop_dim) / np.sqrt(pop_dim)
+    A_i = torch.randn(ni, pop_dim) / np.sqrt(pop_dim)
+    b_e = 0.1 * torch.randn(ne)
+    b_i = 0.1 * torch.randn(ni)
+
+    x_e = torch.sigmoid(r @ A_e.T + b_e + torch.randn(total_samples, ne) * noise_std)
+    x_i = torch.sigmoid(r @ A_i.T + b_i + torch.randn(total_samples, ni) * noise_std)
+    data = torch.cat([x_e, x_i], dim=1)
+    labels = y
+
+    # Balance classes
+    data, labels = _balance_classes(data, labels)
+
+    # Split
+    return _split_dataset(data, labels)
+
+
+def create_mnist_information_sampled_dataset(
+    subset_size: int = 100,
+    sampling_strategy: str = "info_balanced",
+    n_classes: int = 10,
+    precomputed_fisher_path: Optional[str] = None,
+    seed: Optional[int] = None,
+) -> tuple[TensorDataset, TensorDataset, TensorDataset, dict]:
+    """
+    Create MNIST dataset with information-based pixel sampling.
+
+    Computes per-pixel Fisher information and samples pixels according to strategy.
+
+    Args:
+        subset_size: Number of pixels to sample (out of 784)
+        sampling_strategy: 'info_balanced', 'top_k', or 'random'
+        n_classes: MNIST classes to use (default 10)
+        precomputed_fisher_path: Path to precomputed Fisher scores
+        seed: Random seed
+
+    Returns:
+        train, valid, test datasets, info_dict
+    """
+    from torchvision import datasets, transforms
+
+    # Load MNIST
+    transform = transforms.Compose([transforms.ToTensor()])
+    train_mnist = datasets.MNIST(
+        root="./data", train=True, download=True, transform=transform
+    )
+    test_mnist = datasets.MNIST(
+        root="./data", train=False, download=True, transform=transform
+    )
+
+    # Convert to tensors
+    train_data = train_mnist.data.float().reshape(-1, 784) / 255.0
+    train_labels = train_mnist.targets
+    test_data = test_mnist.data.float().reshape(-1, 784) / 255.0
+    test_labels = test_mnist.targets
+
+    # Filter to n_classes
+    if n_classes < 10:
+        train_mask = train_labels < n_classes
+        train_data = train_data[train_mask]
+        train_labels = train_labels[train_mask]
+        test_mask = test_labels < n_classes
+        test_data = test_data[test_mask]
+        test_labels = test_labels[test_mask]
+
+    # Compute per-pixel Fisher information
+    fisher_scores = torch.zeros(784)
+    for pixel_idx in range(784):
+        pixel_values = train_data[:, pixel_idx]
+
+        # Compute between-class variance
+        class_means = torch.zeros(n_classes)
+        class_vars = torch.zeros(n_classes)
+        for c in range(n_classes):
+            class_mask = train_labels == c
+            class_pixels = pixel_values[class_mask]
+            class_means[c] = class_pixels.mean()
+            class_vars[c] = class_pixels.var()
+
+        # Fisher information: between-class variance / within-class variance
+        between_var = class_means.var()
+        within_var = class_vars.mean()
+        fisher_scores[pixel_idx] = between_var / (within_var + 1e-8)
+
+    # Sample pixels based on strategy
+    if sampling_strategy == "top_k":
+        # Sample top-k most informative pixels for both E and I
+        _, top_indices = torch.topk(fisher_scores, subset_size)
+        e_indices = top_indices[: subset_size // 2]
+        i_indices = top_indices[: subset_size // 2]
+
+    elif sampling_strategy == "info_balanced":
+        # Sample to balance information between E and I
+        sorted_indices = torch.argsort(fisher_scores, descending=True)
+        e_indices = []
+        i_indices = []
+        I_E = 0.0
+        I_I = 0.0
+
+        for idx in sorted_indices:
+            if len(e_indices) < subset_size // 2 and I_E <= I_I:
+                e_indices.append(idx.item())
+                I_E += fisher_scores[idx].item()
+            elif len(i_indices) < subset_size // 2:
+                i_indices.append(idx.item())
+                I_I += fisher_scores[idx].item()
+
+            if (
+                len(e_indices) >= subset_size // 2
+                and len(i_indices) >= subset_size // 2
+            ):
+                break
+
+        e_indices = torch.tensor(e_indices)
+        i_indices = torch.tensor(i_indices)
+
+    elif sampling_strategy == "random":
+        # Random sampling
+        perm = torch.randperm(784)
+        e_indices = perm[: subset_size // 2]
+        i_indices = perm[subset_size // 2 : subset_size]
+
+    else:
+        raise ValueError(f"Unknown sampling strategy: {sampling_strategy}")
+
+    # Create sampled datasets
+    all_indices = torch.cat([e_indices, i_indices])
+    train_data_sampled = train_data[:, all_indices]
+    test_data_sampled = test_data[:, all_indices]
+
+    # Split train into train/valid
+    n_train = int(0.8 * len(train_data_sampled))
+    valid_data_sampled = train_data_sampled[n_train:]
+    valid_labels_sampled = train_labels[n_train:]
+    train_data_sampled = train_data_sampled[:n_train]
+    train_labels = train_labels[:n_train]
+
+    # Create info dict
+    info_dict = {
+        "e_indices": e_indices.tolist(),
+        "i_indices": i_indices.tolist(),
+        "fisher_scores": fisher_scores.tolist(),
+        "I_E": fisher_scores[e_indices].sum().item(),
+        "I_I": fisher_scores[i_indices].sum().item(),
+        "sampling_strategy": sampling_strategy,
+    }
+
+    return (
+        TensorDataset(train_data_sampled, train_labels),
+        TensorDataset(valid_data_sampled, valid_labels_sampled),
+        TensorDataset(test_data_sampled, test_labels),
+        info_dict,
+    )
+
+
 def _split_dataset(
     data: torch.Tensor,
     labels: torch.Tensor,
@@ -858,6 +1369,63 @@ def get_synthetic_datasets(
             rho_ii=dataset_config.get("rho_ii", 0.0),
             rho_ei=dataset_config.get("rho_ei", 0.0),
             noise_std=dataset_config.get("noise_std", 0.2),
+            seed=dataset_config.get("seed", None),
+        )
+
+    elif dataset_type == "heterogeneous_information":
+        return create_heterogeneous_information_dataset(
+            n_samples=dataset_config.get("n_samples", 2000),
+            input_dim=dataset_config.get("input_dim", 100),
+            n_classes=dataset_config.get("n_classes", 10),
+            ne=dataset_config.get("ne", 50),
+            ni=dataset_config.get("ni", 50),
+            n_high_info_dims=dataset_config.get("n_high_info_dims", 10),
+            high_info_strength=dataset_config.get("high_info_strength", 2.0),
+            low_info_strength=dataset_config.get("low_info_strength", 0.1),
+            noise_std=dataset_config.get("noise_std", 0.2),
+            rho_ee=dataset_config.get("rho_ee", 0.0),
+            rho_ii=dataset_config.get("rho_ii", 0.0),
+            rho_ei=dataset_config.get("rho_ei", 0.0),
+            seed=dataset_config.get("seed", None),
+        )
+
+    elif dataset_type == "nonlinear_transformation":
+        return create_nonlinear_transformation_dataset(
+            n_samples=dataset_config.get("n_samples", 2000),
+            n_classes=dataset_config.get("n_classes", 2),
+            nonlinearity_type=dataset_config.get("nonlinearity_type", "xor"),
+            ne=dataset_config.get("ne", 2),
+            ni=dataset_config.get("ni", 2),
+            noise_std=dataset_config.get("noise_std", 0.1),
+            seed=dataset_config.get("seed", None),
+        )
+
+    elif dataset_type == "asymmetric_noise":
+        return create_asymmetric_noise_dataset(
+            n_samples=dataset_config.get("n_samples", 2000),
+            input_dim=dataset_config.get("input_dim", 100),
+            n_classes=dataset_config.get("n_classes", 10),
+            ne=dataset_config.get("ne", 50),
+            ni=dataset_config.get("ni", 50),
+            sigma_e=dataset_config.get("sigma_e", 0.2),
+            sigma_i=dataset_config.get("sigma_i", 0.1),
+            class_separation=dataset_config.get("class_separation", 0.2),
+            rho_ee=dataset_config.get("rho_ee", 0.0),
+            rho_ii=dataset_config.get("rho_ii", 0.0),
+            rho_ei=dataset_config.get("rho_ei", 0.0),
+            seed=dataset_config.get("seed", None),
+        )
+
+    elif dataset_type == "population_code":
+        return create_population_code_dataset(
+            n_samples=dataset_config.get("n_samples", 2000),
+            pop_dim=dataset_config.get("pop_dim", 200),
+            ne=dataset_config.get("ne", 50),
+            ni=dataset_config.get("ni", 50),
+            n_classes=dataset_config.get("n_classes", 2),
+            code_type=dataset_config.get("code_type", "mixed_selectivity"),
+            noise_std=dataset_config.get("noise_std", 0.1),
+            kappa=dataset_config.get("kappa", 2.0),
             seed=dataset_config.get("seed", None),
         )
 
