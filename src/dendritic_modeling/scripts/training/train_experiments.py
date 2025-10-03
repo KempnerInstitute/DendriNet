@@ -255,20 +255,38 @@ def main(config_path: str, args=None):
         save_path=main_net_save_path,
     )
 
+    # Extract config values (handle both dict from sweeps and object from single runs)
+    if isinstance(main_train_config, dict):
+        common_config = main_train_config.get("common", {})
+        strategy = main_train_config.get("strategy", "standard")
+    else:
+        common_config = main_train_config.common
+        strategy = main_train_config.strategy
+
+    # Extract from common_config (also handle dict vs object)
+    if isinstance(common_config, dict):
+        param_groups = common_config.get("param_groups", {})
+        weight_decay_rate = common_config.get("weight_decay_rate", 0.0)
+        weight_boosting = common_config.get("weight_boosting", False)
+        common_epochs = common_config.get("epochs", 100)
+    else:
+        param_groups = common_config.param_groups
+        weight_decay_rate = common_config.weight_decay_rate
+        weight_boosting = getattr(common_config, "weight_boosting", False)
+        common_epochs = common_config.epochs
+
     optimizer = CustomWeightDecayOptimizer(
         model=model,
-        optimizer=torch.optim.Adam(
-            model.get_param_groups(main_train_config.common.param_groups)
-        ),
-        weight_decay=main_train_config.common.weight_decay_rate,
-        weight_boosting=getattr(main_train_config.common, "weight_boosting", False),
+        optimizer=torch.optim.Adam(model.get_param_groups(param_groups)),
+        weight_decay=weight_decay_rate,
+        weight_boosting=weight_boosting,
     )
 
     original_pruning_config = main_trainer_config_dict.get("pruning", {})
     main_trainer_config_dict["pruning"] = {}
 
     # Check if using multi-stage training
-    if main_train_config.strategy == "multi_stage":
+    if strategy == "multi_stage":
         if "multi_stage_config" not in main_trainer_config_dict:
             raise ValueError(
                 "Learning strategy is 'multi_stage' but no 'multi_stage_config' found"
@@ -276,7 +294,7 @@ def main(config_path: str, args=None):
         logger.info("Using multi-stage training strategy")
 
     main_trainer = get_trainer(
-        strategy=main_train_config.strategy,
+        strategy=strategy,
         optimizer=optimizer,
         trainer_config_dict=main_trainer_config_dict,
         analysis_manager=analysis_manager,
@@ -321,7 +339,7 @@ def main(config_path: str, args=None):
         ]
     )
 
-    if any_analysis_enabled and main_train_config.strategy != "multi_stage":
+    if any_analysis_enabled and strategy != "multi_stage":
         run_analysis(
             model=model,
             train_ds=train_ds,
@@ -332,14 +350,17 @@ def main(config_path: str, args=None):
             training_config=training_config,
             training=False,
         )
-    elif main_train_config.strategy == "multi_stage":
+    elif strategy == "multi_stage":
         if analysis_config.performance_analysis.training:
             performance_dir = os.path.join(run_save_path, "performance", "epochs")
             if os.path.exists(performance_dir):
                 try:
+                    # Extract multi_stage config
+                    multi_stage = main_train_config.strategies.multi_stage
+                    stages = multi_stage.stages
+
                     total_epochs = sum(
-                        stage.get("epochs", main_train_config.common.epochs)
-                        for stage in main_train_config.strategies.multi_stage.stages
+                        getattr(stage, "epochs", common_epochs) for stage in stages
                     )
 
                     plotter = PerformancePlotter()
@@ -364,14 +385,14 @@ def main(config_path: str, args=None):
         )
 
         pruning_trainer = get_trainer(
-            strategy=main_train_config.strategy,
+            strategy=strategy,
             optimizer=optimizer,
             trainer_config_dict=main_trainer_config_dict,
             analysis_manager=analysis_manager,
         )
 
         # Initialize trainer attributes (device, etc.) without training
-        pruning_trainer._initialize_attributes(model, main_train_config.trainer.epochs)
+        pruning_trainer._initialize_attributes(model, common_epochs)
 
         # Apply pruning and evaluate
         pruning_results = pruning_trainer._apply_pruning_and_evaluate(

@@ -267,14 +267,9 @@ class MainTrainingConfig(BaseConfig):
     strategies: TrainingStrategiesConfig = field(
         default_factory=TrainingStrategiesConfig
     )
-
-
-@dataclass
-class TrainingConfig(BaseConfig):
-    """Complete training configuration."""
-
-    encoder: EncoderTrainingConfig = field(default_factory=EncoderTrainingConfig)
-    main: MainTrainingConfig = field(default_factory=MainTrainingConfig)
+    learning_strategy_config: Optional["LocalRuleConfig"] = field(
+        default_factory=lambda: None
+    )
 
 
 @dataclass
@@ -514,3 +509,11 @@ class ReportingConfig(BaseConfig):
     redo_analysis_after_pruning: bool = (
         True  # Redo all analyses after pruning for comparison
     )
+
+
+@dataclass
+class TrainingConfig(BaseConfig):
+    """Complete training configuration."""
+
+    encoder: EncoderTrainingConfig = field(default_factory=EncoderTrainingConfig)
+    main: MainTrainingConfig = field(default_factory=MainTrainingConfig)

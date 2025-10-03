@@ -63,20 +63,61 @@ class LocalCreditAssignment(Trainer):
     def __init__(self, *args, **kwargs):
         config_dict = kwargs.pop("local_rule_config", {}) or {}
         super().__init__(*args, **kwargs)
-        self.local_cfg = LocalRuleConfig(**config_dict)
+        # Build LocalRuleConfig with proper nested config handling
+        self.local_cfg = self._build_local_rule_config(config_dict)
         self._layer_stats: dict[int, _LayerStats] = {}
         self._decoder_cache: dict[str, Any] = {}
         self.filename_prefix = "local_learning_"
         self.logger_info_prefix = "[Local] "
+
+    def _build_local_rule_config(self, config_dict: dict) -> LocalRuleConfig:
+        """Build LocalRuleConfig from dict with proper nested config handling."""
+        from ...config.training import (
+            FiveFactorConfig,
+            FourFactorConfig,
+            HSICConfig,
+            MorphologyAwareConfig,
+            ThreeFactorConfig,
+        )
+
+        cfg_kwargs = dict(config_dict)
+
+        # Handle nested configs - convert dicts to proper config objects
+        if "three_factor" in cfg_kwargs and isinstance(
+            cfg_kwargs["three_factor"], dict
+        ):
+            cfg_kwargs["three_factor"] = ThreeFactorConfig(**cfg_kwargs["three_factor"])
+
+        if "four_factor" in cfg_kwargs and isinstance(cfg_kwargs["four_factor"], dict):
+            cfg_kwargs["four_factor"] = FourFactorConfig(**cfg_kwargs["four_factor"])
+
+        if "five_factor" in cfg_kwargs and isinstance(cfg_kwargs["five_factor"], dict):
+            cfg_kwargs["five_factor"] = FiveFactorConfig(**cfg_kwargs["five_factor"])
+
+        if "morphology_aware" in cfg_kwargs and isinstance(
+            cfg_kwargs["morphology_aware"], dict
+        ):
+            cfg_kwargs["morphology_aware"] = MorphologyAwareConfig(
+                **cfg_kwargs["morphology_aware"]
+            )
+
+        if "hsic" in cfg_kwargs and isinstance(cfg_kwargs["hsic"], dict):
+            cfg_kwargs["hsic"] = HSICConfig(**cfg_kwargs["hsic"])
+
+        return LocalRuleConfig(**cfg_kwargs)
 
     # Override: do not run extra pretrain/final phases here
     def _pretrain(self, *args, **kwargs):  # type: ignore[override]
         return [], []
 
     # ----------------------- Core training overrides -----------------------
-    def _epoch_train(self, model: BaseModel, train_loader) -> float:  # type: ignore[override]
+    def _epoch_train(
+        self, model: BaseModel, train_loader
+    ) -> tuple[float, float, float]:  # type: ignore[override]
         model.train()
         train_loss = 0.0
+        train_loss_base = 0.0
+        train_loss_reg = 0.0
 
         # Fallback: if model has no dendritic branch layers, use standard epoch_train
         try:
@@ -130,7 +171,10 @@ class LocalCreditAssignment(Trainer):
 
             # Compute scalar loss for logging (no backward)
             loss = self._compute_logging_loss(model, x_batch, y_batch)
-            train_loss += loss.item()
+            loss_item = loss.item()
+            train_loss += loss_item
+            train_loss_base += loss_item  # Local learning doesn't separate base/reg
+            # train_loss_reg remains 0
 
             # Compute broadcast soma error dL/dV0 per-sample
             delta: torch.Tensor = self._compute_soma_error(y_hat, y_batch)
@@ -222,7 +266,9 @@ class LocalCreditAssignment(Trainer):
             self.optimizer.step()
 
         train_loss /= len(train_loader)
-        return train_loss
+        train_loss_base /= len(train_loader)
+        train_loss_reg /= len(train_loader)
+        return train_loss, train_loss_base, train_loss_reg
 
     # -------------------------- Helper: loss/error --------------------------
     def _compute_logging_loss(
@@ -1492,15 +1538,21 @@ class LocalCreditAssignment(Trainer):
         # Use the standard loop to ensure epoch counters and early stopping work
         train_losses: list[float] = []
         valid_losses: list[float] = []
-        train_losses, valid_losses = self._run_training_loop(
-            n_epochs=self.epochs,
-            model=model,
-            train_loader=train_loader,
-            valid_loader=valid_loader,
-            train_losses=train_losses,
-            valid_losses=valid_losses,
-            logger_info=self.logger_info_prefix,
-            wandb_info={},
+        train_losses_base: list[float] = []
+        train_losses_reg: list[float] = []
+        train_losses, valid_losses, train_losses_base, train_losses_reg = (
+            self._run_training_loop(
+                n_epochs=self.epochs,
+                model=model,
+                train_loader=train_loader,
+                valid_loader=valid_loader,
+                train_losses=train_losses,
+                valid_losses=valid_losses,
+                train_losses_base=train_losses_base,
+                train_losses_reg=train_losses_reg,
+                logger_info=self.logger_info_prefix,
+                wandb_info={},
+            )
         )
 
         if self.load_best_state_dict:
