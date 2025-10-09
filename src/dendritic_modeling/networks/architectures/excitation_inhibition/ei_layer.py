@@ -59,6 +59,7 @@ class ExcitationInhibitionLayer(nn.Module):
         init_method="xavier_normal",
         weight_threshold=1e-6,
         weight_init=0.01,
+        input_noise=0,
         adaptive_initialization=True,
         **kwargs,
     ):
@@ -110,6 +111,7 @@ class ExcitationInhibitionLayer(nn.Module):
                     init_method=init_method,
                     weight_threshold=weight_threshold,
                     weight_init=weight_init,
+                    input_noise=input_noise,
                     adaptive_initialization=adaptive_initialization,
                     **kwargs,
                 )
@@ -171,6 +173,7 @@ class ExcitationInhibitionLayer(nn.Module):
             init_method=init_method,
             weight_threshold=weight_threshold,
             weight_init=weight_init,
+            input_noise=input_noise,
             adaptive_initialization=adaptive_initialization,
             **kwargs,
         )

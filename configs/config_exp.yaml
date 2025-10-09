@@ -151,6 +151,8 @@ model:
         freeze_inhibitory_connectivity: false  # Freeze inhibitory connectivity (true/false)
         init_method: "xavier_normal"    # Weight initialization method
         weight_threshold: 1e-6          # Pruning threshold
+        weight_init: 0.01               # Weight initialization
+        input_noise: 0                  # Noise for input
 
     reactivation:
       enabled: true                     # Enable reactivation functions (true/false)

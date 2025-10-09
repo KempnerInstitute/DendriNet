@@ -36,6 +36,7 @@ class DeepstLinear(nn.Module):
         weight_threshold=1e-6,  # New: threshold for weight pruning
         weight_init=0.01,
         weight_transform: WeightTransformType = "exp",
+        input_noise=0,
     ):
         super().__init__()
 
@@ -48,6 +49,7 @@ class DeepstLinear(nn.Module):
         self.param_space = param_space
         self.init_method = init_method
         self.weight_transform = weight_transform
+        self.input_noise = input_noise
 
         # Add K attribute for compatibility with initialize_dendritic_branch_layer
         self.K = int(target_density * in_features) if in_features else None
@@ -179,6 +181,9 @@ class DeepstLinear(nn.Module):
 
     def forward(self, x):
         # Apply mask and sum across dendritic locations
+        if self.input_noise > 0:
+            x = x + torch.randn_like(x) * self.input_noise
+            x = torch.clamp(x, min=0)
         return torch.matmul(x, self.pruned_weight().t())
 
     def weighted_synapses(self, cell_weights, prune=False):

@@ -75,6 +75,7 @@ class SparsityConfig(BaseConfig):
             "init_method": "xavier_normal",
             "weight_threshold": 1e-6,
             "weight_init": 0.01,
+            "input_noise": 0,
         }
     )
 

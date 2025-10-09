@@ -61,6 +61,7 @@ class DeepstNet(nn.Module):
         freeze_inhibitory_connectivity=False,
         init_method=None,
         weight_threshold=1e-6,
+        input_noise=0,
         adaptive_initialization=True,  # Add adaptive initialization parameter
         **kwargs,
     ):
@@ -145,6 +146,7 @@ class DeepstNet(nn.Module):
                 freeze_inhibitory_connectivity=freeze_inhibitory_connectivity,
                 init_method=init_method,
                 weight_threshold=weight_threshold,
+                input_noise=input_noise,
                 adaptive_initialization=adaptive_initialization,
                 branch_factors=self.branch_factors,  # Pass branch_factors
                 **kwargs
@@ -189,6 +191,7 @@ class DeepstNet(nn.Module):
                     freeze_inhibitory_connectivity=freeze_inhibitory_connectivity,
                     init_method=init_method,
                     weight_threshold=weight_threshold,
+                    input_noise=input_noise,
                     adaptive_initialization=adaptive_initialization,
                     branch_factors=self.branch_factors,  # Pass branch_factors
                     **kwargs
@@ -232,6 +235,7 @@ class DeepstNet(nn.Module):
                     freeze_inhibitory_connectivity=freeze_inhibitory_connectivity,
                     init_method=init_method,
                     weight_threshold=weight_threshold,
+                    input_noise=input_noise,
                     adaptive_initialization=adaptive_initialization,
                     branch_factors=self.branch_factors,  # Pass branch_factors
                     **kwargs

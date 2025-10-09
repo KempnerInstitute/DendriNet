@@ -65,6 +65,7 @@ class ExcitationInhibitionNetwork(nn.Module):
         freeze_inhibitory_connectivity: Whether to freeze inhibitory connectivity.
         init_method: Method for initializing weights.
         weight_threshold: Threshold for weight pruning.
+        input_noise: Noise for input.
         adaptive_initialization: Whether to use adaptive initialization.
     """
 
@@ -109,6 +110,7 @@ class ExcitationInhibitionNetwork(nn.Module):
         init_method="xavier_normal",
         weight_threshold=1e-6,
         weight_init=0.01,
+        input_noise=0,
         adaptive_initialization=True,
         **kwargs,
     ):
@@ -161,6 +163,7 @@ class ExcitationInhibitionNetwork(nn.Module):
         self.init_method = init_method
         self.weight_threshold = weight_threshold
         self.weight_init = weight_init
+        self.input_noise = input_noise
         self.adaptive_initialization = adaptive_initialization
 
         # Set up transfer function
@@ -348,6 +351,7 @@ class ExcitationInhibitionNetwork(nn.Module):
                 init_method=self.init_method,
                 weight_threshold=self.weight_threshold,
                 weight_init=self.weight_init,
+                input_noise=self.input_noise,
                 efficient_blocklinear=self.efficient_blocklinear,
                 adaptive_initialization=self.adaptive_initialization,
                 **kwargs,
