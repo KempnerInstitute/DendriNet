@@ -338,16 +338,52 @@ class CompartmentStatisticsAnalyzer(AbstractAnalyzer):
             )
             save_dict(results, save_path, filename)
 
-            plot_synapse_weight_comparison(
-                fields=["weights", "inputs", "activations"], 
-                summ_stats=["mean", "q2", "std"], 
-                branch_statistics=branch_statistics, 
-                save_path=save_path
-            )
-            plot_ratio_comparison(
-                branch_statistics=branch_statistics, 
-                save_path=save_path
-            )
+            fields = []
+            if self.synapse_weights:
+                fields.append("weights")
+            if self.inputs:
+                fields.append("inputs")
+            if self.activations:
+                fields.append("activations")
+
+            summ_stats = []
+            if self.compute_mean:
+                summ_stats.append("mean")
+            if self.compute_variance:
+                summ_stats.append("std")
+
+            try:
+                plot_synapse_weight_comparison(
+                    fields=fields, 
+                    summ_stats=summ_stats, 
+                    branch_statistics=branch_statistics, 
+                    save_path=save_path
+                )
+            except Exception as e:
+                self.logger.error(f"Error generating synapse weight comparison plot: {e}")
+                traceback.print_exc()
+            
+            try:
+                plot_ratio_comparison(
+                    branch_statistics=branch_statistics, 
+                    save_path=save_path
+                )
+            except Exception as e:
+                self.logger.error(f"Error generating ratio comparison plot: {e}")
+                traceback.print_exc()
+            
+            try:
+                plot_ratio_pairwise_comparison(
+                    branch_statistics=branch_statistics,
+                    weights_ratio=self.synapse_weights,
+                    inputs_ratio=self.inputs,
+                    activations_ratio=self.activations,
+                    save_path=save_path
+                )
+            except Exception as e:
+                self.logger.error(f"Error generating ratio pairwise comparison plot: {e}")
+                traceback.print_exc()
+                
 
             # Only generate plots during final analysis (not during training)
             if not training:
@@ -727,26 +763,149 @@ def plot_ratio_comparison(
     g.figure.savefig(os.path.join(save_path, "another_comparison.png"), dpi=300, bbox_inches="tight")
     plt.close(g.figure)
 
-    # fig, axes = plt.subplots(2, 2, figsize=(12, 16), sharex="col", sharey="row")
-    # for i, dep in enumerate(deps):
-    #     for j, indep in enumerate(indeps):
-    #         for depth, data in agg_data.items():
-    #             axes[i, j].scatter(
-    #                 data[indep], 
-    #                 data[dep], 
-    #                 label=depth.title(), 
-    #                 marker="o", s=5, alpha=0.5
-    #             )
-    #         axes[i, j].legend()
-    #         axes[i, j].grid(True)
     
-    # axes[-1, 0].set_xlabel(r"$\frac{X_{exc}}{X_{inh}}*\frac{W_{exc}}{W_{inh}}$")
-    # axes[-1, -1].set_xlabel(r"$\frac{E}{I}$")
-    # axes[0, 0].set_ylabel(r"$\sqrt{\frac{N(E)}{N(I)}}$")
-    # axes[1, 0].set_ylabel(r"$\frac{\sigma_{E}}{\sigma_{I}}$")
-    # plt.tight_layout()
-    # fig.savefig(os.path.join(save_path, "another_comparison.png"), dpi=300, bbox_inches="tight")
-    # plt.close(fig)
+
+def plot_ratio_pairwise_comparison(
+    branch_statistics: dict[str, dict[int, dict[str, float]]], 
+    weights_ratio: bool = False,
+    inputs_ratio: bool = False,
+    activations_ratio: bool = False,
+    save_path: str = None
+):
+    agg_data: dict[str, dict[str, list[float]]] = {}
+    for layer_key, layer_data in branch_statistics.items():
+        for branch_data in layer_data.values():
+            depth = branch_data["depth"]
+            if f"depth {depth}" not in agg_data.keys():
+                agg_data[f"depth {depth}"] = {}
+            
+            if weights_ratio and "ei_w_mean_ratio" not in agg_data[f"depth {depth}"].keys():
+                agg_data[f"depth {depth}"][f"ei_w_mean_ratio"] = []
+            if weights_ratio and "ei_w_std_ratio" not in agg_data[f"depth {depth}"].keys():
+                agg_data[f"depth {depth}"][f"ei_w_std_ratio"] = []
+            
+            if inputs_ratio and "ei_x_mean_ratio" not in agg_data[f"depth {depth}"].keys():
+                agg_data[f"depth {depth}"][f"ei_x_mean_ratio"] = []
+            if inputs_ratio and "ei_x_std_ratio" not in agg_data[f"depth {depth}"].keys():
+                agg_data[f"depth {depth}"][f"ei_x_std_ratio"] = []
+            
+            if weights_ratio and inputs_ratio and "ei_wx_mean_ratio" not in agg_data[f"depth {depth}"].keys():
+                agg_data[f"depth {depth}"][f"ei_wx_mean_ratio"] = []
+            if weights_ratio and inputs_ratio and "ei_wx_std_ratio" not in agg_data[f"depth {depth}"].keys():
+                agg_data[f"depth {depth}"][f"ei_wx_std_ratio"] = []
+            
+            if activations_ratio and "ei_a_mean_ratio" not in agg_data[f"depth {depth}"].keys():
+                agg_data[f"depth {depth}"][f"ei_a_mean_ratio"] = []
+            if activations_ratio and "ei_a_std_ratio" not in agg_data[f"depth {depth}"].keys():
+                agg_data[f"depth {depth}"][f"ei_a_std_ratio"] = []
+            
+            
+            if weights_ratio:
+                ei_w_mean_ratio = branch_data["exc_weights_mean"] / (branch_data["inh_weights_mean"] + 1e-8)
+                agg_data[f"depth {depth}"][f"ei_w_mean_ratio"].append(ei_w_mean_ratio)
+                
+                ei_w_std_ratio = branch_data["exc_weights_std"] / (branch_data["inh_weights_std"] + 1e-8)
+                agg_data[f"depth {depth}"][f"ei_w_std_ratio"].append(ei_w_std_ratio)
+            
+            if inputs_ratio:
+                ei_x_mean_ratio = branch_data["exc_inputs_mean"] / (branch_data["inh_inputs_mean"] + 1e-8)
+                agg_data[f"depth {depth}"][f"ei_x_mean_ratio"].append(ei_x_mean_ratio)
+                
+                ei_x_std_ratio = branch_data["exc_inputs_std"] / (branch_data["inh_inputs_std"] + 1e-8)
+                agg_data[f"depth {depth}"][f"ei_x_std_ratio"].append(ei_x_std_ratio)
+
+            if weights_ratio and inputs_ratio:
+                ei_wx_mean_ratio = ei_w_mean_ratio * ei_x_mean_ratio
+                agg_data[f"depth {depth}"][f"ei_wx_mean_ratio"].append(ei_wx_mean_ratio)
+                
+                ei_wx_std_ratio = ei_w_std_ratio * ei_x_std_ratio
+                agg_data[f"depth {depth}"][f"ei_wx_std_ratio"].append(ei_wx_std_ratio)
+
+            if activations_ratio:
+                ei_a_mean_ratio = branch_data["exc_activations_mean"] / (branch_data["inh_activations_mean"] + 1e-8)
+                agg_data[f"depth {depth}"][f"ei_a_mean_ratio"].append(ei_a_mean_ratio)
+                
+                ei_a_std_ratio = branch_data["exc_activations_std"] / (branch_data["inh_activations_std"] + 1e-8)
+                agg_data[f"depth {depth}"][f"ei_a_std_ratio"].append(ei_a_std_ratio)
+    
+
+    available = []
+    if weights_ratio:
+        available.extend(["ei_w_mean_ratio", "ei_w_std_ratio"])
+    if inputs_ratio:
+        available.extend(["ei_x_mean_ratio", "ei_x_std_ratio"])
+    if weights_ratio and inputs_ratio:
+        available.extend(["ei_wx_mean_ratio", "ei_wx_std_ratio"])
+    if activations_ratio:
+        available.extend(["ei_a_mean_ratio", "ei_a_std_ratio"])
+    
+    # Build long-form DataFrame from agg_data
+    rows = []
+    for depth, data in agg_data.items():
+        for dep in available:          # y
+            for indep in available:  # x
+                x = np.asarray(data[indep]); y = np.asarray(data[dep])
+                rows.append(pd.DataFrame({
+                    'x': x, 'y': y, 'depth': depth,
+                    'row': dep, 'col': indep
+                }))
+    df = pd.concat(rows, ignore_index=True)
+
+    label_map = {
+        "ei_w_mean_ratio": r"$\frac{\bar W_E}{\bar W_I}$",
+        "ei_w_std_ratio":  r"$\frac{\sigma(W_E)}{\sigma(W_I)}$",
+        "ei_x_mean_ratio": r"$\frac{\bar X_E}{\bar X_I}$",
+        "ei_x_std_ratio":  r"$\frac{\sigma(X_E)}{\sigma(X_I)}$",
+        "ei_wx_mean_ratio": r"$\frac{\bar W_E}{\bar W_I}\cdot\frac{\bar X_E}{\bar X_I}$",
+        "ei_wx_std_ratio":  r"$\frac{\sigma(W_E)}{\sigma(W_I)}\cdot\frac{\sigma(X_E)}{\sigma(X_I)}$",
+        "ei_a_mean_ratio": r"$\frac{\bar A_E}{\bar A_I}$",
+        "ei_a_std_ratio":  r"$\frac{\sigma(A_E)}{\sigma(A_I)}$",
+    }
+
+    # Scatter faceted by (row=dep, col=indep) with hue=depth
+    g = sns.relplot(
+        data=df, x='x', y='y', hue='depth',
+        row='row', col='col', kind='scatter',
+        row_order=available, col_order=available,
+        facet_kws=dict(sharex="col", sharey="row"),
+        height=4, aspect=1.2, s=10, alpha=0.5
+    )
+
+    # Add one global regression line per facet and annotate slope/intercept
+    def add_regline_and_stats(data: pd.DataFrame, color: Optional[str] = None, **kws):
+        ax = plt.gca()
+        x = data['x'].to_numpy()
+        y = data['y'].to_numpy()
+        m = np.isfinite(x) & np.isfinite(y)
+        if m.sum() >= 2:
+            slope, intercept = np.polyfit(x[m], y[m], 1)
+            xx = np.linspace(x[m].min(), x[m].max(), 200)
+            ax.plot(xx, slope * xx + intercept, color='k', lw=2)
+            ax.text(0.02, 0.98, f"y={slope:.2g}x+{intercept:.2g}",
+                    transform=ax.transAxes, ha='left', va='top',
+                    fontsize=9, color='k')
+
+    g.map_dataframe(add_regline_and_stats)
+
+    # Axis labels per row/col (only outer axes)
+    for i, row_key in enumerate(available):
+        for j, col_key in enumerate(available):
+            ax = g.axes[i, j]
+            ax.grid(True)
+            if i == len(available) - 1:
+                ax.set_xlabel(label_map[col_key])
+            else:
+                ax.set_xlabel("")
+            if j == 0:
+                ax.set_ylabel(label_map[row_key])
+            else:
+                ax.set_ylabel("")
+
+    plt.tight_layout()
+    g.figure.savefig(os.path.join(save_path, "ratio_pairwise_comparison.png"), dpi=300, bbox_inches="tight")
+    plt.close(g.figure)
+
+    
 
 
 __all__ = ["CompartmentStatisticsAnalyzer"]
