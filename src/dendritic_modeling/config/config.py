@@ -60,7 +60,11 @@ class DatasetParamsConfig(BaseConfig):
 
     # Synthetic datasets
     poisson_generator: dict[str, Any] = field(
-        default_factory=lambda: {"base_dataset": "mnist", "rate_multiplier": 1.0}
+        default_factory=lambda: {
+            "base_dataset": "mnist",
+            "rate_multiplier": 1.0,
+            "max_luminosity": None,
+        }
     )
     multixor: dict[str, Any] = field(default_factory=lambda: {"n_bits": 8})
     orientation_bars: dict[str, Any] = field(

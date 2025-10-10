@@ -258,10 +258,15 @@ class PoissonGeneratorDataset(Dataset):
         base_inputs: torch.Tensor,
         base_labels: torch.Tensor,
         rate_multiplier: float = 1.0,
+        max_luminosity: Optional[float] = None,
     ):
         self.base_inputs = base_inputs
         self.base_labels = base_labels
         self.rate_multiplier = rate_multiplier
+
+        if max_luminosity is None:
+            max_luminosity = 0
+        self.max_luminosity = float(max_luminosity)
 
     def __len__(self):
         return len(self.base_inputs)
@@ -271,6 +276,11 @@ class PoissonGeneratorDataset(Dataset):
         label = self.base_labels[idx]
         scaled_input = input * self.rate_multiplier
         noisy_scaled_input = torch.poisson(scaled_input)
+
+        if self.max_luminosity > 0:
+            lum_scalar = torch.rand_like(noisy_scaled_input) * self.max_luminosity
+            noisy_scaled_input = noisy_scaled_input * lum_scalar
+
         noisy_input = noisy_scaled_input / self.rate_multiplier
         return noisy_input, label
 
@@ -278,6 +288,7 @@ class PoissonGeneratorDataset(Dataset):
 def load_poisson_generator_datasets(
     base_dataset: str,
     rate_multiplier: float = 1,
+    max_luminosity: Optional[float] = None,
     train_valid_split: float = 0.8,
     flatten: bool = False,
     task_data_path: Optional[str] = None,
@@ -313,9 +324,15 @@ def load_poisson_generator_datasets(
     else:
         raise ValueError(f"Unknown base dataset: {base_dataset}")
 
-    train_ds = PoissonGeneratorDataset(*train_ds[:], rate_multiplier=rate_multiplier)
-    valid_ds = PoissonGeneratorDataset(*valid_ds[:], rate_multiplier=rate_multiplier)
-    test_ds = PoissonGeneratorDataset(*test_ds[:], rate_multiplier=rate_multiplier)
+    train_ds = PoissonGeneratorDataset(
+        *train_ds[:], rate_multiplier=rate_multiplier, max_luminosity=max_luminosity
+    )
+    valid_ds = PoissonGeneratorDataset(
+        *valid_ds[:], rate_multiplier=rate_multiplier, max_luminosity=max_luminosity
+    )
+    test_ds = PoissonGeneratorDataset(
+        *test_ds[:], rate_multiplier=rate_multiplier, max_luminosity=max_luminosity
+    )
 
     return train_ds, valid_ds, test_ds
 
@@ -460,6 +477,7 @@ def get_unified_datasets(task_cfg):
     normalize = p.get("normalize", False)
     base_dataset = p.get("base_dataset", "mnist")
     rate_multiplier = p.get("rate_multiplier", 1)
+    max_luminosity = p.get("max_luminosity", None)
 
     # Handle standard datasets directly
     if dataset_name == "mnist":
@@ -481,6 +499,7 @@ def get_unified_datasets(task_cfg):
         return load_poisson_generator_datasets(
             base_dataset=base_dataset,
             rate_multiplier=rate_multiplier,
+            max_luminosity=max_luminosity,
             train_valid_split=train_valid_split,
             flatten=flatten,
             task_data_path=task_data_path,
