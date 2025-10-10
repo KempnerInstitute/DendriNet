@@ -37,6 +37,7 @@ import re
 import sys
 from pathlib import Path
 from typing import Any, Optional
+import traceback
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -334,29 +335,31 @@ class UnifiedResultAnalyzer:
 
             # Extract EE and IE values
             try:
-                if hasattr(config.model, "core") and hasattr(
-                    config.model.core, "connectivity"
-                ):
-                    net_params = config.model.core.connectivity
-                    # Look for EI-specific parameters
-                    if hasattr(net_params, "ee_synapses_per_branch_per_layer"):
-                        ee_values = net_params.ee_synapses_per_branch_per_layer
-                        data["ee_value"] = (
-                            ee_values[0]
-                            if isinstance(ee_values, list) and len(ee_values) == 1
-                            else ee_values
-                        )
+                if hasattr(config.model, "core"):
+                    core_params = config.model.core
 
-                    if hasattr(net_params, "ie_synapses_per_branch_per_layer"):
-                        ie_values = net_params.ie_synapses_per_branch_per_layer
-                        data["ie_value"] = (
-                            ie_values[0]
-                            if isinstance(ie_values, list) and len(ie_values) == 1
-                            else ie_values
-                        )
+                    if hasattr(core_params, "connectivity"):
+                        connectivity_params = core_params.connectivity
+                        # Look for EI-specific parameters
+                        if hasattr(connectivity_params, "ee_synapses_per_branch_per_layer"):
+                            ee_values = connectivity_params.ee_synapses_per_branch_per_layer
+                            data["ee_value"] = (
+                                ee_values[0]
+                                if isinstance(ee_values, list) and len(ee_values) == 1
+                                else ee_values
+                            )
 
-                    if hasattr(net_params, "excitatory_branch_factors"):
-                        branch_factors = net_params.excitatory_branch_factors
+                        if hasattr(connectivity_params, "ie_synapses_per_branch_per_layer"):
+                            ie_values = connectivity_params.ie_synapses_per_branch_per_layer
+                            data["ie_value"] = (
+                                ie_values[0]
+                                if isinstance(ie_values, list) and len(ie_values) == 1
+                                else ie_values
+                            )
+
+                    if hasattr(core_params, "architecture"):
+                        architecture_params = core_params.architecture
+                        branch_factors = architecture_params.excitatory_branch_factors
                         if (
                             isinstance(branch_factors, list)
                             and len(branch_factors) == 1
@@ -367,8 +370,9 @@ class UnifiedResultAnalyzer:
                                 str(x) for x in branch_factors
                             )
 
-                    if hasattr(net_params, "use_shunting"):
-                        data["use_shunting"] = net_params.use_shunting
+                    if hasattr(core_params, "morphology"):
+                        morphology_params = core_params.morphology
+                        data["use_shunting"] = morphology_params.use_shunting
 
                 # Extract seed
                 if hasattr(config, "experiment") and hasattr(config.experiment, "seed"):
@@ -518,7 +522,8 @@ class UnifiedResultAnalyzer:
             return data
 
         except Exception as e:
-            print(f"Error processing config {task_id}: {e}")
+            print(f"Error processing config {task_id}: {e!r}")
+            traceback.print_exc()
             return None
 
     def _collect_analysis_files(self, config_path: str, data: dict):
@@ -542,8 +547,13 @@ class UnifiedResultAnalyzer:
             # Using nested structure
         else:
             pass  # Using flattened structure
+        
+        def parent_with_main_network(base: str) -> str | None:
+            return next((root for root, dirs, _ in os.walk(base) if "main_network" in dirs), None)
 
         for search_path in search_paths:
+            search_path = parent_with_main_network(search_path)
+        
             # Collect parameter count
             nparams_file = os.path.join(search_path, "nparams")
             if os.path.exists(nparams_file):
@@ -557,7 +567,7 @@ class UnifiedResultAnalyzer:
                     print(f"Error reading nparams: {e}")
 
             # Collect performance results
-            perf_file = os.path.join(search_path, "performance", "final")
+            perf_file = os.path.join(search_path, "performance", "final.json")
             if os.path.exists(perf_file):
                 try:
                     with open(perf_file) as f:
@@ -844,7 +854,7 @@ class UnifiedResultAnalyzer:
                 "results": {},
                 "message": "No results found in directory.",
             }
-
+            
         # Clean and process the results data
         print("Processing results data...")
         clean_results = self.clean_results_data(results_df)
@@ -901,12 +911,10 @@ class UnifiedResultAnalyzer:
                 plot_paths.extend(custom_plots)
         elif sweep_type == "unified":
             # Check if unified sweep actually has custom parameters
-            print(f"DEBUG: Detected sweep_params: {sweep_params}")
             if sweep_params:
                 local_params = [
                     k for k in sweep_params.keys() if "local_rule_config" in k
                 ]
-                print(f"DEBUG: Found local_params: {local_params}")
                 if local_params:
                     print(
                         "Generating custom parameter sweep plots for unified sweep..."
@@ -1045,7 +1053,6 @@ class UnifiedResultAnalyzer:
         """Produce mean and std of metrics over seeds and samples"""
         if cleaned_results.empty:
             return cleaned_results
-
         # Define architecture columns for grouping
         arch_cols = [
             "ee_value",
@@ -1095,6 +1102,7 @@ class UnifiedResultAnalyzer:
         # Group by architecture columns and aggregate
         results = []
         groupby_cols = [col for col in arch_cols if col in cleaned_results.columns]
+        groupby_cols = [c for c in groupby_cols if not cleaned_results[c].isna().all()]
 
         for _, group in cleaned_results.groupby(groupby_cols):
             row = dict(zip(groupby_cols, group[groupby_cols].iloc[0]))
