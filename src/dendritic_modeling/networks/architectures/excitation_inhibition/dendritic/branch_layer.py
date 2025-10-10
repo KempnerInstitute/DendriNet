@@ -78,6 +78,8 @@ class DendriticBranchLayer(nn.Module):
         topk_init_method="xavier_normal",
         topk_noise_level=0.0,
         topk_type="standard",  # New parameter
+        topk_weight_norm_order=None,
+        topk_gamma=1.0,
         topk_temperature=0.5,  # For stochastic TopK
         topk_ultrafast=False,  # For much faster stochastic TopK
         topk_strategy="none",
@@ -120,6 +122,8 @@ class DendriticBranchLayer(nn.Module):
         self.dbl_init_method = dbl_init_method
         self.epsilon = epsilon  # Store epsilon for numerical stability
         self.topk_type = topk_type  # Store the strategy
+        self.topk_weight_norm_order = topk_weight_norm_order  # Store the weight norm order
+        self.topk_gamma = topk_gamma  # Store the gamma
         self.topk_temperature = topk_temperature  # Store the temperature
         self.topk_ultrafast = topk_ultrafast  # Store the ultrafast flag
         self.topk_strategy = topk_strategy  # Store the strategy
@@ -157,14 +161,17 @@ class DendriticBranchLayer(nn.Module):
                 K=excitatory_synapses_per_branch,
                 init_method=topk_init_method,
                 noise_level=topk_noise_level,
-                cell_type="exc",
+                synapse_type="exc",
             )
             gradient_scaler.register_topk_dynamic(self.branch_excitation)
             self.excitatory_input_dim = excitatory_input_dim
         else:
             self.branch_excitation = None
 
-        self.input_inhibitory = inhibitory_input_dim is not None
+        self.input_inhibitory = (
+            inhibitory_input_dim is not None
+            and inhibitory_synapses_per_branch > 0
+        )
         if self.input_inhibitory:
             self.branch_inhibition = self._create_topk_layer(
                 in_features=inhibitory_input_dim,
@@ -172,7 +179,7 @@ class DendriticBranchLayer(nn.Module):
                 K=inhibitory_synapses_per_branch,
                 init_method=topk_init_method,
                 noise_level=topk_noise_level,
-                cell_type="inh",
+                synapse_type="inh",
             )
             gradient_scaler.register_topk_dynamic(self.branch_inhibition)
             self.inhibitory_input_dim = inhibitory_input_dim
@@ -216,7 +223,7 @@ class DendriticBranchLayer(nn.Module):
         K,
         init_method,
         noise_level,
-        cell_type="exc",
+        synapse_type="exc",
     ):
         """Helper function that picks which topk class to use based on strategy."""
         # For 'standard' strategy, use the original TopKLinear class exactly as before
@@ -231,6 +238,8 @@ class DendriticBranchLayer(nn.Module):
                 init_method=init_method,
                 noise_level=noise_level,
                 weight_transform=self.weight_transform,
+                weight_norm_order=self.topk_weight_norm_order,
+                gamma=self.topk_gamma if synapse_type == "inh" else 1.0,
             )
             return topk_layer
 
@@ -269,7 +278,7 @@ class DendriticBranchLayer(nn.Module):
                 out_features=out_features,
                 target_density=(
                     self.excitatory_target_density
-                    if cell_type == "exc"
+                    if synapse_type == "exc"
                     else self.inhibitory_target_density
                 ),
                 sigma=self.sigma,
@@ -280,7 +289,7 @@ class DendriticBranchLayer(nn.Module):
                 init_method=self.init_method,
                 freeze_connectivity=(
                     self.freeze_excitatory_connectivity
-                    if cell_type == "exc"
+                    if synapse_type == "exc"
                     else self.freeze_inhibitory_connectivity
                 ),
                 weight_threshold=self.weight_threshold,
@@ -296,6 +305,8 @@ class DendriticBranchLayer(nn.Module):
                 init_method=init_method,
                 noise_level=noise_level,
                 weight_transform=self.weight_transform,
+                weight_norm_order=self.topk_weight_norm_order,
+                gamma=self.topk_gamma if synapse_type == "inh" else 1.0,
             )
 
     def initialize(self):

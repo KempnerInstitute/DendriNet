@@ -94,6 +94,8 @@ class ExcitationInhibitionNetwork(nn.Module):
         topk_noise_level: float = 0.0,
         topk_strategy: str = "none",
         topk_type: str = "standard",
+        topk_weight_norm_order=None,
+        topk_gamma=1.0,
         weight_transform="exp",  # Weight transformation for positive weights
         print_hooks: bool = False,
         excitatory_target_density=0.1,
@@ -144,6 +146,8 @@ class ExcitationInhibitionNetwork(nn.Module):
         self.topk_init_method = topk_init_method
         self.topk_strategy = topk_strategy
         self.topk_type = topk_type
+        self.topk_weight_norm_order = topk_weight_norm_order
+        self.topk_gamma = topk_gamma
         self.weight_transform = weight_transform
         self.topk_noise_level = topk_noise_level
         self.print_hooks = print_hooks
@@ -332,6 +336,8 @@ class ExcitationInhibitionNetwork(nn.Module):
                 topk_noise_level=self.topk_noise_level,
                 topk_strategy=self.topk_strategy,
                 topk_type=self.topk_type,
+                topk_weight_norm_order=self.topk_weight_norm_order,
+                topk_gamma=self.topk_gamma,
                 weight_transform=self.weight_transform,
                 print_hooks=self.print_hooks,
                 excitatory_target_density=self.excitatory_target_density,

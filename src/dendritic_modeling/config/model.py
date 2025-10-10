@@ -58,6 +58,8 @@ class SparsityConfig(BaseConfig):
     init_method: str = "xavier_normal"
     noise_level: float = 0.0
     type: str = "standard"
+    weight_norm_order: Optional[int] = None
+    gamma: float = 1.0
     temperature: float = 0.0
     gradient_scaling: str = "none"
 

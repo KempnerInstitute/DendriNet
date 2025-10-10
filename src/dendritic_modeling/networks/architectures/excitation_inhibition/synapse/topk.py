@@ -8,6 +8,8 @@ synaptic connectivity in dendritic computation.
 
 from math import log
 
+from typing import Optional
+
 import torch
 import torch.nn as nn
 
@@ -66,6 +68,8 @@ class TopKLinear(nn.Module):
         init_gain=1.0,
         noise_level=0.0,
         weight_transform: WeightTransformType = "exp",
+        weight_norm_order: Optional[int] = None,
+        gamma: float = 1.0
     ):
         super().__init__()
 
@@ -75,6 +79,8 @@ class TopKLinear(nn.Module):
         self.init_gain = init_gain
         self.noise_level = noise_level
         self.weight_transform = weight_transform
+        self.weight_norm_order = weight_norm_order
+        self.gamma = gamma
 
         self.pre_w = nn.Parameter(
             torch.empty((out_features, in_features)), requires_grad=True
@@ -144,8 +150,6 @@ class TopKLinear(nn.Module):
 
     def forward(self, x):
         """Forward pass through the TopK linear layer."""
-        pruned_weight = self.pruned_weight()
-
         # Ensure x is a 2D tensor for matrix multiplication
         if not isinstance(x, torch.Tensor):
             raise TypeError(f"Expected input to be a tensor, got {type(x)}")
@@ -153,6 +157,8 @@ class TopKLinear(nn.Module):
         # If x is a 1D tensor, unsqueeze to make it 2D [1, features]
         if x.dim() == 1:
             x = x.unsqueeze(0)
+        
+        pruned_weight = self.pruned_weight()
 
         return torch.matmul(x, pruned_weight.t())
 
@@ -190,7 +196,13 @@ class TopKLinear(nn.Module):
 
     def pruned_weight(self):
         """Return the pruned synaptic weights after applying the mask."""
-        return self.weight_mask() * self.weight()
+        pruned_weight = self.weight_mask() * self.weight()
+        
+        if self.weight_norm_order is not None:
+            w_norm = torch.norm(pruned_weight, p=self.weight_norm_order, dim=-1)
+            pruned_weight = (pruned_weight / w_norm[:, None]) * self.gamma
+
+        return pruned_weight
 
     def log_pruned_weight(self):
         """Return the log of the pruned weights."""

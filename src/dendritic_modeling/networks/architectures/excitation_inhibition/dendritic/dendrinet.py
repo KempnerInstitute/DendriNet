@@ -38,6 +38,8 @@ class DendriNet(nn.Module):
         topk_init_method="xavier_normal",
         topk_noise_level=0.0,
         topk_type="standard",  # New parameter for TopK strategy
+        topk_weight_norm_order=None,
+        topk_gamma=1.0,
         weight_transform="exp",  # Weight transformation for positive weights
         topk_temperature=0.5,  # For stochastic TopK
         topk_ultrafast=False,  # For much faster stochastic TopK
@@ -121,6 +123,8 @@ class DendriNet(nn.Module):
                 topk_init_method=topk_init_method,
                 topk_noise_level=topk_noise_level,
                 topk_type=topk_type,  # Pass the parameter
+                topk_weight_norm_order=topk_weight_norm_order,
+                topk_gamma=topk_gamma,
                 weight_transform=weight_transform,
                 topk_temperature=topk_temperature,  # Pass the temperature
                 topk_ultrafast=topk_ultrafast,  # Pass the ultrafast flag
@@ -165,6 +169,8 @@ class DendriNet(nn.Module):
                     topk_init_method=topk_init_method,
                     topk_noise_level=topk_noise_level,
                     topk_type=topk_type,  # Pass the parameter
+                    topk_weight_norm_order=topk_weight_norm_order,
+                    topk_gamma=topk_gamma,
                     weight_transform=weight_transform,
                     topk_temperature=topk_temperature,  # Pass the temperature
                     topk_ultrafast=topk_ultrafast,  # Pass the ultrafast flag
@@ -208,6 +214,8 @@ class DendriNet(nn.Module):
                     topk_init_method=topk_init_method,
                     topk_noise_level=topk_noise_level,
                     topk_type=topk_type,  # Pass the parameter
+                    topk_weight_norm_order=topk_weight_norm_order,
+                    topk_gamma=topk_gamma,
                     weight_transform=weight_transform,
                     topk_temperature=topk_temperature,  # Pass the temperature
                     topk_ultrafast=topk_ultrafast,  # Pass the ultrafast flag
