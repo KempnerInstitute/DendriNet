@@ -61,6 +61,7 @@ class DeepstNet(nn.Module):
         freeze_inhibitory_connectivity=False,
         init_method=None,
         weight_threshold=1e-6,
+        weight_init=0.01,
         input_noise=0,
         adaptive_initialization=True,  # Add adaptive initialization parameter
         **kwargs,
@@ -146,6 +147,7 @@ class DeepstNet(nn.Module):
                 freeze_inhibitory_connectivity=freeze_inhibitory_connectivity,
                 init_method=init_method,
                 weight_threshold=weight_threshold,
+                weight_init=weight_init,
                 input_noise=input_noise,
                 adaptive_initialization=adaptive_initialization,
                 branch_factors=self.branch_factors,  # Pass branch_factors
@@ -191,6 +193,7 @@ class DeepstNet(nn.Module):
                     freeze_inhibitory_connectivity=freeze_inhibitory_connectivity,
                     init_method=init_method,
                     weight_threshold=weight_threshold,
+                    weight_init=weight_init,
                     input_noise=input_noise,
                     adaptive_initialization=adaptive_initialization,
                     branch_factors=self.branch_factors,  # Pass branch_factors
@@ -235,6 +238,7 @@ class DeepstNet(nn.Module):
                     freeze_inhibitory_connectivity=freeze_inhibitory_connectivity,
                     init_method=init_method,
                     weight_threshold=weight_threshold,
+                    weight_init=weight_init,
                     input_noise=input_noise,
                     adaptive_initialization=adaptive_initialization,
                     branch_factors=self.branch_factors,  # Pass branch_factors
@@ -781,7 +785,7 @@ class DeepstNet(nn.Module):
         elif deepst_layer.weight_transform == 'relu':
             values = torch.relu(torch.tensor(deepst_layer.weight_init))
         elif deepst_layer.weight_transform == 'softplus':
-            values = torch.softplus(torch.tensor(deepst_layer.weight_init))
+            values = torch.nn.functional.softplus(torch.tensor(deepst_layer.weight_init))
         else:
             raise ValueError(f"Unsupported weight transform type: {deepst_layer.weight_transform}")
         
