@@ -5,7 +5,7 @@ This module contains classes for analyzing both synaptic and branch-level activa
 during forward passes, providing detailed statistical analysis at multiple levels.
 """
 
-from typing import Optional
+from typing import Literal, Optional
 
 import torch
 
@@ -14,6 +14,7 @@ from dendritic_modeling.models import BaseModel
 from dendritic_modeling.networks import (
     DendriticBranchLayer,
     ExcitationInhibitionNetwork,
+    ParametricActivation
 )
 from dendritic_modeling.utils import save_dict
 
@@ -67,7 +68,12 @@ class BranchActivationAnalyzer:
                 if _name not in self.data_dict.keys():
                     self.data_dict[_name] = {}
                     module._name = _name
-                    handle = module.register_forward_hook(self.forward_hook)
+                    handle = module.register_forward_hook(self.synapse_forward_hook)
+                    handles.append(handle)
+                    handle = module.reactivation.register_forward_hook(
+                        lambda module, input, output: \
+                            self.branch_forward_hook(_name, module, input, output)
+                    )
                     handles.append(handle)
         return handles
 
@@ -76,14 +82,14 @@ class BranchActivationAnalyzer:
         for handle in handles:
             handle.remove()
 
-    def forward_hook(
+    def synapse_forward_hook(
         self,
         module: DendriticBranchLayer,
         input: tuple[torch.Tensor, torch.Tensor, Optional[torch.Tensor]],
         output: torch.Tensor,
     ):
         """
-        Forward hook to collect branch activations.
+        Forward hook to collect synapse activations.
 
         Args:
             module: The dendritic branch layer
@@ -101,8 +107,19 @@ class BranchActivationAnalyzer:
         if self.synapse_activations and module.branch_inhibition is not None:
             self.data_dict[key]["inh"] = module.branch_inhibition(inhibitory_input)
 
+    def branch_forward_hook(
+        self,
+        key: str,
+        module: Literal[ParametricActivation, torch.nn.Identity],
+        input: tuple[torch.Tensor],
+        output: torch.Tensor,
+    ):
+        """
+        Forward hook to collect branch activations.
+        """
         # Collect branch output activations
         if self.branch_activations:
+            self.data_dict[key]["Vinf"] = input[0]
             self.data_dict[key]["Vout"] = output
 
     def analyze(
@@ -136,14 +153,16 @@ class BranchActivationAnalyzer:
         model = model.to(device)
         model.eval()
 
-        inputs, _ = test_dataset[:]
+        inputs, labels = test_dataset[:]
         inputs: torch.Tensor = inputs.to(device)
+        labels: torch.Tensor = labels.to(device)
 
         # Optionally downsample for efficiency
         if self.downsample:
             ixs = torch.randperm(inputs.shape[0])[: self.samples]
             inputs = inputs[ixs]
-
+            labels = labels[ixs]
+        
         handles = self.attach_forward_hooks(model)
 
         _ = model(inputs)
@@ -154,6 +173,7 @@ class BranchActivationAnalyzer:
                 exc_net = []
                 inh_net = []
             if self.branch_activations:
+                Vinf_net = []
                 Vout_net = []
 
         if self.layer_summary:
@@ -222,6 +242,33 @@ class BranchActivationAnalyzer:
                     self.data_dict[name]["inh"] = inh.tolist()
 
             # Process branch output activations
+            if "Vinf" in module_dict.keys():
+                Vinf: torch.Tensor = module_dict["Vinf"]
+
+                if self.logspace:
+                    Vinf = torch.log(Vinf)
+
+                if self.network_summary:
+                    Vinf_net.append(Vinf.flatten())
+
+                if self.layer_summary:
+                    layer_summary[name]["Vinf"] = {}
+                    layer_summary[name]["Vinf"]["mean"] = torch.mean(Vinf).item()
+                    layer_summary[name]["Vinf"]["std"] = torch.std(Vinf).item()
+
+                if self.branch_summary:
+                    branch_summary[name]["Vinf"] = {}
+                    branch_summary[name]["Vinf"]["mean"] = torch.mean(
+                        Vinf, dim=0
+                    ).tolist()
+                    branch_summary[name]["Vinf"]["std"] = torch.std(
+                        Vinf, dim=0
+                    ).tolist()
+
+                if self.raw_summary:
+                    self.data_dict[name]["Vinf"] = Vinf.tolist()
+            
+            # Process branch output activations
             if "Vout" in module_dict.keys():
                 Vout: torch.Tensor = module_dict["Vout"]
 
@@ -266,6 +313,11 @@ class BranchActivationAnalyzer:
                 network_summary["inh"]["std"] = torch.std(inh_net).item()
 
             if self.branch_activations:
+                Vinf_net = torch.cat(Vinf_net, dim=0)
+                network_summary["Vinf"] = {}
+                network_summary["Vinf"]["mean"] = torch.mean(Vinf_net).item()
+                network_summary["Vinf"]["std"] = torch.std(Vinf_net).item()
+
                 Vout_net = torch.cat(Vout_net, dim=0)
                 network_summary["Vout"] = {}
                 network_summary["Vout"]["mean"] = torch.mean(Vout_net).item()
@@ -281,6 +333,8 @@ class BranchActivationAnalyzer:
 
         if self.raw_summary:
             results["raw_summary"] = self.data_dict
+        
+        results["labels"] = labels.detach().cpu().tolist()
 
         self.remove_forward_hooks(handles)
 
