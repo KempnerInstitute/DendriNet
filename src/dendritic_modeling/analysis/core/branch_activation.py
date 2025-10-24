@@ -71,8 +71,8 @@ class BranchActivationAnalyzer:
                     handle = module.register_forward_hook(self.synapse_forward_hook)
                     handles.append(handle)
                     handle = module.reactivation.register_forward_hook(
-                        lambda module, input, output: \
-                            self.branch_forward_hook(_name, module, input, output)
+                        lambda module, input, output, key=_name: \
+                            self.branch_forward_hook(module, input, output, key)
                     )
                     handles.append(handle)
         return handles
@@ -109,10 +109,10 @@ class BranchActivationAnalyzer:
 
     def branch_forward_hook(
         self,
-        key: str,
         module: Literal[ParametricActivation, torch.nn.Identity],
         input: tuple[torch.Tensor],
         output: torch.Tensor,
+        key: str
     ):
         """
         Forward hook to collect branch activations.
