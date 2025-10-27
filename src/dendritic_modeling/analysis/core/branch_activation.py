@@ -99,13 +99,21 @@ class BranchActivationAnalyzer:
         excitatory_input, inhibitory_input, _ = input
         key = module._name
 
-        # Collect excitatory synapse activations
         if self.synapse_activations and module.branch_excitation is not None:
-            self.data_dict[key]["exc"] = module.branch_excitation(excitatory_input)
+            # pruned weights: (branches, inputs) -> transpose to (inputs, branches)
+            W_exc = module.branch_excitation.pruned_weight().t()
+            # broadcast multiply to get per-connection activations
+            exc_conn = excitatory_input[..., None] * W_exc  # (N, inputs, branches)
+            self.data_dict[key]["exc"] = exc_conn.detach().clone()
 
-        # Collect inhibitory synapse activations
-        if self.synapse_activations and module.branch_inhibition is not None:
-            self.data_dict[key]["inh"] = module.branch_inhibition(inhibitory_input)
+        if (
+            self.synapse_activations
+            and module.branch_inhibition is not None
+            and inhibitory_input is not None
+        ):
+            W_inh = module.branch_inhibition.pruned_weight().t()
+            inh_conn = inhibitory_input[..., None] * W_inh  # (N, inputs, branches)
+            self.data_dict[key]["inh"] = inh_conn.detach().clone()
 
     def branch_forward_hook(
         self,
