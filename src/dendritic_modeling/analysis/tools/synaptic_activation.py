@@ -138,13 +138,15 @@ class SynapticActivationAnalyzer:
         model = model.to(device)
         model.eval()
 
-        inputs, _ = test_dataset[:]
+        inputs, labels = test_dataset[:]
         inputs: torch.Tensor = inputs.to(device)
+        labels: torch.Tensor = labels.to(device)
 
         # Optionally downsample for efficiency
         if self.downsample:
             ixs = torch.randperm(inputs.shape[0])[: self.samples]
             inputs = inputs[ixs]
+            labels = labels[ixs]
 
         handles = self.attach_forward_hooks(model)
 
@@ -249,6 +251,8 @@ class SynapticActivationAnalyzer:
 
         if self.raw_summary:
             results["raw_summary"] = self.data_dict
+
+        results["labels"] = labels.detach().cpu().tolist()
 
         self.remove_forward_hooks(handles)
 
