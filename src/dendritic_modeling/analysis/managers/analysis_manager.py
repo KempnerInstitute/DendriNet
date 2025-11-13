@@ -28,6 +28,7 @@ from dendritic_modeling.analysis.tools.synaptic_activation import (
 from dendritic_modeling.analysis.tools.synaptic_turnover import SynapticTurnoverAnalyzer
 from dendritic_modeling.analysis.tools.weight import WeightAnalyzer
 from dendritic_modeling.analysis.tools.compartment_statistics import CompartmentStatisticsAnalyzer
+from dendritic_modeling.analysis.tools.compartment_snr import CompartmentSNRAnalyzer
 from dendritic_modeling.analysis.tools.receptive_fields import ReceptiveFieldAnalyzer
 from dendritic_modeling.config import AnalysisConfig
 from dendritic_modeling.models import BaseModel
@@ -103,6 +104,12 @@ class AnalysisManager:
         if self.config.compartment_statistics_analysis.enabled:
             self.compartment_statistics_analyzer = CompartmentStatisticsAnalyzer(
                 self.config.compartment_statistics_analysis.params
+            )
+
+        # Initialize Compartment SNR Analysis
+        if self.config.compartment_snr_analysis.enabled:
+            self.compartment_snr_analyzer = CompartmentSNRAnalyzer(
+                self.config.compartment_snr_analysis.params
             )
 
         # Initialize Receptive Field Analysis
@@ -255,6 +262,19 @@ class AnalysisManager:
                 test_dataset=self.data["test"],
                 device=self.device,
                 save_path=os.path.join(self.save_root, "compartment_statistics_analysis"),
+                filename=filename,
+                training=training
+            )
+        
+        # Compartment SNR Analysis
+        if self.config.compartment_snr_analysis.enabled and (
+            (self.config.compartment_snr_analysis.training and training) or not training
+        ):
+            self.compartment_snr_analyzer.analyze(
+                model=self.model,
+                test_dataset=self.data["test"],
+                device=self.device,
+                save_path=os.path.join(self.save_root, "compartment_snr_analysis"),
                 filename=filename,
                 training=training
             )

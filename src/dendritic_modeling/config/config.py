@@ -184,6 +184,7 @@ def _map_analysis_config(analysis_data: dict) -> dict:
         "noise_perturbation": "noise_perturbation_analysis",
         "weight": "weight_analysis",
         "compartment_statistics": "compartment_statistics_analysis",
+        "compartment_snr": "compartment_snr_analysis",
         "receptive_field": "receptive_field_analysis",
         "single_layer_contribution": "single_layer_contribution",
         "synaptic_activation": "synaptic_activation_analysis",

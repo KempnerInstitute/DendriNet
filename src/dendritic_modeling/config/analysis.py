@@ -213,6 +213,22 @@ class CompartmentStatisticsAnalysisConfig(BaseConfig):
     params: CompartmentStatisticsAnalysisParams = field(default_factory=CompartmentStatisticsAnalysisParams)
 
 
+
+@dataclass
+class CompartmentSNRAnalysisParams(BaseConfig):
+    """Enhanced configuration for compartment SNR analysis."""
+    global_analysis: bool = True  # Analyze global statistics
+    layer_analysis: bool = True  # Analyze layer statistics
+    branch_analysis: bool = True  # Analyze branch statistics
+
+
+@dataclass
+class CompartmentSNRAnalysisConfig(BaseConfig):
+    enabled: bool = False
+    training: bool = False
+    params: CompartmentSNRAnalysisParams = field(default_factory=CompartmentSNRAnalysisParams)
+
+
 @dataclass
 class SynapticActivationAnalysisParams(BaseConfig):
     network_summary: bool = True
@@ -372,6 +388,9 @@ class AnalysisConfig(BaseConfig):
         default_factory=CompartmentStatisticsAnalysisConfig
     )
     
+    compartment_snr_analysis: CompartmentSNRAnalysisConfig = field(
+        default_factory=CompartmentSNRAnalysisConfig
+    )
     synaptic_activation_analysis: SynapticActivationAnalysisConfig = field(
         default_factory=SynapticActivationAnalysisConfig
     )
