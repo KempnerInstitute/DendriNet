@@ -35,6 +35,11 @@ def expand_ranges(param_value):
     """
     Handle parameter values that are specified as ranges.
     A range is specified as [start, end, step].
+
+    To avoid false positives (e.g., [0.5, 1.0, 2.0] being treated as a range),
+    we check if the values actually form a valid range:
+    - step should be positive and less than |end - start|
+    - start < end for positive step (or start > end for negative step)
     """
     if hasattr(param_value, "_content"):
         param_value = OmegaConf.to_container(param_value, resolve=True)
@@ -45,10 +50,27 @@ def expand_ranges(param_value):
         and all(isinstance(x, (int, float)) for x in param_value)
     ):
         start, end, step = param_value
-        if isinstance(start, int) and isinstance(end, int) and isinstance(step, int):
-            return list(range(start, end + 1, step))
-        else:
-            return np.arange(start, end + step / 2, step).tolist()
+
+        # Check if this is actually meant to be a range:
+        # 1. Step should be non-zero
+        # 2. For positive step: start <= end and step <= (end - start)
+        # 3. For negative step: start >= end and abs(step) <= (start - end)
+        is_valid_range = False
+        if step > 0 and start <= end and step <= (end - start + 1e-9):
+            is_valid_range = True
+        elif step < 0 and start >= end and abs(step) <= (start - end + 1e-9):
+            is_valid_range = True
+
+        if is_valid_range:
+            if (
+                isinstance(start, int)
+                and isinstance(end, int)
+                and isinstance(step, int)
+            ):
+                return list(range(start, end + 1, step))
+            else:
+                return np.arange(start, end + step / 2, step).tolist()
+
     return param_value
 
 
@@ -563,6 +585,9 @@ class UnifiedSweepGenerator(BaseSweepGenerator):
                         if "train" not in seed_config:
                             seed_config["train"] = {}
                         seed_config.train.seed = base_seed + seed_offset
+
+                    # Add metadata for sweep result tracking
+                    seed_config["_sweep_config_id"] = f"config_{len(configs)}"
                     configs.append(seed_config)
             else:
                 # Set seed in the correct location based on config structure
@@ -578,6 +603,9 @@ class UnifiedSweepGenerator(BaseSweepGenerator):
                     if "train" not in new_config:
                         new_config["train"] = {}
                     new_config.train.seed = base_seed
+
+                # Add metadata for sweep result tracking
+                new_config["_sweep_config_id"] = f"config_{len(configs)}"
                 configs.append(new_config)
 
         return configs

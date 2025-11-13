@@ -203,6 +203,7 @@ class CompartmentStatisticsAnalysisParams(BaseConfig):
     compute_min_max: bool = True  # Compute min/max per layer
     compute_entropy: bool = True  # Compute entropy per layer
 
+    per_class_analysis: bool = False  # Analyze statistics separately for each class
     n_samples: Optional[int] = None  # Number of samples to analyze
 
 
@@ -210,7 +211,9 @@ class CompartmentStatisticsAnalysisParams(BaseConfig):
 class CompartmentStatisticsAnalysisConfig(BaseConfig):
     enabled: bool = False
     training: bool = False
-    params: CompartmentStatisticsAnalysisParams = field(default_factory=CompartmentStatisticsAnalysisParams)
+    params: CompartmentStatisticsAnalysisParams = field(
+        default_factory=CompartmentStatisticsAnalysisParams
+    )
 
 
 

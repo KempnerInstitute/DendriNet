@@ -239,7 +239,7 @@ base_config:
     decoder:
       type: "MLP"                         # Decoder type: "MLP", "Identity"
       params:
-        input_dim: 20                     # Input dimension (auto-set from core network)
+        input_dim: null                   # Input dimension (auto-set from core network)
         hidden_dims: [32, 16]             # Hidden layer dimensions
         activation: "relu"                # Activation: "relu", "tanh", "sigmoid", "gelu"
         output_dim: 10                    # Output dimension (auto-set from dataset)
@@ -404,48 +404,76 @@ base_config:
                 early_stopping: false
 
         local_ca:                         # Local credit assignment configuration
+          # Core configuration
           rule_variant: "5f"              # Rule variant: "3f", "4f", "5f"
           error_mode: "auto"              # Error mode: "auto", "mse", "ce", "bce"
           error_broadcast_mode: "scalar"  # Error broadcast: "scalar", "per_soma", "local_mismatch"
-          ema_alpha: 0.1                  # EMA alpha for statistics (0.0-1.0)
-          use_conductance_scaling: true   # Scale by conductance (true/false)
-          use_driving_force: true         # Use driving force (true/false)
-          theta: 0.0                      # Leak reversal potential
-          e_rev_exc: 1.0                  # Excitatory reversal potential
-          e_rev_inh: 0.0                  # Inhibitory reversal potential
-          clip_grad_value: 5.0            # Gradient clipping value
-          normalize_by_batch: false       # Normalize updates by batch (true/false)
 
-          phi_mode: "conditional"         # Information proxy mode: "conditional", "variance"
-          phi_ridge_lambda: 0.001         # Ridge regression lambda
-          rho_estimator: "ema"            # Rho estimator: "ema", "augment", "ema+augment"
-          phi_estimator: "conditional_ema" # Phi estimator: "conditional_ema", "variance_ema"
-          augment_k: 8                    # Micro-ensemble size for augmentation
-          augment_noise_sigma: 0.01       # Noise std for augmentation
-          rls_forgetting: 0.99            # Forgetting factor for RLS (0.0-1.0)
+          # 3-factor rule parameters (base)
+          three_factor:
+            use_conductance_scaling: true # Scale by R_tot = 1/g_tot
+            use_driving_force: true       # Use (E_rev - V_n) driving force
+            theta: 0.0                    # Leak reversal potential
+            e_rev_exc: 1.0                # Excitatory reversal potential
+            e_rev_inh: 0.0                # Inhibitory reversal (shunting)
+
+          # 4-factor rule parameters (morphology correlation ρ)
+          four_factor:
+            rho_mode: "dot"               # "pearson", "dot", "none"
+            rho_estimator: "ema"          # "ema", "augment", "ema+augment"
+            ema_alpha: 0.1                # EMA smoothing rate
+            layer_wise_rho_scale: 0.0     # Layer-wise scaling (0.0 = disabled)
+            augment_k: 8                  # Augmented samples for micro-ensemble
+            augment_noise_sigma: 0.01     # Noise level for augmentation
+
+          # 5-factor rule parameters (information proxy φ)
+          five_factor:
+            phi_mode: "conditional"       # "conditional", "variance"
+            phi_estimator: "conditional_ema" # "conditional_ema", "variance_ema"
+            phi_ridge_lambda: 0.001       # Ridge regularization
+            layer_wise_phi_scale: 0.0     # Layer-wise scaling (0.0 = disabled)
+            rls_forgetting: 0.99          # RLS forgetting factor
+
+          # Morphology-aware extensions
+          morphology_aware:
+            use_path_propagation: false   # Path-integrated propagation
+            morphology_modulator_mode: "none" # "none", "depth", "centrality"
+            morphology_depth_offset: 1.0  # Depth modulation offset
+            morphology_centrality_metric: "betweenness" # Centrality metric
+            use_dendritic_normalization: false # Normalize by branch conductance
+            use_branch_type_rules: false  # Apical vs basal differentiation
+            apical_branch_scale: 1.0      # Apical branch scaling
+            basal_branch_scale: 1.0       # Basal branch scaling
+            use_branch_length_modulation: false
+
+          # HSIC auxiliary loss
+          hsic:
+            enabled: false                # Enable HSIC objective
+            weight: 0.01                  # HSIC strength
+            self_weight: 0.3              # Self-decorrelation weight
+            target_weight: 0.3            # Target-correlation weight
+            target_source: "labels"       # "labels" or "logits"
+            kernel: "rbf"                 # "linear", "rbf", "polynomial"
+            sigma: 1.0                    # RBF bandwidth
+            degree: 2                     # Polynomial degree
+            coef0: 1.0                    # Polynomial coefficient
+            grad_clip_value: 0.1          # HSIC gradient clipping
+            warmup_epochs: 5              # HSIC warmup epochs
+            apply_last_layer_only: false  # Apply only to last layer
+
+          # Parameter update control
           update_inactive_weights: false  # Update masked weights (true/false)
+          update_reactivation: true       # Update reactivation parameters
+          decoder_update_mode: "backprop" # "backprop", "local", "none"
 
-          hsic_enabled: false             # Enable HSIC objective (true/false)
-          hsic_weight: 0.01               # HSIC strength
-          hsic_self_weight: 0.3           # Self-dependence weight
-          hsic_target_weight: 0.3         # Target dependence weight
-          hsic_target_source: "labels"    # Target source: "labels", "logits"
-          hsic_kernel: "rbf"              # Kernel type: "linear", "rbf", "polynomial"
-          hsic_sigma: 1.0                 # RBF kernel bandwidth
-          hsic_degree: 2                  # Polynomial kernel degree
-          hsic_coef0: 1.0                 # Polynomial kernel coefficient
-          hsic_grad_clip_value: 0.1       # HSIC gradient clipping
-          hsic_warmup_epochs: 5           # HSIC warmup epochs
-          hsic_apply_last_layer_only: false # Apply HSIC only to last layer (true/false)
-
-          rho_mode: "dot"                 # Morphology correlation: "pearson", "dot", "none"
-          decoder_update_mode: "backprop" # Decoder update: "backprop", "local", "none"
-          update_reactivation: true       # Update reactivation parameters (true/false)
+          # Training schedule
           freeze_reactivation_epochs: 20  # Epochs to freeze reactivation
           freeze_decoder_epochs: 0        # Epochs to freeze decoder
-          training_schedule: []            # Custom training schedule (list of dicts)
-          layer_wise_rho_scale: 0.0       # Layer-wise rho scaling (0.0 = disabled)
-          layer_wise_phi_scale: 0.0       # Layer-wise phi scaling (0.0 = disabled)
+          training_schedule: []            # Custom per-epoch schedule
+
+          # Optimization
+          clip_grad_value: 5.0            # Gradient clipping value
+          normalize_by_batch: false       # Normalize updates by batch
 
         voltage_stabilization:
           pretrain_epochs: 50
@@ -644,6 +672,25 @@ base_config:
         logspace: false                   # Use log space (true/false)
         downsample: true                  # Downsample data (true/false)
         samples: 5                        # Number of samples to analyze
+
+    compartment_statistics_analysis:
+      enabled: true                       # Enable compartment statistics analysis (true/false)
+      training: false                     # Run during training (true/false)
+      params:
+        synapse_weights: true             # Analyze excitatory and inhibitory synapse weights (true/false)
+        branch_weights: true              # Analyze branch-to-output connection weights (true/false)
+        inputs: true                      # Analyze inputs (true/false)
+        activations: true                 # Analyze activations (true/false)
+        global_analysis: true             # Analyze global statistics (true/false)
+        layer_analysis: true              # Analyze layer statistics (true/false)
+        branch_analysis: true             # Analyze branch statistics (true/false)
+        compute_mean: true                # Compute mean weights per branch (true/false)
+        compute_variance: true            # Compute variance of weights per branch (true/false)
+        compute_percentiles: true         # Compute percentiles (median, quartiles) (true/false)
+        compute_min_max: true             # Compute min/max per layer (true/false)
+        compute_entropy: true             # Compute entropy per layer (true/false)
+        per_class_analysis: false         # Analyze statistics separately for each class (true/false)
+        n_samples: 1000                   # Number of samples to analyze (null = all)
 
   # ============================================================================
   # LOGGING

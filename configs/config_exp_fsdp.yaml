@@ -134,6 +134,24 @@ analysis:
       synapse_weights: true
       weight_threshold: 1e-6
     training: false
+  compartment_statistics_analysis:
+    enabled: true
+    training: false
+    params:
+      synapse_weights: true
+      branch_weights: true
+      inputs: true
+      activations: true
+      global_analysis: true
+      layer_analysis: true
+      branch_analysis: true
+      compute_mean: true
+      compute_variance: true
+      compute_percentiles: true
+      compute_min_max: true
+      compute_entropy: true
+      per_class_analysis: false
+      n_samples: 1000
 data:
   base_dir: ''
   dataset_name: cifar10

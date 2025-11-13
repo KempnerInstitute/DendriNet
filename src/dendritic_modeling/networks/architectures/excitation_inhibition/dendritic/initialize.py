@@ -76,6 +76,10 @@ def _truncated_normal_moments(
 
     mean_c = mean + std * lam
     var_c = (std**2) * (1 + gamma * lam - lam**2)
+
+    # Ensure variance is non-negative (can be slightly negative due to numerical errors)
+    var_c = max(0.0, var_c)
+
     return alpha, mean_c, var_c
 
 
@@ -91,9 +95,22 @@ def _compute_expectation_truncated_softplus(
     # softplus at conditional mean
     from math import exp as mexp, log as mlog
 
-    sp = mlog(1 + mexp(mu_c))
-    # second-order correction
-    sig = 1.0 / (1.0 + mexp(-mu_c))
+    # Clip mu_c to prevent overflow
+    mu_c = max(-50.0, min(50.0, mu_c))
+
+    # Safe computation of softplus to avoid overflow
+    if mu_c > 20:
+        sp = mu_c  # For large x, softplus(x) ≈ x
+    else:
+        sp = mlog(1 + mexp(mu_c))
+
+    # Safe computation of sigmoid to avoid overflow
+    if mu_c > 0:
+        sig = 1.0 / (1.0 + mexp(-mu_c))
+    else:
+        exp_mu = mexp(mu_c)
+        sig = exp_mu / (1.0 + exp_mu)
+
     sp_corr = sp + 0.5 * sig * (1 - sig) * var_c
     return sp_corr
 

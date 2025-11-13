@@ -48,36 +48,42 @@ class CorrelationAnalyzer(AbstractAnalyzer):
         self.params = params
 
         # Core parameters
-        self.computation_level = params.computation_level
+        self.computation_level = getattr(params, "computation_level", "layer_branch")
 
-        # Correlation types
-        self.compute_noise_correlations = params.compute_noise_correlations
-        self.compute_signal_correlations = params.compute_signal_correlations
-        self.compute_total_correlations = params.compute_total_correlations
-        self.compute_tuning_curves = params.compute_tuning_curves
+        # Correlation types (with defaults)
+        self.compute_noise_correlations = getattr(
+            params, "compute_noise_correlations", False
+        )
+        self.compute_signal_correlations = getattr(
+            params, "compute_signal_correlations", False
+        )
+        self.compute_total_correlations = getattr(
+            params, "compute_total_correlations", True
+        )
+        self.compute_tuning_curves = getattr(params, "compute_tuning_curves", False)
 
-        # Which pairs to analyze
-        self.analyze_EE = params.analyze_EE
-        self.analyze_II = params.analyze_II
-        self.analyze_EI = params.analyze_EI
-        self.analyze_E_output = params.analyze_E_output
-        self.analyze_I_output = params.analyze_I_output
-        self.analyze_output_output = params.analyze_output_output
+        # Which pairs to analyze (with defaults)
+        self.analyze_EE = getattr(params, "analyze_EE", True)
+        self.analyze_II = getattr(params, "analyze_II", True)
+        self.analyze_EI = getattr(params, "analyze_EI", True)
+        self.analyze_E_output = getattr(params, "analyze_E_output", False)
+        self.analyze_I_output = getattr(params, "analyze_I_output", False)
+        self.analyze_output_output = getattr(params, "analyze_output_output", False)
 
-        # Hierarchical analysis options
-        self.per_layer_analysis = params.per_layer_analysis
-        self.per_einet_analysis = params.per_einet_analysis
-        self.per_neuron_analysis = params.per_neuron_analysis
+        # Hierarchical analysis options (with defaults)
+        self.per_layer_analysis = getattr(params, "per_layer_analysis", True)
+        self.per_einet_analysis = getattr(params, "per_einet_analysis", False)
+        self.per_neuron_analysis = getattr(params, "per_neuron_analysis", False)
 
-        # Sampling parameters (for synaptic level)
-        self.n_synapse_pairs = params.n_synapse_pairs
-        self.sampling_strategy = params.sampling_strategy
-        self.stratified_categories = params.stratified_categories
-        self.max_pairs_per_category = params.max_pairs_per_category
+        # Sampling parameters (for synaptic level) (with defaults)
+        self.n_synapse_pairs = getattr(params, "n_synapse_pairs", 1000)
+        self.sampling_strategy = getattr(params, "sampling_strategy", "random")
+        self.stratified_categories = getattr(params, "stratified_categories", None)
+        self.max_pairs_per_category = getattr(params, "max_pairs_per_category", None)
 
-        # Performance
-        self.max_samples = params.max_samples
-        self.batch_process = params.batch_process
+        # Performance (with defaults)
+        self.max_samples = getattr(params, "max_samples", 5000)
+        self.batch_process = getattr(params, "batch_process", True)
 
         self.logger.info(
             f"Initialized CorrelationAnalyzer with computation_level: {self.computation_level}"

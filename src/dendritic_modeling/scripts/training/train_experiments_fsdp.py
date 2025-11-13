@@ -92,27 +92,19 @@ def setup_wandb(config, rank, world_size):
         notes=getattr(wandb_config, "notes", None),
         config={
             # Model config
-            "model_type": config.model.core_network.type,
-            "dataset": config.task.dataset,
-            "batch_size": config.train.main.trainer.batch_size,
-            "total_batch_size": config.train.main.trainer.batch_size * world_size,
-            "epochs": config.train.main.trainer.epochs,
-            "learning_rate": config.train.main.param_groups.lr,
-            "weight_decay": config.train.main.weight_decay_rate,
+            "model_type": config.model.core.type,
+            "dataset": config.data.dataset_name,
+            "batch_size": config.training.main.common.batch_size,
+            "total_batch_size": config.training.main.common.batch_size * world_size,
+            "epochs": config.training.main.common.epochs,
+            "learning_rate": config.training.main.common.param_groups.lr,
+            "weight_decay": config.training.main.common.weight_decay_rate,
             "world_size": world_size,
             # Model architecture details
-            "excitatory_layers": config.model.core_network.parameters.get(
-                "excitatory_layer_sizes", []
-            ),
-            "inhibitory_layers": config.model.core_network.parameters.get(
-                "inhibitory_layer_sizes", []
-            ),
-            "excitatory_branches": config.model.core_network.parameters.get(
-                "excitatory_branch_factors", []
-            ),
-            "inhibitory_branches": config.model.core_network.parameters.get(
-                "inhibitory_branch_factors", []
-            ),
+            "excitatory_layers": config.model.core.architecture.excitatory_layer_sizes,
+            "inhibitory_layers": config.model.core.architecture.inhibitory_layer_sizes,
+            "excitatory_branches": config.model.core.architecture.excitatory_branch_factors,
+            "inhibitory_branches": config.model.core.architecture.inhibitory_branch_factors,
         },
     )
 
@@ -201,30 +193,28 @@ def create_large_model(config):
     """Create a large dendritic model from configuration."""
     model_config = config.model
 
-    # Get input dimension from task config
-    task_params = config.task.parameters or {}
-    if config.task.dataset == "mnist":
+    # Get input dimension from data config
+    data_params = config.data.processing if hasattr(config.data, "processing") else {}
+    if config.data.dataset_name == "mnist":
         input_dim = 784  # 28x28 flattened
-    elif config.task.dataset == "cifar10":
+    elif config.data.dataset_name == "cifar10":
         input_dim = 3072  # 32x32x3 flattened
-    elif config.task.dataset == "imagenet":
+    elif config.data.dataset_name == "imagenet":
         # Check if images are flattened
-        if task_params.get("flatten", False):
+        if getattr(data_params, "flatten", False):
             input_dim = 150528  # 224x224x3 flattened
         else:
             # For non-flattened, the encoder should handle the shape
-            input_dim = task_params.get("input_dim", 150528)
+            input_dim = 150528
     else:
-        input_dim = task_params.get("input_dim", 784)
+        input_dim = 784
 
     # Create encoder
-    encoder_config = model_config.encoder_network
+    encoder_config = model_config.encoder
     if encoder_config.type.lower() == "identity":
         encoder = Identity(input_dim)
     else:
-        encoder_params = (
-            dict(encoder_config.parameters) if encoder_config.parameters else {}
-        )
+        encoder_params = dict(encoder_config.params) if encoder_config.params else {}
         encoder_params["input_dim"] = input_dim
         encoder_network = get_architecture(encoder_config.type, encoder_params)
         encoder = (
@@ -234,14 +224,18 @@ def create_large_model(config):
         )
 
     # Create core network
-    core_config = model_config.core_network
-    core_params = dict(core_config.parameters) if core_config.parameters else {}
+    core_config = model_config.core
     if hasattr(encoder, "output_dim"):
-        core_params["input_dim"] = encoder.output_dim
-    core_network = get_architecture(core_config.type, core_params)
+        core_network = get_architecture(
+            core_config.type, core_config, input_dim=encoder.output_dim
+        )
+    else:
+        core_network = get_architecture(
+            core_config.type, core_config, input_dim=input_dim
+        )
 
     # Create decoder
-    decoder_config = model_config.decoder_network
+    decoder_config = model_config.decoder
     if decoder_config.type.lower() == "identity":
         decoder = Identity(
             core_network.output_dim
@@ -249,9 +243,7 @@ def create_large_model(config):
             else core_network.excitatory_layer_sizes[-1]
         )
     else:
-        decoder_params = (
-            dict(decoder_config.parameters) if decoder_config.parameters else {}
-        )
+        decoder_params = dict(decoder_config.params) if decoder_config.params else {}
         if hasattr(core_network, "output_dim"):
             decoder_params["input_dim"] = core_network.output_dim
         elif hasattr(core_network, "excitatory_layer_sizes"):
@@ -293,7 +285,7 @@ def setup_data_loaders(config, rank, world_size):
     )
 
     # Create data loaders
-    batch_size = config.train.main.trainer.batch_size
+    batch_size = config.training.main.common.batch_size
 
     train_loader = DataLoader(
         train_ds,
@@ -328,7 +320,7 @@ def main(config_path):
     config = load_config(config_path)
 
     # Set seed
-    set_seed(config.train.seed)
+    set_seed(config.experiment.seed)
 
     # Setup output directory (only on rank 0)
     if rank == 0:
@@ -376,12 +368,12 @@ def main(config_path):
         (encoder_network, encoded_train_ds, encoded_valid_ds, encoded_test_ds) = (
             load_train_encoder_network(
                 encoder_network=Identity(input_dim),
-                encoder_train_config=config.train.encoder,
+                encoder_train_config=config.training.encoder,
                 train_ds=train_ds,
                 valid_ds=valid_ds,
                 test_ds=test_ds,
-                encoder_network_config=config.model.encoder_network,
-                task_config=config.task,
+                encoder_network_config=config.model.encoder,
+                task_config=config.data,
             )
         )
     else:
@@ -399,28 +391,36 @@ def main(config_path):
             print_model_parameter_summary(model)  # Fallback without sample input
 
     # Create FSDP config from config file or defaults
-    trainer_config = config.train.main.trainer
+    trainer_config = getattr(config.training.main, "trainer", None)
 
     # Use FSDP config from config file if available
-    if hasattr(config.train, "fsdp_config") and config.train.fsdp_config is not None:
+    if hasattr(config, "fsdp") and config.fsdp.use_fsdp:
         logger.info("Using FSDP configuration from config file")
-        fsdp_config = get_fsdp_config(fsdp_config_dict=config.train.fsdp_config)
+        fsdp_config = get_fsdp_config(
+            mixed_precision=config.fsdp.mixed_precision,
+            cpu_offload=config.fsdp.cpu_offload,
+            sharding_strategy=config.fsdp.sharding_strategy,
+        )
     else:
         # Fall back to default method
         logger.info("Using default FSDP configuration")
         fsdp_config = get_fsdp_config(
-            mixed_precision=getattr(
-                trainer_config, "use_mixed_precision", False
-            ),  # Disable FSDP mixed precision for stability
-            cpu_offload=getattr(trainer_config, "cpu_offload", False),
+            mixed_precision=getattr(trainer_config, "use_mixed_precision", False)
+            if trainer_config
+            else False,
+            cpu_offload=getattr(trainer_config, "cpu_offload", False)
+            if trainer_config
+            else False,
             sharding_strategy="FULL_SHARD",
         )
 
     # Create optimizer config
     optimizer_config = {
-        "lr": config.train.main.param_groups.lr,
-        "weight_decay": config.train.main.weight_decay_rate,
-        "split_params": getattr(config.train.main.param_groups, "split_params", False),
+        "lr": config.training.main.common.param_groups.lr,
+        "weight_decay": config.training.main.common.weight_decay_rate,
+        "split_params": getattr(
+            config.training.main.common.param_groups, "split_params", False
+        ),
     }
 
     # Setup analysis manager (only on rank 0)
@@ -449,7 +449,7 @@ def main(config_path):
             analysis_config=config.analysis,
             save_root=run_save_path,
             device=f"cuda:{local_rank}",
-            train_config=config.train,
+            train_config=config.training,
         )
         logger.info(f"AnalysisManager created: {type(analysis_manager)}")
         logger.info(

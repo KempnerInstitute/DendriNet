@@ -40,6 +40,34 @@ class RegularizationManager:
         else:
             self.ei_ratio_loss = None
 
+        # Cache whether any regularization is enabled for performance
+        self._has_regularization = self._check_has_regularization()
+
+    def _check_has_regularization(self) -> bool:
+        """Check if any form of regularization is enabled."""
+        # Check L1/L2 regularization
+        if self.l1_weight > 0 or self.l2_weight > 0:
+            return True
+
+        # Check parameter group regularization
+        if self.split_params and self.param_group_weights:
+            for group_weights in self.param_group_weights.values():
+                if (
+                    getattr(group_weights, "l1_weight", 0) > 0
+                    or getattr(group_weights, "l2_weight", 0) > 0
+                ):
+                    return True
+
+        # Check E/I ratio regularization
+        if self.enforce_ei_weight_ratio and self.ei_ratio_loss is not None:
+            return True
+
+        return False
+
+    def has_regularization(self) -> bool:
+        """Return whether any regularization is enabled."""
+        return self._has_regularization
+
     def compute_regularization_loss(
         self,
         model: nn.Module,

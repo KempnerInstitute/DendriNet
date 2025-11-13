@@ -37,6 +37,7 @@ class CommonTrainerConfig(BaseConfig):
     enable_nan_checking: bool = False
     enable_adaptive_clipping: bool = False
     weight_decay_rate: float = 0.01
+    weight_boosting: bool = False
 
     param_groups: ParamGroupsConfig = field(default_factory=ParamGroupsConfig)
 
@@ -232,7 +233,6 @@ class EncoderTrainingConfig(BaseConfig):
 
     common: CommonTrainerConfig = field(
         default_factory=lambda: CommonTrainerConfig(
-            lr=0.001,
             loss_function="log_mse",
             epochs=500,
             early_stopping=True,
@@ -267,14 +267,9 @@ class MainTrainingConfig(BaseConfig):
     strategies: TrainingStrategiesConfig = field(
         default_factory=TrainingStrategiesConfig
     )
-
-
-@dataclass
-class TrainingConfig(BaseConfig):
-    """Complete training configuration."""
-
-    encoder: EncoderTrainingConfig = field(default_factory=EncoderTrainingConfig)
-    main: MainTrainingConfig = field(default_factory=MainTrainingConfig)
+    learning_strategy_config: Optional["LocalRuleConfig"] = field(
+        default_factory=lambda: None
+    )
 
 
 @dataclass
@@ -358,91 +353,150 @@ class PruningConfig(BaseConfig):
 
 
 @dataclass
+class ThreeFactorConfig(BaseConfig):
+    """Parameters for 3-factor (3F) base learning rule.
+
+    The 3F rule uses: presynaptic * postsynaptic * error
+    """
+
+    # Compartmental dynamics
+    use_conductance_scaling: bool = True  # Scale by R_tot = 1/g_tot
+    use_driving_force: bool = True  # Use (E_rev - V_n) driving force
+    theta: float = 0.0  # Leak reversal potential
+    e_rev_exc: float = 1.0  # Excitatory reversal potential
+    e_rev_inh: float = 0.0  # Inhibitory reversal (shunting)
+
+
+@dataclass
+class FourFactorConfig(BaseConfig):
+    """Parameters for 4-factor (4F) morphology correlation.
+
+    Adds morphology factor rho to 3F rule.
+    """
+
+    # Morphology correlation mode
+    rho_mode: str = "pearson"  # "pearson", "dot", "none"
+    # Estimator for single-sample scenarios
+    rho_estimator: str = "ema"  # "ema", "augment", "ema+augment"
+    # EMA smoothing rate for rho statistics
+    ema_alpha: float = 0.05
+    # Layer-wise scaling: rho / sqrt(layer_depth)
+    layer_wise_rho_scale: float = 1.0
+    # Augmentation parameters (for rho_estimator="augment")
+    augment_k: int = 8  # Number of augmented samples
+    augment_noise_sigma: float = 0.01  # Noise level
+
+
+@dataclass
+class FiveFactorConfig(BaseConfig):
+    """Parameters for 5-factor (5F) conditional information proxy.
+
+    Adds information factor φ to 4F rule.
+    """
+
+    # Information proxy mode
+    phi_mode: str = "conditional"  # "conditional", "variance"
+    # Estimator for single-sample scenarios
+    phi_estimator: str = "conditional_ema"  # "conditional_ema", "variance_ema"
+    # Ridge regularization for conditional regression
+    phi_ridge_lambda: float = 1e-3
+    # Layer-wise scaling: φ / sqrt(layer_depth)
+    layer_wise_phi_scale: float = 1.0
+    # RLS forgetting factor (if using RLS-based estimators)
+    rls_forgetting: float = 0.99
+
+
+@dataclass
+class MorphologyAwareConfig(BaseConfig):
+    """Parameters for morphology-aware extensions.
+
+    These extensions explicitly leverage dendritic tree topology.
+    """
+
+    # Path-integrated propagation: approximate ∏ R_k g_k attenuation
+    use_path_propagation: bool = False
+
+    # Branch-specific depth modulation: rho_j = rho_base / (depth_j + alpha)
+    morphology_modulator_mode: str = "none"  # "none", "depth", "centrality"
+    morphology_depth_offset: float = 1.0  # alpha parameter
+    morphology_centrality_metric: str = "betweenness"  # For centrality mode
+
+    # Dendritic normalization: Δg_j ← Δg_j / (Σ_k g_k + ε)
+    use_dendritic_normalization: bool = False
+
+    # Apical vs basal branch differentiation
+    use_branch_type_rules: bool = False
+    apical_branch_scale: float = 1.0  # Scale for apical (feedback) branches
+    basal_branch_scale: float = 1.0  # Scale for basal (feedforward) branches
+    use_branch_length_modulation: bool = False
+
+
+@dataclass
+class HSICConfig(BaseConfig):
+    """Parameters for HSIC auxiliary loss."""
+
+    enabled: bool = False
+    weight: float = 0.0
+    self_weight: float = 1.0  # Self-decorrelation
+    target_weight: float = 1.0  # Target-correlation
+    target_source: str = "labels"  # "labels" or "logits"
+    # Kernel configuration
+    kernel: str = "linear"  # "linear", "rbf", "polynomial"
+    sigma: float = 1.0  # RBF bandwidth
+    degree: int = 2  # Polynomial degree
+    coef0: float = 1.0  # Polynomial coefficient
+    # Stability
+    grad_clip_value: float = 0.0
+    warmup_epochs: int = 0
+    apply_last_layer_only: bool = False
+
+
+@dataclass
 class LocalRuleConfig(BaseConfig):
     """Configuration for local learning rules.
 
-    Attributes
-    ----------
-    rule_variant: str
-        '3f' for three-factor, '4f' to include morphology correlation, '5f' to
-        include both morphology and information proxy.
-    error_mode: str
-        'auto', 'mse', 'ce', or 'bce' for deriving the soma error signal.
-    error_broadcast_mode: str
-        How to broadcast the soma error to compartments: 'scalar' (default, per-sample
-        scalar broadcast to all somas), 'per_soma' (map output-dim error to per-soma),
-        or 'local_mismatch' (modulate scalar error by local parent-vs-soma mismatch).
-    ema_alpha: float
-        EMA smoothing for morphology/information statistics.
-    use_conductance_scaling: bool
-        If True, scale updates by R_tot = 1 / (g_tot) per compartment.
-    use_driving_force: bool
-        If True, include (E_rev - V_n) multiplier for synapses.
-    theta: float
-        Leak reversal potential (post term uses V_n - theta if driving_force=False).
-    e_rev_exc: float
-        Excitatory reversal potential used for driving force.
-    e_rev_inh: float
-        Inhibitory reversal potential proxy (typically 0 for shunting).
-    clip_grad_value: float
-        Clip absolute gradient values before optimizer.step().
-    normalize_by_batch: bool
-        If True, average updates over batch.
+    Organizes parameters by learning rule method for clarity.
+    Each rule (3F/4F/5F) has its own nested configuration.
     """
 
-    rule_variant: str = "3f"
-    error_mode: str = "auto"
-    error_broadcast_mode: str = "scalar"
-    ema_alpha: float = 0.05
-    use_conductance_scaling: bool = True
-    use_driving_force: bool = True
-    theta: float = 0.0
-    e_rev_exc: float = 1.0
-    e_rev_inh: float = 0.0
+    # ========== CORE CONFIGURATION ==========
+    rule_variant: str = "3f"  # "3f", "4f", "5f"
+
+    # ========== ERROR SIGNAL ==========
+    error_mode: str = "auto"  # "auto", "mse", "ce", "bce"
+    error_broadcast_mode: str = "scalar"  # "scalar", "per_soma", "local_mismatch"
+
+    # ========== RULE-SPECIFIC PARAMETERS ==========
+    # 3-factor rule parameters
+    three_factor: ThreeFactorConfig = field(default_factory=ThreeFactorConfig)
+
+    # 4-factor rule parameters (includes 3F)
+    four_factor: FourFactorConfig = field(default_factory=FourFactorConfig)
+
+    # 5-factor rule parameters (includes 4F)
+    five_factor: FiveFactorConfig = field(default_factory=FiveFactorConfig)
+
+    # Morphology-aware extensions
+    morphology_aware: MorphologyAwareConfig = field(
+        default_factory=MorphologyAwareConfig
+    )
+
+    # HSIC auxiliary loss
+    hsic: HSICConfig = field(default_factory=HSICConfig)
+
+    # ========== PARAMETER UPDATE CONTROL ==========
+    update_inactive_weights: bool = False
+    update_reactivation: bool = True
+    decoder_update_mode: str = "backprop"  # "backprop", "local", "none"
+
+    # ========== TRAINING SCHEDULE ==========
+    freeze_reactivation_epochs: int = 0
+    freeze_decoder_epochs: int = 0
+    training_schedule: Optional[list[dict[str, Any]]] = None
+
+    # ========== OPTIMIZATION ==========
     clip_grad_value: float = 5.0
     normalize_by_batch: bool = True
-    # If True, update inactive TopK weights too (mask only applied in forward)
-    update_inactive_weights: bool = False
-    # phi (information proxy) configuration
-    phi_mode: str = "conditional"  # "conditional" uses parent voltages; "variance" uses layer variance
-    phi_ridge_lambda: float = 1e-3  # Regularization for conditional regression
-    # Single-sample estimators
-    rho_estimator: str = "ema"  # "ema", "augment", "ema+augment"
-    phi_estimator: str = "conditional_ema"  # "conditional_ema", "variance_ema"
-    augment_k: int = 8
-    augment_noise_sigma: float = 0.01
-    rls_forgetting: float = 0.99
-    # Rho (morphology factor) mode: "pearson" uses correlation; "dot" uses dot-product proxy; "none" disables
-    rho_mode: str = "pearson"
-    # HSIC/pHSIC auxiliary loss configuration
-    hsic_enabled: bool = False
-    hsic_weight: float = 0.0
-    hsic_self_weight: float = 1.0
-    hsic_target_weight: float = 1.0
-    hsic_target_source: str = "labels"  # "labels" or "logits"
-    hsic_kernel: str = "linear"  # "linear", "rbf", "polynomial"
-    hsic_sigma: float = 1.0  # RBF kernel bandwidth (gamma = 1/(2*sigma^2))
-    hsic_degree: int = 2  # Polynomial kernel degree
-    hsic_coef0: float = 1.0  # Polynomial kernel coefficient
-    # HSIC stability options
-    hsic_grad_clip_value: float = 0.0  # Clip HSIC gradients elementwise if > 0
-    hsic_warmup_epochs: int = 0  # Linearly ramp HSIC weights over first N epochs
-    hsic_apply_last_layer_only: bool = False  # Apply HSIC only on last dendritic layer
-    # Decoder update strategy: "backprop" or "none"
-    decoder_update_mode: str = "backprop"
-    # Gate reactivation parameter updates
-    update_reactivation: bool = True
-    # Optional epoch-based freezing and phased training
-    freeze_reactivation_epochs: int = (
-        0  # Freeze reactivation params for initial N epochs
-    )
-    freeze_decoder_epochs: int = 0  # Freeze decoder for initial N epochs
-    # Optional per-epoch schedule overriding the above. Each entry may include:
-    # { start_epoch: int, end_epoch: int, update_reactivation: bool, decoder_update_mode: str }
-    training_schedule: Optional[list[dict[str, Any]]] = None
-    # Layer-wise scaling for morphology factors
-    layer_wise_rho_scale: float = 1.0  # Scale rho by 1/sqrt(layer_depth) if > 0
-    layer_wise_phi_scale: float = 1.0  # Scale phi by 1/sqrt(layer_depth) if > 0
 
 
 @dataclass
@@ -455,3 +509,11 @@ class ReportingConfig(BaseConfig):
     redo_analysis_after_pruning: bool = (
         True  # Redo all analyses after pruning for comparison
     )
+
+
+@dataclass
+class TrainingConfig(BaseConfig):
+    """Complete training configuration."""
+
+    encoder: EncoderTrainingConfig = field(default_factory=EncoderTrainingConfig)
+    main: MainTrainingConfig = field(default_factory=MainTrainingConfig)

@@ -53,6 +53,10 @@ def initialize_model(model_config: ModelConfig):
 
     # Build decoder parameters
     decoder_params_dict = OmegaConf.to_container(decoder_config.params, resolve=True)
+    # Filter out None values to allow auto-setting
+    decoder_params_dict = {
+        k: v for k, v in decoder_params_dict.items() if v is not None
+    }
     decoder_params = {
         "input_dim": core_network.output_dim,
         **decoder_params_dict,
@@ -95,11 +99,23 @@ def setup_environment(
         os.makedirs(output_dir, exist_ok=True)
         logger.info(f"Created output directory: {output_dir}")
 
-    run_name = outputs_config.run_name
-    run_id = f"{run_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-    run_save_path = os.path.join(output_dir, run_id)
-    os.makedirs(run_save_path, exist_ok=True)
-    logger.info(f"Created run directory: {run_save_path}")
+    # Check if this is part of a sweep (has _sweep_config_id)
+    # If so, output_dir should already point to the correct location
+    # Otherwise, create a timestamped run directory
+    if hasattr(outputs_config, "_sweep_config_id") or (
+        hasattr(outputs_config, "run_name")
+        and "/config_" in str(outputs_config.results_dir)
+    ):
+        # Running as part of a sweep - use output_dir directly
+        run_save_path = output_dir
+        logger.info(f"Sweep mode detected - using directory: {run_save_path}")
+    else:
+        # Standalone run - create timestamped directory
+        run_name = outputs_config.run_name
+        run_id = f"{run_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        run_save_path = os.path.join(output_dir, run_id)
+        os.makedirs(run_save_path, exist_ok=True)
+        logger.info(f"Created run directory: {run_save_path}")
 
     # Set the logger manager to use the same directory for the main log file
     logger_manager.set_log_directory(run_save_path)
@@ -166,10 +182,20 @@ def setup_environment(
         f"Loaded datasets: {len(train_ds)} training, {len(valid_ds)} validation, {len(test_ds)} test samples"
     )
 
-    # Update encoder input dimension
+    # Update encoder input dimension (only if params exists)
     input_sample: torch.Tensor = train_ds[0][0]
-    model_config.encoder.params.input_dim = input_sample.numel()
-    model_config.encoder.params.input_shape = list(input_sample.shape)
+    if (
+        hasattr(model_config.encoder, "params")
+        and model_config.encoder.params is not None
+    ):
+        model_config.encoder.params.input_dim = input_sample.numel()
+        model_config.encoder.params.input_shape = list(input_sample.shape)
+    else:
+        # Create params if it doesn't exist (e.g., for identity encoder)
+        model_config.encoder.params = {
+            "input_dim": input_sample.numel(),
+            "input_shape": list(input_sample.shape),
+        }
 
     # Initialize model
     model, encoder_network = initialize_model(model_config)

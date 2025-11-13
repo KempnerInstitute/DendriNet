@@ -86,9 +86,19 @@ class BaseSweepGenerator(ABC):
             List of paths to saved configuration files
         """
         config_dir = os.path.join(output_dir, "configs")
+        results_base_dir = os.path.join(output_dir, "results")
         config_paths = []
 
         for i, config in enumerate(configs):
+            # Set the results_dir for this config to point to its specific subdirectory
+            config_results_dir = os.path.join(results_base_dir, f"config_{i}")
+
+            # Ensure outputs section exists and set results_dir
+            if "outputs" not in config:
+                config["outputs"] = {}
+            config["outputs"]["results_dir"] = config_results_dir
+
+            # Save the config
             config_path = os.path.join(config_dir, f"{self.sweep_type}_config_{i}.yaml")
             OmegaConf.save(config, config_path)
             config_paths.append(config_path)

@@ -6,40 +6,36 @@ including both global statistics and hierarchical per-layer analysis with plotti
 Provides comprehensive weight analysis with both global and hierarchical statistics.
 """
 
-import os
-
-import traceback
 import logging
+import os
 import time
+import traceback
 from typing import Any, Optional
 
+import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import pandas as pd
 import seaborn as sns
 from scipy.stats import differential_entropy
-from math import exp
-
-import matplotlib.pyplot as plt
 
 from dendritic_modeling.analysis.core.base import AbstractAnalyzer
 from dendritic_modeling.config import CompartmentStatisticsAnalysisParams
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.networks import (
-    TopKLinear,
     DendriticBranchLayer,
     ExcitationInhibitionNetwork,
-)
-from dendritic_modeling.utils import save_dict
-
-from dendritic_modeling.plotting.visualizations.synaptic_weight_plots import (
-    plot_synaptic_weight_analysis,
+    TopKLinear,
 )
 from dendritic_modeling.plotting.visualizations.plotting_utils import (
     convert_layer_names,
     get_color_scheme,
     setup_basic_plot,
 )
+from dendritic_modeling.plotting.visualizations.synaptic_weight_plots import (
+    plot_synaptic_weight_analysis,
+)
+from dendritic_modeling.utils import save_dict
 
 logger = logging.getLogger(__name__)
 
@@ -75,12 +71,16 @@ class CompartmentStatisticsAnalyzer(AbstractAnalyzer):
         self.dequantize = getattr(params, "dequantize", True)
         # self.n_neighbors = getattr(params, "n_neighbors", 10)
 
+        self.per_class_analysis = getattr(params, "per_class_analysis", False)
         self.n_samples = getattr(params, "n_samples", None)
         self.epsilon = torch.finfo(torch.float32).eps
-    
-    def collect_raw_data(self, model: BaseModel, x: torch.Tensor):
+
+    def collect_raw_data(
+        self, model: BaseModel, x: torch.Tensor, y: torch.Tensor = None
+    ):
         """Collect raw data from the model."""
         self.raw_dict = {}
+        self.class_labels = y if self.per_class_analysis and y is not None else None
         handles = []
         for key, module in model.named_modules():
             if (
@@ -91,10 +91,14 @@ class CompartmentStatisticsAnalyzer(AbstractAnalyzer):
                 self.raw_dict[key] = {}
                 for branch_idx in range(module.n_branches):
                     self.raw_dict[key][branch_idx] = {"depth": module.layer_idx}
-                
+
                 if self.synapse_weights:
-                    exc_weights = module.branch_excitation.pruned_weight().detach().cpu()
-                    inh_weights = module.branch_inhibition.pruned_weight().detach().cpu()
+                    exc_weights = (
+                        module.branch_excitation.pruned_weight().detach().cpu()
+                    )
+                    inh_weights = (
+                        module.branch_inhibition.pruned_weight().detach().cpu()
+                    )
                     for branch_idx in range(module.n_branches):
                         exc_w = exc_weights[branch_idx]
                         exc_w = exc_w[exc_w > self.epsilon]
@@ -103,14 +107,14 @@ class CompartmentStatisticsAnalyzer(AbstractAnalyzer):
                         inh_w = inh_weights[branch_idx]
                         inh_w = inh_w[inh_w > self.epsilon]
                         self.raw_dict[key][branch_idx]["inh_weights"] = inh_w
-                
+
                 if self.branch_weights and hasattr(module, "branches_to_output"):
                     branch_weights = module.branches_to_output.weight().detach().cpu()
                     for branch_idx in range(module.n_branches):
                         branch_w = branch_weights[branch_idx]
                         branch_w = branch_w[branch_w > self.epsilon]
                         self.raw_dict[key][branch_idx]["branch_weights"] = branch_w
-                
+
                 if self.inputs or self.activations:
                     handle = module.branch_excitation.register_forward_hook(
                         lambda module, input, output, layer_key=key: self.forward_hook(
@@ -124,44 +128,105 @@ class CompartmentStatisticsAnalyzer(AbstractAnalyzer):
                         )
                     )
                     handles.append(handle)
-        
+
         if self.inputs or self.activations:
             if self.n_samples is not None:
-                x = x[torch.randperm(x.shape[0])[:self.n_samples]]
+                indices = torch.randperm(x.shape[0])[: self.n_samples]
+                x = x[indices]
+                if self.class_labels is not None:
+                    self.class_labels = self.class_labels[indices]
             with torch.no_grad():
                 _ = model(x)
             self.remove_forward_hooks(handles)
-    
+
     def remove_forward_hooks(self, handles: list[torch.utils.hooks.RemovableHandle]):
         """Remove forward hooks from the model."""
         for handle in handles:
             handle.remove()
 
     def forward_hook(
-        self, 
-        module: TopKLinear, 
-        input: tuple[torch.Tensor, ...], 
+        self,
+        module: TopKLinear,
+        input: tuple[torch.Tensor, ...],
         output: torch.Tensor,
         key: str,
-        synapse_type: str
+        synapse_type: str,
     ):
         if self.inputs:
             weight_mask = module.weight_mask()
-            
+
             for branch_idx in range(module.out_features):
                 branch_mask = weight_mask[branch_idx]
                 branch_x = input[0][..., branch_mask > self.epsilon].detach().cpu()
-                self.raw_dict[key][branch_idx][f"{synapse_type}_inputs"] = branch_x
-    
+
+                if self.per_class_analysis and self.class_labels is not None:
+                    # Store inputs per class
+                    if (
+                        f"{synapse_type}_inputs_per_class"
+                        not in self.raw_dict[key][branch_idx]
+                    ):
+                        self.raw_dict[key][branch_idx][
+                            f"{synapse_type}_inputs_per_class"
+                        ] = {}
+
+                    for class_idx in torch.unique(self.class_labels):
+                        class_mask = self.class_labels == class_idx
+                        class_inputs = branch_x[class_mask]
+                        if len(class_inputs) > 0:
+                            class_key = int(class_idx.item())
+                            if (
+                                class_key
+                                not in self.raw_dict[key][branch_idx][
+                                    f"{synapse_type}_inputs_per_class"
+                                ]
+                            ):
+                                self.raw_dict[key][branch_idx][
+                                    f"{synapse_type}_inputs_per_class"
+                                ][class_key] = []
+                            self.raw_dict[key][branch_idx][
+                                f"{synapse_type}_inputs_per_class"
+                            ][class_key].append(class_inputs)
+                else:
+                    self.raw_dict[key][branch_idx][f"{synapse_type}_inputs"] = branch_x
+
         if self.activations:
             for branch_idx in range(module.out_features):
                 branch_activation = output[..., branch_idx].detach().cpu()
-                self.raw_dict[key][branch_idx][
-                    f"{synapse_type}_activations"
-                ] = branch_activation
+
+                if self.per_class_analysis and self.class_labels is not None:
+                    # Store activations per class
+                    if (
+                        f"{synapse_type}_activations_per_class"
+                        not in self.raw_dict[key][branch_idx]
+                    ):
+                        self.raw_dict[key][branch_idx][
+                            f"{synapse_type}_activations_per_class"
+                        ] = {}
+
+                    for class_idx in torch.unique(self.class_labels):
+                        class_mask = self.class_labels == class_idx
+                        class_activations = branch_activation[class_mask]
+                        if len(class_activations) > 0:
+                            class_key = int(class_idx.item())
+                            if (
+                                class_key
+                                not in self.raw_dict[key][branch_idx][
+                                    f"{synapse_type}_activations_per_class"
+                                ]
+                            ):
+                                self.raw_dict[key][branch_idx][
+                                    f"{synapse_type}_activations_per_class"
+                                ][class_key] = []
+                            self.raw_dict[key][branch_idx][
+                                f"{synapse_type}_activations_per_class"
+                            ][class_key].append(class_activations)
+                else:
+                    self.raw_dict[key][branch_idx][f"{synapse_type}_activations"] = (
+                        branch_activation
+                    )
 
     def _compute_statistics(
-        self, 
+        self,
         data_tensor: torch.Tensor,
         prefix: str,
         stats_dict: dict[str, float],
@@ -185,7 +250,7 @@ class CompartmentStatisticsAnalyzer(AbstractAnalyzer):
             stats_dict[f"{prefix}_q3"] = data_tensor.quantile(0.75).item()
 
         return stats_dict
-    
+
     def _compute_branch_statistics(self):
         branch_statistics = {}
         for layer_key, layer_data in self.raw_dict.items():
@@ -196,7 +261,62 @@ class CompartmentStatisticsAnalyzer(AbstractAnalyzer):
 
                 for prefix, data_tensor in branch_data.items():
                     if prefix == "depth":
-                        branch_stats[prefix] = data_tensor  # data_tensor is the depth index
+                        branch_stats[prefix] = (
+                            data_tensor  # data_tensor is the depth index
+                        )
+                    elif "per_class" in prefix:
+                        # Handle per-class data
+                        if self.per_class_analysis:
+                            branch_stats[prefix] = {}
+                            for class_idx, class_data_list in data_tensor.items():
+                                # Concatenate all data for this class
+                                class_data = torch.cat(class_data_list, dim=0)
+                                class_prefix = f"{prefix}_class_{class_idx}"
+                                branch_stats = self._compute_statistics(
+                                    class_data, class_prefix, branch_stats
+                                )
+
+                                if self.compute_entropy:
+                                    try:
+                                        if "inputs" in prefix:
+                                            data_for_entropy = (
+                                                class_data.flatten(0, -2)
+                                                .mean(dim=-1)
+                                                .numpy()
+                                            )
+                                            # Add small noise to avoid zero variance
+                                            if np.var(data_for_entropy) < 1e-10:
+                                                data_for_entropy = (
+                                                    data_for_entropy
+                                                    + np.random.normal(
+                                                        0, 1e-8, data_for_entropy.shape
+                                                    )
+                                                )
+                                            branch_stats[f"{class_prefix}_entropy"] = (
+                                                differential_entropy(
+                                                    data_for_entropy, method="vasicek"
+                                                )
+                                            )
+                                        elif "activations" in prefix:
+                                            data_for_entropy = class_data.flatten(
+                                                0, -1
+                                            ).numpy()
+                                            # Add small noise to avoid zero variance
+                                            if np.var(data_for_entropy) < 1e-10:
+                                                data_for_entropy = (
+                                                    data_for_entropy
+                                                    + np.random.normal(
+                                                        0, 1e-8, data_for_entropy.shape
+                                                    )
+                                                )
+                                            branch_stats[f"{class_prefix}_entropy"] = (
+                                                differential_entropy(
+                                                    data_for_entropy, method="vasicek"
+                                                )
+                                            )
+                                    except (ValueError, RuntimeWarning):
+                                        # Handle entropy calculation errors gracefully
+                                        branch_stats[f"{class_prefix}_entropy"] = 0.0
                     else:
                         branch_stats = self._compute_statistics(
                             data_tensor, prefix, branch_stats
@@ -225,12 +345,11 @@ class CompartmentStatisticsAnalyzer(AbstractAnalyzer):
                                 print(branch_stats, flush=True)
                                 print(data_tensor, flush=True)
                 branch_statistics[layer_key][branch_idx] = branch_stats
-        
+
         return branch_statistics
 
     def _compute_layer_statistics(
-        self, 
-        branch_statistics: dict[str, dict[int, dict[str, float]]]
+        self, branch_statistics: dict[str, dict[int, dict[str, float]]]
     ):
         """Compute layer statistics from branch statistics."""
         layer_statistics = {}
@@ -243,20 +362,17 @@ class CompartmentStatisticsAnalyzer(AbstractAnalyzer):
                         layer_aggregated[field] = []
                     if field != "depth":
                         layer_aggregated[field].append(value)
-            
+
             layer_stats = {"depth": branch_data["depth"]}
             for prefix, values in layer_aggregated.items():
                 data_tensor = torch.tensor(values)
-                layer_stats = self._compute_statistics(
-                    data_tensor, prefix, layer_stats
-                )
-                
+                layer_stats = self._compute_statistics(data_tensor, prefix, layer_stats)
+
             layer_statistics[layer_key] = layer_stats
         return layer_statistics
 
     def _compute_global_statistics(
-        self,
-        branch_statistics: dict[str, dict[int, dict[str, float]]]
+        self, branch_statistics: dict[str, dict[int, dict[str, float]]]
     ):
         """Compute global statistics from branch statistics."""
         global_aggregated: dict[str, list[float]] = {}
@@ -267,7 +383,7 @@ class CompartmentStatisticsAnalyzer(AbstractAnalyzer):
                         global_aggregated[field] = []
                     if field != "depth":
                         global_aggregated[field].append(value)
-        
+
         global_statistics = {}
         for prefix, values in global_aggregated.items():
             data_tensor = torch.tensor(values)
@@ -275,7 +391,7 @@ class CompartmentStatisticsAnalyzer(AbstractAnalyzer):
                 data_tensor, prefix, global_statistics
             )
         return global_statistics
-    
+
     def analyze(
         self,
         model: BaseModel,
@@ -283,7 +399,7 @@ class CompartmentStatisticsAnalyzer(AbstractAnalyzer):
         device: str = "cpu",
         save_path: Optional[str] = None,
         filename: str = "final",
-        training: bool = False
+        training: bool = False,
     ):
         """
         Perform comprehensive weight analysis including global and hierarchical statistics.
@@ -305,14 +421,15 @@ class CompartmentStatisticsAnalyzer(AbstractAnalyzer):
             )
             return None
 
-        self.logger.info("Starting comprehensive excitation-inhibition analysis...")        
+        self.logger.info("Starting comprehensive excitation-inhibition analysis...")
         start_time = time.time()
 
         model.to(device)
-        x, _ = test_dataset[:]
+        x, y = test_dataset[:]
         x: torch.Tensor = x.to(device)
-        
-        self.collect_raw_data(model, x)
+        y: torch.Tensor = y.to(device) if self.per_class_analysis else None
+
+        self.collect_raw_data(model, x, y)
         branch_statistics = self._compute_branch_statistics()
 
         results = {}
@@ -320,11 +437,11 @@ class CompartmentStatisticsAnalyzer(AbstractAnalyzer):
         if self.global_analysis:
             global_statistics = self._compute_global_statistics(branch_statistics)
             results["global_statistics"] = global_statistics
-        
+
         if self.layer_analysis:
             layer_statistics = self._compute_layer_statistics(branch_statistics)
             results["layer_statistics"] = layer_statistics
-        
+
         if self.branch_analysis:
             results["branch_statistics"] = branch_statistics
 
@@ -458,7 +575,6 @@ class CompartmentStatisticsAnalyzer(AbstractAnalyzer):
     ):
         """Generate enhanced plots for min/max and dendritic strength."""
         try:
-
             # Convert layer names for proper ordering
             converted_results = convert_layer_names(
                 enhanced_stats, somatic_synapses=somatic_synapses
@@ -528,7 +644,7 @@ class CompartmentStatisticsAnalyzer(AbstractAnalyzer):
                     x_pos,
                     dendritic_strengths,
                     width * 2,
-                    color=colors["mixed"],
+                    color=colors["combined"],
                     alpha=0.7,
                 )
 
@@ -610,45 +726,959 @@ class CompartmentStatisticsAnalyzer(AbstractAnalyzer):
             self.logger.error(f"Error generating global distribution plots: {e}")
 
 
-
-def plot_synapse_weight_comparison(
-    fields: list[str],
-    summ_stats: list[str], 
-    branch_statistics: dict[str, dict[int, dict[str, float]]], 
-    save_path: str
+def plot_compartment_weight_analysis(
+    layer_statistics: dict[str, dict[str, float]],
+    save_path: str,
+    somatic_synapses: bool = True,
 ):
-    plot_data: dict[str, dict[str, list[float]]] = {}
-    for layer_key, layer_data in branch_statistics.items():
-        for branch_data in layer_data.values():
-            depth = branch_data["depth"]
-            if f"depth {depth}" not in plot_data.keys():
-                plot_data[f"depth {depth}"] = {}
-            for field in fields:
-                for summ_stat in summ_stats:
-                    if f"exc_{field}_{summ_stat}" not in plot_data[f"depth {depth}"].keys():
-                        plot_data[f"depth {depth}"][f"exc_{field}_{summ_stat}"] = []
-                    if f"inh_{field}_{summ_stat}" not in plot_data[f"depth {depth}"].keys():
-                        plot_data[f"depth {depth}"][f"inh_{field}_{summ_stat}"] = []
+    """Plot compartment weight analysis following the exact weight analyzer format."""
+    from dendritic_modeling.plotting.visualizations.plotting_utils import (
+        convert_layer_names,
+    )
 
-                    plot_data[f"depth {depth}"][f"exc_{field}_{summ_stat}"].append(branch_data[f"exc_{field}_{summ_stat}"])
-                    plot_data[f"depth {depth}"][f"inh_{field}_{summ_stat}"].append(branch_data[f"inh_{field}_{summ_stat}"])
-    
-    fig, axes = plt.subplots(len(fields), len(summ_stats), figsize=(6 * len(summ_stats), 4 + 6 * len(fields)))
-    for i, field in enumerate(fields):
-        for j, summ_stat in enumerate(summ_stats):
-            for depth, data in plot_data.items():
-                axes[i, j].scatter(
-                    data[f"exc_{field}_{summ_stat}"], 
-                    data[f"inh_{field}_{summ_stat}"], 
-                    label=depth.title(), 
-                    marker="o", s=5, alpha=0.5
-                )
-            axes[i, j].legend()
-            axes[i, j].set_xlabel(f"Excitatory {field.title()} {summ_stat.title()}")
-            axes[i, j].set_ylabel(f"Inhibitory {field.title()} {summ_stat.title()}")
-            axes[i, j].grid(True)
+    logger.info("Generating compartment weight analysis plots...")
+
+    try:
+        # Convert layer names to uniform format (soma → distal)
+        converted_results = convert_layer_names(
+            layer_statistics, somatic_synapses=somatic_synapses
+        )
+        if not converted_results:
+            logger.warning("No layer results after conversion")
+            return
+
+        layer_names = list(converted_results.keys())
+        logger.info(f"Plotting compartment weight analysis for layers: {layer_names}")
+
+        # Create individual weight strength plot (following _plot_total_synaptic_strength format)
+        _plot_compartment_weight_strength(converted_results, layer_names, save_path)
+
+        # Create weight comparison plots (following _plot_weight_comparisons format)
+        _plot_compartment_weight_comparisons(converted_results, layer_names, save_path)
+
+        logger.info("Compartment weight analysis plots completed successfully!")
+
+    except Exception as e:
+        logger.error(f"Error generating compartment weight plots: {e}")
+        import traceback
+
+        traceback.print_exc()
+
+
+def plot_compartment_input_analysis(
+    layer_statistics: dict[str, dict[str, float]],
+    save_path: str,
+    somatic_synapses: bool = True,
+):
+    """Plot compartment input analysis following the exact weight analyzer format."""
+    from dendritic_modeling.plotting.visualizations.plotting_utils import (
+        convert_layer_names,
+    )
+
+    logger.info("Generating compartment input analysis plots...")
+
+    try:
+        # Convert layer names to uniform format (soma → distal)
+        converted_results = convert_layer_names(
+            layer_statistics, somatic_synapses=somatic_synapses
+        )
+        if not converted_results:
+            logger.warning("No layer results after conversion")
+            return
+
+        layer_names = list(converted_results.keys())
+        logger.info(f"Plotting compartment input analysis for layers: {layer_names}")
+
+        # Create input strength plot
+        _plot_compartment_input_strength(converted_results, layer_names, save_path)
+
+        # Create input comparison plots
+        _plot_compartment_input_comparisons(converted_results, layer_names, save_path)
+
+        logger.info("Compartment input analysis plots completed successfully!")
+
+    except Exception as e:
+        logger.error(f"Error generating compartment input plots: {e}")
+        import traceback
+
+        traceback.print_exc()
+
+
+def plot_compartment_activation_analysis(
+    layer_statistics: dict[str, dict[str, float]],
+    save_path: str,
+    somatic_synapses: bool = True,
+):
+    """Plot compartment activation analysis following the exact weight analyzer format."""
+    from dendritic_modeling.plotting.visualizations.plotting_utils import (
+        convert_layer_names,
+    )
+
+    logger.info("Generating compartment activation analysis plots...")
+
+    try:
+        # Convert layer names to uniform format (soma → distal)
+        converted_results = convert_layer_names(
+            layer_statistics, somatic_synapses=somatic_synapses
+        )
+        if not converted_results:
+            logger.warning("No layer results after conversion")
+            return
+
+        layer_names = list(converted_results.keys())
+        logger.info(
+            f"Plotting compartment activation analysis for layers: {layer_names}"
+        )
+
+        # Create activation strength plot
+        _plot_compartment_activation_strength(converted_results, layer_names, save_path)
+
+        # Create activation comparison plots
+        _plot_compartment_activation_comparisons(
+            converted_results, layer_names, save_path
+        )
+
+        logger.info("Compartment activation analysis plots completed successfully!")
+
+    except Exception as e:
+        logger.error(f"Error generating compartment activation plots: {e}")
+        import traceback
+
+        traceback.print_exc()
+
+
+def plot_compartment_entropy_analysis(
+    layer_statistics: dict[str, dict[str, float]],
+    save_path: str,
+    somatic_synapses: bool = True,
+):
+    """Plot compartment entropy analysis following the exact weight analyzer format."""
+    from dendritic_modeling.plotting.visualizations.plotting_utils import (
+        convert_layer_names,
+    )
+
+    logger.info("Generating compartment entropy analysis plots...")
+
+    try:
+        # Convert layer names to uniform format (soma → distal)
+        converted_results = convert_layer_names(
+            layer_statistics, somatic_synapses=somatic_synapses
+        )
+        if not converted_results:
+            logger.warning("No layer results after conversion")
+            return
+
+        layer_names = list(converted_results.keys())
+        logger.info(f"Plotting compartment entropy analysis for layers: {layer_names}")
+
+        # Create entropy comparison plot
+        _plot_compartment_entropy_comparisons(converted_results, layer_names, save_path)
+
+        logger.info("Compartment entropy analysis plots completed successfully!")
+
+    except Exception as e:
+        logger.error(f"Error generating compartment entropy plots: {e}")
+        import traceback
+
+        traceback.print_exc()
+
+
+def plot_compartment_ei_comparisons(
+    layer_statistics: dict[str, dict[str, float]],
+    save_path: str,
+    somatic_synapses: bool = True,
+):
+    """Plot E/I balance comparisons following the exact weight analyzer format."""
+    from dendritic_modeling.plotting.visualizations.plotting_utils import (
+        convert_layer_names,
+    )
+
+    logger.info("Generating compartment E/I comparison plots...")
+
+    try:
+        # Convert layer names to uniform format (soma → distal)
+        converted_results = convert_layer_names(
+            layer_statistics, somatic_synapses=somatic_synapses
+        )
+        if not converted_results:
+            logger.warning("No layer results after conversion")
+            return
+
+        layer_names = list(converted_results.keys())
+        logger.info(f"Plotting compartment E/I comparisons for layers: {layer_names}")
+
+        # Create E/I ratio comparison plot
+        _plot_compartment_ei_ratios(converted_results, layer_names, save_path)
+
+        logger.info("Compartment E/I comparison plots completed successfully!")
+
+    except Exception as e:
+        logger.error(f"Error generating compartment E/I plots: {e}")
+        import traceback
+
+        traceback.print_exc()
+
+
+# Individual plotting functions following weight analyzer format
+def _plot_compartment_weight_strength(
+    converted_results: dict[str, Any],
+    layer_names: list[str],
+    save_path: str,
+):
+    """Plot compartment weight strength across layers (following weight analyzer format)."""
+    import os
+
+    from dendritic_modeling.plotting.visualizations.plotting_utils import (
+        get_color_scheme,
+        setup_basic_plot,
+    )
+
+    colors = get_color_scheme()
+    _, ax = plt.subplots(1, 1, figsize=(12, 8))
+
+    # Collect data for both excitatory and inhibitory weights
+    depths = []
+    exc_weights = []
+    inh_weights = []
+    exc_errors = []
+    inh_errors = []
+
+    for layer_name in layer_names:
+        layer_data = converted_results[layer_name]
+
+        # Get weight means and stds
+        exc_weight = layer_data.get("exc_weights_mean_mean", 0)
+        inh_weight = layer_data.get("inh_weights_mean_mean", 0)
+        exc_weight_std = layer_data.get("exc_weights_mean_std", 0)
+        inh_weight_std = layer_data.get("inh_weights_mean_std", 0)
+
+        depths.append(layer_name)
+        exc_weights.append(exc_weight)
+        inh_weights.append(inh_weight)
+        exc_errors.append(exc_weight_std)
+        inh_errors.append(inh_weight_std)
+
+    if depths and (exc_weights or inh_weights):
+        x_pos = np.arange(len(depths))
+        width = 0.35
+
+        # Plot excitatory and inhibitory bars side by side
+        ax.bar(
+            x_pos - width / 2,
+            exc_weights,
+            width,
+            label="Excitatory Weights",
+            color=colors["excitatory"],
+            alpha=0.7,
+        )
+        ax.bar(
+            x_pos + width / 2,
+            inh_weights,
+            width,
+            label="Inhibitory Weights",
+            color=colors["inhibitory"],
+            alpha=0.7,
+        )
+
+        setup_basic_plot(
+            ax,
+            "Compartment Weight Strength (Mean Weight Values)",
+            "Layer (Soma → Distal)",
+            "Weight Strength",
+            grid=True,
+        )
+
+        ax.set_xticks(x_pos)
+        ax.set_xticklabels(depths, rotation=45)
+        ax.legend()
+
     plt.tight_layout()
-    fig.savefig(os.path.join(save_path, "exc_inh_comparison.png"), dpi=300, bbox_inches="tight")
+
+    # Save plot
+    filename = os.path.join(save_path, "compartment_weight_strength.png")
+    plt.savefig(filename, dpi=300, bbox_inches="tight")
+    plt.close()
+    logger.info(f"Saved compartment weight strength plot: {filename}")
+
+
+def _plot_compartment_weight_comparisons(
+    converted_results: dict[str, Any],
+    layer_names: list[str],
+    save_path: str,
+):
+    """Plot weight comparisons across layers (following weight analyzer format)."""
+    import os
+
+    from dendritic_modeling.plotting.visualizations.plotting_utils import (
+        get_color_scheme,
+        setup_basic_plot,
+    )
+
+    colors = get_color_scheme()
+    _, ax = plt.subplots(1, 1, figsize=(10, 8))
+
+    # Collect excitatory vs inhibitory weight data
+    exc_weights = []
+    inh_weights = []
+
+    for layer_name in layer_names:
+        layer_data = converted_results[layer_name]
+        exc_weight = layer_data.get("exc_weights_mean_mean", 0)
+        inh_weight = layer_data.get("inh_weights_mean_mean", 0)
+        exc_weights.append(exc_weight)
+        inh_weights.append(inh_weight)
+
+    if exc_weights and inh_weights:
+        # Create scatter plot with layer labels
+        for i, layer_name in enumerate(layer_names):
+            ax.scatter(
+                exc_weights[i],
+                inh_weights[i],
+                color=colors["excitatory"] if i % 2 == 0 else colors["inhibitory"],
+                s=100,
+                alpha=0.7,
+                label=layer_name,
+            )
+
+        # Add diagonal reference line
+        if exc_weights and inh_weights:
+            min_val = min(min(exc_weights), min(inh_weights))
+            max_val = max(max(exc_weights), max(inh_weights))
+            ax.plot(
+                [min_val, max_val], [min_val, max_val], "k--", alpha=0.5, label="E=I"
+            )
+
+        setup_basic_plot(
+            ax,
+            "Excitatory vs Inhibitory Weight Comparison",
+            "Excitatory Weight Mean",
+            "Inhibitory Weight Mean",
+            grid=True,
+        )
+        ax.legend()
+
+    plt.tight_layout()
+
+    # Save plot
+    filename = os.path.join(save_path, "compartment_weight_comparisons.png")
+    plt.savefig(filename, dpi=300, bbox_inches="tight")
+    plt.close()
+    logger.info(f"Saved compartment weight comparisons plot: {filename}")
+
+
+def _plot_compartment_input_strength(
+    converted_results: dict[str, Any],
+    layer_names: list[str],
+    save_path: str,
+):
+    """Plot compartment input strength across layers."""
+    import os
+
+    from dendritic_modeling.plotting.visualizations.plotting_utils import (
+        get_color_scheme,
+        setup_basic_plot,
+    )
+
+    colors = get_color_scheme()
+    _, ax = plt.subplots(1, 1, figsize=(12, 8))
+
+    # Collect data for both excitatory and inhibitory inputs
+    depths = []
+    exc_inputs = []
+    inh_inputs = []
+
+    for layer_name in layer_names:
+        layer_data = converted_results[layer_name]
+
+        # Get input means
+        exc_input = layer_data.get("exc_inputs_mean_mean", 0)
+        inh_input = layer_data.get("inh_inputs_mean_mean", 0)
+
+        depths.append(layer_name)
+        exc_inputs.append(exc_input)
+        inh_inputs.append(inh_input)
+
+    if depths and (exc_inputs or inh_inputs):
+        x_pos = np.arange(len(depths))
+        width = 0.35
+
+        # Plot excitatory and inhibitory bars side by side
+        ax.bar(
+            x_pos - width / 2,
+            exc_inputs,
+            width,
+            label="Excitatory Inputs",
+            color=colors["excitatory"],
+            alpha=0.7,
+        )
+        ax.bar(
+            x_pos + width / 2,
+            inh_inputs,
+            width,
+            label="Inhibitory Inputs",
+            color=colors["inhibitory"],
+            alpha=0.7,
+        )
+
+        setup_basic_plot(
+            ax,
+            "Compartment Input Strength (Mean Input Values)",
+            "Layer (Soma → Distal)",
+            "Input Strength",
+            grid=True,
+        )
+
+        ax.set_xticks(x_pos)
+        ax.set_xticklabels(depths, rotation=45)
+        ax.legend()
+
+    plt.tight_layout()
+
+    # Save plot
+    filename = os.path.join(save_path, "compartment_input_strength.png")
+    plt.savefig(filename, dpi=300, bbox_inches="tight")
+    plt.close()
+    logger.info(f"Saved compartment input strength plot: {filename}")
+
+
+def _plot_compartment_input_comparisons(
+    converted_results: dict[str, Any],
+    layer_names: list[str],
+    save_path: str,
+):
+    """Plot input comparisons across layers."""
+    import os
+
+    from dendritic_modeling.plotting.visualizations.plotting_utils import (
+        get_color_scheme,
+        setup_basic_plot,
+    )
+
+    colors = get_color_scheme()
+    _, ax = plt.subplots(1, 1, figsize=(10, 8))
+
+    # Collect excitatory vs inhibitory input data
+    exc_inputs = []
+    inh_inputs = []
+
+    for layer_name in layer_names:
+        layer_data = converted_results[layer_name]
+        exc_input = layer_data.get("exc_inputs_mean_mean", 0)
+        inh_input = layer_data.get("inh_inputs_mean_mean", 0)
+        exc_inputs.append(exc_input)
+        inh_inputs.append(inh_input)
+
+    if exc_inputs and inh_inputs:
+        # Create scatter plot with layer labels
+        for i, layer_name in enumerate(layer_names):
+            ax.scatter(
+                exc_inputs[i],
+                inh_inputs[i],
+                color=colors["excitatory"] if i % 2 == 0 else colors["inhibitory"],
+                s=100,
+                alpha=0.7,
+                label=layer_name,
+            )
+
+        # Add diagonal reference line
+        if exc_inputs and inh_inputs:
+            min_val = min(min(exc_inputs), min(inh_inputs))
+            max_val = max(max(exc_inputs), max(inh_inputs))
+            ax.plot(
+                [min_val, max_val], [min_val, max_val], "k--", alpha=0.5, label="E=I"
+            )
+
+        setup_basic_plot(
+            ax,
+            "Excitatory vs Inhibitory Input Comparison",
+            "Excitatory Input Mean",
+            "Inhibitory Input Mean",
+            grid=True,
+        )
+        ax.legend()
+
+    plt.tight_layout()
+
+    # Save plot
+    filename = os.path.join(save_path, "compartment_input_comparisons.png")
+    plt.savefig(filename, dpi=300, bbox_inches="tight")
+    plt.close()
+    logger.info(f"Saved compartment input comparisons plot: {filename}")
+
+
+def _plot_compartment_activation_strength(
+    converted_results: dict[str, Any],
+    layer_names: list[str],
+    save_path: str,
+):
+    """Plot compartment activation strength across layers."""
+    import os
+
+    from dendritic_modeling.plotting.visualizations.plotting_utils import (
+        get_color_scheme,
+        setup_basic_plot,
+    )
+
+    colors = get_color_scheme()
+    _, ax = plt.subplots(1, 1, figsize=(12, 8))
+
+    # Collect data for both excitatory and inhibitory activations
+    depths = []
+    exc_activations = []
+    inh_activations = []
+
+    for layer_name in layer_names:
+        layer_data = converted_results[layer_name]
+
+        # Get activation means
+        exc_activation = layer_data.get("exc_activations_mean_mean", 0)
+        inh_activation = layer_data.get("inh_activations_mean_mean", 0)
+
+        depths.append(layer_name)
+        exc_activations.append(exc_activation)
+        inh_activations.append(inh_activation)
+
+    if depths and (exc_activations or inh_activations):
+        x_pos = np.arange(len(depths))
+        width = 0.35
+
+        # Plot excitatory and inhibitory bars side by side
+        ax.bar(
+            x_pos - width / 2,
+            exc_activations,
+            width,
+            label="Excitatory Activations",
+            color=colors["excitatory"],
+            alpha=0.7,
+        )
+        ax.bar(
+            x_pos + width / 2,
+            inh_activations,
+            width,
+            label="Inhibitory Activations",
+            color=colors["inhibitory"],
+            alpha=0.7,
+        )
+
+        setup_basic_plot(
+            ax,
+            "Compartment Activation Strength (Mean Activation Values)",
+            "Layer (Soma → Distal)",
+            "Activation Strength",
+            grid=True,
+        )
+
+        ax.set_xticks(x_pos)
+        ax.set_xticklabels(depths, rotation=45)
+        ax.legend()
+
+    plt.tight_layout()
+
+    # Save plot
+    filename = os.path.join(save_path, "compartment_activation_strength.png")
+    plt.savefig(filename, dpi=300, bbox_inches="tight")
+    plt.close()
+    logger.info(f"Saved compartment activation strength plot: {filename}")
+
+
+def _plot_compartment_activation_comparisons(
+    converted_results: dict[str, Any],
+    layer_names: list[str],
+    save_path: str,
+):
+    """Plot activation comparisons across layers."""
+    import os
+
+    from dendritic_modeling.plotting.visualizations.plotting_utils import (
+        get_color_scheme,
+        setup_basic_plot,
+    )
+
+    colors = get_color_scheme()
+    _, ax = plt.subplots(1, 1, figsize=(10, 8))
+
+    # Collect excitatory vs inhibitory activation data
+    exc_activations = []
+    inh_activations = []
+
+    for layer_name in layer_names:
+        layer_data = converted_results[layer_name]
+        exc_activation = layer_data.get("exc_activations_mean_mean", 0)
+        inh_activation = layer_data.get("inh_activations_mean_mean", 0)
+        exc_activations.append(exc_activation)
+        inh_activations.append(inh_activation)
+
+    if exc_activations and inh_activations:
+        # Create scatter plot with layer labels
+        for i, layer_name in enumerate(layer_names):
+            ax.scatter(
+                exc_activations[i],
+                inh_activations[i],
+                color=colors["excitatory"] if i % 2 == 0 else colors["inhibitory"],
+                s=100,
+                alpha=0.7,
+                label=layer_name,
+            )
+
+        # Add diagonal reference line
+        if exc_activations and inh_activations:
+            min_val = min(min(exc_activations), min(inh_activations))
+            max_val = max(max(exc_activations), max(inh_activations))
+            ax.plot(
+                [min_val, max_val], [min_val, max_val], "k--", alpha=0.5, label="E=I"
+            )
+
+        setup_basic_plot(
+            ax,
+            "Excitatory vs Inhibitory Activation Comparison",
+            "Excitatory Activation Mean",
+            "Inhibitory Activation Mean",
+            grid=True,
+        )
+        ax.legend()
+
+    plt.tight_layout()
+
+    # Save plot
+    filename = os.path.join(save_path, "compartment_activation_comparisons.png")
+    plt.savefig(filename, dpi=300, bbox_inches="tight")
+    plt.close()
+    logger.info(f"Saved compartment activation comparisons plot: {filename}")
+
+
+def _plot_compartment_entropy_comparisons(
+    converted_results: dict[str, Any],
+    layer_names: list[str],
+    save_path: str,
+):
+    """Plot entropy comparisons across layers."""
+    import os
+
+    from dendritic_modeling.plotting.visualizations.plotting_utils import (
+        get_color_scheme,
+        setup_basic_plot,
+    )
+
+    colors = get_color_scheme()
+    _, ax = plt.subplots(1, 1, figsize=(12, 8))
+
+    # Collect entropy data
+    depths = []
+    exc_input_entropies = []
+    inh_input_entropies = []
+    exc_act_entropies = []
+    inh_act_entropies = []
+
+    for layer_name in layer_names:
+        layer_data = converted_results[layer_name]
+
+        # Get entropy means
+        exc_input_entropy = layer_data.get("exc_inputs_entropy_mean", 0)
+        inh_input_entropy = layer_data.get("inh_inputs_entropy_mean", 0)
+        exc_act_entropy = layer_data.get("exc_activations_entropy_mean", 0)
+        inh_act_entropy = layer_data.get("inh_activations_entropy_mean", 0)
+
+        depths.append(layer_name)
+        exc_input_entropies.append(exc_input_entropy)
+        inh_input_entropies.append(inh_input_entropy)
+        exc_act_entropies.append(exc_act_entropy)
+        inh_act_entropies.append(inh_act_entropy)
+
+    if depths:
+        x_pos = np.arange(len(depths))
+
+        # Plot entropy lines
+        ax.plot(
+            x_pos,
+            exc_input_entropies,
+            "o-",
+            color=colors["excitatory"],
+            label="Exc Input Entropy",
+            linewidth=2,
+            markersize=8,
+        )
+        ax.plot(
+            x_pos,
+            inh_input_entropies,
+            "s-",
+            color=colors["inhibitory"],
+            label="Inh Input Entropy",
+            linewidth=2,
+            markersize=8,
+        )
+        ax.plot(
+            x_pos,
+            exc_act_entropies,
+            "^--",
+            color=colors["excitatory"],
+            label="Exc Activation Entropy",
+            linewidth=2,
+            markersize=8,
+            alpha=0.6,
+        )
+        ax.plot(
+            x_pos,
+            inh_act_entropies,
+            "v--",
+            color=colors["inhibitory"],
+            label="Inh Activation Entropy",
+            linewidth=2,
+            markersize=8,
+            alpha=0.6,
+        )
+
+        setup_basic_plot(
+            ax,
+            "Compartment Entropy Analysis (Information Content)",
+            "Layer (Soma → Distal)",
+            "Entropy",
+            grid=True,
+        )
+
+        ax.set_xticks(x_pos)
+        ax.set_xticklabels(depths, rotation=45)
+        ax.legend()
+
+    plt.tight_layout()
+
+    # Save plot
+    filename = os.path.join(save_path, "compartment_entropy_analysis.png")
+    plt.savefig(filename, dpi=300, bbox_inches="tight")
+    plt.close()
+    logger.info(f"Saved compartment entropy analysis plot: {filename}")
+
+
+def _plot_compartment_ei_ratios(
+    converted_results: dict[str, Any],
+    layer_names: list[str],
+    save_path: str,
+):
+    """Plot E/I ratios across layers."""
+    import os
+
+    from dendritic_modeling.plotting.visualizations.plotting_utils import (
+        get_color_scheme,
+        setup_basic_plot,
+    )
+
+    colors = get_color_scheme()
+    _, ax = plt.subplots(1, 1, figsize=(12, 8))
+
+    # Collect E/I ratio data
+    depths = []
+    weight_ratios = []
+    input_ratios = []
+    activation_ratios = []
+
+    for layer_name in layer_names:
+        layer_data = converted_results[layer_name]
+
+        # Calculate E/I ratios
+        exc_w = layer_data.get("exc_weights_mean_mean", 0)
+        inh_w = layer_data.get("inh_weights_mean_mean", 1e-8)
+        weight_ratio = exc_w / inh_w
+
+        exc_i = layer_data.get("exc_inputs_mean_mean", 0)
+        inh_i = layer_data.get("inh_inputs_mean_mean", 1e-8)
+        input_ratio = exc_i / inh_i
+
+        exc_a = layer_data.get("exc_activations_mean_mean", 0)
+        inh_a = layer_data.get("inh_activations_mean_mean", 1e-8)
+        activation_ratio = exc_a / inh_a
+
+        depths.append(layer_name)
+        weight_ratios.append(weight_ratio)
+        input_ratios.append(input_ratio)
+        activation_ratios.append(activation_ratio)
+
+    if depths:
+        x_pos = np.arange(len(depths))
+
+        # Plot E/I ratio lines
+        ax.plot(
+            x_pos,
+            weight_ratios,
+            "o-",
+            color=colors["primary"],
+            label="Weight E/I",
+            linewidth=2,
+            markersize=8,
+        )
+        ax.plot(
+            x_pos,
+            input_ratios,
+            "s-",
+            color=colors["excitatory"],
+            label="Input E/I",
+            linewidth=2,
+            markersize=8,
+        )
+        ax.plot(
+            x_pos,
+            activation_ratios,
+            "^-",
+            color=colors["inhibitory"],
+            label="Activation E/I",
+            linewidth=2,
+            markersize=8,
+        )
+
+        # Add reference line at E=I
+        ax.axhline(y=1, color="k", linestyle="--", alpha=0.5, label="E=I")
+
+        setup_basic_plot(
+            ax,
+            "Compartment E/I Balance Analysis",
+            "Layer (Soma → Distal)",
+            "E/I Ratio",
+            grid=True,
+        )
+
+        ax.set_xticks(x_pos)
+        ax.set_xticklabels(depths, rotation=45)
+        ax.legend()
+
+    plt.tight_layout()
+
+    # Save plot
+    filename = os.path.join(save_path, "compartment_ei_ratios.png")
+    plt.savefig(filename, dpi=300, bbox_inches="tight")
+    plt.close()
+    logger.info(f"Saved compartment E/I ratios plot: {filename}")
+
+
+def _aggregate_branch_to_layer_stats(branch_statistics):
+    """Convert branch statistics to layer statistics format."""
+    layer_stats = {}
+
+    # Group by depth
+    depth_groups = {}
+    for _layer_key, layer_data in branch_statistics.items():
+        for _branch_idx, branch_data in layer_data.items():
+            depth = branch_data["depth"]
+            if depth not in depth_groups:
+                depth_groups[depth] = []
+            depth_groups[depth].append(branch_data)
+
+    # Aggregate by depth (layer)
+    for depth, branches in depth_groups.items():
+        layer_name = f"branch_layers.{depth}"
+        layer_stats[layer_name] = {}
+
+        # Collect all metrics
+        all_metrics = set()
+        for branch in branches:
+            all_metrics.update(branch.keys())
+        all_metrics.discard("depth")
+
+        # Aggregate each metric
+        for metric in all_metrics:
+            values = [branch.get(metric, 0) for branch in branches if metric in branch]
+            if values:
+                layer_stats[layer_name][f"{metric}_mean"] = np.mean(values)
+                layer_stats[layer_name][f"{metric}_std"] = np.std(values)
+                layer_stats[layer_name][f"{metric}_layer_min"] = np.min(values)
+                layer_stats[layer_name][f"{metric}_layer_max"] = np.max(values)
+
+    return layer_stats
+
+
+def plot_per_class_analysis(
+    branch_statistics: dict[str, dict[int, dict[str, float]]], save_path: str
+):
+    """Generate per-class analysis plots."""
+    # Extract per-class data
+    per_class_data = {}
+    classes = set()
+
+    for _layer_key, layer_data in branch_statistics.items():
+        for _branch_idx, branch_data in layer_data.items():
+            depth = branch_data["depth"]
+            if f"depth {depth}" not in per_class_data:
+                per_class_data[f"depth {depth}"] = {}
+
+            # Find all per-class metrics
+            for key, value in branch_data.items():
+                if "_class_" in key:
+                    parts = key.split("_class_")
+                    if len(parts) == 2:
+                        metric_name = parts[0]
+                        class_idx = int(
+                            parts[1].split("_")[0]
+                        )  # Handle cases like "class_0_mean"
+                        classes.add(class_idx)
+
+                        if metric_name not in per_class_data[f"depth {depth}"]:
+                            per_class_data[f"depth {depth}"][metric_name] = {}
+                        if (
+                            class_idx
+                            not in per_class_data[f"depth {depth}"][metric_name]
+                        ):
+                            per_class_data[f"depth {depth}"][metric_name][
+                                class_idx
+                            ] = []
+
+                        per_class_data[f"depth {depth}"][metric_name][class_idx].append(
+                            value
+                        )
+
+    if not per_class_data or not classes:
+        return
+
+    classes = sorted(classes)
+
+    # Create per-class comparison plots
+    metrics_to_plot = [
+        "exc_inputs_per_class_mean",
+        "inh_inputs_per_class_mean",
+        "exc_activations_per_class_mean",
+        "inh_activations_per_class_mean",
+    ]
+
+    fig, axes = plt.subplots(2, 2, figsize=(16, 12))
+    axes = axes.flatten()
+
+    for i, metric in enumerate(metrics_to_plot):
+        if i >= len(axes):
+            break
+
+        ax = axes[i]
+
+        # Plot data for each depth
+        for depth_key in sorted(per_class_data.keys()):
+            if metric in per_class_data[depth_key]:
+                class_means = []
+                class_stds = []
+                for class_idx in classes:
+                    if class_idx in per_class_data[depth_key][metric]:
+                        values = per_class_data[depth_key][metric][class_idx]
+                        class_means.append(np.mean(values))
+                        class_stds.append(np.std(values))
+                    else:
+                        class_means.append(0)
+                        class_stds.append(0)
+
+                ax.errorbar(
+                    classes,
+                    class_means,
+                    yerr=class_stds,
+                    label=depth_key.title(),
+                    marker="o",
+                    alpha=0.7,
+                )
+
+        ax.set_xlabel("Class Index")
+        ax.set_ylabel("Mean Value")
+        ax.set_title(metric.replace("_", " ").title())
+        ax.legend()
+        ax.grid(True, alpha=0.3)
+        ax.set_xticks(classes)
+
+    plt.suptitle("Per-Class Analysis: Compartment Statistics", fontsize=16)
+    plt.tight_layout()
+    fig.savefig(
+        os.path.join(save_path, "per_class_analysis.png"), dpi=300, bbox_inches="tight"
+    )
     plt.close(fig)
 
 
