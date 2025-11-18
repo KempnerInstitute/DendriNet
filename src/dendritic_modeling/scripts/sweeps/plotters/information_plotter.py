@@ -80,6 +80,9 @@ class InformationPlotter(BasePlotter):
         # Generate layer-wise information plots
         plot_paths.extend(self.plot_layerwise_information(data, info_dir))
 
+        # Generate legacy information plots
+        plot_paths.extend(self._generate_information_plots(data, info_dir))
+
         return plot_paths
 
     def plot_information_panels(self, data: pd.DataFrame, output_dir: Path) -> Path:
@@ -754,3 +757,204 @@ class InformationPlotter(BasePlotter):
             use_log_x=True,
             grid=True,
         )
+    
+    def _generate_information_plots(
+        self, valid_data: pd.DataFrame, plots_dir: str
+    ) -> list[str]:
+        """Generate information theory plots matching old analysis format"""
+        plot_paths = []
+
+        if "ei_ratio" not in valid_data.columns:
+            return plot_paths
+
+        info_plot_dir = plots_dir / "information_theory_plots"
+
+        # Collect global and layer-specific MI metrics
+        global_mi_metrics = []
+        layer_mi_metrics = []
+
+        for col in valid_data.columns:
+            if any(
+                mi_pattern in col.lower()
+                for mi_pattern in ["mi_", "mutual_information"]
+            ):
+                # Extract the metric name
+                if "_mean" in col:
+                    metric_name = col.replace("_mean", "")
+                    if "layer_mi_" in metric_name:
+                        # This is a layer-specific metric
+                        base_metric = metric_name.replace("layer_mi_", "").split(
+                            "_depth"
+                        )[0]
+                        if base_metric not in layer_mi_metrics:
+                            layer_mi_metrics.append(base_metric)
+                    else:
+                        # This is a global metric
+                        if metric_name not in global_mi_metrics:
+                            global_mi_metrics.append(metric_name)
+
+        if not global_mi_metrics and not layer_mi_metrics:
+            print("No mutual information metrics found")
+            return plot_paths
+
+        if not valid_data["network_category"].isin(["shunting", "no_shunting"]).any():
+            print("No shunting/no_shunting data for information analysis")
+            return plot_paths
+
+        # Define metric groups matching old analysis exactly
+        metric_groups = {
+            "class_information": {
+                "metrics": ["mi_E_C", "mi_I_C", "mi_V_C"],
+                "labels": ["I(E;C)", "I(I;C)", "I(V;C)"],
+                "colors": [
+                    self.info_colors["excitatory"],
+                    self.info_colors["inhibitory"],
+                    self.info_colors["combined"],
+                ],
+                "title": "Information with Class Labels",
+                "ylabel": "Mutual Information (bits)",
+            },
+            "component_information": {
+                "metrics": ["mi_E_I", "mi_E_V", "mi_I_V"],
+                "labels": ["I(E;I)", "I(E;V)", "I(I;V)"],
+                "colors": ["purple", "orange", "brown"],
+                "title": "Component Information",
+                "ylabel": "Mutual Information (bits)",
+            },
+            "conditional_information": {
+                "metrics": ["mi_E_I_given_C", "mi_E_V_given_C", "mi_I_V_given_C"],
+                "labels": ["I(E;I|C)", "I(E;V|C)", "I(I;V|C)"],
+                "colors": ["darkgreen", "forestgreen", "olive"],
+                "title": "Conditional Information",
+                "ylabel": "Mutual Information (bits)",
+            },
+        }
+
+        # Generate global information plots grouped by metric type (matching old format)
+        for group_name, group_info in metric_groups.items():
+            metrics = group_info["metrics"]
+            labels = group_info["labels"]
+            metric_colors = group_info["colors"]
+            group_title = group_info["title"]
+            ylabel = group_info["ylabel"]
+
+            # Check which metrics are available
+            available_metrics = []
+            available_labels = []
+            available_colors = []
+
+            for metric, label, color in zip(metrics, labels, metric_colors):
+                mean_col = f"{metric}_mean"
+                if mean_col in valid_data.columns:
+                    available_metrics.append(metric)
+                    available_labels.append(label)
+                    available_colors.append(color)
+
+            if not available_metrics:
+                print(f"No {group_name} metrics found")
+                continue
+
+            try:
+                # Create separate plots for shunting vs no shunting (matching old analysis)
+                fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
+
+                # First pass: collect all y-values to determine global y-axis range
+                all_y_values = []
+                plot_data = {}
+
+                for use_shunting in [True, False]:
+                    category = "shunting" if use_shunting else "no_shunting"
+                    shunt_data = valid_data[valid_data["network_category"] == category]
+                    plot_data[use_shunting] = {}
+
+                    if not shunt_data.empty:
+                        for metric in available_metrics:
+                            mean_col = f"{metric}_mean"
+                            # Group by E/I ratio and calculate statistics
+                            grouped = shunt_data.groupby("ei_ratio")[mean_col].mean()
+                            plot_data[use_shunting][metric] = grouped
+                            all_y_values.extend(grouped.values)
+
+                # Calculate global y-axis range
+                if all_y_values:
+                    global_y_min = min(all_y_values)
+                    global_y_max = max(all_y_values)
+                    y_margin = (global_y_max - global_y_min) * 0.1
+                    final_y_min = global_y_min - y_margin
+                    final_y_max = global_y_max + y_margin
+                else:
+                    final_y_min, final_y_max = 0, 1
+
+                # Second pass: create the actual plots
+                for use_shunting, ax, title_suffix in [
+                    (True, ax1, "Shunting"),
+                    (False, ax2, "No Shunting"),
+                ]:
+                    if use_shunting not in plot_data or not plot_data[use_shunting]:
+                        ax.text(
+                            0.5,
+                            0.5,
+                            f"No data for\\n{title_suffix}",
+                            transform=ax.transAxes,
+                            ha="center",
+                            va="center",
+                        )
+                        ax.set_title(f"{group_title}\\n{title_suffix} Networks")
+                        ax.set_ylim(final_y_min, final_y_max)
+                        continue
+
+                    # Plot each metric
+                    for metric, label, color in zip(
+                        available_metrics, available_labels, available_colors
+                    ):
+                        if metric in plot_data[use_shunting]:
+                            grouped = plot_data[use_shunting][metric]
+                            ax.plot(
+                                grouped.index,
+                                grouped.values,
+                                marker="o",
+                                color=color,
+                                label=label,
+                                linewidth=2,
+                                markersize=6,
+                            )
+
+                    ax.legend(fontsize=10)
+                    ax.set_ylim(final_y_min, final_y_max)
+
+                    self.setup_axes_style(
+                        ax=ax,
+                        xlabel="E/I Ratio",
+                        ylabel=ylabel,
+                        title=f"{group_title}\\n{title_suffix} Networks",
+                        use_log_x=True,
+                        grid=True
+                    )
+
+                plt.suptitle(f"Branch Information Analysis: {group_title}", fontsize=16)
+                plt.tight_layout()
+
+                plot_path = info_plot_dir / f"{group_name}_branch_info.png"
+                plot_paths.append(self.save_figure(fig, plot_path))
+
+            except Exception as e:
+                print(f"Error generating {group_name} plot: {e}")
+
+        # # Generate layer-specific information plots and heatmaps
+        # layer_plot_dir = os.path.join(plots_dir, "layer_information_plots")
+        # os.makedirs(layer_plot_dir, exist_ok=True)
+
+        # # Create I(V;C) heatmap by layer (matching old analysis)
+        # plot_paths.extend(
+        #     self._create_ivc_heatmap_by_layer(valid_data, layer_plot_dir, base_name)
+        # )
+
+        # # Create first vs last layer comparison plots
+        # plot_paths.extend(
+        #     self._create_first_last_layer_plots(valid_data, layer_plot_dir, base_name)
+        # )
+
+        print(
+            f"Created {len(plot_paths)} information theory plots (global + layer-specific + heatmaps)"
+        )
+        return plot_paths
