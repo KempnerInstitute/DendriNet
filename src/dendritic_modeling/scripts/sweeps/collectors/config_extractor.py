@@ -3,7 +3,7 @@
 import logging
 from pathlib import Path
 
-from omegaconf import OmegaConf
+from omegaconf import ListConfig, OmegaConf
 
 logger = logging.getLogger(__name__)
 
@@ -67,12 +67,18 @@ class ConfigExtractor:
                     conn = core.connectivity
                     if hasattr(conn, "ee_synapses_per_branch_per_layer"):
                         ee_values = conn.ee_synapses_per_branch_per_layer
+                        if isinstance(ee_values, ListConfig):
+                            ee_values = OmegaConf.to_container(ee_values, resolve=True)
+
                         params["ee_value"] = (
                             ee_values[0] if isinstance(ee_values, list) else ee_values
                         )
 
                     if hasattr(conn, "ie_synapses_per_branch_per_layer"):
                         ie_values = conn.ie_synapses_per_branch_per_layer
+                        if isinstance(ie_values, ListConfig):
+                            ie_values = OmegaConf.to_container(ie_values, resolve=True)
+
                         params["ie_value"] = (
                             ie_values[0] if isinstance(ie_values, list) else ie_values
                         )
