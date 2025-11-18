@@ -149,7 +149,7 @@ def extract_network_category(data: pd.DataFrame) -> pd.DataFrame:
 
     result = data.copy()
     result["network_category"] = "unknown"
-    result.loc[result["use_shunting"] is True, "network_category"] = "shunting"
-    result.loc[result["use_shunting"] is False, "network_category"] = "no_shunting"
+    result.loc[result["use_shunting"] == True, "network_category"] = "shunting"
+    result.loc[result["use_shunting"] == False, "network_category"] = "no_shunting"
 
     return result
