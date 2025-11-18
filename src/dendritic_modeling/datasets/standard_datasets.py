@@ -259,16 +259,15 @@ class PoissonGeneratorDataset(Dataset):
         self,
         base_inputs: torch.Tensor,
         base_labels: torch.Tensor,
-        rate_multiplier: float = 1.0,
-        max_luminosity: Optional[float] = None,
+        rate_variability: float = 1.0,
+        max_gain_factor: Optional[float] = None,
+        uniform_gain: bool = True,
     ):
         self.base_inputs = base_inputs
         self.base_labels = base_labels
-        self.rate_multiplier = rate_multiplier
-
-        if max_luminosity is None:
-            max_luminosity = 0
-        self.max_luminosity = float(max_luminosity)
+        self.rate_variability = float(rate_variability)
+        self.max_gain_factor = float(max_gain_factor)
+        self.uniform_gain = uniform_gain
 
     def __len__(self):
         return len(self.base_inputs)
@@ -276,21 +275,27 @@ class PoissonGeneratorDataset(Dataset):
     def __getitem__(self, idx):
         input = self.base_inputs[idx]
         label = self.base_labels[idx]
-        scaled_input = input * self.rate_multiplier
+
+        if self.uniform_gain:
+            gain_factor = torch.rand(input.shape[0]) * self.max_gain_factor
+            while gain_factor.ndim < input.ndim:
+                gain_factor = gain_factor[..., None]
+        else:
+            gain_factor = torch.rand_like(input) * self.max_gain_factor
+        
+        scaled_input = input * gain_factor / self.rate_variability
         noisy_scaled_input = torch.poisson(scaled_input)
 
-        if self.max_luminosity > 0:
-            lum_scalar = torch.rand_like(noisy_scaled_input) * self.max_luminosity
-            noisy_scaled_input = noisy_scaled_input * lum_scalar
+        noisy_input = noisy_scaled_input * self.rate_variability
 
-        noisy_input = noisy_scaled_input / self.rate_multiplier
         return noisy_input, label
 
 
 def load_poisson_generator_datasets(
     base_dataset: str,
-    rate_multiplier: float = 1,
-    max_luminosity: Optional[float] = None,
+    rate_variability: float = 1.0,
+    max_gain_factor: float = 1.0,
+    uniform_gain: bool = True,
     train_valid_split: float = 0.8,
     flatten: bool = False,
     task_data_path: Optional[str] = None,
@@ -327,13 +332,22 @@ def load_poisson_generator_datasets(
         raise ValueError(f"Unknown base dataset: {base_dataset}")
 
     train_ds = PoissonGeneratorDataset(
-        *train_ds[:], rate_multiplier=rate_multiplier, max_luminosity=max_luminosity
+        *train_ds[:], 
+        rate_variability=rate_variability, 
+        max_gain_factor=max_gain_factor, 
+        uniform_gain=uniform_gain
     )
     valid_ds = PoissonGeneratorDataset(
-        *valid_ds[:], rate_multiplier=rate_multiplier, max_luminosity=max_luminosity
+        *valid_ds[:], 
+        rate_variability=rate_variability, 
+        max_gain_factor=max_gain_factor, 
+        uniform_gain=uniform_gain
     )
     test_ds = PoissonGeneratorDataset(
-        *test_ds[:], rate_multiplier=rate_multiplier, max_luminosity=max_luminosity
+        *test_ds[:], 
+        rate_variability=rate_variability, 
+        max_gain_factor=max_gain_factor, 
+        uniform_gain=uniform_gain
     )
 
     return train_ds, valid_ds, test_ds
@@ -478,8 +492,9 @@ def get_unified_datasets(task_cfg):
     flatten = p.get("flatten", True)
     normalize = p.get("normalize", False)
     base_dataset = p.get("base_dataset", "mnist")
-    rate_multiplier = p.get("rate_multiplier", 1)
-    max_luminosity = p.get("max_luminosity", None)
+    rate_variability = p.get("rate_variability", 1.0)
+    max_gain_factor = p.get("max_gain_factor", 1.0)
+    uniform_gain = p.get("uniform_gain", True)
 
     # Handle standard datasets directly
     if dataset_name == "mnist":
@@ -500,11 +515,12 @@ def get_unified_datasets(task_cfg):
     elif dataset_name == "poisson_generator":
         return load_poisson_generator_datasets(
             base_dataset=base_dataset,
-            rate_multiplier=rate_multiplier,
-            max_luminosity=max_luminosity,
+            rate_variability=rate_variability,
+            max_gain_factor=max_gain_factor,
+            uniform_gain=uniform_gain,
             train_valid_split=train_valid_split,
             flatten=flatten,
-            task_data_path=task_data_path,
+            task_data_path=task_data_path
         )
     elif dataset_name == "imagenet":
         return load_imagenet_as_datasets(

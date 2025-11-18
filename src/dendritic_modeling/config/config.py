@@ -72,8 +72,9 @@ class DatasetParamsConfig(BaseConfig):
     poisson_generator: dict[str, Any] = field(
         default_factory=lambda: {
             "base_dataset": "mnist",
-            "rate_multiplier": 1.0,
-            "max_luminosity": None,
+            "rate_variability": 1.0,
+            "max_gain_factor": 1.0,
+            "uniform_gain": True
         }
     )
     multixor: dict[str, Any] = field(default_factory=lambda: {"n_bits": 8})
