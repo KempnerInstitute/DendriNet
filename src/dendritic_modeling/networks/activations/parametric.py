@@ -335,7 +335,8 @@ class ParametricLinearTanhTransition(ParametricActivation):
         # A * tanh(...) + D -> shape (..., output_dim)
         tanh_part = A * torch.tanh(B * (x - threshold)) + D
 
-        output = torch.where(x < threshold, linear_part, tanh_part)
+        # output = torch.where(x < threshold, linear_part, tanh_part)
+        output = torch.relu(torch.where(x < threshold, linear_part, tanh_part)) # TODO: Follow up on this
 
         return output
 
