@@ -67,29 +67,38 @@ class CompartmentSNRAnalyzer(AbstractAnalyzer):
         """Collect raw data from the model."""
         self.raw_dict = {}
         handles = []
-        for key, module in model.named_modules():
-            if (
-                isinstance(module, DendriticBranchLayer)
-                and module.branch_excitation is not None
-                and module.branch_inhibition is not None
-            ):
+
+        exc_dendrinet = model.core_network.layers[-1].excitatory_cells
+
+        for key, module in exc_dendrinet.named_modules():
+            if (isinstance(module, DendriticBranchLayer)):
                 self.raw_dict[key] = {}
                 for branch_idx in range(module.n_branches):
                     self.raw_dict[key][branch_idx] = {"depth": module.layer_idx}
                 
-                handle = module.branch_excitation.register_forward_hook(
-                    lambda module, input, output, layer_key=key: self.forward_hook(
-                        module, input, output, layer_key, "exc"
+                if module.branch_excitation is not None:
+                    handle = module.branch_excitation.register_forward_hook(
+                        lambda module, input, output, layer_key=key: self.forward_hook(
+                            module, input, output, layer_key, "exc"
+                        )
                     )
-                )
-                handles.append(handle)
+                    handles.append(handle)
 
-                handle = module.branch_inhibition.register_forward_hook(
-                    lambda module, input, output, layer_key=key: self.forward_hook(
-                        module, input, output, layer_key, "inh"
+                if module.branch_inhibition is not None:
+                    handle = module.branch_inhibition.register_forward_hook(
+                        lambda module, input, output, layer_key=key: self.forward_hook(
+                            module, input, output, layer_key, "inh"
+                        )
                     )
-                )
-                handles.append(handle)
+                    handles.append(handle)
+                
+                if hasattr(module, "branches_to_output"):
+                    handle = module.branches_to_output.register_forward_hook(
+                        lambda module, input, output, layer_key=key: self.forward_hook(
+                            module, input, output, layer_key, "upstream"
+                        )
+                    )
+                    handles.append(handle)
 
                 handle = module.reactivation.register_forward_hook(
                     lambda module, input, output, layer_key=key: self.forward_hook(
@@ -153,7 +162,7 @@ class CompartmentSNRAnalyzer(AbstractAnalyzer):
             class_prob = class_data.shape[0] / n_samples
             var_E_C += class_prob * (class_mean - total_mean)**2
 
-        stats_dict[f"{prefix}_d'^2"] = var_E_C / total_var
+        stats_dict[f"{prefix}_d'^2"] = var_E_C / (total_var + self.epsilon)
 
         return stats_dict
     
@@ -310,7 +319,11 @@ class CompartmentSNRAnalyzer(AbstractAnalyzer):
 
                 if self.layer_analysis:
                     if epochs_data:
-                        pass
+                        plot_layer_vs_training(
+                            epochs_data["layer_statistics"], epoch_numbers, save_path
+                        )
+                    
+                    plot_layer_final(results["layer_statistics"], save_path)
                 
                 if self.branch_analysis:
                     if epochs_data:
@@ -470,6 +483,257 @@ def plot_global_vs_training(global_data: dict, epoch_numbers: list, save_path: s
     plt.close(fig)
 
 
+def plot_layer_vs_training(layer_data: dict, epoch_numbers: list, save_path: str):
+    """
+    Plot d'^2 for excitation, inhibition, and vout across training epochs, 
+    with different colored lines for different layers.
+    
+    Args:
+        layer_data: Aggregated dictionary with layer statistics
+                   Structure: {layer_key: {metric_key: [list of values across epochs]}}
+        epoch_numbers: List of epoch numbers corresponding to the data
+        save_path: Path to save the plot
+    """
+    # Get all layer keys and sort them for consistent ordering
+    layer_keys = sorted(layer_data.keys())
+    
+    # Generate colors for each layer using a colormap
+    # Use a colormap that provides distinct colors
+    cmap = plt.cm.get_cmap('tab10')
+    n_layers = len(layer_keys)
+    if n_layers == 1:
+        layer_colors = {layer_keys[0]: cmap(0)}
+    else:
+        layer_colors = {layer_key: cmap(i / (n_layers - 1)) 
+                        for i, layer_key in enumerate(layer_keys)}
+    
+    # Create figure with 3 subplots (rows)
+    fig, axes = plt.subplots(nrows=3, ncols=1, figsize=(10, 12))
+    
+    # Activation types and their corresponding row indices
+    activation_types = ["exc", "inh", "vout"]
+    
+    for row_idx, act_type in enumerate(activation_types):
+        ax = axes[row_idx]
+        
+        # Plot each layer
+        for layer_key in layer_keys:
+            mean_key = f"{act_type}_d'^2_mean"
+            std_key = f"{act_type}_d'^2_std"
+            
+            if mean_key in layer_data[layer_key] and std_key in layer_data[layer_key]:
+                mean_values = layer_data[layer_key][mean_key]
+                std_values = layer_data[layer_key][std_key]
+                
+                # Convert to numpy arrays
+                mean_array = np.array(mean_values)
+                std_array = np.array(std_values)
+                
+                # Get layer color
+                color = layer_colors[layer_key]
+                
+                # Plot mean line with layer label
+                ax.plot(
+                    epoch_numbers, mean_array,
+                    label=f"depth {layer_data[layer_key]['depth']}", 
+                    color=color, linewidth=2
+                )
+                
+                # Plot mean +/- std as filled region
+                ax.fill_between(
+                    epoch_numbers,
+                    mean_array - std_array,
+                    mean_array + std_array,
+                    alpha=0.2,
+                    color=color
+                )
+        
+        # Set labels and title for each subplot
+        ax.set_xlabel("Epoch", fontsize=12)
+        ax.set_ylabel(r"d'$^2$", fontsize=12)
+        
+        # Set title based on activation type
+        act_labels = {
+            "exc": "Excitation",
+            "inh": "Inhibition", 
+            "vout": "Vout"
+        }
+        ax.set_title(f"Layer Statistics: {act_labels[act_type]} d'$^2$ Across Training", fontsize=12)
+        ax.legend(loc='best', fontsize=9)
+        ax.grid(True, alpha=0.3)
+    
+    plt.tight_layout()
+    os.makedirs(save_path, exist_ok=True)
+    fig.savefig(os.path.join(save_path, "layer_vs_training.png"), dpi=300, bbox_inches="tight")
+    plt.close(fig)
+
+
+def plot_layer_final(
+    layer_statistics: dict,
+    save_path: Optional[str] = None
+) -> Optional[plt.Figure]:
+    """
+    Plot layer statistics showing d'^2 for vout, excitation, inhibition, and upstream across layers.
+    
+    This function produces a figure analogous to plot_layer_ablation but shows d'^2 values
+    instead of accuracy/log-likelihood decrease.
+    
+    Args:
+        layer_statistics: Dictionary containing layer statistics with structure:
+                         {layer_key: {depth: int, exc_d'^2_mean: float, 
+                                     inh_d'^2_mean: float, vout_d'^2_mean: float, 
+                                     upstream_d'^2_mean: float, ...}}
+        save_path: Path to save plot. If None, returns figure
+        
+    Returns:
+        Figure if save_path is None, otherwise None
+    """
+    # Extract activation types we want to plot (in desired order: vout, exc, inh, upstream)
+    # vout is always present, others are optional
+    activation_types = ["vout", "exc", "inh", "upstream"]
+    activation_labels = {
+        "exc": "Excitation",
+        "inh": "Inhibition",
+        "vout": "Vout",
+        "upstream": "Upstream"
+    }
+    
+    # Color scheme - using a different palette
+    colors = {
+        "vout": "#2c3e50",    # Dark blue-gray
+        "exc": "#e74c3c",     # Red
+        "inh": "#3498db",     # Blue
+        "upstream": "#808080" # Medium grey
+    }
+    
+    # Sort layers by depth to ensure correct ordering
+    sorted_layers = sorted(
+        layer_statistics.items(),
+        key=lambda x: x[1].get("depth", float('inf'))
+    )
+    
+    # First, get all depths from vout (which is always present)
+    plot_depths = []
+    for layer_key, layer_data in sorted_layers:
+        depth = layer_data.get("depth")
+        vout_mean_key = "vout_d'^2_mean"
+        if depth is not None and vout_mean_key in layer_data:
+            plot_depths.append(depth)
+    
+    if not plot_depths:
+        logger.warning("No vout data found in layer statistics")
+        return None
+    
+    # Create a mapping from depth to layer_data for quick lookup
+    depth_to_layer = {}
+    for layer_key, layer_data in sorted_layers:
+        depth = layer_data.get("depth")
+        if depth is not None:
+            depth_to_layer[depth] = layer_data
+    
+    # Collect d'^2 values and standard deviations for each activation type
+    # Aligned to plot_depths (vout reference) - use None for missing values
+    results = {}
+    for act_type in activation_types:
+        mean_key = f"{act_type}_d'^2_mean"
+        std_key = f"{act_type}_d'^2_std"
+        
+        y_values = []
+        yerr_values = []
+        valid_mask = []  # Track which depths have data
+        
+        for depth in plot_depths:
+            if depth in depth_to_layer:
+                layer_data = depth_to_layer[depth]
+                if mean_key in layer_data and std_key in layer_data:
+                    y_values.append(layer_data[mean_key])
+                    yerr_values.append(layer_data[std_key])
+                    valid_mask.append(True)
+                else:
+                    y_values.append(None)
+                    yerr_values.append(None)
+                    valid_mask.append(False)
+            else:
+                y_values.append(None)
+                yerr_values.append(None)
+                valid_mask.append(False)
+        
+        # Only add if we have at least some data for this activation type
+        if any(valid_mask):
+            results[act_type] = {
+                "depths": plot_depths,
+                "d'^2": y_values,
+                "std": yerr_values,
+                "valid_mask": valid_mask
+            }
+    
+    if not results:
+        logger.warning("No layer statistics data found for plotting")
+        return None
+    
+    # Create the plot
+    fig, ax = plt.subplots(figsize=(10, 8))
+    
+    # Count only activation types that have data
+    available_types = [act_type for act_type in activation_types if act_type in results]
+    n_activation_types = len(available_types)
+    
+    if n_activation_types == 0:
+        logger.warning("No activation types with data to plot")
+        return None
+    
+    width = 0.2
+    
+    # Plot bars for each activation type with error bars
+    for i, act_type in enumerate(available_types):
+        act_data = results[act_type]
+        act_depths = np.array(act_data["depths"])
+        valid_mask = np.array(act_data["valid_mask"])
+        
+        # Filter to only valid data points before converting to numpy
+        valid_depths = act_depths[valid_mask]
+        valid_y_values = np.array([v for j, v in enumerate(act_data["d'^2"]) if valid_mask[j]])
+        valid_yerr_values = np.array([v for j, v in enumerate(act_data["std"]) if valid_mask[j]])
+        
+        # Calculate x positions for bars (aligned to plot_depths)
+        x = valid_depths + width * (i - (n_activation_types - 1) / 2)
+        
+        ax.bar(
+            x, valid_y_values, 
+            width=width, 
+            label=activation_labels[act_type],
+            color=colors[act_type],
+            yerr=valid_yerr_values,
+            capsize=5,
+            error_kw={'elinewidth': 1.5, 'capthick': 1.5}
+        )
+    
+    # Create depth labels - if depth=0 label as "Soma", else f"Depth {depth}"
+    depth_labels = []
+    for depth in plot_depths:
+        if depth == 0:
+            depth_labels.append("Soma")
+        else:
+            depth_labels.append(f"Depth {depth}")
+    
+    ax.set_xticks(plot_depths)
+    ax.set_xticklabels(depth_labels, rotation=45)
+    ax.set_xlabel("Branch Depth (Soma → Distal)")
+    ax.set_ylabel(r"d'$^2$")
+    ax.set_title(r"d'$^2$ vs. Branch Depth")
+    ax.legend()
+    ax.grid(True, axis="y", alpha=0.3)
+    
+    if save_path is not None:
+        os.makedirs(save_path, exist_ok=True)
+        plot_path = os.path.join(save_path, "layer_final.png")
+        fig.savefig(plot_path, dpi=300, bbox_inches="tight")
+        plt.close(fig)
+        return None
+    else:
+        return fig
+
+
 def plot_branch_final(branch_data: dict, save_path: str):
     """
     Plot the final branch statistics.
@@ -479,46 +743,74 @@ def plot_branch_final(branch_data: dict, save_path: str):
         save_path: Path to save the plot
     """
     agg_data: dict[str, dict[str, list[float]]] = {}
-
+    
+    # First pass: collect all available activation types
+    available_activation_types = set()
+    
     for layer_key, layer_data in branch_data.items():
-        for branch_data in layer_data.values():
-            depth = branch_data["depth"]
+        for branch_item in layer_data.values():
+            # Check which activation types are present
+            for act_type in ["exc", "inh", "vinf", "vout", "upstream"]:
+                key = f"{act_type}_d'^2"
+                if key in branch_item:
+                    available_activation_types.add(act_type)
+    
+    # vout should always be present, but check anyway
+    if "vout" not in available_activation_types:
+        logger.warning("No vout data found in branch statistics")
+        return
+    
+    # Second pass: aggregate data for available activation types
+    for layer_key, layer_data in branch_data.items():
+        for branch_item in layer_data.values():
+            depth = branch_item["depth"]
             if f"depth {depth}" not in agg_data.keys():
                 agg_data[f"depth {depth}"] = {}
             
-            if "exc" not in agg_data[f"depth {depth}"].keys():
-                agg_data[f"depth {depth}"][f"exc"] = []
-            if "inh" not in agg_data[f"depth {depth}"].keys():
-                agg_data[f"depth {depth}"][f"inh"] = []
-            if "vinf" not in agg_data[f"depth {depth}"].keys():
-                agg_data[f"depth {depth}"][f"vinf"] = []
-            if "vout" not in agg_data[f"depth {depth}"].keys():
-                agg_data[f"depth {depth}"][f"vout"] = []
+            # Initialize lists for available activation types
+            for act_type in available_activation_types:
+                if act_type not in agg_data[f"depth {depth}"].keys():
+                    agg_data[f"depth {depth}"][act_type] = []
             
-            for activation_type in ["exc", "inh", "vinf", "vout"]:
-                agg_data[f"depth {depth}"][activation_type].append(branch_data[f"{activation_type}_d'^2"])
+            # Append data only for activation types that exist
+            for act_type in available_activation_types:
+                key = f"{act_type}_d'^2"
+                if key in branch_item:
+                    agg_data[f"depth {depth}"][act_type].append(branch_item[key])
     
-    indeps = ["exc", "inh", "vinf", "vout"]
-    deps = ["exc", "inh", "vinf", "vout"]
+    # Use available activation types for plotting
+    indeps = sorted(list(available_activation_types))
+    deps = sorted(list(available_activation_types))
     
     # Build long-form DataFrame from agg_data
     rows = []
     for depth, data in agg_data.items():
         for dep in deps:          # y
             for indep in indeps:  # x
-                x = np.asarray(data[indep]); y = np.asarray(data[dep])
-                rows.append(pd.DataFrame({
-                    'x': x, 'y': y, 'depth': depth,
-                    'row': dep, 'col': indep
-                }))
+                # Only process if both activation types have data
+                if indep in data and dep in data and len(data[indep]) > 0 and len(data[dep]) > 0:
+                    x = np.asarray(data[indep])
+                    y = np.asarray(data[dep])
+                    # Only add if arrays have the same length
+                    if len(x) == len(y):
+                        rows.append(pd.DataFrame({
+                            'x': x, 'y': y, 'depth': depth,
+                            'row': dep, 'col': indep
+                        }))
+    
+    if not rows:
+        logger.warning("No valid data to plot in branch statistics")
+        return
+    
     df = pd.concat(rows, ignore_index=True)
 
-    # Labels
+    # Labels - include all available activation types
     labels = {
         "exc": r"$d'^2_{E}$",
         "inh": r"$d'^2_{I}$",
         "vinf": r"$d'^2_{V_{\infty}}$",
         "vout": r"$d'^2_{V_{out}}$",
+        "upstream": r"$d'^2_{upstream}$",
     }
 
     # Scatter faceted by (row=dep, col=indep) with hue=depth
@@ -552,11 +844,11 @@ def plot_branch_final(branch_data: dict, save_path: str):
             ax = g.axes[i, j]
             ax.grid(True)
             if i == len(deps) - 1:
-                ax.set_xlabel(labels[col_key])
+                ax.set_xlabel(labels.get(col_key, col_key))
             else:
                 ax.set_xlabel("")
             if j == 0:
-                ax.set_ylabel(labels[row_key])
+                ax.set_ylabel(labels.get(row_key, row_key))
             else:
                 ax.set_ylabel("")
 
@@ -564,260 +856,6 @@ def plot_branch_final(branch_data: dict, save_path: str):
     g.figure.savefig(os.path.join(save_path, "branch_final.png"), dpi=300, bbox_inches="tight")
     plt.close(g.figure)
 
-
-def plot_ratio_comparison(
-    branch_statistics: dict[str, dict[int, dict[str, float]]], 
-    save_path: str
-):
-    agg_data: dict[str, dict[str, list[float]]] = {}
-    for layer_key, layer_data in branch_statistics.items():
-        for branch_data in layer_data.values():
-            depth = branch_data["depth"]
-            if f"depth {depth}" not in agg_data.keys():
-                agg_data[f"depth {depth}"] = {}
-            
-            if "ei_expected_act_ratio" not in agg_data[f"depth {depth}"].keys():
-                agg_data[f"depth {depth}"][f"ei_expected_act_ratio"] = []
-            if "ei_act_mean_ratio" not in agg_data[f"depth {depth}"].keys():
-                agg_data[f"depth {depth}"][f"ei_act_mean_ratio"] = []
-
-            if "ei_acts_eff_std_ratio" not in agg_data[f"depth {depth}"].keys():
-                agg_data[f"depth {depth}"][f"ei_acts_eff_std_ratio"] = []
-            if "ei_acts_emp_std_ratio" not in agg_data[f"depth {depth}"].keys():
-                agg_data[f"depth {depth}"][f"ei_acts_emp_std_ratio"] = []
-            
-            ei_expected_act_ratio = (
-                branch_data["exc_inputs_mean"] * branch_data["exc_weights_mean"]
-                ) / (
-                branch_data["inh_inputs_mean"] * branch_data["inh_weights_mean"] + 1e-8
-            )
-            agg_data[f"depth {depth}"][f"ei_expected_act_ratio"].append(ei_expected_act_ratio)
-            
-            ei_act_mean_ratio = branch_data["exc_activations_mean"] / (
-                branch_data["inh_activations_mean"] + 1e-8
-            )
-            agg_data[f"depth {depth}"][f"ei_act_mean_ratio"].append(ei_act_mean_ratio)
-            
-
-            ei_acts_entropy_diff = branch_data["exc_activations_entropy"] - branch_data["inh_activations_entropy"]
-            ei_acts_eff_std_ratio = exp(ei_acts_entropy_diff)
-            agg_data[f"depth {depth}"][f"ei_acts_eff_std_ratio"].append(ei_acts_eff_std_ratio)
-            agg_data[f"depth {depth}"][f"ei_acts_emp_std_ratio"].append(
-                branch_data["exc_activations_std"] / (branch_data["inh_activations_std"] + 1e-8)
-            )            
-    
-
-    indeps = ["ei_expected_act_ratio", "ei_act_mean_ratio"]
-    deps = ["ei_acts_eff_std_ratio", "ei_acts_emp_std_ratio"]
-    
-    # Build long-form DataFrame from agg_data
-    rows = []
-    for depth, data in agg_data.items():
-        for dep in deps:          # y
-            for indep in indeps:  # x
-                x = np.asarray(data[indep]); y = np.asarray(data[dep])
-                rows.append(pd.DataFrame({
-                    'x': x, 'y': y, 'depth': depth,
-                    'row': dep, 'col': indep
-                }))
-    df = pd.concat(rows, ignore_index=True)
-
-    # Labels
-    xlabels = {
-        "ei_expected_act_ratio": r"$\frac{X_{exc}}{X_{inh}}*\frac{W_{exc}}{W_{inh}}$",
-        "ei_act_mean_ratio":     r"$\frac{E}{I}$",
-    }
-    ylabels = {
-        "ei_acts_eff_std_ratio": r"$\sqrt{\frac{N(E)}{N(I)}}$",
-        "ei_acts_emp_std_ratio": r"$\frac{\sigma_{E}}{\sigma_{I}}$",
-    }
-
-    # Scatter faceted by (row=dep, col=indep) with hue=depth
-    g = sns.relplot(
-        data=df, x='x', y='y', hue='depth',
-        row='row', col='col', kind='scatter',
-        row_order=deps, col_order=indeps,
-        facet_kws=dict(sharex="col", sharey="row"),
-        height=4, aspect=1.2, s=10, alpha=0.5
-    )
-
-    # Add one global regression line per facet and annotate slope/intercept
-    def add_regline_and_stats(data: pd.DataFrame, color: Optional[str] = None, **kws):
-        ax = plt.gca()
-        x = data['x'].to_numpy()
-        y = data['y'].to_numpy()
-        m = np.isfinite(x) & np.isfinite(y)
-        if m.sum() >= 2:
-            slope, intercept = np.polyfit(x[m], y[m], 1)
-            xx = np.linspace(x[m].min(), x[m].max(), 200)
-            ax.plot(xx, slope * xx + intercept, color='k', lw=2)
-            ax.text(0.02, 0.98, f"y={slope:.2g}x+{intercept:.2g}",
-                    transform=ax.transAxes, ha='left', va='top',
-                    fontsize=9, color='k')
-
-    g.map_dataframe(add_regline_and_stats)
-
-    # Axis labels per row/col (only outer axes)
-    for i, row_key in enumerate(deps):
-        for j, col_key in enumerate(indeps):
-            ax = g.axes[i, j]
-            ax.grid(True)
-            if i == len(deps) - 1:
-                ax.set_xlabel(xlabels[col_key])
-            else:
-                ax.set_xlabel("")
-            if j == 0:
-                ax.set_ylabel(ylabels[row_key])
-            else:
-                ax.set_ylabel("")
-
-    plt.tight_layout()
-    g.figure.savefig(os.path.join(save_path, "another_comparison.png"), dpi=300, bbox_inches="tight")
-    plt.close(g.figure)
-
-    
-
-def plot_ratio_pairwise_comparison(
-    branch_statistics: dict[str, dict[int, dict[str, float]]], 
-    weights_ratio: bool = False,
-    inputs_ratio: bool = False,
-    activations_ratio: bool = False,
-    save_path: str = None
-):
-    agg_data: dict[str, dict[str, list[float]]] = {}
-    for layer_key, layer_data in branch_statistics.items():
-        for branch_data in layer_data.values():
-            depth = branch_data["depth"]
-            if f"depth {depth}" not in agg_data.keys():
-                agg_data[f"depth {depth}"] = {}
-            
-            if weights_ratio and "ei_w_mean_ratio" not in agg_data[f"depth {depth}"].keys():
-                agg_data[f"depth {depth}"][f"ei_w_mean_ratio"] = []
-            if weights_ratio and "ei_w_std_ratio" not in agg_data[f"depth {depth}"].keys():
-                agg_data[f"depth {depth}"][f"ei_w_std_ratio"] = []
-            
-            if inputs_ratio and "ei_x_mean_ratio" not in agg_data[f"depth {depth}"].keys():
-                agg_data[f"depth {depth}"][f"ei_x_mean_ratio"] = []
-            if inputs_ratio and "ei_x_std_ratio" not in agg_data[f"depth {depth}"].keys():
-                agg_data[f"depth {depth}"][f"ei_x_std_ratio"] = []
-            
-            if weights_ratio and inputs_ratio and "ei_wx_mean_ratio" not in agg_data[f"depth {depth}"].keys():
-                agg_data[f"depth {depth}"][f"ei_wx_mean_ratio"] = []
-            if weights_ratio and inputs_ratio and "ei_wx_std_ratio" not in agg_data[f"depth {depth}"].keys():
-                agg_data[f"depth {depth}"][f"ei_wx_std_ratio"] = []
-            
-            if activations_ratio and "ei_a_mean_ratio" not in agg_data[f"depth {depth}"].keys():
-                agg_data[f"depth {depth}"][f"ei_a_mean_ratio"] = []
-            if activations_ratio and "ei_a_std_ratio" not in agg_data[f"depth {depth}"].keys():
-                agg_data[f"depth {depth}"][f"ei_a_std_ratio"] = []
-            
-            
-            if weights_ratio:
-                ei_w_mean_ratio = branch_data["exc_weights_mean"] / (branch_data["inh_weights_mean"] + 1e-8)
-                agg_data[f"depth {depth}"][f"ei_w_mean_ratio"].append(ei_w_mean_ratio)
-                
-                ei_w_std_ratio = branch_data["exc_weights_std"] / (branch_data["inh_weights_std"] + 1e-8)
-                agg_data[f"depth {depth}"][f"ei_w_std_ratio"].append(ei_w_std_ratio)
-            
-            if inputs_ratio:
-                ei_x_mean_ratio = branch_data["exc_inputs_mean"] / (branch_data["inh_inputs_mean"] + 1e-8)
-                agg_data[f"depth {depth}"][f"ei_x_mean_ratio"].append(ei_x_mean_ratio)
-                
-                ei_x_std_ratio = branch_data["exc_inputs_std"] / (branch_data["inh_inputs_std"] + 1e-8)
-                agg_data[f"depth {depth}"][f"ei_x_std_ratio"].append(ei_x_std_ratio)
-
-            if weights_ratio and inputs_ratio:
-                ei_wx_mean_ratio = ei_w_mean_ratio * ei_x_mean_ratio
-                agg_data[f"depth {depth}"][f"ei_wx_mean_ratio"].append(ei_wx_mean_ratio)
-                
-                ei_wx_std_ratio = ei_w_std_ratio * ei_x_std_ratio
-                agg_data[f"depth {depth}"][f"ei_wx_std_ratio"].append(ei_wx_std_ratio)
-
-            if activations_ratio:
-                ei_a_mean_ratio = branch_data["exc_activations_mean"] / (branch_data["inh_activations_mean"] + 1e-8)
-                agg_data[f"depth {depth}"][f"ei_a_mean_ratio"].append(ei_a_mean_ratio)
-                
-                ei_a_std_ratio = branch_data["exc_activations_std"] / (branch_data["inh_activations_std"] + 1e-8)
-                agg_data[f"depth {depth}"][f"ei_a_std_ratio"].append(ei_a_std_ratio)
-    
-
-    available = []
-    if weights_ratio:
-        available.extend(["ei_w_mean_ratio", "ei_w_std_ratio"])
-    if inputs_ratio:
-        available.extend(["ei_x_mean_ratio", "ei_x_std_ratio"])
-    if weights_ratio and inputs_ratio:
-        available.extend(["ei_wx_mean_ratio", "ei_wx_std_ratio"])
-    if activations_ratio:
-        available.extend(["ei_a_mean_ratio", "ei_a_std_ratio"])
-    
-    # Build long-form DataFrame from agg_data
-    rows = []
-    for depth, data in agg_data.items():
-        for dep in available:          # y
-            for indep in available:  # x
-                x = np.asarray(data[indep]); y = np.asarray(data[dep])
-                rows.append(pd.DataFrame({
-                    'x': x, 'y': y, 'depth': depth,
-                    'row': dep, 'col': indep
-                }))
-    df = pd.concat(rows, ignore_index=True)
-
-    label_map = {
-        "ei_w_mean_ratio": r"$\frac{\bar W_E}{\bar W_I}$",
-        "ei_w_std_ratio":  r"$\frac{\sigma(W_E)}{\sigma(W_I)}$",
-        "ei_x_mean_ratio": r"$\frac{\bar X_E}{\bar X_I}$",
-        "ei_x_std_ratio":  r"$\frac{\sigma(X_E)}{\sigma(X_I)}$",
-        "ei_wx_mean_ratio": r"$\frac{\bar W_E}{\bar W_I}\cdot\frac{\bar X_E}{\bar X_I}$",
-        "ei_wx_std_ratio":  r"$\frac{\sigma(W_E)}{\sigma(W_I)}\cdot\frac{\sigma(X_E)}{\sigma(X_I)}$",
-        "ei_a_mean_ratio": r"$\frac{\bar A_E}{\bar A_I}$",
-        "ei_a_std_ratio":  r"$\frac{\sigma(A_E)}{\sigma(A_I)}$",
-    }
-
-    # Scatter faceted by (row=dep, col=indep) with hue=depth
-    g = sns.relplot(
-        data=df, x='x', y='y', hue='depth',
-        row='row', col='col', kind='scatter',
-        row_order=available, col_order=available,
-        facet_kws=dict(sharex="col", sharey="row"),
-        height=4, aspect=1.2, s=10, alpha=0.5
-    )
-
-    # Add one global regression line per facet and annotate slope/intercept
-    def add_regline_and_stats(data: pd.DataFrame, color: Optional[str] = None, **kws):
-        ax = plt.gca()
-        x = data['x'].to_numpy()
-        y = data['y'].to_numpy()
-        m = np.isfinite(x) & np.isfinite(y)
-        if m.sum() >= 2:
-            slope, intercept = np.polyfit(x[m], y[m], 1)
-            xx = np.linspace(x[m].min(), x[m].max(), 200)
-            ax.plot(xx, slope * xx + intercept, color='k', lw=2)
-            ax.text(0.02, 0.98, f"y={slope:.2g}x+{intercept:.2g}",
-                    transform=ax.transAxes, ha='left', va='top',
-                    fontsize=9, color='k')
-
-    g.map_dataframe(add_regline_and_stats)
-
-    # Axis labels per row/col (only outer axes)
-    for i, row_key in enumerate(available):
-        for j, col_key in enumerate(available):
-            ax = g.axes[i, j]
-            ax.grid(True)
-            if i == len(available) - 1:
-                ax.set_xlabel(label_map[col_key])
-            else:
-                ax.set_xlabel("")
-            if j == 0:
-                ax.set_ylabel(label_map[row_key])
-            else:
-                ax.set_ylabel("")
-
-    plt.tight_layout()
-    g.figure.savefig(os.path.join(save_path, "ratio_pairwise_comparison.png"), dpi=300, bbox_inches="tight")
-    plt.close(g.figure)
-
-    
 
 
 __all__ = ["CompartmentSNRAnalyzer"]
