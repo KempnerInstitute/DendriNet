@@ -7,6 +7,7 @@ import pandas as pd
 
 from ..plotters import (
     AblationPlotter,
+    SNRPlotter,
     InformationPlotter,
     NoisePlotter,
     PerformancePlotter,
@@ -27,6 +28,7 @@ class EISweepAnalyzer(BaseSweepAnalyzer):
         self.information_plotter = InformationPlotter()
         self.weight_plotter = WeightPlotter()
         self.ablation_plotter = AblationPlotter()
+        self.snr_plotter = SNRPlotter()
         self.noise_plotter = NoisePlotter()
 
     def can_handle(self, results_dir: Path) -> bool:
@@ -122,6 +124,10 @@ class EISweepAnalyzer(BaseSweepAnalyzer):
         # Generate ablation plots (if data available)
         logger.info("Generating ablation plots...")
         plot_paths.extend(self.ablation_plotter.generate_all(data, output_dir))
+
+        # Generate SNR plots (if data available)
+        logger.info("Generating SNR plots...")
+        plot_paths.extend(self.snr_plotter.generate_all(data, output_dir))
 
         # Generate noise plots (if data available)
         logger.info("Generating noise plots...")

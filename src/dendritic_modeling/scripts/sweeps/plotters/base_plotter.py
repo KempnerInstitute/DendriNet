@@ -85,7 +85,7 @@ class BasePlotter:
         if use_log_x:
             ax.set_xscale("log")
             formatter = ScalarFormatter()
-            formatter.set_scientific(False)
+            formatter.set_scientific(True)
             ax.xaxis.set_major_formatter(formatter)
 
         if use_log_y:
