@@ -469,25 +469,14 @@ class CompartmentStatisticsAnalyzer(AbstractAnalyzer):
             if self.compute_variance:
                 summ_stats.append("std")
 
-            try:
-                plot_synapse_weight_comparison(
-                    fields=fields, 
-                    summ_stats=summ_stats, 
-                    branch_statistics=branch_statistics, 
-                    save_path=save_path
-                )
-            except Exception as e:
-                self.logger.error(f"Error generating synapse weight comparison plot: {e}")
-                traceback.print_exc()
-            
-            try:
-                plot_ratio_comparison(
-                    branch_statistics=branch_statistics, 
-                    save_path=save_path
-                )
-            except Exception as e:
-                self.logger.error(f"Error generating ratio comparison plot: {e}")
-                traceback.print_exc()
+            # try:
+            #     plot_ratio_comparison(
+            #         branch_statistics=branch_statistics, 
+            #         save_path=save_path
+            #     )
+            # except Exception as e:
+            #     self.logger.error(f"Error generating ratio comparison plot: {e}")
+            #     traceback.print_exc()
             
             try:
                 plot_ratio_pairwise_comparison(
