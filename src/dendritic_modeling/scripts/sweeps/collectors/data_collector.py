@@ -126,6 +126,7 @@ class DataCollector:
         params.update(self._load_information(config_dir))
         params.update(self._load_weights(config_dir))
         params.update(self._load_ablation(config_dir))
+        params.update(self._load_snr(config_dir))
         params.update(self._load_noise(config_dir))
         params.update(self._load_nparams(config_dir))
 
@@ -362,6 +363,43 @@ class DataCollector:
                                     result[
                                         f"ablation_{safe_ablation}_{metric_name}_depth{depth}"
                                     ] = metric_value
+
+        return result
+    
+    def _load_snr(self, config_dir: Path) -> dict:
+        """Load compartment SNR analysis metrics."""
+        # compartment_snr_file = config_dir / "compartment_snr_analysis" / "final"
+        # Search recursively for performance/final.json
+        compartment_snr_files = list(config_dir.rglob("compartment_snr_analysis/final.json"))
+        
+        if not compartment_snr_files:
+            # Try without .json extension
+            compartment_snr_files = list(config_dir.rglob("compartment_snr_analysis/final"))
+        
+        if compartment_snr_files:
+            compartment_snr_file = compartment_snr_files[0]  # Use first match found
+        else:
+            # Fallback to original path
+            compartment_snr_file = config_dir / "compartment_snr_analysis" / "final"
+        
+        data = self._load_json_file(compartment_snr_file)
+
+        if not data:
+            return {}
+
+        result = {}
+
+        prefixes = ["exc", "inh", "upstream", "vout"]
+        # Handle layer ablation format
+        if "layer_statistics" in data.keys():
+            for layer_data in data["layer_statistics"].values():
+                depth = layer_data["depth"]
+                for prefix in prefixes:
+                    field_name = f"{prefix}_d'^2_mean"
+                    if field_name in layer_data:
+                        result[
+                            f"snr_{field_name}_depth{depth}"
+                        ] = layer_data[field_name]
 
         return result
 
