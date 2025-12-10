@@ -40,9 +40,15 @@ class _LayerStats:
         self.ema_var_y: Optional[float] = None
         self.ema_var_x: Optional[float] = None
         self.ema_cov_xy: Optional[float] = None
-        # NEW: Running means for proper online variance/covariance
+        # Running means for proper online variance/covariance
         self.ema_mean_y: Optional[float] = None
         self.ema_mean_x: Optional[float] = None
+        # Morphology-specific statistics
+        self.path_factor: Optional[torch.Tensor] = None  # Path attenuation factor
+        self.branch_depths: Optional[torch.Tensor] = None  # Branch depths from soma
+        self.branch_types: Optional[torch.Tensor] = (
+            None  # Apical (1) vs basal (0) flags
+        )
 
 
 class LocalCreditAssignment(Trainer):
@@ -57,20 +63,61 @@ class LocalCreditAssignment(Trainer):
     def __init__(self, *args, **kwargs):
         config_dict = kwargs.pop("local_rule_config", {}) or {}
         super().__init__(*args, **kwargs)
-        self.local_cfg = LocalRuleConfig(**config_dict)
+        # Build LocalRuleConfig with proper nested config handling
+        self.local_cfg = self._build_local_rule_config(config_dict)
         self._layer_stats: dict[int, _LayerStats] = {}
         self._decoder_cache: dict[str, Any] = {}
         self.filename_prefix = "local_learning_"
         self.logger_info_prefix = "[Local] "
+
+    def _build_local_rule_config(self, config_dict: dict) -> LocalRuleConfig:
+        """Build LocalRuleConfig from dict with proper nested config handling."""
+        from ...config.training import (
+            FiveFactorConfig,
+            FourFactorConfig,
+            HSICConfig,
+            MorphologyAwareConfig,
+            ThreeFactorConfig,
+        )
+
+        cfg_kwargs = dict(config_dict)
+
+        # Handle nested configs - convert dicts to proper config objects
+        if "three_factor" in cfg_kwargs and isinstance(
+            cfg_kwargs["three_factor"], dict
+        ):
+            cfg_kwargs["three_factor"] = ThreeFactorConfig(**cfg_kwargs["three_factor"])
+
+        if "four_factor" in cfg_kwargs and isinstance(cfg_kwargs["four_factor"], dict):
+            cfg_kwargs["four_factor"] = FourFactorConfig(**cfg_kwargs["four_factor"])
+
+        if "five_factor" in cfg_kwargs and isinstance(cfg_kwargs["five_factor"], dict):
+            cfg_kwargs["five_factor"] = FiveFactorConfig(**cfg_kwargs["five_factor"])
+
+        if "morphology_aware" in cfg_kwargs and isinstance(
+            cfg_kwargs["morphology_aware"], dict
+        ):
+            cfg_kwargs["morphology_aware"] = MorphologyAwareConfig(
+                **cfg_kwargs["morphology_aware"]
+            )
+
+        if "hsic" in cfg_kwargs and isinstance(cfg_kwargs["hsic"], dict):
+            cfg_kwargs["hsic"] = HSICConfig(**cfg_kwargs["hsic"])
+
+        return LocalRuleConfig(**cfg_kwargs)
 
     # Override: do not run extra pretrain/final phases here
     def _pretrain(self, *args, **kwargs):  # type: ignore[override]
         return [], []
 
     # ----------------------- Core training overrides -----------------------
-    def _epoch_train(self, model: BaseModel, train_loader) -> float:  # type: ignore[override]
+    def _epoch_train(
+        self, model: BaseModel, train_loader
+    ) -> tuple[float, float, float]:  # type: ignore[override]
         model.train()
         train_loss = 0.0
+        train_loss_base = 0.0
+        train_loss_reg = 0.0
 
         # Fallback: if model has no dendritic branch layers, use standard epoch_train
         try:
@@ -124,15 +171,18 @@ class LocalCreditAssignment(Trainer):
 
             # Compute scalar loss for logging (no backward)
             loss = self._compute_logging_loss(model, x_batch, y_batch)
-            train_loss += loss.item()
+            loss_item = loss.item()
+            train_loss += loss_item
+            train_loss_base += loss_item  # Local learning doesn't separate base/reg
+            # train_loss_reg remains 0
 
             # Compute broadcast soma error dL/dV0 per-sample
             delta: torch.Tensor = self._compute_soma_error(y_hat, y_batch)
 
             # Prepare HSIC targets if needed
             y_target: Optional[torch.Tensor] = None
-            if self.local_cfg.hsic_enabled:
-                if self.local_cfg.hsic_target_source == "labels":
+            if self.local_cfg.hsic.enabled:
+                if self.local_cfg.hsic.target_source == "labels":
                     if y_batch.dim() == 1 or (
                         y_batch.dim() == 2 and y_batch.size(1) == 1
                     ):
@@ -216,7 +266,9 @@ class LocalCreditAssignment(Trainer):
             self.optimizer.step()
 
         train_loss /= len(train_loader)
-        return train_loss
+        train_loss_base /= len(train_loader)
+        train_loss_reg /= len(train_loader)
+        return train_loss, train_loss_base, train_loss_reg
 
     # -------------------------- Helper: loss/error --------------------------
     def _compute_logging_loss(
@@ -388,6 +440,14 @@ class LocalCreditAssignment(Trainer):
         batch_size = v0.size(0)
         delta_mean: torch.Tensor = delta.mean(dim=1, keepdim=True)  # [B, 1]
 
+        # Initialize branch morphology if using morphology-aware features
+        if (
+            self.local_cfg.morphology_aware.use_path_propagation
+            or self.local_cfg.morphology_aware.morphology_modulator_mode != "none"
+            or self.local_cfg.morphology_aware.use_branch_type_rules
+        ):
+            self._initialize_branch_morphology(layer_records)
+
         # Iterate in the order records were captured
         for layer_idx, rec in enumerate(layer_records):
             v_n: Optional[torch.Tensor] = rec.get("v_n")  # [B, out]
@@ -440,7 +500,7 @@ class LocalCreditAssignment(Trainer):
                 e_n = delta_mean.expand(-1, out_features)  # [B, out]
 
             # Conductance scaling: R_tot = 1 / g_tot
-            if self.local_cfg.use_conductance_scaling:
+            if self.local_cfg.three_factor.use_conductance_scaling:
                 g_tot = torch.ones_like(v_n)
                 exc_out = rec.get("exc_out")
                 if exc_out is not None:
@@ -458,33 +518,75 @@ class LocalCreditAssignment(Trainer):
             else:
                 R_tot = 1.0
 
-            # Morphology correlation rho (scalar per layer)
+            # === PATH PROPAGATION FACTOR ===
+            # Apply path-integrated attenuation if enabled
+            if self.local_cfg.morphology_aware.use_path_propagation:
+                path_factor = self._compute_path_propagation_factor(
+                    layer_idx, rec, layer_records
+                )
+                rec["path_factor"] = path_factor
+                # Modulate error by path attenuation
+                if isinstance(path_factor, torch.Tensor):
+                    e_n = e_n * path_factor
+
+            # === MORPHOLOGY CORRELATION RHO (scalar or per-branch) ===
             rho = 1.0
             if self.local_cfg.rule_variant in {"4f", "5f"}:
                 rho = self._compute_layer_rho(rec, v0)
                 # Apply layer-wise scaling if enabled
-                if self.local_cfg.layer_wise_rho_scale > 0:
-                    rho = rho / (layer_depth**0.5 * self.local_cfg.layer_wise_rho_scale)
+                if self.local_cfg.four_factor.layer_wise_rho_scale > 0:
+                    rho = rho / (
+                        layer_depth**0.5
+                        * self.local_cfg.four_factor.layer_wise_rho_scale
+                    )
 
-            # Information proxy phi (scalar per layer)
+                # Branch-specific morphology modulation
+                if self.local_cfg.morphology_aware.morphology_modulator_mode == "depth":
+                    rho = self._compute_branch_depth_modulator(rec, rho)
+
+            # === INFORMATION PROXY PHI (scalar per layer) ===
             phi = 1.0
             if self.local_cfg.rule_variant == "5f":
-                if self.local_cfg.phi_mode == "conditional":
+                if self.local_cfg.five_factor.phi_mode == "conditional":
                     phi = self._compute_layer_phi_conditional(rec)
                 else:
                     phi = self._compute_layer_phi(rec)
                 # Apply layer-wise scaling if enabled
-                if self.local_cfg.layer_wise_phi_scale > 0:
-                    phi = phi / (layer_depth**0.5 * self.local_cfg.layer_wise_phi_scale)
+                if self.local_cfg.five_factor.layer_wise_phi_scale > 0:
+                    phi = phi / (
+                        layer_depth**0.5
+                        * self.local_cfg.five_factor.layer_wise_phi_scale
+                    )
+
+            # === BRANCH TYPE SCALING ===
+            branch_scale = 1.0
+            if self.local_cfg.morphology_aware.use_branch_type_rules:
+                branch_scale = self._get_branch_type_scale(rec)
 
             # Post-synaptic modulation per-sample, per-neuron
-            if self.local_cfg.use_driving_force:
-                post_mod = self.local_cfg.e_rev_exc - v_n  # [B, out]
+            if self.local_cfg.three_factor.use_driving_force:
+                post_mod = self.local_cfg.three_factor.e_rev_exc - v_n  # [B, out]
             else:
-                post_mod = v_n - self.local_cfg.theta
+                post_mod = v_n - self.local_cfg.three_factor.theta
 
             post_factor = e_n * R_tot * post_mod  # [B, out]
-            post_factor = post_factor * float(rho) * float(phi)
+
+            # Apply morphology/information factors
+            if isinstance(rho, torch.Tensor):
+                # Per-branch rho (depth modulation)
+                post_factor = post_factor * rho.unsqueeze(
+                    0
+                )  # Broadcast [out] to [B, out]
+            else:
+                post_factor = post_factor * float(rho)
+
+            post_factor = post_factor * float(phi)
+
+            # Apply branch type scaling
+            if isinstance(branch_scale, torch.Tensor):
+                post_factor = post_factor * branch_scale.unsqueeze(0)  # [B, out]
+            else:
+                post_factor = post_factor * float(branch_scale)
 
             # Synaptic (TopKLinear) - excitatory
             exc_layer: Optional[TopKLinear] = rec.get("exc_module")
@@ -510,17 +612,37 @@ class LocalCreditAssignment(Trainer):
             inh_layer: Optional[TopKLinear] = rec.get("inh_module")
             if inh_layer is not None and rec.get("x_inh") is not None:
                 x_inh: torch.Tensor = rec["x_inh"]  # [B, in]
-                if self.local_cfg.use_driving_force:
+                if self.local_cfg.three_factor.use_driving_force:
                     inh_post = -v_n
                 else:
-                    inh_post = self.local_cfg.theta - v_n
-                inh_factor = e_n * R_tot * inh_post
-                inh_factor = inh_factor * float(
-                    rho if self.local_cfg.rule_variant in {"4f", "5f"} else 1.0
+                    inh_post = self.local_cfg.three_factor.theta - v_n
+                inh_factor = e_n * R_tot * inh_post  # [B, out]
+
+                # Apply morphology/information factors (same as excitatory)
+                if isinstance(rho, torch.Tensor):
+                    # Per-branch rho (depth modulation)
+                    inh_factor = inh_factor * rho.unsqueeze(
+                        0
+                    )  # Broadcast [out] to [B, out]
+                else:
+                    inh_factor = (
+                        inh_factor * float(rho)
+                        if self.local_cfg.rule_variant in {"4f", "5f"}
+                        else inh_factor
+                    )
+
+                inh_factor = (
+                    inh_factor * float(phi)
+                    if self.local_cfg.rule_variant == "5f"
+                    else inh_factor
                 )
-                inh_factor = inh_factor * float(
-                    phi if self.local_cfg.rule_variant == "5f" else 1.0
-                )
+
+                # Apply branch type scaling (same as excitatory)
+                if isinstance(branch_scale, torch.Tensor):
+                    inh_factor = inh_factor * branch_scale.unsqueeze(0)  # [B, out]
+                else:
+                    inh_factor = inh_factor * float(branch_scale)
+
                 # dL/dg_inh ≈ E_batch[ e_n * R_tot * inh_post * x ]
                 grad_g_inh = inh_factor.t() @ x_inh
                 if self.local_cfg.normalize_by_batch:
@@ -545,7 +667,7 @@ class LocalCreditAssignment(Trainer):
                 x_blk = x_blk_raw.view(
                     x_blk_raw.size(0), blk_layer.out_features, block_size
                 )
-                # dL/dg_den ≈ E_batch[ e_n * R_tot * (V_j - V_n) * rho * phi ]
+                # dL/dg_den ≈ E_batch[ e_n * R_tot * (V_j - V_n) * rho * phi * branch_scale ]
                 diff = x_blk - v_n.unsqueeze(-1)  # [B, out, block]
                 # Ensure R_tot is a tensor for broadcasting
                 if isinstance(R_tot, torch.Tensor):
@@ -554,13 +676,36 @@ class LocalCreditAssignment(Trainer):
                     R_exp = torch.ones_like(v_n).unsqueeze(-1) * float(R_tot)
                 # Apply morphology and information factors
                 den_factor = e_n.unsqueeze(-1) * R_exp * diff
+
+                # Apply rho (may be tensor if using depth modulation)
                 if self.local_cfg.rule_variant in {"4f", "5f"}:
-                    den_factor = den_factor * float(rho)
+                    if isinstance(rho, torch.Tensor):
+                        den_factor = den_factor * rho.unsqueeze(0).unsqueeze(
+                            -1
+                        )  # [1, out, 1]
+                    else:
+                        den_factor = den_factor * float(rho)
+
+                # Apply phi
                 if self.local_cfg.rule_variant == "5f":
                     den_factor = den_factor * float(phi)
-                grad_g_den = den_factor.mean(dim=0)
+
+                # Apply branch type scaling
+                if isinstance(branch_scale, torch.Tensor):
+                    den_factor = den_factor * branch_scale.unsqueeze(0).unsqueeze(
+                        -1
+                    )  # [1, out, 1]
+                else:
+                    den_factor = den_factor * float(branch_scale)
+
+                grad_g_den = den_factor.mean(dim=0)  # [out, block]
                 if not self.local_cfg.normalize_by_batch:
                     grad_g_den = grad_g_den * float(batch_size)
+
+                # Apply dendritic normalization if enabled
+                if self.local_cfg.morphology_aware.use_dendritic_normalization:
+                    grad_g_den = self._compute_dendritic_normalization(rec, grad_g_den)
+
                 g_current_den = blk_layer.log_weight.detach().exp()
                 grad_param_den = grad_g_den * g_current_den
                 if blk_layer.log_weight.grad is None:
@@ -599,9 +744,21 @@ class LocalCreditAssignment(Trainer):
                     # Map to raw parameter log_m via chain rule: dm/dlog_m = m = exp(log_m)
                     m_vec = react_module.log_m.detach().exp()
                     # Use post error factor without dendritic driving for activation params
-                    post_factor = e_n * float(rho) * float(phi)
+                    react_factor = e_n
+                    # Apply rho
+                    if isinstance(rho, torch.Tensor):
+                        react_factor = react_factor * rho.unsqueeze(0)
+                    else:
+                        react_factor = react_factor * float(rho)
+                    # Apply phi
+                    react_factor = react_factor * float(phi)
+                    # Apply branch scale
+                    if isinstance(branch_scale, torch.Tensor):
+                        react_factor = react_factor * branch_scale.unsqueeze(0)
+                    else:
+                        react_factor = react_factor * float(branch_scale)
                     # Aggregate over batch to per-neuron grads
-                    grad_m = (post_factor * elig_m).mean(dim=0)
+                    grad_m = (react_factor * elig_m).mean(dim=0)
                     grad_log_m = grad_m * m_vec
                     if react_module.log_m.grad is None:
                         react_module.log_m.grad = grad_log_m.to(
@@ -622,8 +779,18 @@ class LocalCreditAssignment(Trainer):
                         else 1.0
                     )
                     elig_b = -one_minus_y2 * m_vec
-                    post_factor = e_n * float(rho) * float(phi)
-                    grad_b = (post_factor * elig_b).mean(dim=0)
+                    # Reuse react_factor from above
+                    react_factor_b = e_n
+                    if isinstance(rho, torch.Tensor):
+                        react_factor_b = react_factor_b * rho.unsqueeze(0)
+                    else:
+                        react_factor_b = react_factor_b * float(rho)
+                    react_factor_b = react_factor_b * float(phi)
+                    if isinstance(branch_scale, torch.Tensor):
+                        react_factor_b = react_factor_b * branch_scale.unsqueeze(0)
+                    else:
+                        react_factor_b = react_factor_b * float(branch_scale)
+                    grad_b = (react_factor_b * elig_b).mean(dim=0)
                     if react_module.b.grad is None:
                         react_module.b.grad = grad_b.to(react_module.b.dtype)
                     else:
@@ -632,36 +799,36 @@ class LocalCreditAssignment(Trainer):
                         )
 
             # HSIC/pHSIC auxiliary: add kernel-based gradients
-            if self.local_cfg.hsic_enabled:
+            if self.local_cfg.hsic.enabled:
                 v_out = rec.get("v_out")
                 if v_out is not None:
                     z = v_out - v_out.mean(dim=0, keepdim=True)  # [B, out]
                     # Optional warmup for HSIC weights over initial epochs
                     hsic_warm = 1.0
                     if (
-                        getattr(self.local_cfg, "hsic_warmup_epochs", 0)
-                        and self.epoch_counter < self.local_cfg.hsic_warmup_epochs
+                        self.local_cfg.hsic.warmup_epochs > 0
+                        and self.epoch_counter < self.local_cfg.hsic.warmup_epochs
                     ):
                         hsic_warm = max(
                             0.0,
                             float(self.epoch_counter)
-                            / float(max(1, self.local_cfg.hsic_warmup_epochs)),
+                            / float(max(1, self.local_cfg.hsic.warmup_epochs)),
                         )
                     # Optionally restrict HSIC to last dendritic layer only
-                    if getattr(self.local_cfg, "hsic_apply_last_layer_only", False):
+                    if self.local_cfg.hsic.apply_last_layer_only:
                         is_last = layer_idx == len(layer_records) - 1
                         if not is_last:
                             hsic_warm = 0.0
-                    if self.local_cfg.hsic_self_weight != 0.0:
+                    if self.local_cfg.hsic.self_weight != 0.0:
                         grad_z_self = self._compute_hsic_gradient(
-                            z, z, self.local_cfg.hsic_self_weight * hsic_warm, "self"
+                            z, z, self.local_cfg.hsic.self_weight * hsic_warm, "self"
                         )
                         # Optional HSIC grad clipping
-                        if getattr(self.local_cfg, "hsic_grad_clip_value", 0.0) > 0:
+                        if self.local_cfg.hsic.grad_clip_value > 0:
                             grad_z_self = torch.clamp(
                                 grad_z_self,
-                                min=-self.local_cfg.hsic_grad_clip_value,
-                                max=self.local_cfg.hsic_grad_clip_value,
+                                min=-self.local_cfg.hsic.grad_clip_value,
+                                max=self.local_cfg.hsic.grad_clip_value,
                             )
                         if exc_layer is not None and rec.get("x_exc") is not None:
                             x_exc = rec["x_exc"]
@@ -683,21 +850,21 @@ class LocalCreditAssignment(Trainer):
                                     + grad_param_self.to(exc_layer.pre_w.dtype)
                                 )
                     if (
-                        self.local_cfg.hsic_target_weight != 0.0
+                        self.local_cfg.hsic.target_weight != 0.0
                         and y_target is not None
                     ):
                         y_centered = y_target - y_target.mean(dim=0, keepdim=True)
                         grad_z_tgt = self._compute_hsic_gradient(
                             z,
                             y_centered,
-                            self.local_cfg.hsic_target_weight * hsic_warm,
+                            self.local_cfg.hsic.target_weight * hsic_warm,
                             "target",
                         )
-                        if getattr(self.local_cfg, "hsic_grad_clip_value", 0.0) > 0:
+                        if self.local_cfg.hsic.grad_clip_value > 0:
                             grad_z_tgt = torch.clamp(
                                 grad_z_tgt,
-                                min=-self.local_cfg.hsic_grad_clip_value,
-                                max=self.local_cfg.hsic_grad_clip_value,
+                                min=-self.local_cfg.hsic.grad_clip_value,
+                                max=self.local_cfg.hsic.grad_clip_value,
                             )
                         if exc_layer is not None and rec.get("x_exc") is not None:
                             x_exc = rec["x_exc"]
@@ -730,7 +897,7 @@ class LocalCreditAssignment(Trainer):
         Returns:
             Kernel matrix [B, B]
         """
-        kernel_type = self.local_cfg.hsic_kernel.lower()
+        kernel_type = self.local_cfg.hsic.kernel.lower()
 
         if kernel_type == "linear":
             # Linear kernel: K(x, y) = x^T y
@@ -738,8 +905,8 @@ class LocalCreditAssignment(Trainer):
         elif kernel_type == "rbf" or kernel_type == "gaussian":
             # RBF kernel: K(x, y) = exp(-||x - y||^2 / (2 * sigma^2))
             gamma = (
-                1.0 / (2.0 * self.local_cfg.hsic_sigma**2)
-                if self.local_cfg.hsic_sigma > 0
+                1.0 / (2.0 * self.local_cfg.hsic.sigma**2)
+                if self.local_cfg.hsic.sigma > 0
                 else 1.0
             )
             # Compute pairwise distances efficiently
@@ -751,8 +918,8 @@ class LocalCreditAssignment(Trainer):
             # Polynomial kernel: K(x, y) = (coef0 + x^T y)^degree
             dot_product = X @ Y.t()
             return (
-                self.local_cfg.hsic_coef0 + dot_product
-            ) ** self.local_cfg.hsic_degree
+                self.local_cfg.hsic.coef0 + dot_product
+            ) ** self.local_cfg.hsic.degree
         else:
             # Fallback to linear
             return X @ Y.t()
@@ -772,7 +939,7 @@ class LocalCreditAssignment(Trainer):
             Gradient w.r.t. z [B, d_z]
         """
         batch_size = z.size(0)
-        kernel_type = self.local_cfg.hsic_kernel.lower()
+        kernel_type = self.local_cfg.hsic.kernel.lower()
 
         if kernel_type == "linear":
             # Linear kernel gradients (original implementation)
@@ -781,13 +948,13 @@ class LocalCreditAssignment(Trainer):
             else:  # target
                 cov_zy = (z.t() @ y) / float(batch_size)
                 grad_z = -2.0 * (cov_zy @ y.t()).t() / float(batch_size)
-                return grad_z * self.local_cfg.hsic_weight * weight
+                return grad_z * self.local_cfg.hsic.weight * weight
 
         elif kernel_type in ["rbf", "gaussian"]:
             # RBF kernel gradients
             gamma = (
-                1.0 / (2.0 * self.local_cfg.hsic_sigma**2)
-                if self.local_cfg.hsic_sigma > 0
+                1.0 / (2.0 * self.local_cfg.hsic.sigma**2)
+                if self.local_cfg.hsic.sigma > 0
                 else 1.0
             )
             if grad_type == "self":
@@ -813,12 +980,12 @@ class LocalCreditAssignment(Trainer):
                 z_diff = z_expanded - z.unsqueeze(0)  # [B, B, d_z]
                 weight_mat = (K_zz * Lc).unsqueeze(-1)  # [B, B, 1]
                 grad_z = 2.0 * gamma * (weight_mat * z_diff).sum(dim=1)  # [B, d_z]
-                return grad_z * self.local_cfg.hsic_weight * weight / float(batch_size)
+                return grad_z * self.local_cfg.hsic.weight * weight / float(batch_size)
 
         elif kernel_type in ["polynomial", "poly"]:
             # Polynomial kernel gradients
-            degree = self.local_cfg.hsic_degree
-            coef0 = self.local_cfg.hsic_coef0
+            degree = self.local_cfg.hsic.degree
+            coef0 = self.local_cfg.hsic.coef0
             if grad_type == "self":
                 # Self-dependence gradient
                 dot_zz = z @ z.t()  # [B, B]
@@ -842,7 +1009,7 @@ class LocalCreditAssignment(Trainer):
                 )
                 weight_mat = K_coef * Lc  # [B, B]
                 grad_z = (weight_mat @ z) * 2.0  # symmetry factor
-                return grad_z * self.local_cfg.hsic_weight * weight / float(batch_size)
+                return grad_z * self.local_cfg.hsic.weight * weight / float(batch_size)
 
         else:
             # Fallback to linear
@@ -851,7 +1018,7 @@ class LocalCreditAssignment(Trainer):
             else:
                 cov_zy = (z.t() @ y) / float(batch_size)
                 grad_z = -2.0 * (cov_zy @ y.t()).t() / float(batch_size)
-                return grad_z * self.local_cfg.hsic_weight * weight
+                return grad_z * self.local_cfg.hsic.weight * weight
 
     # ----------------------- Helper: rho and phi factors --------------------
     def _compute_layer_rho(self, rec: dict[str, Any], v0: torch.Tensor) -> float:
@@ -862,14 +1029,16 @@ class LocalCreditAssignment(Trainer):
             return 1.0
 
         batch_size = v_n.size(0)
-        alpha = self.local_cfg.ema_alpha  # Learning rate for EMA (e.g., 0.05)
+        alpha = (
+            self.local_cfg.four_factor.ema_alpha
+        )  # Learning rate for EMA (e.g., 0.05)
         decay = 1.0 - alpha  # Decay factor
 
         # Compute per-sample average voltages (over neurons)
         a = v_n.mean(dim=1)  # [B]
         b = v0.mean(dim=1)  # [B]
         # Optional alternative: dot-product-like proxy that works with B=1
-        rho_mode = getattr(self.local_cfg, "rho_mode", "pearson").lower()
+        rho_mode = self.local_cfg.four_factor.rho_mode.lower()
         if rho_mode == "dot":
             # Use batch mean of elementwise product as a scalar proxy with EMA smoothing
             rho_val = float((a * b).mean().item())
@@ -895,13 +1064,13 @@ class LocalCreditAssignment(Trainer):
 
         else:
             # Single-sample mode: Use configured estimator
-            estimator = self.local_cfg.rho_estimator.lower()
+            estimator = self.local_cfg.four_factor.rho_estimator.lower()
 
             if estimator in ["ema", "ema+augment"]:
                 if estimator == "ema+augment":
                     # Combined EMA + augmentation: use augmented samples for EMA update
-                    K = self.local_cfg.augment_k
-                    noise_sigma = self.local_cfg.augment_noise_sigma
+                    K = self.local_cfg.four_factor.augment_k
+                    noise_sigma = self.local_cfg.four_factor.augment_noise_sigma
 
                     # Collect statistics from K noisy versions
                     a_samples = []
@@ -965,8 +1134,8 @@ class LocalCreditAssignment(Trainer):
 
             elif estimator == "augment":
                 # Micro-ensemble augmentation: K noisy forward passes
-                K = self.local_cfg.augment_k
-                noise_sigma = self.local_cfg.augment_noise_sigma
+                K = self.local_cfg.four_factor.augment_k
+                noise_sigma = self.local_cfg.four_factor.augment_noise_sigma
 
                 # Collect statistics from K noisy versions
                 a_samples = []
@@ -1027,7 +1196,7 @@ class LocalCreditAssignment(Trainer):
         if v_n.size(0) < 2:
             return 1.0
         var_batch = float(v_n.var(unbiased=False).item())
-        alpha = self.local_cfg.ema_alpha
+        alpha = self.local_cfg.four_factor.ema_alpha
         if stats.var_ema is None:
             stats.var_ema = var_batch
         else:
@@ -1055,15 +1224,18 @@ class LocalCreditAssignment(Trainer):
             return self._compute_layer_phi(rec)
 
         # Handle single-sample case with EMA
-        if v_n.size(0) < 2 and self.local_cfg.phi_estimator == "conditional_ema":
+        if (
+            v_n.size(0) < 2
+            and self.local_cfg.five_factor.phi_estimator == "conditional_ema"
+        ):
             return self._compute_layer_phi_conditional_ema(rec, v_n, parent)
         # Center variables
         y = v_n - v_n.mean(dim=0, keepdim=True)  # [B, out]
         x = parent - parent.mean(dim=0, keepdim=True)  # [B, out]
 
         # RLS-like EMA update for single-sample friendly conditional variance
-        lam = self.local_cfg.phi_ridge_lambda
-        alpha = 1.0 - self.local_cfg.ema_alpha  # decay for moments
+        lam = self.local_cfg.five_factor.phi_ridge_lambda
+        alpha = 1.0 - self.local_cfg.four_factor.ema_alpha  # decay for moments
         # Update EMA moments
         layer_id = id(rec.get("layer"))
         stats_local = self._layer_stats.setdefault(layer_id, _LayerStats())
@@ -1103,9 +1275,9 @@ class LocalCreditAssignment(Trainer):
         y_sample = v_n.mean().item()  # Scalar
         x_sample = parent.mean().item()  # Scalar
 
-        alpha = self.local_cfg.ema_alpha
+        alpha = self.local_cfg.four_factor.ema_alpha
         decay = 1.0 - alpha
-        lam = self.local_cfg.phi_ridge_lambda
+        lam = self.local_cfg.five_factor.phi_ridge_lambda
 
         # Initialize if needed
         if stats.ema_mean_y is None:
@@ -1145,6 +1317,203 @@ class LocalCreditAssignment(Trainer):
         phi = stats.ema_var_y / residual_var
         return float(max(0.25, min(4.0, phi)))
 
+    # -------------------- Morphology-Aware Helper Methods --------------------
+    def _compute_path_propagation_factor(
+        self, layer_idx: int, rec: dict[str, Any], layer_records: list[dict[str, Any]]
+    ) -> torch.Tensor:
+        """Compute path-integrated propagation factor: ∏_{k=1}^n R_k^tot g_k^den.
+
+        This approximates the full dendritic tree attenuation from soma to layer n.
+
+        Note: For stability and shape consistency across layers with different
+        dimensionalities, we return a per-sample scalar path factor [B, 1]
+        (sample-wise attenuation), which is then broadcast to the layer size.
+
+        Args:
+            layer_idx: Current layer index
+            rec: Current layer record
+            layer_records: All layer records
+
+        Returns:
+            Path factor tensor [B, 1]
+        """
+        if layer_idx == 0:
+            # First layer: no path attenuation
+            v_n = rec.get("v_n")
+            if v_n is None:
+                return 1.0
+            # Per-sample scalar
+            return torch.ones(v_n.size(0), 1, device=v_n.device, dtype=v_n.dtype)
+
+        # Get previous layer's path factor and conductances
+        prev_rec = layer_records[layer_idx - 1]
+        prev_path = prev_rec.get("path_factor", 1.0)
+
+        # Compute R_tot for previous layer
+        v_prev = prev_rec.get("v_n")
+        if v_prev is None:
+            return 1.0
+
+        g_tot_prev = torch.ones_like(v_prev)
+        if prev_rec.get("exc_out") is not None:
+            g_tot_prev = g_tot_prev + functional.relu(prev_rec["exc_out"])
+        if prev_rec.get("inh_out") is not None:
+            g_tot_prev = g_tot_prev + functional.relu(prev_rec["inh_out"])
+
+        blk_module = prev_rec.get("blk_module")
+        if blk_module is not None and hasattr(blk_module, "sum_conductances"):
+            g_blk = blk_module.sum_conductances().detach()[None, :].expand_as(v_prev)
+            g_tot_prev = g_tot_prev + functional.relu(g_blk)
+
+        R_tot_prev = 1.0 / (g_tot_prev + 1e-8)
+
+        # Dendritic conductance (approximate as mean of block conductances)
+        if blk_module is not None and hasattr(blk_module, "sum_conductances"):
+            g_den = blk_module.sum_conductances().detach().mean()
+        else:
+            g_den = 1.0
+
+        # Update path factor: multiply by R_prev * g_den
+        if isinstance(prev_path, torch.Tensor):
+            # prev_path is expected to be [B, 1]
+            if prev_path.dim() == 2 and prev_path.size(1) == 1:
+                # Reduce R_tot_prev over neurons to a per-sample scalar and multiply
+                r_scalar = R_tot_prev.mean(dim=1, keepdim=True)
+                path_factor = prev_path * r_scalar * g_den
+            else:
+                # Fallback: reduce everything to per-sample scalar
+                r_scalar = R_tot_prev.mean(dim=1, keepdim=True)
+                path_factor = r_scalar * g_den
+        else:
+            # No previous path: start with per-sample scalar from previous layer
+            r_scalar = R_tot_prev.mean(dim=1, keepdim=True)
+            path_factor = r_scalar * g_den
+
+        # Ensure [B, 1]
+        if path_factor.dim() == 1:
+            path_factor = path_factor.view(-1, 1)
+        elif path_factor.dim() == 2 and path_factor.size(1) != 1:
+            path_factor = path_factor.mean(dim=1, keepdim=True)
+
+        return path_factor
+
+    def _compute_branch_depth_modulator(
+        self, rec: dict[str, Any], rho_base: float
+    ) -> torch.Tensor:
+        """Compute branch-specific modulator based on depth.
+
+        Modulates rho by branch depth: rho_j = rho_base / (depth_j + offset)
+
+        Args:
+            rec: Layer record
+            rho_base: Base rho value to modulate
+
+        Returns:
+            Per-branch modulator tensor or scalar
+        """
+        layer_id = id(rec.get("layer"))
+        stats = self._layer_stats.get(layer_id)
+
+        if stats is None or stats.branch_depths is None:
+            # No depth info: return uniform modulator
+            return rho_base
+
+        depths = stats.branch_depths  # [out_features]
+        offset = self.local_cfg.morphology_aware.morphology_depth_offset
+        # Depth-based scaling: deeper branches get smaller factors
+        modulator = rho_base / (depths + offset)
+        return modulator
+
+    def _compute_dendritic_normalization(
+        self, rec: dict[str, Any], grad_g_den: torch.Tensor
+    ) -> torch.Tensor:
+        """Apply dendritic normalization to branch conductance updates.
+
+        Normalizes by total branch conductance: Δg_j ← Δg_j / (∑_k g_k + ε)
+
+        Args:
+            rec: Layer record
+            grad_g_den: Gradient w.r.t. dendritic conductances [out, block]
+
+        Returns:
+            Normalized gradient
+        """
+        blk_layer = rec.get("blk_module")
+        if blk_layer is None or not hasattr(blk_layer, "sum_conductances"):
+            return grad_g_den
+
+        # Total conductance per output neuron
+        g_den_total = blk_layer.sum_conductances().detach()  # [out]
+        norm_factor = 1.0 / (g_den_total.unsqueeze(-1) + 1e-8)  # [out, 1]
+
+        # Broadcast to gradient shape
+        if grad_g_den.dim() == 2:
+            norm_factor = norm_factor  # Already [out, 1]
+        elif grad_g_den.dim() == 3:
+            norm_factor = norm_factor.unsqueeze(0)  # [1, out, 1] for [B, out, block]
+
+        return grad_g_den * norm_factor
+
+    def _get_branch_type_scale(self, rec: dict[str, Any]) -> torch.Tensor:
+        """Get scaling factors for apical vs basal branches.
+
+        Args:
+            rec: Layer record
+
+        Returns:
+            Scale factor per branch [out_features] or scalar 1.0
+        """
+        layer_id = id(rec.get("layer"))
+        stats = self._layer_stats.get(layer_id)
+
+        if stats is None or stats.branch_types is None:
+            # No branch type info: return uniform scaling
+            return 1.0
+
+        branch_types = stats.branch_types  # [out_features], 1=apical, 0=basal
+        apical_scale = self.local_cfg.morphology_aware.apical_branch_scale
+        basal_scale = self.local_cfg.morphology_aware.basal_branch_scale
+
+        # Linear interpolation based on branch type
+        scale = basal_scale + branch_types * (apical_scale - basal_scale)
+        return scale
+
+    def _initialize_branch_morphology(
+        self, layer_records: list[dict[str, Any]]
+    ) -> None:
+        """Initialize branch morphology information (depths, types).
+
+        This is a placeholder for future integration with actual dendritic tree structure.
+        Currently assigns heuristic values based on layer topology.
+
+        Args:
+            layer_records: All layer records
+        """
+        for layer_idx, rec in enumerate(layer_records):
+            layer_id = id(rec.get("layer"))
+            stats = self._layer_stats.setdefault(layer_id, _LayerStats())
+            v_n = rec.get("v_n")
+            if v_n is None:
+                continue
+
+            out_features = v_n.size(1)
+
+            # Heuristic depth: based on layer index (deeper layers = higher depth)
+            # In future, this should come from actual dendritic tree graph
+            if stats.branch_depths is None:
+                # Assign uniform depth based on layer position
+                base_depth = float(layer_idx + 1)
+                stats.branch_depths = torch.ones(out_features) * base_depth
+
+            # Heuristic branch types: assume first half are basal, second half apical
+            # In future, this should come from actual branch annotations
+            if stats.branch_types is None:
+                branch_types = torch.zeros(out_features)
+                # Simple heuristic: deeper layers tend to have more apical character
+                if layer_idx >= len(layer_records) // 2:
+                    branch_types[:] = 1.0  # Mark as apical
+                stats.branch_types = branch_types
+
     def train(
         self,
         model: BaseModel,
@@ -1169,15 +1538,21 @@ class LocalCreditAssignment(Trainer):
         # Use the standard loop to ensure epoch counters and early stopping work
         train_losses: list[float] = []
         valid_losses: list[float] = []
-        train_losses, valid_losses = self._run_training_loop(
-            n_epochs=self.epochs,
-            model=model,
-            train_loader=train_loader,
-            valid_loader=valid_loader,
-            train_losses=train_losses,
-            valid_losses=valid_losses,
-            logger_info=self.logger_info_prefix,
-            wandb_info={},
+        train_losses_base: list[float] = []
+        train_losses_reg: list[float] = []
+        train_losses, valid_losses, train_losses_base, train_losses_reg = (
+            self._run_training_loop(
+                n_epochs=self.epochs,
+                model=model,
+                train_loader=train_loader,
+                valid_loader=valid_loader,
+                train_losses=train_losses,
+                valid_losses=valid_losses,
+                train_losses_base=train_losses_base,
+                train_losses_reg=train_losses_reg,
+                logger_info=self.logger_info_prefix,
+                wandb_info={},
+            )
         )
 
         if self.load_best_state_dict:

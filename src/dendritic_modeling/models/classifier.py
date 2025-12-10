@@ -11,6 +11,7 @@ import torch.nn as nn
 
 from dendritic_modeling.models.base import BaseModel
 from dendritic_modeling.networks.base import BaseNetwork
+from dendritic_modeling.networks import Identity
 
 
 class Classifier(BaseModel):
@@ -27,7 +28,7 @@ class Classifier(BaseModel):
     ):
         super().__init__(encoder_network, core_network, decoder_network)
 
-        if isinstance(self.decoder_network, nn.Identity):
+        if isinstance(self.decoder_network, Identity):
             self.log_output_scale = nn.Parameter(
                 torch.zeros((self.core_network.output_dim,)), requires_grad=True
             )

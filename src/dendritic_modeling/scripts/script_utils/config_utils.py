@@ -146,67 +146,136 @@ def prepare_trainer_config(
     Returns:
         Flattened trainer configuration dictionary
     """
+
+    # Helper function to convert config to dict
+    def to_dict(config):
+        if isinstance(config, dict):
+            return config
+        return (
+            OmegaConf.to_container(config, resolve=True)
+            if hasattr(config, "_metadata")
+            else dict(config)
+        )
+
     # Start with common training parameters
-    trainer_config = OmegaConf.to_container(main_train_config.common, resolve=True)
+    common_config = (
+        main_train_config.get("common")
+        if isinstance(main_train_config, dict)
+        else main_train_config.common
+    )
+    trainer_config = to_dict(common_config)
     trainer_config["save_path"] = save_path
 
     # Add parameter groups
-    trainer_config["param_groups"] = OmegaConf.to_container(
-        main_train_config.common.param_groups, resolve=True
+    param_groups = (
+        common_config.get("param_groups")
+        if isinstance(common_config, dict)
+        else common_config.param_groups
     )
+    trainer_config["param_groups"] = to_dict(param_groups)
 
     # Add regularization and pruning
-    trainer_config["regularization"] = OmegaConf.to_container(
-        main_train_config.regularization, resolve=True
+    regularization = (
+        main_train_config.get("regularization")
+        if isinstance(main_train_config, dict)
+        else main_train_config.regularization
     )
-    trainer_config["pruning"] = OmegaConf.to_container(
-        main_train_config.pruning, resolve=True
+    pruning = (
+        main_train_config.get("pruning")
+        if isinstance(main_train_config, dict)
+        else main_train_config.pruning
     )
 
+    trainer_config["regularization"] = to_dict(regularization)
+    trainer_config["pruning"] = to_dict(pruning)
+
     # Extract reporting config from pruning
-    pruning_config = main_train_config.pruning
+    pruning_dict = to_dict(pruning)
     trainer_config["reporting"] = {
-        "report_non_pruned": pruning_config.report_non_pruned,
-        "save_pruning_stats": pruning_config.save_pruning_stats,
-        "detailed_branch_report": pruning_config.detailed_branch_report,
-        "redo_analysis_after_pruning": pruning_config.redo_analysis_after_pruning,
+        "report_non_pruned": pruning_dict.get("report_non_pruned", False),
+        "save_pruning_stats": pruning_dict.get("save_pruning_stats", False),
+        "detailed_branch_report": pruning_dict.get("detailed_branch_report", False),
+        "redo_analysis_after_pruning": pruning_dict.get(
+            "redo_analysis_after_pruning", False
+        ),
     }
 
     # Add checkpointing if enabled
-    if experiment_config.checkpointing.get("enabled", False):
-        trainer_config["save_every_n_epochs"] = experiment_config.checkpointing.get(
+    checkpointing = (
+        experiment_config.get("checkpointing")
+        if isinstance(experiment_config, dict)
+        else experiment_config.checkpointing
+    )
+    enable_profiling = (
+        experiment_config.get("enable_profiling", False)
+        if isinstance(experiment_config, dict)
+        else experiment_config.enable_profiling
+    )
+    enable_amp = (
+        experiment_config.get("enable_amp", False)
+        if isinstance(experiment_config, dict)
+        else experiment_config.enable_amp
+    )
+    enable_hooks = (
+        experiment_config.get("enable_hooks", False)
+        if isinstance(experiment_config, dict)
+        else experiment_config.enable_hooks
+    )
+
+    checkpointing_dict = to_dict(checkpointing)
+    if checkpointing_dict.get("enabled", False):
+        trainer_config["save_every_n_epochs"] = checkpointing_dict.get(
             "save_every_n_epochs", 10
         )
-        trainer_config["checkpoint_dir"] = experiment_config.checkpointing.get(
+        trainer_config["checkpoint_dir"] = checkpointing_dict.get(
             "checkpoint_dir", save_path
         )
 
     # Add experimental features
-    if experiment_config.enable_profiling:
+    if enable_profiling:
         trainer_config["enable_profiling"] = True
         trainer_config["profiling_output_dir"] = f"{save_path}/profiling"
 
-    trainer_config["enable_amp"] = experiment_config.enable_amp
-    trainer_config["enable_hooks"] = experiment_config.enable_hooks
+    trainer_config["enable_amp"] = enable_amp
+    trainer_config["enable_hooks"] = enable_hooks
 
     # Add strategy-specific configurations
-    if hasattr(main_train_config, "strategies"):
-        strategies = OmegaConf.to_container(main_train_config.strategies, resolve=True)
+    # First, check for learning_strategy_config (new structure)
+    learning_strategy_config = (
+        main_train_config.get("learning_strategy_config")
+        if isinstance(main_train_config, dict)
+        else getattr(main_train_config, "learning_strategy_config", None)
+    )
 
-        # Add local learning config if present
-        if "local_ca" in strategies:
-            trainer_config["local_rule_config"] = strategies["local_ca"]
+    if learning_strategy_config is not None:
+        trainer_config["local_rule_config"] = to_dict(learning_strategy_config)
+    else:
+        # Fallback to strategies.local_ca (old structure)
+        strategies = (
+            main_train_config.get("strategies")
+            if isinstance(main_train_config, dict)
+            else getattr(main_train_config, "strategies", None)
+        )
 
-        # Add other strategy configs
-        for strategy_name in [
-            "voltage_stabilization",
-            "homeostatic_control",
-            "freeze_layers",
-            "freeze_branches",
-            "freeze_branch_kl",
-        ]:
-            if strategy_name in strategies:
-                trainer_config[f"{strategy_name}_config"] = strategies[strategy_name]
+        if strategies is not None:
+            strategies_dict = to_dict(strategies)
+
+            # Add local learning config if present (old structure)
+            if "local_ca" in strategies_dict:
+                trainer_config["local_rule_config"] = strategies_dict["local_ca"]
+
+            # Add other strategy configs
+            for strategy_name in [
+                "voltage_stabilization",
+                "homeostatic_control",
+                "freeze_layers",
+                "freeze_branches",
+                "freeze_branch_kl",
+            ]:
+                if strategy_name in strategies_dict:
+                    trainer_config[f"{strategy_name}_config"] = strategies_dict[
+                        strategy_name
+                    ]
 
     return trainer_config
 

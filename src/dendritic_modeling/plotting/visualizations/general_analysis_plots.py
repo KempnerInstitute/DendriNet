@@ -1190,20 +1190,69 @@ def plot_loss_curves(
     loss_name: str,
     save_dir: Optional[str] = None,
     filename_prefix: str = "",
+    train_losses_base: Optional[list[float]] = None,
+    train_losses_reg: Optional[list[float]] = None,
 ):
-    """Plot training and validation loss curves."""
+    """Plot training and validation loss curves with optional regularization breakdown."""
     try:
-        fig, ax = create_figure(figsize=(10, 6))
+        fig, ax = create_figure(figsize=(12, 8))
 
         epochs = range(1, len(train_losses) + 1)
-        ax.plot(epochs, train_losses, "b-", label="Training Loss")
+
+        # Plot main losses
+        ax.plot(epochs, train_losses, "b-", linewidth=2, label="Training Loss (Total)")
 
         if valid_losses:
             epochs_val = range(1, len(valid_losses) + 1)
-            ax.plot(epochs_val, valid_losses, "r-", label="Validation Loss")
+            ax.plot(
+                epochs_val, valid_losses, "r-", linewidth=2, label="Validation Loss"
+            )
+
+        # Plot separate components if available
+        if train_losses_base is not None:
+            ax.plot(
+                epochs,
+                train_losses_base,
+                "b--",
+                alpha=0.7,
+                linewidth=1.5,
+                label="Training Loss (Base)",
+            )
+
+        if train_losses_reg is not None and any(reg > 1e-6 for reg in train_losses_reg):
+            ax.plot(
+                epochs,
+                train_losses_reg,
+                "g:",
+                alpha=0.8,
+                linewidth=1.5,
+                label="Regularization Loss",
+            )
 
         setup_basic_plot(ax, f"{loss_name} Loss Curves", "Epoch", "Loss")
         ax.legend()
+
+        # Add text box with final values if regularization is present
+        if train_losses_base is not None and train_losses_reg is not None:
+            final_total = train_losses[-1]
+            final_base = train_losses_base[-1]
+            final_reg = train_losses_reg[-1]
+            final_valid = valid_losses[-1] if valid_losses else 0
+
+            textstr = f"Final Values:\nTrain (Total): {final_total:.4f}\nTrain (Base): {final_base:.4f}\nReg: {final_reg:.4f}"
+            if valid_losses:
+                textstr += f"\nValid: {final_valid:.4f}"
+
+            props = {"boxstyle": "round", "facecolor": "wheat", "alpha": 0.8}
+            ax.text(
+                0.02,
+                0.98,
+                textstr,
+                transform=ax.transAxes,
+                fontsize=9,
+                verticalalignment="top",
+                bbox=props,
+            )
 
         if save_dir:
             save_plot(fig, save_dir, f"{filename_prefix}loss_curves")

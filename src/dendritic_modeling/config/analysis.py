@@ -184,6 +184,57 @@ class WeightAnalysisConfig(BaseConfig):
 
 
 @dataclass
+class CompartmentStatisticsAnalysisParams(BaseConfig):
+    """Enhanced configuration for compartment statistics analysis."""
+
+    synapse_weights: bool = True  # Analyze excitatory and inhibitory synapse weights
+    branch_weights: bool = True  # Analyze branch-to-output connection weights
+
+    inputs: bool = True  # Analyze inputs
+    activations: bool = True  # Analyze activations
+
+    global_analysis: bool = True  # Analyze global statistics
+    layer_analysis: bool = True  # Analyze layer statistics
+    branch_analysis: bool = True  # Analyze branch statistics
+
+    compute_mean: bool = True  # Compute mean weights per branch
+    compute_variance: bool = True  # Compute variance of weights per branch
+    compute_percentiles: bool = True  # Compute percentiles (median, quartiles)
+    compute_min_max: bool = True  # Compute min/max per layer
+    compute_entropy: bool = True  # Compute entropy per layer
+
+    per_class_analysis: bool = False  # Analyze statistics separately for each class
+    n_samples: Optional[int] = None  # Number of samples to analyze
+
+
+@dataclass
+class CompartmentStatisticsAnalysisConfig(BaseConfig):
+    enabled: bool = False
+    training: bool = False
+    params: CompartmentStatisticsAnalysisParams = field(
+        default_factory=CompartmentStatisticsAnalysisParams
+    )
+
+
+@dataclass
+class CompartmentSNRAnalysisParams(BaseConfig):
+    """Enhanced configuration for compartment SNR analysis."""
+
+    global_analysis: bool = True  # Analyze global statistics
+    layer_analysis: bool = True  # Analyze layer statistics
+    branch_analysis: bool = True  # Analyze branch statistics
+
+
+@dataclass
+class CompartmentSNRAnalysisConfig(BaseConfig):
+    enabled: bool = False
+    training: bool = False
+    params: CompartmentSNRAnalysisParams = field(
+        default_factory=CompartmentSNRAnalysisParams
+    )
+
+
+@dataclass
 class SynapticActivationAnalysisParams(BaseConfig):
     network_summary: bool = True
     layer_summary: bool = True
@@ -243,6 +294,23 @@ class SingleLayerContributionAnalysisConfig(BaseConfig):
     training: bool = False
     params: SingleLayerContributionAnalysisParams = field(
         default_factory=SingleLayerContributionAnalysisParams
+    )
+
+
+@dataclass
+class ReceptiveFieldAnalysisParams(BaseConfig):
+    n_rows: int = 2
+    n_cols: int = 2
+    exc_rf_shape: Optional[tuple[int, int]] = None
+    inh_rf_shape: Optional[tuple[int, int]] = None
+
+
+@dataclass
+class ReceptiveFieldAnalysisConfig(BaseConfig):
+    enabled: bool = False
+    training: bool = False
+    params: ReceptiveFieldAnalysisParams = field(
+        default_factory=ReceptiveFieldAnalysisParams
     )
 
 
@@ -320,6 +388,14 @@ class AnalysisConfig(BaseConfig):
         default_factory=AblationAnalysisConfig
     )
     weight_analysis: WeightAnalysisConfig = field(default_factory=WeightAnalysisConfig)
+
+    compartment_statistics_analysis: CompartmentStatisticsAnalysisConfig = field(
+        default_factory=CompartmentStatisticsAnalysisConfig
+    )
+
+    compartment_snr_analysis: CompartmentSNRAnalysisConfig = field(
+        default_factory=CompartmentSNRAnalysisConfig
+    )
     synaptic_activation_analysis: SynapticActivationAnalysisConfig = field(
         default_factory=SynapticActivationAnalysisConfig
     )
@@ -328,6 +404,9 @@ class AnalysisConfig(BaseConfig):
     )
     information_analysis: InformationAnalysisConfig = field(
         default_factory=InformationAnalysisConfig
+    )
+    receptive_field_analysis: ReceptiveFieldAnalysisConfig = field(
+        default_factory=ReceptiveFieldAnalysisConfig
     )
     correlation_analysis: CorrelationAnalysisConfig = field(
         default_factory=CorrelationAnalysisConfig

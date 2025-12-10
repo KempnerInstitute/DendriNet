@@ -15,7 +15,17 @@ from omegaconf import OmegaConf
 from dendritic_modeling.config.analysis import AnalysisConfig
 from dendritic_modeling.config.base import BaseConfig
 from dendritic_modeling.config.model import ModelConfig
-from dendritic_modeling.config.training import TrainingConfig
+from dendritic_modeling.config.training import (
+    EncoderTrainingConfig,
+    FiveFactorConfig,
+    FourFactorConfig,
+    HSICConfig,
+    LocalRuleConfig,
+    MainTrainingConfig,
+    MorphologyAwareConfig,
+    ThreeFactorConfig,
+    TrainingConfig,
+)
 
 
 @dataclass
@@ -60,7 +70,12 @@ class DatasetParamsConfig(BaseConfig):
 
     # Synthetic datasets
     poisson_generator: dict[str, Any] = field(
-        default_factory=lambda: {"base_dataset": "mnist", "rate_multiplier": 1.0}
+        default_factory=lambda: {
+            "base_dataset": "mnist",
+            "rate_variability": 1.0,
+            "max_gain_factor": 1.0,
+            "uniform_gain": True
+        }
     )
     multixor: dict[str, Any] = field(default_factory=lambda: {"n_bits": 8})
     orientation_bars: dict[str, Any] = field(
@@ -150,19 +165,36 @@ def load_config(path: Optional[str] = None) -> Config:
     if path:
         raw_conf = OmegaConf.load(path)
 
+        # Handle both regular configs and sweep configs (which have base_config)
+        if "base_config" in raw_conf:
+            # This is a sweep config file, use base_config
+            conf_data = raw_conf["base_config"]
+        else:
+            # This is a regular config file
+            conf_data = raw_conf
+
         # Handle analysis config field mapping
-        analysis_data = raw_conf.get("analysis", {})
+        analysis_data = conf_data.get("analysis", {})
         mapped_analysis = _map_analysis_config(analysis_data)
 
+        # Handle training config field mapping
+        training_data = conf_data.get("training", {})
+        mapped_training = _map_training_config(training_data)
+
+        # Explicitly construct nested training configs
+        encoder_config = EncoderTrainingConfig(**mapped_training.get("encoder", {}))
+        main_config = MainTrainingConfig(**mapped_training.get("main", {}))
+        training_config = TrainingConfig(encoder=encoder_config, main=main_config)
+
         return Config(
-            experiment=ExperimentConfig(**raw_conf.get("experiment", {})),
-            data=DataConfig(**raw_conf.get("data", {})),
-            model=ModelConfig(**raw_conf.get("model", {})),
-            training=TrainingConfig(**raw_conf.get("training", {})),
+            experiment=ExperimentConfig(**conf_data.get("experiment", {})),
+            data=DataConfig(**conf_data.get("data", {})),
+            model=ModelConfig(**conf_data.get("model", {})),
+            training=training_config,
             analysis=AnalysisConfig(**mapped_analysis),
-            wandb=WandbConfig(**raw_conf.get("wandb", {})),
-            outputs=OutputsConfig(**raw_conf.get("outputs", {})),
-            fsdp=FSDPConfig(**raw_conf.get("fsdp", {})),
+            wandb=WandbConfig(**conf_data.get("wandb", {})),
+            outputs=OutputsConfig(**conf_data.get("outputs", {})),
+            fsdp=FSDPConfig(**conf_data.get("fsdp", {})),
         )
     return Config()
 
@@ -179,6 +211,9 @@ def _map_analysis_config(analysis_data: dict) -> dict:
         "synapse_turnover": "synapse_turnover_analysis",
         "noise_perturbation": "noise_perturbation_analysis",
         "weight": "weight_analysis",
+        "compartment_statistics": "compartment_statistics_analysis",
+        "compartment_snr": "compartment_snr_analysis",
+        "receptive_field": "receptive_field_analysis",
         "single_layer_contribution": "single_layer_contribution",
         "synaptic_activation": "synaptic_activation_analysis",
         "branch_activation": "branch_activation_analysis",
@@ -189,5 +224,64 @@ def _map_analysis_config(analysis_data: dict) -> dict:
             mapped[old_name] = analysis_data[new_name]
         elif old_name in analysis_data:
             mapped[old_name] = analysis_data[old_name]
+
+    return mapped
+
+
+def _build_local_rule_config(lsc_data: dict) -> LocalRuleConfig:
+    """Build LocalRuleConfig from dict data with nested configs."""
+    lsc_kwargs = dict(lsc_data)
+
+    # Handle nested three_factor config
+    if "three_factor" in lsc_kwargs and isinstance(lsc_kwargs["three_factor"], dict):
+        lsc_kwargs["three_factor"] = ThreeFactorConfig(**lsc_kwargs["three_factor"])
+
+    # Handle nested four_factor config
+    if "four_factor" in lsc_kwargs and isinstance(lsc_kwargs["four_factor"], dict):
+        lsc_kwargs["four_factor"] = FourFactorConfig(**lsc_kwargs["four_factor"])
+
+    # Handle nested five_factor config
+    if "five_factor" in lsc_kwargs and isinstance(lsc_kwargs["five_factor"], dict):
+        lsc_kwargs["five_factor"] = FiveFactorConfig(**lsc_kwargs["five_factor"])
+
+    # Handle nested morphology_aware config
+    if "morphology_aware" in lsc_kwargs and isinstance(
+        lsc_kwargs["morphology_aware"], dict
+    ):
+        lsc_kwargs["morphology_aware"] = MorphologyAwareConfig(
+            **lsc_kwargs["morphology_aware"]
+        )
+
+    # Handle nested hsic config
+    if "hsic" in lsc_kwargs and isinstance(lsc_kwargs["hsic"], dict):
+        lsc_kwargs["hsic"] = HSICConfig(**lsc_kwargs["hsic"])
+
+    return LocalRuleConfig(**lsc_kwargs)
+
+
+def _map_training_config(training_data: dict) -> dict:
+    """Map training config fields and handle nested learning_strategy_config."""
+    # Convert OmegaConf to regular dict
+    mapped = (
+        OmegaConf.to_container(training_data, resolve=True)
+        if hasattr(training_data, "_metadata")
+        else dict(training_data)
+    )
+
+    # Handle nested learning_strategy_config in main config
+    if "main" in mapped and isinstance(mapped["main"], dict):
+        main_data = dict(mapped["main"])
+
+        # Build learning_strategy_config if present
+        if (
+            "learning_strategy_config" in main_data
+            and main_data["learning_strategy_config"] is not None
+        ):
+            if isinstance(main_data["learning_strategy_config"], dict):
+                main_data["learning_strategy_config"] = _build_local_rule_config(
+                    main_data["learning_strategy_config"]
+                )
+
+        mapped["main"] = main_data
 
     return mapped

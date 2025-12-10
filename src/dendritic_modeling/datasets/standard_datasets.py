@@ -2,7 +2,7 @@
 Standard dataset loading utilities for dendritic modeling.
 
 This module contains functions for loading and preprocessing standard datasets
-like MNIST, CIFAR-10, and ImageNet.
+like MNIST, CIFAR-10, and ImageNet, as well as synthetic datasets for theoretical validation.
 """
 
 import os
@@ -11,6 +11,8 @@ from typing import Any, Optional, Union
 import torch
 from torch.utils.data import Dataset, TensorDataset
 from torchvision import datasets, transforms
+
+from .synthetic_datasets import get_synthetic_datasets
 
 
 def _get_config_value(
@@ -257,11 +259,15 @@ class PoissonGeneratorDataset(Dataset):
         self,
         base_inputs: torch.Tensor,
         base_labels: torch.Tensor,
-        rate_multiplier: float = 1.0,
+        rate_variability: float = 1.0,
+        max_gain_factor: Optional[float] = None,
+        uniform_gain: bool = True,
     ):
         self.base_inputs = base_inputs
         self.base_labels = base_labels
-        self.rate_multiplier = rate_multiplier
+        self.rate_variability = float(rate_variability)
+        self.max_gain_factor = float(max_gain_factor)
+        self.uniform_gain = uniform_gain
 
     def __len__(self):
         return len(self.base_inputs)
@@ -269,15 +275,27 @@ class PoissonGeneratorDataset(Dataset):
     def __getitem__(self, idx):
         input = self.base_inputs[idx]
         label = self.base_labels[idx]
-        scaled_input = input * self.rate_multiplier
+
+        if self.uniform_gain:
+            gain_factor = torch.rand(input.shape[0]) * self.max_gain_factor
+            while gain_factor.ndim < input.ndim:
+                gain_factor = gain_factor[..., None]
+        else:
+            gain_factor = torch.rand_like(input) * self.max_gain_factor
+        
+        scaled_input = input * gain_factor / self.rate_variability
         noisy_scaled_input = torch.poisson(scaled_input)
-        noisy_input = noisy_scaled_input / self.rate_multiplier
+
+        noisy_input = noisy_scaled_input * self.rate_variability
+
         return noisy_input, label
 
 
 def load_poisson_generator_datasets(
     base_dataset: str,
-    rate_multiplier: float = 1,
+    rate_variability: float = 1.0,
+    max_gain_factor: float = 1.0,
+    uniform_gain: bool = True,
     train_valid_split: float = 0.8,
     flatten: bool = False,
     task_data_path: Optional[str] = None,
@@ -313,9 +331,24 @@ def load_poisson_generator_datasets(
     else:
         raise ValueError(f"Unknown base dataset: {base_dataset}")
 
-    train_ds = PoissonGeneratorDataset(*train_ds[:], rate_multiplier=rate_multiplier)
-    valid_ds = PoissonGeneratorDataset(*valid_ds[:], rate_multiplier=rate_multiplier)
-    test_ds = PoissonGeneratorDataset(*test_ds[:], rate_multiplier=rate_multiplier)
+    train_ds = PoissonGeneratorDataset(
+        *train_ds[:], 
+        rate_variability=rate_variability, 
+        max_gain_factor=max_gain_factor, 
+        uniform_gain=uniform_gain
+    )
+    valid_ds = PoissonGeneratorDataset(
+        *valid_ds[:], 
+        rate_variability=rate_variability, 
+        max_gain_factor=max_gain_factor, 
+        uniform_gain=uniform_gain
+    )
+    test_ds = PoissonGeneratorDataset(
+        *test_ds[:], 
+        rate_variability=rate_variability, 
+        max_gain_factor=max_gain_factor, 
+        uniform_gain=uniform_gain
+    )
 
     return train_ds, valid_ds, test_ds
 
@@ -459,7 +492,9 @@ def get_unified_datasets(task_cfg):
     flatten = p.get("flatten", True)
     normalize = p.get("normalize", False)
     base_dataset = p.get("base_dataset", "mnist")
-    rate_multiplier = p.get("rate_multiplier", 1)
+    rate_variability = p.get("rate_variability", 1.0)
+    max_gain_factor = p.get("max_gain_factor", 1.0)
+    uniform_gain = p.get("uniform_gain", True)
 
     # Handle standard datasets directly
     if dataset_name == "mnist":
@@ -480,10 +515,12 @@ def get_unified_datasets(task_cfg):
     elif dataset_name == "poisson_generator":
         return load_poisson_generator_datasets(
             base_dataset=base_dataset,
-            rate_multiplier=rate_multiplier,
+            rate_variability=rate_variability,
+            max_gain_factor=max_gain_factor,
+            uniform_gain=uniform_gain,
             train_valid_split=train_valid_split,
             flatten=flatten,
-            task_data_path=task_data_path,
+            task_data_path=task_data_path
         )
     elif dataset_name == "imagenet":
         return load_imagenet_as_datasets(
@@ -506,6 +543,18 @@ def get_unified_datasets(task_cfg):
             valid_ds = data["test"]
         test_ds = data["test"]
         return train_ds, valid_ds, test_ds
+    elif dataset_name in [
+        "correlated_gaussian",
+        "nonlinear_interaction",
+        "linear_separable",
+        "nonlinear_separable",
+        "block_correlated",
+        "balanced_information",
+    ]:
+        # Handle synthetic datasets for theoretical validation
+        dataset_config = p.copy()
+        dataset_config["type"] = dataset_name
+        return get_synthetic_datasets(dataset_config)
     else:
         # For synthetic/experimental datasets, delegate to the experiments folder
         try:
@@ -524,10 +573,10 @@ def get_unified_datasets(task_cfg):
                 sys.path.insert(0, experiments_path)
 
             from data_generation.synthetic_datasets import (
-                get_unified_datasets as get_synthetic_datasets,
+                get_unified_datasets as get_experimental_datasets,
             )
 
-            return get_synthetic_datasets(task_cfg)
+            return get_experimental_datasets(task_cfg)
         except ImportError as e:
             raise ValueError(
                 f"Unknown dataset name: {dataset_name}. Synthetic datasets not available: {e}"

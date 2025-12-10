@@ -12,19 +12,19 @@ the sweep_config and filter_config in the YAML file.
 
 Usage:
     # Generate and run any sweep (default behavior)
-    python sweep_manager.py --config configs/my_sweep.yaml
+    python src/dendritic_modeling/scripts/sweeps/sweep_manager.py --config configs/my_sweep.yaml
 
     # Generate configs only (no job submission)
-    python sweep_manager.py --config configs/my_sweep.yaml --generate-only
+    python src/dendritic_modeling/scripts/sweeps/sweep_manager.py --config configs/my_sweep.yaml --generate-only
 
     # Analyze existing results
-    python sweep_manager.py --analyze --results-dir output/sweep_20240101120000
+    python src/dendritic_modeling/scripts/sweeps/result_analyzer.py /path/to/sweep/results
 
     # Generate with job splitting
-    python sweep_manager.py --config configs/my_sweep.yaml --split-jobs 10
+    python src/dendritic_modeling/scripts/sweeps/sweep_manager.py --config configs/my_sweep.yaml --split-jobs 10
 
     # Dry run (show what would be submitted)
-    python sweep_manager.py --config configs/my_sweep.yaml --dry-run
+    python src/dendritic_modeling/scripts/sweeps/sweep_manager.py --config configs/my_sweep.yaml --dry-run
 """
 
 import argparse
