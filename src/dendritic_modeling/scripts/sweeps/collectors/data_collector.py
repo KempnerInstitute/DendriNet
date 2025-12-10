@@ -169,11 +169,11 @@ class DataCollector:
         # perf_file = config_dir / "performance" / "final.json"
         # Search recursively for performance/final.json
         perf_files = list(config_dir.rglob("performance/final.json"))
-        
+
         if not perf_files:
             # Try without .json extension
             perf_files = list(config_dir.rglob("performance/final"))
-        
+
         if perf_files:
             perf_file = perf_files[0]  # Use first match found
         else:
@@ -199,21 +199,19 @@ class DataCollector:
 
     def _load_information(self, config_dir: Path) -> dict:
         """Load information analysis metrics."""
-        # info_file = config_dir / "information_analysis" / "final"
-        """Load performance metrics."""
-        # Search recursively for performance/final.json
+        # Search recursively for information_analysis/final.json
         info_files = list(config_dir.rglob("information_analysis/final.json"))
-        
+
         if not info_files:
             # Try without .json extension
             info_files = list(config_dir.rglob("information_analysis/final"))
-        
+
         if info_files:
             info_file = info_files[0]  # Use first match found
         else:
             # Fallback to original path
             info_file = config_dir / "information_analysis" / "final"
-        
+
         data = self._load_json_file(info_file)
 
         if not data:
@@ -286,17 +284,17 @@ class DataCollector:
         # weight_file = config_dir / "weight_analysis" / "final"
         # Search recursively for performance/final.json
         weight_files = list(config_dir.rglob("weight_analysis/final.json"))
-        
+
         if not weight_files:
             # Try without .json extension
             weight_files = list(config_dir.rglob("weight_analysis/final"))
-        
+
         if weight_files:
             weight_file = weight_files[0]  # Use first match found
         else:
             # Fallback to original path
             weight_file = config_dir / "weight_analysis" / "final"
-        
+
         data = self._load_json_file(weight_file)
 
         if not data:
@@ -327,17 +325,17 @@ class DataCollector:
         # ablation_file = config_dir / "ablation_analysis" / "final"
         # Search recursively for performance/final.json
         ablation_files = list(config_dir.rglob("ablation_analysis/final.json"))
-        
+
         if not ablation_files:
             # Try without .json extension
             ablation_files = list(config_dir.rglob("ablation_analysis/final"))
-        
+
         if ablation_files:
             ablation_file = ablation_files[0]  # Use first match found
         else:
             # Fallback to original path
             ablation_file = config_dir / "ablation_analysis" / "final"
-        
+
         data = self._load_json_file(ablation_file)
 
         if not data:
@@ -365,23 +363,27 @@ class DataCollector:
                                     ] = metric_value
 
         return result
-    
+
     def _load_snr(self, config_dir: Path) -> dict:
         """Load compartment SNR analysis metrics."""
         # compartment_snr_file = config_dir / "compartment_snr_analysis" / "final"
         # Search recursively for performance/final.json
-        compartment_snr_files = list(config_dir.rglob("compartment_snr_analysis/final.json"))
-        
+        compartment_snr_files = list(
+            config_dir.rglob("compartment_snr_analysis/final.json")
+        )
+
         if not compartment_snr_files:
             # Try without .json extension
-            compartment_snr_files = list(config_dir.rglob("compartment_snr_analysis/final"))
-        
+            compartment_snr_files = list(
+                config_dir.rglob("compartment_snr_analysis/final")
+            )
+
         if compartment_snr_files:
             compartment_snr_file = compartment_snr_files[0]  # Use first match found
         else:
             # Fallback to original path
             compartment_snr_file = config_dir / "compartment_snr_analysis" / "final"
-        
+
         data = self._load_json_file(compartment_snr_file)
 
         if not data:
@@ -397,9 +399,9 @@ class DataCollector:
                 for prefix in prefixes:
                     field_name = f"{prefix}_d'^2_mean"
                     if field_name in layer_data:
-                        result[
-                            f"snr_{field_name}_depth{depth}"
-                        ] = layer_data[field_name]
+                        result[f"snr_{field_name}_depth{depth}"] = layer_data[
+                            field_name
+                        ]
 
         return result
 
@@ -408,17 +410,17 @@ class DataCollector:
         # noise_file = config_dir / "noise_perturbation_analysis" / "final"
         # Search recursively for performance/final.json
         noise_files = list(config_dir.rglob("noise_perturbation_analysis/final.json"))
-        
+
         if not noise_files:
             # Try without .json extension
             noise_files = list(config_dir.rglob("noise_perturbation_analysis/final"))
-        
+
         if noise_files:
             noise_file = noise_files[0]  # Use first match found
         else:
             # Fallback to original path
             noise_file = config_dir / "noise_perturbation_analysis" / "final"
-        
+
         data = self._load_json_file(noise_file)
 
         if not data:
@@ -450,17 +452,17 @@ class DataCollector:
         # nparams_file = config_dir / "nparams"
         # Search recursively for performance/final.json
         nparams_files = list(config_dir.rglob("nparams.json"))
-        
+
         if not nparams_files:
             # Try without .json extension
             nparams_files = list(config_dir.rglob("nparams"))
-        
+
         if nparams_files:
             nparams_file = nparams_files[0]  # Use first match found
         else:
             # Fallback to original path
             nparams_file = config_dir / "nparams"
-        
+
         data = self._load_json_file(nparams_file)
 
         if data and "nparams" in data:
