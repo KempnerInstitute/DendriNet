@@ -40,13 +40,30 @@ class PerformancePlotter(BasePlotter):
         plots_dir = output_dir / "performance"
         plots_dir.mkdir(parents=True, exist_ok=True)
 
+        sweep_types = self.detect_sweep_types(data)
+
         # Generate E/I ratio plots if applicable
-        if "ei_ratio" in data.columns:
+        if "ei" in sweep_types:
             plot_paths.extend(self.plot_metrics_vs_ei_ratio(data, plots_dir))
-            plot_paths.extend(self.plot_performance_heatmaps(data, plots_dir))
+        
+        if "stoch1" in sweep_types:
+            plot_paths.extend(self.plot_performance_heatmaps(
+                data, 
+                plots_dir,
+                "stimulus_duration",
+                "max_gain_factor",
+            ))
+        
+        if "stoch2" in sweep_types:
+            plot_paths.extend(self.plot_performance_heatmaps(
+                data, 
+                plots_dir,
+                "stimulus_duration",
+                "max_gain_tau_ratio",
+            ))
 
         # Generate parameter scaling plots if applicable
-        if "nparams" in data.columns:
+        if "nparams" in sweep_types:
             plot_paths.extend(self.plot_metrics_vs_nparams(data, plots_dir))
 
         return plot_paths
@@ -109,7 +126,11 @@ class PerformancePlotter(BasePlotter):
         return plot_paths
 
     def plot_performance_heatmaps(
-        self, data: pd.DataFrame, output_dir: Path
+        self, 
+        data: pd.DataFrame, 
+        output_dir: Path,
+        colx: str,
+        coly: str
     ) -> list[Path]:
         """
         Generate performance heatmaps (metric vs EE vs IE).
@@ -117,17 +138,22 @@ class PerformancePlotter(BasePlotter):
         Args:
             data: Aggregated data
             output_dir: Output directory
+            colx: Column name for x-axis
+            coly: Column name for y-axis
 
         Returns:
             List of plot paths
         """
         plot_paths = []
 
-        if "ee_value" not in data.columns or "ie_value" not in data.columns:
+        if colx not in data.columns or coly not in data.columns:
             return plot_paths
 
-        heatmap_dir = output_dir / "heatmaps"
-        heatmap_dir.mkdir(parents=True, exist_ok=True)
+        if "network_category" not in data.columns:
+            logger.warning("Missing 'network_category' column for performance heatmaps")
+            return plot_paths
+
+        categories = ["shunting", "no_shunting"]
 
         for metric in ["test_accuracy", "valid_accuracy"]:
             # Handle both aggregated (_mean) and non-aggregated (no suffix) data
@@ -137,33 +163,143 @@ class PerformancePlotter(BasePlotter):
                 continue
 
             try:
-                # Create pivot table
-                pivot = data.pivot_table(
-                    values=mean_col,
-                    index="ie_value",
-                    columns="ee_value",
-                    aggfunc="mean",
+                # Collect all values for consistent color scaling
+                all_values = []
+                for category in categories:
+                    category_data = data[data["network_category"] == category]
+                    if not category_data.empty and mean_col in category_data.columns:
+                        values = category_data[mean_col].dropna()
+                        all_values.extend(values.tolist())
+                
+                # Calculate global vmin/vmax for consistent scaling
+                if all_values:
+                    vmin, vmax = min(all_values), max(all_values)
+                else:
+                    vmin, vmax = 0, 1
+
+                # Create figure with 3 subplots
+                fig, axes = plt.subplots(1, 3, figsize=(24, 8))
+                fig.suptitle(
+                    f"{get_metric_label(metric)} Heatmap ({colx} vs {coly})",
+                    fontsize=16,
                 )
 
-                if pivot.empty:
-                    continue
+                # Store pivot tables for difference calculation
+                pivot_tables = {}
 
-                fig, ax = plt.subplots(figsize=(10, 8))
-                sns.heatmap(
-                    pivot,
-                    cmap="viridis",
-                    annot=True,
-                    fmt=".3f",
-                    cbar_kws={"label": get_metric_label(metric)},
-                    ax=ax,
-                )
+                for idx, category in enumerate(categories):
+                    ax = axes[idx]
+                    category_data = data[data["network_category"] == category]
 
-                ax.set_xlabel("EE Synapses per Branch", fontsize=12)
-                ax.set_ylabel("IE Synapses per Branch", fontsize=12)
-                ax.set_title(f"{get_metric_label(metric)} Heatmap", fontsize=14)
+                    if category_data.empty:
+                        ax.text(
+                            0.5,
+                            0.5,
+                            f"No {category} data",
+                            ha="center",
+                            va="center",
+                            transform=ax.transAxes,
+                        )
+                        ax.set_title(f"{category.title()}")
+                        continue
+
+                    # Create pivot table
+                    pivot = category_data.pivot_table(
+                        values=mean_col,
+                        index=coly,
+                        columns=colx,
+                        aggfunc="mean",
+                    )
+
+                    if pivot.empty:
+                        ax.text(
+                            0.5,
+                            0.5,
+                            "No data to pivot",
+                            ha="center",
+                            va="center",
+                            transform=ax.transAxes,
+                        )
+                        ax.set_title(f"{category.title()}")
+                        continue
+
+                    # Store pivot table for difference calculation
+                    pivot_tables[category] = pivot
+
+                    sns.heatmap(
+                        pivot,
+                        cmap="viridis",
+                        annot=True,
+                        fmt=".3f",
+                        cbar_kws={"label": get_metric_label(metric)},
+                        ax=ax,
+                        vmin=vmin,
+                        vmax=vmax
+                    )
+                    # Invert y-axis to place origin at lower left
+                    ax.invert_yaxis()
+
+                    ax.set_xlabel(colx, fontsize=12)
+                    ax.set_ylabel(coly, fontsize=12)
+                    ax.set_title(f"{category.title()}", fontsize=14)
+
+                # Create difference plot (shunting - non_shunting)
+                ax_diff = axes[2]
+                if "shunting" in pivot_tables and "no_shunting" in pivot_tables:
+                    # Align indices and columns for subtraction
+                    shunt_pivot = pivot_tables["shunting"]
+                    no_shunt_pivot = pivot_tables["no_shunting"]
+                    
+                    # Reindex to ensure same index and columns
+                    common_index = shunt_pivot.index.union(no_shunt_pivot.index)
+                    common_cols = shunt_pivot.columns.union(no_shunt_pivot.columns)
+                    
+                    shunt_aligned = shunt_pivot.reindex(index=common_index, columns=common_cols)
+                    no_shunt_aligned = no_shunt_pivot.reindex(index=common_index, columns=common_cols)
+                    
+                    # Calculate difference
+                    diff_pivot = shunt_aligned - no_shunt_aligned
+                    
+                    # Calculate symmetric vmin/vmax centered at 0
+                    diff_values = diff_pivot.values.flatten()
+                    diff_values = diff_values[~pd.isna(diff_values)]
+                    
+                    if len(diff_values) > 0:
+                        abs_max = max(abs(diff_values.min()), abs(diff_values.max()))
+                        diff_vmin, diff_vmax = -abs_max, abs_max
+                    else:
+                        diff_vmin, diff_vmax = -1, 1
+                    
+                    sns.heatmap(
+                        diff_pivot,
+                        cmap="seismic_r",
+                        annot=True,
+                        fmt=".3f",
+                        cbar_kws={"label": f"{get_metric_label(metric)} Difference"},
+                        ax=ax_diff,
+                        vmin=diff_vmin,
+                        vmax=diff_vmax,
+                        center=0
+                    )
+                    # Invert y-axis to place origin at lower left
+                    ax_diff.invert_yaxis()
+                    
+                    ax_diff.set_xlabel(colx, fontsize=12)
+                    ax_diff.set_ylabel(coly, fontsize=12)
+                    ax_diff.set_title("Difference (Shunting - Non-Shunting)", fontsize=14)
+                else:
+                    ax_diff.text(
+                        0.5,
+                        0.5,
+                        "Cannot calculate difference\n(missing data)",
+                        ha="center",
+                        va="center",
+                        transform=ax_diff.transAxes,
+                    )
+                    ax_diff.set_title("Difference (Shunting - Non-Shunting)", fontsize=14)
 
                 fig.tight_layout()
-                plot_path = heatmap_dir / f"{metric}_heatmap.png"
+                plot_path = output_dir / f"{metric}_heatmap.png"
                 plot_paths.append(self.save_figure(fig, plot_path))
 
             except Exception as e:
