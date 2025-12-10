@@ -240,6 +240,7 @@ class AnalysisManager:
                 device=self.device,
                 save_path=os.path.join(self.save_root, "ablation_analysis"),
                 filename=filename,
+                training=training,
             )
 
         # Weight Analysis
