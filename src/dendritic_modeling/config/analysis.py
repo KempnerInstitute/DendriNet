@@ -216,10 +216,10 @@ class CompartmentStatisticsAnalysisConfig(BaseConfig):
     )
 
 
-
 @dataclass
 class CompartmentSNRAnalysisParams(BaseConfig):
     """Enhanced configuration for compartment SNR analysis."""
+
     global_analysis: bool = True  # Analyze global statistics
     layer_analysis: bool = True  # Analyze layer statistics
     branch_analysis: bool = True  # Analyze branch statistics
@@ -229,7 +229,9 @@ class CompartmentSNRAnalysisParams(BaseConfig):
 class CompartmentSNRAnalysisConfig(BaseConfig):
     enabled: bool = False
     training: bool = False
-    params: CompartmentSNRAnalysisParams = field(default_factory=CompartmentSNRAnalysisParams)
+    params: CompartmentSNRAnalysisParams = field(
+        default_factory=CompartmentSNRAnalysisParams
+    )
 
 
 @dataclass
@@ -305,7 +307,7 @@ class ReceptiveFieldAnalysisParams(BaseConfig):
 
 @dataclass
 class ReceptiveFieldAnalysisConfig(BaseConfig):
-    enabled: bool = True
+    enabled: bool = False
     training: bool = False
     params: ReceptiveFieldAnalysisParams = field(
         default_factory=ReceptiveFieldAnalysisParams
@@ -390,7 +392,7 @@ class AnalysisConfig(BaseConfig):
     compartment_statistics_analysis: CompartmentStatisticsAnalysisConfig = field(
         default_factory=CompartmentStatisticsAnalysisConfig
     )
-    
+
     compartment_snr_analysis: CompartmentSNRAnalysisConfig = field(
         default_factory=CompartmentSNRAnalysisConfig
     )
