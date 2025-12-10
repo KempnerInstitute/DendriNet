@@ -1,8 +1,8 @@
 """Ablation analysis plotters."""
 
+import itertools
 import logging
 from pathlib import Path
-import itertools
 
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -135,10 +135,9 @@ class AblationPlotter(BasePlotter):
         logger.info(f"Generated {len(plot_paths)} ablation plots")
         return plot_paths
 
-
     def _generate_ablation_plots(
-        self, valid_data: pd.DataFrame, plots_dir: str
-    ) -> list[str]:
+        self, valid_data: pd.DataFrame, plots_dir: Path
+    ) -> list[Path]:
         """Generate ablation analysis plots matching old analysis format"""
         plot_paths = []
 
@@ -215,11 +214,11 @@ class AblationPlotter(BasePlotter):
     def _create_ablation_ei_plots(
         self,
         valid_data: pd.DataFrame,
-        output_dir: str,
+        output_dir: Path,
         ablation_type: str,
         metric: str,
         depths: list[int],
-    ) -> list[str]:
+    ) -> list[Path]:
         """Create ablation vs E/I ratio plots by depth"""
         plot_paths = []
 
@@ -298,12 +297,12 @@ class AblationPlotter(BasePlotter):
                 ylabel=f"{metric.title()}",
                 title=f"{category.title()}",
                 use_log_x=True,
-                grid=True
+                grid=True,
             )
             ax.legend()
 
         fig.tight_layout()
-        
+
         plot_path = output_dir / f"{ablation_type}_{metric}_ablation.png"
         plot_paths.append(self.save_figure(fig, plot_path))
 

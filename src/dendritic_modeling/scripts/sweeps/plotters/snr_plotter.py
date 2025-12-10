@@ -1,12 +1,11 @@
 """SNR analysis plotters."""
 
 import logging
-from pathlib import Path
 from copy import deepcopy
+from pathlib import Path
 
 import matplotlib.pyplot as plt
 import pandas as pd
-import numpy as np
 
 from .base_plotter import BasePlotter
 
@@ -17,7 +16,7 @@ SNR_PREFIX_MAP = {
     "exc": "Excitation",
     "inh": "Inhibition",
     "upstream": "Upstream",
-    "vout": "Vout"
+    "vout": "Vout",
 }
 
 
@@ -49,19 +48,15 @@ class SNRPlotter(BasePlotter):
         plot_paths.extend(self._generate_snr_plots(data, snr_dir))
 
         return plot_paths
-    
+
     def _generate_snr_plots(
-        self, valid_data: pd.DataFrame, plots_dir: str
-    ) -> list[str]:
+        self, valid_data: pd.DataFrame, plots_dir: Path
+    ) -> list[Path]:
         """Generate SNR analysis plots"""
         plot_paths = []
 
         # Find SNR columns (look for both column name patterns)
-        snr_cols = [
-            col
-            for col in valid_data.columns
-            if "snr_" in col
-        ]
+        snr_cols = [col for col in valid_data.columns if "snr_" in col]
 
         if not snr_cols:
             print("No SNR columns found")
@@ -74,7 +69,9 @@ class SNRPlotter(BasePlotter):
             col: str
             if "std" not in col:
                 # Pattern: snr_prefix_d'^2_mean_depthX_mean
-                parts = col.replace("snr_", "").replace("d'^2_mean_depth", "").split("_")
+                parts = (
+                    col.replace("snr_", "").replace("d'^2_mean_depth", "").split("_")
+                )
                 prefix = parts[0]
                 depth = int(parts[1])
 
@@ -93,17 +90,10 @@ class SNRPlotter(BasePlotter):
         for prefix in prefixes:
             try:
                 plot_paths.extend(
-                    self._create_snr_ei_plots(
-                        valid_data,
-                        plots_dir,
-                        prefix,
-                        depths
-                    )
+                    self._create_snr_ei_plots(valid_data, plots_dir, prefix, depths)
                 )
             except Exception as e:
-                print(
-                    f"Error generating E/I SNR plot for {prefix}: {e}"
-                )
+                print(f"Error generating E/I SNR plot for {prefix}: {e}")
 
         print(f"Created {len(plot_paths)} SNR analysis plots")
         return plot_paths
@@ -111,10 +101,10 @@ class SNRPlotter(BasePlotter):
     def _create_snr_ei_plots(
         self,
         valid_data: pd.DataFrame,
-        output_dir: str,
+        output_dir: Path,
         prefix: str,
-        depths: list[int]
-    ) -> list[str]:
+        depths: list[int],
+    ) -> list[Path]:
         """Create SNR vs E/I ratio plots by depth"""
         plot_paths = []
 
@@ -133,26 +123,9 @@ class SNRPlotter(BasePlotter):
 
         d_prime_sq_str = r"d'$^2$"
 
-        # Create color mapping for depths using a colormap
-        # Normalize depths to [0, 1] range using linspace
-        if len(depths) > 1:
-            # Create normalized values from 0 to 1
-            normalized_depths = np.linspace(0, 0.6, len(depths))
-        else:
-            normalized_depths = [0.5]  # Middle of colormap for single depth
-        
-        # Choose a colormap (viridis, plasma, inferno, tab10, etc.)
-        # cmap = plt.get_cmap("gnuplot2")
-        
-        # # Create depth -> color mapping
-        # depth_colors = {
-        #     depth: cmap(norm_val) for depth, norm_val in zip(depths, normalized_depths)
-        # }
-
+        # Create color mapping for depths using tab10 colormap
         cmap = plt.get_cmap("tab10")
-        depth_colors = {
-            depth: cmap(depth / 9.0) for depth in depths
-        }
+        depth_colors = {depth: cmap(depth / 9.0) for depth in depths}
 
         fig, axes = plt.subplots(1, 2, figsize=(15, 6))
         fig.suptitle(
@@ -219,12 +192,12 @@ class SNRPlotter(BasePlotter):
                 ylabel=f"{SNR_PREFIX_MAP[prefix]} {d_prime_sq_str}",
                 title=f"{category.title()}",
                 use_log_x=True,
-                grid=True
+                grid=True,
             )
             ax.legend()
 
         fig.tight_layout()
-        
+
         plot_path = output_dir / f"{prefix}_snr_vs_ei_ratio.png"
         plot_paths.append(self.save_figure(fig, plot_path))
 
