@@ -757,10 +757,10 @@ class InformationPlotter(BasePlotter):
             use_log_x=True,
             grid=True,
         )
-    
+
     def _generate_information_plots(
-        self, valid_data: pd.DataFrame, plots_dir: str
-    ) -> list[str]:
+        self, valid_data: pd.DataFrame, plots_dir: Path
+    ) -> list[Path]:
         """Generate information theory plots matching old analysis format"""
         plot_paths = []
 
@@ -794,11 +794,11 @@ class InformationPlotter(BasePlotter):
                             global_mi_metrics.append(metric_name)
 
         if not global_mi_metrics and not layer_mi_metrics:
-            print("No mutual information metrics found")
+            logger.info("No mutual information metrics found")
             return plot_paths
 
         if not valid_data["network_category"].isin(["shunting", "no_shunting"]).any():
-            print("No shunting/no_shunting data for information analysis")
+            logger.info("No shunting/no_shunting data for information analysis")
             return plot_paths
 
         # Define metric groups matching old analysis exactly
@@ -851,7 +851,7 @@ class InformationPlotter(BasePlotter):
                     available_colors.append(color)
 
             if not available_metrics:
-                print(f"No {group_name} metrics found")
+                logger.info(f"No {group_name} metrics found")
                 continue
 
             try:
@@ -928,7 +928,7 @@ class InformationPlotter(BasePlotter):
                         ylabel=ylabel,
                         title=f"{group_title}\\n{title_suffix} Networks",
                         use_log_x=True,
-                        grid=True
+                        grid=True,
                     )
 
                 plt.suptitle(f"Branch Information Analysis: {group_title}", fontsize=16)
@@ -938,7 +938,7 @@ class InformationPlotter(BasePlotter):
                 plot_paths.append(self.save_figure(fig, plot_path))
 
             except Exception as e:
-                print(f"Error generating {group_name} plot: {e}")
+                logger.error(f"Error generating {group_name} plot: {e}")
 
         # # Generate layer-specific information plots and heatmaps
         # layer_plot_dir = os.path.join(plots_dir, "layer_information_plots")
@@ -954,7 +954,7 @@ class InformationPlotter(BasePlotter):
         #     self._create_first_last_layer_plots(valid_data, layer_plot_dir, base_name)
         # )
 
-        print(
+        logger.info(
             f"Created {len(plot_paths)} information theory plots (global + layer-specific + heatmaps)"
         )
         return plot_paths
