@@ -259,14 +259,23 @@ class PoissonGeneratorDataset(Dataset):
         self,
         base_inputs: torch.Tensor,
         base_labels: torch.Tensor,
-        rate_variability: float = 1.0,
+        stimulus_duration: float = 1.0,
         max_gain_factor: Optional[float] = None,
-        uniform_gain: bool = True,
+        max_gain_tau_ratio: Optional[float] = None,
+        uniform_gain: bool = True
     ):
+        stimulus_duration = float(stimulus_duration)
+
+        if max_gain_factor:
+            max_gain_factor = float(max_gain_factor)
+        elif max_gain_tau_ratio:
+            max_gain_factor = float(max_gain_tau_ratio) * stimulus_duration
+
         self.base_inputs = base_inputs
         self.base_labels = base_labels
-        self.rate_variability = float(rate_variability)
-        self.max_gain_factor = float(max_gain_factor)
+        self.stimulus_duration = stimulus_duration
+        self.tau = stimulus_duration
+        self.max_gain_factor = max_gain_factor
         self.uniform_gain = uniform_gain
 
     def __len__(self):
@@ -282,19 +291,19 @@ class PoissonGeneratorDataset(Dataset):
                 gain_factor = gain_factor[..., None]
         else:
             gain_factor = torch.rand_like(input) * self.max_gain_factor
-        
-        scaled_input = input * gain_factor / self.rate_variability
+                
+        scaled_input = gain_factor * self.tau * input
         noisy_scaled_input = torch.poisson(scaled_input)
-
-        noisy_input = noisy_scaled_input * self.rate_variability
+        noisy_input = noisy_scaled_input / self.tau
 
         return noisy_input, label
 
 
 def load_poisson_generator_datasets(
     base_dataset: str,
-    rate_variability: float = 1.0,
-    max_gain_factor: float = 1.0,
+    stimulus_duration: float = 1.0,
+    max_gain_factor: Optional[float] = None,
+    max_gain_tau_ratio: Optional[float] = None,
     uniform_gain: bool = True,
     train_valid_split: float = 0.8,
     flatten: bool = False,
@@ -305,7 +314,10 @@ def load_poisson_generator_datasets(
 
     Args:
         base_dataset (str): The base dataset to sample from
-        rate_multiplier (float): The rate multiplier for the Poisson distribution
+        stimulus_duration (float): The stimulus duration for the Poisson distribution
+        max_gain_factor (float): The maximum gain factor for the Poisson distribution
+        max_gain_tau_ratio (float): The maximum gain tau ratio for the Poisson distribution
+        uniform_gain (bool): Whether to use uniform gain for the Poisson distribution
         train_valid_split (float): The proportion of samples to use for training vs validation
         flatten (bool): Whether to flatten the samples
         task_data_path (str, optional): Path from task.data_path config
@@ -333,20 +345,23 @@ def load_poisson_generator_datasets(
 
     train_ds = PoissonGeneratorDataset(
         *train_ds[:], 
-        rate_variability=rate_variability, 
+        stimulus_duration=stimulus_duration, 
         max_gain_factor=max_gain_factor, 
+        max_gain_tau_ratio=max_gain_tau_ratio,
         uniform_gain=uniform_gain
     )
     valid_ds = PoissonGeneratorDataset(
         *valid_ds[:], 
-        rate_variability=rate_variability, 
+        stimulus_duration=stimulus_duration, 
         max_gain_factor=max_gain_factor, 
+        max_gain_tau_ratio=max_gain_tau_ratio,
         uniform_gain=uniform_gain
     )
     test_ds = PoissonGeneratorDataset(
         *test_ds[:], 
-        rate_variability=rate_variability, 
+        stimulus_duration=stimulus_duration, 
         max_gain_factor=max_gain_factor, 
+        max_gain_tau_ratio=max_gain_tau_ratio,
         uniform_gain=uniform_gain
     )
 
@@ -492,8 +507,9 @@ def get_unified_datasets(task_cfg):
     flatten = p.get("flatten", True)
     normalize = p.get("normalize", False)
     base_dataset = p.get("base_dataset", "mnist")
-    rate_variability = p.get("rate_variability", 1.0)
-    max_gain_factor = p.get("max_gain_factor", 1.0)
+    stimulus_duration = p.get("stimulus_duration", 1.0)
+    max_gain_factor = p.get("max_gain_factor", None)
+    max_gain_tau_ratio = p.get("max_gain_tau_ratio", None)
     uniform_gain = p.get("uniform_gain", True)
 
     # Handle standard datasets directly
@@ -515,8 +531,9 @@ def get_unified_datasets(task_cfg):
     elif dataset_name == "poisson_generator":
         return load_poisson_generator_datasets(
             base_dataset=base_dataset,
-            rate_variability=rate_variability,
+            stimulus_duration=stimulus_duration,
             max_gain_factor=max_gain_factor,
+            max_gain_tau_ratio=max_gain_tau_ratio,
             uniform_gain=uniform_gain,
             train_valid_split=train_valid_split,
             flatten=flatten,
