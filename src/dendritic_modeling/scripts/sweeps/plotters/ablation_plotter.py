@@ -153,7 +153,7 @@ class AblationPlotter(BasePlotter):
         ]
 
         if not ablation_cols:
-            print("No ablation columns found")
+            logger.info("No ablation columns found")
             return plot_paths
 
         # Extract ablation types and metrics from column structure
@@ -188,7 +188,7 @@ class AblationPlotter(BasePlotter):
         depths.sort()
 
         if not valid_data["network_category"].isin(["shunting", "no_shunting"]).any():
-            print("No shunting/no_shunting data for ablation analysis")
+            logger.info("No shunting/no_shunting data for ablation analysis")
             return plot_paths
 
         # Generate E/I ratio plots by depth (current approach)
@@ -204,11 +204,11 @@ class AblationPlotter(BasePlotter):
                     )
                 )
             except Exception as e:
-                print(
+                logger.error(
                     f"Error generating E/I ablation plot for {ablation_type}_{metric}: {e}"
                 )
 
-        print(f"Created {len(plot_paths)} ablation analysis plots")
+        logger.info(f"Created {len(plot_paths)} ablation analysis plots")
         return plot_paths
 
     def _create_ablation_ei_plots(
@@ -288,7 +288,7 @@ class AblationPlotter(BasePlotter):
                             linewidth=2,
                         )
                 except Exception as e:
-                    print(f"Warning: Could not plot depth {depth} for {category}: {e}")
+                    logger.warning(f"Could not plot depth {depth} for {category}: {e}")
                     continue
 
             self.setup_axes_style(

@@ -59,7 +59,7 @@ class SNRPlotter(BasePlotter):
         snr_cols = [col for col in valid_data.columns if "snr_" in col]
 
         if not snr_cols:
-            print("No SNR columns found")
+            logger.info("No SNR columns found")
             return plot_paths
 
         prefixes = []
@@ -83,7 +83,7 @@ class SNRPlotter(BasePlotter):
         depths.sort()
 
         if not valid_data["network_category"].isin(["shunting", "no_shunting"]).any():
-            print("No shunting/no_shunting data for ablation analysis")
+            logger.info("No shunting/no_shunting data for SNR analysis")
             return plot_paths
 
         # Generate E/I ratio plots by depth (current approach)
@@ -93,9 +93,9 @@ class SNRPlotter(BasePlotter):
                     self._create_snr_ei_plots(valid_data, plots_dir, prefix, depths)
                 )
             except Exception as e:
-                print(f"Error generating E/I SNR plot for {prefix}: {e}")
+                logger.error(f"Error generating E/I SNR plot for {prefix}: {e}")
 
-        print(f"Created {len(plot_paths)} SNR analysis plots")
+        logger.info(f"Created {len(plot_paths)} SNR analysis plots")
         return plot_paths
 
     def _create_snr_ei_plots(
@@ -183,7 +183,7 @@ class SNRPlotter(BasePlotter):
                             linewidth=2,
                         )
                 except Exception as e:
-                    print(f"Warning: Could not plot depth {depth} for {category}: {e}")
+                    logger.warning(f"Could not plot depth {depth} for {category}: {e}")
                     continue
 
             self.setup_axes_style(
