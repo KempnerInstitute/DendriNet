@@ -22,27 +22,56 @@ class InformationPlotter(BasePlotter):
     # Metric groups for organized plotting
     METRIC_GROUPS: ClassVar[dict[str, dict]] = {
         "class_information": {
-            "metrics": ["mi_E_C", "mi_I_C", "mi_V_C"],
-            "labels": ["I(E;C)", "I(I;C)", "I(V;C)"],
-            "colors": ["#FF6B6B", "#4ECDC4", "#45B7D1"],  # Red, Teal, Blue
+            "metrics": ["mi_E_C", "mi_I_C", "mi_Vb_C", "mi_V_C"],
+            "labels": ["I(E;C)", "I(I;C)", "I(Vb;C)", "I(V;C)"],
+            "colors": [
+                "#FF6B6B",
+                "#4ECDC4",
+                "#FFB347",
+                "#45B7D1",
+            ],  # Red, Teal, Orange, Blue
             "title": "Information with Class Labels",
             "ylabel": "Mutual Information (bits)",
         },
         "component_information": {
-            "metrics": ["mi_E_I", "mi_E_V", "mi_I_V"],
-            "labels": ["I(E;I)", "I(E;V)", "I(I;V)"],
-            "colors": ["#8B5A96", "#FFA726", "#9C27B0"],  # Purple, Orange, Purple
+            "metrics": ["mi_E_I", "mi_E_Vb", "mi_I_Vb", "mi_E_V", "mi_I_V", "mi_Vb_V"],
+            "labels": ["I(E;I)", "I(E;Vb)", "I(I;Vb)", "I(E;V)", "I(I;V)", "I(Vb;V)"],
+            "colors": [
+                "#8B5A96",
+                "#E91E63",
+                "#9C27B0",
+                "#FFA726",
+                "#FF9800",
+                "#FF5722",
+            ],  # Purple, Pink, Purple, Orange, Orange, Red-orange
             "title": "Component Information",
             "ylabel": "Mutual Information (bits)",
         },
         "conditional_information": {
-            "metrics": ["mi_E_I_given_C", "mi_E_V_given_C", "mi_I_V_given_C"],
-            "labels": ["I(E;I|C)", "I(E;V|C)", "I(I;V|C)"],
+            "metrics": [
+                "mi_E_I_given_C",
+                "mi_E_Vb_given_C",
+                "mi_I_Vb_given_C",
+                "mi_E_V_given_C",
+                "mi_I_V_given_C",
+                "mi_Vb_V_given_C",
+            ],
+            "labels": [
+                "I(E;I|C)",
+                "I(E;Vb|C)",
+                "I(I;Vb|C)",
+                "I(E;V|C)",
+                "I(I;V|C)",
+                "I(Vb;V|C)",
+            ],
             "colors": [
                 "#2E7D32",
+                "#388E3C",
                 "#558B2F",
+                "#689F38",
+                "#7CB342",
                 "#827717",
-            ],  # Dark green, Forest green, Olive
+            ],  # Dark green through olive gradient
             "title": "Conditional Information",
             "ylabel": "Mutual Information (bits)",
         },
@@ -846,27 +875,70 @@ class InformationPlotter(BasePlotter):
         # Define metric groups matching old analysis exactly
         metric_groups = {
             "class_information": {
-                "metrics": ["mi_E_C", "mi_I_C", "mi_V_C"],
-                "labels": ["I(E;C)", "I(I;C)", "I(V;C)"],
+                "metrics": ["mi_E_C", "mi_I_C", "mi_Vb_C", "mi_V_C"],
+                "labels": ["I(E;C)", "I(I;C)", "I(Vb;C)", "I(V;C)"],
                 "colors": [
                     self.info_colors["excitatory"],
                     self.info_colors["inhibitory"],
+                    "#FFB347",  # Orange for Vb
                     self.info_colors["combined"],
                 ],
                 "title": "Information with Class Labels",
                 "ylabel": "Mutual Information (bits)",
             },
             "component_information": {
-                "metrics": ["mi_E_I", "mi_E_V", "mi_I_V"],
-                "labels": ["I(E;I)", "I(E;V)", "I(I;V)"],
-                "colors": ["purple", "orange", "brown"],
+                "metrics": [
+                    "mi_E_I",
+                    "mi_E_Vb",
+                    "mi_I_Vb",
+                    "mi_E_V",
+                    "mi_I_V",
+                    "mi_Vb_V",
+                ],
+                "labels": [
+                    "I(E;I)",
+                    "I(E;Vb)",
+                    "I(I;Vb)",
+                    "I(E;V)",
+                    "I(I;V)",
+                    "I(Vb;V)",
+                ],
+                "colors": [
+                    "purple",
+                    "#E91E63",
+                    "#9C27B0",
+                    "orange",
+                    "#FF9800",
+                    "brown",
+                ],
                 "title": "Component Information",
                 "ylabel": "Mutual Information (bits)",
             },
             "conditional_information": {
-                "metrics": ["mi_E_I_given_C", "mi_E_V_given_C", "mi_I_V_given_C"],
-                "labels": ["I(E;I|C)", "I(E;V|C)", "I(I;V|C)"],
-                "colors": ["darkgreen", "forestgreen", "olive"],
+                "metrics": [
+                    "mi_E_I_given_C",
+                    "mi_E_Vb_given_C",
+                    "mi_I_Vb_given_C",
+                    "mi_E_V_given_C",
+                    "mi_I_V_given_C",
+                    "mi_Vb_V_given_C",
+                ],
+                "labels": [
+                    "I(E;I|C)",
+                    "I(E;Vb|C)",
+                    "I(I;Vb|C)",
+                    "I(E;V|C)",
+                    "I(I;V|C)",
+                    "I(Vb;V|C)",
+                ],
+                "colors": [
+                    "darkgreen",
+                    "#388E3C",
+                    "forestgreen",
+                    "#689F38",
+                    "olive",
+                    "#827717",
+                ],
                 "title": "Conditional Information",
                 "ylabel": "Mutual Information (bits)",
             },

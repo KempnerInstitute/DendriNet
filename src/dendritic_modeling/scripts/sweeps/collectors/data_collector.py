@@ -224,6 +224,7 @@ class DataCollector:
             for mi_key, mi_value in data["basic_mi"].items():
                 if isinstance(mi_value, (int, float)):
                     # Convert I(E;C) format to mi_E_C
+                    # Also handles: I(Vb;C) -> mi_Vb_C, I(E_lin;C) -> mi_E_lin_C
                     normalized_key = (
                         mi_key.replace("I(", "mi_")
                         .replace(";", "_")
