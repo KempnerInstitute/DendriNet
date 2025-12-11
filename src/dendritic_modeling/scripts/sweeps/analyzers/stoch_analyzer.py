@@ -7,10 +7,10 @@ import pandas as pd
 
 from ..plotters import (
     AblationPlotter,
-    SNRPlotter,
     InformationPlotter,
     NoisePlotter,
     PerformancePlotter,
+    SNRPlotter,
     WeightPlotter,
 )
 from .base_analyzer import BaseSweepAnalyzer
@@ -36,7 +36,7 @@ class StochasticDatasetSweepAnalyzer(BaseSweepAnalyzer):
         Detect if this is a stochastic dataset sweep.
 
         Checks for:
-        - Multiple rate_variability and max_gain_factor combinations in configs
+        - Multiple stimulus_duration and max_gain_factor combinations in configs
         - Presence of stochastic-related parameters in sweep configs
 
         Args:
@@ -51,22 +51,22 @@ class StochasticDatasetSweepAnalyzer(BaseSweepAnalyzer):
         if not configs_dir.exists():
             return False
 
-        # Load a few config files and check for rate_variability and max_gain_factor parameters
+        # Load a few config files and check for stimulus_duration and max_gain_factor parameters
         config_files = sorted(configs_dir.glob("*.yaml"))[:5]  # Check first 5
 
         extractor = ConfigExtractor()
-        rv_values = set()
+        sd_values = set()
         mgf_values = set()
 
         for config_file in config_files:
             params = extractor.extract_from_file(config_file)
-            if "rate_variability" in params:
-                rv_values.add(params["rate_variability"])
+            if "stimulus_duration" in params:
+                sd_values.add(params["stimulus_duration"])
             if "max_gain_factor" in params:
                 mgf_values.add(params["max_gain_factor"])
 
-        # This is a stochastic dataset sweep if we have multiple rate_variability or max_gain_factor values
-        return len(rv_values) > 1 or len(mgf_values) > 1
+        # This is a stochastic dataset sweep if we have multiple stimulus_duration or max_gain_factor values
+        return len(sd_values) > 1 or len(mgf_values) > 1
 
     def get_groupby_columns(self) -> list[str]:
         """Get columns to group by for stochastic dataset sweeps."""
@@ -110,11 +110,13 @@ class StochasticDatasetSweepAnalyzer(BaseSweepAnalyzer):
 
         # Validate we have stochastic dataset data
         if (
-            "stimulus_duration" not in data.columns 
+            "stimulus_duration" not in data.columns
             or "max_gain_factor" not in data.columns
             or "max_gain_tau_ratio" not in data.columns
         ):
-            logger.warning("No stimulus_duration or max_gain_factor or max_gain_tau_ratio column found - cannot generate stochastic dataset plots")
+            logger.warning(
+                "No stimulus_duration or max_gain_factor or max_gain_tau_ratio column found - cannot generate stochastic dataset plots"
+            )
             return plot_paths
 
         # Generate performance plots
@@ -146,4 +148,3 @@ class StochasticDatasetSweepAnalyzer(BaseSweepAnalyzer):
         # plot_paths.extend(self._generate_shunting_comparison(data, output_dir))
 
         return plot_paths
-
