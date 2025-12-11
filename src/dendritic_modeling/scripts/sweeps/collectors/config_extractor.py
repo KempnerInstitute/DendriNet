@@ -225,7 +225,14 @@ class ConfigExtractor:
             if hasattr(config, "data"):
                 data = config.data
                 if hasattr(data, "dataset_name"):
-                    params["dataset"] = data.dataset_name
+                    dataset_name = data.dataset_name
+                    params["dataset"] = dataset_name
+
+                    if hasattr(data, "dataset_params"):
+                        dataset_params = data.dataset_params
+                        if dataset_name in dataset_params:
+                            for key, value in dataset_params[dataset_name].items():
+                                params[f"{key}"] = value
 
         except Exception as e:
             logger.warning(f"Error extracting experiment params: {e}")

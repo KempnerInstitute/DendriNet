@@ -35,6 +35,17 @@ bash install.sh --verify
 ### Prerequisites
 - Conda/Miniconda/Anaconda installed
 - CUDA 12.1+ (for GPU support)
+- **Optional**: `ffmpeg` for video generation in ablation analysis (MP4 export)
+  ```bash
+  # Ubuntu/Debian
+  sudo apt-get install ffmpeg
+
+  # macOS
+  brew install ffmpeg
+
+  # Conda
+  conda install -c conda-forge ffmpeg
+  ```
 
 ### Step-by-Step Manual Install
 

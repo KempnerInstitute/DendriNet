@@ -184,6 +184,7 @@ def plot_ablation_results(results: dict, **kwargs):
 
 def plot_layer_ablation(
     layer_results: dict,
+    baselines: dict,
     save_path: Optional[str] = None,
     filename: str = "final",
     somatic_synapses: bool = True,
@@ -203,28 +204,29 @@ def plot_layer_ablation(
         fig_list = []
 
     metric_mapping = {
-        "accuracy drop": "Accuracy Drop",
-        "auc drop": "AUC Drop",
-        "categorical_loglikelihood drop": "Log Likelihood Drop",
-        "mse drop": "MSE Drop",
-        "cosine_similarity drop": "Cosine Similarity Drop",
+        "accuracy": "Accuracy",
+        "auc": "AUC",
+        "categorical_loglikelihood": "Log Likelihood",
+        "mse": "MSE",
+        "cosine_similarity": "Cosine Similarity",
     }
 
-    def has_key_nested(dictionary, key):
+    def has_metric_nested(dictionary, metric):
         """
         Check if key exists at any level in a nested dictionary
         """
         if isinstance(dictionary, dict):
+            key = f"{metric} drop"
             if key in dictionary:
                 return True
-            return any(has_key_nested(value, key) for value in dictionary.values())
+            return any(has_metric_nested(value, metric) for value in dictionary.values())
         elif isinstance(dictionary, (list, tuple)):
-            return any(has_key_nested(item, key) for item in dictionary)
+            return any(has_metric_nested(item, metric) for item in dictionary)
         return False
 
     metrics = []
     for metric in metric_mapping.keys():
-        if has_key_nested(layer_results, metric):
+        if has_metric_nested(layer_results, metric):
             metrics.append(metric)
 
     synapse_ablation_types = []
@@ -242,7 +244,7 @@ def plot_layer_ablation(
             type_dict: dict = layer_results[ablation_type]
             for layer_dict in type_dict.values():
                 data_dict["depth"].append(layer_dict["depth"])
-                data_dict["decrease"].append(layer_dict[metric])
+                data_dict["decrease"].append(layer_dict[f"{metric} drop"])
             results[ablation_type] = data_dict
 
         fig, ax = plt.subplots(figsize=(10, 8))
@@ -268,8 +270,10 @@ def plot_layer_ablation(
         ax.set_xticks(depths)
         ax.set_xticklabels(depth_labels, rotation=45)
         ax.set_xlabel("Branch Depth (Soma → Distal)")
-        ax.set_ylabel(f"{metric_mapping[metric]} Decrease")
-        ax.set_title(f"{metric_mapping[metric]} Decrease vs. Branch Depth")
+        ax.set_ylabel(f"{metric_mapping[metric]} Drop Decrease")
+        title = f"{metric_mapping[metric]} Drop Decrease vs. Branch Depth"
+        title += f"\n(Baseline: {baselines[metric]:.3f})"
+        ax.set_title(title)
         ax.legend()
         ax.grid(True, axis="y", alpha=0.3)
 

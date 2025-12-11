@@ -122,7 +122,9 @@ class DendriticBranchLayer(nn.Module):
         self.dbl_init_method = dbl_init_method
         self.epsilon = epsilon  # Store epsilon for numerical stability
         self.topk_type = topk_type  # Store the strategy
-        self.topk_weight_norm_order = topk_weight_norm_order  # Store the weight norm order
+        self.topk_weight_norm_order = (
+            topk_weight_norm_order  # Store the weight norm order
+        )
         self.topk_gamma = topk_gamma  # Store the gamma
         self.topk_temperature = topk_temperature  # Store the temperature
         self.topk_ultrafast = topk_ultrafast  # Store the ultrafast flag
@@ -168,8 +170,16 @@ class DendriticBranchLayer(nn.Module):
         else:
             self.branch_excitation = None
 
+        # Determine if this layer actually USES inhibitory synapses
+        # Note: inhibitory_input_dim can be set even when inhibitory_synapses_per_branch=0
+        # This happens when:
+        #   - input_mode=1: external inhibitory input available but layer doesn't use it
+        #   - Multi-layer networks: inhibitory input passes through but not all layers use it
+        # The condition inhibitory_synapses_per_branch > 0 ensures we only create
+        # branch_inhibition when this layer actively processes inhibitory input
         self.input_inhibitory = (
             inhibitory_input_dim is not None
+            and inhibitory_synapses_per_branch is not None
             and inhibitory_synapses_per_branch > 0
         )
         if self.input_inhibitory:

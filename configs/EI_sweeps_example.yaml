@@ -124,7 +124,10 @@ base_config:
 
       poisson_generator:
         base_dataset: "mnist"             # Base dataset for Poisson generation
-        rate_multiplier: 1.0              # Rate multiplier for Poisson process
+        stimulus_duration: 2.5              # Rate multiplier for Poisson process
+        max_gain_factor: 10              # Maximum gain factor for Poisson process
+        max_gain_tau_ratio: null
+        uniform_gain: false              # Uniform gain factor for Poisson process
 
       multixor:
         n_bits: 8                         # Number of bits for multi-XOR problem
@@ -692,6 +695,14 @@ base_config:
         per_class_analysis: false         # Analyze statistics separately for each class (true/false)
         n_samples: 1000                   # Number of samples to analyze (null = all)
 
+    compartment_snr_analysis:
+      enabled: true
+      training: true
+      params:
+        global_analysis: true
+        layer_analysis: true
+        branch_analysis: true
+  
   # ============================================================================
   # LOGGING
   # ============================================================================

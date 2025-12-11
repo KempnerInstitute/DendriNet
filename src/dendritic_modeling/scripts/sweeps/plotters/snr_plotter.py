@@ -6,6 +6,7 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 import pandas as pd
+import seaborn as sns
 
 from .base_plotter import BasePlotter
 
@@ -86,14 +87,49 @@ class SNRPlotter(BasePlotter):
             logger.info("No shunting/no_shunting data for SNR analysis")
             return plot_paths
 
+        sweep_types = self.detect_sweep_types(valid_data)
         # Generate E/I ratio plots by depth (current approach)
         for prefix in prefixes:
-            try:
-                plot_paths.extend(
-                    self._create_snr_ei_plots(valid_data, plots_dir, prefix, depths)
-                )
-            except Exception as e:
-                logger.error(f"Error generating E/I SNR plot for {prefix}: {e}")
+            if "ei" in sweep_types:
+                try:
+                    plot_paths.extend(
+                        self._create_snr_ei_plots(valid_data, plots_dir, prefix, depths)
+                    )
+                except Exception as e:
+                    logger.error(f"Error generating E/I SNR plot for {prefix}: {e}")
+            if "stoch1" in sweep_types:
+                try:
+                    plot_paths.extend(
+                        self._create_snr_heatmaps(
+                            valid_data,
+                            plots_dir,
+                            prefix,
+                            depths,
+                            "stimulus_duration",
+                            "max_gain_factor",
+                        )
+                    )
+                except Exception as e:
+                    logger.error(
+                        f"Error generating stochastic SNR plot for {prefix}: {e}"
+                    )
+
+            if "stoch2" in sweep_types:
+                try:
+                    plot_paths.extend(
+                        self._create_snr_heatmaps(
+                            valid_data,
+                            plots_dir,
+                            prefix,
+                            depths,
+                            "stimulus_duration",
+                            "max_gain_tau_ratio",
+                        )
+                    )
+                except Exception as e:
+                    logger.error(
+                        f"Error generating stochastic GV SNR plot for {prefix}: {e}"
+                    )
 
         logger.info(f"Created {len(plot_paths)} SNR analysis plots")
         return plot_paths
@@ -108,7 +144,7 @@ class SNRPlotter(BasePlotter):
         """Create SNR vs E/I ratio plots by depth"""
         plot_paths = []
 
-        # Find columns for this ablation type and metric
+        # Find snr columns for this state variable
         snr_cols_filtered = [
             col
             for col in valid_data.columns
@@ -199,6 +235,212 @@ class SNRPlotter(BasePlotter):
         fig.tight_layout()
 
         plot_path = output_dir / f"{prefix}_snr_vs_ei_ratio.png"
+        plot_paths.append(self.save_figure(fig, plot_path))
+
+        return plot_paths
+
+    def _create_snr_heatmaps(
+        self,
+        valid_data: pd.DataFrame,
+        output_dir: Path,
+        prefix: str,
+        depths: list[int],
+        colx: str,
+        coly: str,
+    ) -> list[Path]:
+        """
+        Create SNR heatmaps
+
+        Args:
+            valid_data: DataFrame with SNR data
+            output_dir: Output directory for plots
+            prefix: Prefix of SNR column (e.g., 'exc', 'inh', 'upstream', 'vout')
+            depths: List of depths to create heatmaps for
+            colx: Column name for x-axis of heatmap
+            coly: Column name for y-axis of heatmap
+        """
+        plot_paths = []
+
+        # Find snr columns for this state variable
+        snr_cols_filtered = [
+            col
+            for col in valid_data.columns
+            if f"snr_{prefix}_" in col and "std" not in col
+        ]
+
+        if not snr_cols_filtered:
+            return plot_paths
+
+        # Validate that colx and coly exist in the data
+        if colx not in valid_data.columns:
+            logger.warning(f"Column {colx} not found in data")
+            return plot_paths
+        if coly not in valid_data.columns:
+            logger.warning(f"Column {coly} not found in data")
+            return plot_paths
+
+        # Create separate plots for each network category
+        categories = ["shunting", "no_shunting"]
+
+        d_prime_sq_str = r"d'$^2$"
+
+        # Create subplot layout: len(depths) rows x 2 columns
+        fig, axes = plt.subplots(len(depths), 2, figsize=(15, 3 + 6 * len(depths)))
+        fig.suptitle(
+            f"{SNR_PREFIX_MAP[prefix]} Disciminality: {d_prime_sq_str} Heatmap ({colx} vs {coly})",
+            fontsize=16,
+        )
+
+        # Handle case where there's only one depth (axes becomes 1D)
+        if len(depths) == 1:
+            axes = axes.reshape(1, -1)
+
+        # Collect all values for consistent color scaling
+        all_values = []
+        for depth in depths:
+            depth_col = f"snr_{prefix}_d'^2_mean_depth{depth}_mean"
+            if depth_col in valid_data.columns:
+                for category in categories:
+                    category_data = valid_data[
+                        valid_data["network_category"] == category
+                    ]
+                    if not category_data.empty:
+                        values = pd.to_numeric(
+                            category_data[depth_col], errors="coerce"
+                        ).dropna()
+                        all_values.extend(values.tolist())
+
+        # Calculate global vmin/vmax for consistent scaling
+        if all_values:
+            vmin, vmax = min(all_values), max(all_values)
+        else:
+            vmin, vmax = 0, 1
+
+        for depth_idx, depth in enumerate(depths):
+            depth_col = f"snr_{prefix}_d'^2_mean_depth{depth}_mean"
+
+            if depth_col not in valid_data.columns:
+                # Fill empty subplots if depth column doesn't exist
+                for cat_idx in range(2):
+                    ax = axes[depth_idx, cat_idx]
+                    ax.text(
+                        0.5,
+                        0.5,
+                        f"No data for depth {depth}",
+                        ha="center",
+                        va="center",
+                        transform=ax.transAxes,
+                    )
+                    ax.set_title(f"Depth {depth} - {categories[cat_idx].title()}")
+                continue
+
+            for cat_idx, category in enumerate(categories):
+                ax = axes[depth_idx, cat_idx]
+                category_data = valid_data[valid_data["network_category"] == category]
+
+                if category_data.empty:
+                    ax.text(
+                        0.5,
+                        0.5,
+                        f"No {category} data",
+                        ha="center",
+                        va="center",
+                        transform=ax.transAxes,
+                    )
+                    ax.set_title(f"Depth {depth} - {category.title()}")
+                    continue
+
+                # Prepare data for heatmap
+                plot_data = category_data[[depth_col, colx, coly]].dropna()
+                if plot_data.empty:
+                    ax.text(
+                        0.5,
+                        0.5,
+                        f"No data for depth {depth}",
+                        ha="center",
+                        va="center",
+                        transform=ax.transAxes,
+                    )
+                    ax.set_title(f"Depth {depth} - {category.title()}")
+                    continue
+
+                try:
+                    # Convert metric values to numeric
+                    plot_data[depth_col] = pd.to_numeric(
+                        plot_data[depth_col], errors="coerce"
+                    )
+                    plot_data = plot_data.dropna()
+
+                    if plot_data.empty:
+                        ax.text(
+                            0.5,
+                            0.5,
+                            f"No valid data for depth {depth}",
+                            ha="center",
+                            va="center",
+                            transform=ax.transAxes,
+                        )
+                        ax.set_title(f"Depth {depth} - {category.title()}")
+                        continue
+
+                    # Create pivot table for heatmap
+                    pivot_data = plot_data.pivot_table(
+                        values=depth_col,
+                        index=coly,
+                        columns=colx,
+                        aggfunc="mean",
+                    )
+
+                    if pivot_data.empty:
+                        ax.text(
+                            0.5,
+                            0.5,
+                            f"No data to pivot for depth {depth}",
+                            ha="center",
+                            va="center",
+                            transform=ax.transAxes,
+                        )
+                        ax.set_title(f"Depth {depth} - {category.title()}")
+                        continue
+
+                    # Create heatmap
+                    sns.heatmap(
+                        pivot_data,
+                        cmap="viridis",
+                        annot=True,
+                        fmt=".3f",
+                        cbar_kws={
+                            "label": f"{SNR_PREFIX_MAP[prefix]} {d_prime_sq_str}"
+                        },
+                        ax=ax,
+                        vmin=vmin,
+                        vmax=vmax,
+                    )
+                    # Invert y-axis to place origin at lower left
+                    ax.invert_yaxis()
+
+                    ax.set_xlabel(colx, fontsize=12)
+                    ax.set_ylabel(coly, fontsize=12)
+                    ax.set_title(f"Depth {depth} - {category.title()}", fontsize=12)
+
+                except Exception as e:
+                    logger.warning(
+                        f"Could not create heatmap for depth {depth}, category {category}: {e}"
+                    )
+                    ax.text(
+                        0.5,
+                        0.5,
+                        f"Error plotting depth {depth}",
+                        ha="center",
+                        va="center",
+                        transform=ax.transAxes,
+                    )
+                    ax.set_title(f"Depth {depth} - {category.title()}")
+                    continue
+
+        fig.tight_layout()
+
+        plot_path = output_dir / f"{prefix}_snr_heatmap_{colx}_vs_{coly}.png"
         plot_paths.append(self.save_figure(fig, plot_path))
 
         return plot_paths
