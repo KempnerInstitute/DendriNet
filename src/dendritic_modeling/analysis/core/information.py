@@ -99,6 +99,12 @@ class InformationAnalyzer(AbstractAnalyzer):
         # Per-layer analysis - compute enhanced analysis for each layer separately
         self.per_layer_analysis = getattr(params, "per_layer_analysis", False)
 
+        # Include branch input (Vb) in analysis
+        self.include_branch_input = getattr(params, "include_branch_input", True)
+
+        # Compute LDA-based versions of E, I, Vb
+        self.compute_lda_weights = getattr(params, "compute_lda_weights", False)
+
         if self.verbose:
             self.logger.setLevel(logging.DEBUG)
 
@@ -135,6 +141,7 @@ class InformationAnalyzer(AbstractAnalyzer):
         Vout: np.ndarray,
         C: np.ndarray,
         Vinf: Optional[np.ndarray] = None,
+        Vb: Optional[np.ndarray] = None,
     ) -> dict[str, float]:
         """Compute mutual information between each variable and C."""
         self.logger.info(
@@ -157,6 +164,15 @@ class InformationAnalyzer(AbstractAnalyzer):
         self.logger.info(
             f"  I(I;C) = {metrics['I(I;C)']:.4f} (took {time.time() - start_time:.1f}s)"
         )
+
+        # I(Vb;C) if available and enabled
+        if Vb is not None and self.include_branch_input:
+            self.logger.info("  Computing I(Vb;C)...")
+            start_time = time.time()
+            metrics["I(Vb;C)"] = self.estimators[self.method].mutual_information(Vb, C)
+            self.logger.info(
+                f"  I(Vb;C) = {metrics['I(Vb;C)']:.4f} (took {time.time() - start_time:.1f}s)"
+            )
 
         # I(Vout;C)
         self.logger.info("  Computing I(Vout;C)...")
@@ -208,6 +224,7 @@ class InformationAnalyzer(AbstractAnalyzer):
         I_var: np.ndarray,
         Vout: np.ndarray,
         Vinf: Optional[np.ndarray] = None,
+        Vb: Optional[np.ndarray] = None,
     ) -> dict[str, float]:
         """Compute pairwise mutual information between variables."""
         self.logger.info("Computing pairwise MI between neural variables...")
@@ -238,6 +255,36 @@ class InformationAnalyzer(AbstractAnalyzer):
         self.logger.info(
             f"  I(I;Vout) = {metrics['I(I;Vout)']:.4f} (took {time.time() - start_time:.1f}s)"
         )
+
+        # Pairwise MI with Vb if available
+        if Vb is not None and self.include_branch_input:
+            # I(E;Vb)
+            self.logger.info("  Computing I(E;Vb)...")
+            start_time = time.time()
+            metrics["I(E;Vb)"] = self.estimators[self.method].mutual_information(E, Vb)
+            self.logger.info(
+                f"  I(E;Vb) = {metrics['I(E;Vb)']:.4f} (took {time.time() - start_time:.1f}s)"
+            )
+
+            # I(I;Vb)
+            self.logger.info("  Computing I(I;Vb)...")
+            start_time = time.time()
+            metrics["I(I;Vb)"] = self.estimators[self.method].mutual_information(
+                I_var, Vb
+            )
+            self.logger.info(
+                f"  I(I;Vb) = {metrics['I(I;Vb)']:.4f} (took {time.time() - start_time:.1f}s)"
+            )
+
+            # I(Vb;Vout)
+            self.logger.info("  Computing I(Vb;Vout)...")
+            start_time = time.time()
+            metrics["I(Vb;Vout)"] = self.estimators[self.method].mutual_information(
+                Vb, Vout
+            )
+            self.logger.info(
+                f"  I(Vb;Vout) = {metrics['I(Vb;Vout)']:.4f} (took {time.time() - start_time:.1f}s)"
+            )
 
         if Vinf is not None and self.include_vinf:
             # I(E;Vinf)
@@ -280,6 +327,7 @@ class InformationAnalyzer(AbstractAnalyzer):
         Vout: np.ndarray,
         C: np.ndarray,
         Vinf: Optional[np.ndarray] = None,
+        Vb: Optional[np.ndarray] = None,
     ) -> dict[str, float]:
         """Compute conditional mutual information given C."""
         self.logger.info(
@@ -316,6 +364,38 @@ class InformationAnalyzer(AbstractAnalyzer):
         self.logger.info(
             f"  I(I;Vout|C) = {metrics['I(I;Vout|C)']:.4f} (took {time.time() - start_time:.1f}s)"
         )
+
+        # Conditional MI with Vb if available
+        if Vb is not None and self.include_branch_input:
+            # I(E;Vb|C)
+            self.logger.info("  Computing I(E;Vb|C)...")
+            start_time = time.time()
+            metrics["I(E;Vb|C)"] = self.estimators[
+                self.method
+            ].conditional_mutual_information(E, Vb, C.reshape(-1, 1))
+            self.logger.info(
+                f"  I(E;Vb|C) = {metrics['I(E;Vb|C)']:.4f} (took {time.time() - start_time:.1f}s)"
+            )
+
+            # I(I;Vb|C)
+            self.logger.info("  Computing I(I;Vb|C)...")
+            start_time = time.time()
+            metrics["I(I;Vb|C)"] = self.estimators[
+                self.method
+            ].conditional_mutual_information(I_var, Vb, C.reshape(-1, 1))
+            self.logger.info(
+                f"  I(I;Vb|C) = {metrics['I(I;Vb|C)']:.4f} (took {time.time() - start_time:.1f}s)"
+            )
+
+            # I(Vb;Vout|C)
+            self.logger.info("  Computing I(Vb;Vout|C)...")
+            start_time = time.time()
+            metrics["I(Vb;Vout|C)"] = self.estimators[
+                self.method
+            ].conditional_mutual_information(Vb, Vout, C.reshape(-1, 1))
+            self.logger.info(
+                f"  I(Vb;Vout|C) = {metrics['I(Vb;Vout|C)']:.4f} (took {time.time() - start_time:.1f}s)"
+            )
 
         if Vinf is not None and self.include_vinf:
             # I(E;Vinf|C)
@@ -534,6 +614,7 @@ class InformationAnalyzer(AbstractAnalyzer):
         Vout: np.ndarray,
         C: np.ndarray,
         Vinf: Optional[np.ndarray] = None,
+        Vb: Optional[np.ndarray] = None,
     ) -> dict[str, Any]:
         """Compute all requested information metrics.
 
@@ -541,7 +622,7 @@ class InformationAnalyzer(AbstractAnalyzer):
         ----------
         E : np.ndarray
             Excitatory inputs, shape (n_samples,) or (n_samples, n_features)
-        I : np.ndarray
+        I_var : np.ndarray
             Inhibitory inputs, shape (n_samples,) or (n_samples, n_features)
         Vout : np.ndarray
             Branch outputs, shape (n_samples,) or (n_samples, n_features)
@@ -549,6 +630,8 @@ class InformationAnalyzer(AbstractAnalyzer):
             Class labels, shape (n_samples,)
         Vinf : np.ndarray, optional
             Soma activation (Vinf), shape (n_samples,) or (n_samples, n_features)
+        Vb : np.ndarray, optional
+            Branch input (upstream dendritic input), shape (n_samples,) or (n_samples, n_features)
 
         Returns
         -------
@@ -567,6 +650,9 @@ class InformationAnalyzer(AbstractAnalyzer):
         if Vinf is not None:
             Vinf = self._ensure_2d(Vinf)
 
+        if Vb is not None:
+            Vb = self._ensure_2d(Vb)
+
         results = {
             "method": self.method,
             "n_samples": len(E),
@@ -575,18 +661,18 @@ class InformationAnalyzer(AbstractAnalyzer):
         # 1. Basic mutual information with C
         if self.compute_basic_mi:
             self.logger.info("Computing basic MI metrics...")
-            results["basic_mi"] = self._compute_basic_mi(E, I_var, Vout, C, Vinf)
+            results["basic_mi"] = self._compute_basic_mi(E, I_var, Vout, C, Vinf, Vb)
 
         # 2. Pairwise mutual information
         if self.compute_pairwise_mi:
             self.logger.info("Computing pairwise MI metrics...")
-            results["pairwise_mi"] = self._compute_pairwise_mi(E, I_var, Vout, Vinf)
+            results["pairwise_mi"] = self._compute_pairwise_mi(E, I_var, Vout, Vinf, Vb)
 
         # 3. Conditional mutual information
         if self.compute_conditional_mi:
             self.logger.info("Computing conditional MI metrics...")
             results["conditional_mi"] = self._compute_conditional_mi(
-                E, I_var, Vout, C, Vinf
+                E, I_var, Vout, C, Vinf, Vb
             )
 
         # 4. PID decomposition
@@ -753,7 +839,7 @@ class InformationAnalyzer(AbstractAnalyzer):
         output: torch.Tensor,
     ):
         """Forward hook to collect branch data."""
-        excitatory_input, inhibitory_input, _ = input
+        excitatory_input, inhibitory_input, branch_input = input
 
         # Check if this is a soma layer without somatic synapses (using config)
         is_soma_without_synapses = module.layer_idx == 0 and not getattr(
@@ -788,16 +874,151 @@ class InformationAnalyzer(AbstractAnalyzer):
                 else torch.zeros_like(output)
             )
 
+        # Compute branch_input contribution if available
+        if branch_input is not None and module.input_branches:
+            branch_current = module.branches_to_output(branch_input)
+        else:
+            branch_current = torch.zeros_like(output)
+
         # Store per-branch data
         self.data_dict[module._name]["excitation"] = excitation_per_branch
         self.data_dict[module._name]["inhibition"] = inhibition_per_branch
+        self.data_dict[module._name]["branch_input"] = branch_current
         self.data_dict[module._name]["output"] = output
         self.data_dict[module._name]["has_synapses"] = not is_soma_without_synapses
+
+        # Store raw inputs and module for LDA computation if needed
+        if hasattr(self, "compute_lda_weights") and self.compute_lda_weights:
+            self.data_dict[module._name]["raw_excitatory_input"] = excitatory_input
+            self.data_dict[module._name]["raw_inhibitory_input"] = inhibitory_input
+            self.data_dict[module._name]["raw_branch_input"] = branch_input
+            self.data_dict[module._name]["module"] = module
 
     def remove_forward_hooks(self, handles: list[torch.utils.hooks.RemovableHandle]):
         """Remove forward hooks from the model."""
         for handle in handles:
             handle.remove()
+
+    def compute_lda_aggregated_signals(
+        self,
+        layer_data: dict,
+        C: np.ndarray,
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """Compute LDA-weighted versions of E, I, and Vb.
+
+        Instead of using the network's learned weights to aggregate synapses,
+        fit separate LDA models on:
+        1. Raw excitatory inputs (treating each input dimension as a synapse)
+        2. Raw inhibitory inputs
+        3. Raw branch inputs (upstream dendritic connections)
+
+        Args:
+            layer_data: Dictionary containing raw inputs and module
+            C: Class labels, shape [n_samples,]
+
+        Returns:
+            Tuple of (E_lin, I_lin, Vb_lin) each shape [n_samples, n_branches]
+        """
+        from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
+
+        module = layer_data.get("module")
+        if module is None:
+            return None, None, None
+
+        raw_exc = layer_data.get("raw_excitatory_input")
+        raw_inh = layer_data.get("raw_inhibitory_input")
+        raw_branch = layer_data.get("raw_branch_input")
+
+        n_samples = C.shape[0]
+        n_branches = layer_data["excitation"].shape[1]
+
+        E_lin = np.zeros((n_samples, n_branches))
+        I_lin = np.zeros((n_samples, n_branches))
+        Vb_lin = np.zeros((n_samples, n_branches))
+
+        # For E: Fit LDA on raw excitatory inputs for each branch
+        if raw_exc is not None and module.branch_excitation is not None:
+            raw_exc_np = raw_exc.detach().cpu().numpy()  # [n_samples, input_dim]
+
+            # Check if we have enough classes and samples
+            if len(np.unique(C)) > 1 and raw_exc_np.shape[1] > 0:
+                try:
+                    # Fit LDA to find optimal linear combination of excitatory inputs
+                    lda_e = LinearDiscriminantAnalysis()
+                    lda_e.fit(raw_exc_np, C)
+
+                    # Get LDA weights (w_lda for excitatory synapses)
+                    # Transform gives [n_samples, n_components], we take first component
+                    e_lda_projection = lda_e.transform(
+                        raw_exc_np
+                    )  # [n_samples, n_components]
+
+                    # Replicate this single LDA projection to all branches
+                    # (Each branch sees the same input, just with different TopK selection)
+                    for branch_idx in range(n_branches):
+                        E_lin[:, branch_idx] = e_lda_projection[:, 0]
+
+                except Exception as e:
+                    self.logger.warning(
+                        f"LDA failed for excitatory inputs: {e}. Using network weights."
+                    )
+                    E_lin = layer_data["excitation"].detach().cpu().numpy()
+            else:
+                E_lin = layer_data["excitation"].detach().cpu().numpy()
+
+        # For I: Fit LDA on raw inhibitory inputs for each branch
+        if raw_inh is not None and module.branch_inhibition is not None:
+            raw_inh_np = raw_inh.detach().cpu().numpy()  # [n_samples, input_dim]
+
+            if len(np.unique(C)) > 1 and raw_inh_np.shape[1] > 0:
+                try:
+                    # Fit LDA to find optimal linear combination of inhibitory inputs
+                    lda_i = LinearDiscriminantAnalysis()
+                    lda_i.fit(raw_inh_np, C)
+
+                    # Get LDA projection
+                    i_lda_projection = lda_i.transform(raw_inh_np)[:, 0]
+
+                    # Replicate to all branches
+                    for branch_idx in range(n_branches):
+                        I_lin[:, branch_idx] = i_lda_projection
+
+                except Exception as e:
+                    self.logger.warning(
+                        f"LDA failed for inhibitory inputs: {e}. Using network weights."
+                    )
+                    I_lin = layer_data["inhibition"].detach().cpu().numpy()
+            else:
+                I_lin = layer_data["inhibition"].detach().cpu().numpy()
+
+        # For Vb: Fit LDA on raw branch inputs (upstream dendritic inputs)
+        if raw_branch is not None and module.input_branches:
+            raw_branch_np = (
+                raw_branch.detach().cpu().numpy()
+            )  # [n_samples, n_upstream_branches]
+
+            if len(np.unique(C)) > 1 and raw_branch_np.shape[1] > 0:
+                try:
+                    # Fit LDA to find optimal linear combination of upstream branch inputs
+                    lda_b = LinearDiscriminantAnalysis()
+                    lda_b.fit(raw_branch_np, C)
+
+                    # Get LDA projection
+                    b_lda_projection = lda_b.transform(raw_branch_np)[:, 0]
+
+                    # Replicate to all branches (they all receive from same upstream)
+                    for branch_idx in range(n_branches):
+                        Vb_lin[:, branch_idx] = b_lda_projection
+
+                except Exception as e:
+                    self.logger.warning(
+                        f"LDA failed for branch inputs: {e}. Using network weights."
+                    )
+                    Vb_lin = layer_data["branch_input"].detach().cpu().numpy()
+            else:
+                Vb_lin = layer_data["branch_input"].detach().cpu().numpy()
+
+        return E_lin, I_lin, Vb_lin
 
     def ensure_inhibitory_data(
         self, excitation_data: torch.Tensor, inhibition_data: torch.Tensor
@@ -867,7 +1088,7 @@ class InformationAnalyzer(AbstractAnalyzer):
 
             # Compute MI for this neuron
             neuron_results = self.compute_metrics(
-                E_neuron, I_neuron, Vout_neuron, C, None
+                E_neuron, I_neuron, Vout_neuron, C, None, None
             )
             neuron_results["neuron_index"] = neuron_idx
             per_neuron_results.append(neuron_results)
@@ -907,7 +1128,7 @@ class InformationAnalyzer(AbstractAnalyzer):
 
         # Always compute excitatory network MI
         e_results = self.compute_metrics(
-            E_data, np.zeros_like(I_data), Vout_data, C, None
+            E_data, np.zeros_like(I_data), Vout_data, C, None, None
         )
         e_results["network_type"] = "excitatory"
         results["excitatory_results"] = e_results
@@ -918,13 +1139,15 @@ class InformationAnalyzer(AbstractAnalyzer):
         if has_inhibitory:
             # Compute MI for inhibitory network only
             i_results = self.compute_metrics(
-                np.zeros_like(E_data), I_data, Vout_data, C, None
+                np.zeros_like(E_data), I_data, Vout_data, C, None, None
             )
             i_results["network_type"] = "inhibitory"
             results["inhibitory_results"] = i_results
 
             # Compute MI for combined E+I network (current default)
-            combined_results = self.compute_metrics(E_data, I_data, Vout_data, C, None)
+            combined_results = self.compute_metrics(
+                E_data, I_data, Vout_data, C, None, None
+            )
             combined_results["network_type"] = "combined"
             results["combined_results"] = combined_results
 
@@ -1227,6 +1450,7 @@ class InformationAnalyzer(AbstractAnalyzer):
                     # Get data for all branches in this layer
                     E_all_branches_raw = layer_data["excitation"]
                     I_all_branches_raw = layer_data["inhibition"]
+                    Vb_all_branches_raw = layer_data.get("branch_input")
                     Vout_all_branches = layer_data["output"].detach().cpu().numpy()
 
                     # Ensure inhibitory data is available
@@ -1238,6 +1462,23 @@ class InformationAnalyzer(AbstractAnalyzer):
 
                     E_all_branches = E_all_branches_filtered.detach().cpu().numpy()
                     I_all_branches = I_all_branches_filtered.detach().cpu().numpy()
+
+                    # Get Vb data
+                    if Vb_all_branches_raw is not None:
+                        Vb_all_branches = Vb_all_branches_raw.detach().cpu().numpy()
+                    else:
+                        Vb_all_branches = np.zeros_like(E_all_branches)
+
+                    # Compute LDA versions if requested
+                    if self.compute_lda_weights:
+                        self.logger.info(
+                            f"  Computing LDA-weighted signals for {layer_name}..."
+                        )
+                        E_lin, I_lin, Vb_lin = self.compute_lda_aggregated_signals(
+                            layer_data, C
+                        )
+                    else:
+                        E_lin, I_lin, Vb_lin = None, None, None
 
                     # E_all_branches shape: (n_samples, n_branches)
                     n_branches = E_all_branches.shape[1]
@@ -1264,14 +1505,62 @@ class InformationAnalyzer(AbstractAnalyzer):
                         ]  # Keep 2D shape
                         I_branch = I_all_branches[:, branch_idx : branch_idx + 1]
                         Vout_branch = Vout_all_branches[:, branch_idx : branch_idx + 1]
+                        Vb_branch = Vb_all_branches[:, branch_idx : branch_idx + 1]
 
-                        # Compute MI for this single branch
+                        # Compute MI for this single branch with network weights
                         branch_results = self.compute_metrics(
-                            E_branch, I_branch, Vout_branch, C, None
+                            E_branch, I_branch, Vout_branch, C, None, Vb_branch
                         )
                         all_results.append(branch_results)
                         layer_branch_results.append(branch_results)
                         branch_names.append(f"{layer_name}_branch_{branch_idx}")
+
+                        # If LDA requested, compute MI for LDA-weighted versions
+                        if self.compute_lda_weights and E_lin is not None:
+                            E_branch_lin = E_lin[:, branch_idx : branch_idx + 1]
+                            I_branch_lin = I_lin[:, branch_idx : branch_idx + 1]
+                            Vb_branch_lin = Vb_lin[:, branch_idx : branch_idx + 1]
+
+                            branch_results_lin = self.compute_metrics(
+                                E_branch_lin,
+                                I_branch_lin,
+                                Vout_branch,
+                                C,
+                                None,
+                                Vb_branch_lin,
+                            )
+                            # Rename keys to indicate LDA versions
+                            branch_results_lin_renamed = {}
+                            for key, value in branch_results_lin.items():
+                                if isinstance(value, dict):
+                                    renamed_dict = {}
+                                    for subkey, subval in value.items():
+                                        # Replace E, I, Vb with E_lin, I_lin, Vb_lin in metric names
+                                        new_subkey = subkey.replace(
+                                            "(E;", "(E_lin;"
+                                        ).replace(";E)", ";E_lin)")
+                                        new_subkey = new_subkey.replace(
+                                            "(I;", "(I_lin;"
+                                        ).replace(";I)", ";I_lin)")
+                                        new_subkey = new_subkey.replace(
+                                            "(Vb;", "(Vb_lin;"
+                                        ).replace(";Vb)", ";Vb_lin)")
+                                        new_subkey = new_subkey.replace(
+                                            "(E,I;", "(E_lin,I_lin;"
+                                        )
+                                        renamed_dict[new_subkey] = subval
+                                    branch_results_lin_renamed[key] = renamed_dict
+                                else:
+                                    branch_results_lin_renamed[key] = value
+
+                            # Merge LDA results into branch_results
+                            for key, value in branch_results_lin_renamed.items():
+                                if isinstance(value, dict) and key in branch_results:
+                                    branch_results[key].update(value)
+
+                        self.logger.debug(
+                            f"  Branch {branch_idx + 1}/{n_branches} completed (took {time.time() - branch_start_time:.1f}s)"
+                        )
 
                         self.logger.debug(
                             f"  Branch {branch_idx + 1}/{n_branches} completed (took {time.time() - branch_start_time:.1f}s)"
@@ -1322,6 +1611,7 @@ class InformationAnalyzer(AbstractAnalyzer):
                         "excitation"
                     ]  # Shape: [n_samples, n_branches]
                     I_layer_data_raw = layer_data["inhibition"]
+                    Vb_layer_data_raw = layer_data.get("branch_input")
                     Vout_layer_data = layer_data["output"]
 
                     # Ensure inhibitory data is available
@@ -1329,15 +1619,23 @@ class InformationAnalyzer(AbstractAnalyzer):
                         E_layer_data_raw, I_layer_data_raw
                     )
 
+                    # Handle Vb data
+                    if Vb_layer_data_raw is not None:
+                        Vb_layer_data = Vb_layer_data_raw
+                    else:
+                        Vb_layer_data = torch.zeros_like(E_layer_data)
+
                     if self.branch_aggregation == "mean":
                         E_layer = (
                             E_layer_data.mean(dim=1).detach().cpu().numpy()
                         )  # [n_samples,]
                         I_layer = I_layer_data.mean(dim=1).detach().cpu().numpy()
+                        Vb_layer = Vb_layer_data.mean(dim=1).detach().cpu().numpy()
                         Vout_layer = Vout_layer_data.mean(dim=1).detach().cpu().numpy()
                         # Reshape to 2D for MI computation
                         E_layer = E_layer.reshape(-1, 1)
                         I_layer = I_layer.reshape(-1, 1)
+                        Vb_layer = Vb_layer.reshape(-1, 1)
                         Vout_layer = Vout_layer.reshape(-1, 1)
                     elif self.branch_aggregation == "multivariate":
                         # Multivariate: Keep all branches as multivariate input (no aggregation)
@@ -1346,6 +1644,9 @@ class InformationAnalyzer(AbstractAnalyzer):
                         )  # [n_samples, n_branches]
                         I_layer = (
                             I_layer_data.detach().cpu().numpy()
+                        )  # [n_samples, n_branches]
+                        Vb_layer = (
+                            Vb_layer_data.detach().cpu().numpy()
                         )  # [n_samples, n_branches]
                         Vout_layer = (
                             Vout_layer_data.detach().cpu().numpy()
@@ -1358,6 +1659,13 @@ class InformationAnalyzer(AbstractAnalyzer):
                         )
                         I_layer = (
                             I_layer_data.detach().cpu().numpy().flatten().reshape(-1, 1)
+                        )
+                        Vb_layer = (
+                            Vb_layer_data.detach()
+                            .cpu()
+                            .numpy()
+                            .flatten()
+                            .reshape(-1, 1)
                         )
                         Vout_layer = (
                             Vout_layer_data.detach()
@@ -1376,15 +1684,17 @@ class InformationAnalyzer(AbstractAnalyzer):
                         # Default to mean
                         E_layer = E_layer_data.mean(dim=1).detach().cpu().numpy()
                         I_layer = I_layer_data.mean(dim=1).detach().cpu().numpy()
+                        Vb_layer = Vb_layer_data.mean(dim=1).detach().cpu().numpy()
                         Vout_layer = Vout_layer_data.mean(dim=1).detach().cpu().numpy()
                         # Reshape to 2D for MI computation
                         E_layer = E_layer.reshape(-1, 1)
                         I_layer = I_layer.reshape(-1, 1)
+                        Vb_layer = Vb_layer.reshape(-1, 1)
                         Vout_layer = Vout_layer.reshape(-1, 1)
 
                     # Compute MI for this layer
                     layer_results = self.compute_metrics(
-                        E_layer, I_layer, Vout_layer, C, None
+                        E_layer, I_layer, Vout_layer, C, None, Vb_layer
                     )
                     all_results.append(layer_results)
                     layer_names.append(layer_name)
@@ -1422,6 +1732,7 @@ class InformationAnalyzer(AbstractAnalyzer):
                 # Collect aggregated data from each layer
                 layer_excitation = []
                 layer_inhibition = []
+                layer_branch_input = []
                 layer_output = []
 
                 for layer_data in self.data_dict.values():
@@ -1432,6 +1743,11 @@ class InformationAnalyzer(AbstractAnalyzer):
                                 dim=1, keepdim=True
                             )  # [n_samples, 1]
                             layer_I = layer_data["inhibition"].mean(dim=1, keepdim=True)
+                            layer_Vb_raw = layer_data.get("branch_input")
+                            if layer_Vb_raw is not None:
+                                layer_Vb = layer_Vb_raw.mean(dim=1, keepdim=True)
+                            else:
+                                layer_Vb = torch.zeros_like(layer_E)
                             layer_Vout = layer_data["output"].mean(dim=1, keepdim=True)
                         elif self.branch_aggregation == "multivariate":
                             # For network level with multivariate, keep branches separate for each layer
@@ -1441,6 +1757,11 @@ class InformationAnalyzer(AbstractAnalyzer):
                             layer_I = layer_data[
                                 "inhibition"
                             ]  # [n_samples, n_branches]
+                            layer_Vb_raw = layer_data.get("branch_input")
+                            if layer_Vb_raw is not None:
+                                layer_Vb = layer_Vb_raw
+                            else:
+                                layer_Vb = torch.zeros_like(layer_E)
                             layer_Vout = layer_data["output"]  # [n_samples, n_branches]
                         elif self.branch_aggregation == "sample":
                             # For network level with sample, flatten each layer's branches into samples
@@ -1451,6 +1772,11 @@ class InformationAnalyzer(AbstractAnalyzer):
                             layer_I = layer_data["inhibition"].view(
                                 n_samples * n_branches, 1
                             )
+                            layer_Vb_raw = layer_data.get("branch_input")
+                            if layer_Vb_raw is not None:
+                                layer_Vb = layer_Vb_raw.view(n_samples * n_branches, 1)
+                            else:
+                                layer_Vb = torch.zeros_like(layer_E)
                             layer_Vout = layer_data["output"].view(
                                 n_samples * n_branches, 1
                             )
@@ -1458,10 +1784,16 @@ class InformationAnalyzer(AbstractAnalyzer):
                             # Default to mean
                             layer_E = layer_data["excitation"].mean(dim=1, keepdim=True)
                             layer_I = layer_data["inhibition"].mean(dim=1, keepdim=True)
+                            layer_Vb_raw = layer_data.get("branch_input")
+                            if layer_Vb_raw is not None:
+                                layer_Vb = layer_Vb_raw.mean(dim=1, keepdim=True)
+                            else:
+                                layer_Vb = torch.zeros_like(layer_E)
                             layer_Vout = layer_data["output"].mean(dim=1, keepdim=True)
 
                         layer_excitation.append(layer_E)
                         layer_inhibition.append(layer_I)
+                        layer_branch_input.append(layer_Vb)
                         layer_output.append(layer_Vout)
 
                 if not layer_excitation:
@@ -1477,6 +1809,7 @@ class InformationAnalyzer(AbstractAnalyzer):
                         torch.cat(layer_excitation, dim=0).detach().cpu().numpy()
                     )  # [n_samples * n_branches * n_layers, 1]
                     I_var = torch.cat(layer_inhibition, dim=0).detach().cpu().numpy()
+                    Vb = torch.cat(layer_branch_input, dim=0).detach().cpu().numpy()
                     Vout = torch.cat(layer_output, dim=0).detach().cpu().numpy()
                     # Expand C to match the new sample count
                     total_samples = E.shape[0]
@@ -1489,6 +1822,7 @@ class InformationAnalyzer(AbstractAnalyzer):
                         torch.cat(layer_excitation, dim=1).detach().cpu().numpy()
                     )  # [n_samples, n_branches * n_layers]
                     I_var = torch.cat(layer_inhibition, dim=1).detach().cpu().numpy()
+                    Vb = torch.cat(layer_branch_input, dim=1).detach().cpu().numpy()
                     Vout = torch.cat(layer_output, dim=1).detach().cpu().numpy()
                 else:
                     # For mean/max/sum, concatenate across layers (all tensors are [n_samples, 1])
@@ -1496,11 +1830,12 @@ class InformationAnalyzer(AbstractAnalyzer):
                         torch.cat(layer_excitation, dim=1).detach().cpu().numpy()
                     )  # [n_samples, n_layers]
                     I_var = torch.cat(layer_inhibition, dim=1).detach().cpu().numpy()
+                    Vb = torch.cat(layer_branch_input, dim=1).detach().cpu().numpy()
                     Vout = torch.cat(layer_output, dim=1).detach().cpu().numpy()
 
                 self.logger.info(
                     "Aggregated data shapes - "
-                    f"E: {E.shape}, I: {I_var.shape}, Vout: {Vout.shape}, C: {C.shape}"
+                    f"E: {E.shape}, I: {I_var.shape}, Vb: {Vb.shape}, Vout: {Vout.shape}, C: {C.shape}"
                 )
 
                 # Get soma activation (Vinf) if available for aggregate mode
@@ -1513,7 +1848,7 @@ class InformationAnalyzer(AbstractAnalyzer):
                         Vinf = final_output.detach().cpu().numpy()
 
                 # Run information analysis on aggregated data
-                results = self.compute_metrics(E, I_var, Vout, C, Vinf)
+                results = self.compute_metrics(E, I_var, Vout, C, Vinf, Vb)
                 results["aggregation_method"] = self.branch_aggregation
                 results["computation_level"] = "all_branch"
 

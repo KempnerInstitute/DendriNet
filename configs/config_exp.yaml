@@ -481,6 +481,8 @@ analysis:
       per_neuron_analysis: false        # Per-neuron analysis (true/false)
       per_einet_analysis: false         # Per-EI-network analysis (true/false)
       per_layer_analysis: false         # Per-layer analysis (true/false)
+      include_branch_input: true        # Include branch input (Vb) in MI analysis (true/false)
+      compute_lda_weights: false        # Compute LDA-based E_lin, I_lin, Vb_lin (true/false)
 
   correlation_analysis:
     enabled: false                      # Enable correlation analysis (true/false)
@@ -625,7 +627,7 @@ analysis:
       compute_entropy: true             # Compute entropy per layer (true/false)
       per_class_analysis: false         # Analyze statistics separately for each class (true/false)
       n_samples: 1000                   # Number of samples to analyze (null = all)
-  
+
   compartment_snr_analysis:
     enabled: true
     training: true

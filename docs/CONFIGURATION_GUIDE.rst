@@ -280,12 +280,114 @@ Per-EI-Network Analysis:
 
 When enabled, performs three separate analyses:
 - Excitatory network only (inhibitory inputs set to zero)
-- Inhibitory network only (excitatory inputs set to zero)  
+- Inhibitory network only (excitatory inputs set to zero)
 - Combined E+I network (standard analysis)
 
 Per-Layer Analysis:
 
 When enabled, computes enhanced analysis (per-neuron and per-EI-network) for each layer separately in multilayer networks, providing layer-specific insights into information processing.
+
+Branch Input Analysis
+~~~~~~~~~~~~~~~~~~~~~
+
+The framework supports analysis of upstream dendritic inputs (branch inputs) in hierarchical dendritic networks.
+
+.. code-block:: yaml
+
+   analysis:
+     information_analysis:
+       params:
+         include_branch_input: true    # Include branch input (Vb) in analysis
+
+When enabled, computes mutual information for branch inputs (Vb), which represent signals from upstream dendritic branches in hierarchical networks. This adds the following metrics:
+
+Basic MI:
+   ``I(Vb;C)`` - Mutual information between branch input and class labels
+
+Pairwise MI:
+   - ``I(E;Vb)`` - Mutual information between excitation and branch input
+   - ``I(I;Vb)`` - Mutual information between inhibition and branch input
+   - ``I(Vb;Vout)`` - Mutual information between branch input and output
+
+Conditional MI:
+   - ``I(E;Vb|C)`` - Conditional mutual information between E and Vb given class
+   - ``I(I;Vb|C)`` - Conditional mutual information between I and Vb given class
+   - ``I(Vb;Vout|C)`` - Conditional mutual information between Vb and Vout given class
+
+Note: For single-layer networks without hierarchical dendritic structure, branch input is zero and these metrics provide baseline comparisons.
+
+Linear Discriminant Analysis Weights
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The framework can compute alternative aggregation weights using Linear Discriminant Analysis (LDA) instead of network-learned weights.
+
+.. code-block:: yaml
+
+   analysis:
+     information_analysis:
+       params:
+         compute_lda_weights: false    # Compute LDA-based aggregations
+
+When enabled, the system fits separate LDA models on raw synaptic inputs to find optimal linear combinations that maximize class separation. This provides three LDA-weighted signals:
+
+E_lin:
+   Optimal linear combination of excitatory synaptic inputs using discriminant weights
+
+I_lin:
+   Optimal linear combination of inhibitory synaptic inputs using discriminant weights
+
+Vb_lin:
+   Optimal linear combination of upstream branch inputs using discriminant weights
+
+The analysis then computes mutual information for both network-learned aggregations and LDA-optimized aggregations:
+
+Network weights (w_opt):
+   - ``I(E;C)``, ``I(I;C)``, ``I(Vb;C)``
+   - Standard pairwise and conditional MI
+
+LDA weights (w_lda):
+   - ``I(E_lin;C)``, ``I(I_lin;C)``, ``I(Vb_lin;C)``
+   - Pairwise: ``I(E_lin;I_lin)``, ``I(E_lin;Vb_lin)``, etc.
+   - Conditional: ``I(E_lin;I_lin|C)``, etc.
+
+This comparison reveals whether the network has learned synaptic weights that approach the discriminant-optimal configuration or whether additional structure beyond class discrimination is encoded.
+
+Complete Information Analysis Configuration
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. code-block:: yaml
+
+   analysis:
+     information_analysis:
+       enabled: true
+       training: false
+       params:
+         # Estimation method
+         method: "kraskov"              # Options: "kraskov", "sklearn", "copula"
+         max_samples: 1000               # Limit samples for computational efficiency
+         n_neighbors: 10                 # K-NN parameter for Kraskov estimator
+
+         # Which metrics to compute
+         compute_basic_mi: true          # I(X;C) for all variables
+         compute_pairwise_mi: true       # I(X;Y) between variables
+         compute_conditional_mi: true    # I(X;Y|C) conditioned on class
+
+         # Computation granularity
+         computation_level: "single_branch"  # Options: "single_branch", "layer_branch", "all_branch"
+         branch_aggregation: "mean"          # Options: "mean", "multivariate", "sample"
+
+         # Enhanced analysis modes
+         per_neuron_analysis: false      # Per-neuron MI computation
+         per_einet_analysis: false       # Separate E and I network analysis
+         per_layer_analysis: false       # Per-layer enhanced analysis
+
+         # Branch input and LDA analysis
+         include_branch_input: true      # Include Vb in analysis
+         compute_lda_weights: false      # Compute LDA-based aggregations
+
+         # Additional options
+         include_vinf: true              # Include soma activation
+         normalize_mi: false             # Normalize by entropy
 
 Training Optimization
 ---------------------

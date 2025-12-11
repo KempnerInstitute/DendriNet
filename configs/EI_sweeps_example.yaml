@@ -550,6 +550,8 @@ base_config:
         per_neuron_analysis: false        # Per-neuron analysis (true/false)
         per_einet_analysis: false         # Per-EI-network analysis (true/false)
         per_layer_analysis: false         # Per-layer analysis (true/false)
+        include_branch_input: true        # Include branch input (Vb) in MI analysis (true/false)
+        compute_lda_weights: false        # Compute LDA-based E_lin, I_lin, Vb_lin (true/false)
 
     correlation_analysis:
       enabled: false                      # Enable correlation analysis (true/false)
@@ -702,7 +704,7 @@ base_config:
         global_analysis: true
         layer_analysis: true
         branch_analysis: true
-  
+
   # ============================================================================
   # LOGGING
   # ============================================================================

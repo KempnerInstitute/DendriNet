@@ -34,21 +34,28 @@ print(analyzer.get_summary(results))
 ### 1. Basic Mutual Information with C
 - `I(E;C)` - MI between excitatory inputs and class labels
 - `I(I;C)` - MI between inhibitory inputs and class labels
+- `I(Vb;C)` - MI between branch inputs and class labels (hierarchical networks)
 - `I(Vout;C)` - MI between branch outputs and class labels
 - `I(Vinf;C)` - MI between soma activation and class labels (optional)
 - `I(E,I;C)` - Joint MI between E&I and class labels
 
 ### 2. Pairwise Mutual Information
 - `I(E;I)` - MI between excitatory and inhibitory inputs
+- `I(E;Vb)` - MI between excitatory inputs and branch inputs
+- `I(I;Vb)` - MI between inhibitory inputs and branch inputs
 - `I(E;Vout)` - MI between excitatory inputs and outputs
 - `I(I;Vout)` - MI between inhibitory inputs and outputs
+- `I(Vb;Vout)` - MI between branch inputs and outputs
 - `I(E;Vinf)`, `I(I;Vinf)` - MI with soma activation (optional)
 
 ### 3. Conditional Mutual Information
 All pairwise metrics conditioned on C:
 - `I(E;I|C)` - Conditional MI between E and I given C
+- `I(E;Vb|C)` - Conditional MI between E and branch input given C
+- `I(I;Vb|C)` - Conditional MI between I and branch input given C
 - `I(E;Vout|C)` - Conditional MI between E and Vout given C
 - `I(I;Vout|C)` - Conditional MI between I and Vout given C
+- `I(Vb;Vout|C)` - Conditional MI between branch input and Vout given C
 
 ### 4. Partial Information Decomposition (PID)
 For variable pairs (X,Y) → Z:
@@ -240,6 +247,68 @@ from dendritic_modeling.analysis.information import (
 ```
 
 ## Advanced Features
+
+### Branch Input Analysis
+
+For hierarchical dendritic networks, the framework can analyze upstream dendritic inputs (branch inputs) in addition to excitatory and inhibitory synaptic inputs.
+
+```python
+# Enable branch input analysis
+config = ConfigBuilder() \
+    .with_method("kraskov") \
+    .with_metrics(basic=True, pairwise=True, conditional=True) \
+    .with_options(include_branch_input=True) \
+    .build()
+
+analyzer = InformationAnalyzer(config)
+
+# Analyze with branch inputs
+results = analyzer.analyze(E, I, Vout, C, Vinf=None, Vb=branch_inputs)
+```
+
+Branch input (Vb) represents signals from upstream branches in hierarchical networks. When enabled, the following additional metrics are computed:
+
+- Basic: `I(Vb;C)`
+- Pairwise: `I(E;Vb)`, `I(I;Vb)`, `I(Vb;Vout)`
+- Conditional: `I(E;Vb|C)`, `I(I;Vb|C)`, `I(Vb;Vout|C)`
+
+For single-layer networks without hierarchical structure, branch inputs are zero and these metrics provide baseline comparisons.
+
+### Linear Discriminant Analysis Weights
+
+The framework can compute alternative synaptic aggregations using Linear Discriminant Analysis (LDA) weights instead of network-learned weights.
+
+```python
+# Enable LDA-based weight computation
+config = ConfigBuilder() \
+    .with_method("kraskov") \
+    .with_metrics(basic=True, pairwise=True) \
+    .with_options(compute_lda_weights=True, include_branch_input=True) \
+    .build()
+
+analyzer = InformationAnalyzer(config)
+results = analyzer.analyze(E, I, Vout, C, Vinf=None, Vb=branch_inputs)
+```
+
+When LDA weights are enabled, the system:
+
+1. Fits separate LDA models on raw synaptic inputs (treating each synapse as a feature)
+2. Computes optimal linear combinations that maximize class separation
+3. Creates three LDA-weighted signals: E_lin, I_lin, Vb_lin
+4. Computes MI for both network-learned and LDA-optimized aggregations
+
+Results include metrics for both versions:
+
+Network-learned weights:
+- `I(E;C)`, `I(I;C)`, `I(Vb;C)`
+- Standard pairwise and conditional MI
+
+LDA-optimized weights:
+- `I(E_lin;C)`, `I(I_lin;C)`, `I(Vb_lin;C)`
+- `I(E_lin;I_lin)`, `I(E_lin;Vb_lin)`, etc.
+- `I(E_lin;I_lin|C)`, etc.
+
+This comparison reveals whether the network has learned synaptic weights approaching the discriminant-optimal configuration or whether additional structure beyond class discrimination is encoded.
 
 ### Custom Estimators
 
