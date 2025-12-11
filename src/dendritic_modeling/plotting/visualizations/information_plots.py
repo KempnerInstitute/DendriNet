@@ -193,14 +193,18 @@ class PerLayerPlotter(BasePlotter):
         if not metrics_to_plot:
             metrics_to_plot = ["I(E;C)_mean", "I(I;C)_mean", "I(Vout;C)_mean"]
             metric_labels = ["I(E;C)", "I(I;C)", "I(Vout;C)"]
-        colors = [
-            self.get_color("excitatory"),
-            self.get_color("inhibitory"),
-            self.get_color("combined"),
-        ]
+
+        # Define colors matching the number of metrics
+        color_map = {
+            "I(E;C)": self.get_color("excitatory"),
+            "I(I;C)": self.get_color("inhibitory"),
+            "I(Vb;C)": "#FFB347",  # Orange for branch input
+            "I(Vout;C)": self.get_color("combined"),
+        }
+        colors = [color_map.get(label, "#808080") for label in metric_labels]
 
         x = np.arange(len(layer_names))
-        width = 0.25
+        width = 0.8 / len(metrics_to_plot)  # Dynamic width based on number of metrics
 
         for i, (metric, label, color) in enumerate(
             zip(metrics_to_plot, metric_labels, colors)
@@ -522,8 +526,6 @@ class InformationAnalysisPlotter(BasePlotter):
     ) -> plt.Figure:
         """Plot information metrics vs layer depth with mean and variance."""
         try:
-            fig, axes = self.create_subplots(2, 2, figsize=(15, 10))
-
             # Define metric patterns for each type
             if metric_type == "basic_mi":
                 metric_patterns = [
@@ -577,8 +579,26 @@ class InformationAnalysisPlotter(BasePlotter):
             metrics = sorted(metrics)
             logger.info(f"Found {metric_type} metrics: {metrics}")
 
+            # Determine grid size based on number of metrics
+            n_metrics = len(metrics)
+            if n_metrics == 0:
+                logger.warning(f"No {metric_type} metrics found")
+                return None
+
+            # Create appropriate grid: 2x2 for 3-4 metrics, 2x3 for 5-6, 3x3 for 7-9, etc.
+            ncols = min(3, (n_metrics + 1) // 2 + (n_metrics % 2))
+            nrows = (n_metrics + ncols - 1) // ncols
+
+            fig, axes = self.create_subplots(
+                nrows, ncols, figsize=(7 * ncols, 5 * nrows)
+            )
+            if nrows == 1 and ncols == 1:
+                axes = [axes]
+            else:
+                axes = axes.flatten()
+
             # Plot each metric
-            for idx, metric in enumerate(metrics[:4]):  # Limit to 4 subplots
+            for idx, metric in enumerate(metrics):  # Plot all metrics, not just first 4
                 ax = axes.flat[idx]
 
                 means = []
@@ -635,6 +655,10 @@ class InformationAnalysisPlotter(BasePlotter):
                         va="center",
                         transform=ax.transAxes,
                     )
+
+            # Hide unused subplots
+            for idx in range(len(metrics), len(axes)):
+                axes[idx].axis("off")
 
             plt.suptitle(title, fontsize=16)
             plt.tight_layout()
