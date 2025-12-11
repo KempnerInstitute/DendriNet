@@ -135,7 +135,11 @@ class PairwiseMIPlotter(BasePlotter):
         if ax is None:
             _, ax = self.create_subplot()
 
-        variables = ["E", "I", "Vout"]
+        # Start with base variables and add optional ones if present
+        variables = ["E", "I"]
+        if any("Vb" in key for key in pairwise_mi.keys()):
+            variables.append("Vb")
+        variables.append("Vout")
         if any("Vinf" in key for key in pairwise_mi.keys()):
             variables.append("Vinf")
 
@@ -167,8 +171,28 @@ class PerLayerPlotter(BasePlotter):
     def plot_basic_mi_layers(
         self, layer_results: dict, layer_names: list, ax: plt.Axes
     ):
-        metrics_to_plot = ["I(E;C)_mean", "I(I;C)_mean", "I(Vout;C)_mean"]
-        metric_labels = ["I(E;C)", "I(I;C)", "I(Vout;C)"]
+        # Base metrics - check what's available in the data
+        possible_metrics = [
+            "I(E;C)_mean",
+            "I(I;C)_mean",
+            "I(Vb;C)_mean",
+            "I(Vout;C)_mean",
+        ]
+        possible_labels = ["I(E;C)", "I(I;C)", "I(Vb;C)", "I(Vout;C)"]
+
+        # Filter to only metrics present in data
+        metrics_to_plot = []
+        metric_labels = []
+        for metric, label in zip(possible_metrics, possible_labels):
+            # Check if any layer has this metric
+            if any(metric in layer_results.get(ln, {}) for ln in layer_names):
+                metrics_to_plot.append(metric)
+                metric_labels.append(label)
+
+        # Fallback to original if none found
+        if not metrics_to_plot:
+            metrics_to_plot = ["I(E;C)_mean", "I(I;C)_mean", "I(Vout;C)_mean"]
+            metric_labels = ["I(E;C)", "I(I;C)", "I(Vout;C)"]
         colors = [
             self.get_color("excitatory"),
             self.get_color("inhibitory"),
@@ -432,7 +456,8 @@ class InformationAnalysisPlotter(BasePlotter):
 
         if "basic_mi" in results:
             basic_mi = results["basic_mi"]
-            for key in ["I(E;C)", "I(I;C)", "I(Vout;C)", "I(E,I;C)"]:
+            # Include all available basic MI metrics (E, I, Vb, Vout, and combinations)
+            for key in ["I(E;C)", "I(I;C)", "I(Vb;C)", "I(Vout;C)", "I(E,I;C)"]:
                 if key in basic_mi:
                     summary_lines.append(f"{key}: {basic_mi[key]:.4f} bits")
 
@@ -455,8 +480,27 @@ class InformationAnalysisPlotter(BasePlotter):
 
     def _plot_layer_heatmap(self, ax: plt.Axes, layer_results: dict, layer_names: list):
         """Plot layer information as heatmap."""
-        metrics = ["I(E;C)_mean", "I(I;C)_mean", "I(Vout;C)_mean", "I(E;I)_mean"]
-        metric_labels = ["I(E;C)", "I(I;C)", "I(Vout;C)", "I(E;I)"]
+        # Check which metrics are available
+        possible_metrics = [
+            "I(E;C)_mean",
+            "I(I;C)_mean",
+            "I(Vb;C)_mean",
+            "I(Vout;C)_mean",
+            "I(E;I)_mean",
+        ]
+        possible_labels = ["I(E;C)", "I(I;C)", "I(Vb;C)", "I(Vout;C)", "I(E;I)"]
+
+        metrics = []
+        metric_labels = []
+        for metric, label in zip(possible_metrics, possible_labels):
+            if any(metric in layer_results.get(ln, {}) for ln in layer_names):
+                metrics.append(metric)
+                metric_labels.append(label)
+
+        # Fallback if none found
+        if not metrics:
+            metrics = ["I(E;C)_mean", "I(I;C)_mean", "I(Vout;C)_mean", "I(E;I)_mean"]
+            metric_labels = ["I(E;C)", "I(I;C)", "I(Vout;C)", "I(E;I)"]
 
         data_matrix = []
         for metric in metrics:
@@ -482,11 +526,40 @@ class InformationAnalysisPlotter(BasePlotter):
 
             # Define metric patterns for each type
             if metric_type == "basic_mi":
-                metric_patterns = ["I(E;C)", "I(I;C)", "I(Vout;C)", "I(E,I;C)"]
+                metric_patterns = [
+                    "I(E;C)",
+                    "I(I;C)",
+                    "I(Vb;C)",
+                    "I(Vout;C)",
+                    "I(E,I;C)",
+                    "I(E_lin;C)",
+                    "I(I_lin;C)",
+                    "I(Vb_lin;C)",
+                ]
             elif metric_type == "pairwise_mi":
-                metric_patterns = ["I(E;I)", "I(E;Vout)", "I(I;Vout)"]
+                metric_patterns = [
+                    "I(E;I)",
+                    "I(E;Vout)",
+                    "I(I;Vout)",
+                    "I(E;Vb)",
+                    "I(I;Vb)",
+                    "I(Vb;Vout)",
+                    "I(E_lin;I_lin)",
+                    "I(E_lin;Vb_lin)",
+                    "I(I_lin;Vb_lin)",
+                ]
             elif metric_type == "conditional_mi":
-                metric_patterns = ["I(E;I|C)", "I(E;Vout|C)", "I(I;Vout|C)"]
+                metric_patterns = [
+                    "I(E;I|C)",
+                    "I(E;Vout|C)",
+                    "I(I;Vout|C)",
+                    "I(E;Vb|C)",
+                    "I(I;Vb|C)",
+                    "I(Vb;Vout|C)",
+                    "I(E_lin;I_lin|C)",
+                    "I(E_lin;Vb_lin|C)",
+                    "I(I_lin;Vb_lin|C)",
+                ]
             else:
                 metric_patterns = []
 
@@ -756,9 +829,47 @@ def _generate_layer_comparison_plots(
 
     # Information metrics to plot
     metric_types = [
-        ("basic_mi", ["I(E;C)", "I(I;C)", "I(Vout;C)", "I(E,I;C)"]),
-        ("pairwise_mi", ["I(E;I)", "I(E;Vout)", "I(I;Vout)"]),
-        ("conditional_mi", ["I(E;I|C)", "I(E;Vout|C)", "I(I;Vout|C)"]),
+        (
+            "basic_mi",
+            [
+                "I(E;C)",
+                "I(I;C)",
+                "I(Vb;C)",
+                "I(Vout;C)",
+                "I(E,I;C)",
+                "I(E_lin;C)",
+                "I(I_lin;C)",
+                "I(Vb_lin;C)",
+            ],
+        ),
+        (
+            "pairwise_mi",
+            [
+                "I(E;I)",
+                "I(E;Vout)",
+                "I(I;Vout)",
+                "I(E;Vb)",
+                "I(I;Vb)",
+                "I(Vb;Vout)",
+                "I(E_lin;I_lin)",
+                "I(E_lin;Vb_lin)",
+                "I(I_lin;Vb_lin)",
+            ],
+        ),
+        (
+            "conditional_mi",
+            [
+                "I(E;I|C)",
+                "I(E;Vout|C)",
+                "I(I;Vout|C)",
+                "I(E;Vb|C)",
+                "I(I;Vb|C)",
+                "I(Vb;Vout|C)",
+                "I(E_lin;I_lin|C)",
+                "I(E_lin;Vb_lin|C)",
+                "I(I_lin;Vb_lin|C)",
+            ],
+        ),
     ]
 
     for network_type, layer_data in network_comparison_data.items():
