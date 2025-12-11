@@ -1,6 +1,7 @@
 """Information theory plotters (inspired by comprehensive_analysis.py)."""
 
 import logging
+import traceback
 from pathlib import Path
 from typing import ClassVar
 
@@ -68,24 +69,63 @@ class InformationPlotter(BasePlotter):
             logger.info("No information metrics found, skipping information plots")
             return plot_paths
 
-        # Generate comprehensive multi-panel plot
-        if "ei_ratio" in data.columns:
-            panel_path = self.plot_information_panels(data, info_dir)
-            if panel_path:
-                plot_paths.append(panel_path)
+        sweep_types = self.detect_sweep_types(data)
+        if "ei" in sweep_types:
+            try:
+                plot_paths.extend(self._create_information_ei_plots(data, info_dir))
+            except Exception as e:
+                logger.error(f"Error generating E/I information plots: {e}")
+                traceback.print_exc()
 
-        # Generate individual metric group plots
-        plot_paths.extend(self.plot_metric_groups(data, info_dir))
+        if "stoch1" in sweep_types:
+            try:
+                plot_paths.extend(
+                    self._create_information_heatmaps(
+                        data, info_dir, "stimulus_duration", "max_gain_factor"
+                    )
+                )
+            except Exception as e:
+                logger.error(
+                    f"Error generating stochastic dataset information plots: {e}"
+                )
+                traceback.print_exc()
 
-        # Generate layer-wise information plots
-        plot_paths.extend(self.plot_layerwise_information(data, info_dir))
-
-        # Generate legacy information plots
-        plot_paths.extend(self._generate_information_plots(data, info_dir))
+        if "stoch2" in sweep_types:
+            try:
+                plot_paths.extend(
+                    self._create_information_heatmaps(
+                        data, info_dir, "stimulus_duration", "max_gain_tau_ratio"
+                    )
+                )
+            except Exception as e:
+                logger.error(
+                    f"Error generating stochastic GV dataset information plots: {e}"
+                )
+                traceback.print_exc()
 
         return plot_paths
 
-    def plot_information_panels(self, data: pd.DataFrame, output_dir: Path) -> Path:
+    def _create_information_ei_plots(
+        self, data: pd.DataFrame, output_dir: Path
+    ) -> list[Path]:
+        plot_paths = []
+        # Generate comprehensive multi-panel plot
+        panel_path = self.plot_information_panels_ei(data, output_dir)
+        if panel_path:
+            plot_paths.append(panel_path)
+
+        # Generate individual metric group plots
+        plot_paths.extend(self.plot_metric_groups_ei(data, output_dir))
+
+        # Generate layer-wise information plots
+        plot_paths.extend(self.plot_layerwise_information_ei(data, output_dir))
+
+        # Generate legacy information plots
+        plot_paths.extend(self._generate_information_plots_ei(data, output_dir))
+
+        return plot_paths
+
+    def plot_information_panels_ei(self, data: pd.DataFrame, output_dir: Path) -> Path:
         """
         Generate comprehensive multi-panel information plot.
 
@@ -362,7 +402,7 @@ class InformationPlotter(BasePlotter):
             ax.set_title("Information Metric Summary", fontsize=12)
             ax.grid(True, alpha=0.3, axis="y")
 
-    def plot_metric_groups(self, data: pd.DataFrame, output_dir: Path) -> list[Path]:
+    def plot_metric_groups_ei(self, data: pd.DataFrame, output_dir: Path) -> list[Path]:
         """
         Generate individual plots for each metric group.
 
@@ -449,7 +489,7 @@ class InformationPlotter(BasePlotter):
         logger.info(f"Generated {len(plot_paths)} metric group plots")
         return plot_paths
 
-    def plot_layerwise_information(
+    def plot_layerwise_information_ei(
         self, data: pd.DataFrame, output_dir: Path
     ) -> list[Path]:
         """
@@ -554,6 +594,8 @@ class InformationPlotter(BasePlotter):
                     vmin=vmin,
                     vmax=vmax,
                 )
+                # Invert y-axis to place origin at lower left
+                ax.invert_yaxis()
 
                 ax.set_xlabel("E/I Ratio", fontsize=12)
                 ax.set_ylabel("Layer Index", fontsize=12)
@@ -957,4 +999,440 @@ class InformationPlotter(BasePlotter):
         logger.info(
             f"Created {len(plot_paths)} information theory plots (global + layer-specific + heatmaps)"
         )
+        return plot_paths
+
+    def _create_information_heatmaps(
+        self, data: pd.DataFrame, output_dir: Path, colx: str, coly: str
+    ) -> list[Path]:
+        plot_paths = []
+
+        # Generate aggregate heatmaps for each metric group
+        plot_paths.extend(
+            self.plot_metric_groups_aggregate_heatmaps(data, output_dir, colx, coly)
+        )
+
+        # Generate layerwise heatmaps for each metric
+        plot_paths.extend(
+            self.plot_metric_layerwise_heatmaps(data, output_dir, colx, coly)
+        )
+
+        return plot_paths
+
+    def plot_metric_groups_aggregate_heatmaps(
+        self, data: pd.DataFrame, output_dir: Path, colx: str, coly: str
+    ) -> list[Path]:
+        """
+        Generate heatmap plots for each metric group.
+
+        Creates one figure per metric group with:
+        - 2 columns (shunting vs non-shunting)
+        - N rows where N = number of metrics in the group
+
+        Each subplot shows a heatmap with colx on x-axis and coly on y-axis.
+
+        Args:
+            data: Aggregated data
+            output_dir: Output directory
+            colx: Column name for x-axis
+            coly: Column name for y-axis
+
+        Returns:
+            List of plot paths
+        """
+        plot_paths = []
+
+        # Validate required columns
+        if colx not in data.columns or coly not in data.columns:
+            logger.warning(f"Missing required columns: {colx} or {coly}")
+            return plot_paths
+
+        if "network_category" not in data.columns:
+            logger.warning("Missing 'network_category' column")
+            return plot_paths
+
+        # Generate one figure per metric group
+        for group_name, group_info in self.METRIC_GROUPS.items():
+            try:
+                metrics = group_info["metrics"]
+                labels = group_info["labels"]
+
+                # Find available metrics
+                available_metrics = []
+                available_labels = []
+
+                for metric, label in zip(metrics, labels):
+                    mean_col = f"{metric}_mean"
+                    if mean_col in data.columns:
+                        available_metrics.append(metric)
+                        available_labels.append(label)
+
+                if not available_metrics:
+                    logger.info(f"No available metrics for {group_name}, skipping")
+                    continue
+
+                # Create figure with nrows = number of metrics, ncols = 2
+                nrows = len(available_metrics)
+                fig, axes = plt.subplots(
+                    nrows, 2, figsize=(18, 6 * nrows), sharex=True, sharey=True
+                )
+
+                # Handle single row case
+                if nrows == 1:
+                    axes = axes.reshape(1, -1)
+
+                # Collect all values for consistent color scaling
+                all_values = []
+                plot_data = {}
+
+                for use_shunting in [True, False]:
+                    category = "shunting" if use_shunting else "no_shunting"
+                    cat_data = data[data["network_category"] == category]
+                    plot_data[use_shunting] = {}
+
+                    if not cat_data.empty:
+                        for metric in available_metrics:
+                            mean_col = f"{metric}_mean"
+                            values = cat_data[mean_col].dropna()
+                            all_values.extend(values.tolist())
+
+                # Calculate global vmin/vmax for consistent scaling
+                if all_values:
+                    vmin, vmax = min(all_values), max(all_values)
+                else:
+                    vmin, vmax = 0, 1
+
+                # Create heatmaps for each metric and shunting condition
+                for metric_idx, (metric, label) in enumerate(
+                    zip(available_metrics, available_labels)
+                ):
+                    mean_col = f"{metric}_mean"
+
+                    for col_idx, (use_shunting, title_suffix) in enumerate(
+                        [
+                            (True, "Shunting"),
+                            (False, "Non-Shunting"),
+                        ]
+                    ):
+                        ax = axes[metric_idx, col_idx]
+                        category = "shunting" if use_shunting else "no_shunting"
+                        cat_data = data[data["network_category"] == category]
+
+                        if cat_data.empty or mean_col not in cat_data.columns:
+                            ax.text(
+                                0.5,
+                                0.5,
+                                f"No {category} data",
+                                ha="center",
+                                va="center",
+                                transform=ax.transAxes,
+                            )
+                            ax.set_title(f"{label} - {title_suffix}")
+                            continue
+
+                        # Create pivot table for heatmap
+                        try:
+                            pivot = cat_data.pivot_table(
+                                values=mean_col,
+                                index=coly,
+                                columns=colx,
+                                aggfunc="mean",
+                            )
+
+                            if pivot.empty:
+                                ax.text(
+                                    0.5,
+                                    0.5,
+                                    "No data to pivot",
+                                    ha="center",
+                                    va="center",
+                                    transform=ax.transAxes,
+                                )
+                                ax.set_title(f"{label} - {title_suffix}")
+                                continue
+
+                            # Create heatmap
+                            sns.heatmap(
+                                pivot,
+                                cmap="viridis",
+                                annot=True,
+                                fmt=".3f",
+                                cbar_kws={"label": group_info["ylabel"]},
+                                ax=ax,
+                                vmin=vmin,
+                                vmax=vmax,
+                            )
+                            # Invert y-axis to place origin at lower left
+                            ax.invert_yaxis()
+
+                            ax.set_xlabel(colx, fontsize=12)
+                            if col_idx == 0:  # Only label y-axis on left column
+                                ax.set_ylabel(coly, fontsize=12)
+                            else:
+                                ax.set_ylabel("")
+                            ax.set_title(f"{label} - {title_suffix}", fontsize=12)
+
+                        except Exception as e:
+                            logger.error(
+                                f"Error creating heatmap for {metric} ({title_suffix}): {e}"
+                            )
+                            ax.text(
+                                0.5,
+                                0.5,
+                                f"Error: {str(e)[:50]}",
+                                ha="center",
+                                va="center",
+                                transform=ax.transAxes,
+                            )
+                            ax.set_title(f"{label} - {title_suffix}")
+
+                fig.suptitle(f"{group_info['title']} Heatmaps", fontsize=16, y=0.995)
+                fig.tight_layout(rect=[0, 0, 1, 0.98])
+
+                plot_path = output_dir / f"{group_name}_heatmaps.png"
+                plot_paths.append(self.save_figure(fig, plot_path))
+
+            except Exception as e:
+                logger.error(f"Error generating {group_name} heatmaps: {e}")
+                traceback.print_exc()
+
+        logger.info(f"Generated {len(plot_paths)} metric group heatmap figures")
+        return plot_paths
+
+    def plot_metric_layerwise_heatmaps(
+        self, data: pd.DataFrame, output_dir: Path, colx: str, coly: str
+    ) -> list[Path]:
+        """
+        Generate layerwise heatmap plots for each metric.
+
+        Creates one figure per metric with:
+        - 2 columns (shunting vs non-shunting)
+        - N rows where N = number of depths/layers found in the data
+
+        Each subplot shows a heatmap with colx on x-axis and coly on y-axis.
+
+        Args:
+            data: Aggregated data
+            output_dir: Output directory
+            colx: Column name for x-axis
+            coly: Column name for y-axis
+
+        Returns:
+            List of plot paths
+        """
+        plot_paths = []
+
+        # Validate required columns
+        if colx not in data.columns or coly not in data.columns:
+            logger.warning(f"Missing required columns: {colx} or {coly}")
+            return plot_paths
+
+        if "network_category" not in data.columns:
+            logger.warning("Missing 'network_category' column")
+            return plot_paths
+
+        # Find all layer MI columns
+        layer_cols = [
+            col
+            for col in data.columns
+            if "layer_mi_" in col and "_depth" in col and col.endswith("_mean")
+        ]
+
+        if not layer_cols:
+            logger.info("No layer MI columns found for heatmaps")
+            return plot_paths
+
+        # Extract all unique depths
+        depths = set()
+        for col in layer_cols:
+            try:
+                depth = int(col.split("_depth")[1].split("_mean")[0])
+                depths.add(depth)
+            except (ValueError, IndexError):
+                pass
+
+        depths = sorted(depths)
+
+        if not depths:
+            logger.info("No valid depths found in layer columns")
+            return plot_paths
+
+        logger.info(f"Found {len(depths)} depths: {depths}")
+
+        # Collect all metrics from all metric groups
+        all_metrics = []
+        metric_to_group_info = {}
+
+        for _group_name, group_info in self.METRIC_GROUPS.items():
+            for metric, label in zip(group_info["metrics"], group_info["labels"]):
+                # Get base metric name (e.g., "E_C" from "mi_E_C")
+                base_metric = metric.replace("mi_", "")
+
+                # Check if we have layer data for this metric
+                has_layer_data = any(
+                    f"layer_mi_{base_metric}_depth{depth}_mean" in data.columns
+                    for depth in depths
+                )
+
+                if has_layer_data:
+                    if metric not in all_metrics:
+                        all_metrics.append(metric)
+                        metric_to_group_info[metric] = {
+                            "base_metric": base_metric,
+                            "label": label,
+                            "group_title": group_info["title"],
+                            "ylabel": group_info["ylabel"],
+                        }
+
+        if not all_metrics:
+            logger.info("No metrics with layer data found")
+            return plot_paths
+
+        # Generate one figure per metric
+        for metric in all_metrics:
+            try:
+                metric_info = metric_to_group_info[metric]
+                base_metric = metric_info["base_metric"]
+                label = metric_info["label"]
+                group_title = metric_info["group_title"]
+                ylabel = metric_info["ylabel"]
+
+                # Find which depths have data for this metric
+                available_depths = []
+                for depth in depths:
+                    layer_col = f"layer_mi_{base_metric}_depth{depth}_mean"
+                    if layer_col in data.columns:
+                        available_depths.append(depth)
+
+                if not available_depths:
+                    logger.info(f"No layer data available for metric {metric}")
+                    continue
+
+                nrows = len(available_depths)
+                fig, axes = plt.subplots(
+                    nrows, 2, figsize=(18, 6 * nrows), sharex=True, sharey=True
+                )
+
+                # Handle single row case
+                if nrows == 1:
+                    axes = axes.reshape(1, -1)
+
+                # Collect all values for consistent color scaling across all depths
+                all_values = []
+
+                for use_shunting in [True, False]:
+                    category = "shunting" if use_shunting else "no_shunting"
+                    cat_data = data[data["network_category"] == category]
+
+                    if not cat_data.empty:
+                        for depth in available_depths:
+                            layer_col = f"layer_mi_{base_metric}_depth{depth}_mean"
+                            if layer_col in cat_data.columns:
+                                values = cat_data[layer_col].dropna()
+                                all_values.extend(values.tolist())
+
+                # Calculate global vmin/vmax for consistent scaling
+                if all_values:
+                    vmin, vmax = min(all_values), max(all_values)
+                else:
+                    vmin, vmax = 0, 1
+
+                # Create heatmaps for each depth and shunting condition
+                for row_idx, depth in enumerate(available_depths):
+                    layer_col = f"layer_mi_{base_metric}_depth{depth}_mean"
+
+                    for col_idx, (use_shunting, title_suffix) in enumerate(
+                        [
+                            (True, "Shunting"),
+                            (False, "Non-Shunting"),
+                        ]
+                    ):
+                        ax = axes[row_idx, col_idx]
+                        category = "shunting" if use_shunting else "no_shunting"
+                        cat_data = data[data["network_category"] == category]
+
+                        if cat_data.empty or layer_col not in cat_data.columns:
+                            ax.text(
+                                0.5,
+                                0.5,
+                                f"No {category} data",
+                                ha="center",
+                                va="center",
+                                transform=ax.transAxes,
+                            )
+                            ax.set_title(f"Layer {depth} - {title_suffix}")
+                            continue
+
+                        # Create pivot table for heatmap
+                        try:
+                            pivot = cat_data.pivot_table(
+                                values=layer_col,
+                                index=coly,
+                                columns=colx,
+                                aggfunc="mean",
+                            )
+
+                            if pivot.empty:
+                                ax.text(
+                                    0.5,
+                                    0.5,
+                                    "No data to pivot",
+                                    ha="center",
+                                    va="center",
+                                    transform=ax.transAxes,
+                                )
+                                ax.set_title(f"Layer {depth} - {title_suffix}")
+                                continue
+
+                            # Create heatmap
+                            sns.heatmap(
+                                pivot,
+                                cmap="viridis",
+                                annot=True,
+                                fmt=".3f",
+                                cbar_kws={"label": ylabel},
+                                ax=ax,
+                                vmin=vmin,
+                                vmax=vmax,
+                            )
+                            # Invert y-axis to place origin at lower left
+                            ax.invert_yaxis()
+
+                            ax.set_xlabel(colx, fontsize=12)
+                            if col_idx == 0:  # Only label y-axis on left column
+                                ax.set_ylabel(f"{coly}\n(Layer {depth})", fontsize=12)
+                            else:
+                                ax.set_ylabel("")
+                            ax.set_title(f"Layer {depth} - {title_suffix}", fontsize=12)
+
+                        except Exception as e:
+                            logger.error(
+                                f"Error creating heatmap for {metric} layer {depth} ({title_suffix}): {e}"
+                            )
+                            ax.text(
+                                0.5,
+                                0.5,
+                                f"Error: {str(e)[:50]}",
+                                ha="center",
+                                va="center",
+                                transform=ax.transAxes,
+                            )
+                            ax.set_title(f"Layer {depth} - {title_suffix}")
+
+                fig.suptitle(
+                    f"{label} ({group_title}) - Layerwise Heatmaps",
+                    fontsize=16,
+                    y=0.995,
+                )
+                fig.tight_layout(rect=[0, 0, 1, 0.98])
+
+                # Create safe filename from metric name
+                safe_metric_name = metric.replace("mi_", "").replace("_", "-")
+                plot_path = output_dir / f"{safe_metric_name}_layerwise_heatmaps.png"
+                plot_paths.append(self.save_figure(fig, plot_path))
+
+            except Exception as e:
+                logger.error(f"Error generating layerwise heatmaps for {metric}: {e}")
+                traceback.print_exc()
+
+        logger.info(f"Generated {len(plot_paths)} layerwise heatmap figures")
         return plot_paths

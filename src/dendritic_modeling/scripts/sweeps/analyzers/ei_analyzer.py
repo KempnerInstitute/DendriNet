@@ -76,6 +76,7 @@ class EISweepAnalyzer(BaseSweepAnalyzer):
             "ei_ratio",
             "use_shunting",
             "network_category",
+            "nparams"
         ]
 
     def get_plot_types(self) -> list[str]:

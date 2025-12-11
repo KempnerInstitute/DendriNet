@@ -6,12 +6,14 @@ from typing import Optional
 from .base_analyzer import BaseSweepAnalyzer
 from .branch_analyzer import BranchSweepAnalyzer
 from .ei_analyzer import EISweepAnalyzer
+from .stoch_analyzer import StochasticDatasetSweepAnalyzer
 from .general_analyzer import GeneralSweepAnalyzer
 from .local_learning_analyzer import LocalLearningSweepAnalyzer
 
 # Analyzer registry
 ANALYZER_REGISTRY = {
     "ei": EISweepAnalyzer,
+    "stoch": StochasticDatasetSweepAnalyzer,
     "local_learning": LocalLearningSweepAnalyzer,
     "branch": BranchSweepAnalyzer,
     "general": GeneralSweepAnalyzer,
@@ -64,6 +66,7 @@ __all__ = [
     "BaseSweepAnalyzer",
     "BranchSweepAnalyzer",
     "EISweepAnalyzer",
+    "StochasticDatasetSweepAnalyzer",
     "GeneralSweepAnalyzer",
     "LocalLearningSweepAnalyzer",
     "auto_detect_sweep_type",
