@@ -800,7 +800,7 @@ class InformationPlotter(BasePlotter):
             grid=True,
         )
 
-    def _generate_information_plots(
+    def _generate_information_plots_ei(
         self, valid_data: pd.DataFrame, plots_dir: Path
     ) -> list[Path]:
         """Generate information theory plots matching old analysis format"""
