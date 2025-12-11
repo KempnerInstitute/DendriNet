@@ -27,8 +27,8 @@ class BasePlotter:
         self.info_colors = INFO_COLORS
         self.default_dpi = 300
         self.default_figsize = (10, 6)
-    
-    def detect_sweep_types(self, data: pd.DataFrame) -> list:
+
+    def detect_sweep_types(self, data: pd.DataFrame) -> list[str]:
         """
         Detect the sweep type from the data.
         """
@@ -36,27 +36,21 @@ class BasePlotter:
 
         if data["ei_ratio"].unique().size > 1:
             sweep_types.append("ei")
-        
-        if (
-            "stimulus_duration" in data.columns 
-            and "max_gain_factor" in data.columns
-        ):
+
+        if "stimulus_duration" in data.columns and "max_gain_factor" in data.columns:
             if (
-                data["stimulus_duration"].unique().size > 1 
+                data["stimulus_duration"].unique().size > 1
                 and data["max_gain_factor"].unique().size > 1
             ):
                 sweep_types.append("stoch1")
-        
-        if (
-            "stimulus_duration" in data.columns 
-            and "max_gain_tau_ratio" in data.columns
-        ):
+
+        if "stimulus_duration" in data.columns and "max_gain_tau_ratio" in data.columns:
             if (
-                data["stimulus_duration"].unique().size > 1 
+                data["stimulus_duration"].unique().size > 1
                 and data["max_gain_tau_ratio"].unique().size > 1
             ):
                 sweep_types.append("stoch2")
-        
+
         if data["nparams"].unique().size > 1:
             sweep_types.append("nparams")
 

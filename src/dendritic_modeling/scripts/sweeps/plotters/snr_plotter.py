@@ -110,7 +110,9 @@ class SNRPlotter(BasePlotter):
                         )
                     )
                 except Exception as e:
-                    print(f"Error generating stochastic SNR plot for {prefix}: {e}")
+                    logger.error(
+                        f"Error generating stochastic SNR plot for {prefix}: {e}"
+                    )
 
             if "stoch2" in sweep_types:
                 try:
@@ -240,12 +242,12 @@ class SNRPlotter(BasePlotter):
     def _create_snr_heatmaps(
         self,
         valid_data: pd.DataFrame,
-        output_dir: str,
+        output_dir: Path,
         prefix: str,
         depths: list[int],
         colx: str,
         coly: str,
-    ) -> list[str]:
+    ) -> list[Path]:
         """
         Create SNR heatmaps
 

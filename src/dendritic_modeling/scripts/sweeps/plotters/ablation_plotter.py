@@ -228,7 +228,7 @@ class AblationPlotter(BasePlotter):
                         )
                     )
                 except Exception as e:
-                    print(
+                    logger.error(
                         f"Error generating stochastic ablation plot for {ablation_type}_{metric}: {e}"
                     )
                     traceback.print_exc()
@@ -355,13 +355,13 @@ class AblationPlotter(BasePlotter):
     def _create_ablation_heatmaps(
         self,
         valid_data: pd.DataFrame,
-        output_dir: str,
+        output_dir: Path,
         ablation_type: str,
         metric: str,
         depths: list[int],
         colx: str,
         coly: str,
-    ) -> list[str]:
+    ) -> list[Path]:
         """Create ablation heatmaps
 
         Args:
