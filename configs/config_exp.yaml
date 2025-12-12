@@ -39,7 +39,7 @@ experiment:
 # DATA
 # ============================================================================
 data:
-  dataset_name: "cifar10"               # Dataset name
+  dataset_name: "mnist"               # Dataset name
   # Options: "mnist", "cifar10", "imagenet", "mnist_modulo10", "random_flip_mnist",
   #          "poisson_generator", "multixor", "orientation_bars", "orthonet"
 
@@ -107,7 +107,7 @@ model:
     architecture:
       excitatory_layer_sizes: [20]      # Number of excitatory neurons per layer
       inhibitory_layer_sizes: []        # Number of inhibitory neurons per layer
-      excitatory_branch_factors: [3, 3, 3, 3]  # Branching factors for excitatory dendrites
+      excitatory_branch_factors: [3, 3]  # Branching factors for excitatory dendrites
       inhibitory_branch_factors: [1]    # Branching factors for inhibitory dendrites
 
       # Inhibitory network configuration
@@ -223,7 +223,7 @@ training:
     #          "freeze_layers", "freeze_branches", "local_ca", "multi_stage"
 
     common:
-      epochs: 1000                      # Number of training epochs
+      epochs: 100                      # Number of training epochs
       batch_size: 128                   # Training batch size
       shuffle: true                     # Shuffle training data (true/false)
       grad_clip_value: 5.0              # Gradient clipping value
@@ -488,9 +488,9 @@ analysis:
       per_neuron_analysis: false        # Per-neuron analysis (true/false)
       per_einet_analysis: false         # Per-EI-network analysis (true/false)
       per_layer_analysis: false         # Per-layer analysis (true/false)
-      include_branch_input: true        # Include branch input (Vb) in MI analysis (true/false)
+      include_branch_input: false        # Include branch input (Vb) in MI analysis (true/false)
       compute_lda_weights: true         # Compute LDA-based E_lin, I_lin, Vb_lin (true/false)
-      lda_n_shuffles: 2                 # Number of random weight shuffles for baseline (0 = disabled)
+      lda_n_shuffles: 0                 # Number of random weight shuffles for baseline (0 = disabled)
 
   correlation_analysis:
     enabled: false                      # Enable correlation analysis (true/false)
