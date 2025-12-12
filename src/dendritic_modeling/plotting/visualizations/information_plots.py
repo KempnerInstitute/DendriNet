@@ -1593,60 +1593,150 @@ def plot_fully_aggregated_analysis(
 
     sorted_depths = sorted(all_depths, key=depth_sort_key)
 
-    # Define metric categories
-    metric_types = [
+    # Define metric categories with paired comparisons (network-learned vs LDA)
+    # Each entry: (title, [(metric_name, color, label), ...])
+    metric_pairs = [
         (
             "basic_mi",
             [
-                "I(E;C)",
-                "I(I;C)",
-                "I(Vb;C)",
-                "I(Vout;C)",
-                "I(E,I;C)",
-                "I(E_lin;C)",
-                "I(I_lin;C)",
-                "I(Vb_lin;C)",
-                "I(E_lin,I_lin;C)",
+                (
+                    "I(E;C) vs I(E_lin;C)",
+                    [
+                        ("I(E;C)", "#1f77b4", "Network"),
+                        ("I(E_lin;C)", "#ff7f0e", "LDA"),
+                    ],
+                ),
+                (
+                    "I(I;C) vs I(I_lin;C)",
+                    [
+                        ("I(I;C)", "#1f77b4", "Network"),
+                        ("I(I_lin;C)", "#ff7f0e", "LDA"),
+                    ],
+                ),
+                (
+                    "I(Vb;C) vs I(Vb_lin;C)",
+                    [
+                        ("I(Vb;C)", "#1f77b4", "Network"),
+                        ("I(Vb_lin;C)", "#ff7f0e", "LDA"),
+                    ],
+                ),
+                (
+                    "I(Vout;C) vs I(Vout_lin;C)",
+                    [
+                        ("I(Vout;C)", "#1f77b4", "Network"),
+                        ("I(Vout_lin;C)", "#ff7f0e", "LDA"),
+                    ],
+                ),
+                (
+                    "I(E,I;C) vs I(E_lin,I_lin;C)",
+                    [
+                        ("I(E,I;C)", "#1f77b4", "Network"),
+                        ("I(E_lin,I_lin;C)", "#ff7f0e", "LDA"),
+                    ],
+                ),
             ],
         ),
         (
             "pairwise_mi",
             [
-                "I(E;I)",
-                "I(E;Vout)",
-                "I(I;Vout)",
-                "I(E;Vb)",
-                "I(I;Vb)",
-                "I(Vb;Vout)",
-                "I(E_lin;I_lin)",
-                "I(E_lin;Vout)",
-                "I(I_lin;Vout)",
-                "I(E_lin;Vb_lin)",
-                "I(I_lin;Vb_lin)",
+                (
+                    "I(E;I) vs I(E_lin;I_lin)",
+                    [
+                        ("I(E;I)", "#1f77b4", "Network"),
+                        ("I(E_lin;I_lin)", "#ff7f0e", "LDA"),
+                    ],
+                ),
+                (
+                    "I(E;Vout) vs I(E_lin;Vout_lin)",
+                    [
+                        ("I(E;Vout)", "#1f77b4", "Network"),
+                        ("I(E_lin;Vout_lin)", "#ff7f0e", "LDA"),
+                    ],
+                ),
+                (
+                    "I(I;Vout) vs I(I_lin;Vout_lin)",
+                    [
+                        ("I(I;Vout)", "#1f77b4", "Network"),
+                        ("I(I_lin;Vout_lin)", "#ff7f0e", "LDA"),
+                    ],
+                ),
+                (
+                    "I(E;Vb) vs I(E_lin;Vb_lin)",
+                    [
+                        ("I(E;Vb)", "#1f77b4", "Network"),
+                        ("I(E_lin;Vb_lin)", "#ff7f0e", "LDA"),
+                    ],
+                ),
+                (
+                    "I(I;Vb) vs I(I_lin;Vb_lin)",
+                    [
+                        ("I(I;Vb)", "#1f77b4", "Network"),
+                        ("I(I_lin;Vb_lin)", "#ff7f0e", "LDA"),
+                    ],
+                ),
+                (
+                    "I(Vb;Vout) vs I(Vb_lin;Vout_lin)",
+                    [
+                        ("I(Vb;Vout)", "#1f77b4", "Network"),
+                        ("I(Vb_lin;Vout_lin)", "#ff7f0e", "LDA"),
+                    ],
+                ),
             ],
         ),
         (
             "conditional_mi",
             [
-                "I(E;I|C)",
-                "I(E;Vout|C)",
-                "I(I;Vout|C)",
-                "I(E;Vb|C)",
-                "I(I;Vb|C)",
-                "I(Vb;Vout|C)",
-                "I(E_lin;I_lin|C)",
-                "I(E_lin;Vout|C)",
-                "I(I_lin;Vout|C)",
+                (
+                    "I(E;I|C) vs I(E_lin;I_lin|C)",
+                    [
+                        ("I(E;I|C)", "#1f77b4", "Network"),
+                        ("I(E_lin;I_lin|C)", "#ff7f0e", "LDA"),
+                    ],
+                ),
+                (
+                    "I(E;Vout|C) vs I(E_lin;Vout_lin|C)",
+                    [
+                        ("I(E;Vout|C)", "#1f77b4", "Network"),
+                        ("I(E_lin;Vout_lin|C)", "#ff7f0e", "LDA"),
+                    ],
+                ),
+                (
+                    "I(I;Vout|C) vs I(I_lin;Vout_lin|C)",
+                    [
+                        ("I(I;Vout|C)", "#1f77b4", "Network"),
+                        ("I(I_lin;Vout_lin|C)", "#ff7f0e", "LDA"),
+                    ],
+                ),
+                (
+                    "I(E;Vb|C) vs I(E_lin;Vb_lin|C)",
+                    [
+                        ("I(E;Vb|C)", "#1f77b4", "Network"),
+                        ("I(E_lin;Vb_lin|C)", "#ff7f0e", "LDA"),
+                    ],
+                ),
+                (
+                    "I(I;Vb|C) vs I(I_lin;Vb_lin|C)",
+                    [
+                        ("I(I;Vb|C)", "#1f77b4", "Network"),
+                        ("I(I_lin;Vb_lin|C)", "#ff7f0e", "LDA"),
+                    ],
+                ),
+                (
+                    "I(Vb;Vout|C) vs I(Vb_lin;Vout_lin|C)",
+                    [
+                        ("I(Vb;Vout|C)", "#1f77b4", "Network"),
+                        ("I(Vb_lin;Vout_lin|C)", "#ff7f0e", "LDA"),
+                    ],
+                ),
             ],
         ),
     ]
 
-    # Generate plots for each metric category
-    for metric_category, metrics in metric_types:
-        # Dynamically size the grid based on number of metrics
-        n_metrics = len(metrics)
+    # Generate plots for each metric category with paired comparisons
+    for metric_category, metric_groups in metric_pairs:
+        n_plots = len(metric_groups)
         n_cols = 3  # Use 3 columns for better layout
-        n_rows = (n_metrics + n_cols - 1) // n_cols  # Ceiling division
+        n_rows = (n_plots + n_cols - 1) // n_cols
 
         fig, axes = plt.subplots(n_rows, n_cols, figsize=(5 * n_cols, 4 * n_rows))
         if n_rows == 1 and n_cols == 1:
@@ -1656,91 +1746,91 @@ def plot_fully_aggregated_analysis(
         else:
             axes = axes.flatten()
 
-        for idx, metric in enumerate(metrics):
+        for idx, (plot_title, metrics_list) in enumerate(metric_groups):
             if idx >= len(axes):
                 break
             ax = axes[idx]
+            has_data = False
 
-            # Extract values for this metric across depths
-            depths = []
-            values = []
-            errors = []
+            # Plot each metric in this comparison group (network vs LDA)
+            for metric, color, label in metrics_list:
+                depths = []
+                values = []
+                errors = []
 
-            for depth_label in sorted_depths:
-                if depth_label in final_aggregated:
-                    depth_stats = final_aggregated[depth_label]
-                    if f"{metric}_mean" in depth_stats:
-                        depths.append(depth_label)
-                        values.append(depth_stats[f"{metric}_mean"])
-                        errors.append(
-                            depth_stats.get(f"{metric}_std", 0) / 5.0
-                        )  # Smaller error bars
+                for depth_label in sorted_depths:
+                    if depth_label in final_aggregated:
+                        depth_stats = final_aggregated[depth_label]
+                        if f"{metric}_mean" in depth_stats:
+                            depths.append(depth_label)
+                            values.append(depth_stats[f"{metric}_mean"])
+                            errors.append(depth_stats.get(f"{metric}_std", 0) / 5.0)
 
-            if depths and values:
-                x_pos = np.arange(len(depths))
+                if depths and values:
+                    has_data = True
+                    x_pos = np.arange(len(depths))
 
-                # Plot single line representing aggregated network
-                ax.errorbar(
-                    x_pos,
-                    values,
-                    yerr=errors,
-                    marker="o",
-                    linewidth=2,
-                    markersize=6,
-                    label="All Networks",
-                    color="#1f77b4",
-                    capsize=3,
-                )
+                    ax.errorbar(
+                        x_pos,
+                        values,
+                        yerr=errors,
+                        marker="o",
+                        linewidth=2,
+                        markersize=6,
+                        label=label,
+                        color=color,
+                        capsize=3,
+                    )
 
-                # Fill between for variance
-                ax.fill_between(
-                    x_pos,
-                    [v - e for v, e in zip(values, errors)],
-                    [v + e for v, e in zip(values, errors)],
-                    alpha=0.2,
-                    color="#1f77b4",
-                )
+                    ax.fill_between(
+                        x_pos,
+                        [v - e for v, e in zip(values, errors)],
+                        [v + e for v, e in zip(values, errors)],
+                        alpha=0.15,
+                        color=color,
+                    )
 
+            if has_data:
                 ax.set_xlabel("Dendritic Depth")
                 if plot_variance:
-                    ax.set_ylabel(f"{metric} variance (bits²)")
-                    ax.set_title(f"{metric} variance")
+                    ax.set_ylabel("MI variance (bits^2)")
+                    ax.set_title(f"{plot_title} (variance)")
                 else:
-                    ax.set_ylabel(f"{metric} (bits)")
-                    ax.set_title(f"{metric}")
-                ax.set_xticks(range(len(depths)))
-                ax.set_xticklabels(depths, rotation=0)
+                    ax.set_ylabel("MI (bits)")
+                    ax.set_title(plot_title)
+                ax.set_xticks(range(len(sorted_depths)))
+                ax.set_xticklabels(sorted_depths, rotation=0)
                 ax.grid(True, alpha=0.3)
-                ax.legend()
+                ax.legend(loc="best")
             else:
                 data_type = "variance" if plot_variance else "data"
                 ax.text(
                     0.5,
                     0.5,
-                    f"No {data_type} for {metric}",
+                    f"No {data_type} for {plot_title}",
                     ha="center",
                     va="center",
                     transform=ax.transAxes,
                 )
 
         # Remove empty subplots
-        for idx in range(len(metrics), len(axes)):
+        for idx in range(n_plots, len(axes)):
             fig.delaxes(axes[idx])
 
         plot_type = "Variance" if plot_variance else "Analysis"
         fig.suptitle(
-            f"Information {plot_type}: {metric_category.replace('_', ' ').title()} vs Dendritic Depth",
+            f"Information {plot_type}: {metric_category.replace('_', ' ').title()} (Network vs LDA)",
             fontsize=16,
         )
         plt.tight_layout()
 
         suffix = "_variance" if plot_variance else ""
-        filename = f"aggregated_{metric_category}{suffix}_depth.png"
+        filename = f"aggregated_{metric_category}_comparison{suffix}_depth.png"
         filepath = os.path.join(save_path, filename)
         plt.savefig(filepath, dpi=300, bbox_inches="tight")
         plt.close()
 
-        logger.info(f"Saved aggregated plot: {filename}")
+        logger.info(f"Saved aggregated comparison plot: {filename}")
 
 
 def plot_information_variance_analysis(

@@ -737,28 +737,25 @@ class InformationAnalyzer(AbstractAnalyzer):
         """Compute mean and std of MI results across multiple branches for a given layer."""
         layer_stats = {}
 
-        # Handle nested structure
-        if "basic_mi" in results_list[0]:
-            # Process basic MI metrics
-            if "basic_mi" in results_list[0]:
-                for key in results_list[0]["basic_mi"].keys():
-                    values = [r["basic_mi"][key] for r in results_list]
-                    layer_stats[f"{key}_mean"] = np.mean(values)
-                    layer_stats[f"{key}_std"] = np.std(values)
+        # Handle nested structure - collect ALL unique keys across all branches
+        if results_list and "basic_mi" in results_list[0]:
+            # Process each metric category, collecting all unique keys
+            for metric_category in ["basic_mi", "pairwise_mi", "conditional_mi"]:
+                # Gather all unique keys across all branches
+                all_keys = set()
+                for r in results_list:
+                    if metric_category in r:
+                        all_keys.update(r[metric_category].keys())
 
-            # Process pairwise MI metrics
-            if "pairwise_mi" in results_list[0]:
-                for key in results_list[0]["pairwise_mi"].keys():
-                    values = [r["pairwise_mi"][key] for r in results_list]
-                    layer_stats[f"{key}_mean"] = np.mean(values)
-                    layer_stats[f"{key}_std"] = np.std(values)
-
-            # Process conditional MI metrics
-            if "conditional_mi" in results_list[0]:
-                for key in results_list[0]["conditional_mi"].keys():
-                    values = [r["conditional_mi"][key] for r in results_list]
-                    layer_stats[f"{key}_mean"] = np.mean(values)
-                    layer_stats[f"{key}_std"] = np.std(values)
+                # Process each unique key
+                for key in all_keys:
+                    values = []
+                    for r in results_list:
+                        if metric_category in r and key in r[metric_category]:
+                            values.append(r[metric_category][key])
+                    if values:
+                        layer_stats[f"{key}_mean"] = np.mean(values)
+                        layer_stats[f"{key}_std"] = np.std(values)
 
         return layer_stats
 
@@ -903,26 +900,30 @@ class InformationAnalyzer(AbstractAnalyzer):
         self,
         layer_data: dict,
         C: np.ndarray,
-    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-        """Compute LDA-weighted versions of E, I, and Vb using TopK-masked features.
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        """Compute LDA-weighted versions of E, I, Vb, and Vout using TopK-masked features.
 
         For each branch, fit LDA only on the input dimensions that pass through
         the TopK mask (i.e., the synapses that are actually connected). This
         computes the optimal linear discriminant for the sparse connectivity
         pattern of each branch.
 
+        Vout_lin is computed by applying the same dendritic computation
+        (shunting or additive) to E_lin, I_lin, Vb_lin, then passing through
+        the network's reactivation function.
+
         Args:
             layer_data: Dictionary containing raw inputs and module
             C: Class labels, shape [n_samples,]
 
         Returns:
-            Tuple of (E_lin, I_lin, Vb_lin) each shape [n_samples, n_branches]
+            Tuple of (E_lin, I_lin, Vb_lin, Vout_lin) each shape [n_samples, n_branches]
         """
         from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 
         module = layer_data.get("module")
         if module is None:
-            return None, None, None
+            return None, None, None, None
 
         raw_exc = layer_data.get("raw_excitatory_input")
         raw_inh = layer_data.get("raw_inhibitory_input")
@@ -934,6 +935,7 @@ class InformationAnalyzer(AbstractAnalyzer):
         E_lin = np.zeros((n_samples, n_branches))
         I_lin = np.zeros((n_samples, n_branches))
         Vb_lin = np.zeros((n_samples, n_branches))
+        Vout_lin = np.zeros((n_samples, n_branches))
 
         # Check if we have enough classes for LDA
         if len(np.unique(C)) <= 1:
@@ -941,7 +943,8 @@ class InformationAnalyzer(AbstractAnalyzer):
             E_lin = layer_data["excitation"].detach().cpu().numpy()
             I_lin = layer_data["inhibition"].detach().cpu().numpy()
             Vb_lin = layer_data["branch_input"].detach().cpu().numpy()
-            return E_lin, I_lin, Vb_lin
+            Vout_lin = layer_data["output"].detach().cpu().numpy()
+            return E_lin, I_lin, Vb_lin, Vout_lin
 
         # For E: Fit LDA on TopK-masked excitatory inputs for each branch
         if raw_exc is not None and module.branch_excitation is not None:
@@ -1082,7 +1085,41 @@ class InformationAnalyzer(AbstractAnalyzer):
                 # Fallback: no block structure, use network weights
                 Vb_lin = layer_data["branch_input"].detach().cpu().numpy()
 
-        return E_lin, I_lin, Vb_lin
+        # Compute Vout_lin by applying the same dendritic computation to LDA inputs
+        # Then pass through the network's reactivation function
+        use_shunting = getattr(module, "use_shunting", True)
+        epsilon = getattr(module, "epsilon", 1e-8)
+
+        if use_shunting:
+            # Shunting inhibition: voltage = (E + Vb) / (1 + relu(E) + relu(I) + relu(Vb_conductance))
+            # Simplified version using LDA signals
+            numerator = E_lin + Vb_lin
+            denominator = (
+                1.0
+                + np.maximum(E_lin, 0)
+                + np.maximum(I_lin, 0)
+                + np.maximum(Vb_lin, 0)
+            )
+            voltage_lin = numerator / (denominator + epsilon)
+        else:
+            # Additive: voltage = E + Vb - I
+            voltage_lin = E_lin + Vb_lin - I_lin
+
+        # Apply reactivation function if available
+        if hasattr(module, "reactivation") and module.reactivation is not None:
+            import torch
+
+            with torch.no_grad():
+                voltage_tensor = torch.tensor(voltage_lin, dtype=torch.float32)
+                if next(module.reactivation.parameters(), None) is not None:
+                    device = next(module.reactivation.parameters()).device
+                    voltage_tensor = voltage_tensor.to(device)
+                Vout_lin = module.reactivation(voltage_tensor).cpu().numpy()
+        else:
+            # No reactivation, use voltage directly
+            Vout_lin = voltage_lin
+
+        return E_lin, I_lin, Vb_lin, Vout_lin
 
     def ensure_inhibitory_data(
         self, excitation_data: torch.Tensor, inhibition_data: torch.Tensor
@@ -1535,11 +1572,11 @@ class InformationAnalyzer(AbstractAnalyzer):
 
                     # Compute LDA versions if requested
                     if self.compute_lda_weights:
-                        E_lin, I_lin, Vb_lin = self.compute_lda_aggregated_signals(
-                            layer_data, C
+                        E_lin, I_lin, Vb_lin, Vout_lin = (
+                            self.compute_lda_aggregated_signals(layer_data, C)
                         )
                     else:
-                        E_lin, I_lin, Vb_lin = None, None, None
+                        E_lin, I_lin, Vb_lin, Vout_lin = None, None, None, None
 
                     # E_all_branches shape: (n_samples, n_branches)
                     n_branches = E_all_branches.shape[1]
@@ -1581,11 +1618,12 @@ class InformationAnalyzer(AbstractAnalyzer):
                             E_branch_lin = E_lin[:, branch_idx : branch_idx + 1]
                             I_branch_lin = I_lin[:, branch_idx : branch_idx + 1]
                             Vb_branch_lin = Vb_lin[:, branch_idx : branch_idx + 1]
+                            Vout_branch_lin = Vout_lin[:, branch_idx : branch_idx + 1]
 
                             branch_results_lin = self.compute_metrics(
                                 E_branch_lin,
                                 I_branch_lin,
-                                Vout_branch,
+                                Vout_branch_lin,  # Use LDA-computed Vout
                                 C,
                                 None,
                                 Vb_branch_lin,
@@ -1609,6 +1647,10 @@ class InformationAnalyzer(AbstractAnalyzer):
                                         new_subkey = new_subkey.replace(
                                             "(E,I;", "(E_lin,I_lin;"
                                         )
+                                        # Also rename Vout to Vout_lin
+                                        new_subkey = new_subkey.replace(
+                                            "(Vout;", "(Vout_lin;"
+                                        ).replace(";Vout)", ";Vout_lin)")
                                         renamed_dict[new_subkey] = subval
                                     branch_results_lin_renamed[key] = renamed_dict
                                 else:
@@ -2011,14 +2053,60 @@ class InformationAnalyzer(AbstractAnalyzer):
                         except (ValueError, IndexError):
                             continue
 
-                # Extract I(Vout;C) from the real soma layer
+                # Extract I(Vout;C) and I(Vb;C) from the real soma layer
+                # The soma still receives branch input from dendrites (Vb),
+                # even when somatic_synapses=False (no E/I synapses at soma)
+                soma_vb_mean = 0.0
+                soma_vb_std = 0.0
+                soma_vb_lin_mean = 0.0
+                soma_vb_lin_std = 0.0
+                soma_vb_vout_mean = 0.0
+                soma_vb_vout_std = 0.0
+                soma_vb_vout_c_mean = 0.0
+                soma_vb_vout_c_std = 0.0
+                soma_vb_lin_vout_mean = 0.0
+                soma_vb_lin_vout_std = 0.0
+                soma_vb_lin_vout_c_mean = 0.0
+                soma_vb_lin_vout_c_std = 0.0
+                # Vout_lin metrics
+                soma_vout_lin_mean = 0.0
+                soma_vout_lin_std = 0.0
+
                 if real_soma_layer and real_soma_layer in results["layer_statistics"]:
                     real_soma_stats = results["layer_statistics"][real_soma_layer]
                     soma_vout_mean = real_soma_stats.get("I(Vout;C)_mean", 0.0)
                     soma_vout_std = real_soma_stats.get("I(Vout;C)_std", 0.0)
+                    # Get Vb metrics from real soma layer - these represent dendrites feeding into soma
+                    soma_vb_mean = real_soma_stats.get("I(Vb;C)_mean", 0.0)
+                    soma_vb_std = real_soma_stats.get("I(Vb;C)_std", 0.0)
+                    soma_vb_lin_mean = real_soma_stats.get("I(Vb_lin;C)_mean", 0.0)
+                    soma_vb_lin_std = real_soma_stats.get("I(Vb_lin;C)_std", 0.0)
+                    # Get Vb-related pairwise and conditional MI
+                    soma_vb_vout_mean = real_soma_stats.get("I(Vb;Vout)_mean", 0.0)
+                    soma_vb_vout_std = real_soma_stats.get("I(Vb;Vout)_std", 0.0)
+                    soma_vb_vout_c_mean = real_soma_stats.get("I(Vb;Vout|C)_mean", 0.0)
+                    soma_vb_vout_c_std = real_soma_stats.get("I(Vb;Vout|C)_std", 0.0)
+                    soma_vb_lin_vout_mean = real_soma_stats.get(
+                        "I(Vb_lin;Vout)_mean", 0.0
+                    )
+                    soma_vb_lin_vout_std = real_soma_stats.get(
+                        "I(Vb_lin;Vout)_std", 0.0
+                    )
+                    soma_vb_lin_vout_c_mean = real_soma_stats.get(
+                        "I(Vb_lin;Vout|C)_mean", 0.0
+                    )
+                    soma_vb_lin_vout_c_std = real_soma_stats.get(
+                        "I(Vb_lin;Vout|C)_std", 0.0
+                    )
+                    # Get Vout_lin metrics from real soma layer
+                    soma_vout_lin_mean = real_soma_stats.get("I(Vout_lin;C)_mean", 0.0)
+                    soma_vout_lin_std = real_soma_stats.get("I(Vout_lin;C)_std", 0.0)
                     self.logger.info(f"Found real soma layer: {real_soma_layer}")
                     self.logger.info(
                         f"Using real soma I(Vout;C): {soma_vout_mean:.4f} ± {soma_vout_std:.4f}"
+                    )
+                    self.logger.info(
+                        f"Using real soma I(Vb;C): {soma_vb_mean:.4f} ± {soma_vb_std:.4f}"
                     )
                 else:
                     self.logger.warning(
@@ -2026,24 +2114,28 @@ class InformationAnalyzer(AbstractAnalyzer):
                     )
 
                 # Add synthetic soma entry with appropriate values
+                # Note: E/I synapses are zero, but Vb (branch input from dendrites) carries information
                 soma_entry = {
                     "I(E;C)_mean": 0.0,  # Zero - no excitatory synapses
                     "I(E;C)_std": 0.0,
                     "I(I;C)_mean": 0.0,  # Zero - no inhibitory synapses
                     "I(I;C)_std": 0.0,
-                    "I(Vb;C)_mean": 0.0,  # Zero - no branch input at soma
-                    "I(Vb;C)_std": 0.0,
+                    # Dendrites still feed into soma - use real soma layer's Vb values
+                    "I(Vb;C)_mean": soma_vb_mean,
+                    "I(Vb;C)_std": soma_vb_std,
                     "I(Vout;C)_mean": soma_vout_mean,  # Real computed value from soma output
                     "I(Vout;C)_std": soma_vout_std,  # Real computed std from soma output
                     "I(E,I;C)_mean": 0.0,  # Zero - no synapses
                     "I(E,I;C)_std": 0.0,
-                    # LDA metrics - also zero at soma (no synapses)
+                    # LDA metrics - E/I are zero (no synapses), but Vb_lin carries information
                     "I(E_lin;C)_mean": 0.0,
                     "I(E_lin;C)_std": 0.0,
                     "I(I_lin;C)_mean": 0.0,
                     "I(I_lin;C)_std": 0.0,
-                    "I(Vb_lin;C)_mean": 0.0,
-                    "I(Vb_lin;C)_std": 0.0,
+                    "I(Vb_lin;C)_mean": soma_vb_lin_mean,
+                    "I(Vb_lin;C)_std": soma_vb_lin_std,
+                    "I(Vout_lin;C)_mean": soma_vout_lin_mean,
+                    "I(Vout_lin;C)_std": soma_vout_lin_std,
                     "I(E_lin,I_lin;C)_mean": 0.0,
                     "I(E_lin,I_lin;C)_std": 0.0,
                     # Pairwise MI
@@ -2057,8 +2149,9 @@ class InformationAnalyzer(AbstractAnalyzer):
                     "I(E;Vb)_std": 0.0,
                     "I(I;Vb)_mean": 0.0,
                     "I(I;Vb)_std": 0.0,
-                    "I(Vb;Vout)_mean": 0.0,
-                    "I(Vb;Vout)_std": 0.0,
+                    # Vb;Vout is meaningful - dendrites to soma output
+                    "I(Vb;Vout)_mean": soma_vb_vout_mean,
+                    "I(Vb;Vout)_std": soma_vb_vout_std,
                     # LDA pairwise MI
                     "I(E_lin;I_lin)_mean": 0.0,
                     "I(E_lin;I_lin)_std": 0.0,
@@ -2070,6 +2163,9 @@ class InformationAnalyzer(AbstractAnalyzer):
                     "I(E_lin;Vb_lin)_std": 0.0,
                     "I(I_lin;Vb_lin)_mean": 0.0,
                     "I(I_lin;Vb_lin)_std": 0.0,
+                    # Vb_lin;Vout is meaningful
+                    "I(Vb_lin;Vout)_mean": soma_vb_lin_vout_mean,
+                    "I(Vb_lin;Vout)_std": soma_vb_lin_vout_std,
                     # Conditional MI
                     "I(E;I|C)_mean": 0.0,  # Zero - no synapses
                     "I(E;I|C)_std": 0.0,
@@ -2081,8 +2177,9 @@ class InformationAnalyzer(AbstractAnalyzer):
                     "I(E;Vb|C)_std": 0.0,
                     "I(I;Vb|C)_mean": 0.0,
                     "I(I;Vb|C)_std": 0.0,
-                    "I(Vb;Vout|C)_mean": 0.0,
-                    "I(Vb;Vout|C)_std": 0.0,
+                    # Vb;Vout|C is meaningful
+                    "I(Vb;Vout|C)_mean": soma_vb_vout_c_mean,
+                    "I(Vb;Vout|C)_std": soma_vb_vout_c_std,
                     # LDA conditional MI
                     "I(E_lin;I_lin|C)_mean": 0.0,
                     "I(E_lin;I_lin|C)_std": 0.0,
@@ -2094,6 +2191,9 @@ class InformationAnalyzer(AbstractAnalyzer):
                     "I(E_lin;Vb_lin|C)_std": 0.0,
                     "I(I_lin;Vb_lin|C)_mean": 0.0,
                     "I(I_lin;Vb_lin|C)_std": 0.0,
+                    # Vb_lin;Vout|C is meaningful
+                    "I(Vb_lin;Vout|C)_mean": soma_vb_lin_vout_c_mean,
+                    "I(Vb_lin;Vout|C)_std": soma_vb_lin_vout_c_std,
                 }
                 # Add soma entry to layer_statistics
                 results["layer_statistics"]["synthetic_soma"] = soma_entry
@@ -2149,6 +2249,130 @@ class InformationAnalyzer(AbstractAnalyzer):
         return self.estimators[self.method].conditional_mutual_information(
             activations, labels, condition
         )
+
+    def compare_lda_vs_trained_performance(
+        self,
+        model: torch.nn.Module,
+        dataloader: torch.utils.data.DataLoader,
+        device: torch.device = None,
+    ) -> dict:
+        """Compare classification performance using trained weights vs LDA-optimal weights.
+
+        This method computes:
+        1. Performance with trained network weights (original model)
+        2. Performance with LDA-optimized input aggregation (Vout_lin passed through decoder)
+
+        The LDA version uses optimal linear weights for aggregating synaptic inputs,
+        while keeping the network's nonlinear processing (reactivation) and decoder.
+
+        Args:
+            model: Trained model with encoder, core_network, and decoder
+            dataloader: DataLoader with test/validation data
+            device: Device to run computations on
+
+        Returns:
+            Dictionary with:
+            - trained_accuracy: Accuracy with trained weights
+            - lda_accuracy: Accuracy with LDA-optimal aggregation
+            - trained_predictions: Predictions from trained model
+            - lda_predictions: Predictions from LDA-aggregated outputs
+            - per_layer_comparison: Per-layer accuracy comparison
+        """
+        from sklearn.metrics import accuracy_score
+
+        if device is None:
+            device = next(model.parameters()).device
+
+        model.eval()
+
+        all_labels = []
+        all_trained_preds = []
+        all_lda_outputs = []
+
+        self.logger.info("Computing LDA vs trained weights performance comparison...")
+
+        with torch.no_grad():
+            for batch_idx, (inputs, labels) in enumerate(dataloader):
+                inputs = inputs.to(device)
+                labels_np = labels.numpy() if hasattr(labels, "numpy") else labels
+
+                # Get trained model predictions
+                trained_outputs = model(inputs)
+                trained_preds = trained_outputs.argmax(dim=1).cpu().numpy()
+
+                # Collect LDA-aggregated outputs from each layer
+                # First, run through encoder
+                if hasattr(model, "encoder") and model.encoder is not None:
+                    encoded = model.encoder(inputs)
+                else:
+                    encoded = inputs
+
+                # Run through core network to collect activations
+                handles = self.register_forward_hooks(model.core_network)
+                _ = model.core_network(encoded)
+                self.remove_forward_hooks(handles)
+
+                # Compute LDA aggregation for each layer and get final Vout_lin
+                final_vout_lin = None
+                for _layer_name, layer_data in self.data_dict.items():
+                    if "excitation" not in layer_data:
+                        continue
+
+                    # Compute LDA-aggregated signals
+                    lda_result = self.compute_lda_aggregated_signals(
+                        layer_data, labels_np
+                    )
+                    if lda_result[0] is not None:
+                        E_lin, I_lin, Vb_lin, Vout_lin = lda_result
+                        # Keep the last layer's Vout_lin (closest to output)
+                        final_vout_lin = Vout_lin
+
+                # Pass LDA outputs through decoder
+                if final_vout_lin is not None and hasattr(model, "decoder"):
+                    vout_tensor = torch.tensor(final_vout_lin, dtype=torch.float32).to(
+                        device
+                    )
+                    lda_logits = model.decoder(vout_tensor)
+                    all_lda_outputs.append(lda_logits.cpu())
+
+                all_labels.extend(labels_np)
+                all_trained_preds.extend(trained_preds)
+
+                if batch_idx % 10 == 0:
+                    self.logger.debug(f"  Processed batch {batch_idx + 1}")
+
+        # Compute LDA predictions
+        if all_lda_outputs:
+            lda_logits_all = torch.cat(all_lda_outputs, dim=0)
+            lda_preds = lda_logits_all.argmax(dim=1).numpy()
+            lda_accuracy = accuracy_score(all_labels, lda_preds)
+        else:
+            lda_preds = None
+            lda_accuracy = None
+            self.logger.warning("Could not compute LDA predictions")
+
+        # Compute trained accuracy
+        trained_accuracy = accuracy_score(all_labels, all_trained_preds)
+
+        results = {
+            "trained_accuracy": trained_accuracy,
+            "lda_accuracy": lda_accuracy,
+            "trained_predictions": all_trained_preds,
+            "lda_predictions": lda_preds,
+            "labels": all_labels,
+            "accuracy_difference": (
+                lda_accuracy - trained_accuracy if lda_accuracy is not None else None
+            ),
+        }
+
+        self.logger.info(f"Trained weights accuracy: {trained_accuracy:.4f}")
+        if lda_accuracy is not None:
+            self.logger.info(f"LDA-optimal weights accuracy: {lda_accuracy:.4f}")
+            self.logger.info(
+                f"Difference (LDA - Trained): {results['accuracy_difference']:.4f}"
+            )
+
+        return results
 
     def _generate_information_plots(
         self, results: dict, save_path: str, somatic_synapses: bool
