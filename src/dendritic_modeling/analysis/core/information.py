@@ -8,7 +8,6 @@ with the main configuration system.
 import logging
 import os
 import time
-import traceback
 from typing import Any, Optional, Union
 
 import numpy as np
@@ -1648,9 +1647,12 @@ class InformationAnalyzer(AbstractAnalyzer):
                                             "(E,I;", "(E_lin,I_lin;"
                                         )
                                         # Also rename Vout to Vout_lin
-                                        new_subkey = new_subkey.replace(
-                                            "(Vout;", "(Vout_lin;"
-                                        ).replace(";Vout)", ";Vout_lin)")
+                                        # Handle both pairwise (;Vout)) and conditional (;Vout|C)) patterns
+                                        new_subkey = (
+                                            new_subkey.replace("(Vout;", "(Vout_lin;")
+                                            .replace(";Vout)", ";Vout_lin)")
+                                            .replace(";Vout|", ";Vout_lin|")
+                                        )
                                         renamed_dict[new_subkey] = subval
                                     branch_results_lin_renamed[key] = renamed_dict
                                 else:
@@ -2087,16 +2089,16 @@ class InformationAnalyzer(AbstractAnalyzer):
                     soma_vb_vout_c_mean = real_soma_stats.get("I(Vb;Vout|C)_mean", 0.0)
                     soma_vb_vout_c_std = real_soma_stats.get("I(Vb;Vout|C)_std", 0.0)
                     soma_vb_lin_vout_mean = real_soma_stats.get(
-                        "I(Vb_lin;Vout)_mean", 0.0
+                        "I(Vb_lin;Vout_lin)_mean", 0.0
                     )
                     soma_vb_lin_vout_std = real_soma_stats.get(
-                        "I(Vb_lin;Vout)_std", 0.0
+                        "I(Vb_lin;Vout_lin)_std", 0.0
                     )
                     soma_vb_lin_vout_c_mean = real_soma_stats.get(
-                        "I(Vb_lin;Vout|C)_mean", 0.0
+                        "I(Vb_lin;Vout_lin|C)_mean", 0.0
                     )
                     soma_vb_lin_vout_c_std = real_soma_stats.get(
-                        "I(Vb_lin;Vout|C)_std", 0.0
+                        "I(Vb_lin;Vout_lin|C)_std", 0.0
                     )
                     # Get Vout_lin metrics from real soma layer
                     soma_vout_lin_mean = real_soma_stats.get("I(Vout_lin;C)_mean", 0.0)
@@ -2152,20 +2154,20 @@ class InformationAnalyzer(AbstractAnalyzer):
                     # Vb;Vout is meaningful - dendrites to soma output
                     "I(Vb;Vout)_mean": soma_vb_vout_mean,
                     "I(Vb;Vout)_std": soma_vb_vout_std,
-                    # LDA pairwise MI
+                    # LDA pairwise MI - use Vout_lin for consistency
                     "I(E_lin;I_lin)_mean": 0.0,
                     "I(E_lin;I_lin)_std": 0.0,
-                    "I(E_lin;Vout)_mean": 0.0,
-                    "I(E_lin;Vout)_std": 0.0,
-                    "I(I_lin;Vout)_mean": 0.0,
-                    "I(I_lin;Vout)_std": 0.0,
+                    "I(E_lin;Vout_lin)_mean": 0.0,
+                    "I(E_lin;Vout_lin)_std": 0.0,
+                    "I(I_lin;Vout_lin)_mean": 0.0,
+                    "I(I_lin;Vout_lin)_std": 0.0,
                     "I(E_lin;Vb_lin)_mean": 0.0,
                     "I(E_lin;Vb_lin)_std": 0.0,
                     "I(I_lin;Vb_lin)_mean": 0.0,
                     "I(I_lin;Vb_lin)_std": 0.0,
-                    # Vb_lin;Vout is meaningful
-                    "I(Vb_lin;Vout)_mean": soma_vb_lin_vout_mean,
-                    "I(Vb_lin;Vout)_std": soma_vb_lin_vout_std,
+                    # Vb_lin;Vout_lin is meaningful
+                    "I(Vb_lin;Vout_lin)_mean": soma_vb_lin_vout_mean,
+                    "I(Vb_lin;Vout_lin)_std": soma_vb_lin_vout_std,
                     # Conditional MI
                     "I(E;I|C)_mean": 0.0,  # Zero - no synapses
                     "I(E;I|C)_std": 0.0,
@@ -2180,20 +2182,20 @@ class InformationAnalyzer(AbstractAnalyzer):
                     # Vb;Vout|C is meaningful
                     "I(Vb;Vout|C)_mean": soma_vb_vout_c_mean,
                     "I(Vb;Vout|C)_std": soma_vb_vout_c_std,
-                    # LDA conditional MI
+                    # LDA conditional MI - use Vout_lin for consistency
                     "I(E_lin;I_lin|C)_mean": 0.0,
                     "I(E_lin;I_lin|C)_std": 0.0,
-                    "I(E_lin;Vout|C)_mean": 0.0,
-                    "I(E_lin;Vout|C)_std": 0.0,
-                    "I(I_lin;Vout|C)_mean": 0.0,
-                    "I(I_lin;Vout|C)_std": 0.0,
+                    "I(E_lin;Vout_lin|C)_mean": 0.0,
+                    "I(E_lin;Vout_lin|C)_std": 0.0,
+                    "I(I_lin;Vout_lin|C)_mean": 0.0,
+                    "I(I_lin;Vout_lin|C)_std": 0.0,
                     "I(E_lin;Vb_lin|C)_mean": 0.0,
                     "I(E_lin;Vb_lin|C)_std": 0.0,
                     "I(I_lin;Vb_lin|C)_mean": 0.0,
                     "I(I_lin;Vb_lin|C)_std": 0.0,
-                    # Vb_lin;Vout|C is meaningful
-                    "I(Vb_lin;Vout|C)_mean": soma_vb_lin_vout_c_mean,
-                    "I(Vb_lin;Vout|C)_std": soma_vb_lin_vout_c_std,
+                    # Vb_lin;Vout_lin|C is meaningful
+                    "I(Vb_lin;Vout_lin|C)_mean": soma_vb_lin_vout_c_mean,
+                    "I(Vb_lin;Vout_lin|C)_std": soma_vb_lin_vout_c_std,
                 }
                 # Add soma entry to layer_statistics
                 results["layer_statistics"]["synthetic_soma"] = soma_entry
@@ -2212,6 +2214,41 @@ class InformationAnalyzer(AbstractAnalyzer):
             self.logger.info(
                 f"Variance analysis computed with {len(variance_analysis.get('layer_variances', {}))} layers"
             )
+
+            # Compute LDA vs trained performance comparison if LDA weights are enabled
+            if self.compute_lda_weights and save_path is not None:
+                try:
+                    self.logger.info(
+                        "Computing LDA vs trained weights performance comparison..."
+                    )
+                    # Create a dataloader from the inputs/labels we already have
+                    from torch.utils.data import DataLoader, TensorDataset
+
+                    comparison_dataset = TensorDataset(inputs, labels)
+                    comparison_loader = DataLoader(
+                        comparison_dataset, batch_size=128, shuffle=False
+                    )
+                    lda_comparison = self.compare_lda_vs_trained_performance(
+                        model, comparison_loader, device
+                    )
+                    results["lda_vs_trained_performance"] = lda_comparison
+
+                    # Plot the comparison
+                    from dendritic_modeling.plotting.visualizations.information_plots import (
+                        plot_lda_vs_trained_performance,
+                    )
+
+                    plot_lda_vs_trained_performance(
+                        lda_comparison, save_path, self.logger
+                    )
+                    self.logger.info("LDA vs trained performance comparison completed!")
+                except Exception as e:
+                    self.logger.error(
+                        f"Error computing LDA vs trained performance: {e}"
+                    )
+                    import traceback
+
+                    traceback.print_exc()
 
             # Save results
             if save_path is not None:

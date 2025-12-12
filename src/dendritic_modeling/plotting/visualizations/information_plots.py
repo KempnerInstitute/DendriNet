@@ -1860,3 +1860,84 @@ def plot_information_variance_analysis(
         somatic_synapses=somatic_synapses,
         plot_variance=True,
     )
+
+
+def plot_lda_vs_trained_performance(
+    comparison_results: dict,
+    save_path: str,
+    logger: Optional[logging.Logger] = None,
+) -> None:
+    """Plot comparison of network performance with trained weights vs LDA-optimal weights.
+
+    Args:
+        comparison_results: Dictionary from InformationAnalyzer.compare_lda_vs_trained_performance
+            containing 'trained_accuracy', 'lda_accuracy', 'accuracy_difference'
+        save_path: Directory path where the plot will be saved
+        logger: Optional logger for output messages
+    """
+    if logger is None:
+        logger = logging.getLogger(__name__)
+
+    trained_acc = comparison_results.get("trained_accuracy", 0.0)
+    lda_acc = comparison_results.get("lda_accuracy", 0.0)
+    diff = comparison_results.get("accuracy_difference", 0.0)
+
+    if lda_acc is None:
+        logger.warning(
+            "LDA accuracy not available, skipping performance comparison plot"
+        )
+        return
+
+    fig, ax = plt.subplots(figsize=(6, 5))
+
+    # Bar chart comparing accuracies
+    x_pos = [0, 1]
+    accuracies = [trained_acc * 100, lda_acc * 100]
+    colors = ["#1f77b4", "#ff7f0e"]
+    labels = ["Trained Weights", "LDA Weights"]
+
+    bars = ax.bar(x_pos, accuracies, color=colors, width=0.6, edgecolor="black")
+
+    # Add value labels on bars
+    for bar, acc in zip(bars, accuracies):
+        height = bar.get_height()
+        ax.annotate(
+            f"{acc:.2f}%",
+            xy=(bar.get_x() + bar.get_width() / 2, height),
+            xytext=(0, 3),
+            textcoords="offset points",
+            ha="center",
+            va="bottom",
+            fontsize=12,
+            fontweight="bold",
+        )
+
+    ax.set_xticks(x_pos)
+    ax.set_xticklabels(labels, fontsize=12)
+    ax.set_ylabel("Classification Accuracy (%)", fontsize=12)
+    ax.set_title("Network Performance: Trained vs LDA Weights", fontsize=14)
+
+    # Add difference annotation
+    ax.annotate(
+        f"Δ = {diff * 100:+.2f}%",
+        xy=(0.5, max(accuracies) + 3),
+        xytext=(0.5, max(accuracies) + 5),
+        ha="center",
+        fontsize=11,
+        color="green" if diff >= 0 else "red",
+    )
+
+    # Set y-axis limits
+    ax.set_ylim(0, max(accuracies) + 10)
+    ax.grid(axis="y", alpha=0.3)
+
+    plt.tight_layout()
+
+    # Save plot
+    os.makedirs(save_path, exist_ok=True)
+    filepath = os.path.join(save_path, "lda_vs_trained_performance.png")
+    plt.savefig(filepath, dpi=300, bbox_inches="tight")
+    plt.close()
+
+    logger.info(f"Saved LDA vs trained performance plot: {filepath}")
+    logger.info(f"Trained accuracy: {trained_acc:.4f}, LDA accuracy: {lda_acc:.4f}")
