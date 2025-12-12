@@ -1,5 +1,7 @@
 from math import erf, exp, log, sqrt
+from typing import Optional
 
+import numpy as np
 import torch
 from scipy.stats import norm
 from torch.nn.init import _no_grad_normal_
@@ -549,3 +551,384 @@ def default_dbl_init(dbl):
             dbl.reactivation.initialize(
                 1.5 if dbl.use_shunting else 0.1, 0.5 if dbl.use_shunting else 0.0
             )
+
+
+# =============================================================================
+# LDA-Based Initialization
+# =============================================================================
+
+
+def _fit_nonnegative_lda_weights(
+    X: np.ndarray,
+    y: np.ndarray,
+    weight_norm_order: Optional[int] = None,
+    gamma: float = 1.0,
+) -> np.ndarray:
+    """Fit non-negative LDA weights for initialization.
+
+    Finds the optimal non-negative linear combination of features that
+    maximizes class separability (Fisher criterion).
+
+    Args:
+        X: Input features, shape [n_samples, n_features]
+        y: Class labels, shape [n_samples,]
+        weight_norm_order: Lp norm order for weight normalization.
+        gamma: Scaling factor after normalization.
+
+    Returns:
+        Non-negative weights, shape [n_features,]
+    """
+    from scipy.optimize import minimize
+
+    n_features = X.shape[1]
+    classes = np.unique(y)
+    n_classes = len(classes)
+
+    if n_classes <= 1 or n_features == 0:
+        return np.ones(n_features) / max(n_features, 1)
+
+    # Compute class means and overall mean
+    class_means = np.array([X[y == c].mean(axis=0) for c in classes])
+    overall_mean = X.mean(axis=0)
+
+    # Compute between-class scatter matrix S_b
+    S_b = np.zeros((n_features, n_features))
+    for i, c in enumerate(classes):
+        n_c = np.sum(y == c)
+        diff = (class_means[i] - overall_mean).reshape(-1, 1)
+        S_b += n_c * (diff @ diff.T)
+
+    # Compute within-class scatter matrix S_w
+    S_w = np.zeros((n_features, n_features))
+    for i, c in enumerate(classes):
+        X_c = X[y == c]
+        diff = X_c - class_means[i]
+        S_w += diff.T @ diff
+
+    # Add regularization
+    S_w += 1e-6 * np.eye(n_features)
+
+    def objective(w):
+        w = w.reshape(-1)
+        numerator = w @ S_b @ w
+        denominator = w @ S_w @ w + 1e-10
+        return -numerator / denominator
+
+    def gradient(w):
+        w = w.reshape(-1)
+        Sb_w = S_b @ w
+        Sw_w = S_w @ w
+        num = w @ Sb_w
+        den = w @ Sw_w + 1e-10
+        return -(2 * Sb_w * den - num * 2 * Sw_w) / (den * den)
+
+    # Initialize and optimize
+    w0 = np.ones(n_features) / n_features
+    bounds = [(0, None) for _ in range(n_features)]
+
+    try:
+        result = minimize(
+            objective,
+            w0,
+            method="L-BFGS-B",
+            jac=gradient,
+            bounds=bounds,
+            options={"maxiter": 100, "ftol": 1e-6},
+        )
+        w_opt = result.x
+
+        # Normalize weights
+        if weight_norm_order is not None:
+            w_norm = np.linalg.norm(w_opt, ord=weight_norm_order)
+            if w_norm > 1e-10:
+                w_opt = (w_opt / w_norm) * gamma
+            else:
+                w_opt = np.ones(n_features) * gamma / n_features
+        else:
+            w_sum = np.sum(w_opt)
+            if w_sum > 1e-10:
+                w_opt = w_opt / w_sum
+            else:
+                w_opt = np.ones(n_features) / n_features
+
+    except Exception:
+        if weight_norm_order is not None:
+            w_opt = np.ones(n_features)
+            w_norm = np.linalg.norm(w_opt, ord=weight_norm_order)
+            w_opt = (w_opt / w_norm) * gamma
+        else:
+            w_opt = np.ones(n_features) / n_features
+
+    return w_opt
+
+
+def _weights_to_pre_w(weights: np.ndarray, weight_transform: str) -> torch.Tensor:
+    """Convert positive weights to pre_w parameter space.
+
+    Args:
+        weights: Positive weights, shape [n_features,]
+        weight_transform: The transform used ("exp", "softplus", "relu")
+
+    Returns:
+        pre_w values in the appropriate parameter space
+    """
+    weights = np.clip(weights, 1e-8, None)  # Ensure positive
+
+    if weight_transform == "exp":
+        # w = exp(pre_w), so pre_w = log(w)
+        pre_w = np.log(weights)
+    elif weight_transform == "softplus":
+        # w = log(1 + exp(pre_w)), so pre_w = log(exp(w) - 1)
+        # Use inverse softplus with numerical stability
+        pre_w = np.where(
+            weights > 20,
+            weights,  # For large w, softplus(x) ≈ x
+            np.log(np.exp(weights) - 1 + 1e-8),
+        )
+    elif weight_transform == "relu":
+        # w = max(0, pre_w), so pre_w = w (for positive w)
+        pre_w = weights
+    else:
+        # Default to exp
+        pre_w = np.log(weights)
+
+    return torch.tensor(pre_w, dtype=torch.float32)
+
+
+def lda_analytical_dbl_init(
+    dbl,
+    X: torch.Tensor,
+    y: torch.Tensor,
+    inhibitory_input: Optional[torch.Tensor] = None,
+    adaptive: bool = True,
+    branch_factors: Optional[list] = None,
+):
+    """Initialize a dendritic branch layer using LDA weights + analytical scaling.
+
+    This combines LDA-optimal weight directions (maximizing class separability)
+    with analytical expectation scaling (proper conductance balance for shunting).
+
+    Args:
+        dbl: The DendriticBranchLayer to initialize
+        X: Excitatory input data, shape [n_samples, excitatory_input_dim]
+        y: Class labels, shape [n_samples,]
+        inhibitory_input: Optional inhibitory input data, shape [n_samples, inhibitory_input_dim]
+        adaptive: If True, use network-aware scaling to prevent overflow
+        branch_factors: List of branch factors from parent network
+    """
+    from .branch_layer import DendriticBranchLayer
+
+    assert isinstance(dbl, DendriticBranchLayer)
+
+    # Convert inputs to numpy
+    if isinstance(X, torch.Tensor):
+        X_np = X.detach().cpu().numpy()
+    else:
+        X_np = np.array(X)
+
+    if isinstance(y, torch.Tensor):
+        y_np = y.detach().cpu().numpy().flatten()
+    else:
+        y_np = np.array(y).flatten()
+
+    if inhibitory_input is not None:
+        if isinstance(inhibitory_input, torch.Tensor):
+            inh_np = inhibitory_input.detach().cpu().numpy()
+        else:
+            inh_np = np.array(inhibitory_input)
+    else:
+        inh_np = X_np  # Use same input for inhibitory if not provided
+
+    weight_transform = dbl.weight_transform
+
+    # Compute network-aware scale factor
+    network_scale_factor = (
+        compute_network_scale_factor(dbl, branch_factors) if adaptive else 0.0
+    )
+
+    with torch.no_grad():
+        E_g_exc = 0
+        E_g_inh = 0
+
+        # Initialize excitatory weights with LDA
+        if dbl.input_excitatory and dbl.branch_excitation is not None:
+            n_branches = dbl.branch_excitation.out_features
+            K = dbl.branch_excitation.K
+            weight_norm_order = getattr(
+                dbl.branch_excitation, "weight_norm_order", None
+            )
+            gamma = getattr(dbl.branch_excitation, "gamma", 1.0)
+
+            # Get the TopK mask to know which inputs are active per branch
+            exc_mask = dbl.branch_excitation.weight_mask().detach().cpu().numpy()
+
+            for branch_idx in range(n_branches):
+                branch_mask = exc_mask[branch_idx, :]
+                active_indices = np.where(branch_mask > 0)[0]
+
+                if len(active_indices) > 0:
+                    # Fit LDA on the active inputs for this branch
+                    branch_inputs = X_np[:, active_indices]
+                    lda_weights = _fit_nonnegative_lda_weights(
+                        branch_inputs, y_np, weight_norm_order, gamma
+                    )
+
+                    # Apply network scale factor
+                    lda_weights = lda_weights * exp(-network_scale_factor)
+
+                    # Convert to pre_w space and set
+                    pre_w_values = _weights_to_pre_w(lda_weights, weight_transform)
+                    dbl.branch_excitation.pre_w.data[branch_idx, active_indices] = (
+                        pre_w_values.to(dbl.branch_excitation.pre_w.device)
+                    )
+
+            # Estimate expected conductance
+            exc_upper_quantile = K / dbl.excitatory_input_dim
+            exc_std = sqrt(2 / (dbl.excitatory_input_dim + 1))
+            E_w_exc = _expected_weight_for_transform(
+                transform=weight_transform,
+                mean=0,
+                std=exc_std,
+                upper_quantile=exc_upper_quantile,
+            )
+            E_g_exc = 0.5 * K * E_w_exc * exp(-network_scale_factor)
+
+        # Initialize inhibitory weights with LDA
+        if dbl.input_inhibitory and dbl.branch_inhibition is not None:
+            n_branches = dbl.branch_inhibition.out_features
+            K = dbl.branch_inhibition.K
+            weight_norm_order = getattr(
+                dbl.branch_inhibition, "weight_norm_order", None
+            )
+            gamma = getattr(dbl.branch_inhibition, "gamma", 1.0)
+
+            # Get the TopK mask
+            inh_mask = dbl.branch_inhibition.weight_mask().detach().cpu().numpy()
+
+            for branch_idx in range(n_branches):
+                branch_mask = inh_mask[branch_idx, :]
+                active_indices = np.where(branch_mask > 0)[0]
+
+                if len(active_indices) > 0 and active_indices.max() < inh_np.shape[1]:
+                    # Fit LDA on the active inputs for this branch
+                    branch_inputs = inh_np[:, active_indices]
+                    lda_weights = _fit_nonnegative_lda_weights(
+                        branch_inputs, y_np, weight_norm_order, gamma
+                    )
+
+                    # Apply network scale factor
+                    lda_weights = lda_weights * exp(-network_scale_factor)
+
+                    # Convert to pre_w space and set
+                    pre_w_values = _weights_to_pre_w(lda_weights, weight_transform)
+                    dbl.branch_inhibition.pre_w.data[branch_idx, active_indices] = (
+                        pre_w_values.to(dbl.branch_inhibition.pre_w.device)
+                    )
+
+            # Estimate expected conductance
+            inh_upper_quantile = K / dbl.inhibitory_input_dim
+            inh_std = sqrt(2 / (dbl.inhibitory_input_dim + 1))
+            E_w_inh = _expected_weight_for_transform(
+                transform=weight_transform,
+                mean=0,
+                std=inh_std,
+                upper_quantile=inh_upper_quantile,
+            )
+            E_g_inh = 0.5 * K * E_w_inh * exp(-network_scale_factor)
+
+        # Initialize branch weights (use analytical method for BlockLinear)
+        if dbl.input_branches:
+            if dbl.use_shunting:
+                E_Vinf = E_g_exc / (E_g_exc + E_g_inh + 1)
+                if E_Vinf < 0.5:
+                    E_Vinf = max(0.49, 0.5 * E_Vinf + 0.25)
+                else:
+                    E_Vinf = min(0.51, 0.5 * E_Vinf + 0.25)
+
+                sum_g_branch = ((E_g_exc + E_g_inh + 1) * E_Vinf - E_g_exc) / (
+                    0.5 - E_Vinf
+                )
+                g_branch = sum_g_branch / dbl.branches_to_output.block_size
+                m = 1.5
+            else:
+                g_branch = 1
+                E_Vinf = E_g_exc - E_g_inh + 0.5 * g_branch
+                m = 0.1
+
+            dbl.branches_to_output.initialize(g_branch=g_branch)
+        else:
+            if dbl.use_shunting:
+                E_Vinf = E_g_exc / (E_g_exc + E_g_inh + 1)
+                m = 1.5
+            else:
+                E_Vinf = 0
+                m = 0.1
+
+        # Initialize reactivation
+        if not isinstance(dbl.reactivation, torch.nn.Identity):
+            dbl.reactivation.initialize(m, E_Vinf)
+
+
+def initialize_model_with_lda(
+    model: torch.nn.Module,
+    X: torch.Tensor,
+    y: torch.Tensor,
+    device: str = "cpu",
+    n_samples: int = 1000,
+    adaptive: bool = True,
+):
+    """Initialize all dendritic branch layers in a model using LDA weights.
+
+    This is a convenience function to apply LDA initialization to an entire model
+    after it has been constructed.
+
+    Args:
+        model: The model containing DendriticBranchLayers
+        X: Input data, shape [n_samples, input_dim]
+        y: Class labels, shape [n_samples,]
+        device: Device to run the model on
+        n_samples: Number of samples to use for LDA fitting
+        adaptive: Whether to use network-aware scaling
+
+    Returns:
+        The model with LDA-initialized weights
+    """
+    from .branch_layer import DendriticBranchLayer
+
+    # Subsample if needed
+    if X.shape[0] > n_samples:
+        indices = torch.randperm(X.shape[0])[:n_samples]
+        X = X[indices]
+        y = y[indices]
+
+    # Move data to device
+    X = X.to(device)
+    y = y.to(device)
+    model = model.to(device)
+
+    # Forward pass to get intermediate activations and masks
+    model.eval()
+    with torch.no_grad():
+        # Run a forward pass to establish TopK masks
+        _ = model(X)
+
+    # Find all DendriticBranchLayers and initialize them
+    branch_factors = None
+    for _name, module in model.named_modules():
+        if isinstance(module, DendriticBranchLayer):
+            # Get branch_factors from the layer if available
+            if hasattr(module, "branch_factors"):
+                branch_factors = module.branch_factors
+
+            # For now, use X as both excitatory and inhibitory input
+            # In practice, you might want to extract the actual layer inputs
+            lda_analytical_dbl_init(
+                dbl=module,
+                X=X,
+                y=y,
+                inhibitory_input=X,
+                adaptive=adaptive,
+                branch_factors=branch_factors,
+            )
+
+    return model

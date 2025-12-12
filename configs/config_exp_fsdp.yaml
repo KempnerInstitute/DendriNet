@@ -237,10 +237,15 @@ model:
       adaptive_initialization: false
       print_hooks: false
     morphology:
-      dbl_init_method: analytical_expectation
+      dbl_init_method: analytical_expectation  # Options: analytical_expectation, default, lda_analytical
       somatic_synapses: false
       use_shunting: true
       weight_transform: softplus
+    # LDA-based initialization parameters (only used when dbl_init_method: lda_analytical)
+    # To enable LDA initialization, set dbl_init_method: lda_analytical above
+    lda_init:
+      n_samples: 1000                   # Number of samples to use for LDA fitting
+      adaptive: true                    # Use network-aware scaling to prevent overflow
     reactivation:
       enabled: true
       init_b: 0.5

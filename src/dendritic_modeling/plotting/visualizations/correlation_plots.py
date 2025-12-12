@@ -28,10 +28,6 @@ def plot_hierarchical_correlations(
     try:
         # Create output directory
         os.makedirs(save_path, exist_ok=True)
-        print(
-            f"DEBUG: plot_hierarchical_correlations called with save_path: {save_path}"
-        )
-        print(f"DEBUG: results keys: {list(results.keys())}")
 
         # Plot network-level summary
         if "network_level" in results:

@@ -332,8 +332,42 @@ class DendriticBranchLayer(nn.Module):
             naive_dbl_init(self)
         elif self.dbl_init_method == "default":
             default_dbl_init(self)
+        elif self.dbl_init_method == "lda_analytical":
+            # LDA initialization requires data - use default first, then call
+            # initialize_with_lda() separately with data
+            default_dbl_init(self)
         else:
             raise ValueError(f"Unknown dbl_init_method: {self.dbl_init_method}")
+
+    def initialize_with_lda(
+        self,
+        X: "torch.Tensor",
+        y: "torch.Tensor",
+        inhibitory_input: "torch.Tensor" = None,
+        adaptive: bool = True,
+    ):
+        """Initialize weights using LDA-optimal directions + analytical scaling.
+
+        This method should be called after model construction with training data.
+        It combines LDA-optimal weight directions (maximizing class separability)
+        with analytical expectation scaling (proper conductance balance).
+
+        Args:
+            X: Excitatory input data, shape [n_samples, excitatory_input_dim]
+            y: Class labels, shape [n_samples,]
+            inhibitory_input: Optional inhibitory input data
+            adaptive: If True, use network-aware scaling to prevent overflow
+        """
+        from .initialize import lda_analytical_dbl_init
+
+        lda_analytical_dbl_init(
+            dbl=self,
+            X=X,
+            y=y,
+            inhibitory_input=inhibitory_input,
+            adaptive=adaptive,
+            branch_factors=self.branch_factors,
+        )
 
     def decay_weights(self, weight_decay, weight_boosting=False):
         if self.branch_excitation is not None:

@@ -1325,28 +1325,27 @@ def plot_info_vs_ei_depth_per_dendritic_layer(
                         # Only plot if we have non-zero values
                         if any(v != 0 for v in values):
                             color = branch_colors.get(branch_idx, "#808080")
-                            # Fix branch labeling - higher branch_idx means more distal
-                            # Map branch_idx to correct distal depth dynamically
-                            # Highest branch_idx is closest to soma (Distal Layer 1)
-                            if max_branch_idx >= 0:
-                                distal_number = (max_branch_idx - branch_idx) + 1
-                                if (
-                                    not somatic_synapses
-                                    and branch_idx == max_branch_idx
-                                    and "synthetic_soma" in layer_statistics
-                                ):
-                                    # When somatic_synapses=False, we explicitly include a synthetic Soma elsewhere
-                                    branch_label = f"Distal Layer {distal_number}"
+                            # Determine branch label using has_synapses flag
+                            # Get has_synapses from any layer for this branch_idx
+                            has_synapses = True
+                            for lname, ldata in layer_statistics.items():
+                                if f"branch_layers.{branch_idx}" in lname:
+                                    has_synapses = ldata.get("has_synapses", True)
+                                    break
+
+                            if not has_synapses:
+                                # This is the soma layer
+                                branch_label = "Soma"
+                            elif max_branch_idx >= 0:
+                                # Map branch index to distal depth
+                                distal_number = max_branch_idx - branch_idx
+                                if distal_number == 0:
+                                    branch_label = "Distal Layer 1"
                                 else:
-                                    branch_label = (
-                                        "Soma"
-                                        if distal_number == 0
-                                        else f"Distal Layer {distal_number}"
-                                    )
-                                # distal_number never 0 here; Soma is provided via synthetic_soma
+                                    branch_label = f"Distal Layer {distal_number}"
                             else:
                                 # Fallback
-                                branch_label = f"Distal Layer {branch_idx}"
+                                branch_label = f"Distal Layer {branch_idx + 1}"
 
                             # Plot line with error bars
                             ax.errorbar(
@@ -1531,15 +1530,25 @@ def plot_fully_aggregated_analysis(
             except (IndexError, ValueError):
                 continue
 
-            # Map branch index to distal depth dynamically.
-            # Highest branch index is closest to soma (depth 1), lowest is most distal.
-            # Distal Layer numbering starts at 1.
-            if max_branch_idx >= 0:
-                distal_number = (max_branch_idx - branch_idx) + 1
-                depth_label = f"Distal Layer {distal_number}"
+            # Check if this layer is the soma (no synapses)
+            # When somatic_synapses=False, the highest branch_idx layer has has_synapses=False
+            has_synapses = layer_data.get("has_synapses", True)
+            if not has_synapses:
+                # This is the soma layer
+                depth_label = "Soma"
+            elif max_branch_idx >= 0:
+                # Map branch index to distal depth dynamically.
+                # For layers with synapses, compute distal number relative to non-soma layers
+                # Distal Layer numbering starts at 1 (closest to soma)
+                distal_number = max_branch_idx - branch_idx
+                if distal_number == 0:
+                    # This would be the soma, but has_synapses=True, so label as Distal Layer 1
+                    depth_label = "Distal Layer 1"
+                else:
+                    depth_label = f"Distal Layer {distal_number}"
             else:
                 # Fallback if we couldn't determine max index
-                depth_label = f"Distal Layer {branch_idx}"
+                depth_label = f"Distal Layer {branch_idx + 1}"
 
             if plot_variance:
                 # For variance plots, look for _variance keys
@@ -1593,7 +1602,7 @@ def plot_fully_aggregated_analysis(
 
     sorted_depths = sorted(all_depths, key=depth_sort_key)
 
-    # Define metric categories with paired comparisons (network-learned vs LDA)
+    # Define metric categories with paired comparisons (network-learned vs LDA+)
     # Each entry: (title, [(metric_name, color, label), ...])
     metric_pairs = [
         (
@@ -1603,35 +1612,35 @@ def plot_fully_aggregated_analysis(
                     "I(E;C) vs I(E_lin;C)",
                     [
                         ("I(E;C)", "#1f77b4", "Network"),
-                        ("I(E_lin;C)", "#ff7f0e", "LDA"),
+                        ("I(E_lin;C)", "#ff7f0e", r"LDA$_{+}$"),
                     ],
                 ),
                 (
                     "I(I;C) vs I(I_lin;C)",
                     [
                         ("I(I;C)", "#1f77b4", "Network"),
-                        ("I(I_lin;C)", "#ff7f0e", "LDA"),
+                        ("I(I_lin;C)", "#ff7f0e", r"LDA$_{+}$"),
                     ],
                 ),
                 (
                     "I(Vb;C) vs I(Vb_lin;C)",
                     [
                         ("I(Vb;C)", "#1f77b4", "Network"),
-                        ("I(Vb_lin;C)", "#ff7f0e", "LDA"),
+                        ("I(Vb_lin;C)", "#ff7f0e", r"LDA$_{+}$"),
                     ],
                 ),
                 (
                     "I(Vout;C) vs I(Vout_lin;C)",
                     [
                         ("I(Vout;C)", "#1f77b4", "Network"),
-                        ("I(Vout_lin;C)", "#ff7f0e", "LDA"),
+                        ("I(Vout_lin;C)", "#ff7f0e", r"LDA$_{+}$"),
                     ],
                 ),
                 (
                     "I(E,I;C) vs I(E_lin,I_lin;C)",
                     [
                         ("I(E,I;C)", "#1f77b4", "Network"),
-                        ("I(E_lin,I_lin;C)", "#ff7f0e", "LDA"),
+                        ("I(E_lin,I_lin;C)", "#ff7f0e", r"LDA$_{+}$"),
                     ],
                 ),
             ],
@@ -1643,42 +1652,42 @@ def plot_fully_aggregated_analysis(
                     "I(E;I) vs I(E_lin;I_lin)",
                     [
                         ("I(E;I)", "#1f77b4", "Network"),
-                        ("I(E_lin;I_lin)", "#ff7f0e", "LDA"),
+                        ("I(E_lin;I_lin)", "#ff7f0e", r"LDA$_{+}$"),
                     ],
                 ),
                 (
                     "I(E;Vout) vs I(E_lin;Vout_lin)",
                     [
                         ("I(E;Vout)", "#1f77b4", "Network"),
-                        ("I(E_lin;Vout_lin)", "#ff7f0e", "LDA"),
+                        ("I(E_lin;Vout_lin)", "#ff7f0e", r"LDA$_{+}$"),
                     ],
                 ),
                 (
                     "I(I;Vout) vs I(I_lin;Vout_lin)",
                     [
                         ("I(I;Vout)", "#1f77b4", "Network"),
-                        ("I(I_lin;Vout_lin)", "#ff7f0e", "LDA"),
+                        ("I(I_lin;Vout_lin)", "#ff7f0e", r"LDA$_{+}$"),
                     ],
                 ),
                 (
                     "I(E;Vb) vs I(E_lin;Vb_lin)",
                     [
                         ("I(E;Vb)", "#1f77b4", "Network"),
-                        ("I(E_lin;Vb_lin)", "#ff7f0e", "LDA"),
+                        ("I(E_lin;Vb_lin)", "#ff7f0e", r"LDA$_{+}$"),
                     ],
                 ),
                 (
                     "I(I;Vb) vs I(I_lin;Vb_lin)",
                     [
                         ("I(I;Vb)", "#1f77b4", "Network"),
-                        ("I(I_lin;Vb_lin)", "#ff7f0e", "LDA"),
+                        ("I(I_lin;Vb_lin)", "#ff7f0e", r"LDA$_{+}$"),
                     ],
                 ),
                 (
                     "I(Vb;Vout) vs I(Vb_lin;Vout_lin)",
                     [
                         ("I(Vb;Vout)", "#1f77b4", "Network"),
-                        ("I(Vb_lin;Vout_lin)", "#ff7f0e", "LDA"),
+                        ("I(Vb_lin;Vout_lin)", "#ff7f0e", r"LDA$_{+}$"),
                     ],
                 ),
             ],
@@ -1690,42 +1699,42 @@ def plot_fully_aggregated_analysis(
                     "I(E;I|C) vs I(E_lin;I_lin|C)",
                     [
                         ("I(E;I|C)", "#1f77b4", "Network"),
-                        ("I(E_lin;I_lin|C)", "#ff7f0e", "LDA"),
+                        ("I(E_lin;I_lin|C)", "#ff7f0e", r"LDA$_{+}$"),
                     ],
                 ),
                 (
                     "I(E;Vout|C) vs I(E_lin;Vout_lin|C)",
                     [
                         ("I(E;Vout|C)", "#1f77b4", "Network"),
-                        ("I(E_lin;Vout_lin|C)", "#ff7f0e", "LDA"),
+                        ("I(E_lin;Vout_lin|C)", "#ff7f0e", r"LDA$_{+}$"),
                     ],
                 ),
                 (
                     "I(I;Vout|C) vs I(I_lin;Vout_lin|C)",
                     [
                         ("I(I;Vout|C)", "#1f77b4", "Network"),
-                        ("I(I_lin;Vout_lin|C)", "#ff7f0e", "LDA"),
+                        ("I(I_lin;Vout_lin|C)", "#ff7f0e", r"LDA$_{+}$"),
                     ],
                 ),
                 (
                     "I(E;Vb|C) vs I(E_lin;Vb_lin|C)",
                     [
                         ("I(E;Vb|C)", "#1f77b4", "Network"),
-                        ("I(E_lin;Vb_lin|C)", "#ff7f0e", "LDA"),
+                        ("I(E_lin;Vb_lin|C)", "#ff7f0e", r"LDA$_{+}$"),
                     ],
                 ),
                 (
                     "I(I;Vb|C) vs I(I_lin;Vb_lin|C)",
                     [
                         ("I(I;Vb|C)", "#1f77b4", "Network"),
-                        ("I(I_lin;Vb_lin|C)", "#ff7f0e", "LDA"),
+                        ("I(I_lin;Vb_lin|C)", "#ff7f0e", r"LDA$_{+}$"),
                     ],
                 ),
                 (
                     "I(Vb;Vout|C) vs I(Vb_lin;Vout_lin|C)",
                     [
                         ("I(Vb;Vout|C)", "#1f77b4", "Network"),
-                        ("I(Vb_lin;Vout_lin|C)", "#ff7f0e", "LDA"),
+                        ("I(Vb_lin;Vout_lin|C)", "#ff7f0e", r"LDA$_{+}$"),
                     ],
                 ),
             ],
@@ -1819,7 +1828,8 @@ def plot_fully_aggregated_analysis(
 
         plot_type = "Variance" if plot_variance else "Analysis"
         fig.suptitle(
-            f"Information {plot_type}: {metric_category.replace('_', ' ').title()} (Network vs LDA)",
+            f"Information {plot_type}: {metric_category.replace('_', ' ').title()} (Network vs "
+            + r"LDA$_{+}$)",
             fontsize=16,
         )
         plt.tight_layout()
@@ -1894,7 +1904,7 @@ def plot_lda_vs_trained_performance(
     x_pos = [0, 1]
     accuracies = [trained_acc * 100, lda_acc * 100]
     colors = ["#1f77b4", "#ff7f0e"]
-    labels = ["Trained Weights", "LDA Weights"]
+    labels = ["Trained Weights", r"LDA$_{+}$ Weights"]
 
     bars = ax.bar(x_pos, accuracies, color=colors, width=0.6, edgecolor="black")
 
@@ -1915,7 +1925,7 @@ def plot_lda_vs_trained_performance(
     ax.set_xticks(x_pos)
     ax.set_xticklabels(labels, fontsize=12)
     ax.set_ylabel("Classification Accuracy (%)", fontsize=12)
-    ax.set_title("Network Performance: Trained vs LDA Weights", fontsize=14)
+    ax.set_title(r"Network Performance: Trained vs LDA$_{+}$ Weights", fontsize=14)
 
     # Add difference annotation
     ax.annotate(

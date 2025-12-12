@@ -133,7 +133,13 @@ model:
       somatic_synapses: false           # Include somatic synapses (true/false)
       use_shunting: true                # Use shunting inhibition (true/false)
       weight_transform: "softplus"      # Weight transformation: "exp", "relu", "softplus"
-      dbl_init_method: "analytical_expectation"  # DBL initialization: "analytical_expectation", "default"
+      dbl_init_method: "analytical_expectation"  # DBL initialization: "analytical_expectation", "default", "lda_analytical"
+
+    # LDA-based initialization parameters (only used when dbl_init_method: "lda_analytical")
+    # To enable LDA initialization, set dbl_init_method: "lda_analytical" above
+    lda_init:
+      n_samples: 1000                   # Number of samples to use for LDA fitting
+      adaptive: true                    # Use network-aware scaling to prevent overflow (true/false)
 
     sparsity:
       init_method: "xavier_normal"      # Weight initialization: "xavier_normal", "xavier_uniform", "kaiming_normal"

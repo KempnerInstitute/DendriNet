@@ -200,4 +200,101 @@ def setup_environment(
     # Initialize model
     model, encoder_network = initialize_model(model_config)
 
+    # Apply LDA initialization if dbl_init_method is "lda_analytical"
+    # LDA initialization requires data, so it must happen after model construction
+    morphology_config = getattr(model_config.core, "morphology", None)
+    dbl_init_method = (
+        getattr(morphology_config, "dbl_init_method", None)
+        if morphology_config
+        else None
+    )
+
+    if dbl_init_method == "lda_analytical":
+        lda_init_config = getattr(model_config.core, "lda_init", None)
+        n_samples = (
+            getattr(lda_init_config, "n_samples", 1000) if lda_init_config else 1000
+        )
+        adaptive = (
+            getattr(lda_init_config, "adaptive", True) if lda_init_config else True
+        )
+
+        logger.info(
+            "Applying LDA-based weight initialization (dbl_init_method='lda_analytical')..."
+        )
+        model = apply_lda_initialization(
+            model=model,
+            train_ds=train_ds,
+            encoder_network=encoder_network,
+            n_samples=n_samples,
+            adaptive=adaptive,
+        )
+        logger.info("LDA initialization completed")
+
     return run_save_path, train_ds, valid_ds, test_ds, model, encoder_network
+
+
+def apply_lda_initialization(
+    model,
+    train_ds: torch.utils.data.Dataset,
+    encoder_network=None,
+    n_samples: int = 1000,
+    adaptive: bool = True,
+    device: str = "cpu",
+):
+    """Apply LDA-based initialization to all dendritic branch layers.
+
+    This function uses labeled training data to initialize weights with
+    LDA-optimal directions that maximize class separability.
+
+    Args:
+        model: The model to initialize
+        train_ds: Training dataset with (input, label) pairs
+        encoder_network: Optional encoder to preprocess inputs
+        n_samples: Number of samples to use for LDA fitting
+        adaptive: Use network-aware scaling
+        device: Device to run computations on
+
+    Returns:
+        Model with LDA-initialized weights
+    """
+    from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic import (
+        initialize_model_with_lda,
+    )
+
+    # Collect samples from training data
+    n_samples = min(n_samples, len(train_ds))
+    indices = torch.randperm(len(train_ds))[:n_samples]
+
+    inputs = []
+    labels = []
+    for idx in indices:
+        x, y = train_ds[idx]
+        inputs.append(x)
+        labels.append(y)
+
+    X = torch.stack(inputs)
+    y = (
+        torch.tensor(labels)
+        if not isinstance(labels[0], torch.Tensor)
+        else torch.stack(labels)
+    )
+
+    # Encode inputs if encoder is available
+    if encoder_network is not None:
+        encoder_network.eval()
+        with torch.no_grad():
+            X = X.to(device)
+            encoder_network = encoder_network.to(device)
+            X = encoder_network(X)
+
+    # Apply LDA initialization
+    model = initialize_model_with_lda(
+        model=model,
+        X=X,
+        y=y,
+        device=device,
+        n_samples=n_samples,
+        adaptive=adaptive,
+    )
+
+    return model

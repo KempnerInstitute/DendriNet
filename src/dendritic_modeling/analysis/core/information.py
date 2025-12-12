@@ -817,10 +817,16 @@ class InformationAnalyzer(AbstractAnalyzer):
         handles = []
         for _name, module in model.named_modules():
             if isinstance(module, DendriticBranchLayer):
-                if (
+                # Hook layers that have E/I synapses OR receive branch input
+                # This ensures soma layers without synapses are still analyzed
+                # for I(Vb;C) - the information in branch input
+                has_synapses = (
                     module.branch_excitation is not None
                     and module.branch_inhibition is not None
-                ):
+                )
+                has_branch_input = module.input_branches  # Has upstream branches
+
+                if has_synapses or has_branch_input:
                     self.data_dict[_name] = {}
                     module._name = _name
                     handle = module.register_forward_hook(self.forward_hook)
@@ -837,12 +843,13 @@ class InformationAnalyzer(AbstractAnalyzer):
         """Forward hook to collect branch data."""
         excitatory_input, inhibitory_input, branch_input = input
 
-        # Check if this is a soma layer without somatic synapses (using config)
-        is_soma_without_synapses = module.layer_idx == 0 and not getattr(
-            self, "somatic_synapses_enabled", True
+        # Check if this layer has no synapses (e.g., soma with somatic_synapses=False)
+        # This is detected by checking if branch_excitation is None
+        has_no_synapses = (
+            module.branch_excitation is None or module.branch_inhibition is None
         )
 
-        if is_soma_without_synapses:
+        if has_no_synapses:
             # For soma without synapses, create zero tensors for E/I but keep real output
             batch_size = output.shape[0]
             n_branches = output.shape[1] if len(output.shape) > 1 else 1
@@ -881,7 +888,7 @@ class InformationAnalyzer(AbstractAnalyzer):
         self.data_dict[module._name]["inhibition"] = inhibition_per_branch
         self.data_dict[module._name]["branch_input"] = branch_current
         self.data_dict[module._name]["output"] = output
-        self.data_dict[module._name]["has_synapses"] = not is_soma_without_synapses
+        self.data_dict[module._name]["has_synapses"] = not has_no_synapses
 
         # Store raw inputs and module for LDA computation if needed
         if hasattr(self, "compute_lda_weights") and self.compute_lda_weights:
@@ -895,6 +902,149 @@ class InformationAnalyzer(AbstractAnalyzer):
         for handle in handles:
             handle.remove()
 
+    def _fit_nonnegative_lda(
+        self,
+        X: np.ndarray,
+        y: np.ndarray,
+        weight_norm_order: Optional[int] = None,
+        gamma: float = 1.0,
+    ) -> tuple[np.ndarray, float]:
+        """Fit LDA with non-negative weight constraint.
+
+        Finds the optimal non-negative linear combination of features that
+        maximizes class separability (Fisher criterion). This is appropriate
+        for neural network analysis where synaptic weights are non-negative.
+
+        Args:
+            X: Input features, shape [n_samples, n_features]
+            y: Class labels, shape [n_samples,]
+            weight_norm_order: Lp norm order for weight normalization (matching network's TopKLinear).
+                               If None, weights are normalized to sum to 1 (L1 norm = 1).
+                               Common values: 1 (L1), 2 (L2).
+            gamma: Scaling factor after normalization (matching network's TopKLinear gamma).
+
+        Returns:
+            Tuple of (weights, intercept) where weights are non-negative and properly normalized
+        """
+        from scipy.optimize import minimize
+
+        n_features = X.shape[1]
+        classes = np.unique(y)
+        n_classes = len(classes)
+
+        if n_classes <= 1 or n_features == 0:
+            # Cannot do LDA with single class or no features
+            return np.ones(n_features) / max(n_features, 1), 0.0
+
+        # Compute class means and overall mean
+        class_means = np.array([X[y == c].mean(axis=0) for c in classes])
+        overall_mean = X.mean(axis=0)
+
+        # Compute between-class scatter matrix S_b
+        # S_b = sum_c n_c * (mu_c - mu)(mu_c - mu)^T
+        S_b = np.zeros((n_features, n_features))
+        for i, c in enumerate(classes):
+            n_c = np.sum(y == c)
+            diff = (class_means[i] - overall_mean).reshape(-1, 1)
+            S_b += n_c * (diff @ diff.T)
+
+        # Compute within-class scatter matrix S_w
+        # S_w = sum_c sum_{x in c} (x - mu_c)(x - mu_c)^T
+        S_w = np.zeros((n_features, n_features))
+        for i, c in enumerate(classes):
+            X_c = X[y == c]
+            diff = X_c - class_means[i]
+            S_w += diff.T @ diff
+
+        # Add regularization for numerical stability
+        S_w += 1e-6 * np.eye(n_features)
+
+        # Objective: maximize w^T S_b w / w^T S_w w
+        # Equivalent to minimizing -w^T S_b w subject to w^T S_w w = 1 and w >= 0
+        def objective(w):
+            w = w.reshape(-1)
+            numerator = w @ S_b @ w
+            denominator = w @ S_w @ w + 1e-10
+            return -numerator / denominator  # Negative because we minimize
+
+        def gradient(w):
+            w = w.reshape(-1)
+            Sb_w = S_b @ w
+            Sw_w = S_w @ w
+            num = w @ Sb_w
+            den = w @ Sw_w + 1e-10
+            # d/dw of -num/den = -(2*Sb_w*den - num*2*Sw_w) / den^2
+            return -(2 * Sb_w * den - num * 2 * Sw_w) / (den * den)
+
+        # Initialize with uniform positive weights
+        w0 = np.ones(n_features) / n_features
+
+        # Bounds: all weights >= 0
+        bounds = [(0, None) for _ in range(n_features)]
+
+        # Optimize
+        try:
+            result = minimize(
+                objective,
+                w0,
+                method="L-BFGS-B",
+                jac=gradient,
+                bounds=bounds,
+                options={"maxiter": 100, "ftol": 1e-6},
+            )
+            w_opt = result.x
+
+            # Normalize weights using the same method as the network's TopKLinear
+            # This ensures LDA weights are on the same scale as trained weights
+            if weight_norm_order is not None:
+                # Use Lp norm normalization (matching TopKLinear.pruned_weight())
+                w_norm = np.linalg.norm(w_opt, ord=weight_norm_order)
+                if w_norm > 1e-10:
+                    w_opt = (w_opt / w_norm) * gamma
+                else:
+                    w_opt = np.ones(n_features) * gamma / n_features
+            else:
+                # Default: normalize weights to sum to 1 (like averaging)
+                w_sum = np.sum(w_opt)
+                if w_sum > 1e-10:
+                    w_opt = w_opt / w_sum
+                else:
+                    w_opt = np.ones(n_features) / n_features
+
+        except Exception:
+            # Fallback to uniform weights with proper normalization
+            if weight_norm_order is not None:
+                w_opt = np.ones(n_features)
+                w_norm = np.linalg.norm(w_opt, ord=weight_norm_order)
+                w_opt = (w_opt / w_norm) * gamma
+            else:
+                w_opt = np.ones(n_features) / n_features
+
+        return w_opt, 0.0
+
+    def _apply_nonnegative_lda(
+        self,
+        X: np.ndarray,
+        y: np.ndarray,
+        weight_norm_order: Optional[int] = None,
+        gamma: float = 1.0,
+    ) -> np.ndarray:
+        """Apply non-negative LDA to get projected values.
+
+        Args:
+            X: Input features, shape [n_samples, n_features]
+            y: Class labels, shape [n_samples,]
+            weight_norm_order: Lp norm order for weight normalization (matching network's TopKLinear).
+            gamma: Scaling factor after normalization (matching network's TopKLinear gamma).
+
+        Returns:
+            Projected values, shape [n_samples,]
+        """
+        weights, _ = self._fit_nonnegative_lda(
+            X, y, weight_norm_order=weight_norm_order, gamma=gamma
+        )
+        return X @ weights
+
     def compute_lda_aggregated_signals(
         self,
         layer_data: dict,
@@ -902,10 +1052,10 @@ class InformationAnalyzer(AbstractAnalyzer):
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """Compute LDA-weighted versions of E, I, Vb, and Vout using TopK-masked features.
 
-        For each branch, fit LDA only on the input dimensions that pass through
-        the TopK mask (i.e., the synapses that are actually connected). This
-        computes the optimal linear discriminant for the sparse connectivity
-        pattern of each branch.
+        For each branch, fit non-negative constrained LDA only on the input
+        dimensions that pass through the TopK mask (i.e., the synapses that are
+        actually connected). Non-negative weights match the network's positive
+        synaptic weights.
 
         Vout_lin is computed by applying the same dendritic computation
         (shunting or additive) to E_lin, I_lin, Vb_lin, then passing through
@@ -918,8 +1068,6 @@ class InformationAnalyzer(AbstractAnalyzer):
         Returns:
             Tuple of (E_lin, I_lin, Vb_lin, Vout_lin) each shape [n_samples, n_branches]
         """
-        from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
-
         module = layer_data.get("module")
         if module is None:
             return None, None, None, None
@@ -949,6 +1097,12 @@ class InformationAnalyzer(AbstractAnalyzer):
         if raw_exc is not None and module.branch_excitation is not None:
             raw_exc_np = raw_exc.detach().cpu().numpy()  # [n_samples, input_dim]
 
+            # Get weight normalization parameters from the module (matching TopKLinear)
+            exc_weight_norm_order = getattr(
+                module.branch_excitation, "weight_norm_order", None
+            )
+            exc_gamma = getattr(module.branch_excitation, "gamma", 1.0)
+
             # Get the TopK mask for excitatory branches [n_branches, input_dim]
             exc_mask = module.branch_excitation.weight_mask().detach().cpu().numpy()
 
@@ -962,12 +1116,14 @@ class InformationAnalyzer(AbstractAnalyzer):
                     branch_inputs = raw_exc_np[:, active_indices]  # [n_samples, K]
 
                     try:
-                        # Fit LDA on the K active synapses
-                        lda = LinearDiscriminantAnalysis()
-                        lda.fit(branch_inputs, C)
-
-                        # Project to get optimal discriminant
-                        E_lin[:, branch_idx] = lda.transform(branch_inputs)[:, 0]
+                        # Fit non-negative LDA on the K active synapses
+                        # Use same weight normalization as the network's TopKLinear
+                        E_lin[:, branch_idx] = self._apply_nonnegative_lda(
+                            branch_inputs,
+                            C,
+                            weight_norm_order=exc_weight_norm_order,
+                            gamma=exc_gamma,
+                        )
 
                     except Exception as e:
                         self.logger.warning(
@@ -988,6 +1144,12 @@ class InformationAnalyzer(AbstractAnalyzer):
         if raw_inh is not None and module.branch_inhibition is not None:
             raw_inh_np = raw_inh.detach().cpu().numpy()  # [n_samples, input_dim]
 
+            # Get weight normalization parameters from the module (matching TopKLinear)
+            inh_weight_norm_order = getattr(
+                module.branch_inhibition, "weight_norm_order", None
+            )
+            inh_gamma = getattr(module.branch_inhibition, "gamma", 1.0)
+
             # Get the TopK mask for inhibitory branches [n_branches, input_dim]
             inh_mask = module.branch_inhibition.weight_mask().detach().cpu().numpy()
 
@@ -1001,12 +1163,14 @@ class InformationAnalyzer(AbstractAnalyzer):
                     branch_inputs = raw_inh_np[:, active_indices]  # [n_samples, K]
 
                     try:
-                        # Fit LDA on the K active synapses
-                        lda = LinearDiscriminantAnalysis()
-                        lda.fit(branch_inputs, C)
-
-                        # Project to get optimal discriminant
-                        I_lin[:, branch_idx] = lda.transform(branch_inputs)[:, 0]
+                        # Fit non-negative LDA on the K active synapses
+                        # Use same weight normalization as the network's TopKLinear
+                        I_lin[:, branch_idx] = self._apply_nonnegative_lda(
+                            branch_inputs,
+                            C,
+                            weight_norm_order=inh_weight_norm_order,
+                            gamma=inh_gamma,
+                        )
 
                     except Exception as e:
                         self.logger.warning(
@@ -1031,6 +1195,13 @@ class InformationAnalyzer(AbstractAnalyzer):
                 raw_branch.detach().cpu().numpy()
             )  # [n_samples, n_upstream_branches]
 
+            # BlockLinear doesn't have weight_norm_order/gamma like TopKLinear
+            # Use defaults (L1 norm, gamma=1.0)
+            vb_weight_norm_order = getattr(
+                module.branches_to_output, "weight_norm_order", None
+            )
+            vb_gamma = getattr(module.branches_to_output, "gamma", 1.0)
+
             # Get block_size from branches_to_output (BlockLinear)
             if hasattr(module.branches_to_output, "block_size"):
                 block_size = module.branches_to_output.block_size
@@ -1047,14 +1218,14 @@ class InformationAnalyzer(AbstractAnalyzer):
 
                         if branch_inputs.shape[1] > 0:
                             try:
-                                # Fit LDA on the upstream branches for this block
-                                lda = LinearDiscriminantAnalysis()
-                                lda.fit(branch_inputs, C)
-
-                                # Project to get optimal discriminant
-                                Vb_lin[:, branch_idx] = lda.transform(branch_inputs)[
-                                    :, 0
-                                ]
+                                # Fit non-negative LDA on the upstream branches
+                                # Use same weight normalization as the network
+                                Vb_lin[:, branch_idx] = self._apply_nonnegative_lda(
+                                    branch_inputs,
+                                    C,
+                                    weight_norm_order=vb_weight_norm_order,
+                                    gamma=vb_gamma,
+                                )
 
                             except Exception as e:
                                 self.logger.warning(
@@ -1084,21 +1255,17 @@ class InformationAnalyzer(AbstractAnalyzer):
                 # Fallback: no block structure, use network weights
                 Vb_lin = layer_data["branch_input"].detach().cpu().numpy()
 
-        # Compute Vout_lin by applying the same dendritic computation to LDA inputs
-        # Then pass through the network's reactivation function
+        # Compute Vout_lin using the same dendritic computation as the network
+        # With non-negative LDA weights, E_lin, I_lin, Vb_lin are all non-negative
+        # so shunting inhibition formula works properly
         use_shunting = getattr(module, "use_shunting", True)
         epsilon = getattr(module, "epsilon", 1e-8)
 
         if use_shunting:
-            # Shunting inhibition: voltage = (E + Vb) / (1 + relu(E) + relu(I) + relu(Vb_conductance))
-            # Simplified version using LDA signals
+            # Shunting inhibition: voltage = (E + Vb) / (1 + E + I + Vb)
+            # With non-negative inputs, this normalizes properly
             numerator = E_lin + Vb_lin
-            denominator = (
-                1.0
-                + np.maximum(E_lin, 0)
-                + np.maximum(I_lin, 0)
-                + np.maximum(Vb_lin, 0)
-            )
+            denominator = 1.0 + E_lin + I_lin + Vb_lin
             voltage_lin = numerator / (denominator + epsilon)
         else:
             # Additive: voltage = E + Vb - I
@@ -1116,6 +1283,177 @@ class InformationAnalyzer(AbstractAnalyzer):
                 Vout_lin = module.reactivation(voltage_tensor).cpu().numpy()
         else:
             # No reactivation, use voltage directly
+            Vout_lin = voltage_lin
+
+        return E_lin, I_lin, Vb_lin, Vout_lin
+
+    def compute_lda_aggregated_signals_chained(
+        self,
+        layer_data: dict,
+        C: np.ndarray,
+        prev_layer_vout_lin: np.ndarray = None,
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        """Compute LDA-weighted signals with optional chained branch input.
+
+        This is similar to compute_lda_aggregated_signals but allows overriding
+        the branch input with Vout_lin from a previous layer, enabling proper
+        chained LDA comparison across all network layers.
+
+        Uses non-negative LDA weights to match network's non-negative synaptic weights.
+
+        Args:
+            layer_data: Dictionary containing raw inputs and module
+            C: Class labels, shape [n_samples,]
+            prev_layer_vout_lin: Vout_lin from previous layer, to use as branch input.
+                                 If None, uses the raw_branch_input from layer_data.
+
+        Returns:
+            Tuple of (E_lin, I_lin, Vb_lin, Vout_lin) each shape [n_samples, n_branches]
+        """
+        module = layer_data.get("module")
+        if module is None:
+            return None, None, None, None
+
+        raw_exc = layer_data.get("raw_excitatory_input")
+        raw_inh = layer_data.get("raw_inhibitory_input")
+
+        # Use chained branch input if provided, otherwise use raw_branch_input
+        if prev_layer_vout_lin is not None:
+            # Convert to tensor if needed
+            if isinstance(prev_layer_vout_lin, np.ndarray):
+                raw_branch = torch.tensor(prev_layer_vout_lin, dtype=torch.float32)
+            else:
+                raw_branch = prev_layer_vout_lin
+        else:
+            raw_branch = layer_data.get("raw_branch_input")
+
+        n_samples = C.shape[0]
+        n_branches = layer_data["excitation"].shape[1]
+
+        E_lin = np.zeros((n_samples, n_branches))
+        I_lin = np.zeros((n_samples, n_branches))
+        Vb_lin = np.zeros((n_samples, n_branches))
+
+        # Check if we have enough classes for LDA
+        if len(np.unique(C)) <= 1:
+            E_lin = layer_data["excitation"].detach().cpu().numpy()
+            I_lin = layer_data["inhibition"].detach().cpu().numpy()
+            if raw_branch is not None:
+                if isinstance(raw_branch, torch.Tensor):
+                    Vb_lin = raw_branch.detach().cpu().numpy()
+                else:
+                    Vb_lin = raw_branch
+            Vout_lin = layer_data["output"].detach().cpu().numpy()
+            return E_lin, I_lin, Vb_lin, Vout_lin
+
+        # Process each branch using non-negative LDA
+        # Get weight normalization parameters from the module (matching TopKLinear)
+        exc_weight_norm_order = None
+        exc_gamma = 1.0
+        if (
+            hasattr(module, "branch_excitation")
+            and module.branch_excitation is not None
+        ):
+            exc_weight_norm_order = getattr(
+                module.branch_excitation, "weight_norm_order", None
+            )
+            exc_gamma = getattr(module.branch_excitation, "gamma", 1.0)
+
+        inh_weight_norm_order = None
+        inh_gamma = 1.0
+        if (
+            hasattr(module, "branch_inhibition")
+            and module.branch_inhibition is not None
+        ):
+            inh_weight_norm_order = getattr(
+                module.branch_inhibition, "weight_norm_order", None
+            )
+            inh_gamma = getattr(module.branch_inhibition, "gamma", 1.0)
+
+        vb_weight_norm_order = None
+        vb_gamma = 1.0
+        if (
+            hasattr(module, "branches_to_output")
+            and module.branches_to_output is not None
+        ):
+            vb_weight_norm_order = getattr(
+                module.branches_to_output, "weight_norm_order", None
+            )
+            vb_gamma = getattr(module.branches_to_output, "gamma", 1.0)
+
+        for branch_idx in range(n_branches):
+            # E: Non-negative LDA on excitatory inputs
+            if raw_exc is not None and hasattr(module, "branch_excitation"):
+                try:
+                    exc_np = raw_exc.detach().cpu().numpy()
+                    # Use same weight normalization as the network's TopKLinear
+                    E_lin[:, branch_idx] = self._apply_nonnegative_lda(
+                        exc_np,
+                        C,
+                        weight_norm_order=exc_weight_norm_order,
+                        gamma=exc_gamma,
+                    )
+                except Exception:
+                    E_lin[:, branch_idx] = (
+                        layer_data["excitation"][:, branch_idx].cpu().numpy()
+                    )
+
+            # I: Non-negative LDA on inhibitory inputs
+            if raw_inh is not None and hasattr(module, "branch_inhibition"):
+                try:
+                    inh_np = raw_inh.detach().cpu().numpy()
+                    # Use same weight normalization as the network's TopKLinear
+                    I_lin[:, branch_idx] = self._apply_nonnegative_lda(
+                        inh_np,
+                        C,
+                        weight_norm_order=inh_weight_norm_order,
+                        gamma=inh_gamma,
+                    )
+                except Exception:
+                    I_lin[:, branch_idx] = (
+                        layer_data["inhibition"][:, branch_idx].cpu().numpy()
+                    )
+
+            # Vb: Non-negative LDA on branch inputs (chained from previous layer)
+            if raw_branch is not None and hasattr(module, "branches_to_output"):
+                try:
+                    if isinstance(raw_branch, torch.Tensor):
+                        branch_np = raw_branch.detach().cpu().numpy()
+                    else:
+                        branch_np = raw_branch
+                    # Use same weight normalization as the network's BlockLinear
+                    Vb_lin[:, branch_idx] = self._apply_nonnegative_lda(
+                        branch_np,
+                        C,
+                        weight_norm_order=vb_weight_norm_order,
+                        gamma=vb_gamma,
+                    )
+                except Exception:
+                    if isinstance(raw_branch, torch.Tensor):
+                        Vb_lin[:, branch_idx] = raw_branch[:, branch_idx].cpu().numpy()
+                    else:
+                        Vb_lin[:, branch_idx] = raw_branch[:, branch_idx]
+
+        # Compute Vout_lin using the same dendritic computation as the network
+        # With non-negative LDA weights, E_lin, I_lin, Vb_lin are all non-negative
+        use_shunting = getattr(module, "use_shunting", True)
+        epsilon = getattr(module, "epsilon", 1e-8)
+
+        if use_shunting:
+            numerator = E_lin + Vb_lin
+            denominator = 1.0 + E_lin + I_lin + Vb_lin
+            voltage_lin = numerator / (denominator + epsilon)
+        else:
+            voltage_lin = E_lin + Vb_lin - I_lin
+
+        # Apply reactivation
+        if hasattr(module, "reactivation") and module.reactivation is not None:
+            voltage_tensor = torch.tensor(voltage_lin, dtype=torch.float32)
+            device = next(module.parameters()).device
+            voltage_tensor = voltage_tensor.to(device)
+            with torch.no_grad():
+                Vout_lin = module.reactivation(voltage_tensor).cpu().numpy()
+        else:
             Vout_lin = voltage_lin
 
         return E_lin, I_lin, Vb_lin, Vout_lin
@@ -1634,15 +1972,22 @@ class InformationAnalyzer(AbstractAnalyzer):
                                     renamed_dict = {}
                                     for subkey, subval in value.items():
                                         # Replace E, I, Vb with E_lin, I_lin, Vb_lin in metric names
-                                        new_subkey = subkey.replace(
-                                            "(E;", "(E_lin;"
-                                        ).replace(";E)", ";E_lin)")
-                                        new_subkey = new_subkey.replace(
-                                            "(I;", "(I_lin;"
-                                        ).replace(";I)", ";I_lin)")
-                                        new_subkey = new_subkey.replace(
-                                            "(Vb;", "(Vb_lin;"
-                                        ).replace(";Vb)", ";Vb_lin)")
+                                        # Handle both pairwise (;X)) and conditional (;X|C)) patterns
+                                        new_subkey = (
+                                            subkey.replace("(E;", "(E_lin;")
+                                            .replace(";E)", ";E_lin)")
+                                            .replace(";E|", ";E_lin|")
+                                        )
+                                        new_subkey = (
+                                            new_subkey.replace("(I;", "(I_lin;")
+                                            .replace(";I)", ";I_lin)")
+                                            .replace(";I|", ";I_lin|")
+                                        )
+                                        new_subkey = (
+                                            new_subkey.replace("(Vb;", "(Vb_lin;")
+                                            .replace(";Vb)", ";Vb_lin)")
+                                            .replace(";Vb|", ";Vb_lin|")
+                                        )
                                         new_subkey = new_subkey.replace(
                                             "(E,I;", "(E_lin,I_lin;"
                                         )
@@ -1672,6 +2017,26 @@ class InformationAnalyzer(AbstractAnalyzer):
                         layer_stats = self._compute_layer_statistics(
                             layer_branch_results
                         )
+                        # Add has_synapses flag for plotting code to use
+                        if layer_name in self.data_dict:
+                            layer_stats["has_synapses"] = self.data_dict[
+                                layer_name
+                            ].get("has_synapses", True)
+                            # Zero out E/I related MI values when layer has no synapses
+                            # (e.g., soma with somatic_synapses=False)
+                            if not layer_stats["has_synapses"]:
+                                for key in list(layer_stats.keys()):
+                                    # Zero out any metric involving E or I (but not Vb or Vout alone)
+                                    if any(
+                                        x in key
+                                        for x in [
+                                            "I(E;",
+                                            "I(I;",
+                                            "I(E_lin;",
+                                            "I(I_lin;",
+                                        ]
+                                    ):
+                                        layer_stats[key] = 0.0
                         layer_results[layer_name] = layer_stats
 
                     self.logger.info(
@@ -1814,6 +2179,28 @@ class InformationAnalyzer(AbstractAnalyzer):
                     ):
                         # Convert individual layer result to statistics format expected by plotting
                         layer_stats = self._compute_layer_statistics([layer_result])
+
+                        # Add has_synapses flag for plotting code to use
+                        if layer_name in self.data_dict:
+                            layer_stats["has_synapses"] = self.data_dict[
+                                layer_name
+                            ].get("has_synapses", True)
+                            # Zero out E/I related MI values when layer has no synapses
+                            # (e.g., soma with somatic_synapses=False)
+                            if not layer_stats["has_synapses"]:
+                                for key in list(layer_stats.keys()):
+                                    # Zero out any metric involving E or I (but not Vb or Vout alone)
+                                    if any(
+                                        x in key
+                                        for x in [
+                                            "I(E;",
+                                            "I(I;",
+                                            "I(E_lin;",
+                                            "I(I_lin;",
+                                        ]
+                                    ):
+                                        layer_stats[key] = 0.0
+
                         layer_statistics[layer_name] = layer_stats
 
                     results["layer_statistics"] = layer_statistics
@@ -2026,10 +2413,39 @@ class InformationAnalyzer(AbstractAnalyzer):
             if "num_layers" in results:
                 self.logger.info(f"   - Layers processed: {results['num_layers']}")
 
-            # Add synthetic soma entry when somatic_synapses=False for uniform plotting
+            # Check if we need to add synthetic soma entry
+            # This is only needed when somatic_synapses=False AND the soma layer
+            # wasn't captured by forward hooks (shouldn't happen now that we fixed hooks)
             somatic_synapses = getattr(model.core_network, "somatic_synapses", True)
             self.logger.info(f"Somatic synapses enabled: {somatic_synapses}")
-            if not somatic_synapses and "layer_statistics" in results:
+
+            # Find if the actual soma layer is already in layer_statistics
+            soma_already_captured = False
+            if "layer_statistics" in results:
+                for layer_name in results["layer_statistics"].keys():
+                    if "branch_layers." in layer_name:
+                        try:
+                            # Find the highest index layer (soma)
+                            branch_idx = int(
+                                layer_name.split("branch_layers.")[1].split(".")[0]
+                            )
+                            # Check if this is a soma layer (no synapses)
+                            layer_data = results["layer_statistics"][layer_name]
+                            if layer_data.get("has_synapses") is False:
+                                soma_already_captured = True
+                                self.logger.info(
+                                    f"Soma layer already captured: {layer_name}"
+                                )
+                                break
+                        except (ValueError, IndexError):
+                            continue
+
+            # Only add synthetic soma if the real soma wasn't captured
+            if (
+                not somatic_synapses
+                and "layer_statistics" in results
+                and not soma_already_captured
+            ):
                 self.logger.info(
                     f"Adding synthetic soma entry to {len(results['layer_statistics'])} existing layers"
                 )
@@ -2218,30 +2634,28 @@ class InformationAnalyzer(AbstractAnalyzer):
             # Compute LDA vs trained performance comparison if LDA weights are enabled
             if self.compute_lda_weights and save_path is not None:
                 try:
-                    self.logger.info(
-                        "Computing LDA vs trained weights performance comparison..."
-                    )
-                    # Create a dataloader from the inputs/labels we already have
-                    from torch.utils.data import DataLoader, TensorDataset
-
-                    comparison_dataset = TensorDataset(inputs, labels)
-                    comparison_loader = DataLoader(
-                        comparison_dataset, batch_size=128, shuffle=False
-                    )
+                    # Use the inputs/labels already loaded in the analyze method
                     lda_comparison = self.compare_lda_vs_trained_performance(
-                        model, comparison_loader, device
+                        model, inputs, labels, device
                     )
                     results["lda_vs_trained_performance"] = lda_comparison
 
-                    # Plot the comparison
-                    from dendritic_modeling.plotting.visualizations.information_plots import (
-                        plot_lda_vs_trained_performance,
-                    )
+                    # Plot the comparison if LDA accuracy was computed
+                    if lda_comparison.get("lda_accuracy") is not None:
+                        from dendritic_modeling.plotting.visualizations.information_plots import (
+                            plot_lda_vs_trained_performance,
+                        )
 
-                    plot_lda_vs_trained_performance(
-                        lda_comparison, save_path, self.logger
-                    )
-                    self.logger.info("LDA vs trained performance comparison completed!")
+                        plot_lda_vs_trained_performance(
+                            lda_comparison, save_path, self.logger
+                        )
+                        self.logger.info(
+                            "LDA vs trained performance comparison completed!"
+                        )
+                    else:
+                        self.logger.warning(
+                            "LDA accuracy not available, skipping performance plot"
+                        )
                 except Exception as e:
                     self.logger.error(
                         f"Error computing LDA vs trained performance: {e}"
@@ -2290,123 +2704,133 @@ class InformationAnalyzer(AbstractAnalyzer):
     def compare_lda_vs_trained_performance(
         self,
         model: torch.nn.Module,
-        dataloader: torch.utils.data.DataLoader,
+        inputs: torch.Tensor,
+        labels: torch.Tensor,
         device: torch.device = None,
     ) -> dict:
         """Compare classification performance using trained weights vs LDA-optimal weights.
 
-        This method computes:
+        This method uses the data already collected in self.data_dict from the main analysis.
+        It computes:
         1. Performance with trained network weights (original model)
         2. Performance with LDA-optimized input aggregation (Vout_lin passed through decoder)
 
-        The LDA version uses optimal linear weights for aggregating synaptic inputs,
-        while keeping the network's nonlinear processing (reactivation) and decoder.
-
         Args:
             model: Trained model with encoder, core_network, and decoder
-            dataloader: DataLoader with test/validation data
+            inputs: Input tensor (already processed in main analysis)
+            labels: Label tensor (already processed in main analysis)
             device: Device to run computations on
 
         Returns:
             Dictionary with:
             - trained_accuracy: Accuracy with trained weights
             - lda_accuracy: Accuracy with LDA-optimal aggregation
-            - trained_predictions: Predictions from trained model
-            - lda_predictions: Predictions from LDA-aggregated outputs
-            - per_layer_comparison: Per-layer accuracy comparison
+            - accuracy_difference: LDA - Trained accuracy
         """
         from sklearn.metrics import accuracy_score
 
         if device is None:
             device = next(model.parameters()).device
 
+        # Ensure model is in eval mode (same state used for all comparisons)
         model.eval()
 
-        all_labels = []
-        all_trained_preds = []
-        all_lda_outputs = []
-
         self.logger.info("Computing LDA vs trained weights performance comparison...")
+        self.logger.info(
+            "Note: Using the SAME model for both trained and LDA predictions. "
+            "Only the intermediate representations differ."
+        )
 
-        with torch.no_grad():
-            for batch_idx, (inputs, labels) in enumerate(dataloader):
-                inputs = inputs.to(device)
-                labels_np = labels.numpy() if hasattr(labels, "numpy") else labels
-
-                # Get trained model predictions
-                trained_outputs = model(inputs)
-                trained_preds = trained_outputs.argmax(dim=1).cpu().numpy()
-
-                # Collect LDA-aggregated outputs from each layer
-                # First, run through encoder
-                if hasattr(model, "encoder") and model.encoder is not None:
-                    encoded = model.encoder(inputs)
-                else:
-                    encoded = inputs
-
-                # Run through core network to collect activations
-                handles = self.register_forward_hooks(model.core_network)
-                _ = model.core_network(encoded)
-                self.remove_forward_hooks(handles)
-
-                # Compute LDA aggregation for each layer and get final Vout_lin
-                final_vout_lin = None
-                for _layer_name, layer_data in self.data_dict.items():
-                    if "excitation" not in layer_data:
-                        continue
-
-                    # Compute LDA-aggregated signals
-                    lda_result = self.compute_lda_aggregated_signals(
-                        layer_data, labels_np
-                    )
-                    if lda_result[0] is not None:
-                        E_lin, I_lin, Vb_lin, Vout_lin = lda_result
-                        # Keep the last layer's Vout_lin (closest to output)
-                        final_vout_lin = Vout_lin
-
-                # Pass LDA outputs through decoder
-                if final_vout_lin is not None and hasattr(model, "decoder"):
-                    vout_tensor = torch.tensor(final_vout_lin, dtype=torch.float32).to(
-                        device
-                    )
-                    lda_logits = model.decoder(vout_tensor)
-                    all_lda_outputs.append(lda_logits.cpu())
-
-                all_labels.extend(labels_np)
-                all_trained_preds.extend(trained_preds)
-
-                if batch_idx % 10 == 0:
-                    self.logger.debug(f"  Processed batch {batch_idx + 1}")
-
-        # Compute LDA predictions
-        if all_lda_outputs:
-            lda_logits_all = torch.cat(all_lda_outputs, dim=0)
-            lda_preds = lda_logits_all.argmax(dim=1).numpy()
-            lda_accuracy = accuracy_score(all_labels, lda_preds)
+        # Move labels to CPU/numpy
+        if hasattr(labels, "cpu"):
+            labels_np = labels.cpu().numpy()
+        elif hasattr(labels, "numpy"):
+            labels_np = labels.numpy()
         else:
-            lda_preds = None
-            lda_accuracy = None
-            self.logger.warning("Could not compute LDA predictions")
+            labels_np = np.array(labels)
 
-        # Compute trained accuracy
-        trained_accuracy = accuracy_score(all_labels, all_trained_preds)
+        # Get trained model predictions
+        with torch.no_grad():
+            trained_outputs = model(inputs.to(device))
+            trained_preds = trained_outputs.argmax(dim=1).cpu().numpy()
 
+        trained_accuracy = accuracy_score(labels_np, trained_preds)
+
+        # Compute CHAINED LDA through all layers
+        # Sort layers by branch index to process in order
+        layer_names = list(self.data_dict.keys())
+
+        # Extract and sort layers by branch index
+        layers_with_idx = []
+        for layer_name in layer_names:
+            if "branch_layers" in layer_name:
+                try:
+                    idx = int(layer_name.split("branch_layers.")[1].split(".")[0])
+                    layers_with_idx.append((idx, layer_name))
+                except (ValueError, IndexError):
+                    continue
+        layers_with_idx.sort(key=lambda x: x[0])
+
+        # Chain LDA through all layers
+        prev_vout_lin = None  # Output from previous layer (None for first layer)
+        final_vout_lin = None
+
+        for _layer_idx, layer_name in layers_with_idx:
+            layer_data = self.data_dict[layer_name]
+            if "excitation" not in layer_data:
+                continue
+
+            # Compute LDA signals with chained branch input
+            lda_result = self.compute_lda_aggregated_signals_chained(
+                layer_data, labels_np, prev_vout_lin
+            )
+
+            if lda_result[0] is not None:
+                _E_lin, _I_lin, _Vb_lin, Vout_lin = lda_result
+                prev_vout_lin = Vout_lin  # Use as input for next layer
+                final_vout_lin = Vout_lin
+            else:
+                # Fall back to trained network output
+                prev_vout_lin = layer_data["output"].detach().cpu().numpy()
+                final_vout_lin = prev_vout_lin
+
+        # Use LDA outputs to compute accuracy
+        # Note: final_vout_lin is already the LDA-computed output of the soma layer
+        # (since the loop above processes ALL layers including soma).
+        # We only need to apply the decoder if there is one.
+        lda_accuracy = None
+        lda_preds = None
+
+        if final_vout_lin is not None:
+            with torch.no_grad():
+                vout_tensor = torch.tensor(final_vout_lin, dtype=torch.float32).to(
+                    device
+                )
+
+                if hasattr(model, "decoder") and model.decoder is not None:
+                    # Use decoder if available
+                    lda_logits = model.decoder(vout_tensor)
+                else:
+                    # No decoder - final_vout_lin is already the soma layer's output
+                    # (LDA was applied to all layers including soma in the loop above)
+                    # Use it directly as logits
+                    lda_logits = vout_tensor
+
+                lda_preds = lda_logits.argmax(dim=1).cpu().numpy()
+                lda_accuracy = accuracy_score(labels_np, lda_preds)
         results = {
             "trained_accuracy": trained_accuracy,
             "lda_accuracy": lda_accuracy,
-            "trained_predictions": all_trained_preds,
-            "lda_predictions": lda_preds,
-            "labels": all_labels,
+            "trained_predictions": trained_preds.tolist(),
+            "lda_predictions": lda_preds.tolist() if lda_preds is not None else None,
             "accuracy_difference": (
                 lda_accuracy - trained_accuracy if lda_accuracy is not None else None
             ),
         }
 
-        self.logger.info(f"Trained weights accuracy: {trained_accuracy:.4f}")
         if lda_accuracy is not None:
-            self.logger.info(f"LDA-optimal weights accuracy: {lda_accuracy:.4f}")
             self.logger.info(
-                f"Difference (LDA - Trained): {results['accuracy_difference']:.4f}"
+                f"Difference (LDA - Trained): {results['accuracy_difference']:+.4f}"
             )
 
         return results
