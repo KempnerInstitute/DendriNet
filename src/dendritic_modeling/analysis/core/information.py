@@ -37,6 +37,7 @@ from dendritic_modeling.utils.information.pid import (
     check_pid_available,
     pid_synergy_redundancy,
 )
+from dendritic_modeling.utils.lda import apply_nonnegative_lda, fit_nonnegative_lda
 
 
 class InformationAnalyzer(AbstractAnalyzer):
@@ -911,116 +912,9 @@ class InformationAnalyzer(AbstractAnalyzer):
     ) -> tuple[np.ndarray, float]:
         """Fit LDA with non-negative weight constraint.
 
-        Finds the optimal non-negative linear combination of features that
-        maximizes class separability (Fisher criterion). This is appropriate
-        for neural network analysis where synaptic weights are non-negative.
-
-        Args:
-            X: Input features, shape [n_samples, n_features]
-            y: Class labels, shape [n_samples,]
-            weight_norm_order: Lp norm order for weight normalization (matching network's TopKLinear).
-                               If None, weights are normalized to sum to 1 (L1 norm = 1).
-                               Common values: 1 (L1), 2 (L2).
-            gamma: Scaling factor after normalization (matching network's TopKLinear gamma).
-
-        Returns:
-            Tuple of (weights, intercept) where weights are non-negative and properly normalized
+        Delegates to the utility function in dendritic_modeling.utils.lda.
         """
-        from scipy.optimize import minimize
-
-        n_features = X.shape[1]
-        classes = np.unique(y)
-        n_classes = len(classes)
-
-        if n_classes <= 1 or n_features == 0:
-            # Cannot do LDA with single class or no features
-            return np.ones(n_features) / max(n_features, 1), 0.0
-
-        # Compute class means and overall mean
-        class_means = np.array([X[y == c].mean(axis=0) for c in classes])
-        overall_mean = X.mean(axis=0)
-
-        # Compute between-class scatter matrix S_b
-        # S_b = sum_c n_c * (mu_c - mu)(mu_c - mu)^T
-        S_b = np.zeros((n_features, n_features))
-        for i, c in enumerate(classes):
-            n_c = np.sum(y == c)
-            diff = (class_means[i] - overall_mean).reshape(-1, 1)
-            S_b += n_c * (diff @ diff.T)
-
-        # Compute within-class scatter matrix S_w
-        # S_w = sum_c sum_{x in c} (x - mu_c)(x - mu_c)^T
-        S_w = np.zeros((n_features, n_features))
-        for i, c in enumerate(classes):
-            X_c = X[y == c]
-            diff = X_c - class_means[i]
-            S_w += diff.T @ diff
-
-        # Add regularization for numerical stability
-        S_w += 1e-6 * np.eye(n_features)
-
-        # Objective: maximize w^T S_b w / w^T S_w w
-        # Equivalent to minimizing -w^T S_b w subject to w^T S_w w = 1 and w >= 0
-        def objective(w):
-            w = w.reshape(-1)
-            numerator = w @ S_b @ w
-            denominator = w @ S_w @ w + 1e-10
-            return -numerator / denominator  # Negative because we minimize
-
-        def gradient(w):
-            w = w.reshape(-1)
-            Sb_w = S_b @ w
-            Sw_w = S_w @ w
-            num = w @ Sb_w
-            den = w @ Sw_w + 1e-10
-            # d/dw of -num/den = -(2*Sb_w*den - num*2*Sw_w) / den^2
-            return -(2 * Sb_w * den - num * 2 * Sw_w) / (den * den)
-
-        # Initialize with uniform positive weights
-        w0 = np.ones(n_features) / n_features
-
-        # Bounds: all weights >= 0
-        bounds = [(0, None) for _ in range(n_features)]
-
-        # Optimize
-        try:
-            result = minimize(
-                objective,
-                w0,
-                method="L-BFGS-B",
-                jac=gradient,
-                bounds=bounds,
-                options={"maxiter": 100, "ftol": 1e-6},
-            )
-            w_opt = result.x
-
-            # Normalize weights using the same method as the network's TopKLinear
-            # This ensures LDA weights are on the same scale as trained weights
-            if weight_norm_order is not None:
-                # Use Lp norm normalization (matching TopKLinear.pruned_weight())
-                w_norm = np.linalg.norm(w_opt, ord=weight_norm_order)
-                if w_norm > 1e-10:
-                    w_opt = (w_opt / w_norm) * gamma
-                else:
-                    w_opt = np.ones(n_features) * gamma / n_features
-            else:
-                # Default: normalize weights to sum to 1 (like averaging)
-                w_sum = np.sum(w_opt)
-                if w_sum > 1e-10:
-                    w_opt = w_opt / w_sum
-                else:
-                    w_opt = np.ones(n_features) / n_features
-
-        except Exception:
-            # Fallback to uniform weights with proper normalization
-            if weight_norm_order is not None:
-                w_opt = np.ones(n_features)
-                w_norm = np.linalg.norm(w_opt, ord=weight_norm_order)
-                w_opt = (w_opt / w_norm) * gamma
-            else:
-                w_opt = np.ones(n_features) / n_features
-
-        return w_opt, 0.0
+        return fit_nonnegative_lda(X, y, weight_norm_order, gamma)
 
     def _apply_nonnegative_lda(
         self,
@@ -1031,19 +925,9 @@ class InformationAnalyzer(AbstractAnalyzer):
     ) -> np.ndarray:
         """Apply non-negative LDA to get projected values.
 
-        Args:
-            X: Input features, shape [n_samples, n_features]
-            y: Class labels, shape [n_samples,]
-            weight_norm_order: Lp norm order for weight normalization (matching network's TopKLinear).
-            gamma: Scaling factor after normalization (matching network's TopKLinear gamma).
-
-        Returns:
-            Projected values, shape [n_samples,]
+        Delegates to the utility function in dendritic_modeling.utils.lda.
         """
-        weights, _ = self._fit_nonnegative_lda(
-            X, y, weight_norm_order=weight_norm_order, gamma=gamma
-        )
-        return X @ weights
+        return apply_nonnegative_lda(X, y, weight_norm_order, gamma)
 
     def compute_lda_aggregated_signals(
         self,
@@ -1813,34 +1697,21 @@ class InformationAnalyzer(AbstractAnalyzer):
             inputs = inputs.to(device)
             labels = labels.to(device)
 
-            # Attach forward hooks
-            self.logger.info("Attaching forward hooks to collect activations...")
+            # Attach forward hooks and run forward pass
             handles = self.attach_forward_hooks(model)
-
-            # Forward pass to collect activations
-            self.logger.info("Running forward pass to collect neural activations...")
             with torch.no_grad():
-                with tqdm(total=1, desc="Forward pass") as pbar:
-                    _ = model(inputs)
-                    pbar.update(1)
-
-            # Remove hooks
-            self.logger.info("Removing forward hooks...")
+                _ = model(inputs)
             self.remove_forward_hooks(handles)
-
-            self.logger.info("Converting labels to numpy...")
             C = labels.detach().cpu().numpy()
 
-            self.logger.info(
-                f"Data collection completed. Found {len(self.data_dict)} layers with activations."
+            self.logger.debug(
+                f"Data collection completed. Found {len(self.data_dict)} layers."
             )
 
             self.data_dict: dict[str, dict[str, torch.Tensor]]
 
             if self.computation_level == "single_branch":
                 # Individual branch analysis: Compute MI for each branch separately and average
-                self.logger.info("Starting single-branch MI computation mode...")
-
                 all_results = []
                 branch_names = []
                 layer_results = {}  # Store results per layer
@@ -1860,16 +1731,8 @@ class InformationAnalyzer(AbstractAnalyzer):
                 layer_count = 0
 
                 self.logger.info(
-                    f"Analysis scope: {total_layers} layers, ~{total_branches} total branches to process"
+                    f"Single-branch MI analysis: {total_layers} layers, {total_branches} branches, method={self.method}"
                 )
-                self.logger.info(
-                    f"Using {self.method} estimator with max_samples={self.max_samples}"
-                )
-                self.logger.info(
-                    f"Enabled computations: basic_mi={self.compute_basic_mi}, pairwise_mi={self.compute_pairwise_mi}, conditional_mi={self.compute_conditional_mi}, pid={self.compute_pid}"
-                )
-
-                self.logger.info("Beginning branch-by-branch processing...")
 
                 layers_to_process = [
                     (name, data)
@@ -1878,12 +1741,12 @@ class InformationAnalyzer(AbstractAnalyzer):
                 ]
 
                 for layer_name, layer_data in tqdm(
-                    layers_to_process, desc="Processing layers"
+                    layers_to_process,
+                    desc="Processing layers",
+                    leave=False,
+                    ncols=100,
                 ):
                     layer_count += 1
-                    self.logger.info(
-                        f"Processing layer {layer_count}/{total_layers}: {layer_name}"
-                    )
 
                     # Get data for all branches in this layer
                     E_all_branches_raw = layer_data["excitation"]
@@ -1917,22 +1780,24 @@ class InformationAnalyzer(AbstractAnalyzer):
 
                     # E_all_branches shape: (n_samples, n_branches)
                     n_branches = E_all_branches.shape[1]
-                    self.logger.info(f"  Layer {layer_name} has {n_branches} branches")
 
                     # Store per-branch results for this layer
                     layer_branch_results = []
                     layer_start_time = time.time()
 
                     # Process each branch individually
+                    # Extract short layer name for progress bar
+                    short_name = (
+                        layer_name.split(".")[-1] if "." in layer_name else layer_name
+                    )
                     for branch_idx in tqdm(
                         range(n_branches),
-                        desc=f"  Branches in {layer_name}",
+                        desc=f"  {short_name}",
                         leave=False,
+                        ncols=100,
+                        mininterval=0.5,
                     ):
                         branch_start_time = time.time()
-                        self.logger.debug(
-                            f"  Processing branch {branch_idx + 1}/{n_branches} in {layer_name}..."
-                        )
 
                         # Extract data for this specific branch
                         E_branch = E_all_branches[
@@ -2070,7 +1935,10 @@ class InformationAnalyzer(AbstractAnalyzer):
                 ]
 
                 for layer_name, layer_data in tqdm(
-                    layers_to_process, desc="Processing layers"
+                    layers_to_process,
+                    desc="Processing layers",
+                    leave=False,
+                    ncols=100,
                 ):
                     # Aggregate all branches within this layer using branch_aggregation
                     E_layer_data_raw = layer_data[

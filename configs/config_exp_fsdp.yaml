@@ -241,8 +241,9 @@ model:
       somatic_synapses: false
       use_shunting: true
       weight_transform: softplus
-    # LDA-based initialization parameters (only used when dbl_init_method: lda_analytical)
-    # To enable LDA initialization, set dbl_init_method: lda_analytical above
+    # LDA-based initialization parameters
+    # - LDA weight init: set morphology.dbl_init_method: lda_analytical
+    # - LDA sparsity (TopK selection): set sparsity.init_method: lda
     lda_init:
       n_samples: 1000                   # Number of samples to use for LDA fitting
       adaptive: true                    # Use network-aware scaling to prevent overflow

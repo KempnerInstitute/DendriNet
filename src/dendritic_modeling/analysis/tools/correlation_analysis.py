@@ -715,14 +715,9 @@ class CorrelationAnalyzer(AbstractAnalyzer):
                 labels_np = labels_np[indices]
 
             # Attach hooks and run forward pass
-            self.logger.info("Collecting activations...")
             handles = self.attach_forward_hooks(model)
-
             with torch.no_grad():
-                with tqdm(total=1, desc="Forward pass") as pbar:
-                    _ = model(inputs)
-                    pbar.update(1)
-
+                _ = model(inputs)
             self.remove_forward_hooks(handles)
 
             # Initialize results
@@ -784,7 +779,9 @@ class CorrelationAnalyzer(AbstractAnalyzer):
         # Network-level synaptic analysis
         all_results = {}
         layers = list(self.data_dict.items())
-        for layer_name, layer_data in tqdm(layers, desc="Processing layers (synaptic)"):
+        for layer_name, layer_data in tqdm(
+            layers, desc="Synaptic analysis", leave=False, ncols=100
+        ):
             layer_results = self._compute_synaptic_correlations(layer_data, labels)
             all_results[layer_name] = layer_results
 
@@ -799,7 +796,7 @@ class CorrelationAnalyzer(AbstractAnalyzer):
 
         layers = list(self.data_dict.items())
         for layer_name, layer_data in tqdm(
-            layers, desc="Processing layers (single-branch)"
+            layers, desc="Layers", leave=False, ncols=100
         ):
             E = layer_data["excitation"].cpu().numpy()
             Inh = layer_data["inhibition"].cpu().numpy()
@@ -809,8 +806,13 @@ class CorrelationAnalyzer(AbstractAnalyzer):
             n_branches = E.shape[1] if E.ndim > 1 else 1
             branch_results = []
 
+            short_name = layer_name.split(".")[-1] if "." in layer_name else layer_name
             for branch_idx in tqdm(
-                range(n_branches), desc=f"  Branches in {layer_name}", leave=False
+                range(n_branches),
+                desc=f"  {short_name}",
+                leave=False,
+                ncols=100,
+                mininterval=0.5,
             ):
                 e_branch = E[:, branch_idx : branch_idx + 1] if E.ndim > 1 else E
                 i_branch = Inh[:, branch_idx : branch_idx + 1] if Inh.ndim > 1 else Inh
@@ -839,7 +841,7 @@ class CorrelationAnalyzer(AbstractAnalyzer):
             layer_results = {}
             layers = list(self.data_dict.items())
             for layer_name, layer_data in tqdm(
-                layers, desc="Processing layers (correlation)"
+                layers, desc="Layer correlation", leave=False, ncols=100
             ):
                 E = layer_data["excitation"].cpu().numpy()
                 Inh = layer_data["inhibition"].cpu().numpy()

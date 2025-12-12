@@ -55,11 +55,12 @@ class MorphologyConfig(BaseConfig):
 class LDAInitConfig(BaseConfig):
     """LDA-based initialization configuration.
 
-    Only used when dbl_init_method is set to "lda_analytical".
-    LDA initialization uses labeled data to initialize weights with
-    optimal class-discriminative directions.
+    Used when:
+    - dbl_init_method = "lda_analytical": LDA for weight values
+    - sparsity.init_method = "lda": LDA importance for TopK input selection
 
-    To enable LDA initialization, set morphology.dbl_init_method = "lda_analytical".
+    To enable LDA weight initialization, set morphology.dbl_init_method = "lda_analytical".
+    To enable LDA sparsity selection, set sparsity.init_method = "lda".
     """
 
     n_samples: int = 1000  # Number of samples to use for LDA fitting

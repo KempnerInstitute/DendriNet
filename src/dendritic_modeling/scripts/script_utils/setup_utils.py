@@ -200,17 +200,26 @@ def setup_environment(
     # Initialize model
     model, encoder_network = initialize_model(model_config)
 
-    # Apply LDA initialization if dbl_init_method is "lda_analytical"
+    # Apply LDA initialization if configured
     # LDA initialization requires data, so it must happen after model construction
     morphology_config = getattr(model_config.core, "morphology", None)
+    sparsity_config = getattr(model_config.core, "sparsity", None)
+    lda_init_config = getattr(model_config.core, "lda_init", None)
+
     dbl_init_method = (
         getattr(morphology_config, "dbl_init_method", None)
         if morphology_config
         else None
     )
+    sparsity_init_method = (
+        getattr(sparsity_config, "init_method", None) if sparsity_config else None
+    )
 
-    if dbl_init_method == "lda_analytical":
-        lda_init_config = getattr(model_config.core, "lda_init", None)
+    # Determine what LDA initialization to apply
+    use_lda_weights = dbl_init_method == "lda_analytical"
+    use_lda_sparsity = sparsity_init_method == "lda"
+
+    if use_lda_weights or use_lda_sparsity:
         n_samples = (
             getattr(lda_init_config, "n_samples", 1000) if lda_init_config else 1000
         )
@@ -218,8 +227,12 @@ def setup_environment(
             getattr(lda_init_config, "adaptive", True) if lda_init_config else True
         )
 
+        logger.info("Applying LDA-based initialization...")
         logger.info(
-            "Applying LDA-based weight initialization (dbl_init_method='lda_analytical')..."
+            f"  use_lda_weights={use_lda_weights} (dbl_init_method={dbl_init_method})"
+        )
+        logger.info(
+            f"  use_lda_sparsity={use_lda_sparsity} (sparsity.init_method={sparsity_init_method})"
         )
         model = apply_lda_initialization(
             model=model,
@@ -227,6 +240,8 @@ def setup_environment(
             encoder_network=encoder_network,
             n_samples=n_samples,
             adaptive=adaptive,
+            use_lda_sparsity=use_lda_sparsity,
+            use_lda_weights=use_lda_weights,
         )
         logger.info("LDA initialization completed")
 
@@ -240,6 +255,8 @@ def apply_lda_initialization(
     n_samples: int = 1000,
     adaptive: bool = True,
     device: str = "cpu",
+    use_lda_sparsity: bool = False,
+    use_lda_weights: bool = True,
 ):
     """Apply LDA-based initialization to all dendritic branch layers.
 
@@ -253,6 +270,8 @@ def apply_lda_initialization(
         n_samples: Number of samples to use for LDA fitting
         adaptive: Use network-aware scaling
         device: Device to run computations on
+        use_lda_sparsity: If True, use LDA to select which inputs are active (TopK selection)
+        use_lda_weights: If True, use LDA to initialize synaptic weight values
 
     Returns:
         Model with LDA-initialized weights
@@ -295,6 +314,8 @@ def apply_lda_initialization(
         device=device,
         n_samples=n_samples,
         adaptive=adaptive,
+        use_lda_sparsity=use_lda_sparsity,
+        use_lda_weights=use_lda_weights,
     )
 
     return model

@@ -15,6 +15,12 @@ from .config_validation import (
 
 # Core utilities
 from .general import Shaper, convert_to_serializable, save_dict, set_seed
+from .lda import (
+    apply_nonnegative_lda,
+    compute_lda_importance_scores,
+    fit_nonnegative_lda,
+    select_topk_features_by_lda,
+)
 from .logging_config import get_logger, setup_logging
 
 # Math utilities
@@ -39,27 +45,23 @@ from .training_stability_validator import (
 
 __all__ = [
     "ModelArchitectureValidator",
-    # Core utilities
     "Shaper",
     "apply_automatic_safeguards",
-    # Configuration and validation
+    "apply_nonnegative_lda",
+    "compute_lda_importance_scores",
     "convert_to_serializable",
+    "fit_nonnegative_lda",
     "get_logger",
     "get_validation_summary",
-    # Math utilities
     "roc_auc_score",
     "save_dict",
+    "select_topk_features_by_lda",
     "set_seed",
     "setup_logging",
     "suggest_optimal_config_for_model_size",
     "validate_architecture_only",
-    # New validation functions
     "validate_full_config",
     "validate_model_architecture",
     "validate_training_only",
     "validate_training_stability",
-    # Backward compatibility imports commented out due to circular imports
-    # "accuracy_score",
-    # "split_MNIST_inputs",
-    # "load_MNIST_modulo10"
 ]
