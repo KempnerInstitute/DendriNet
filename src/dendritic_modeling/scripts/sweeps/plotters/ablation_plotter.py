@@ -2,7 +2,6 @@
 
 import itertools
 import logging
-import traceback
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -132,7 +131,7 @@ class AblationPlotter(BasePlotter):
             plot_paths.append(self.save_figure(fig, plot_path))
 
         except Exception as e:
-            logger.error(f"Error generating layer contribution plot: {e}")
+            logger.exception(f"Error generating layer contribution plot: {e}")
 
         logger.info(f"Generated {len(plot_paths)} ablation plots")
         return plot_paths
@@ -209,10 +208,9 @@ class AblationPlotter(BasePlotter):
                         )
                     )
                 except Exception as e:
-                    logger.error(
+                    logger.exception(
                         f"Error generating E/I ablation plot for {ablation_type}_{metric}: {e}"
                     )
-                    traceback.print_exc()
 
             if "stoch1" in sweep_types:
                 try:
@@ -228,10 +226,9 @@ class AblationPlotter(BasePlotter):
                         )
                     )
                 except Exception as e:
-                    logger.error(
+                    logger.exception(
                         f"Error generating stochastic ablation plot for {ablation_type}_{metric}: {e}"
                     )
-                    traceback.print_exc()
 
             if "stoch2" in sweep_types:
                 try:
@@ -247,10 +244,9 @@ class AblationPlotter(BasePlotter):
                         )
                     )
                 except Exception as e:
-                    logger.error(
+                    logger.exception(
                         f"Error generating stochastic ablation plot for {ablation_type}_{metric}: {e}"
                     )
-                    traceback.print_exc()
 
         logger.info(f"Created {len(plot_paths)} ablation analysis plots")
         return plot_paths

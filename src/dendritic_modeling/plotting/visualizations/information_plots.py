@@ -143,6 +143,14 @@ class PairwiseMIPlotter(BasePlotter):
         if any("Vinf" in key for key in pairwise_mi.keys()):
             variables.append("Vinf")
 
+        # Add LDA versions if present
+        if any("E_lin" in key for key in pairwise_mi.keys()):
+            variables.append("E_lin")
+        if any("I_lin" in key for key in pairwise_mi.keys()):
+            variables.append("I_lin")
+        if any("Vb_lin" in key for key in pairwise_mi.keys()):
+            variables.append("Vb_lin")
+
         n_vars = len(variables)
         mi_matrix = np.zeros((n_vars, n_vars))
 
@@ -177,8 +185,19 @@ class PerLayerPlotter(BasePlotter):
             "I(I;C)_mean",
             "I(Vb;C)_mean",
             "I(Vout;C)_mean",
+            "I(E_lin;C)_mean",
+            "I(I_lin;C)_mean",
+            "I(Vb_lin;C)_mean",
         ]
-        possible_labels = ["I(E;C)", "I(I;C)", "I(Vb;C)", "I(Vout;C)"]
+        possible_labels = [
+            "I(E;C)",
+            "I(I;C)",
+            "I(Vb;C)",
+            "I(Vout;C)",
+            "I(E_lin;C)",
+            "I(I_lin;C)",
+            "I(Vb_lin;C)",
+        ]
 
         # Filter to only metrics present in data
         metrics_to_plot = []
@@ -200,6 +219,9 @@ class PerLayerPlotter(BasePlotter):
             "I(I;C)": self.get_color("inhibitory"),
             "I(Vb;C)": "#FFB347",  # Orange for branch input
             "I(Vout;C)": self.get_color("combined"),
+            "I(E_lin;C)": "#90EE90",  # Light green for E LDA
+            "I(I_lin;C)": "#FFB6C1",  # Light pink for I LDA
+            "I(Vb_lin;C)": "#FFD700",  # Gold for Vb LDA
         }
         colors = [color_map.get(label, "#808080") for label in metric_labels]
 
@@ -491,8 +513,20 @@ class InformationAnalysisPlotter(BasePlotter):
             "I(Vb;C)_mean",
             "I(Vout;C)_mean",
             "I(E;I)_mean",
+            "I(E_lin;C)_mean",
+            "I(I_lin;C)_mean",
+            "I(Vb_lin;C)_mean",
         ]
-        possible_labels = ["I(E;C)", "I(I;C)", "I(Vb;C)", "I(Vout;C)", "I(E;I)"]
+        possible_labels = [
+            "I(E;C)",
+            "I(I;C)",
+            "I(Vb;C)",
+            "I(Vout;C)",
+            "I(E;I)",
+            "I(E_lin;C)",
+            "I(I_lin;C)",
+            "I(Vb_lin;C)",
+        ]
 
         metrics = []
         metric_labels = []
@@ -900,13 +934,23 @@ def _generate_layer_comparison_plots(
         logger.info(f"Generating comparison plots for {network_type} networks")
 
         for metric_category, metrics in metric_types:
-            # Create figure with subplots for each metric
-            # n_metrics = len(metrics)  # Unused variable
-            fig, axes = plt.subplots(2, 2, figsize=(15, 10))
-            axes = axes.flatten()
+            # Create figure with subplots for each metric - dynamic sizing
+            n_metrics = len(metrics)
+            n_cols = 3  # Use 3 columns
+            n_rows = (n_metrics + n_cols - 1) // n_cols  # Ceiling division
+
+            fig, axes = plt.subplots(n_rows, n_cols, figsize=(5 * n_cols, 4 * n_rows))
+            if n_rows == 1 and n_cols == 1:
+                axes = np.array([axes])
+            elif n_rows == 1 or n_cols == 1:
+                axes = axes.flatten()
+            else:
+                axes = axes.flatten()
 
             for idx, metric in enumerate(metrics):
-                ax = axes[idx] if idx < len(axes) else axes[-1]
+                if idx >= len(axes):
+                    break
+                ax = axes[idx]
 
                 # First, determine all available depths from all layers
                 all_available_depths = set()
@@ -1153,9 +1197,50 @@ def plot_info_vs_ei_depth_per_dendritic_layer(
 
         # Create plots for each metric type (basic, pairwise, conditional)
         metric_types = [
-            ("basic_mi", ["I(E;C)", "I(I;C)", "I(Vout;C)", "I(E,I;C)"]),
-            ("pairwise_mi", ["I(E;I)", "I(E;Vout)", "I(I;Vout)"]),
-            ("conditional_mi", ["I(E;I|C)", "I(E;Vout|C)", "I(I;Vout|C)"]),
+            (
+                "basic_mi",
+                [
+                    "I(E;C)",
+                    "I(I;C)",
+                    "I(Vb;C)",
+                    "I(Vout;C)",
+                    "I(E,I;C)",
+                    "I(E_lin;C)",
+                    "I(I_lin;C)",
+                    "I(Vb_lin;C)",
+                    "I(E_lin,I_lin;C)",
+                ],
+            ),
+            (
+                "pairwise_mi",
+                [
+                    "I(E;I)",
+                    "I(E;Vout)",
+                    "I(I;Vout)",
+                    "I(E;Vb)",
+                    "I(I;Vb)",
+                    "I(Vb;Vout)",
+                    "I(E_lin;I_lin)",
+                    "I(E_lin;Vout)",
+                    "I(I_lin;Vout)",
+                    "I(E_lin;Vb_lin)",
+                    "I(I_lin;Vb_lin)",
+                ],
+            ),
+            (
+                "conditional_mi",
+                [
+                    "I(E;I|C)",
+                    "I(E;Vout|C)",
+                    "I(I;Vout|C)",
+                    "I(E;Vb|C)",
+                    "I(I;Vb|C)",
+                    "I(Vb;Vout|C)",
+                    "I(E_lin;I_lin|C)",
+                    "I(E_lin;Vout|C)",
+                    "I(I_lin;Vout|C)",
+                ],
+            ),
         ]
 
         # Define colors for different branch layers
@@ -1174,14 +1259,26 @@ def plot_info_vs_ei_depth_per_dendritic_layer(
         for metric_category, metric_names in metric_types:
             # Create separate plots for excitatory and inhibitory
             for cell_type in ["excitatory_cells", "inhibitory_cells"]:
-                fig, axes = plt.subplots(2, 2, figsize=(15, 10))
-                axes = axes.flatten()
+                # Dynamically size grid based on number of metrics
+                n_metrics = len(metric_names)
+                n_cols = 3
+                n_rows = (n_metrics + n_cols - 1) // n_cols
+
+                fig, axes = plt.subplots(
+                    n_rows, n_cols, figsize=(5 * n_cols, 4 * n_rows)
+                )
+                if n_rows == 1 and n_cols == 1:
+                    axes = np.array([axes])
+                elif n_rows == 1 or n_cols == 1:
+                    axes = axes.flatten()
+                else:
+                    axes = axes.flatten()
 
                 # Track if any plots were created
                 plots_created = []
 
-                # Plot up to 4 metrics
-                for i, metric_name in enumerate(metric_names[:4]):
+                # Plot all metrics
+                for i, metric_name in enumerate(metric_names):
                     if i >= len(axes):
                         break
 
@@ -1498,18 +1595,71 @@ def plot_fully_aggregated_analysis(
 
     # Define metric categories
     metric_types = [
-        ("basic_mi", ["I(E;C)", "I(I;C)", "I(Vout;C)", "I(E,I;C)"]),
-        ("pairwise_mi", ["I(E;I)", "I(E;Vout)", "I(I;Vout)"]),
-        ("conditional_mi", ["I(E;I|C)", "I(E;Vout|C)", "I(I;Vout|C)"]),
+        (
+            "basic_mi",
+            [
+                "I(E;C)",
+                "I(I;C)",
+                "I(Vb;C)",
+                "I(Vout;C)",
+                "I(E,I;C)",
+                "I(E_lin;C)",
+                "I(I_lin;C)",
+                "I(Vb_lin;C)",
+                "I(E_lin,I_lin;C)",
+            ],
+        ),
+        (
+            "pairwise_mi",
+            [
+                "I(E;I)",
+                "I(E;Vout)",
+                "I(I;Vout)",
+                "I(E;Vb)",
+                "I(I;Vb)",
+                "I(Vb;Vout)",
+                "I(E_lin;I_lin)",
+                "I(E_lin;Vout)",
+                "I(I_lin;Vout)",
+                "I(E_lin;Vb_lin)",
+                "I(I_lin;Vb_lin)",
+            ],
+        ),
+        (
+            "conditional_mi",
+            [
+                "I(E;I|C)",
+                "I(E;Vout|C)",
+                "I(I;Vout|C)",
+                "I(E;Vb|C)",
+                "I(I;Vb|C)",
+                "I(Vb;Vout|C)",
+                "I(E_lin;I_lin|C)",
+                "I(E_lin;Vout|C)",
+                "I(I_lin;Vout|C)",
+            ],
+        ),
     ]
 
     # Generate plots for each metric category
     for metric_category, metrics in metric_types:
-        fig, axes = plt.subplots(2, 2, figsize=(15, 10))
-        axes = axes.flatten()
+        # Dynamically size the grid based on number of metrics
+        n_metrics = len(metrics)
+        n_cols = 3  # Use 3 columns for better layout
+        n_rows = (n_metrics + n_cols - 1) // n_cols  # Ceiling division
+
+        fig, axes = plt.subplots(n_rows, n_cols, figsize=(5 * n_cols, 4 * n_rows))
+        if n_rows == 1 and n_cols == 1:
+            axes = np.array([axes])
+        elif n_rows == 1 or n_cols == 1:
+            axes = axes.flatten()
+        else:
+            axes = axes.flatten()
 
         for idx, metric in enumerate(metrics):
-            ax = axes[idx] if idx < len(axes) else axes[-1]
+            if idx >= len(axes):
+                break
+            ax = axes[idx]
 
             # Extract values for this metric across depths
             depths = []

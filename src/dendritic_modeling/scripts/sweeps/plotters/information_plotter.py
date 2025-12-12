@@ -1,7 +1,6 @@
 """Information theory plotters (inspired by comprehensive_analysis.py)."""
 
 import logging
-import traceback
 from pathlib import Path
 from typing import ClassVar
 
@@ -22,20 +21,63 @@ class InformationPlotter(BasePlotter):
     # Metric groups for organized plotting
     METRIC_GROUPS: ClassVar[dict[str, dict]] = {
         "class_information": {
-            "metrics": ["mi_E_C", "mi_I_C", "mi_Vb_C", "mi_V_C"],
-            "labels": ["I(E;C)", "I(I;C)", "I(Vb;C)", "I(V;C)"],
+            "metrics": [
+                "mi_E_C",
+                "mi_I_C",
+                "mi_Vb_C",
+                "mi_V_C",
+                "mi_E_lin_C",
+                "mi_I_lin_C",
+                "mi_Vb_lin_C",
+            ],
+            "labels": [
+                "I(E;C)",
+                "I(I;C)",
+                "I(Vb;C)",
+                "I(V;C)",
+                "I(E_lin;C)",
+                "I(I_lin;C)",
+                "I(Vb_lin;C)",
+            ],
             "colors": [
                 "#FF6B6B",
                 "#4ECDC4",
                 "#FFB347",
                 "#45B7D1",
-            ],  # Red, Teal, Orange, Blue
+                "#90EE90",
+                "#FFB6C1",
+                "#FFD700",
+            ],  # Added light green, light pink, gold for LDA
             "title": "Information with Class Labels",
             "ylabel": "Mutual Information (bits)",
         },
         "component_information": {
-            "metrics": ["mi_E_I", "mi_E_Vb", "mi_I_Vb", "mi_E_V", "mi_I_V", "mi_Vb_V"],
-            "labels": ["I(E;I)", "I(E;Vb)", "I(I;Vb)", "I(E;V)", "I(I;V)", "I(Vb;V)"],
+            "metrics": [
+                "mi_E_I",
+                "mi_E_Vb",
+                "mi_I_Vb",
+                "mi_E_V",
+                "mi_I_V",
+                "mi_Vb_V",
+                "mi_E_lin_I_lin",
+                "mi_E_lin_Vb_lin",
+                "mi_I_lin_Vb_lin",
+                "mi_E_lin_V",
+                "mi_I_lin_V",
+            ],
+            "labels": [
+                "I(E;I)",
+                "I(E;Vb)",
+                "I(I;Vb)",
+                "I(E;V)",
+                "I(I;V)",
+                "I(Vb;V)",
+                "I(E_lin;I_lin)",
+                "I(E_lin;Vb_lin)",
+                "I(I_lin;Vb_lin)",
+                "I(E_lin;V)",
+                "I(I_lin;V)",
+            ],
             "colors": [
                 "#8B5A96",
                 "#E91E63",
@@ -43,7 +85,12 @@ class InformationPlotter(BasePlotter):
                 "#FFA726",
                 "#FF9800",
                 "#FF5722",
-            ],  # Purple, Pink, Purple, Orange, Orange, Red-orange
+                "#BA68C8",
+                "#F06292",
+                "#CE93D8",
+                "#FFB74D",
+                "#FFCC80",
+            ],  # Added lighter shades for LDA
             "title": "Component Information",
             "ylabel": "Mutual Information (bits)",
         },
@@ -55,6 +102,10 @@ class InformationPlotter(BasePlotter):
                 "mi_E_V_given_C",
                 "mi_I_V_given_C",
                 "mi_Vb_V_given_C",
+                "mi_E_lin_I_lin_given_C",
+                "mi_E_lin_Vb_lin_given_C",
+                "mi_E_lin_V_given_C",
+                "mi_I_lin_V_given_C",
             ],
             "labels": [
                 "I(E;I|C)",
@@ -63,6 +114,10 @@ class InformationPlotter(BasePlotter):
                 "I(E;V|C)",
                 "I(I;V|C)",
                 "I(Vb;V|C)",
+                "I(E_lin;I_lin|C)",
+                "I(E_lin;Vb_lin|C)",
+                "I(E_lin;V|C)",
+                "I(I_lin;V|C)",
             ],
             "colors": [
                 "#2E7D32",
@@ -71,7 +126,11 @@ class InformationPlotter(BasePlotter):
                 "#689F38",
                 "#7CB342",
                 "#827717",
-            ],  # Dark green through olive gradient
+                "#9CCC65",
+                "#AED581",
+                "#C5E1A5",
+                "#DCEDC8",
+            ],  # Dark green through light green gradient
             "title": "Conditional Information",
             "ylabel": "Mutual Information (bits)",
         },
@@ -103,8 +162,7 @@ class InformationPlotter(BasePlotter):
             try:
                 plot_paths.extend(self._create_information_ei_plots(data, info_dir))
             except Exception as e:
-                logger.error(f"Error generating E/I information plots: {e}")
-                traceback.print_exc()
+                logger.exception(f"Error generating E/I information plots: {e}")
 
         if "stoch1" in sweep_types:
             try:
@@ -114,10 +172,9 @@ class InformationPlotter(BasePlotter):
                     )
                 )
             except Exception as e:
-                logger.error(
+                logger.exception(
                     f"Error generating stochastic dataset information plots: {e}"
                 )
-                traceback.print_exc()
 
         if "stoch2" in sweep_types:
             try:
@@ -127,10 +184,9 @@ class InformationPlotter(BasePlotter):
                     )
                 )
             except Exception as e:
-                logger.error(
+                logger.exception(
                     f"Error generating stochastic GV dataset information plots: {e}"
                 )
-                traceback.print_exc()
 
         return plot_paths
 
@@ -875,13 +931,32 @@ class InformationPlotter(BasePlotter):
         # Define metric groups matching old analysis exactly
         metric_groups = {
             "class_information": {
-                "metrics": ["mi_E_C", "mi_I_C", "mi_Vb_C", "mi_V_C"],
-                "labels": ["I(E;C)", "I(I;C)", "I(Vb;C)", "I(V;C)"],
+                "metrics": [
+                    "mi_E_C",
+                    "mi_I_C",
+                    "mi_Vb_C",
+                    "mi_V_C",
+                    "mi_E_lin_C",
+                    "mi_I_lin_C",
+                    "mi_Vb_lin_C",
+                ],
+                "labels": [
+                    "I(E;C)",
+                    "I(I;C)",
+                    "I(Vb;C)",
+                    "I(V;C)",
+                    "I(E_lin;C)",
+                    "I(I_lin;C)",
+                    "I(Vb_lin;C)",
+                ],
                 "colors": [
                     self.info_colors["excitatory"],
                     self.info_colors["inhibitory"],
                     "#FFB347",  # Orange for Vb
                     self.info_colors["combined"],
+                    "#90EE90",  # Light green for E_lin
+                    "#FFB6C1",  # Light pink for I_lin
+                    "#FFD700",  # Gold for Vb_lin
                 ],
                 "title": "Information with Class Labels",
                 "ylabel": "Mutual Information (bits)",
@@ -894,6 +969,11 @@ class InformationPlotter(BasePlotter):
                     "mi_E_V",
                     "mi_I_V",
                     "mi_Vb_V",
+                    "mi_E_lin_I_lin",
+                    "mi_E_lin_Vb_lin",
+                    "mi_I_lin_Vb_lin",
+                    "mi_E_lin_V",
+                    "mi_I_lin_V",
                 ],
                 "labels": [
                     "I(E;I)",
@@ -902,6 +982,11 @@ class InformationPlotter(BasePlotter):
                     "I(E;V)",
                     "I(I;V)",
                     "I(Vb;V)",
+                    "I(E_lin;I_lin)",
+                    "I(E_lin;Vb_lin)",
+                    "I(I_lin;Vb_lin)",
+                    "I(E_lin;V)",
+                    "I(I_lin;V)",
                 ],
                 "colors": [
                     "purple",
@@ -910,6 +995,11 @@ class InformationPlotter(BasePlotter):
                     "orange",
                     "#FF9800",
                     "brown",
+                    "#BA68C8",
+                    "#F06292",
+                    "#CE93D8",
+                    "#FFB74D",
+                    "#FFCC80",
                 ],
                 "title": "Component Information",
                 "ylabel": "Mutual Information (bits)",
@@ -922,6 +1012,10 @@ class InformationPlotter(BasePlotter):
                     "mi_E_V_given_C",
                     "mi_I_V_given_C",
                     "mi_Vb_V_given_C",
+                    "mi_E_lin_I_lin_given_C",
+                    "mi_E_lin_Vb_lin_given_C",
+                    "mi_E_lin_V_given_C",
+                    "mi_I_lin_V_given_C",
                 ],
                 "labels": [
                     "I(E;I|C)",
@@ -930,6 +1024,10 @@ class InformationPlotter(BasePlotter):
                     "I(E;V|C)",
                     "I(I;V|C)",
                     "I(Vb;V|C)",
+                    "I(E_lin;I_lin|C)",
+                    "I(E_lin;Vb_lin|C)",
+                    "I(E_lin;V|C)",
+                    "I(I_lin;V|C)",
                 ],
                 "colors": [
                     "darkgreen",
@@ -938,6 +1036,10 @@ class InformationPlotter(BasePlotter):
                     "#689F38",
                     "olive",
                     "#827717",
+                    "#9CCC65",
+                    "#AED581",
+                    "#C5E1A5",
+                    "#DCEDC8",
                 ],
                 "title": "Conditional Information",
                 "ylabel": "Mutual Information (bits)",
@@ -1264,8 +1366,7 @@ class InformationPlotter(BasePlotter):
                 plot_paths.append(self.save_figure(fig, plot_path))
 
             except Exception as e:
-                logger.error(f"Error generating {group_name} heatmaps: {e}")
-                traceback.print_exc()
+                logger.exception(f"Error generating {group_name} heatmaps: {e}")
 
         logger.info(f"Generated {len(plot_paths)} metric group heatmap figures")
         return plot_paths
@@ -1503,8 +1604,9 @@ class InformationPlotter(BasePlotter):
                 plot_paths.append(self.save_figure(fig, plot_path))
 
             except Exception as e:
-                logger.error(f"Error generating layerwise heatmaps for {metric}: {e}")
-                traceback.print_exc()
+                logger.exception(
+                    f"Error generating layerwise heatmaps for {metric}: {e}"
+                )
 
         logger.info(f"Generated {len(plot_paths)} layerwise heatmap figures")
         return plot_paths

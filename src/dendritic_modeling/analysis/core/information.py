@@ -904,13 +904,12 @@ class InformationAnalyzer(AbstractAnalyzer):
         layer_data: dict,
         C: np.ndarray,
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-        """Compute LDA-weighted versions of E, I, and Vb.
+        """Compute LDA-weighted versions of E, I, and Vb using TopK-masked features.
 
-        Instead of using the network's learned weights to aggregate synapses,
-        fit separate LDA models on:
-        1. Raw excitatory inputs (treating each input dimension as a synapse)
-        2. Raw inhibitory inputs
-        3. Raw branch inputs (upstream dendritic connections)
+        For each branch, fit LDA only on the input dimensions that pass through
+        the TopK mask (i.e., the synapses that are actually connected). This
+        computes the optimal linear discriminant for the sparse connectivity
+        pattern of each branch.
 
         Args:
             layer_data: Dictionary containing raw inputs and module
@@ -936,86 +935,151 @@ class InformationAnalyzer(AbstractAnalyzer):
         I_lin = np.zeros((n_samples, n_branches))
         Vb_lin = np.zeros((n_samples, n_branches))
 
-        # For E: Fit LDA on raw excitatory inputs for each branch
+        # Check if we have enough classes for LDA
+        if len(np.unique(C)) <= 1:
+            # Fall back to network weights
+            E_lin = layer_data["excitation"].detach().cpu().numpy()
+            I_lin = layer_data["inhibition"].detach().cpu().numpy()
+            Vb_lin = layer_data["branch_input"].detach().cpu().numpy()
+            return E_lin, I_lin, Vb_lin
+
+        # For E: Fit LDA on TopK-masked excitatory inputs for each branch
         if raw_exc is not None and module.branch_excitation is not None:
             raw_exc_np = raw_exc.detach().cpu().numpy()  # [n_samples, input_dim]
 
-            # Check if we have enough classes and samples
-            if len(np.unique(C)) > 1 and raw_exc_np.shape[1] > 0:
-                try:
-                    # Fit LDA to find optimal linear combination of excitatory inputs
-                    lda_e = LinearDiscriminantAnalysis()
-                    lda_e.fit(raw_exc_np, C)
+            # Get the TopK mask for excitatory branches [n_branches, input_dim]
+            exc_mask = module.branch_excitation.weight_mask().detach().cpu().numpy()
 
-                    # Get LDA weights (w_lda for excitatory synapses)
-                    # Transform gives [n_samples, n_components], we take first component
-                    e_lda_projection = lda_e.transform(
-                        raw_exc_np
-                    )  # [n_samples, n_components]
+            # Fit separate LDA for each branch using its masked inputs
+            for branch_idx in range(n_branches):
+                branch_mask = exc_mask[branch_idx, :]  # [input_dim]
+                active_indices = np.where(branch_mask > 0)[0]
 
-                    # Replicate this single LDA projection to all branches
-                    # (Each branch sees the same input, just with different TopK selection)
-                    for branch_idx in range(n_branches):
-                        E_lin[:, branch_idx] = e_lda_projection[:, 0]
+                if len(active_indices) > 0:
+                    # Extract only the active synaptic inputs for this branch
+                    branch_inputs = raw_exc_np[:, active_indices]  # [n_samples, K]
 
-                except Exception as e:
-                    self.logger.warning(
-                        f"LDA failed for excitatory inputs: {e}. Using network weights."
+                    try:
+                        # Fit LDA on the K active synapses
+                        lda = LinearDiscriminantAnalysis()
+                        lda.fit(branch_inputs, C)
+
+                        # Project to get optimal discriminant
+                        E_lin[:, branch_idx] = lda.transform(branch_inputs)[:, 0]
+
+                    except Exception as e:
+                        self.logger.warning(
+                            f"LDA failed for E branch {branch_idx}: {e}. Using network weights."
+                        )
+                        E_lin[:, branch_idx] = (
+                            layer_data["excitation"][:, branch_idx]
+                            .detach()
+                            .cpu()
+                            .numpy()
+                        )
+                else:
+                    E_lin[:, branch_idx] = (
+                        layer_data["excitation"][:, branch_idx].detach().cpu().numpy()
                     )
-                    E_lin = layer_data["excitation"].detach().cpu().numpy()
-            else:
-                E_lin = layer_data["excitation"].detach().cpu().numpy()
 
-        # For I: Fit LDA on raw inhibitory inputs for each branch
+        # For I: Fit LDA on TopK-masked inhibitory inputs for each branch
         if raw_inh is not None and module.branch_inhibition is not None:
             raw_inh_np = raw_inh.detach().cpu().numpy()  # [n_samples, input_dim]
 
-            if len(np.unique(C)) > 1 and raw_inh_np.shape[1] > 0:
-                try:
-                    # Fit LDA to find optimal linear combination of inhibitory inputs
-                    lda_i = LinearDiscriminantAnalysis()
-                    lda_i.fit(raw_inh_np, C)
+            # Get the TopK mask for inhibitory branches [n_branches, input_dim]
+            inh_mask = module.branch_inhibition.weight_mask().detach().cpu().numpy()
 
-                    # Get LDA projection
-                    i_lda_projection = lda_i.transform(raw_inh_np)[:, 0]
+            # Fit separate LDA for each branch using its masked inputs
+            for branch_idx in range(n_branches):
+                branch_mask = inh_mask[branch_idx, :]  # [input_dim]
+                active_indices = np.where(branch_mask > 0)[0]
 
-                    # Replicate to all branches
-                    for branch_idx in range(n_branches):
-                        I_lin[:, branch_idx] = i_lda_projection
+                if len(active_indices) > 0:
+                    # Extract only the active synaptic inputs for this branch
+                    branch_inputs = raw_inh_np[:, active_indices]  # [n_samples, K]
 
-                except Exception as e:
-                    self.logger.warning(
-                        f"LDA failed for inhibitory inputs: {e}. Using network weights."
+                    try:
+                        # Fit LDA on the K active synapses
+                        lda = LinearDiscriminantAnalysis()
+                        lda.fit(branch_inputs, C)
+
+                        # Project to get optimal discriminant
+                        I_lin[:, branch_idx] = lda.transform(branch_inputs)[:, 0]
+
+                    except Exception as e:
+                        self.logger.warning(
+                            f"LDA failed for I branch {branch_idx}: {e}. Using network weights."
+                        )
+                        I_lin[:, branch_idx] = (
+                            layer_data["inhibition"][:, branch_idx]
+                            .detach()
+                            .cpu()
+                            .numpy()
+                        )
+                else:
+                    I_lin[:, branch_idx] = (
+                        layer_data["inhibition"][:, branch_idx].detach().cpu().numpy()
                     )
-                    I_lin = layer_data["inhibition"].detach().cpu().numpy()
-            else:
-                I_lin = layer_data["inhibition"].detach().cpu().numpy()
 
-        # For Vb: Fit LDA on raw branch inputs (upstream dendritic inputs)
+        # For Vb: Fit LDA on branch inputs using BlockLinear's block structure
+        # branches_to_output is a BlockLinear where each output branch receives input
+        # from a contiguous block of upstream branches
         if raw_branch is not None and module.input_branches:
             raw_branch_np = (
                 raw_branch.detach().cpu().numpy()
             )  # [n_samples, n_upstream_branches]
 
-            if len(np.unique(C)) > 1 and raw_branch_np.shape[1] > 0:
-                try:
-                    # Fit LDA to find optimal linear combination of upstream branch inputs
-                    lda_b = LinearDiscriminantAnalysis()
-                    lda_b.fit(raw_branch_np, C)
+            # Get block_size from branches_to_output (BlockLinear)
+            if hasattr(module.branches_to_output, "block_size"):
+                block_size = module.branches_to_output.block_size
 
-                    # Get LDA projection
-                    b_lda_projection = lda_b.transform(raw_branch_np)[:, 0]
+                # Fit separate LDA for each output branch using its upstream block
+                for branch_idx in range(n_branches):
+                    # Each output branch receives from upstream indices [branch_idx * block_size : (branch_idx+1) * block_size]
+                    start_idx = branch_idx * block_size
+                    end_idx = min((branch_idx + 1) * block_size, raw_branch_np.shape[1])
 
-                    # Replicate to all branches (they all receive from same upstream)
-                    for branch_idx in range(n_branches):
-                        Vb_lin[:, branch_idx] = b_lda_projection
+                    if start_idx < raw_branch_np.shape[1]:
+                        # Extract the upstream branches for this output branch
+                        branch_inputs = raw_branch_np[:, start_idx:end_idx]
 
-                except Exception as e:
-                    self.logger.warning(
-                        f"LDA failed for branch inputs: {e}. Using network weights."
-                    )
-                    Vb_lin = layer_data["branch_input"].detach().cpu().numpy()
+                        if branch_inputs.shape[1] > 0:
+                            try:
+                                # Fit LDA on the upstream branches for this block
+                                lda = LinearDiscriminantAnalysis()
+                                lda.fit(branch_inputs, C)
+
+                                # Project to get optimal discriminant
+                                Vb_lin[:, branch_idx] = lda.transform(branch_inputs)[
+                                    :, 0
+                                ]
+
+                            except Exception as e:
+                                self.logger.warning(
+                                    f"LDA failed for Vb branch {branch_idx}: {e}. Using network weights."
+                                )
+                                Vb_lin[:, branch_idx] = (
+                                    layer_data["branch_input"][:, branch_idx]
+                                    .detach()
+                                    .cpu()
+                                    .numpy()
+                                )
+                        else:
+                            Vb_lin[:, branch_idx] = (
+                                layer_data["branch_input"][:, branch_idx]
+                                .detach()
+                                .cpu()
+                                .numpy()
+                            )
+                    else:
+                        Vb_lin[:, branch_idx] = (
+                            layer_data["branch_input"][:, branch_idx]
+                            .detach()
+                            .cpu()
+                            .numpy()
+                        )
             else:
+                # Fallback: no block structure, use network weights
                 Vb_lin = layer_data["branch_input"].detach().cpu().numpy()
 
         return E_lin, I_lin, Vb_lin
@@ -1471,9 +1535,6 @@ class InformationAnalyzer(AbstractAnalyzer):
 
                     # Compute LDA versions if requested
                     if self.compute_lda_weights:
-                        self.logger.info(
-                            f"  Computing LDA-weighted signals for {layer_name}..."
-                        )
                         E_lin, I_lin, Vb_lin = self.compute_lda_aggregated_signals(
                             layer_data, C
                         )
@@ -1557,10 +1618,6 @@ class InformationAnalyzer(AbstractAnalyzer):
                             for key, value in branch_results_lin_renamed.items():
                                 if isinstance(value, dict) and key in branch_results:
                                     branch_results[key].update(value)
-
-                        self.logger.debug(
-                            f"  Branch {branch_idx + 1}/{n_branches} completed (took {time.time() - branch_start_time:.1f}s)"
-                        )
 
                         self.logger.debug(
                             f"  Branch {branch_idx + 1}/{n_branches} completed (took {time.time() - branch_start_time:.1f}s)"
@@ -1974,22 +2031,69 @@ class InformationAnalyzer(AbstractAnalyzer):
                     "I(E;C)_std": 0.0,
                     "I(I;C)_mean": 0.0,  # Zero - no inhibitory synapses
                     "I(I;C)_std": 0.0,
+                    "I(Vb;C)_mean": 0.0,  # Zero - no branch input at soma
+                    "I(Vb;C)_std": 0.0,
                     "I(Vout;C)_mean": soma_vout_mean,  # Real computed value from soma output
                     "I(Vout;C)_std": soma_vout_std,  # Real computed std from soma output
                     "I(E,I;C)_mean": 0.0,  # Zero - no synapses
                     "I(E,I;C)_std": 0.0,
+                    # LDA metrics - also zero at soma (no synapses)
+                    "I(E_lin;C)_mean": 0.0,
+                    "I(E_lin;C)_std": 0.0,
+                    "I(I_lin;C)_mean": 0.0,
+                    "I(I_lin;C)_std": 0.0,
+                    "I(Vb_lin;C)_mean": 0.0,
+                    "I(Vb_lin;C)_std": 0.0,
+                    "I(E_lin,I_lin;C)_mean": 0.0,
+                    "I(E_lin,I_lin;C)_std": 0.0,
+                    # Pairwise MI
                     "I(E;I)_mean": 0.0,  # Zero - no synapses
                     "I(E;I)_std": 0.0,
                     "I(E;Vout)_mean": 0.0,  # Zero - no excitatory synapses
                     "I(E;Vout)_std": 0.0,
                     "I(I;Vout)_mean": 0.0,  # Zero - no inhibitory synapses
                     "I(I;Vout)_std": 0.0,
+                    "I(E;Vb)_mean": 0.0,
+                    "I(E;Vb)_std": 0.0,
+                    "I(I;Vb)_mean": 0.0,
+                    "I(I;Vb)_std": 0.0,
+                    "I(Vb;Vout)_mean": 0.0,
+                    "I(Vb;Vout)_std": 0.0,
+                    # LDA pairwise MI
+                    "I(E_lin;I_lin)_mean": 0.0,
+                    "I(E_lin;I_lin)_std": 0.0,
+                    "I(E_lin;Vout)_mean": 0.0,
+                    "I(E_lin;Vout)_std": 0.0,
+                    "I(I_lin;Vout)_mean": 0.0,
+                    "I(I_lin;Vout)_std": 0.0,
+                    "I(E_lin;Vb_lin)_mean": 0.0,
+                    "I(E_lin;Vb_lin)_std": 0.0,
+                    "I(I_lin;Vb_lin)_mean": 0.0,
+                    "I(I_lin;Vb_lin)_std": 0.0,
+                    # Conditional MI
                     "I(E;I|C)_mean": 0.0,  # Zero - no synapses
                     "I(E;I|C)_std": 0.0,
                     "I(E;Vout|C)_mean": 0.0,  # Zero - no excitatory synapses
                     "I(E;Vout|C)_std": 0.0,
                     "I(I;Vout|C)_mean": 0.0,  # Zero - no inhibitory synapses
                     "I(I;Vout|C)_std": 0.0,
+                    "I(E;Vb|C)_mean": 0.0,
+                    "I(E;Vb|C)_std": 0.0,
+                    "I(I;Vb|C)_mean": 0.0,
+                    "I(I;Vb|C)_std": 0.0,
+                    "I(Vb;Vout|C)_mean": 0.0,
+                    "I(Vb;Vout|C)_std": 0.0,
+                    # LDA conditional MI
+                    "I(E_lin;I_lin|C)_mean": 0.0,
+                    "I(E_lin;I_lin|C)_std": 0.0,
+                    "I(E_lin;Vout|C)_mean": 0.0,
+                    "I(E_lin;Vout|C)_std": 0.0,
+                    "I(I_lin;Vout|C)_mean": 0.0,
+                    "I(I_lin;Vout|C)_std": 0.0,
+                    "I(E_lin;Vb_lin|C)_mean": 0.0,
+                    "I(E_lin;Vb_lin|C)_std": 0.0,
+                    "I(I_lin;Vb_lin|C)_mean": 0.0,
+                    "I(I_lin;Vb_lin|C)_std": 0.0,
                 }
                 # Add soma entry to layer_statistics
                 results["layer_statistics"]["synthetic_soma"] = soma_entry

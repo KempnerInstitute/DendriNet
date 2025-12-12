@@ -53,7 +53,7 @@ analysis:
       per_layer_analysis: false
       per_neuron_analysis: false
       include_branch_input: true
-      compute_lda_weights: false
+      compute_lda_weights: true
       pid_binarize: true
       pid_binarize_method: median
       pid_binarize_threshold: 0.5
