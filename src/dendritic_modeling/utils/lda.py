@@ -143,6 +143,75 @@ def apply_nonnegative_lda(
     return X @ weights
 
 
+def generate_random_nonnegative_weights(
+    n_features: int,
+    weight_norm_order: Optional[int] = None,
+    gamma: float = 1.0,
+    rng: Optional[np.random.Generator] = None,
+) -> np.ndarray:
+    """Generate random non-negative weights with same normalization as LDA.
+
+    Creates random weights from a uniform distribution and normalizes them
+    using the same scheme as LDA weights, providing a proper random baseline.
+
+    Args:
+        n_features: Number of features (weights)
+        weight_norm_order: Lp norm order for weight normalization.
+                           If None, weights are normalized to sum to 1 (L1 norm = 1).
+        gamma: Scaling factor after normalization.
+        rng: Random number generator. If None, uses numpy default.
+
+    Returns:
+        Non-negative normalized weights, shape [n_features,]
+    """
+    if rng is None:
+        rng = np.random.default_rng()
+
+    # Generate random non-negative weights (uniform)
+    w = rng.uniform(0, 1, n_features)
+
+    # Apply the same normalization as LDA weights
+    if weight_norm_order is not None:
+        w_norm = np.linalg.norm(w, ord=weight_norm_order)
+        if w_norm > 1e-10:
+            w = (w / w_norm) * gamma
+        else:
+            w = np.ones(n_features) / n_features
+    else:
+        # Fallback to sum to 1
+        w_sum = np.sum(w)
+        if w_sum > 1e-10:
+            w = w / w_sum
+        else:
+            w = np.ones(n_features) / n_features
+
+    return w
+
+
+def apply_random_weights(
+    X: np.ndarray,
+    weight_norm_order: Optional[int] = None,
+    gamma: float = 1.0,
+    rng: Optional[np.random.Generator] = None,
+) -> np.ndarray:
+    """Apply random non-negative weights to get projected values (baseline).
+
+    Args:
+        X: Input features, shape [n_samples, n_features]
+        weight_norm_order: Lp norm order for weight normalization.
+        gamma: Scaling factor after normalization.
+        rng: Random number generator.
+
+    Returns:
+        Projected values, shape [n_samples,]
+    """
+    n_features = X.shape[1]
+    weights = generate_random_nonnegative_weights(
+        n_features, weight_norm_order, gamma, rng
+    )
+    return X @ weights
+
+
 def compute_lda_importance_scores(
     X: np.ndarray,
     y: np.ndarray,

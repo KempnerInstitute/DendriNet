@@ -37,7 +37,11 @@ from dendritic_modeling.utils.information.pid import (
     check_pid_available,
     pid_synergy_redundancy,
 )
-from dendritic_modeling.utils.lda import apply_nonnegative_lda, fit_nonnegative_lda
+from dendritic_modeling.utils.lda import (
+    apply_nonnegative_lda,
+    apply_random_weights,
+    fit_nonnegative_lda,
+)
 
 
 class InformationAnalyzer(AbstractAnalyzer):
@@ -104,6 +108,9 @@ class InformationAnalyzer(AbstractAnalyzer):
 
         # Compute LDA-based versions of E, I, Vb
         self.compute_lda_weights = getattr(params, "compute_lda_weights", False)
+
+        # Number of random weight shuffles for LDA baseline comparison
+        self.lda_n_shuffles = getattr(params, "lda_n_shuffles", 0)
 
         if self.verbose:
             self.logger.setLevel(logging.DEBUG)
@@ -1171,6 +1178,136 @@ class InformationAnalyzer(AbstractAnalyzer):
 
         return E_lin, I_lin, Vb_lin, Vout_lin
 
+    def compute_shuffled_aggregated_signals(
+        self,
+        layer_data: dict,
+        C: np.ndarray,
+        shuffle_idx: int = 0,
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        """Compute random-weighted versions of E, I, Vb for baseline comparison.
+
+        Uses random non-negative weights with same normalization as LDA weights.
+        This provides a random baseline to compare against the LDA-derived signals,
+        showing how much improvement LDA provides over chance.
+
+        Args:
+            layer_data: Dictionary containing raw inputs and module
+            C: Class labels, shape [n_samples,] (unused but kept for API consistency)
+            shuffle_idx: Random seed offset for reproducibility across shuffles
+
+        Returns:
+            Tuple of (E_sh, I_sh, Vb_sh, Vout_sh) each shape [n_samples, n_branches]
+        """
+        module = layer_data.get("module")
+        if module is None:
+            return None, None, None, None
+
+        raw_exc = layer_data.get("raw_excitatory_input")
+        raw_inh = layer_data.get("raw_inhibitory_input")
+        raw_branch = layer_data.get("raw_branch_input")
+
+        n_samples = C.shape[0]
+        n_branches = layer_data["excitation"].shape[1]
+
+        E_sh = np.zeros((n_samples, n_branches))
+        I_sh = np.zeros((n_samples, n_branches))
+        Vb_sh = np.zeros((n_samples, n_branches))
+        Vout_sh = np.zeros((n_samples, n_branches))
+
+        # Create RNG with reproducible seed
+        rng = np.random.default_rng(42 + shuffle_idx)
+
+        # For E: Apply random weights on TopK-masked excitatory inputs
+        if raw_exc is not None and module.branch_excitation is not None:
+            raw_exc_np = raw_exc.detach().cpu().numpy()
+            exc_weight_norm_order = getattr(
+                module.branch_excitation, "weight_norm_order", None
+            )
+            exc_gamma = getattr(module.branch_excitation, "gamma", 1.0)
+            exc_mask = module.branch_excitation.weight_mask().detach().cpu().numpy()
+
+            for branch_idx in range(n_branches):
+                branch_mask = exc_mask[branch_idx, :]
+                active_indices = np.where(branch_mask > 0)[0]
+                if len(active_indices) > 0:
+                    branch_inputs = raw_exc_np[:, active_indices]
+                    E_sh[:, branch_idx] = apply_random_weights(
+                        branch_inputs,
+                        weight_norm_order=exc_weight_norm_order,
+                        gamma=exc_gamma,
+                        rng=rng,
+                    )
+
+        # For I: Apply random weights on TopK-masked inhibitory inputs
+        if raw_inh is not None and module.branch_inhibition is not None:
+            raw_inh_np = raw_inh.detach().cpu().numpy()
+            inh_weight_norm_order = getattr(
+                module.branch_inhibition, "weight_norm_order", None
+            )
+            inh_gamma = getattr(module.branch_inhibition, "gamma", 1.0)
+            inh_mask = module.branch_inhibition.weight_mask().detach().cpu().numpy()
+
+            for branch_idx in range(n_branches):
+                branch_mask = inh_mask[branch_idx, :]
+                active_indices = np.where(branch_mask > 0)[0]
+                if len(active_indices) > 0:
+                    branch_inputs = raw_inh_np[:, active_indices]
+                    I_sh[:, branch_idx] = apply_random_weights(
+                        branch_inputs,
+                        weight_norm_order=inh_weight_norm_order,
+                        gamma=inh_gamma,
+                        rng=rng,
+                    )
+
+        # For Vb: Apply random weights on branch inputs using BlockLinear structure
+        if raw_branch is not None and module.input_branches:
+            raw_branch_np = raw_branch.detach().cpu().numpy()
+            vb_weight_norm_order = getattr(
+                module.branches_to_output, "weight_norm_order", None
+            )
+            vb_gamma = getattr(module.branches_to_output, "gamma", 1.0)
+
+            if hasattr(module.branches_to_output, "block_size"):
+                block_size = module.branches_to_output.block_size
+                for branch_idx in range(n_branches):
+                    start_idx = branch_idx * block_size
+                    end_idx = min((branch_idx + 1) * block_size, raw_branch_np.shape[1])
+                    if start_idx < raw_branch_np.shape[1]:
+                        branch_inputs = raw_branch_np[:, start_idx:end_idx]
+                        if branch_inputs.shape[1] > 0:
+                            Vb_sh[:, branch_idx] = apply_random_weights(
+                                branch_inputs,
+                                weight_norm_order=vb_weight_norm_order,
+                                gamma=vb_gamma,
+                                rng=rng,
+                            )
+
+        # Compute Vout_sh using the same dendritic computation as the network
+        use_shunting = getattr(module, "use_shunting", True)
+        epsilon = getattr(module, "epsilon", 1e-8)
+
+        if use_shunting:
+            numerator = E_sh + Vb_sh
+            denominator = 1.0 + E_sh + I_sh + Vb_sh
+            voltage_sh = numerator / (denominator + epsilon)
+        else:
+            voltage_sh = E_sh + Vb_sh - I_sh
+
+        # Apply reactivation function if available
+        if hasattr(module, "reactivation") and module.reactivation is not None:
+            import torch
+
+            with torch.no_grad():
+                voltage_tensor = torch.tensor(voltage_sh, dtype=torch.float32)
+                if next(module.reactivation.parameters(), None) is not None:
+                    device = next(module.reactivation.parameters()).device
+                    voltage_tensor = voltage_tensor.to(device)
+                Vout_sh = module.reactivation(voltage_tensor).cpu().numpy()
+        else:
+            Vout_sh = voltage_sh
+
+        return E_sh, I_sh, Vb_sh, Vout_sh
+
     def compute_lda_aggregated_signals_chained(
         self,
         layer_data: dict,
@@ -1778,6 +1915,17 @@ class InformationAnalyzer(AbstractAnalyzer):
                     else:
                         E_lin, I_lin, Vb_lin, Vout_lin = None, None, None, None
 
+                    # Compute shuffled (random) versions for baseline comparison
+                    shuffled_signals_list = []
+                    if self.compute_lda_weights and self.lda_n_shuffles > 0:
+                        for shuffle_idx in range(self.lda_n_shuffles):
+                            E_sh, I_sh, Vb_sh, Vout_sh = (
+                                self.compute_shuffled_aggregated_signals(
+                                    layer_data, C, shuffle_idx
+                                )
+                            )
+                            shuffled_signals_list.append((E_sh, I_sh, Vb_sh, Vout_sh))
+
                     # E_all_branches shape: (n_samples, n_branches)
                     n_branches = E_all_branches.shape[1]
 
@@ -1872,6 +2020,81 @@ class InformationAnalyzer(AbstractAnalyzer):
                             for key, value in branch_results_lin_renamed.items():
                                 if isinstance(value, dict) and key in branch_results:
                                     branch_results[key].update(value)
+
+                        # If shuffled baseline requested, compute MI for random weights
+                        if shuffled_signals_list:
+                            # Accumulate results from all shuffles
+                            shuffled_metrics_acc = {}
+                            for shuffle_idx, (E_sh, I_sh, Vb_sh, Vout_sh) in enumerate(
+                                shuffled_signals_list
+                            ):
+                                E_branch_sh = E_sh[:, branch_idx : branch_idx + 1]
+                                I_branch_sh = I_sh[:, branch_idx : branch_idx + 1]
+                                Vb_branch_sh = Vb_sh[:, branch_idx : branch_idx + 1]
+                                Vout_branch_sh = Vout_sh[:, branch_idx : branch_idx + 1]
+
+                                branch_results_sh = self.compute_metrics(
+                                    E_branch_sh,
+                                    I_branch_sh,
+                                    Vout_branch_sh,
+                                    C,
+                                    None,
+                                    Vb_branch_sh,
+                                )
+
+                                # Accumulate values for averaging
+                                for key, value in branch_results_sh.items():
+                                    if isinstance(value, dict):
+                                        if key not in shuffled_metrics_acc:
+                                            shuffled_metrics_acc[key] = {}
+                                        for subkey, subval in value.items():
+                                            if isinstance(subval, (int, float)):
+                                                if (
+                                                    subkey
+                                                    not in shuffled_metrics_acc[key]
+                                                ):
+                                                    shuffled_metrics_acc[key][
+                                                        subkey
+                                                    ] = []
+                                                shuffled_metrics_acc[key][
+                                                    subkey
+                                                ].append(subval)
+
+                            # Average the accumulated shuffled metrics and rename
+                            for key, subdict in shuffled_metrics_acc.items():
+                                if key in branch_results and isinstance(
+                                    branch_results[key], dict
+                                ):
+                                    for subkey, values_list in subdict.items():
+                                        if values_list:
+                                            avg_value = np.mean(values_list)
+                                            # Rename with _sh suffix
+                                            new_subkey = (
+                                                subkey.replace("(E;", "(E_sh;")
+                                                .replace(";E)", ";E_sh)")
+                                                .replace(";E|", ";E_sh|")
+                                            )
+                                            new_subkey = (
+                                                new_subkey.replace("(I;", "(I_sh;")
+                                                .replace(";I)", ";I_sh)")
+                                                .replace(";I|", ";I_sh|")
+                                            )
+                                            new_subkey = (
+                                                new_subkey.replace("(Vb;", "(Vb_sh;")
+                                                .replace(";Vb)", ";Vb_sh)")
+                                                .replace(";Vb|", ";Vb_sh|")
+                                            )
+                                            new_subkey = new_subkey.replace(
+                                                "(E,I;", "(E_sh,I_sh;"
+                                            )
+                                            new_subkey = (
+                                                new_subkey.replace(
+                                                    "(Vout;", "(Vout_sh;"
+                                                )
+                                                .replace(";Vout)", ";Vout_sh)")
+                                                .replace(";Vout|", ";Vout_sh|")
+                                            )
+                                            branch_results[key][new_subkey] = avg_value
 
                         self.logger.debug(
                             f"  Branch {branch_idx + 1}/{n_branches} completed (took {time.time() - branch_start_time:.1f}s)"

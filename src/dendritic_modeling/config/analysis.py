@@ -77,6 +77,10 @@ class InformationAnalysisParams(BaseConfig):
     # Compute LDA-based versions of E, I, Vb
     compute_lda_weights: bool = False  # If True, compute E_lin, I_lin, Vb_lin using LDA
 
+    # Number of random weight shuffles for LDA baseline comparison
+    # If > 0, computes MI with random weights (same normalization as LDA) as a baseline
+    lda_n_shuffles: int = 0
+
 
 @dataclass
 class InformationAnalysisConfig(BaseConfig):

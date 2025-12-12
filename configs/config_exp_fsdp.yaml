@@ -54,6 +54,7 @@ analysis:
       per_neuron_analysis: false
       include_branch_input: true
       compute_lda_weights: true
+      lda_n_shuffles: 0                 # Number of random weight shuffles for baseline (0 = disabled)
       pid_binarize: true
       pid_binarize_method: median
       pid_binarize_threshold: 0.5

@@ -17,8 +17,10 @@ from .config_validation import (
 from .general import Shaper, convert_to_serializable, save_dict, set_seed
 from .lda import (
     apply_nonnegative_lda,
+    apply_random_weights,
     compute_lda_importance_scores,
     fit_nonnegative_lda,
+    generate_random_nonnegative_weights,
     select_topk_features_by_lda,
 )
 from .logging_config import get_logger, setup_logging
@@ -48,9 +50,11 @@ __all__ = [
     "Shaper",
     "apply_automatic_safeguards",
     "apply_nonnegative_lda",
+    "apply_random_weights",
     "compute_lda_importance_scores",
     "convert_to_serializable",
     "fit_nonnegative_lda",
+    "generate_random_nonnegative_weights",
     "get_logger",
     "get_validation_summary",
     "roc_auc_score",

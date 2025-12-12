@@ -1602,8 +1602,9 @@ def plot_fully_aggregated_analysis(
 
     sorted_depths = sorted(all_depths, key=depth_sort_key)
 
-    # Define metric categories with paired comparisons (network-learned vs LDA+)
+    # Define metric categories with paired comparisons (network-learned vs LDA+ vs Random baseline)
     # Each entry: (title, [(metric_name, color, label), ...])
+    # The Random baseline (_sh suffix) is added dynamically if the data contains it
     metric_pairs = [
         (
             "basic_mi",
@@ -1613,6 +1614,7 @@ def plot_fully_aggregated_analysis(
                     [
                         ("I(E;C)", "#1f77b4", "Network"),
                         ("I(E_lin;C)", "#ff7f0e", r"LDA$_{+}$"),
+                        ("I(E_sh;C)", "#7f7f7f", "Random"),  # Gray for random baseline
                     ],
                 ),
                 (
@@ -1620,6 +1622,7 @@ def plot_fully_aggregated_analysis(
                     [
                         ("I(I;C)", "#1f77b4", "Network"),
                         ("I(I_lin;C)", "#ff7f0e", r"LDA$_{+}$"),
+                        ("I(I_sh;C)", "#7f7f7f", "Random"),
                     ],
                 ),
                 (
@@ -1627,6 +1630,7 @@ def plot_fully_aggregated_analysis(
                     [
                         ("I(Vb;C)", "#1f77b4", "Network"),
                         ("I(Vb_lin;C)", "#ff7f0e", r"LDA$_{+}$"),
+                        ("I(Vb_sh;C)", "#7f7f7f", "Random"),
                     ],
                 ),
                 (
@@ -1634,6 +1638,7 @@ def plot_fully_aggregated_analysis(
                     [
                         ("I(Vout;C)", "#1f77b4", "Network"),
                         ("I(Vout_lin;C)", "#ff7f0e", r"LDA$_{+}$"),
+                        ("I(Vout_sh;C)", "#7f7f7f", "Random"),
                     ],
                 ),
                 (
@@ -1641,6 +1646,7 @@ def plot_fully_aggregated_analysis(
                     [
                         ("I(E,I;C)", "#1f77b4", "Network"),
                         ("I(E_lin,I_lin;C)", "#ff7f0e", r"LDA$_{+}$"),
+                        ("I(E_sh,I_sh;C)", "#7f7f7f", "Random"),
                     ],
                 ),
             ],
@@ -1653,6 +1659,7 @@ def plot_fully_aggregated_analysis(
                     [
                         ("I(E;I)", "#1f77b4", "Network"),
                         ("I(E_lin;I_lin)", "#ff7f0e", r"LDA$_{+}$"),
+                        ("I(E_sh;I_sh)", "#7f7f7f", "Random"),
                     ],
                 ),
                 (
@@ -1660,6 +1667,7 @@ def plot_fully_aggregated_analysis(
                     [
                         ("I(E;Vout)", "#1f77b4", "Network"),
                         ("I(E_lin;Vout_lin)", "#ff7f0e", r"LDA$_{+}$"),
+                        ("I(E_sh;Vout_sh)", "#7f7f7f", "Random"),
                     ],
                 ),
                 (
@@ -1667,6 +1675,7 @@ def plot_fully_aggregated_analysis(
                     [
                         ("I(I;Vout)", "#1f77b4", "Network"),
                         ("I(I_lin;Vout_lin)", "#ff7f0e", r"LDA$_{+}$"),
+                        ("I(I_sh;Vout_sh)", "#7f7f7f", "Random"),
                     ],
                 ),
                 (
@@ -1674,6 +1683,7 @@ def plot_fully_aggregated_analysis(
                     [
                         ("I(E;Vb)", "#1f77b4", "Network"),
                         ("I(E_lin;Vb_lin)", "#ff7f0e", r"LDA$_{+}$"),
+                        ("I(E_sh;Vb_sh)", "#7f7f7f", "Random"),
                     ],
                 ),
                 (
@@ -1681,6 +1691,7 @@ def plot_fully_aggregated_analysis(
                     [
                         ("I(I;Vb)", "#1f77b4", "Network"),
                         ("I(I_lin;Vb_lin)", "#ff7f0e", r"LDA$_{+}$"),
+                        ("I(I_sh;Vb_sh)", "#7f7f7f", "Random"),
                     ],
                 ),
                 (
@@ -1688,6 +1699,7 @@ def plot_fully_aggregated_analysis(
                     [
                         ("I(Vb;Vout)", "#1f77b4", "Network"),
                         ("I(Vb_lin;Vout_lin)", "#ff7f0e", r"LDA$_{+}$"),
+                        ("I(Vb_sh;Vout_sh)", "#7f7f7f", "Random"),
                     ],
                 ),
             ],
@@ -1700,6 +1712,7 @@ def plot_fully_aggregated_analysis(
                     [
                         ("I(E;I|C)", "#1f77b4", "Network"),
                         ("I(E_lin;I_lin|C)", "#ff7f0e", r"LDA$_{+}$"),
+                        ("I(E_sh;I_sh|C)", "#7f7f7f", "Random"),
                     ],
                 ),
                 (
@@ -1707,6 +1720,7 @@ def plot_fully_aggregated_analysis(
                     [
                         ("I(E;Vout|C)", "#1f77b4", "Network"),
                         ("I(E_lin;Vout_lin|C)", "#ff7f0e", r"LDA$_{+}$"),
+                        ("I(E_sh;Vout_sh|C)", "#7f7f7f", "Random"),
                     ],
                 ),
                 (
@@ -1714,6 +1728,7 @@ def plot_fully_aggregated_analysis(
                     [
                         ("I(I;Vout|C)", "#1f77b4", "Network"),
                         ("I(I_lin;Vout_lin|C)", "#ff7f0e", r"LDA$_{+}$"),
+                        ("I(I_sh;Vout_sh|C)", "#7f7f7f", "Random"),
                     ],
                 ),
                 (
@@ -1721,6 +1736,7 @@ def plot_fully_aggregated_analysis(
                     [
                         ("I(E;Vb|C)", "#1f77b4", "Network"),
                         ("I(E_lin;Vb_lin|C)", "#ff7f0e", r"LDA$_{+}$"),
+                        ("I(E_sh;Vb_sh|C)", "#7f7f7f", "Random"),
                     ],
                 ),
                 (
@@ -1728,6 +1744,7 @@ def plot_fully_aggregated_analysis(
                     [
                         ("I(I;Vb|C)", "#1f77b4", "Network"),
                         ("I(I_lin;Vb_lin|C)", "#ff7f0e", r"LDA$_{+}$"),
+                        ("I(I_sh;Vb_sh|C)", "#7f7f7f", "Random"),
                     ],
                 ),
                 (
@@ -1735,6 +1752,7 @@ def plot_fully_aggregated_analysis(
                     [
                         ("I(Vb;Vout|C)", "#1f77b4", "Network"),
                         ("I(Vb_lin;Vout_lin|C)", "#ff7f0e", r"LDA$_{+}$"),
+                        ("I(Vb_sh;Vout_sh|C)", "#7f7f7f", "Random"),
                     ],
                 ),
             ],
