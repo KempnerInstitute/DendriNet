@@ -2093,6 +2093,181 @@ def plot_fully_aggregated_analysis(
         ),
     ]
 
+    # If layer_total_topk proxies were computed, also plot the *_topK_sum variants.
+    topk_k = None
+    topk_values = set()
+    for depth_stats in final_aggregated.values():
+        for key in depth_stats.keys():
+            if not key.endswith("_mean"):
+                continue
+            idx = key.find("_top")
+            if idx == -1:
+                continue
+            idx += len("_top")
+            j = key.find("_sum_mean", idx)
+            if j == -1:
+                continue
+            num = key[idx:j]
+            if num.isdigit():
+                topk_values.add(int(num))
+
+    if topk_values:
+        topk_k = max(topk_values)
+        suffix_topk = f"_top{topk_k}_sum"
+
+        def _suffix_metrics(metrics, suffix):
+            return tuple(f"{m}{suffix}" for m in metrics)
+
+        metric_pairs.append(
+            (
+                "ablation_proxy_topk_sum",
+                [
+                    (
+                        f"I(E;C|I,Vb){suffix_topk}",
+                        [
+                            (
+                                _suffix_metrics(
+                                    ("I(E;C|I,Vb)", "I(E;C|I)"), suffix_topk
+                                ),
+                                "#1f77b4",
+                                "DendriNet",
+                            ),
+                            (
+                                _suffix_metrics(
+                                    (
+                                        "I(E_lin;C|I_lin,Vb_lin)",
+                                        "I(E_lin;C|I_lin)",
+                                        # Backward-compat
+                                        "I(E_lin;C|I,Vb)",
+                                        "I(E_lin;C|I)",
+                                    ),
+                                    suffix_topk,
+                                ),
+                                "#ff7f0e",
+                                r"LDA$_{+}$",
+                            ),
+                            (
+                                _suffix_metrics(
+                                    ("I(E_sh;C|I_sh,Vb_sh)", "I(E_sh;C|I_sh)"),
+                                    suffix_topk,
+                                ),
+                                "#7f7f7f",
+                                "Random",
+                            ),
+                        ],
+                    ),
+                    (
+                        f"I(I;C|E,Vb){suffix_topk}",
+                        [
+                            (
+                                _suffix_metrics(
+                                    ("I(I;C|E,Vb)", "I(I;C|E)"), suffix_topk
+                                ),
+                                "#1f77b4",
+                                "DendriNet",
+                            ),
+                            (
+                                _suffix_metrics(
+                                    (
+                                        "I(I_lin;C|E_lin,Vb_lin)",
+                                        "I(I_lin;C|E_lin)",
+                                        # Backward-compat
+                                        "I(I_lin;C|E,Vb)",
+                                        "I(I_lin;C|E)",
+                                    ),
+                                    suffix_topk,
+                                ),
+                                "#ff7f0e",
+                                r"LDA$_{+}$",
+                            ),
+                            (
+                                _suffix_metrics(
+                                    ("I(I_sh;C|E_sh,Vb_sh)", "I(I_sh;C|E_sh)"),
+                                    suffix_topk,
+                                ),
+                                "#7f7f7f",
+                                "Random",
+                            ),
+                        ],
+                    ),
+                    (
+                        f"I(E,I;C|Vb){suffix_topk}",
+                        [
+                            (
+                                _suffix_metrics(
+                                    ("I(E,I;C|Vb)", "I(E,I;C)"), suffix_topk
+                                ),
+                                "#1f77b4",
+                                "DendriNet",
+                            ),
+                            (
+                                _suffix_metrics(
+                                    (
+                                        "I(E_lin,I_lin;C|Vb_lin)",
+                                        "I(E_lin,I_lin;C)",
+                                        # Backward-compat
+                                        "I(E_lin,I_lin;C|Vb)",
+                                    ),
+                                    suffix_topk,
+                                ),
+                                "#ff7f0e",
+                                r"LDA$_{+}$",
+                            ),
+                            (
+                                _suffix_metrics(
+                                    ("I(E_sh,I_sh;C|Vb_sh)", "I(E_sh,I_sh;C)"),
+                                    suffix_topk,
+                                ),
+                                "#7f7f7f",
+                                "Random",
+                            ),
+                        ],
+                    ),
+                    (
+                        f"I(Vb;C){suffix_topk}",
+                        [
+                            (f"I(Vb;C){suffix_topk}", "#1f77b4", "DendriNet"),
+                            (f"I(Vb_lin;C){suffix_topk}", "#ff7f0e", r"LDA$_{+}$"),
+                            (f"I(Vb_sh;C){suffix_topk}", "#7f7f7f", "Random"),
+                        ],
+                    ),
+                    (
+                        f"I(Vout;C|Vb){suffix_topk}",
+                        [
+                            (
+                                _suffix_metrics(
+                                    ("I(Vout;C|Vb)", "I(Vout;C)"), suffix_topk
+                                ),
+                                "#1f77b4",
+                                "DendriNet",
+                            ),
+                            (
+                                _suffix_metrics(
+                                    (
+                                        "I(Vout_lin;C|Vb_lin)",
+                                        "I(Vout_lin;C)",
+                                        # Backward-compat
+                                        "I(Vout_lin;C|Vb)",
+                                    ),
+                                    suffix_topk,
+                                ),
+                                "#ff7f0e",
+                                r"LDA$_{+}$",
+                            ),
+                            (
+                                _suffix_metrics(
+                                    ("I(Vout_sh;C|Vb_sh)", "I(Vout_sh;C)"),
+                                    suffix_topk,
+                                ),
+                                "#7f7f7f",
+                                "Random",
+                            ),
+                        ],
+                    ),
+                ],
+            )
+        )
+
     has_any_lda = any(
         depth_label in final_aggregated
         and any("lin" in k for k in final_aggregated[depth_label].keys())
@@ -2124,7 +2299,8 @@ def plot_fully_aggregated_analysis(
         # Proxy plots should show larger (unscaled) error bars for readability.
         std_divisor = (
             1.0
-            if metric_category in {"ablation_proxy_sum", "ablation_proxy_union"}
+            if metric_category
+            in {"ablation_proxy_sum", "ablation_proxy_union", "ablation_proxy_topk_sum"}
             else 5.0
         )
 
@@ -2278,7 +2454,16 @@ def plot_fully_aggregated_analysis(
             title += "\n(proxy sum: sum over branches)"
         elif metric_category == "ablation_proxy_union":
             title += "\n(proxy union: H(C) * (1 - prod_b(1 - I_b/H(C))))"
-        if metric_category in {"ablation_proxy_sum", "ablation_proxy_union"}:
+        elif metric_category == "ablation_proxy_topk_sum":
+            if topk_k is not None:
+                title += f"\n(proxy top-{topk_k} sum: sum of top-{topk_k} branches)"
+            else:
+                title += "\n(proxy top-K sum: sum of top-K branches)"
+        if metric_category in {
+            "ablation_proxy_sum",
+            "ablation_proxy_union",
+            "ablation_proxy_topk_sum",
+        }:
             title += "\n(note: most distal has no Vb; '|Vb' metrics fall back to no-Vb)"
 
         fig.suptitle(title, fontsize=16)
