@@ -1838,6 +1838,49 @@ def plot_fully_aggregated_analysis(
                 else:
                     ax.set_ylabel("MI (bits)")
                     ax.set_title(plot_title)
+
+                # Add placeholder markers for depths where *no* plotted series has data.
+                # This keeps the "Soma slot" and "most distal slot" visually explicit even
+                # when a variable does not exist at that depth (e.g., no soma synapses for E/I,
+                # or no Vb for the most distal branch).
+                available_metrics = [
+                    m
+                    for m, _c, _l in metrics_list
+                    if any(
+                        (
+                            depth_label in final_aggregated
+                            and f"{m}_mean" in final_aggregated[depth_label]
+                        )
+                        for depth_label in sorted_depths
+                    )
+                ]
+                if available_metrics:
+                    missing_x = []
+                    for depth_idx, depth_label in enumerate(sorted_depths):
+                        if depth_label not in final_aggregated:
+                            missing_x.append(depth_idx)
+                            continue
+                        depth_stats = final_aggregated[depth_label]
+                        if not any(
+                            f"{m}_mean" in depth_stats for m in available_metrics
+                        ):
+                            missing_x.append(depth_idx)
+
+                    if missing_x:
+                        from matplotlib.transforms import blended_transform_factory
+
+                        trans = blended_transform_factory(ax.transData, ax.transAxes)
+                        ax.scatter(
+                            missing_x,
+                            [0.05] * len(missing_x),
+                            marker="x",
+                            s=35,
+                            color="#666666",
+                            alpha=0.6,
+                            transform=trans,
+                            clip_on=False,
+                            label="_nolegend_",
+                        )
                 ax.set_xticks(range(len(sorted_depths)))
                 ax.set_xticklabels(sorted_depths, rotation=0)
                 ax.grid(True, alpha=0.3)
