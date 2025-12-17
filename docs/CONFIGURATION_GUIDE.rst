@@ -376,6 +376,14 @@ Complete Information Analysis Configuration
 
          # LDA analysis
          compute_lda_weights: false      # Compute LDA-based aggregations
+         lda_n_shuffles: 0              # Random-weight baseline shuffles (0 = disabled)
+
+         # Ablation-aligned information extras
+         compute_ablation_aligned_mi: true   # Adds conditional-MI proxies aligned with E/I/Vb ablations
+
+         # Single-branch -> layer-total proxy aggregations (avoids high-dim multivariate MI)
+         compute_layer_total_proxies: true   # Adds *_sum/*_union/*_topK_sum per-layer proxy metrics
+         layer_total_topk: 10                # K used for *_topK_sum metrics
 
          # Additional options
          include_vinf: true              # Include soma activation

@@ -41,6 +41,17 @@ class InformationAnalysisParams(BaseConfig):
     compute_conditional_mi: bool = True  # I(E;I|C), I(E;Vout|C), etc.
     compute_pid: bool = False  # Partial Information Decomposition
 
+    # Ablation-aligned information components (cheap extra CMI terms)
+    # These are designed to better track "remove E/I/Vb/all" style ablations.
+    compute_ablation_aligned_mi: bool = True
+
+    # Layer-total proxies derived from single-branch MI (no high-dim multivariate MI)
+    # Only used in computation_level="single_branch".
+    # Produces additional per-layer metrics like:
+    #   I(E;C|I,Vb)_sum, I(E;C|I,Vb)_union, I(E;C|I,Vb)_topK_sum, ...
+    compute_layer_total_proxies: bool = True
+    layer_total_topk: int = 10  # K used for *_topK_sum metrics
+
     # PID settings
     pid_binarize: bool = True
     pid_binarize_method: str = "median"  # "median", "mean", "quantile"

@@ -1755,6 +1755,279 @@ def plot_fully_aggregated_analysis(
                         ("I(Vb_sh;Vout_sh|C)", "#7f7f7f", "Random"),
                     ],
                 ),
+                (
+                    "I(Vout;C|Vb)",
+                    [
+                        ("I(Vout;C|Vb)", "#1f77b4", "DendriNet"),
+                        ("I(Vout_lin;C|Vb_lin)", "#ff7f0e", r"LDA$_{+}$"),
+                        ("I(Vout_sh;C|Vb_sh)", "#7f7f7f", "Random"),
+                    ],
+                ),
+                (
+                    "I(E;C|Vb)",
+                    [
+                        ("I(E;C|Vb)", "#1f77b4", "DendriNet"),
+                        ("I(E_lin;C|Vb_lin)", "#ff7f0e", r"LDA$_{+}$"),
+                        ("I(E_sh;C|Vb_sh)", "#7f7f7f", "Random"),
+                    ],
+                ),
+                (
+                    "I(I;C|Vb)",
+                    [
+                        ("I(I;C|Vb)", "#1f77b4", "DendriNet"),
+                        ("I(I_lin;C|Vb_lin)", "#ff7f0e", r"LDA$_{+}$"),
+                        ("I(I_sh;C|Vb_sh)", "#7f7f7f", "Random"),
+                    ],
+                ),
+                (
+                    "I(E,I;C|Vb)",
+                    [
+                        ("I(E,I;C|Vb)", "#1f77b4", "DendriNet"),
+                        ("I(E_lin,I_lin;C|Vb_lin)", "#ff7f0e", r"LDA$_{+}$"),
+                        ("I(E_sh,I_sh;C|Vb_sh)", "#7f7f7f", "Random"),
+                    ],
+                ),
+                (
+                    "I(E;C|I,Vb)",
+                    [
+                        ("I(E;C|I,Vb)", "#1f77b4", "DendriNet"),
+                        ("I(E_lin;C|I_lin,Vb_lin)", "#ff7f0e", r"LDA$_{+}$"),
+                        ("I(E_sh;C|I_sh,Vb_sh)", "#7f7f7f", "Random"),
+                    ],
+                ),
+                (
+                    "I(I;C|E,Vb)",
+                    [
+                        ("I(I;C|E,Vb)", "#1f77b4", "DendriNet"),
+                        ("I(I_lin;C|E_lin,Vb_lin)", "#ff7f0e", r"LDA$_{+}$"),
+                        ("I(I_sh;C|E_sh,Vb_sh)", "#7f7f7f", "Random"),
+                    ],
+                ),
+            ],
+        ),
+        # ------------------------------------------------------------------
+        # Layer-total (branch-aggregated) proxies for ablation effects.
+        #
+        # These are computed from single-branch MI by aggregating across branches
+        # within each layer (e.g. sum/union). They are not "true" multivariate MI,
+        # but they often track whole-layer ablation trends better than per-branch means.
+        # ------------------------------------------------------------------
+        (
+            "ablation_proxy_sum",
+            [
+                (
+                    "I(E;C|I,Vb)_sum",
+                    [
+                        (("I(E;C|I,Vb)_sum", "I(E;C|I)_sum"), "#1f77b4", "DendriNet"),
+                        (
+                            (
+                                "I(E_lin;C|I_lin,Vb_lin)_sum",
+                                "I(E_lin;C|I_lin)_sum",
+                                # Backward-compat: older runs didn't rename I/Vb in conditioning
+                                "I(E_lin;C|I,Vb)_sum",
+                                "I(E_lin;C|I)_sum",
+                            ),
+                            "#ff7f0e",
+                            r"LDA$_{+}$",
+                        ),
+                        (
+                            ("I(E_sh;C|I_sh,Vb_sh)_sum", "I(E_sh;C|I_sh)_sum"),
+                            "#7f7f7f",
+                            "Random",
+                        ),
+                    ],
+                ),
+                (
+                    "I(I;C|E,Vb)_sum",
+                    [
+                        (("I(I;C|E,Vb)_sum", "I(I;C|E)_sum"), "#1f77b4", "DendriNet"),
+                        (
+                            (
+                                "I(I_lin;C|E_lin,Vb_lin)_sum",
+                                "I(I_lin;C|E_lin)_sum",
+                                # Backward-compat: older runs didn't rename E/Vb in conditioning
+                                "I(I_lin;C|E,Vb)_sum",
+                                "I(I_lin;C|E)_sum",
+                            ),
+                            "#ff7f0e",
+                            r"LDA$_{+}$",
+                        ),
+                        (
+                            ("I(I_sh;C|E_sh,Vb_sh)_sum", "I(I_sh;C|E_sh)_sum"),
+                            "#7f7f7f",
+                            "Random",
+                        ),
+                    ],
+                ),
+                (
+                    "I(E,I;C|Vb)_sum",
+                    [
+                        (("I(E,I;C|Vb)_sum", "I(E,I;C)_sum"), "#1f77b4", "DendriNet"),
+                        (
+                            (
+                                "I(E_lin,I_lin;C|Vb_lin)_sum",
+                                "I(E_lin,I_lin;C)_sum",
+                                # Backward-compat: older runs didn't rename Vb in conditioning
+                                "I(E_lin,I_lin;C|Vb)_sum",
+                            ),
+                            "#ff7f0e",
+                            r"LDA$_{+}$",
+                        ),
+                        (
+                            ("I(E_sh,I_sh;C|Vb_sh)_sum", "I(E_sh,I_sh;C)_sum"),
+                            "#7f7f7f",
+                            "Random",
+                        ),
+                    ],
+                ),
+                (
+                    "I(Vb;C)_sum",
+                    [
+                        ("I(Vb;C)_sum", "#1f77b4", "DendriNet"),
+                        ("I(Vb_lin;C)_sum", "#ff7f0e", r"LDA$_{+}$"),
+                        ("I(Vb_sh;C)_sum", "#7f7f7f", "Random"),
+                    ],
+                ),
+                (
+                    "I(Vout;C|Vb)_sum",
+                    [
+                        (
+                            ("I(Vout;C|Vb)_sum", "I(Vout;C)_sum"),
+                            "#1f77b4",
+                            "DendriNet",
+                        ),
+                        (
+                            (
+                                "I(Vout_lin;C|Vb_lin)_sum",
+                                "I(Vout_lin;C)_sum",
+                                # Backward-compat: older runs didn't rename Vb in conditioning
+                                "I(Vout_lin;C|Vb)_sum",
+                            ),
+                            "#ff7f0e",
+                            r"LDA$_{+}$",
+                        ),
+                        (
+                            ("I(Vout_sh;C|Vb_sh)_sum", "I(Vout_sh;C)_sum"),
+                            "#7f7f7f",
+                            "Random",
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        (
+            "ablation_proxy_union",
+            [
+                (
+                    "I(E;C|I,Vb)_union",
+                    [
+                        (
+                            ("I(E;C|I,Vb)_union", "I(E;C|I)_union"),
+                            "#1f77b4",
+                            "DendriNet",
+                        ),
+                        (
+                            (
+                                "I(E_lin;C|I_lin,Vb_lin)_union",
+                                "I(E_lin;C|I_lin)_union",
+                                # Backward-compat
+                                "I(E_lin;C|I,Vb)_union",
+                                "I(E_lin;C|I)_union",
+                            ),
+                            "#ff7f0e",
+                            r"LDA$_{+}$",
+                        ),
+                        (
+                            ("I(E_sh;C|I_sh,Vb_sh)_union", "I(E_sh;C|I_sh)_union"),
+                            "#7f7f7f",
+                            "Random",
+                        ),
+                    ],
+                ),
+                (
+                    "I(I;C|E,Vb)_union",
+                    [
+                        (
+                            ("I(I;C|E,Vb)_union", "I(I;C|E)_union"),
+                            "#1f77b4",
+                            "DendriNet",
+                        ),
+                        (
+                            (
+                                "I(I_lin;C|E_lin,Vb_lin)_union",
+                                "I(I_lin;C|E_lin)_union",
+                                # Backward-compat
+                                "I(I_lin;C|E,Vb)_union",
+                                "I(I_lin;C|E)_union",
+                            ),
+                            "#ff7f0e",
+                            r"LDA$_{+}$",
+                        ),
+                        (
+                            ("I(I_sh;C|E_sh,Vb_sh)_union", "I(I_sh;C|E_sh)_union"),
+                            "#7f7f7f",
+                            "Random",
+                        ),
+                    ],
+                ),
+                (
+                    "I(E,I;C|Vb)_union",
+                    [
+                        (
+                            ("I(E,I;C|Vb)_union", "I(E,I;C)_union"),
+                            "#1f77b4",
+                            "DendriNet",
+                        ),
+                        (
+                            (
+                                "I(E_lin,I_lin;C|Vb_lin)_union",
+                                "I(E_lin,I_lin;C)_union",
+                                # Backward-compat
+                                "I(E_lin,I_lin;C|Vb)_union",
+                            ),
+                            "#ff7f0e",
+                            r"LDA$_{+}$",
+                        ),
+                        (
+                            ("I(E_sh,I_sh;C|Vb_sh)_union", "I(E_sh,I_sh;C)_union"),
+                            "#7f7f7f",
+                            "Random",
+                        ),
+                    ],
+                ),
+                (
+                    "I(Vb;C)_union",
+                    [
+                        ("I(Vb;C)_union", "#1f77b4", "DendriNet"),
+                        ("I(Vb_lin;C)_union", "#ff7f0e", r"LDA$_{+}$"),
+                        ("I(Vb_sh;C)_union", "#7f7f7f", "Random"),
+                    ],
+                ),
+                (
+                    "I(Vout;C|Vb)_union",
+                    [
+                        (
+                            ("I(Vout;C|Vb)_union", "I(Vout;C)_union"),
+                            "#1f77b4",
+                            "DendriNet",
+                        ),
+                        (
+                            (
+                                "I(Vout_lin;C|Vb_lin)_union",
+                                "I(Vout_lin;C)_union",
+                                # Backward-compat
+                                "I(Vout_lin;C|Vb)_union",
+                            ),
+                            "#ff7f0e",
+                            r"LDA$_{+}$",
+                        ),
+                        (
+                            ("I(Vout_sh;C|Vb_sh)_union", "I(Vout_sh;C)_union"),
+                            "#7f7f7f",
+                            "Random",
+                        ),
+                    ],
+                ),
             ],
         ),
     ]
@@ -1773,6 +2046,16 @@ def plot_fully_aggregated_analysis(
         else:
             axes = axes.flatten()
 
+        def _metric_candidates(metric_spec):
+            if isinstance(metric_spec, (list, tuple)):
+                return list(metric_spec)
+            return [metric_spec]
+
+        def _metric_candidates(metric_spec):
+            if isinstance(metric_spec, (list, tuple)):
+                return list(metric_spec)
+            return [metric_spec]
+
         for idx, (plot_title, metrics_list) in enumerate(metric_groups):
             if idx >= len(axes):
                 break
@@ -1781,12 +2064,16 @@ def plot_fully_aggregated_analysis(
 
             # Plot each metric in this comparison group (network vs LDA)
             for metric, color, label in metrics_list:
+                metric_list = _metric_candidates(metric)
                 # Only show lines for metrics that exist in the aggregated data.
                 # This prevents LDA labels from appearing when compute_lda_weights=False.
                 if not any(
                     (
                         depth_label in final_aggregated
-                        and f"{metric}_mean" in final_aggregated[depth_label]
+                        and any(
+                            f"{m}_mean" in final_aggregated[depth_label]
+                            for m in metric_list
+                        )
                     )
                     for depth_label in sorted_depths
                 ):
@@ -1800,11 +2087,15 @@ def plot_fully_aggregated_analysis(
                 for depth_idx, depth_label in enumerate(sorted_depths):
                     if depth_label in final_aggregated:
                         depth_stats = final_aggregated[depth_label]
-                        if f"{metric}_mean" in depth_stats:
+                        chosen = next(
+                            (m for m in metric_list if f"{m}_mean" in depth_stats),
+                            None,
+                        )
+                        if chosen is not None:
                             x_positions.append(depth_idx)
                             depths.append(depth_label)
-                            values.append(depth_stats[f"{metric}_mean"])
-                            errors.append(depth_stats.get(f"{metric}_std", 0) / 5.0)
+                            values.append(depth_stats[f"{chosen}_mean"])
+                            errors.append(depth_stats.get(f"{chosen}_std", 0) / 5.0)
 
                 if x_positions and values:
                     has_data = True
@@ -1843,17 +2134,20 @@ def plot_fully_aggregated_analysis(
                 # This keeps the "Soma slot" and "most distal slot" visually explicit even
                 # when a variable does not exist at that depth (e.g., no soma synapses for E/I,
                 # or no Vb for the most distal branch).
-                available_metrics = [
-                    m
-                    for m, _c, _l in metrics_list
+                available_metrics = []
+                for m, _c, _l in metrics_list:
+                    candidates = _metric_candidates(m)
                     if any(
                         (
                             depth_label in final_aggregated
-                            and f"{m}_mean" in final_aggregated[depth_label]
+                            and any(
+                                f"{cand}_mean" in final_aggregated[depth_label]
+                                for cand in candidates
+                            )
                         )
                         for depth_label in sorted_depths
-                    )
-                ]
+                    ):
+                        available_metrics.append(candidates)
                 if available_metrics:
                     missing_x = []
                     for depth_idx, depth_label in enumerate(sorted_depths):
@@ -1862,7 +2156,9 @@ def plot_fully_aggregated_analysis(
                             continue
                         depth_stats = final_aggregated[depth_label]
                         if not any(
-                            f"{m}_mean" in depth_stats for m in available_metrics
+                            f"{cand}_mean" in depth_stats
+                            for cand_list in available_metrics
+                            for cand in cand_list
                         ):
                             missing_x.append(depth_idx)
 

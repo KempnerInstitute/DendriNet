@@ -7,6 +7,7 @@ with the main configuration system.
 
 import logging
 import os
+import re
 import time
 from typing import Any, Optional, Union
 
@@ -77,6 +78,15 @@ class InformationAnalyzer(AbstractAnalyzer):
         self.pid_binarize = getattr(params, "pid_binarize", False)
         self.pid_binarize_method = getattr(params, "pid_binarize_method", "median")
         self.pid_binarize_threshold = getattr(params, "pid_binarize_threshold", 0.5)
+
+        # Ablation-aligned extras (conditional MI terms and single-branch -> layer proxies)
+        self.compute_ablation_aligned_mi = getattr(
+            params, "compute_ablation_aligned_mi", True
+        )
+        self.compute_layer_total_proxies = getattr(
+            params, "compute_layer_total_proxies", True
+        )
+        self.layer_total_topk = int(getattr(params, "layer_total_topk", 10))
 
         self.include_vinf = getattr(
             params, "include_vinf", False
@@ -399,6 +409,95 @@ class InformationAnalyzer(AbstractAnalyzer):
             ].conditional_mutual_information(Vb, Vout, C.reshape(-1, 1))
             self.logger.info(
                 f"  I(Vb;Vout|C) = {metrics['I(Vb;Vout|C)']:.4f} (took {time.time() - start_time:.1f}s)"
+            )
+
+        # ------------------------------------------------------------------
+        # Ablation-aligned conditional MI proxies
+        #
+        # These measure *unique* class information that each component provides
+        # beyond other components, which is often closer to what layer ablations
+        # probe than raw I(E;C) / I(I;C).
+        # ------------------------------------------------------------------
+        estimator = self.estimators[self.method]
+        C_col = C.reshape(-1, 1)
+
+        if self.compute_ablation_aligned_mi and Vb is not None:
+            # How much class info is present in the layer output beyond upstream input
+            self.logger.info("  Computing I(Vout;C|Vb)...")
+            start_time = time.time()
+            metrics["I(Vout;C|Vb)"] = estimator.conditional_mutual_information(
+                Vout, C_col, Vb
+            )
+            self.logger.info(
+                f"  I(Vout;C|Vb) = {metrics['I(Vout;C|Vb)']:.4f} (took {time.time() - start_time:.1f}s)"
+            )
+
+            # Unique class information in E / I beyond upstream input
+            self.logger.info("  Computing I(E;C|Vb)...")
+            start_time = time.time()
+            metrics["I(E;C|Vb)"] = estimator.conditional_mutual_information(
+                E, C_col, Vb
+            )
+            self.logger.info(
+                f"  I(E;C|Vb) = {metrics['I(E;C|Vb)']:.4f} (took {time.time() - start_time:.1f}s)"
+            )
+
+            self.logger.info("  Computing I(I;C|Vb)...")
+            start_time = time.time()
+            metrics["I(I;C|Vb)"] = estimator.conditional_mutual_information(
+                I_var, C_col, Vb
+            )
+            self.logger.info(
+                f"  I(I;C|Vb) = {metrics['I(I;C|Vb)']:.4f} (took {time.time() - start_time:.1f}s)"
+            )
+
+            # Unique class information in (E,I) beyond upstream input (proxy for "all synapses")
+            self.logger.info("  Computing I(E,I;C|Vb)...")
+            start_time = time.time()
+            EI = np.hstack([E, I_var])
+            metrics["I(E,I;C|Vb)"] = estimator.conditional_mutual_information(
+                EI, C_col, Vb
+            )
+            self.logger.info(
+                f"  I(E,I;C|Vb) = {metrics['I(E,I;C|Vb)']:.4f} (took {time.time() - start_time:.1f}s)"
+            )
+
+            # Fine-grained: unique info in E (or I) beyond upstream + the other synapse type
+            self.logger.info("  Computing I(E;C|I,Vb)...")
+            start_time = time.time()
+            metrics["I(E;C|I,Vb)"] = estimator.conditional_mutual_information(
+                E, C_col, np.hstack([I_var, Vb])
+            )
+            self.logger.info(
+                f"  I(E;C|I,Vb) = {metrics['I(E;C|I,Vb)']:.4f} (took {time.time() - start_time:.1f}s)"
+            )
+
+            self.logger.info("  Computing I(I;C|E,Vb)...")
+            start_time = time.time()
+            metrics["I(I;C|E,Vb)"] = estimator.conditional_mutual_information(
+                I_var, C_col, np.hstack([E, Vb])
+            )
+            self.logger.info(
+                f"  I(I;C|E,Vb) = {metrics['I(I;C|E,Vb)']:.4f} (took {time.time() - start_time:.1f}s)"
+            )
+        elif self.compute_ablation_aligned_mi:
+            # No upstream branch input (outermost layer): still compute unique info between E and I
+            self.logger.info("  Computing I(E;C|I)...")
+            start_time = time.time()
+            metrics["I(E;C|I)"] = estimator.conditional_mutual_information(
+                E, C_col, I_var
+            )
+            self.logger.info(
+                f"  I(E;C|I) = {metrics['I(E;C|I)']:.4f} (took {time.time() - start_time:.1f}s)"
+            )
+
+            self.logger.info("  Computing I(I;C|E)...")
+            start_time = time.time()
+            metrics["I(I;C|E)"] = estimator.conditional_mutual_information(
+                I_var, C_col, E
+            )
+            self.logger.info(
+                f"  I(I;C|E) = {metrics['I(I;C|E)']:.4f} (took {time.time() - start_time:.1f}s)"
             )
 
         if Vinf is not None and self.include_vinf:
@@ -778,31 +877,141 @@ class InformationAnalyzer(AbstractAnalyzer):
 
         return averaged_results
 
+    @staticmethod
+    def _is_discrete_class_labels(labels: np.ndarray) -> bool:
+        """Heuristic: decide whether labels are discrete class IDs."""
+        labels = np.asarray(labels).ravel()
+        if labels.size == 0:
+            return False
+        unique = np.unique(labels)
+        # Typical classification: small number of unique values
+        if unique.size <= 50:
+            return True
+        # If the labels are integer-like and the number of unique labels is still smallish
+        if unique.size <= 200 and np.allclose(unique, np.round(unique), atol=1e-6):
+            return True
+        return False
+
+    @staticmethod
+    def _discrete_entropy_nats(labels: np.ndarray) -> float:
+        """Discrete entropy H(C) in natural units (nats)."""
+        labels = np.asarray(labels).ravel()
+        if labels.size == 0:
+            return 0.0
+        _, counts = np.unique(labels, return_counts=True)
+        p = counts.astype(float) / float(counts.sum())
+        # Natural log: matches the Kraskov MI units (nats)
+        return float(-np.sum(p * np.log(p + 1e-12)))
+
+    @staticmethod
+    def _metric_targets_class(metric_key: str) -> bool:
+        """Return True if the metric is of the form I(X;C) or I(X;C|...)."""
+        if (
+            not isinstance(metric_key, str)
+            or "I(" not in metric_key
+            or ")" not in metric_key
+        ):
+            return False
+        lpar = metric_key.find("I(")
+        lpar = metric_key.find("(", lpar)
+        rpar = metric_key.find(")", lpar)
+        if lpar == -1 or rpar == -1 or rpar <= lpar + 1:
+            return False
+        inside = metric_key[lpar + 1 : rpar]
+        main = inside.split("|", 1)[0]
+        parts = [p.strip() for p in main.split(";")]
+        if len(parts) < 2:
+            return False
+        return parts[1] == "C"
+
     def _compute_layer_statistics(
-        self, results_list: list[dict[str, Any]]
+        self,
+        results_list: list[dict[str, Any]],
+        *,
+        entropy_C: Optional[float] = None,
+        topk: int = 10,
     ) -> dict[str, float]:
-        """Compute mean and std of MI results across multiple branches for a given layer."""
-        layer_stats = {}
+        """Compute per-layer summary stats from per-branch MI results.
+
+        Notes
+        -----
+        Raw per-branch MI does *not* uniquely determine the true layer-level
+        multivariate MI (redundancy/synergy matter). To help relate single-branch
+        results to layer ablations, we provide additional *heuristic* branch
+        aggregations for class-targeted metrics:
+
+        - `<metric>_sum`: sum across branches (scales with number of branches)
+        - `<metric>_sum_clipped`: min(sum, H(C)) for class-targeted metrics
+        - `<metric>_union`: saturating "independent evidence" union:
+              H(C) * (1 - Π_b (1 - I_b/H(C)))
+        - `<metric>_topk_sum`: sum of top-K branches (K configurable)
+        - `<metric>_max`: max branch value
+        """
+        layer_stats: dict[str, float] = {}
+
+        if not results_list:
+            return layer_stats
 
         # Handle nested structure - collect ALL unique keys across all branches
-        if results_list and "basic_mi" in results_list[0]:
-            # Process each metric category, collecting all unique keys
-            for metric_category in ["basic_mi", "pairwise_mi", "conditional_mi"]:
-                # Gather all unique keys across all branches
-                all_keys = set()
-                for r in results_list:
-                    if metric_category in r:
-                        all_keys.update(r[metric_category].keys())
+        for metric_category in ["basic_mi", "pairwise_mi", "conditional_mi"]:
+            all_keys: set[str] = set()
+            for r in results_list:
+                if metric_category in r and isinstance(r[metric_category], dict):
+                    all_keys.update(r[metric_category].keys())
 
-                # Process each unique key
-                for key in all_keys:
-                    values = []
-                    for r in results_list:
-                        if metric_category in r and key in r[metric_category]:
-                            values.append(r[metric_category][key])
-                    if values:
-                        layer_stats[f"{key}_mean"] = np.mean(values)
-                        layer_stats[f"{key}_std"] = np.std(values)
+            for key in all_keys:
+                values: list[float] = []
+                for r in results_list:
+                    if (
+                        metric_category in r
+                        and isinstance(r[metric_category], dict)
+                        and key in r[metric_category]
+                    ):
+                        val = r[metric_category][key]
+                        if isinstance(val, (int, float, np.number)) and np.isfinite(
+                            val
+                        ):
+                            values.append(float(val))
+
+                if not values:
+                    continue
+
+                arr = np.asarray(values, dtype=float)
+                layer_stats[f"{key}_mean"] = float(np.mean(arr))
+                layer_stats[f"{key}_std"] = float(np.std(arr))
+                layer_stats[f"{key}_n"] = float(arr.size)
+
+                # Only compute "layer total" heuristics for class-targeted metrics.
+                if (
+                    entropy_C is None
+                    or entropy_C <= 0
+                    or not self._metric_targets_class(key)
+                ):
+                    continue
+
+                s = float(np.sum(arr))
+                layer_stats[f"{key}_sum_mean"] = s
+                layer_stats[f"{key}_sum_std"] = 0.0
+
+                # Clip at H(C) (a valid upper bound for I(X;C) and I(X;C|Z))
+                layer_stats[f"{key}_sum_clipped_mean"] = float(min(s, entropy_C))
+                layer_stats[f"{key}_sum_clipped_std"] = 0.0
+
+                # Saturating union-of-independent-evidence heuristic (bounded by H(C))
+                frac = np.clip(arr / entropy_C, 0.0, 1.0)
+                union_frac = 1.0 - float(np.prod(1.0 - frac))
+                layer_stats[f"{key}_union_mean"] = float(entropy_C * union_frac)
+                layer_stats[f"{key}_union_std"] = 0.0
+
+                # Concentration diagnostics
+                layer_stats[f"{key}_max_mean"] = float(np.max(arr))
+                layer_stats[f"{key}_max_std"] = 0.0
+
+                k = int(max(1, topk))
+                k = min(k, arr.size)
+                topk_sum = float(np.sum(np.sort(arr)[-k:]))
+                layer_stats[f"{key}_top{topk}_sum_mean"] = topk_sum
+                layer_stats[f"{key}_top{topk}_sum_std"] = 0.0
 
         return layer_stats
 
@@ -827,6 +1036,30 @@ class InformationAnalyzer(AbstractAnalyzer):
         inside = inside.replace("|", ";").replace(",", ";")
         tokens = [t.strip() for t in inside.split(";") if t.strip()]
         return tokens
+
+    @staticmethod
+    def _rename_metric_key_tokens(metric_key: str, token_map: dict[str, str]) -> str:
+        """Rename variable tokens inside MI keys.
+
+        This is used to generate LDA/shuffled metric names (e.g. E -> E_lin) while
+        preserving separators, and it works for tokens in both the main and
+        conditioning parts (after '|').
+        """
+        if not isinstance(metric_key, str):
+            return metric_key
+        if "I(" not in metric_key:
+            return metric_key
+
+        renamed = metric_key
+        for src, dst in token_map.items():
+            # Replace full-token occurrences inside the I( ... ) block.
+            # Tokens are delimited by one of: (, ;, ,, |, )
+            renamed = re.sub(
+                rf"(?<=[(;,|]){re.escape(src)}(?=[,;|)])",
+                dst,
+                renamed,
+            )
+        return renamed
 
     def _keep_metric_key_given_availability(
         self,
@@ -1976,6 +2209,14 @@ class InformationAnalyzer(AbstractAnalyzer):
 
             self.data_dict: dict[str, dict[str, torch.Tensor]]
 
+            # Discrete class entropy (nats). Used for "layer total" heuristics in
+            # single-branch mode (e.g. sum/union aggregations of per-branch MI).
+            entropy_C: Optional[float]
+            if self._is_discrete_class_labels(C):
+                entropy_C = self._discrete_entropy_nats(C)
+            else:
+                entropy_C = None
+
             if self.computation_level == "single_branch":
                 # Individual branch analysis: Compute MI for each branch separately and average
                 all_results = []
@@ -2132,32 +2373,15 @@ class InformationAnalyzer(AbstractAnalyzer):
                                 if isinstance(value, dict):
                                     renamed_dict = {}
                                     for subkey, subval in value.items():
-                                        # Replace E, I, Vb with E_lin, I_lin, Vb_lin in metric names
-                                        # Handle both pairwise (;X)) and conditional (;X|C)) patterns
-                                        new_subkey = (
-                                            subkey.replace("(E;", "(E_lin;")
-                                            .replace(";E)", ";E_lin)")
-                                            .replace(";E|", ";E_lin|")
-                                        )
-                                        new_subkey = (
-                                            new_subkey.replace("(I;", "(I_lin;")
-                                            .replace(";I)", ";I_lin)")
-                                            .replace(";I|", ";I_lin|")
-                                        )
-                                        new_subkey = (
-                                            new_subkey.replace("(Vb;", "(Vb_lin;")
-                                            .replace(";Vb)", ";Vb_lin)")
-                                            .replace(";Vb|", ";Vb_lin|")
-                                        )
-                                        new_subkey = new_subkey.replace(
-                                            "(E,I;", "(E_lin,I_lin;"
-                                        )
-                                        # Also rename Vout to Vout_lin
-                                        # Handle both pairwise (;Vout)) and conditional (;Vout|C)) patterns
-                                        new_subkey = (
-                                            new_subkey.replace("(Vout;", "(Vout_lin;")
-                                            .replace(";Vout)", ";Vout_lin)")
-                                            .replace(";Vout|", ";Vout_lin|")
+                                        new_subkey = self._rename_metric_key_tokens(
+                                            subkey,
+                                            {
+                                                "E": "E_lin",
+                                                "I": "I_lin",
+                                                "Vb": "Vb_lin",
+                                                "Vout": "Vout_lin",
+                                                "Vinf": "Vinf_lin",
+                                            },
                                         )
                                         renamed_dict[new_subkey] = subval
                                     branch_results_lin_renamed[key] = renamed_dict
@@ -2220,31 +2444,15 @@ class InformationAnalyzer(AbstractAnalyzer):
                                     for subkey, values_list in subdict.items():
                                         if values_list:
                                             avg_value = np.mean(values_list)
-                                            # Rename with _sh suffix
-                                            new_subkey = (
-                                                subkey.replace("(E;", "(E_sh;")
-                                                .replace(";E)", ";E_sh)")
-                                                .replace(";E|", ";E_sh|")
-                                            )
-                                            new_subkey = (
-                                                new_subkey.replace("(I;", "(I_sh;")
-                                                .replace(";I)", ";I_sh)")
-                                                .replace(";I|", ";I_sh|")
-                                            )
-                                            new_subkey = (
-                                                new_subkey.replace("(Vb;", "(Vb_sh;")
-                                                .replace(";Vb)", ";Vb_sh)")
-                                                .replace(";Vb|", ";Vb_sh|")
-                                            )
-                                            new_subkey = new_subkey.replace(
-                                                "(E,I;", "(E_sh,I_sh;"
-                                            )
-                                            new_subkey = (
-                                                new_subkey.replace(
-                                                    "(Vout;", "(Vout_sh;"
-                                                )
-                                                .replace(";Vout)", ";Vout_sh)")
-                                                .replace(";Vout|", ";Vout_sh|")
+                                            new_subkey = self._rename_metric_key_tokens(
+                                                subkey,
+                                                {
+                                                    "E": "E_sh",
+                                                    "I": "I_sh",
+                                                    "Vb": "Vb_sh",
+                                                    "Vout": "Vout_sh",
+                                                    "Vinf": "Vinf_sh",
+                                                },
                                             )
                                             branch_results[key][new_subkey] = avg_value
 
@@ -2264,7 +2472,11 @@ class InformationAnalyzer(AbstractAnalyzer):
                     # Compute layer statistics
                     if layer_branch_results:
                         layer_stats = self._compute_layer_statistics(
-                            layer_branch_results
+                            layer_branch_results,
+                            entropy_C=entropy_C
+                            if self.compute_layer_total_proxies
+                            else None,
+                            topk=self.layer_total_topk,
                         )
                         # Add has_synapses flag for plotting code to use
                         if layer_name in self.data_dict:

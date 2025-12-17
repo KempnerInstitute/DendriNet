@@ -54,6 +54,9 @@ analysis:
       per_neuron_analysis: false
       compute_lda_weights: true
       lda_n_shuffles: 0                 # Number of random weight shuffles for baseline (0 = disabled)
+      compute_ablation_aligned_mi: true # Add ablation-aligned MI proxies (true/false)
+      compute_layer_total_proxies: true # Aggregate single-branch MI into layer-total proxies (true/false)
+      layer_total_topk: 10              # K used for *_topK_sum layer proxy metrics
       pid_binarize: true
       pid_binarize_method: median
       pid_binarize_threshold: 0.5
