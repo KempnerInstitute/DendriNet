@@ -3160,7 +3160,12 @@ class InformationAnalyzer(AbstractAnalyzer):
                 self.logger.info(
                     f"Added synthetic soma with real I(Vout;C)={soma_vout_mean:.4f}. Total layers now: {len(results['layer_statistics'])}"
                 )
-            elif not somatic_synapses:
+            elif not somatic_synapses and "layer_statistics" in results:
+                # The real soma layer (has_synapses=False) was captured by hooks.
+                self.logger.info(
+                    "Soma layer already captured; skipping synthetic soma."
+                )
+            elif not somatic_synapses and "layer_statistics" not in results:
                 self.logger.warning(
                     "somatic_synapses=False but no layer_statistics found in results"
                 )
