@@ -52,7 +52,6 @@ analysis:
       per_einet_analysis: false
       per_layer_analysis: false
       per_neuron_analysis: false
-      include_branch_input: true
       compute_lda_weights: true
       lda_n_shuffles: 0                 # Number of random weight shuffles for baseline (0 = disabled)
       pid_binarize: true

@@ -557,7 +557,6 @@ base_config:
         per_neuron_analysis: false        # Per-neuron analysis (true/false)
         per_einet_analysis: false         # Per-EI-network analysis (true/false)
         per_layer_analysis: false         # Per-layer analysis (true/false)
-        include_branch_input: true        # Include branch input (Vb) in MI analysis (true/false)
         compute_lda_weights: true         # Compute LDA-based E_lin, I_lin, Vb_lin (true/false)
         lda_n_shuffles: 0                 # Number of random weight shuffles for baseline (0 = disabled)
 

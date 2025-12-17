@@ -292,14 +292,7 @@ Branch Input Analysis
 
 The framework supports analysis of upstream dendritic inputs (branch inputs) in hierarchical dendritic networks.
 
-.. code-block:: yaml
-
-   analysis:
-     information_analysis:
-       params:
-         include_branch_input: true    # Include branch input (Vb) in analysis
-
-When enabled, computes mutual information for branch inputs (Vb), which represent signals from upstream dendritic branches in hierarchical networks. This adds the following metrics:
+Branch-input (Vb) metrics are computed automatically when branch inputs exist (no configuration flag needed). This adds the following metrics:
 
 Basic MI:
    ``I(Vb;C)`` - Mutual information between branch input and class labels
@@ -381,8 +374,7 @@ Complete Information Analysis Configuration
          per_einet_analysis: false       # Separate E and I network analysis
          per_layer_analysis: false       # Per-layer enhanced analysis
 
-         # Branch input and LDA analysis
-         include_branch_input: true      # Include Vb in analysis
+         # LDA analysis
          compute_lda_weights: false      # Compute LDA-based aggregations
 
          # Additional options

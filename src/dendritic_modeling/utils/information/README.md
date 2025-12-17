@@ -253,11 +253,9 @@ from dendritic_modeling.analysis.information import (
 For hierarchical dendritic networks, the framework can analyze upstream dendritic inputs (branch inputs) in addition to excitatory and inhibitory synaptic inputs.
 
 ```python
-# Enable branch input analysis
 config = ConfigBuilder() \
     .with_method("kraskov") \
     .with_metrics(basic=True, pairwise=True, conditional=True) \
-    .with_options(include_branch_input=True) \
     .build()
 
 analyzer = InformationAnalyzer(config)
@@ -283,7 +281,7 @@ The framework can compute alternative synaptic aggregations using Linear Discrim
 config = ConfigBuilder() \
     .with_method("kraskov") \
     .with_metrics(basic=True, pairwise=True) \
-    .with_options(compute_lda_weights=True, include_branch_input=True) \
+    .with_options(compute_lda_weights=True) \
     .build()
 
 analyzer = InformationAnalyzer(config)

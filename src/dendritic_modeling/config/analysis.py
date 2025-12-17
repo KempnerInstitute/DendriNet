@@ -71,9 +71,6 @@ class InformationAnalysisParams(BaseConfig):
     # Per-layer analysis - compute enhanced analysis for each layer separately
     per_layer_analysis: bool = False  # If True, compute per-layer enhanced analysis
 
-    # Include branch input (Vb) in analysis
-    include_branch_input: bool = True  # If True, compute MI for branch_input (Vb)
-
     # Compute LDA-based versions of E, I, Vb
     compute_lda_weights: bool = False  # If True, compute E_lin, I_lin, Vb_lin using LDA
 

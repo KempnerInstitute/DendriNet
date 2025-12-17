@@ -103,9 +103,6 @@ class InformationAnalyzer(AbstractAnalyzer):
         # Per-layer analysis - compute enhanced analysis for each layer separately
         self.per_layer_analysis = getattr(params, "per_layer_analysis", False)
 
-        # Include branch input (Vb) in analysis
-        self.include_branch_input = getattr(params, "include_branch_input", True)
-
         # Compute LDA-based versions of E, I, Vb
         self.compute_lda_weights = getattr(params, "compute_lda_weights", False)
 
@@ -172,8 +169,8 @@ class InformationAnalyzer(AbstractAnalyzer):
             f"  I(I;C) = {metrics['I(I;C)']:.4f} (took {time.time() - start_time:.1f}s)"
         )
 
-        # I(Vb;C) if available and enabled
-        if Vb is not None and self.include_branch_input:
+        # I(Vb;C) if available
+        if Vb is not None:
             self.logger.info("  Computing I(Vb;C)...")
             start_time = time.time()
             metrics["I(Vb;C)"] = self.estimators[self.method].mutual_information(Vb, C)
@@ -264,7 +261,7 @@ class InformationAnalyzer(AbstractAnalyzer):
         )
 
         # Pairwise MI with Vb if available
-        if Vb is not None and self.include_branch_input:
+        if Vb is not None:
             # I(E;Vb)
             self.logger.info("  Computing I(E;Vb)...")
             start_time = time.time()
@@ -373,7 +370,7 @@ class InformationAnalyzer(AbstractAnalyzer):
         )
 
         # Conditional MI with Vb if available
-        if Vb is not None and self.include_branch_input:
+        if Vb is not None:
             # I(E;Vb|C)
             self.logger.info("  Computing I(E;Vb|C)...")
             start_time = time.time()
@@ -2028,13 +2025,10 @@ class InformationAnalyzer(AbstractAnalyzer):
                     # - dendritic branch input (Vb) only exists if branch_input was present
                     has_exc_synapses = bool(layer_data.get("has_exc_synapses", True))
                     has_inh_synapses = bool(layer_data.get("has_inh_synapses", True))
-                    has_branch_input = (
-                        bool(
-                            layer_data.get(
-                                "has_branch_input", Vb_all_branches_raw is not None
-                            )
+                    has_branch_input = bool(
+                        layer_data.get(
+                            "has_branch_input", Vb_all_branches_raw is not None
                         )
-                        and self.include_branch_input
                     )
 
                     # Ensure inhibitory data is available
@@ -2048,7 +2042,7 @@ class InformationAnalyzer(AbstractAnalyzer):
                     I_all_branches = I_all_branches_filtered.detach().cpu().numpy()
 
                     # Get Vb data
-                    if Vb_all_branches_raw is not None and self.include_branch_input:
+                    if Vb_all_branches_raw is not None:
                         Vb_all_branches = Vb_all_branches_raw.detach().cpu().numpy()
                     else:
                         Vb_all_branches = None
@@ -2341,9 +2335,7 @@ class InformationAnalyzer(AbstractAnalyzer):
 
                     has_exc_synapses = bool(layer_data.get("has_exc_synapses", True))
                     has_inh_synapses = bool(layer_data.get("has_inh_synapses", True))
-                    has_branch_input = (
-                        Vb_layer_data_raw is not None and self.include_branch_input
-                    )
+                    has_branch_input = Vb_layer_data_raw is not None
 
                     # Ensure inhibitory data is available
                     E_layer_data, I_layer_data = self.ensure_inhibitory_data(
@@ -2619,10 +2611,6 @@ class InformationAnalyzer(AbstractAnalyzer):
                         else None
                     )
                     Vout = torch.cat(layer_output, dim=1).detach().cpu().numpy()
-
-                # Respect config: if branch-input analysis is disabled, drop Vb entirely.
-                if not self.include_branch_input:
-                    Vb = None
 
                 self.logger.info(
                     "Aggregated data shapes - "
@@ -2925,7 +2913,7 @@ class InformationAnalyzer(AbstractAnalyzer):
                         k,
                         has_exc_synapses=False,
                         has_inh_synapses=False,
-                        has_branch_input=self.include_branch_input,
+                        has_branch_input=True,
                     )
                 }
                 soma_entry["has_synapses"] = False
