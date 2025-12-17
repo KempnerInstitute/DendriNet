@@ -978,22 +978,22 @@ def _generate_layer_comparison_plots(
                         continue
 
                     # Extract dendritic depths and metric values
-                    depths = []
+                    x_positions = []
                     values = []
                     errors = []
 
                     # Use the sorted depths that were determined for all layers
-                    for depth_label in sorted_depths:
+                    for depth_idx, depth_label in enumerate(sorted_depths):
                         if depth_label in depth_data:
                             depth_stats = depth_data[depth_label]
                             if f"{metric}_mean" in depth_stats:
-                                depths.append(depth_label)
+                                x_positions.append(depth_idx)
                                 values.append(depth_stats[f"{metric}_mean"])
                                 # Use std/5 for smaller error bars
                                 errors.append(depth_stats.get(f"{metric}_std", 0) / 5.0)
 
-                    if depths and values:
-                        x_pos = np.arange(len(depths))
+                    if x_positions and values:
+                        x_pos = np.asarray(x_positions)
                         color = layer_colors.get(layer_name, "#808080")
 
                         # Plot line with error bars
@@ -1602,49 +1602,49 @@ def plot_fully_aggregated_analysis(
 
     sorted_depths = sorted(all_depths, key=depth_sort_key)
 
-    # Define metric categories with paired comparisons (network-learned vs LDA+ vs Random baseline)
-    # Each entry: (title, [(metric_name, color, label), ...])
-    # The Random baseline (_sh suffix) is added dynamically if the data contains it
+    # Define metric categories with paired comparisons.
+    # IMPORTANT: Titles should not hard-code LDA metric names, because LDA metrics may
+    # be absent when compute_lda_weights=False. Metric names belong in the legend.
     metric_pairs = [
         (
             "basic_mi",
             [
                 (
-                    "I(E;C) vs I(E_lin;C)",
+                    "I(E;C)",
                     [
-                        ("I(E;C)", "#1f77b4", "Network"),
+                        ("I(E;C)", "#1f77b4", "DendriNet"),
                         ("I(E_lin;C)", "#ff7f0e", r"LDA$_{+}$"),
                         ("I(E_sh;C)", "#7f7f7f", "Random"),  # Gray for random baseline
                     ],
                 ),
                 (
-                    "I(I;C) vs I(I_lin;C)",
+                    "I(I;C)",
                     [
-                        ("I(I;C)", "#1f77b4", "Network"),
+                        ("I(I;C)", "#1f77b4", "DendriNet"),
                         ("I(I_lin;C)", "#ff7f0e", r"LDA$_{+}$"),
                         ("I(I_sh;C)", "#7f7f7f", "Random"),
                     ],
                 ),
                 (
-                    "I(Vb;C) vs I(Vb_lin;C)",
+                    "I(Vb;C)",
                     [
-                        ("I(Vb;C)", "#1f77b4", "Network"),
+                        ("I(Vb;C)", "#1f77b4", "DendriNet"),
                         ("I(Vb_lin;C)", "#ff7f0e", r"LDA$_{+}$"),
                         ("I(Vb_sh;C)", "#7f7f7f", "Random"),
                     ],
                 ),
                 (
-                    "I(Vout;C) vs I(Vout_lin;C)",
+                    "I(Vout;C)",
                     [
-                        ("I(Vout;C)", "#1f77b4", "Network"),
+                        ("I(Vout;C)", "#1f77b4", "DendriNet"),
                         ("I(Vout_lin;C)", "#ff7f0e", r"LDA$_{+}$"),
                         ("I(Vout_sh;C)", "#7f7f7f", "Random"),
                     ],
                 ),
                 (
-                    "I(E,I;C) vs I(E_lin,I_lin;C)",
+                    "I(E,I;C)",
                     [
-                        ("I(E,I;C)", "#1f77b4", "Network"),
+                        ("I(E,I;C)", "#1f77b4", "DendriNet"),
                         ("I(E_lin,I_lin;C)", "#ff7f0e", r"LDA$_{+}$"),
                         ("I(E_sh,I_sh;C)", "#7f7f7f", "Random"),
                     ],
@@ -1655,49 +1655,49 @@ def plot_fully_aggregated_analysis(
             "pairwise_mi",
             [
                 (
-                    "I(E;I) vs I(E_lin;I_lin)",
+                    "I(E;I)",
                     [
-                        ("I(E;I)", "#1f77b4", "Network"),
+                        ("I(E;I)", "#1f77b4", "DendriNet"),
                         ("I(E_lin;I_lin)", "#ff7f0e", r"LDA$_{+}$"),
                         ("I(E_sh;I_sh)", "#7f7f7f", "Random"),
                     ],
                 ),
                 (
-                    "I(E;Vout) vs I(E_lin;Vout_lin)",
+                    "I(E;Vout)",
                     [
-                        ("I(E;Vout)", "#1f77b4", "Network"),
+                        ("I(E;Vout)", "#1f77b4", "DendriNet"),
                         ("I(E_lin;Vout_lin)", "#ff7f0e", r"LDA$_{+}$"),
                         ("I(E_sh;Vout_sh)", "#7f7f7f", "Random"),
                     ],
                 ),
                 (
-                    "I(I;Vout) vs I(I_lin;Vout_lin)",
+                    "I(I;Vout)",
                     [
-                        ("I(I;Vout)", "#1f77b4", "Network"),
+                        ("I(I;Vout)", "#1f77b4", "DendriNet"),
                         ("I(I_lin;Vout_lin)", "#ff7f0e", r"LDA$_{+}$"),
                         ("I(I_sh;Vout_sh)", "#7f7f7f", "Random"),
                     ],
                 ),
                 (
-                    "I(E;Vb) vs I(E_lin;Vb_lin)",
+                    "I(E;Vb)",
                     [
-                        ("I(E;Vb)", "#1f77b4", "Network"),
+                        ("I(E;Vb)", "#1f77b4", "DendriNet"),
                         ("I(E_lin;Vb_lin)", "#ff7f0e", r"LDA$_{+}$"),
                         ("I(E_sh;Vb_sh)", "#7f7f7f", "Random"),
                     ],
                 ),
                 (
-                    "I(I;Vb) vs I(I_lin;Vb_lin)",
+                    "I(I;Vb)",
                     [
-                        ("I(I;Vb)", "#1f77b4", "Network"),
+                        ("I(I;Vb)", "#1f77b4", "DendriNet"),
                         ("I(I_lin;Vb_lin)", "#ff7f0e", r"LDA$_{+}$"),
                         ("I(I_sh;Vb_sh)", "#7f7f7f", "Random"),
                     ],
                 ),
                 (
-                    "I(Vb;Vout) vs I(Vb_lin;Vout_lin)",
+                    "I(Vb;Vout)",
                     [
-                        ("I(Vb;Vout)", "#1f77b4", "Network"),
+                        ("I(Vb;Vout)", "#1f77b4", "DendriNet"),
                         ("I(Vb_lin;Vout_lin)", "#ff7f0e", r"LDA$_{+}$"),
                         ("I(Vb_sh;Vout_sh)", "#7f7f7f", "Random"),
                     ],
@@ -1708,49 +1708,49 @@ def plot_fully_aggregated_analysis(
             "conditional_mi",
             [
                 (
-                    "I(E;I|C) vs I(E_lin;I_lin|C)",
+                    "I(E;I|C)",
                     [
-                        ("I(E;I|C)", "#1f77b4", "Network"),
+                        ("I(E;I|C)", "#1f77b4", "DendriNet"),
                         ("I(E_lin;I_lin|C)", "#ff7f0e", r"LDA$_{+}$"),
                         ("I(E_sh;I_sh|C)", "#7f7f7f", "Random"),
                     ],
                 ),
                 (
-                    "I(E;Vout|C) vs I(E_lin;Vout_lin|C)",
+                    "I(E;Vout|C)",
                     [
-                        ("I(E;Vout|C)", "#1f77b4", "Network"),
+                        ("I(E;Vout|C)", "#1f77b4", "DendriNet"),
                         ("I(E_lin;Vout_lin|C)", "#ff7f0e", r"LDA$_{+}$"),
                         ("I(E_sh;Vout_sh|C)", "#7f7f7f", "Random"),
                     ],
                 ),
                 (
-                    "I(I;Vout|C) vs I(I_lin;Vout_lin|C)",
+                    "I(I;Vout|C)",
                     [
-                        ("I(I;Vout|C)", "#1f77b4", "Network"),
+                        ("I(I;Vout|C)", "#1f77b4", "DendriNet"),
                         ("I(I_lin;Vout_lin|C)", "#ff7f0e", r"LDA$_{+}$"),
                         ("I(I_sh;Vout_sh|C)", "#7f7f7f", "Random"),
                     ],
                 ),
                 (
-                    "I(E;Vb|C) vs I(E_lin;Vb_lin|C)",
+                    "I(E;Vb|C)",
                     [
-                        ("I(E;Vb|C)", "#1f77b4", "Network"),
+                        ("I(E;Vb|C)", "#1f77b4", "DendriNet"),
                         ("I(E_lin;Vb_lin|C)", "#ff7f0e", r"LDA$_{+}$"),
                         ("I(E_sh;Vb_sh|C)", "#7f7f7f", "Random"),
                     ],
                 ),
                 (
-                    "I(I;Vb|C) vs I(I_lin;Vb_lin|C)",
+                    "I(I;Vb|C)",
                     [
-                        ("I(I;Vb|C)", "#1f77b4", "Network"),
+                        ("I(I;Vb|C)", "#1f77b4", "DendriNet"),
                         ("I(I_lin;Vb_lin|C)", "#ff7f0e", r"LDA$_{+}$"),
                         ("I(I_sh;Vb_sh|C)", "#7f7f7f", "Random"),
                     ],
                 ),
                 (
-                    "I(Vb;Vout|C) vs I(Vb_lin;Vout_lin|C)",
+                    "I(Vb;Vout|C)",
                     [
-                        ("I(Vb;Vout|C)", "#1f77b4", "Network"),
+                        ("I(Vb;Vout|C)", "#1f77b4", "DendriNet"),
                         ("I(Vb_lin;Vout_lin|C)", "#ff7f0e", r"LDA$_{+}$"),
                         ("I(Vb_sh;Vout_sh|C)", "#7f7f7f", "Random"),
                     ],
@@ -1781,21 +1781,34 @@ def plot_fully_aggregated_analysis(
 
             # Plot each metric in this comparison group (network vs LDA)
             for metric, color, label in metrics_list:
+                # Only show lines for metrics that exist in the aggregated data.
+                # This prevents LDA labels from appearing when compute_lda_weights=False.
+                if not any(
+                    (
+                        depth_label in final_aggregated
+                        and f"{metric}_mean" in final_aggregated[depth_label]
+                    )
+                    for depth_label in sorted_depths
+                ):
+                    continue
+
                 depths = []
                 values = []
                 errors = []
+                x_positions = []
 
-                for depth_label in sorted_depths:
+                for depth_idx, depth_label in enumerate(sorted_depths):
                     if depth_label in final_aggregated:
                         depth_stats = final_aggregated[depth_label]
                         if f"{metric}_mean" in depth_stats:
+                            x_positions.append(depth_idx)
                             depths.append(depth_label)
                             values.append(depth_stats[f"{metric}_mean"])
                             errors.append(depth_stats.get(f"{metric}_std", 0) / 5.0)
 
-                if depths and values:
+                if x_positions and values:
                     has_data = True
-                    x_pos = np.arange(len(depths))
+                    x_pos = np.asarray(x_positions)
 
                     ax.errorbar(
                         x_pos,
@@ -1845,9 +1858,23 @@ def plot_fully_aggregated_analysis(
             fig.delaxes(axes[idx])
 
         plot_type = "Variance" if plot_variance else "Analysis"
+        has_any_lda = any(
+            any(
+                (
+                    depth_label in final_aggregated
+                    and any("lin" in k for k in final_aggregated[depth_label].keys())
+                )
+                for depth_label in sorted_depths
+            )
+            for _metric_category, groups in metric_pairs
+            for _plot_title, _metrics_list in groups
+        )
+        if has_any_lda:
+            comparison_text = r"DendriNet vs LDA$_{+}$"
+        else:
+            comparison_text = "DendriNet"
         fig.suptitle(
-            f"Information {plot_type}: {metric_category.replace('_', ' ').title()} (Network vs "
-            + r"LDA$_{+}$)",
+            f"Information {plot_type}: {metric_category.replace('_', ' ').title()} ({comparison_text})",
             fontsize=16,
         )
         plt.tight_layout()
@@ -1943,7 +1970,7 @@ def plot_lda_vs_trained_performance(
     ax.set_xticks(x_pos)
     ax.set_xticklabels(labels, fontsize=12)
     ax.set_ylabel("Classification Accuracy (%)", fontsize=12)
-    ax.set_title(r"Network Performance: Trained vs LDA$_{+}$ Weights", fontsize=14)
+    ax.set_title(r"DendriNet Performance: Trained vs LDA$_{+}$ Weights", fontsize=14)
 
     # Add difference annotation
     ax.annotate(
