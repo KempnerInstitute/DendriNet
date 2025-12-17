@@ -989,29 +989,55 @@ class InformationAnalyzer(AbstractAnalyzer):
                 ):
                     continue
 
+                n = float(arr.size)
+                base_std = float(layer_stats.get(f"{key}_std", float(np.std(arr))))
+
                 s = float(np.sum(arr))
                 layer_stats[f"{key}_sum_mean"] = s
-                layer_stats[f"{key}_sum_std"] = 0.0
+                # Approximate spread of the summed proxy using branch-level variability.
+                # If branch values were independent draws, std(sum) ≈ sqrt(n) * std(branch).
+                layer_stats[f"{key}_sum_std"] = float(np.sqrt(n) * base_std)
 
                 # Clip at H(C) (a valid upper bound for I(X;C) and I(X;C|Z))
                 layer_stats[f"{key}_sum_clipped_mean"] = float(min(s, entropy_C))
-                layer_stats[f"{key}_sum_clipped_std"] = 0.0
+                layer_stats[f"{key}_sum_clipped_std"] = (
+                    layer_stats[f"{key}_sum_std"] if s < entropy_C else 0.0
+                )
 
                 # Saturating union-of-independent-evidence heuristic (bounded by H(C))
                 frac = np.clip(arr / entropy_C, 0.0, 1.0)
-                union_frac = 1.0 - float(np.prod(1.0 - frac))
+                one_minus = 1.0 - frac
+                prod_one_minus = float(np.prod(one_minus))
+                union_frac = 1.0 - prod_one_minus
                 layer_stats[f"{key}_union_mean"] = float(entropy_C * union_frac)
-                layer_stats[f"{key}_union_std"] = 0.0
+
+                # Delta-method style spread estimate for the union proxy using branch variability.
+                # union = H(C) * (1 - Π(1 - I_b/H(C)))  =>  d union / d I_i = Π_{j!=i}(1 - frac_j)
+                # Approximate Var(union) ≈ std(branch)^2 * Σ_i (d union / d I_i)^2
+                if base_std > 0 and arr.size > 0:
+                    g = np.zeros_like(one_minus)
+                    mask = (frac > 0.0) & (frac < 1.0) & (one_minus > 0.0)
+                    if np.any(mask):
+                        g[mask] = prod_one_minus / one_minus[mask]
+                        union_std = float(base_std * np.sqrt(np.sum(g**2)))
+                        layer_stats[f"{key}_union_std"] = float(
+                            min(max(union_std, 0.0), entropy_C)
+                        )
+                    else:
+                        layer_stats[f"{key}_union_std"] = 0.0
+                else:
+                    layer_stats[f"{key}_union_std"] = 0.0
 
                 # Concentration diagnostics
                 layer_stats[f"{key}_max_mean"] = float(np.max(arr))
-                layer_stats[f"{key}_max_std"] = 0.0
+                # Provide a simple scale for max/topK proxies as well (helps plotting).
+                layer_stats[f"{key}_max_std"] = base_std
 
                 k = int(max(1, topk))
                 k = min(k, arr.size)
                 topk_sum = float(np.sum(np.sort(arr)[-k:]))
                 layer_stats[f"{key}_top{topk}_sum_mean"] = topk_sum
-                layer_stats[f"{key}_top{topk}_sum_std"] = 0.0
+                layer_stats[f"{key}_top{topk}_sum_std"] = float(np.sqrt(k) * base_std)
 
         return layer_stats
 

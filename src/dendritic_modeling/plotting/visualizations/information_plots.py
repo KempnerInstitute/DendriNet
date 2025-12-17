@@ -1502,6 +1502,63 @@ def plot_fully_aggregated_analysis(
             aggregated_data[depth_label][metric_name]["values"].append(float(value))
             aggregated_data[depth_label][metric_name]["stds"].append(float(std_val))
 
+        def derive_proxy_std(metric_name: str, layer_data: dict) -> float:
+            """Best-effort std for proxy aggregations.
+
+            Older runs stored proxy metrics like `<base>_sum` / `<base>_union` with
+            std=0. To keep proxy plots informative, derive an approximate std from
+            the base metric's per-branch std and branch count when available.
+            """
+            if not isinstance(metric_name, str) or not metric_name.startswith("I("):
+                return 0.0
+
+            base_metric = None
+            scale = 1.0
+
+            if metric_name.endswith("_sum_clipped"):
+                base_metric = metric_name[: -len("_sum_clipped")]
+            elif metric_name.endswith("_sum"):
+                # Handle _topK_sum separately below
+                if "_top" not in metric_name:
+                    base_metric = metric_name[: -len("_sum")]
+            elif metric_name.endswith("_union"):
+                base_metric = metric_name[: -len("_union")]
+                scale = 1.0
+            elif metric_name.endswith("_max"):
+                base_metric = metric_name[: -len("_max")]
+                scale = 1.0
+
+            # _topK_sum pattern: "<base>_top{K}_sum"
+            if (
+                base_metric is None
+                and "_top" in metric_name
+                and metric_name.endswith("_sum")
+            ):
+                prefix, rest = metric_name.rsplit("_top", 1)
+                if rest.endswith("_sum"):
+                    k_str = rest[: -len("_sum")]
+                    if k_str.isdigit():
+                        base_metric = prefix
+                        k = int(k_str)
+                        scale = float(max(1, k))
+
+            if base_metric is None:
+                return 0.0
+
+            base_std = float(layer_data.get(f"{base_metric}_std", 0.0))
+            if base_std <= 0:
+                return 0.0
+
+            base_n = float(layer_data.get(f"{base_metric}_n", 0.0))
+            if base_n > 0 and metric_name.endswith(("_sum", "_sum_clipped")):
+                return float(np.sqrt(base_n) * base_std)
+            if base_n > 0 and "_top" in metric_name and metric_name.endswith("_sum"):
+                eff_k = min(scale, base_n)
+                return float(np.sqrt(eff_k) * base_std)
+
+            # Fallback for union/max: use base metric spread.
+            return base_std
+
         # Case 1: synthetic soma (added when somatic_synapses=False)
         if layer_name == "synthetic_soma":
             if plot_variance:
@@ -1520,6 +1577,8 @@ def plot_fully_aggregated_analysis(
                         metric_name = depth_key.replace("_mean", "")
                         mean_val = layer_data.get(f"{metric_name}_mean", 0)
                         std_val = layer_data.get(f"{metric_name}_std", 0)
+                        if not std_val:
+                            std_val = derive_proxy_std(metric_name, layer_data)
                         register_metric("Soma", metric_name, mean_val, std_val)
             continue
 
@@ -1566,6 +1625,8 @@ def plot_fully_aggregated_analysis(
                         metric_name = depth_key.replace("_mean", "")
                         mean_val = layer_data.get(f"{metric_name}_mean", 0)
                         std_val = layer_data.get(f"{metric_name}_std", 0)
+                        if not std_val:
+                            std_val = derive_proxy_std(metric_name, layer_data)
                         register_metric(depth_label, metric_name, mean_val, std_val)
 
     # Compute final aggregated statistics
@@ -2032,8 +2093,24 @@ def plot_fully_aggregated_analysis(
         ),
     ]
 
-    # Generate plots for each metric category with paired comparisons
-    for metric_category, metric_groups in metric_pairs:
+    has_any_lda = any(
+        depth_label in final_aggregated
+        and any("lin" in k for k in final_aggregated[depth_label].keys())
+        for depth_label in sorted_depths
+    )
+
+    def _metric_candidates(metric_spec):
+        if isinstance(metric_spec, (list, tuple)):
+            return list(metric_spec)
+        return [metric_spec]
+
+    def _render_and_save_metric_groups(
+        metric_category: str,
+        metric_groups: list,
+        *,
+        part_idx: Optional[int] = None,
+        n_parts: Optional[int] = None,
+    ) -> None:
         n_plots = len(metric_groups)
         n_cols = 3  # Use 3 columns for better layout
         n_rows = (n_plots + n_cols - 1) // n_cols
@@ -2041,20 +2118,15 @@ def plot_fully_aggregated_analysis(
         fig, axes = plt.subplots(n_rows, n_cols, figsize=(5 * n_cols, 4 * n_rows))
         if n_rows == 1 and n_cols == 1:
             axes = np.array([axes])
-        elif n_rows == 1 or n_cols == 1:
-            axes = axes.flatten()
         else:
             axes = axes.flatten()
 
-        def _metric_candidates(metric_spec):
-            if isinstance(metric_spec, (list, tuple)):
-                return list(metric_spec)
-            return [metric_spec]
-
-        def _metric_candidates(metric_spec):
-            if isinstance(metric_spec, (list, tuple)):
-                return list(metric_spec)
-            return [metric_spec]
+        # Proxy plots should show larger (unscaled) error bars for readability.
+        std_divisor = (
+            1.0
+            if metric_category in {"ablation_proxy_sum", "ablation_proxy_union"}
+            else 5.0
+        )
 
         for idx, (plot_title, metrics_list) in enumerate(metric_groups):
             if idx >= len(axes):
@@ -2062,9 +2134,10 @@ def plot_fully_aggregated_analysis(
             ax = axes[idx]
             has_data = False
 
-            # Plot each metric in this comparison group (network vs LDA)
+            # Plot each metric in this comparison group
             for metric, color, label in metrics_list:
                 metric_list = _metric_candidates(metric)
+
                 # Only show lines for metrics that exist in the aggregated data.
                 # This prevents LDA labels from appearing when compute_lda_weights=False.
                 if not any(
@@ -2079,7 +2152,6 @@ def plot_fully_aggregated_analysis(
                 ):
                     continue
 
-                depths = []
                 values = []
                 errors = []
                 x_positions = []
@@ -2093,9 +2165,10 @@ def plot_fully_aggregated_analysis(
                         )
                         if chosen is not None:
                             x_positions.append(depth_idx)
-                            depths.append(depth_label)
                             values.append(depth_stats[f"{chosen}_mean"])
-                            errors.append(depth_stats.get(f"{chosen}_std", 0) / 5.0)
+                            errors.append(
+                                depth_stats.get(f"{chosen}_std", 0) / std_divisor
+                            )
 
                 if x_positions and values:
                     has_data = True
@@ -2131,9 +2204,6 @@ def plot_fully_aggregated_analysis(
                     ax.set_title(plot_title)
 
                 # Add placeholder markers for depths where *no* plotted series has data.
-                # This keeps the "Soma slot" and "most distal slot" visually explicit even
-                # when a variable does not exist at that depth (e.g., no soma synapses for E/I,
-                # or no Vb for the most distal branch).
                 available_metrics = []
                 for m, _c, _l in metrics_list:
                     candidates = _metric_candidates(m)
@@ -2197,34 +2267,46 @@ def plot_fully_aggregated_analysis(
             fig.delaxes(axes[idx])
 
         plot_type = "Variance" if plot_variance else "Analysis"
-        has_any_lda = any(
-            any(
-                (
-                    depth_label in final_aggregated
-                    and any("lin" in k for k in final_aggregated[depth_label].keys())
-                )
-                for depth_label in sorted_depths
-            )
-            for _metric_category, groups in metric_pairs
-            for _plot_title, _metrics_list in groups
-        )
-        if has_any_lda:
-            comparison_text = r"DendriNet vs LDA$_{+}$"
-        else:
-            comparison_text = "DendriNet"
-        fig.suptitle(
-            f"Information {plot_type}: {metric_category.replace('_', ' ').title()} ({comparison_text})",
-            fontsize=16,
-        )
-        plt.tight_layout()
+        comparison_text = r"DendriNet vs LDA$_{+}$" if has_any_lda else "DendriNet"
+
+        title = f"Information {plot_type}: {metric_category.replace('_', ' ').title()} ({comparison_text})"
+        if part_idx is not None and n_parts is not None:
+            title += f" [part {part_idx}/{n_parts}]"
+
+        # Add a short note describing proxy aggregation in the title.
+        if metric_category == "ablation_proxy_sum":
+            title += "\n(proxy sum: sum over branches)"
+        elif metric_category == "ablation_proxy_union":
+            title += "\n(proxy union: H(C) * (1 - prod_b(1 - I_b/H(C))))"
+
+        fig.suptitle(title, fontsize=16)
+        plt.tight_layout(rect=[0, 0, 1, 0.94])
 
         suffix = "_variance" if plot_variance else ""
-        filename = f"aggregated_{metric_category}_comparison{suffix}_depth.png"
+        part_suffix = f"_part{part_idx}" if part_idx is not None else ""
+        filename = (
+            f"aggregated_{metric_category}_comparison{suffix}_depth{part_suffix}.png"
+        )
         filepath = os.path.join(save_path, filename)
         plt.savefig(filepath, dpi=300, bbox_inches="tight")
         plt.close()
 
         logger.info(f"Saved aggregated comparison plot: {filename}")
+
+    # Generate plots for each metric category
+    for metric_category, metric_groups in metric_pairs:
+        # Conditional MI panels are dense; save as two 6-panel figures (top 6 + second 6).
+        if metric_category == "conditional_mi" and len(metric_groups) > 6:
+            chunks = [metric_groups[i : i + 6] for i in range(0, len(metric_groups), 6)]
+            for part_idx, chunk in enumerate(chunks, start=1):
+                _render_and_save_metric_groups(
+                    metric_category,
+                    chunk,
+                    part_idx=part_idx,
+                    n_parts=len(chunks),
+                )
+        else:
+            _render_and_save_metric_groups(metric_category, metric_groups)
 
 
 def plot_information_variance_analysis(
