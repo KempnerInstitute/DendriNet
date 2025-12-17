@@ -19,8 +19,6 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.g
 )
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.initialize import (
     analytical_expectation_dbl_init,
-    initialize_model_with_lda,
-    lda_analytical_dbl_init,
 )
 
 # Vision neuron factories
@@ -43,6 +41,4 @@ __all__ = [
     "create_end_stopped_unit",
     "create_gabor_unit",
     "create_motion_unit",
-    "initialize_model_with_lda",
-    "lda_analytical_dbl_init",
 ]

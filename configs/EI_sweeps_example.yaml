@@ -202,17 +202,10 @@ base_config:
         somatic_synapses: false           # Include somatic synapses (true/false)
         use_shunting: true                # Use shunting inhibition (true/false)
         weight_transform: "softplus"      # Weight transformation: "exp", "relu", "softplus"
-        dbl_init_method: "analytical_expectation"  # DBL initialization: "analytical_expectation", "default", "lda_analytical"
-
-      # LDA-based initialization parameters
-      # - LDA weight init: set morphology.dbl_init_method: "lda_analytical"
-      # - LDA sparsity (TopK selection): set sparsity.init_method: "lda"
-      lda_init:
-        n_samples: 1000                   # Number of samples to use for LDA fitting
-        adaptive: true                    # Use network-aware scaling to prevent overflow (true/false)
+        dbl_init_method: "analytical_expectation"  # DBL initialization: "analytical_expectation", "default", "ei_equivalence", "naive"
 
       sparsity:
-        init_method: "xavier_normal"      # Weight initialization: "xavier_normal", "xavier_uniform", "kaiming_normal", "lda"
+        init_method: "xavier_normal"      # Weight initialization: "xavier_normal", "xavier_uniform", "kaiming_normal"
         noise_level: 0.0                  # Noise level for stochastic sparsity (0.0-1.0)
         type: "standard"                  # Sparsity type: "standard", "stochastic", "variance", "deepst"
         temperature: 0.0                  # Temperature for stochastic selection (0.1-1.0)

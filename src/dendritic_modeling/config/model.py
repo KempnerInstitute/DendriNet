@@ -52,22 +52,6 @@ class MorphologyConfig(BaseConfig):
 
 
 @dataclass
-class LDAInitConfig(BaseConfig):
-    """LDA-based initialization configuration.
-
-    Used when:
-    - dbl_init_method = "lda_analytical": LDA for weight values
-    - sparsity.init_method = "lda": LDA importance for TopK input selection
-
-    To enable LDA weight initialization, set morphology.dbl_init_method = "lda_analytical".
-    To enable LDA sparsity selection, set sparsity.init_method = "lda".
-    """
-
-    n_samples: int = 1000  # Number of samples to use for LDA fitting
-    adaptive: bool = True  # Use network-aware scaling to prevent overflow
-
-
-@dataclass
 class SparsityConfig(BaseConfig):
     """Sparsity configuration."""
 
@@ -157,7 +141,6 @@ class CoreConfig(BaseConfig):
     connectivity: ConnectivityConfig = field(default_factory=ConnectivityConfig)
     transfer: TransferFunctionConfig = field(default_factory=TransferFunctionConfig)
     morphology: MorphologyConfig = field(default_factory=MorphologyConfig)
-    lda_init: LDAInitConfig = field(default_factory=LDAInitConfig)
     sparsity: SparsityConfig = field(
         default_factory=SparsityConfig
     )  # Renamed from topk
