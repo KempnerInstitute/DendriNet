@@ -2278,6 +2278,8 @@ def plot_fully_aggregated_analysis(
             title += "\n(proxy sum: sum over branches)"
         elif metric_category == "ablation_proxy_union":
             title += "\n(proxy union: H(C) * (1 - prod_b(1 - I_b/H(C))))"
+        if metric_category in {"ablation_proxy_sum", "ablation_proxy_union"}:
+            title += "\n(note: most distal has no Vb; '|Vb' metrics fall back to no-Vb)"
 
         fig.suptitle(title, fontsize=16)
         plt.tight_layout(rect=[0, 0, 1, 0.94])
