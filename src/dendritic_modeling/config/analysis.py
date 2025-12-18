@@ -45,6 +45,10 @@ class InformationAnalysisParams(BaseConfig):
     # These are designed to better track "remove E/I/Vb/all" style ablations.
     compute_ablation_aligned_mi: bool = True
 
+    # Optional extra upstream conditionals (can be expensive for high-dimensional synapse sets)
+    # - Adds I(Vb;C|E,I) when Vb exists.
+    compute_upstream_unique_cmi: bool = False
+
     # Layer-total proxies derived from single-branch MI (no high-dim multivariate MI)
     # Only used in computation_level="single_branch".
     # Produces additional per-layer metrics like:

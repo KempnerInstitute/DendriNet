@@ -192,7 +192,9 @@ operating point / baseline distribution).
 
 For an information-theoretic complement aligned to these interventions, enable
 ``compute_ablation_aligned_mi`` in the information analyzer to compute conditional-MI terms
-such as ``I(E;C|I,Vb)`` and ``I(I;C|E,Vb)``.
+such as ``I(E;C|I,Vb)``, ``I(I;C|E,Vb)``, and synapse-vs-upstream decompositions like
+``I(Vout;C|Vb)`` (class information added by synapses beyond upstream input) and
+``I(Vb;C|Vout)`` (upstream class information not reflected in the layer output).
 
 .. code-block:: yaml
 
@@ -431,6 +433,9 @@ Complete Information Analysis Configuration
          # Single-branch -> layer-total proxy aggregations (avoids high-dim multivariate MI)
          compute_layer_total_proxies: true   # Adds *_sum/*_union/*_topK_sum per-layer proxy metrics
          layer_total_topk: 10                # K used for *_topK_sum metrics
+
+         # Plotting note: figures include both *_sum proxies and a per-branch mean view
+         # ("ablation_proxy_branch_mean") so you can see branch-count scaling effects.
 
          # Additional options
          include_vinf: true              # Include soma activation

@@ -1825,6 +1825,22 @@ def plot_fully_aggregated_analysis(
                     ],
                 ),
                 (
+                    "I(Vb;C|Vout)",
+                    [
+                        ("I(Vb;C|Vout)", "#1f77b4", "DendriNet"),
+                        ("I(Vb_lin;C|Vout_lin)", "#ff7f0e", r"LDA$_{+}$"),
+                        ("I(Vb_sh;C|Vout_sh)", "#7f7f7f", "Random"),
+                    ],
+                ),
+                (
+                    "I(Vout;C|E,I)",
+                    [
+                        ("I(Vout;C|E,I)", "#1f77b4", "DendriNet"),
+                        ("I(Vout_lin;C|E_lin,I_lin)", "#ff7f0e", r"LDA$_{+}$"),
+                        ("I(Vout_sh;C|E_sh,I_sh)", "#7f7f7f", "Random"),
+                    ],
+                ),
+                (
                     "I(E;C|Vb)",
                     [
                         ("I(E;C|Vb)", "#1f77b4", "DendriNet"),
@@ -1862,6 +1878,186 @@ def plot_fully_aggregated_analysis(
                         ("I(I;C|E,Vb)", "#1f77b4", "DendriNet"),
                         ("I(I_lin;C|E_lin,Vb_lin)", "#ff7f0e", r"LDA$_{+}$"),
                         ("I(I_sh;C|E_sh,Vb_sh)", "#7f7f7f", "Random"),
+                    ],
+                ),
+            ],
+        ),
+        (
+            "dendritic_processing",
+            [
+                (
+                    "I(E;Vout|I,Vb)",
+                    [
+                        (
+                            ("I(E;Vout|I,Vb)", "I(E;Vout|I)"),
+                            "#1f77b4",
+                            "DendriNet",
+                        ),
+                        (
+                            (
+                                "I(E_lin;Vout_lin|I_lin,Vb_lin)",
+                                "I(E_lin;Vout_lin|I_lin)",
+                            ),
+                            "#ff7f0e",
+                            r"LDA$_{+}$",
+                        ),
+                        (
+                            (
+                                "I(E_sh;Vout_sh|I_sh,Vb_sh)",
+                                "I(E_sh;Vout_sh|I_sh)",
+                            ),
+                            "#7f7f7f",
+                            "Random",
+                        ),
+                    ],
+                ),
+                (
+                    "I(I;Vout|E,Vb)",
+                    [
+                        (
+                            ("I(I;Vout|E,Vb)", "I(I;Vout|E)"),
+                            "#1f77b4",
+                            "DendriNet",
+                        ),
+                        (
+                            (
+                                "I(I_lin;Vout_lin|E_lin,Vb_lin)",
+                                "I(I_lin;Vout_lin|E_lin)",
+                            ),
+                            "#ff7f0e",
+                            r"LDA$_{+}$",
+                        ),
+                        (
+                            (
+                                "I(I_sh;Vout_sh|E_sh,Vb_sh)",
+                                "I(I_sh;Vout_sh|E_sh)",
+                            ),
+                            "#7f7f7f",
+                            "Random",
+                        ),
+                    ],
+                ),
+                (
+                    "I(Vb;Vout|E,I)",
+                    [
+                        ("I(Vb;Vout|E,I)", "#1f77b4", "DendriNet"),
+                        ("I(Vb_lin;Vout_lin|E_lin,I_lin)", "#ff7f0e", r"LDA$_{+}$"),
+                        ("I(Vb_sh;Vout_sh|E_sh,I_sh)", "#7f7f7f", "Random"),
+                    ],
+                ),
+            ],
+        ),
+        (
+            "ablation_proxy_branch_mean",
+            [
+                (
+                    "I(E;C|I,Vb)",
+                    [
+                        (("I(E;C|I,Vb)", "I(E;C|I)"), "#1f77b4", "DendriNet"),
+                        (
+                            (
+                                "I(E_lin;C|I_lin,Vb_lin)",
+                                "I(E_lin;C|I_lin)",
+                                # Backward-compat: older runs didn't rename I/Vb in conditioning
+                                "I(E_lin;C|I,Vb)",
+                                "I(E_lin;C|I)",
+                            ),
+                            "#ff7f0e",
+                            r"LDA$_{+}$",
+                        ),
+                        (
+                            ("I(E_sh;C|I_sh,Vb_sh)", "I(E_sh;C|I_sh)"),
+                            "#7f7f7f",
+                            "Random",
+                        ),
+                    ],
+                ),
+                (
+                    "I(I;C|E,Vb)",
+                    [
+                        (("I(I;C|E,Vb)", "I(I;C|E)"), "#1f77b4", "DendriNet"),
+                        (
+                            (
+                                "I(I_lin;C|E_lin,Vb_lin)",
+                                "I(I_lin;C|E_lin)",
+                                # Backward-compat: older runs didn't rename E/Vb in conditioning
+                                "I(I_lin;C|E,Vb)",
+                                "I(I_lin;C|E)",
+                            ),
+                            "#ff7f0e",
+                            r"LDA$_{+}$",
+                        ),
+                        (
+                            ("I(I_sh;C|E_sh,Vb_sh)", "I(I_sh;C|E_sh)"),
+                            "#7f7f7f",
+                            "Random",
+                        ),
+                    ],
+                ),
+                (
+                    "I(E,I;C|Vb)",
+                    [
+                        (("I(E,I;C|Vb)", "I(E,I;C)"), "#1f77b4", "DendriNet"),
+                        (
+                            (
+                                "I(E_lin,I_lin;C|Vb_lin)",
+                                "I(E_lin,I_lin;C)",
+                                # Backward-compat: older runs didn't rename Vb in conditioning
+                                "I(E_lin,I_lin;C|Vb)",
+                            ),
+                            "#ff7f0e",
+                            r"LDA$_{+}$",
+                        ),
+                        (
+                            ("I(E_sh,I_sh;C|Vb_sh)", "I(E_sh,I_sh;C)"),
+                            "#7f7f7f",
+                            "Random",
+                        ),
+                    ],
+                ),
+                (
+                    "I(Vb;C)",
+                    [
+                        ("I(Vb;C)", "#1f77b4", "DendriNet"),
+                        ("I(Vb_lin;C)", "#ff7f0e", r"LDA$_{+}$"),
+                        ("I(Vb_sh;C)", "#7f7f7f", "Random"),
+                    ],
+                ),
+                (
+                    "I(Vb;C|Vout)",
+                    [
+                        ("I(Vb;C|Vout)", "#1f77b4", "DendriNet"),
+                        ("I(Vb_lin;C|Vout_lin)", "#ff7f0e", r"LDA$_{+}$"),
+                        ("I(Vb_sh;C|Vout_sh)", "#7f7f7f", "Random"),
+                    ],
+                ),
+                (
+                    "I(Vout;C|Vb)",
+                    [
+                        (("I(Vout;C|Vb)", "I(Vout;C)"), "#1f77b4", "DendriNet"),
+                        (
+                            (
+                                "I(Vout_lin;C|Vb_lin)",
+                                "I(Vout_lin;C)",
+                                # Backward-compat: older runs didn't rename Vb in conditioning
+                                "I(Vout_lin;C|Vb)",
+                            ),
+                            "#ff7f0e",
+                            r"LDA$_{+}$",
+                        ),
+                        (
+                            ("I(Vout_sh;C|Vb_sh)", "I(Vout_sh;C)"),
+                            "#7f7f7f",
+                            "Random",
+                        ),
+                    ],
+                ),
+                (
+                    "I(Vout;C|E,I)",
+                    [
+                        ("I(Vout;C|E,I)", "#1f77b4", "DendriNet"),
+                        ("I(Vout_lin;C|E_lin,I_lin)", "#ff7f0e", r"LDA$_{+}$"),
+                        ("I(Vout_sh;C|E_sh,I_sh)", "#7f7f7f", "Random"),
                     ],
                 ),
             ],
@@ -1950,6 +2146,14 @@ def plot_fully_aggregated_analysis(
                     ],
                 ),
                 (
+                    "I(Vb;C|Vout)_sum",
+                    [
+                        ("I(Vb;C|Vout)_sum", "#1f77b4", "DendriNet"),
+                        ("I(Vb_lin;C|Vout_lin)_sum", "#ff7f0e", r"LDA$_{+}$"),
+                        ("I(Vb_sh;C|Vout_sh)_sum", "#7f7f7f", "Random"),
+                    ],
+                ),
+                (
                     "I(Vout;C|Vb)_sum",
                     [
                         (
@@ -1972,6 +2176,18 @@ def plot_fully_aggregated_analysis(
                             "#7f7f7f",
                             "Random",
                         ),
+                    ],
+                ),
+                (
+                    "I(Vout;C|E,I)_sum",
+                    [
+                        ("I(Vout;C|E,I)_sum", "#1f77b4", "DendriNet"),
+                        (
+                            "I(Vout_lin;C|E_lin,I_lin)_sum",
+                            "#ff7f0e",
+                            r"LDA$_{+}$",
+                        ),
+                        ("I(Vout_sh;C|E_sh,I_sh)_sum", "#7f7f7f", "Random"),
                     ],
                 ),
             ],
@@ -2087,6 +2303,18 @@ def plot_fully_aggregated_analysis(
                             "#7f7f7f",
                             "Random",
                         ),
+                    ],
+                ),
+                (
+                    "I(Vout;C|E,I)_union",
+                    [
+                        ("I(Vout;C|E,I)_union", "#1f77b4", "DendriNet"),
+                        (
+                            "I(Vout_lin;C|E_lin,I_lin)_union",
+                            "#ff7f0e",
+                            r"LDA$_{+}$",
+                        ),
+                        ("I(Vout_sh;C|E_sh,I_sh)_union", "#7f7f7f", "Random"),
                     ],
                 ),
             ],
@@ -2232,6 +2460,22 @@ def plot_fully_aggregated_analysis(
                         ],
                     ),
                     (
+                        f"I(Vb;C|Vout){suffix_topk}",
+                        [
+                            (f"I(Vb;C|Vout){suffix_topk}", "#1f77b4", "DendriNet"),
+                            (
+                                f"I(Vb_lin;C|Vout_lin){suffix_topk}",
+                                "#ff7f0e",
+                                r"LDA$_{+}$",
+                            ),
+                            (
+                                f"I(Vb_sh;C|Vout_sh){suffix_topk}",
+                                "#7f7f7f",
+                                "Random",
+                            ),
+                        ],
+                    ),
+                    (
                         f"I(Vout;C|Vb){suffix_topk}",
                         [
                             (
@@ -2259,6 +2503,22 @@ def plot_fully_aggregated_analysis(
                                     ("I(Vout_sh;C|Vb_sh)", "I(Vout_sh;C)"),
                                     suffix_topk,
                                 ),
+                                "#7f7f7f",
+                                "Random",
+                            ),
+                        ],
+                    ),
+                    (
+                        f"I(Vout;C|E,I){suffix_topk}",
+                        [
+                            (f"I(Vout;C|E,I){suffix_topk}", "#1f77b4", "DendriNet"),
+                            (
+                                f"I(Vout_lin;C|E_lin,I_lin){suffix_topk}",
+                                "#ff7f0e",
+                                r"LDA$_{+}$",
+                            ),
+                            (
+                                f"I(Vout_sh;C|E_sh,I_sh){suffix_topk}",
                                 "#7f7f7f",
                                 "Random",
                             ),
@@ -2300,7 +2560,12 @@ def plot_fully_aggregated_analysis(
         std_divisor = (
             1.0
             if metric_category
-            in {"ablation_proxy_sum", "ablation_proxy_union", "ablation_proxy_topk_sum"}
+            in {
+                "ablation_proxy_sum",
+                "ablation_proxy_union",
+                "ablation_proxy_topk_sum",
+                "ablation_proxy_branch_mean",
+            }
             else 5.0
         )
 
@@ -2452,6 +2717,8 @@ def plot_fully_aggregated_analysis(
         # Add a short note describing proxy aggregation in the title.
         if metric_category == "ablation_proxy_sum":
             title += "\n(proxy sum: sum over branches)"
+        elif metric_category == "ablation_proxy_branch_mean":
+            title += "\n(per-branch mean: average across branches; compare to *_sum for branch-count scaling)"
         elif metric_category == "ablation_proxy_union":
             title += "\n(proxy union: H(C) * (1 - prod_b(1 - I_b/H(C))))"
         elif metric_category == "ablation_proxy_topk_sum":
@@ -2461,6 +2728,7 @@ def plot_fully_aggregated_analysis(
                 title += "\n(proxy top-K sum: sum of top-K branches)"
         if metric_category in {
             "ablation_proxy_sum",
+            "ablation_proxy_branch_mean",
             "ablation_proxy_union",
             "ablation_proxy_topk_sum",
         }:

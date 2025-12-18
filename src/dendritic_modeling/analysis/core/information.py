@@ -432,6 +432,79 @@ class InformationAnalyzer(AbstractAnalyzer):
                 f"  I(Vout;C|Vb) = {metrics['I(Vout;C|Vb)']:.4f} (took {time.time() - start_time:.1f}s)"
             )
 
+            # Complement: how much upstream class information is *not* reflected in the layer output
+            # (helps interpret upstream vs synapse contributions).
+            self.logger.info("  Computing I(Vb;C|Vout)...")
+            start_time = time.time()
+            metrics["I(Vb;C|Vout)"] = estimator.conditional_mutual_information(
+                Vb, C_col, Vout
+            )
+            self.logger.info(
+                f"  I(Vb;C|Vout) = {metrics['I(Vb;C|Vout)']:.4f} (took {time.time() - start_time:.1f}s)"
+            )
+
+            # How much class information in Vout remains after conditioning on synapse inputs
+            # (proxy for upstream contribution to class information in Vout).
+            self.logger.info("  Computing I(Vout;C|E,I)...")
+            start_time = time.time()
+            EI = np.hstack([E, I_var])
+            metrics["I(Vout;C|E,I)"] = estimator.conditional_mutual_information(
+                Vout, C_col, EI
+            )
+            self.logger.info(
+                f"  I(Vout;C|E,I) = {metrics['I(Vout;C|E,I)']:.4f} (took {time.time() - start_time:.1f}s)"
+            )
+
+            # Optional (can be expensive for high-dimensional synapse sets):
+            # unique upstream class information beyond the full synapse set.
+            if self.compute_upstream_unique_cmi:
+                self.logger.info("  Computing I(Vb;C|E,I)...")
+                start_time = time.time()
+                try:
+                    metrics["I(Vb;C|E,I)"] = estimator.conditional_mutual_information(
+                        Vb, C_col, EI
+                    )
+                except Exception as e:
+                    self.logger.warning(f"  Failed to compute I(Vb;C|E,I): {e}")
+                    metrics["I(Vb;C|E,I)"] = 0.0
+                self.logger.info(
+                    f"  I(Vb;C|E,I) = {metrics['I(Vb;C|E,I)']:.4f} (took {time.time() - start_time:.1f}s)"
+                )
+
+            # ------------------------------------------------------------------
+            # Information-processing conditionals (E/I/Vb -> Vout)
+            #
+            # These quantify *unique* statistical influence on the dendritic output,
+            # independent of class labels. They complement ablation results because
+            # they isolate each input's contribution to Vout beyond the others.
+            # ------------------------------------------------------------------
+            self.logger.info("  Computing I(E;Vout|I,Vb)...")
+            start_time = time.time()
+            metrics["I(E;Vout|I,Vb)"] = estimator.conditional_mutual_information(
+                E, Vout, np.hstack([I_var, Vb])
+            )
+            self.logger.info(
+                f"  I(E;Vout|I,Vb) = {metrics['I(E;Vout|I,Vb)']:.4f} (took {time.time() - start_time:.1f}s)"
+            )
+
+            self.logger.info("  Computing I(I;Vout|E,Vb)...")
+            start_time = time.time()
+            metrics["I(I;Vout|E,Vb)"] = estimator.conditional_mutual_information(
+                I_var, Vout, np.hstack([E, Vb])
+            )
+            self.logger.info(
+                f"  I(I;Vout|E,Vb) = {metrics['I(I;Vout|E,Vb)']:.4f} (took {time.time() - start_time:.1f}s)"
+            )
+
+            self.logger.info("  Computing I(Vb;Vout|E,I)...")
+            start_time = time.time()
+            metrics["I(Vb;Vout|E,I)"] = estimator.conditional_mutual_information(
+                Vb, Vout, EI
+            )
+            self.logger.info(
+                f"  I(Vb;Vout|E,I) = {metrics['I(Vb;Vout|E,I)']:.4f} (took {time.time() - start_time:.1f}s)"
+            )
+
             # Unique class information in E / I beyond upstream input
             self.logger.info("  Computing I(E;C|Vb)...")
             start_time = time.time()
@@ -500,6 +573,35 @@ class InformationAnalyzer(AbstractAnalyzer):
                 f"  I(I;C|E) = {metrics['I(I;C|E)']:.4f} (took {time.time() - start_time:.1f}s)"
             )
 
+            # Information-processing conditionals without upstream input.
+            self.logger.info("  Computing I(E;Vout|I)...")
+            start_time = time.time()
+            metrics["I(E;Vout|I)"] = estimator.conditional_mutual_information(
+                E, Vout, I_var
+            )
+            self.logger.info(
+                f"  I(E;Vout|I) = {metrics['I(E;Vout|I)']:.4f} (took {time.time() - start_time:.1f}s)"
+            )
+
+            self.logger.info("  Computing I(I;Vout|E)...")
+            start_time = time.time()
+            metrics["I(I;Vout|E)"] = estimator.conditional_mutual_information(
+                I_var, Vout, E
+            )
+            self.logger.info(
+                f"  I(I;Vout|E) = {metrics['I(I;Vout|E)']:.4f} (took {time.time() - start_time:.1f}s)"
+            )
+
+            self.logger.info("  Computing I(Vout;C|E,I)...")
+            start_time = time.time()
+            EI = np.hstack([E, I_var])
+            metrics["I(Vout;C|E,I)"] = estimator.conditional_mutual_information(
+                Vout, C_col, EI
+            )
+            self.logger.info(
+                f"  I(Vout;C|E,I) = {metrics['I(Vout;C|E,I)']:.4f} (took {time.time() - start_time:.1f}s)"
+            )
+
         if Vinf is not None and self.include_vinf:
             # I(E;Vinf|C)
             self.logger.info("  Computing I(E;Vinf|C)...")
@@ -520,6 +622,26 @@ class InformationAnalyzer(AbstractAnalyzer):
             self.logger.info(
                 f"  I(I;Vinf|C) = {metrics['I(I;Vinf|C)']:.4f} (took {time.time() - start_time:.1f}s)"
             )
+
+            # Somatic processing conditionals (low-dimensional and useful for "Vout -> Vinf -> C" chain).
+            if self.compute_ablation_aligned_mi:
+                self.logger.info("  Computing I(Vinf;C|Vout)...")
+                start_time = time.time()
+                metrics["I(Vinf;C|Vout)"] = estimator.conditional_mutual_information(
+                    Vinf, C_col, Vout
+                )
+                self.logger.info(
+                    f"  I(Vinf;C|Vout) = {metrics['I(Vinf;C|Vout)']:.4f} (took {time.time() - start_time:.1f}s)"
+                )
+
+                self.logger.info("  Computing I(Vout;C|Vinf)...")
+                start_time = time.time()
+                metrics["I(Vout;C|Vinf)"] = estimator.conditional_mutual_information(
+                    Vout, C_col, Vinf
+                )
+                self.logger.info(
+                    f"  I(Vout;C|Vinf) = {metrics['I(Vout;C|Vinf)']:.4f} (took {time.time() - start_time:.1f}s)"
+                )
 
         self.logger.info("  Conditional MI computation completed.")
         return metrics
