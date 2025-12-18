@@ -42,26 +42,83 @@ class AblationAnalyzer(AbstractAnalyzer):
     def __init__(self, params: AblationAnalysisParams):
         """Initialize with ablation parameters."""
         super().__init__("AblationAnalyzer")
+
+        def _norm(x: str) -> str:
+            return str(x).strip().lower().replace("-", "_").replace(" ", "_")
+
         self.ablation_methods = list(getattr(params, "ablation_methods", ["lesion"]))
         if not self.ablation_methods:
             self.ablation_methods = ["lesion"]
         self.shuffle_seed = int(getattr(params, "shuffle_seed", 0))
         self.clamp_statistic = str(getattr(params, "clamp_statistic", "mean"))
-        self.compute_pred_label_mi = bool(
-            getattr(params, "compute_pred_label_mi", False)
-        )
 
-        self.layer_ablation = getattr(params, "layer_ablation", False)
-        self.compartment_ablation = getattr(params, "compartment_ablation", False)
-        self.ablate_all_synapses = getattr(params, "ablate_all_synapses", False)
-        self.ablate_excitation = getattr(params, "ablate_excitation", False)
-        self.ablate_inhibition = getattr(params, "ablate_inhibition", False)
-        self.ablate_upstream = getattr(params, "ablate_upstream", False)
-        self.accuracy = getattr(params, "accuracy", False)
-        self.auc = getattr(params, "auc", False)
-        self.categorical_ll = getattr(params, "categorical_loglikelihood", False)
-        self.mse = getattr(params, "mse", False)
-        self.cosine_similarity = getattr(params, "cosine_similarity", False)
+        # ------------------------------------------------------------------
+        # Preferred list-based configuration (levels/targets/metrics).
+        # If lists are provided, they override the legacy boolean flags.
+        # ------------------------------------------------------------------
+        levels_raw = list(getattr(params, "levels", []) or [])
+        targets_raw = list(getattr(params, "targets", []) or [])
+        metrics_raw = list(getattr(params, "metrics", []) or [])
+
+        levels = {_norm(x) for x in levels_raw if str(x).strip()}
+        targets = {_norm(x) for x in targets_raw if str(x).strip()}
+        metrics = {_norm(x) for x in metrics_raw if str(x).strip()}
+
+        if levels:
+            self.layer_ablation = "layer" in levels
+            self.compartment_ablation = "compartment" in levels
+        else:
+            self.layer_ablation = bool(getattr(params, "layer_ablation", False))
+            self.compartment_ablation = bool(
+                getattr(params, "compartment_ablation", False)
+            )
+
+        if targets:
+            self.ablate_all_synapses = bool(
+                {"all_synapses", "all"}.intersection(targets)
+            )
+            self.ablate_excitation = bool({"excitation", "exc"}.intersection(targets))
+            self.ablate_inhibition = bool({"inhibition", "inh"}.intersection(targets))
+            self.ablate_upstream = bool(
+                {"upstream", "vb", "branch_input"}.intersection(targets)
+            )
+        else:
+            self.ablate_all_synapses = bool(
+                getattr(params, "ablate_all_synapses", False)
+            )
+            self.ablate_excitation = bool(getattr(params, "ablate_excitation", False))
+            self.ablate_inhibition = bool(getattr(params, "ablate_inhibition", False))
+            self.ablate_upstream = bool(getattr(params, "ablate_upstream", False))
+
+        if metrics:
+            self.accuracy = "accuracy" in metrics
+            self.auc = "auc" in metrics
+            self.categorical_ll = bool(
+                {
+                    "categorical_loglikelihood",
+                    "categorical_ll",
+                    "loglikelihood",
+                    "log_likelihood",
+                }.intersection(metrics)
+            )
+            self.mse = "mse" in metrics
+            self.cosine_similarity = bool(
+                {"cosine_similarity", "cosine"}.intersection(metrics)
+            )
+            self.compute_pred_label_mi = bool(
+                {"pred_label_mi_bits", "pred_label_mi", "pred_mi"}.intersection(metrics)
+            )
+        else:
+            self.accuracy = bool(getattr(params, "accuracy", False))
+            self.auc = bool(getattr(params, "auc", False))
+            self.categorical_ll = bool(
+                getattr(params, "categorical_loglikelihood", False)
+            )
+            self.mse = bool(getattr(params, "mse", False))
+            self.cosine_similarity = bool(getattr(params, "cosine_similarity", False))
+            self.compute_pred_label_mi = bool(
+                getattr(params, "compute_pred_label_mi", False)
+            )
 
     @staticmethod
     def _pred_label_mi_bits(y_true: np.ndarray, y_pred: np.ndarray) -> float:

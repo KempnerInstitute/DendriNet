@@ -466,26 +466,28 @@ analysis:
       n_neighbors: 10                   # K-NN neighbors for Kraskov estimator
       n_bins: 20                        # Bins for histogram estimator
       copula_type: "gaussian"           # Copula type: "gaussian", "kernel", "dvc"
-      compute_basic_mi: true            # Compute basic MI (true/false)
-      compute_pairwise_mi: true         # Compute pairwise MI (true/false)
-      compute_conditional_mi: true      # Compute conditional MI (true/false)
-      compute_pid: false                # Compute PID (true/false)
-      pid_binarize: true                # Binarize for PID (true/false)
-      pid_binarize_method: "median"     # Binarization method: "median", "mean", "quantile"
-      pid_binarize_threshold: 0.5       # Binarization threshold (0.0-1.0)
+      # What to compute (preferred list-based selection)
+      components: ["basic", "pairwise", "conditional", "ablation_aligned", "layer_proxies"]
+
+      # Optional extra "views" (preferred list-based selection)
+      # views: ["layer", "einet", "neuron"]
+      views: []
+
+      # PID settings (only used if "pid" is included in components)
+      pid_binarize: true
+      pid_binarize_method: "median"
+      pid_binarize_threshold: 0.5
       include_vinf: true                # Include soma activation (true/false)
       normalize_mi: false               # Normalize MI by entropy (true/false)
       verbose: false                    # Verbose output (true/false)
       computation_level: "single_branch" # Computation level: "single_branch", "layer_branch", "all_branch"
       branch_aggregation: "mean"        # Aggregation method: "mean", "multivariate", "sample"
-      per_neuron_analysis: false        # Per-neuron analysis (true/false)
-      per_einet_analysis: false         # Per-EI-network analysis (true/false)
-      per_layer_analysis: false         # Per-layer analysis (true/false)
-      compute_lda_weights: true         # Compute LDA-based E_lin, I_lin, Vb_lin (true/false)
-      lda_n_shuffles: 0                 # Number of random weight shuffles for baseline (0 = disabled)
-      compute_ablation_aligned_mi: true # Add ablation-aligned MI proxies (true/false)
-      compute_upstream_unique_cmi: false # Also compute I(Vb;C|E,I) (can be expensive)
-      compute_layer_total_proxies: true # Aggregate single-branch MI into layer-total proxies (true/false)
+      # Signal variants (preferred list-based selection)
+      # - Always includes "network" (DendriNet).
+      # - Add "lda" to compute *_lin variants.
+      # - Add "random" to compute *_sh baselines (requires lda_n_shuffles > 0).
+      signal_variants: ["network", "lda"]
+      lda_n_shuffles: 0
       layer_total_topk: 10              # K used for *_topK_sum layer proxy metrics
 
   correlation_analysis:
@@ -521,18 +523,12 @@ analysis:
       ablation_methods: ["lesion", "shuffle", "mean_clamp"]  # Methods: "lesion", "shuffle", "mean_clamp"
       shuffle_seed: 0                   # Seed for shuffle interventions
       clamp_statistic: "mean"           # Statistic for mean_clamp (currently supports "mean")
-      compute_pred_label_mi: false      # Compute I(C; Ĉ) on predicted classes (bits)
-      layer_ablation: true              # Ablate entire layers (true/false)
-      compartment_ablation: false       # Ablate compartments (true/false)
-      ablate_all_synapses: true         # Ablate all synapses (true/false)
-      ablate_excitation: true           # Ablate excitatory synapses (true/false)
-      ablate_inhibition: true           # Ablate inhibitory synapses (true/false)
-      ablate_upstream: true             # Ablate upstream connections (true/false)
-      accuracy: true                    # Compute accuracy (true/false)
-      auc: true                         # Compute AUC (true/false)
-      categorical_loglikelihood: true   # Compute categorical log-likelihood (true/false)
-      mse: false                        # Compute MSE (true/false)
-      cosine_similarity: false          # Compute cosine similarity (true/false)
+      # What to run (preferred list-based selection)
+      levels: ["layer"]                 # Options: "layer", "compartment" (compartment is lesion-only)
+      targets: ["all_synapses", "excitation", "inhibition", "upstream"]
+      metrics: ["accuracy", "auc", "categorical_loglikelihood"]
+      # Add optional info-like metric on predictions:
+      # metrics: ["accuracy", "auc", "categorical_loglikelihood", "pred_label_mi_bits"]
 
   synapse_turnover_analysis:
     enabled: true                       # Enable synapse turnover analysis (true/false)

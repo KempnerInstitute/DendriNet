@@ -5,18 +5,9 @@ analysis:
       ablation_methods: ["lesion"]  # Options: "lesion", "shuffle", "mean_clamp"
       shuffle_seed: 0
       clamp_statistic: "mean"
-      compute_pred_label_mi: false
-      ablate_all_synapses: false
-      ablate_excitation: false
-      ablate_inhibition: false
-      ablate_upstream: false
-      accuracy: true
-      auc: true
-      categorical_loglikelihood: true
-      compartment_ablation: false
-      cosine_similarity: false
-      layer_ablation: false
-      mse: false
+      levels: ["layer"]
+      targets: ["excitation", "inhibition"]
+      metrics: ["accuracy", "auc", "categorical_loglikelihood"]
     training: false
   branch_activation_analysis:
     enabled: false
@@ -42,10 +33,8 @@ analysis:
     params:
       branch_aggregation: multivariate
       computation_level: layer_branch
-      compute_basic_mi: true
-      compute_conditional_mi: true
-      compute_pairwise_mi: true
-      compute_pid: false
+      components: ["basic", "pairwise", "conditional", "ablation_aligned", "layer_proxies"]
+      views: []
       copula_type: gaussian
       include_vinf: true
       max_samples: null
@@ -53,14 +42,8 @@ analysis:
       n_bins: 20
       n_neighbors: 10
       normalize_mi: false
-      per_einet_analysis: false
-      per_layer_analysis: false
-      per_neuron_analysis: false
-      compute_lda_weights: true
+      signal_variants: ["network", "lda"]
       lda_n_shuffles: 0                 # Number of random weight shuffles for baseline (0 = disabled)
-      compute_ablation_aligned_mi: true # Add ablation-aligned MI proxies (true/false)
-      compute_upstream_unique_cmi: false # Also compute I(Vb;C|E,I) (can be expensive)
-      compute_layer_total_proxies: true # Aggregate single-branch MI into layer-total proxies (true/false)
       layer_total_topk: 10              # K used for *_topK_sum layer proxy metrics
       pid_binarize: true
       pid_binarize_method: median

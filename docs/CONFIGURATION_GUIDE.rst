@@ -165,11 +165,12 @@ Enable analysis during training:
      ablation_analysis:
        enabled: true
        params:
-         layer_ablation: true
          ablation_methods: ["lesion", "shuffle", "mean_clamp"]
          shuffle_seed: 0
          clamp_statistic: "mean"
-         compute_pred_label_mi: true
+         levels: ["layer"]
+         targets: ["excitation", "inhibition", "upstream", "all_synapses"]
+         metrics: ["accuracy", "pred_label_mi_bits"]
 
 Ablation / Intervention Analysis
 --------------------------------
@@ -190,9 +191,10 @@ operating point / baseline distribution).
    Signal intervention that replaces the targeted signal with its batch mean. This preserves
    a stable operating point but removes trial-to-trial variability.
 
-For an information-theoretic complement aligned to these interventions, enable
-``compute_ablation_aligned_mi`` in the information analyzer to compute conditional-MI terms
-such as ``I(E;C|I,Vb)``, ``I(I;C|E,Vb)``, and synapse-vs-upstream decompositions like
+For an information-theoretic complement aligned to these interventions, include
+``ablation_aligned`` (and optionally ``layer_proxies``) in
+``analysis.information_analysis.params.components``. This adds conditional-MI terms such as
+``I(E;C|I,Vb)``, ``I(I;C|E,Vb)``, and synapse-vs-upstream decompositions like
 ``I(Vout;C|Vb)`` (class information added by synapses beyond upstream input) and
 ``I(Vb;C|Vout)`` (upstream class information not reflected in the layer output).
 
@@ -206,13 +208,13 @@ such as ``I(E;C|I,Vb)``, ``I(I;C|E,Vb)``, and synapse-vs-upstream decompositions
          ablation_methods: ["lesion", "shuffle", "mean_clamp"]
          shuffle_seed: 0
          clamp_statistic: "mean"
-         compute_pred_label_mi: true  # Adds I(C; Ĉ) in bits, where Ĉ=argmax predicted class
-         layer_ablation: true
-         compartment_ablation: false
-         ablate_all_synapses: true
-         ablate_excitation: true
-         ablate_inhibition: true
-         ablate_upstream: true
+         levels: ["layer"]
+         targets: ["excitation", "inhibition", "upstream", "all_synapses"]
+         metrics:
+           - "accuracy"
+           - "auc"
+           - "categorical_loglikelihood"
+           - "pred_label_mi_bits"  # Adds I(C; Ĉ) in bits, where Ĉ=argmax predicted class
 
 WandB Integration
 -----------------
@@ -316,10 +318,9 @@ The framework provides enhanced analysis specifically designed for excitation-in
    analysis:
      information_analysis:
        params:
-         # Enhanced analysis modes
-         per_neuron_analysis: false       # Compute MI for each neuron individually
-         per_einet_analysis: false        # Analyze E and I networks separately
-         per_layer_analysis: false        # Compute enhanced analysis per layer
+         # Enhanced analysis modes (preferred list-based selection)
+         # views: ["neuron", "einet", "layer"]
+         views: []
 
 Per-Neuron Analysis:
 
@@ -368,7 +369,9 @@ The framework can compute alternative aggregation weights using Linear Discrimin
    analysis:
      information_analysis:
        params:
-         compute_lda_weights: false    # Compute LDA-based aggregations
+         # Preferred list-based selection of signal variants
+         # signal_variants: ["network", "lda", "random"]
+         signal_variants: ["network"]
 
 When enabled, the system fits separate LDA models on raw synaptic inputs to find optimal linear combinations that maximize class separation. This provides three LDA-weighted signals:
 
@@ -409,30 +412,34 @@ Complete Information Analysis Configuration
          max_samples: 1000               # Limit samples for computational efficiency
          n_neighbors: 10                 # K-NN parameter for Kraskov estimator
 
-         # Which metrics to compute
-         compute_basic_mi: true          # I(X;C) for all variables
-         compute_pairwise_mi: true       # I(X;Y) between variables
-         compute_conditional_mi: true    # I(X;Y|C) conditioned on class
+         # What to compute (preferred list-based selection)
+         components:
+           - "basic"             # I(X;C)
+           - "pairwise"          # I(X;Y)
+           - "conditional"       # I(X;Y|C)
+           - "ablation_aligned"  # ablation-aligned CMIs (E/I/Vb/Vout/C)
+           - "layer_proxies"     # *_sum/_union/_topK_sum proxies from per-branch MI
 
          # Computation granularity
          computation_level: "single_branch"  # Options: "single_branch", "layer_branch", "all_branch"
          branch_aggregation: "mean"          # Options: "mean", "multivariate", "sample"
 
-         # Enhanced analysis modes
-         per_neuron_analysis: false      # Per-neuron MI computation
-         per_einet_analysis: false       # Separate E and I network analysis
-         per_layer_analysis: false       # Per-layer enhanced analysis
+         # Optional "views" (preferred list-based selection)
+         # views: ["layer", "einet", "neuron"]
+         views: []
 
-         # LDA analysis
-         compute_lda_weights: false      # Compute LDA-based aggregations
+         # Signal variants (preferred list-based selection)
+         # - Always includes "network" (DendriNet).
+         # - Add "lda" to compute *_lin variants.
+         # - Add "random" to compute *_sh baselines (requires lda_n_shuffles > 0).
+         signal_variants: ["network"]
          lda_n_shuffles: 0              # Random-weight baseline shuffles (0 = disabled)
 
-         # Ablation-aligned information extras
-         compute_ablation_aligned_mi: true   # Adds conditional-MI proxies aligned with E/I/Vb ablations
-
-         # Single-branch -> layer-total proxy aggregations (avoids high-dim multivariate MI)
-         compute_layer_total_proxies: true   # Adds *_sum/*_union/*_topK_sum per-layer proxy metrics
          layer_total_topk: 10                # K used for *_topK_sum metrics
+
+         # Optional (expensive): unique upstream class info beyond the full synapse set.
+         # Either add "upstream_unique_cmi" to components, or set:
+         compute_upstream_unique_cmi: false
 
          # Plotting note: figures include both *_sum proxies and a per-branch mean view
          # ("ablation_proxy_branch_mean") so you can see branch-count scaling effects.

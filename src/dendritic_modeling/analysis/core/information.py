@@ -70,23 +70,63 @@ class InformationAnalyzer(AbstractAnalyzer):
         self.n_bins = getattr(params, "n_bins", 20)
         self.copula_type = getattr(params, "copula_type", "gaussian")
 
-        self.compute_basic_mi = getattr(params, "compute_basic_mi", False)
-        self.compute_pairwise_mi = getattr(params, "compute_pairwise_mi", False)
-        self.compute_conditional_mi = getattr(params, "compute_conditional_mi", False)
-        self.compute_pid = getattr(params, "compute_pid", False)
+        def _norm(x: str) -> str:
+            return str(x).strip().lower().replace("-", "_").replace(" ", "_")
+
+        # ------------------------------------------------------------------
+        # Legacy boolean selection (still supported).
+        # ------------------------------------------------------------------
+        self.compute_basic_mi = bool(getattr(params, "compute_basic_mi", False))
+        self.compute_pairwise_mi = bool(getattr(params, "compute_pairwise_mi", False))
+        self.compute_conditional_mi = bool(
+            getattr(params, "compute_conditional_mi", False)
+        )
+        self.compute_pid = bool(getattr(params, "compute_pid", False))
 
         self.pid_binarize = getattr(params, "pid_binarize", False)
         self.pid_binarize_method = getattr(params, "pid_binarize_method", "median")
         self.pid_binarize_threshold = getattr(params, "pid_binarize_threshold", 0.5)
 
         # Ablation-aligned extras (conditional MI terms and single-branch -> layer proxies)
-        self.compute_ablation_aligned_mi = getattr(
-            params, "compute_ablation_aligned_mi", True
+        self.compute_ablation_aligned_mi = bool(
+            getattr(params, "compute_ablation_aligned_mi", True)
         )
-        self.compute_layer_total_proxies = getattr(
-            params, "compute_layer_total_proxies", True
+        self.compute_upstream_unique_cmi = bool(
+            getattr(params, "compute_upstream_unique_cmi", False)
+        )
+        self.compute_layer_total_proxies = bool(
+            getattr(params, "compute_layer_total_proxies", True)
         )
         self.layer_total_topk = int(getattr(params, "layer_total_topk", 10))
+
+        # ------------------------------------------------------------------
+        # Preferred list-based selection of components.
+        #
+        # If provided, overrides the individual compute_* booleans above.
+        # ------------------------------------------------------------------
+        components_raw = list(getattr(params, "components", []) or [])
+        if components_raw:
+            comps = {_norm(x) for x in components_raw if str(x).strip()}
+            self.compute_basic_mi = bool({"basic", "basic_mi"}.intersection(comps))
+            self.compute_pairwise_mi = bool(
+                {"pairwise", "pairwise_mi"}.intersection(comps)
+            )
+            self.compute_conditional_mi = bool(
+                {"conditional", "conditional_mi"}.intersection(comps)
+            )
+            self.compute_pid = "pid" in comps
+
+            self.compute_ablation_aligned_mi = bool(
+                {"ablation_aligned", "ablation"}.intersection(comps)
+            )
+            self.compute_layer_total_proxies = bool(
+                {"layer_proxies", "layer_total_proxies", "layer_total"}.intersection(
+                    comps
+                )
+            )
+            self.compute_upstream_unique_cmi = bool(
+                {"upstream_unique_cmi", "upstream_unique"}.intersection(comps)
+            )
 
         self.include_vinf = getattr(
             params, "include_vinf", False
@@ -105,19 +145,40 @@ class InformationAnalyzer(AbstractAnalyzer):
         self.branch_aggregation = getattr(params, "branch_aggregation", "mean")
 
         # Per-neuron analysis - return information values per individual neuron
-        self.per_neuron_analysis = getattr(params, "per_neuron_analysis", False)
+        self.per_neuron_analysis = bool(getattr(params, "per_neuron_analysis", False))
 
         # Per-EI-network analysis - analyze excitatory and inhibitory networks separately
-        self.per_einet_analysis = getattr(params, "per_einet_analysis", False)
+        self.per_einet_analysis = bool(getattr(params, "per_einet_analysis", False))
 
         # Per-layer analysis - compute enhanced analysis for each layer separately
-        self.per_layer_analysis = getattr(params, "per_layer_analysis", False)
+        self.per_layer_analysis = bool(getattr(params, "per_layer_analysis", False))
+
+        # Preferred list-based selection of views (overrides per_* flags if provided).
+        views_raw = list(getattr(params, "views", []) or [])
+        if views_raw:
+            views = {_norm(x) for x in views_raw if str(x).strip()}
+            self.per_neuron_analysis = bool(
+                {"neuron", "per_neuron"}.intersection(views)
+            )
+            self.per_einet_analysis = bool({"einet", "per_einet"}.intersection(views))
+            self.per_layer_analysis = bool({"layer", "per_layer"}.intersection(views))
 
         # Compute LDA-based versions of E, I, Vb
-        self.compute_lda_weights = getattr(params, "compute_lda_weights", False)
+        self.compute_lda_weights = bool(getattr(params, "compute_lda_weights", False))
 
         # Number of random weight shuffles for LDA baseline comparison
-        self.lda_n_shuffles = getattr(params, "lda_n_shuffles", 0)
+        self.lda_n_shuffles = int(getattr(params, "lda_n_shuffles", 0))
+
+        # Preferred list-based selection of signal variants (overrides compute_lda_weights/lda_n_shuffles).
+        variants_raw = list(getattr(params, "signal_variants", []) or [])
+        if variants_raw:
+            variants = {_norm(x) for x in variants_raw if str(x).strip()}
+            want_lda = "lda" in variants
+            want_random = bool({"random", "shuffle", "shuffled"}.intersection(variants))
+
+            # Random baseline currently uses the same pipeline as LDA aggregation.
+            self.compute_lda_weights = want_lda or want_random
+            self.lda_n_shuffles = self.lda_n_shuffles if want_random else 0
 
         if self.verbose:
             self.logger.setLevel(logging.DEBUG)

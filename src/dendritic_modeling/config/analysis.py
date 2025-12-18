@@ -41,6 +41,19 @@ class InformationAnalysisParams(BaseConfig):
     compute_conditional_mi: bool = True  # I(E;I|C), I(E;Vout|C), etc.
     compute_pid: bool = False  # Partial Information Decomposition
 
+    # New (preferred): list-based selection of analysis components.
+    #
+    # If non-empty, this overrides the individual compute_* boolean flags above.
+    # Supported entries (synonyms are accepted by the analyzer):
+    # - "basic" / "basic_mi"
+    # - "pairwise" / "pairwise_mi"
+    # - "conditional" / "conditional_mi"
+    # - "pid"
+    # - "ablation_aligned"
+    # - "layer_proxies" / "layer_total_proxies"
+    # - "upstream_unique_cmi"
+    components: list[str] = field(default_factory=list)
+
     # Ablation-aligned information components (cheap extra CMI terms)
     # These are designed to better track "remove E/I/Vb/all" style ablations.
     compute_ablation_aligned_mi: bool = True
@@ -55,6 +68,15 @@ class InformationAnalysisParams(BaseConfig):
     #   I(E;C|I,Vb)_sum, I(E;C|I,Vb)_union, I(E;C|I,Vb)_topK_sum, ...
     compute_layer_total_proxies: bool = True
     layer_total_topk: int = 10  # K used for *_topK_sum metrics
+
+    # New (preferred): list-based selection of analysis "views".
+    #
+    # If non-empty, this overrides the per_* boolean flags below.
+    # Supported entries:
+    # - "neuron" / "per_neuron"
+    # - "einet" / "per_einet"
+    # - "layer" / "per_layer"
+    views: list[str] = field(default_factory=list)
 
     # PID settings
     pid_binarize: bool = True
@@ -88,6 +110,14 @@ class InformationAnalysisParams(BaseConfig):
 
     # Compute LDA-based versions of E, I, Vb
     compute_lda_weights: bool = False  # If True, compute E_lin, I_lin, Vb_lin using LDA
+
+    # New (preferred): choose which "signal variants" to compute/plot.
+    #
+    # If non-empty, this overrides compute_lda_weights / lda_n_shuffles behavior:
+    # - Always include "network" (DendriNet) metrics.
+    # - Add "lda" to compute *_lin variants.
+    # - Add "random" (or "shuffle") to compute *_sh variants (requires lda_n_shuffles > 0).
+    signal_variants: list[str] = field(default_factory=list)
 
     # Number of random weight shuffles for LDA baseline comparison
     # If > 0, computes MI with random weights (same normalization as LDA) as a baseline
@@ -164,6 +194,16 @@ class AblationAnalysisParams(BaseConfig):
     # Settings for signal interventions
     shuffle_seed: int = 0
     clamp_statistic: str = "mean"  # "mean" (supported), "median" (future)
+
+    # New (preferred): list-based selection of what to run.
+    #
+    # If non-empty, these override the individual boolean flags below.
+    # - levels: ["layer", "compartment"]
+    # - targets: ["excitation", "inhibition", "upstream", "all_synapses"]
+    # - metrics: ["accuracy", "auc", "categorical_loglikelihood", "mse", "cosine_similarity", "pred_label_mi_bits"]
+    levels: list[str] = field(default_factory=list)
+    targets: list[str] = field(default_factory=list)
+    metrics: list[str] = field(default_factory=list)
 
     layer_ablation: bool = True
     compartment_ablation: bool = True
