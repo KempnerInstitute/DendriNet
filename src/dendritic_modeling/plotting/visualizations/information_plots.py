@@ -2321,6 +2321,56 @@ def plot_fully_aggregated_analysis(
         ),
     ]
 
+    # Optionally plot upstream-unique class info when it was computed.
+    # This avoids empty panels when compute_upstream_unique_cmi=false (default).
+    def _has_metric(metric_name: str) -> bool:
+        return any(
+            depth_label in final_aggregated
+            and f"{metric_name}_mean" in final_aggregated[depth_label]
+            for depth_label in sorted_depths
+        )
+
+    def _append_group(category: str, group: tuple[str, list]) -> None:
+        for _i, (cat, groups) in enumerate(metric_pairs):
+            if cat == category:
+                groups.append(group)
+                break
+
+    if _has_metric("I(Vb;C|E,I)"):
+        _append_group(
+            "ablation_proxy_branch_mean",
+            (
+                "I(Vb;C|E,I)",
+                [
+                    ("I(Vb;C|E,I)", "#1f77b4", "DendriNet"),
+                    ("I(Vb_lin;C|E_lin,I_lin)", "#ff7f0e", r"LDA$_{+}$"),
+                    ("I(Vb_sh;C|E_sh,I_sh)", "#7f7f7f", "Random"),
+                ],
+            ),
+        )
+        _append_group(
+            "ablation_proxy_sum",
+            (
+                "I(Vb;C|E,I)_sum",
+                [
+                    ("I(Vb;C|E,I)_sum", "#1f77b4", "DendriNet"),
+                    ("I(Vb_lin;C|E_lin,I_lin)_sum", "#ff7f0e", r"LDA$_{+}$"),
+                    ("I(Vb_sh;C|E_sh,I_sh)_sum", "#7f7f7f", "Random"),
+                ],
+            ),
+        )
+        _append_group(
+            "ablation_proxy_union",
+            (
+                "I(Vb;C|E,I)_union",
+                [
+                    ("I(Vb;C|E,I)_union", "#1f77b4", "DendriNet"),
+                    ("I(Vb_lin;C|E_lin,I_lin)_union", "#ff7f0e", r"LDA$_{+}$"),
+                    ("I(Vb_sh;C|E_sh,I_sh)_union", "#7f7f7f", "Random"),
+                ],
+            ),
+        )
+
     # If layer_total_topk proxies were computed, also plot the *_topK_sum variants.
     topk_k = None
     topk_values = set()
@@ -2527,6 +2577,27 @@ def plot_fully_aggregated_analysis(
                 ],
             )
         )
+
+        # If upstream-unique CMI was computed, also plot its top-K sum proxy.
+        if _has_metric(f"I(Vb;C|E,I){suffix_topk}"):
+            metric_pairs[-1][1].append(
+                (
+                    f"I(Vb;C|E,I){suffix_topk}",
+                    [
+                        (f"I(Vb;C|E,I){suffix_topk}", "#1f77b4", "DendriNet"),
+                        (
+                            f"I(Vb_lin;C|E_lin,I_lin){suffix_topk}",
+                            "#ff7f0e",
+                            r"LDA$_{+}$",
+                        ),
+                        (
+                            f"I(Vb_sh;C|E_sh,I_sh){suffix_topk}",
+                            "#7f7f7f",
+                            "Random",
+                        ),
+                    ],
+                )
+            )
 
     has_any_lda = any(
         depth_label in final_aggregated
