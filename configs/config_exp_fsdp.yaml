@@ -2,6 +2,10 @@ analysis:
   ablation_analysis:
     enabled: false
     params:
+      ablation_methods: ["lesion"]  # Options: "lesion", "shuffle", "mean_clamp"
+      shuffle_seed: 0
+      clamp_statistic: "mean"
+      compute_pred_label_mi: false
       ablate_all_synapses: false
       ablate_excitation: false
       ablate_inhibition: false

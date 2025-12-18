@@ -140,12 +140,40 @@ class NoisePerturbationAnalysisConfig(BaseConfig):
 
 @dataclass
 class AblationAnalysisParams(BaseConfig):
+    """Configuration for ablation / intervention analysis.
+
+    Notes
+    -----
+    We support multiple ablation *methods*:
+    - "lesion": structural ablation by zeroing the relevant connection weights
+      (current behavior; can change baseline/gain and induce saturation/vanishing).
+    - "shuffle": signal intervention that permutes the targeted signal across samples
+      (destroys label-alignment while preserving marginal distribution).
+    - "mean_clamp": signal intervention that replaces the targeted signal with its
+      batch mean (preserves operating point; removes trial-to-trial variability).
+    """
+
+    # Which ablation/intervention methods to run. Example:
+    # ["lesion", "shuffle", "mean_clamp"]
+    ablation_methods: list[str] = field(default_factory=lambda: ["lesion"])
+
+    # Settings for signal interventions
+    shuffle_seed: int = 0
+    clamp_statistic: str = "mean"  # "mean" (supported), "median" (future)
+
     layer_ablation: bool = True
     compartment_ablation: bool = True
     ablate_all_synapses: bool = True
     ablate_excitation: bool = True
     ablate_inhibition: bool = True
     ablate_upstream: bool = True
+
+    # Optional: compute an information-theoretic score on predictions.
+    # This is I(C; Ĉ) where Ĉ is the argmax predicted class (in bits).
+    # It is NOT I(Vinf;C), but it's a useful "how much label information is in predictions"
+    # measure that can separate baseline/gain effects from label-aligned signal effects.
+    compute_pred_label_mi: bool = False
+
     accuracy: bool = True
     auc: bool = True
     categorical_loglikelihood: bool = True

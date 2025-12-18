@@ -160,10 +160,57 @@ Enable analysis during training:
        enabled: true
      information_analysis:
        enabled: true
-       method: kraskov
+       params:
+         method: "kraskov"
      ablation_analysis:
        enabled: true
-       layer_ablation: true
+       params:
+         layer_ablation: true
+         ablation_methods: ["lesion", "shuffle", "mean_clamp"]
+         shuffle_seed: 0
+         clamp_statistic: "mean"
+         compute_pred_label_mi: true
+
+Ablation / Intervention Analysis
+--------------------------------
+
+Our ablation analysis supports both **structural lesions** (removing connections) and
+**signal-level interventions** (removing label-aligned information while preserving the
+operating point / baseline distribution).
+
+``lesion``:
+   Structural ablation by disabling the relevant connection weights. This can change the
+   layer's gain/baseline and may cause saturation/vanishing.
+
+``shuffle``:
+   Signal intervention that permutes the targeted signal across samples in a batch. This
+   preserves the marginal distribution of that signal but destroys sample/label alignment.
+
+``mean_clamp``:
+   Signal intervention that replaces the targeted signal with its batch mean. This preserves
+   a stable operating point but removes trial-to-trial variability.
+
+For an information-theoretic complement aligned to these interventions, enable
+``compute_ablation_aligned_mi`` in the information analyzer to compute conditional-MI terms
+such as ``I(E;C|I,Vb)`` and ``I(I;C|E,Vb)``.
+
+.. code-block:: yaml
+
+   analysis:
+     ablation_analysis:
+       enabled: true
+       training: false
+       params:
+         ablation_methods: ["lesion", "shuffle", "mean_clamp"]
+         shuffle_seed: 0
+         clamp_statistic: "mean"
+         compute_pred_label_mi: true  # Adds I(C; Ĉ) in bits, where Ĉ=argmax predicted class
+         layer_ablation: true
+         compartment_ablation: false
+         ablate_all_synapses: true
+         ablate_excitation: true
+         ablate_inhibition: true
+         ablate_upstream: true
 
 WandB Integration
 -----------------

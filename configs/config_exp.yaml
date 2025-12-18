@@ -517,6 +517,10 @@ analysis:
     enabled: true                       # Enable ablation analysis (true/false)
     training: false
     params:
+      ablation_methods: ["lesion", "shuffle", "mean_clamp"]  # Methods: "lesion", "shuffle", "mean_clamp"
+      shuffle_seed: 0                   # Seed for shuffle interventions
+      clamp_statistic: "mean"           # Statistic for mean_clamp (currently supports "mean")
+      compute_pred_label_mi: false      # Compute I(C; Ĉ) on predicted classes (bits)
       layer_ablation: true              # Ablate entire layers (true/false)
       compartment_ablation: false       # Ablate compartments (true/false)
       ablate_all_synapses: true         # Ablate all synapses (true/false)
