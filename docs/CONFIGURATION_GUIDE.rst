@@ -292,17 +292,17 @@ Computation Levels
    analysis:
      information_analysis:
        params:
-         computation_level: "branch"  # Options: "branch", "layer", "network"
-         branch_aggregation: "mean"   # Options: "mean", "multivariate", "sample"
+         computation_level: "single_branch"  # Options: "single_branch", "layer_branch", "all_branch"
+         branch_aggregation: "mean"          # Options: "mean", "multivariate", "sample"
 
-- ``branch``: Compute information for individual branches (most granular)
-- ``layer``: Aggregate branches within each layer then compute information
-- ``network``: Aggregate all branches across the network then compute information
+- ``single_branch``: Compute information for individual branches (most granular)
+- ``layer_branch``: Aggregate branches within each layer then compute information
+- ``all_branch``: Aggregate all branches across the network then compute information
 
 Branch Aggregation
 ~~~~~~~~~~~~~~~~~~
 
-When using ``layer`` or ``network`` computation levels:
+When using ``layer_branch`` or ``all_branch`` computation levels:
 
 - ``mean``: Average branch activations to create scalar values
 - ``multivariate``: Use raw multi-dimensional branch data for joint information computation
@@ -319,8 +319,8 @@ The framework provides enhanced analysis specifically designed for excitation-in
      information_analysis:
        params:
          # Enhanced analysis modes (preferred list-based selection)
-         # views: ["neuron", "einet", "layer"]
-         views: []
+         # scopes: ["neuron", "einet", "layer"]
+         scopes: []
 
 Per-Neuron Analysis:
 
@@ -424,9 +424,9 @@ Complete Information Analysis Configuration
          computation_level: "single_branch"  # Options: "single_branch", "layer_branch", "all_branch"
          branch_aggregation: "mean"          # Options: "mean", "multivariate", "sample"
 
-         # Optional "views" (preferred list-based selection)
-         # views: ["layer", "einet", "neuron"]
-         views: []
+         # Optional "scopes" (preferred list-based selection)
+         # scopes: ["layer", "einet", "neuron"]
+         scopes: []
 
          # Signal variants (preferred list-based selection)
          # - Always includes "network" (DendriNet).
@@ -447,6 +447,41 @@ Complete Information Analysis Configuration
          # Additional options
          include_vinf: true              # Include soma activation
          normalize_mi: false             # Normalize by entropy
+
+Correlation Analysis
+--------------------
+
+Correlation analysis computes Pearson correlations between excitatory inputs (E),
+inhibitory inputs (I), and layer outputs (Vout) at different granularities.
+
+.. code-block:: yaml
+
+   analysis:
+     correlation_analysis:
+       enabled: true
+       training: false
+       params:
+         computation_level: "layer_branch"  # "synaptic", "single_branch", "layer_branch", "all_branch"
+         components: ["total", "noise", "signal", "tuning"]
+         pairs: ["EE", "II", "EI", "E_output", "I_output", "output_output"]
+         scopes: ["layer", "einet"]
+         max_samples: 2000
+
+List-based selectors:
+
+- ``components``:
+  - ``total``: correlations across all samples
+  - ``noise``: within-class correlations (stimulus-independent)
+  - ``signal``: between-class difference (binary-only currently)
+  - ``tuning``: tuning/selectivity summary across classes
+- ``pairs``:
+  - ``EE``, ``II``, ``EI``: E-E, I-I, and E-I correlations
+  - ``E_output``, ``I_output``: input-to-output correlations vs Vout
+  - ``output_output``: Vout-Vout correlations
+- ``scopes``:
+  - ``layer``: per-layer breakdown
+  - ``einet``: separate excitatory vs inhibitory pathway summaries
+  - ``neuron``: per-neuron breakdown (expensive)
 
 Training Optimization
 ---------------------

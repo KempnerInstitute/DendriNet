@@ -25,8 +25,10 @@ analysis:
   correlation_analysis:
     enabled: false
     params:
-      compute_synaptic_correlations: true
-      compute_tuning_curves: true
+      computation_level: "layer_branch"
+      components: ["total", "noise", "signal", "tuning"]
+      pairs: ["EE", "II", "EI", "E_output", "I_output", "output_output"]
+      scopes: ["layer", "einet"]
     training: false
   information_analysis:
     enabled: false
@@ -34,7 +36,7 @@ analysis:
       branch_aggregation: multivariate
       computation_level: layer_branch
       components: ["basic", "pairwise", "conditional", "ablation_aligned", "layer_proxies"]
-      views: []
+      scopes: []
       copula_type: gaussian
       include_vinf: true
       max_samples: null

@@ -22,7 +22,29 @@ class PerformanceAnalysisConfig(BaseConfig):
 
 @dataclass
 class InformationAnalysisParams(BaseConfig):
-    """Configuration for integrated information analysis."""
+    """Parameters for information-theoretic analysis.
+
+    Preferred (list-based) selectors:
+    - components: which families of metrics to compute
+      - "basic": I(E;C), I(I;C), I(Vout;C)
+      - "pairwise": I(E;I), I(E;Vout), I(I;Vout)
+      - "conditional": conditional MI terms like I(E;C|I,Vb)
+      - "pid": partial information decomposition (if available)
+      - "ablation_aligned": extra conditional terms designed to mirror ablations
+      - "layer_proxies": layer-total proxies derived from single-branch metrics
+      - "upstream_unique_cmi": adds I(Vb;C|E,I) (can be expensive)
+    - scopes: which additional breakdowns to run
+      - "layer": per-layer breakdown
+      - "einet": separate excitatory vs inhibitory pathway summaries
+      - "neuron": per-neuron breakdown (expensive)
+    - signal_variants: which signal variants to compute/plot
+      - "network": DendriNet signals
+      - "lda": *_lin variants using LDA projections
+      - "random": *_sh random-weight baseline (requires lda_n_shuffles > 0)
+
+    If any list-based selector is non-empty, it overrides the corresponding legacy
+    boolean flags.
+    """
 
     # Estimation method: "kraskov", "sklearn", "copula", "auto"
     method: str = "kraskov"
@@ -69,13 +91,16 @@ class InformationAnalysisParams(BaseConfig):
     compute_layer_total_proxies: bool = True
     layer_total_topk: int = 10  # K used for *_topK_sum metrics
 
-    # New (preferred): list-based selection of analysis "views".
+    # New (preferred): list-based selection of analysis "scopes" (breakdowns).
     #
     # If non-empty, this overrides the per_* boolean flags below.
     # Supported entries:
     # - "neuron" / "per_neuron"
     # - "einet" / "per_einet"
     # - "layer" / "per_layer"
+    scopes: list[str] = field(default_factory=list)
+
+    # Backward-compatible alias (deprecated): prefer `scopes`.
     views: list[str] = field(default_factory=list)
 
     # PID settings
@@ -185,6 +210,22 @@ class AblationAnalysisParams(BaseConfig):
       (destroys label-alignment while preserving marginal distribution).
     - "mean_clamp": signal intervention that replaces the targeted signal with its
       batch mean (preserves operating point; removes trial-to-trial variability).
+
+    Preferred (list-based) selectors:
+    - levels: what granularity to ablate
+      - "layer": ablate whole dendritic layers
+      - "compartment": ablate specific compartments (lesion-only)
+    - targets: what signal/connection class to ablate
+      - "all_synapses": excitatory + inhibitory together
+      - "excitation": excitatory synapses only
+      - "inhibition": inhibitory synapses only
+      - "upstream": upstream branch input / Vb pathway
+    - metrics: what to report
+      - "accuracy", "auc", "categorical_loglikelihood", "mse", "cosine_similarity"
+      - "pred_label_mi_bits": I(C; C_hat) in bits for predicted labels C_hat
+
+    If any selector list is non-empty, it overrides the corresponding legacy boolean
+    flags below.
     """
 
     # Which ablation/intervention methods to run. Example:

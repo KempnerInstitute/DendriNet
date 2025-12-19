@@ -537,7 +537,7 @@ base_config:
         copula_type: "gaussian"           # Copula type: "gaussian", "kernel", "dvc"
         # What to compute (preferred list-based selection)
         components: ["basic", "pairwise", "conditional", "ablation_aligned", "layer_proxies"]
-        views: []
+        scopes: []
 
         # PID settings (only used if "pid" is included in components)
         pid_binarize: true
@@ -558,20 +558,10 @@ base_config:
       training: false
       params:
         computation_level: "layer_branch" # Computation level: "synaptic", "single_branch", "layer_branch", "all_branch"
-        compute_synaptic_correlations: true # Compute synaptic correlations (true/false)
-        compute_noise_correlations: true  # Compute noise correlations (true/false)
-        compute_signal_correlations: true # Compute signal correlations (true/false)
-        compute_total_correlations: true  # Compute total correlations (true/false)
-        compute_tuning_curves: true       # Compute tuning curves (true/false)
-        analyze_EE: true                  # Analyze E-E correlations (true/false)
-        analyze_II: true                  # Analyze I-I correlations (true/false)
-        analyze_EI: true                  # Analyze E-I correlations (true/false)
-        analyze_E_output: true            # Analyze E-output correlations (true/false)
-        analyze_I_output: true            # Analyze I-output correlations (true/false)
-        analyze_output_output: true       # Analyze output-output correlations (true/false)
-        per_layer_analysis: true          # Per-layer analysis (true/false)
-        per_einet_analysis: true          # Per-EI-network analysis (true/false)
-        per_neuron_analysis: false        # Per-neuron analysis (true/false)
+        # What to compute / report (preferred list-based selection)
+        components: ["total", "noise", "signal", "tuning"]
+        pairs: ["EE", "II", "EI", "E_output", "I_output", "output_output"]
+        scopes: ["layer", "einet"]
         n_synapse_pairs: 1000             # Number of synapse pairs to sample
         sampling_strategy: "stratified"   # Sampling strategy: "random", "stratified", "importance"
         stratified_categories: ["within_branch", "within_layer", "across_layer"]

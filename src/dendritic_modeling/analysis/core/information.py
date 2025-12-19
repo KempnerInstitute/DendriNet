@@ -153,15 +153,19 @@ class InformationAnalyzer(AbstractAnalyzer):
         # Per-layer analysis - compute enhanced analysis for each layer separately
         self.per_layer_analysis = bool(getattr(params, "per_layer_analysis", False))
 
-        # Preferred list-based selection of views (overrides per_* flags if provided).
-        views_raw = list(getattr(params, "views", []) or [])
-        if views_raw:
-            views = {_norm(x) for x in views_raw if str(x).strip()}
+        # Preferred list-based selection of scopes (overrides per_* flags if provided).
+        #
+        # `views` is a backward-compatible alias for `scopes`.
+        scopes_raw = list(getattr(params, "scopes", []) or [])
+        if not scopes_raw:
+            scopes_raw = list(getattr(params, "views", []) or [])
+        if scopes_raw:
+            scopes = {_norm(x) for x in scopes_raw if str(x).strip()}
             self.per_neuron_analysis = bool(
-                {"neuron", "per_neuron"}.intersection(views)
+                {"neuron", "per_neuron"}.intersection(scopes)
             )
-            self.per_einet_analysis = bool({"einet", "per_einet"}.intersection(views))
-            self.per_layer_analysis = bool({"layer", "per_layer"}.intersection(views))
+            self.per_einet_analysis = bool({"einet", "per_einet"}.intersection(scopes))
+            self.per_layer_analysis = bool({"layer", "per_layer"}.intersection(scopes))
 
         # Compute LDA-based versions of E, I, Vb
         self.compute_lda_weights = bool(getattr(params, "compute_lda_weights", False))
