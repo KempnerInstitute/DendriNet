@@ -24,6 +24,13 @@ class PerformanceAnalysisConfig(BaseConfig):
 class InformationAnalysisParams(BaseConfig):
     """Parameters for information-theoretic analysis.
 
+    Core string options:
+    - method: "kraskov", "sklearn", "copula", "auto"
+    - copula_type (for method="copula"): "gaussian", "kernel", "dvc"
+    - computation_level: "single_branch", "layer_branch", "all_branch"
+    - branch_aggregation (layer_branch/all_branch): "mean", "multivariate", "sample"
+    - pid_binarize_method: "median", "mean", "quantile"
+
     Preferred (list-based) selectors:
     - components: which families of metrics to compute
       - "basic": I(E;C), I(I;C), I(Vout;C)
@@ -210,6 +217,9 @@ class AblationAnalysisParams(BaseConfig):
       (destroys label-alignment while preserving marginal distribution).
     - "mean_clamp": signal intervention that replaces the targeted signal with its
       batch mean (preserves operating point; removes trial-to-trial variability).
+
+    Core string options:
+    - clamp_statistic: "mean" (supported), "median" (reserved)
 
     Preferred (list-based) selectors:
     - levels: what granularity to ablate
@@ -447,12 +457,44 @@ class ReceptiveFieldAnalysisConfig(BaseConfig):
 
 @dataclass
 class CorrelationAnalysisParams(BaseConfig):
+    """Parameters for correlation analysis.
+
+    Core string options:
+    - computation_level:
+      - "synaptic": individual synapse correlations (uses sampling)
+      - "single_branch": branch-by-branch correlations
+      - "layer_branch": all branches in a layer together
+      - "all_branch": full network aggregation
+    - sampling_strategy (synaptic only): "random", "stratified", "importance"
+
+    Preferred (list-based) selectors:
+    - components: which correlation components to compute
+      - "total": correlations across all samples
+      - "noise": within-class (stimulus-independent) correlations
+      - "signal": between-class difference (binary-only currently)
+      - "tuning": tuning/selectivity summary across classes
+    - pairs: which variable pairs to analyze
+      - "EE", "II", "EI"
+      - "E_output", "I_output", "output_output"
+    - scopes: which breakdowns to include in outputs
+      - "layer", "einet", "neuron"
+
+    If any selector list is non-empty, it overrides the corresponding legacy boolean
+    flags below.
+    """
+
     # Computation level (aligned with information analysis)
     # "synaptic": Individual synapse correlations (most detailed, uses sampling)
     # "single_branch": Branch-by-branch analysis (detailed)
     # "layer_branch": All branches in a layer together (balanced)
     # "all_branch": Full network aggregation (most efficient)
     computation_level: str = "layer_branch"
+
+    # New (preferred): list-based selection of analysis options.
+    # If non-empty, these override the boolean flags below.
+    components: list[str] = field(default_factory=list)
+    pairs: list[str] = field(default_factory=list)
+    scopes: list[str] = field(default_factory=list)
 
     # Correlation types to compute
     compute_noise_correlations: bool = (
