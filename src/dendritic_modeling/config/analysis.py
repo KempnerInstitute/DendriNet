@@ -6,6 +6,16 @@ from dendritic_modeling.config.base import BaseConfig
 
 @dataclass
 class PerformanceAnalysisParams(BaseConfig):
+    """Parameters for performance evaluation metrics.
+
+    Each boolean toggles whether that metric is computed/reported:
+    - accuracy
+    - auc
+    - categorical_loglikelihood
+    - mse
+    - cosine_similarity
+    """
+
     accuracy: bool = True
     auc: bool = True
     categorical_loglikelihood: bool = True
@@ -15,6 +25,12 @@ class PerformanceAnalysisParams(BaseConfig):
 
 @dataclass
 class PerformanceAnalysisConfig(BaseConfig):
+    """Enable/disable performance analysis.
+
+    - enabled: turns the analysis module on/off.
+    - training: if true, run during training.
+    """
+
     enabled: bool = True
     training: bool = False
     params: PerformanceAnalysisParams = field(default_factory=PerformanceAnalysisParams)
@@ -165,7 +181,12 @@ class InformationAnalysisConfig(BaseConfig):
 
 @dataclass
 class SynapseTurnoverAnalysisParams(BaseConfig):
-    """Parameters for synapse turnover analysis."""
+    """Parameters for synapse turnover analysis.
+
+    - snapshot_interval: how often to snapshot connectivity (in epochs).
+    - synaptic_analysis: whether to compute connectivity summaries.
+    - save_synaptic_report: whether to write a detailed report to disk.
+    """
 
     snapshot_interval: int = 1  # Snapshot frequency in epochs
     synaptic_analysis: bool = True  # Enable synaptic connectivity analysis
@@ -174,6 +195,8 @@ class SynapseTurnoverAnalysisParams(BaseConfig):
 
 @dataclass
 class SynapseTurnoverAnalysisConfig(BaseConfig):
+    """Enable/disable synapse turnover analysis."""
+
     enabled: bool = False
     training: bool = False
     params: SynapseTurnoverAnalysisParams = field(
@@ -183,6 +206,19 @@ class SynapseTurnoverAnalysisConfig(BaseConfig):
 
 @dataclass
 class NoisePerturbationAnalysisParams(BaseConfig):
+    """Parameters for noise perturbation analysis.
+
+    Noise settings:
+    - uniform_noise: enable uniform noise sweeps.
+    - uniform_magnitudes: list of magnitudes for uniform noise.
+    - gaussian_noise: enable Gaussian noise sweeps.
+    - gaussian_sdevs: list of standard deviations for Gaussian noise.
+    - n_samples: number of noisy replicates per magnitude/sdev.
+
+    Metric toggles (same semantics as PerformanceAnalysisParams):
+    - accuracy, auc, categorical_loglikelihood, mse, cosine_similarity
+    """
+
     uniform_noise: bool = True
     uniform_magnitudes: list[float] = field(default_factory=lambda: [0.1, 0.2])
     gaussian_noise: bool = True
@@ -197,6 +233,8 @@ class NoisePerturbationAnalysisParams(BaseConfig):
 
 @dataclass
 class NoisePerturbationAnalysisConfig(BaseConfig):
+    """Enable/disable noise perturbation analysis."""
+
     enabled: bool = False
     training: bool = False
     params: NoisePerturbationAnalysisParams = field(
@@ -285,7 +323,23 @@ class AblationAnalysisConfig(BaseConfig):
 
 @dataclass
 class WeightAnalysisParams(BaseConfig):
-    """Enhanced configuration for unified weight analysis."""
+    """Parameters for weight analysis.
+
+    Core string options:
+    - computation_level: "single_branch", "layer_branch", "all_branch"
+    - branch_aggregation (layer_branch/all_branch): "mean", "multivariate", "sample"
+
+    Scope toggles:
+    - per_layer_analysis, per_einet_analysis, per_neuron_analysis
+
+    Content toggles:
+    - synapse_weights, branch_weights
+    - analyze_excitatory, analyze_inhibitory, analyze_branch_output
+
+    Summary statistic toggles:
+    - compute_mean, compute_variance, compute_percentiles, compute_min_max,
+      compute_dendritic_strength
+    """
 
     synapse_weights: bool = True  # Analyze excitatory and inhibitory synapse weights
     branch_weights: bool = True  # Analyze branch-to-output connection weights
@@ -319,6 +373,8 @@ class WeightAnalysisParams(BaseConfig):
 
 @dataclass
 class WeightAnalysisConfig(BaseConfig):
+    """Enable/disable weight analysis."""
+
     enabled: bool = False
     training: bool = False
     params: WeightAnalysisParams = field(default_factory=WeightAnalysisParams)
@@ -326,7 +382,19 @@ class WeightAnalysisConfig(BaseConfig):
 
 @dataclass
 class CompartmentStatisticsAnalysisParams(BaseConfig):
-    """Enhanced configuration for compartment statistics analysis."""
+    """Parameters for compartment statistics analysis.
+
+    Toggles:
+    - synapse_weights / branch_weights: include weight statistics.
+    - inputs / activations: include signal statistics.
+    - global_analysis / layer_analysis / branch_analysis: which aggregation levels.
+    - compute_mean / compute_variance / compute_percentiles / compute_min_max /
+      compute_entropy: which summary statistics.
+    - per_class_analysis: split statistics by class label.
+
+    Sampling:
+    - n_samples: optional limit on number of samples processed.
+    """
 
     synapse_weights: bool = True  # Analyze excitatory and inhibitory synapse weights
     branch_weights: bool = True  # Analyze branch-to-output connection weights
@@ -350,6 +418,8 @@ class CompartmentStatisticsAnalysisParams(BaseConfig):
 
 @dataclass
 class CompartmentStatisticsAnalysisConfig(BaseConfig):
+    """Enable/disable compartment statistics analysis."""
+
     enabled: bool = False
     training: bool = False
     params: CompartmentStatisticsAnalysisParams = field(
@@ -359,7 +429,13 @@ class CompartmentStatisticsAnalysisConfig(BaseConfig):
 
 @dataclass
 class CompartmentSNRAnalysisParams(BaseConfig):
-    """Enhanced configuration for compartment SNR analysis."""
+    """Parameters for compartment SNR analysis.
+
+    Toggles which aggregation levels to compute:
+    - global_analysis
+    - layer_analysis
+    - branch_analysis
+    """
 
     global_analysis: bool = True  # Analyze global statistics
     layer_analysis: bool = True  # Analyze layer statistics
@@ -368,6 +444,8 @@ class CompartmentSNRAnalysisParams(BaseConfig):
 
 @dataclass
 class CompartmentSNRAnalysisConfig(BaseConfig):
+    """Enable/disable compartment SNR analysis."""
+
     enabled: bool = False
     training: bool = False
     params: CompartmentSNRAnalysisParams = field(
@@ -377,6 +455,16 @@ class CompartmentSNRAnalysisConfig(BaseConfig):
 
 @dataclass
 class SynapticActivationAnalysisParams(BaseConfig):
+    """Parameters for synaptic activation analysis.
+
+    Toggles:
+    - network_summary / layer_summary / branch_summary / raw_summary: what to report.
+    - logspace: whether to plot/report in log-space.
+    - downsample: whether to subsample activations for speed/memory.
+
+    - samples: number of examples to keep when downsampling/raw summaries are enabled.
+    """
+
     network_summary: bool = True
     layer_summary: bool = True
     branch_summary: bool = True
@@ -388,6 +476,8 @@ class SynapticActivationAnalysisParams(BaseConfig):
 
 @dataclass
 class SynapticActivationAnalysisConfig(BaseConfig):
+    """Enable/disable synaptic activation analysis."""
+
     enabled: bool = False
     training: bool = False
     params: SynapticActivationAnalysisParams = field(
@@ -397,6 +487,17 @@ class SynapticActivationAnalysisConfig(BaseConfig):
 
 @dataclass
 class BranchActivationAnalysisParams(BaseConfig):
+    """Parameters for branch activation analysis.
+
+    Toggles:
+    - synapse_activations / branch_activations: what signals to log.
+    - network_summary / layer_summary / branch_summary / raw_summary: what to report.
+    - logspace: whether to plot/report in log-space.
+    - downsample: whether to subsample for speed/memory.
+
+    - samples: number of examples to keep when downsampling/raw summaries are enabled.
+    """
+
     synapse_activations: bool = True
     branch_activations: bool = True
     network_summary: bool = True
@@ -410,6 +511,8 @@ class BranchActivationAnalysisParams(BaseConfig):
 
 @dataclass
 class BranchActivationAnalysisConfig(BaseConfig):
+    """Enable/disable branch activation analysis."""
+
     enabled: bool = False
     training: bool = False
     params: BranchActivationAnalysisParams = field(
@@ -419,6 +522,17 @@ class BranchActivationAnalysisConfig(BaseConfig):
 
 @dataclass
 class SingleLayerContributionAnalysisParams(BaseConfig):
+    """Parameters for single-layer contribution analysis.
+
+    Contribution modes:
+    - excitation_contribution: effect of excitation alone
+    - inhibition_contribution: effect of inhibition alone
+    - both_contribution: combined E+I effect
+
+    Metric toggles (same semantics as PerformanceAnalysisParams):
+    - accuracy, auc, categorical_loglikelihood, mse, cosine_similarity
+    """
+
     excitation_contribution: bool = True
     inhibition_contribution: bool = True
     both_contribution: bool = True
@@ -431,6 +545,8 @@ class SingleLayerContributionAnalysisParams(BaseConfig):
 
 @dataclass
 class SingleLayerContributionAnalysisConfig(BaseConfig):
+    """Enable/disable single-layer contribution analysis."""
+
     enabled: bool = False
     training: bool = False
     params: SingleLayerContributionAnalysisParams = field(
@@ -440,6 +556,12 @@ class SingleLayerContributionAnalysisConfig(BaseConfig):
 
 @dataclass
 class ReceptiveFieldAnalysisParams(BaseConfig):
+    """Parameters for receptive field visualization.
+
+    - n_rows / n_cols: grid size for plotting receptive fields.
+    - exc_rf_shape / inh_rf_shape: optional (H, W) receptive field shapes if known.
+    """
+
     n_rows: int = 2
     n_cols: int = 2
     exc_rf_shape: Optional[tuple[int, int]] = None
@@ -448,6 +570,8 @@ class ReceptiveFieldAnalysisParams(BaseConfig):
 
 @dataclass
 class ReceptiveFieldAnalysisConfig(BaseConfig):
+    """Enable/disable receptive field visualization."""
+
     enabled: bool = False
     training: bool = False
     params: ReceptiveFieldAnalysisParams = field(
@@ -538,6 +662,8 @@ class CorrelationAnalysisParams(BaseConfig):
 
 @dataclass
 class CorrelationAnalysisConfig(BaseConfig):
+    """Enable/disable correlation analysis."""
+
     enabled: bool = False
     training: bool = False
     params: CorrelationAnalysisParams = field(default_factory=CorrelationAnalysisParams)
@@ -545,6 +671,11 @@ class CorrelationAnalysisConfig(BaseConfig):
 
 @dataclass
 class AnalysisConfig(BaseConfig):
+    """Top-level analysis configuration container.
+
+    Each field corresponds to an analysis module under `analysis.*` in YAML.
+    """
+
     performance_analysis: PerformanceAnalysisConfig = field(
         default_factory=PerformanceAnalysisConfig
     )
