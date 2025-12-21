@@ -461,112 +461,50 @@ analysis:
     enabled: true                       # Enable information analysis (true/false)
     training: false                     # Run during training (true/false)
     params:
-      # Information analysis options (all choices)
-      # method: ["kraskov", "sklearn", "copula", "auto"]
-      # copula_type (copula): ["gaussian", "kernel", "dvc"]
-      # max_samples: null | int
-      # n_neighbors (kraskov): int >= 1
-      # n_bins (sklearn histogram): int >= 2
-      # computation_level: ["single_branch", "layer_branch", "all_branch"]
-      # branch_aggregation (non-single_branch): ["mean", "multivariate", "sample"]
-      # components: ["basic", "pairwise", "conditional", "pid", "ablation_aligned", "layer_proxies", "upstream_unique_cmi"]
-      # scopes: ["layer", "einet", "neuron"]  # alias: views (deprecated)
-      # signal_variants: ["network", "lda", "random"]  # random requires lda_n_shuffles > 0
-      # pid_binarize: true | false
-      # pid_binarize_method: ["median", "mean", "quantile"]
-      # pid_binarize_threshold: float
-      # include_vinf: true | false
-      # normalize_mi: true | false
-      # verbose: true | false
-      # lda_n_shuffles: int >= 0
-      # layer_total_topk: int >= 1
-      # Legacy booleans (ignored if components/scopes/signal_variants are set):
-      #   compute_basic_mi, compute_pairwise_mi, compute_conditional_mi, compute_pid,
-      #   compute_ablation_aligned_mi, compute_layer_total_proxies, compute_upstream_unique_cmi,
-      #   per_neuron_analysis, per_einet_analysis, per_layer_analysis, compute_lda_weights
-      method: "kraskov"                 # MI estimation method: "kraskov", "sklearn", "copula", "auto"
-      max_samples: 1000                 # Maximum samples for analysis (null = all)
-      n_neighbors: 10                   # K-NN neighbors for Kraskov estimator
-      n_bins: 20                        # Bins for histogram estimator
-      copula_type: "gaussian"           # Copula type: "gaussian", "kernel", "dvc"
-      # What to compute (preferred list-based selection)
-      components: ["basic", "pairwise", "conditional", "ablation_aligned", "layer_proxies"]
-
-      # Optional extra "scopes" (preferred list-based selection)
-      # scopes: ["layer", "einet", "neuron"]
-      scopes: []
-
-      # PID settings (only used if "pid" is included in components)
-      pid_binarize: true
-      pid_binarize_method: "median"
-      pid_binarize_threshold: 0.5
-      include_vinf: true                # Include soma activation (true/false)
-      normalize_mi: false               # Normalize MI by entropy (true/false)
-      verbose: false                    # Verbose output (true/false)
-      computation_level: "single_branch" # Computation level: "single_branch", "layer_branch", "all_branch"
-      branch_aggregation: "mean"        # Aggregation method: "mean", "multivariate", "sample"
-      # Signal variants (preferred list-based selection)
-      # - Always includes "network" (DendriNet).
-      # - Add "lda" to compute *_lin variants.
-      # - Add "random" to compute *_sh baselines (requires lda_n_shuffles > 0).
-      signal_variants: ["network", "lda"]
-      lda_n_shuffles: 0
-      layer_total_topk: 10              # K used for *_topK_sum layer proxy metrics
+      method: "kraskov"                 # MI estimation: "kraskov", "sklearn", "copula", "auto"
+      max_samples: 1000                 # Max samples (null = all)
+      n_neighbors: 10                   # Kraskov k-NN (int >= 1)
+      n_bins: 20                        # Histogram bins (int >= 2)
+      copula_type: "gaussian"           # Copula: "gaussian", "kernel", "dvc"
+      components: ["basic", "pairwise", "conditional", "ablation_aligned", "layer_proxies"]  # Components: "basic", "pairwise", "conditional", "pid", "ablation_aligned", "layer_proxies", "upstream_unique_cmi"
+      scopes: []                        # Scopes: "layer", "einet", "neuron" (alias: views)
+      pid_binarize: true                # PID binarize: true|false
+      pid_binarize_method: "median"     # PID method: "median", "mean", "quantile"
+      pid_binarize_threshold: 0.5       # PID threshold (float)
+      include_vinf: true                # Include soma activation: true|false
+      normalize_mi: false               # Normalize by entropy: true|false
+      verbose: false                    # Verbose: true|false
+      computation_level: "single_branch" # Level: "single_branch", "layer_branch", "all_branch"
+      branch_aggregation: "mean"        # Aggregation: "mean", "multivariate", "sample"
+      signal_variants: ["network", "lda"]  # Variants: "network", "lda", "random" (random requires lda_n_shuffles > 0)
+      lda_n_shuffles: 0                 # Random baseline shuffles (int >= 0)
+      layer_total_topk: 10              # K for *_topK_sum proxies (int >= 1)
 
   correlation_analysis:
     enabled: false                      # Enable correlation analysis (true/false)
     training: false
     params:
-      # Correlation analysis options (all choices)
-      # computation_level: ["synaptic", "single_branch", "layer_branch", "all_branch"]
-      # components: ["total", "noise", "signal", "tuning"]
-      # pairs: ["EE", "II", "EI", "E_output", "I_output", "output_output"]
-      # scopes: ["layer", "einet", "neuron"]
-      # sampling_strategy (synaptic): ["random", "stratified", "importance"]
-      # stratified_categories (stratified): ["within_branch", "within_layer", "across_layer"]
-      # n_synapse_pairs (synaptic): int >= 1
-      # max_pairs_per_category (stratified): int >= 1
-      # max_samples: null | int
-      # batch_process: true | false
-      # Legacy booleans (ignored if components/pairs/scopes are set):
-      #   compute_noise_correlations, compute_signal_correlations, compute_total_correlations, compute_tuning_curves,
-      #   analyze_EE, analyze_II, analyze_EI, analyze_E_output, analyze_I_output, analyze_output_output,
-      #   per_layer_analysis, per_einet_analysis, per_neuron_analysis
-      computation_level: "layer_branch" # Computation level: "synaptic", "single_branch", "layer_branch", "all_branch"
-      # What to compute / report (preferred list-based selection)
-      components: ["total", "noise", "signal", "tuning"]
-      pairs: ["EE", "II", "EI", "E_output", "I_output", "output_output"]
-      scopes: ["layer", "einet"]
-      n_synapse_pairs: 1000             # Number of synapse pairs to sample
-      sampling_strategy: "stratified"   # Sampling strategy: "random", "stratified", "importance"
-      stratified_categories: ["within_branch", "within_layer", "across_layer"]
-      max_pairs_per_category: 500       # Max pairs per category
-      max_samples: 2000                 # Max data samples for analysis
-      batch_process: true               # Process in batches (true/false)
+      computation_level: "layer_branch" # Level: "synaptic", "single_branch", "layer_branch", "all_branch"
+      components: ["total", "noise", "signal", "tuning"]  # Components: "total", "noise", "signal", "tuning"
+      pairs: ["EE", "II", "EI", "E_output", "I_output", "output_output"]  # Pairs: "EE", "II", "EI", "E_output", "I_output", "output_output"
+      scopes: ["layer", "einet"]        # Scopes: "layer", "einet", "neuron"
+      n_synapse_pairs: 1000             # Synaptic-only: number of synapse pairs (int >= 1)
+      sampling_strategy: "stratified"   # Sampling: "random", "stratified", "importance"
+      stratified_categories: ["within_branch", "within_layer", "across_layer"]  # Stratified categories: "within_branch", "within_layer", "across_layer"
+      max_pairs_per_category: 500       # Stratified-only: max pairs per category (int >= 1)
+      max_samples: 2000                 # Max samples (null = all)
+      batch_process: true               # Batch processing: true|false
 
   ablation_analysis:
     enabled: true                       # Enable ablation analysis (true/false)
     training: false
     params:
-      # Ablation analysis options (all choices)
-      # ablation_methods: ["lesion", "shuffle", "mean_clamp"]
-      # levels: ["layer", "compartment"]  # compartment is lesion-only
-      # targets: ["all_synapses", "excitation", "inhibition", "upstream"]
-      # metrics: ["accuracy", "auc", "categorical_loglikelihood", "mse", "cosine_similarity", "pred_label_mi_bits"]
-      # shuffle_seed: int
-      # clamp_statistic: ["mean"]  # mean_clamp currently supports mean
-      # Legacy booleans (ignored if levels/targets/metrics are set):
-      #   layer_ablation, compartment_ablation, ablate_all_synapses, ablate_excitation, ablate_inhibition, ablate_upstream,
-      #   accuracy, auc, categorical_loglikelihood, mse, cosine_similarity, compute_pred_label_mi
       ablation_methods: ["lesion", "shuffle", "mean_clamp"]  # Methods: "lesion", "shuffle", "mean_clamp"
-      shuffle_seed: 0                   # Seed for shuffle interventions
-      clamp_statistic: "mean"           # Statistic for mean_clamp (currently supports "mean")
-      # What to run (preferred list-based selection)
-      levels: ["layer"]                 # Options: "layer", "compartment" (compartment is lesion-only)
-      targets: ["all_synapses", "excitation", "inhibition", "upstream"]
-      metrics: ["accuracy", "auc", "categorical_loglikelihood"]
-      # Add optional info-like metric on predictions:
-      # metrics: ["accuracy", "auc", "categorical_loglikelihood", "pred_label_mi_bits"]
+      shuffle_seed: 0                   # Shuffle seed (int)
+      clamp_statistic: "mean"           # mean_clamp statistic: "mean"
+      levels: ["layer"]                 # Levels: "layer", "compartment" (compartment is lesion-only)
+      targets: ["all_synapses", "excitation", "inhibition", "upstream"]  # Targets: "all_synapses", "excitation", "inhibition", "upstream"
+      metrics: ["accuracy", "auc", "categorical_loglikelihood"]  # Metrics: "accuracy", "auc", "categorical_loglikelihood", "mse", "cosine_similarity", "pred_label_mi_bits"
 
   synapse_turnover_analysis:
     enabled: true                       # Enable synapse turnover analysis (true/false)
