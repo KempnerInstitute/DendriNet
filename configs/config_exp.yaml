@@ -461,6 +461,29 @@ analysis:
     enabled: true                       # Enable information analysis (true/false)
     training: false                     # Run during training (true/false)
     params:
+      # Information analysis options (all choices)
+      # method: ["kraskov", "sklearn", "copula", "auto"]
+      # copula_type (copula): ["gaussian", "kernel", "dvc"]
+      # max_samples: null | int
+      # n_neighbors (kraskov): int >= 1
+      # n_bins (sklearn histogram): int >= 2
+      # computation_level: ["single_branch", "layer_branch", "all_branch"]
+      # branch_aggregation (non-single_branch): ["mean", "multivariate", "sample"]
+      # components: ["basic", "pairwise", "conditional", "pid", "ablation_aligned", "layer_proxies", "upstream_unique_cmi"]
+      # scopes: ["layer", "einet", "neuron"]  # alias: views (deprecated)
+      # signal_variants: ["network", "lda", "random"]  # random requires lda_n_shuffles > 0
+      # pid_binarize: true | false
+      # pid_binarize_method: ["median", "mean", "quantile"]
+      # pid_binarize_threshold: float
+      # include_vinf: true | false
+      # normalize_mi: true | false
+      # verbose: true | false
+      # lda_n_shuffles: int >= 0
+      # layer_total_topk: int >= 1
+      # Legacy booleans (ignored if components/scopes/signal_variants are set):
+      #   compute_basic_mi, compute_pairwise_mi, compute_conditional_mi, compute_pid,
+      #   compute_ablation_aligned_mi, compute_layer_total_proxies, compute_upstream_unique_cmi,
+      #   per_neuron_analysis, per_einet_analysis, per_layer_analysis, compute_lda_weights
       method: "kraskov"                 # MI estimation method: "kraskov", "sklearn", "copula", "auto"
       max_samples: 1000                 # Maximum samples for analysis (null = all)
       n_neighbors: 10                   # K-NN neighbors for Kraskov estimator
@@ -494,6 +517,21 @@ analysis:
     enabled: false                      # Enable correlation analysis (true/false)
     training: false
     params:
+      # Correlation analysis options (all choices)
+      # computation_level: ["synaptic", "single_branch", "layer_branch", "all_branch"]
+      # components: ["total", "noise", "signal", "tuning"]
+      # pairs: ["EE", "II", "EI", "E_output", "I_output", "output_output"]
+      # scopes: ["layer", "einet", "neuron"]
+      # sampling_strategy (synaptic): ["random", "stratified", "importance"]
+      # stratified_categories (stratified): ["within_branch", "within_layer", "across_layer"]
+      # n_synapse_pairs (synaptic): int >= 1
+      # max_pairs_per_category (stratified): int >= 1
+      # max_samples: null | int
+      # batch_process: true | false
+      # Legacy booleans (ignored if components/pairs/scopes are set):
+      #   compute_noise_correlations, compute_signal_correlations, compute_total_correlations, compute_tuning_curves,
+      #   analyze_EE, analyze_II, analyze_EI, analyze_E_output, analyze_I_output, analyze_output_output,
+      #   per_layer_analysis, per_einet_analysis, per_neuron_analysis
       computation_level: "layer_branch" # Computation level: "synaptic", "single_branch", "layer_branch", "all_branch"
       # What to compute / report (preferred list-based selection)
       components: ["total", "noise", "signal", "tuning"]
@@ -510,6 +548,16 @@ analysis:
     enabled: true                       # Enable ablation analysis (true/false)
     training: false
     params:
+      # Ablation analysis options (all choices)
+      # ablation_methods: ["lesion", "shuffle", "mean_clamp"]
+      # levels: ["layer", "compartment"]  # compartment is lesion-only
+      # targets: ["all_synapses", "excitation", "inhibition", "upstream"]
+      # metrics: ["accuracy", "auc", "categorical_loglikelihood", "mse", "cosine_similarity", "pred_label_mi_bits"]
+      # shuffle_seed: int
+      # clamp_statistic: ["mean"]  # mean_clamp currently supports mean
+      # Legacy booleans (ignored if levels/targets/metrics are set):
+      #   layer_ablation, compartment_ablation, ablate_all_synapses, ablate_excitation, ablate_inhibition, ablate_upstream,
+      #   accuracy, auc, categorical_loglikelihood, mse, cosine_similarity, compute_pred_label_mi
       ablation_methods: ["lesion", "shuffle", "mean_clamp"]  # Methods: "lesion", "shuffle", "mean_clamp"
       shuffle_seed: 0                   # Seed for shuffle interventions
       clamp_statistic: "mean"           # Statistic for mean_clamp (currently supports "mean")
