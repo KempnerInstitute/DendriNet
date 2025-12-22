@@ -70,6 +70,66 @@ def compute_mi_cc(x: np.ndarray, y: np.ndarray, n_neighbors: int) -> float:
     return max(0, mi)
 
 
+def compute_cmi_ccc(
+    x: np.ndarray, y: np.ndarray, z: np.ndarray, n_neighbors: int
+) -> float:
+    """Compute conditional mutual information I(X;Y|Z) for continuous variables.
+
+    This implements the kNN estimator described by:
+      Frenzel, S. & Pompe, B. (2007). Partial Mutual Information for Coupling Analysis.
+
+    Notes
+    -----
+    - Uses the Chebyshev (max) norm, consistent with the KSG-style MI estimator.
+    - Returns nats. Negative estimates are clipped to 0.
+    """
+    x = np.asarray(x)
+    y = np.asarray(y)
+    z = np.asarray(z)
+    assert x.shape[0] == y.shape[0] == z.shape[0], "x, y, z must share n_samples"
+    assert x.ndim == 2 and y.ndim == 2 and z.ndim == 2, "x, y, z must be 2D arrays"
+    n_samples = x.shape[0]
+    if n_samples <= 1:
+        return 0.0
+
+    k = int(n_neighbors)
+    if k < 1:
+        return 0.0
+    # If k is too large, cap it to n_samples-1 (excluding self).
+    k = min(k, n_samples - 1)
+    if k < 1:
+        return 0.0
+
+    xyz = np.hstack((x, y, z))
+    nn = NearestNeighbors(metric="chebyshev", n_neighbors=k)
+    nn.fit(xyz)
+    distances = nn.kneighbors(return_distance=True)[0]
+    # Radius to the k-th neighbor in joint space, made strictly smaller.
+    eps = np.nextafter(distances[:, -1], 0)
+
+    xz = np.hstack((x, z))
+    yz = np.hstack((y, z))
+
+    kd_xz = KDTree(xz, metric="chebyshev")
+    kd_yz = KDTree(yz, metric="chebyshev")
+    kd_z = KDTree(z, metric="chebyshev")
+
+    nxz = kd_xz.query_radius(xz, eps, count_only=True, return_distance=False)
+    nyz = kd_yz.query_radius(yz, eps, count_only=True, return_distance=False)
+    nz = kd_z.query_radius(z, eps, count_only=True, return_distance=False)
+
+    nxz = np.asarray(nxz, dtype=float) - 1.0
+    nyz = np.asarray(nyz, dtype=float) - 1.0
+    nz = np.asarray(nz, dtype=float) - 1.0
+
+    cmi = (
+        digamma(n_samples)
+        + digamma(k)
+        - np.mean(digamma(nxz + 1) + digamma(nyz + 1) - digamma(nz + 1))
+    )
+    return float(max(0.0, cmi))
+
+
 def compute_mi_cd(c: np.ndarray, d: np.ndarray, n_neighbors: int) -> float:
     """Compute mutual information between continuous and discrete variables.
 
@@ -116,7 +176,8 @@ def compute_mi_cd(c: np.ndarray, d: np.ndarray, n_neighbors: int) -> float:
     label_counts = np.empty(n_samples)
     k_all = np.empty(n_samples)
 
-    nn = NearestNeighbors()
+    # Use Chebyshev (max) norm for consistency with KSG estimator.
+    nn = NearestNeighbors(metric="chebyshev")
     for label in np.unique(d):
         mask = d == label
         count = np.sum(mask)
@@ -137,7 +198,7 @@ def compute_mi_cd(c: np.ndarray, d: np.ndarray, n_neighbors: int) -> float:
     c = c[mask]
     radius = radius[mask]
 
-    kd = KDTree(c)
+    kd = KDTree(c, metric="chebyshev")
     m_all = kd.query_radius(c, radius, count_only=True, return_distance=False)
     m_all = np.array(m_all)
 

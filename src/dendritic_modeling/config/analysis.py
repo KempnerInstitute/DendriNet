@@ -41,7 +41,7 @@ class InformationAnalysisParams(BaseConfig):
     """Parameters for information-theoretic analysis.
 
     Core string options:
-    - method: "kraskov", "sklearn", "copula", "auto"
+    - method: "kraskov", "decoder", "binned", "sklearn", "copula", "auto"
     - copula_type (for method="copula"): "gaussian", "kernel", "dvc"
     - computation_level: "single_branch", "layer_branch", "all_branch"
     - branch_aggregation (layer_branch/all_branch): "mean", "multivariate", "sample"
@@ -67,9 +67,18 @@ class InformationAnalysisParams(BaseConfig):
 
     If any list-based selector is non-empty, it overrides the corresponding legacy
     boolean flags.
+
+    Decoder-specific options (method="decoder"):
+    - decoder_continuous_strategy: "none" (skip), "binned" (discretize+count), "gaussian" (Gaussian MI)
+    - decoder_continuous_max_total_dim: maximum total dimension for continuous MI/CMI under decoder
+    - decoder_gaussian_ridge: small diagonal ridge for covariance stability (gaussian strategy)
+
+    Binned-specific options (method="binned"):
+    - binning_strategy: "quantile" or "uniform"
+    - binning_bias_correction: "none" or "miller_madow"
     """
 
-    # Estimation method: "kraskov", "sklearn", "copula", "auto"
+    # Estimation method: "kraskov", "decoder", "binned", "sklearn", "copula", "auto"
     method: str = "kraskov"
 
     # Optional: limit the number of samples to analyze
@@ -77,8 +86,32 @@ class InformationAnalysisParams(BaseConfig):
 
     # Method-specific parameters
     n_neighbors: int = 10  # For Kraskov
-    n_bins: int = 20  # For sklearn histogram
+    n_bins: int = 20  # For binned estimator + sklearn histogram
     copula_type: str = "gaussian"  # For copula: "gaussian", "kernel", "dvc"
+
+    # Decoder (method="decoder") hyperparameters
+    decoder_cv_folds: int = 5
+    decoder_C: float = 1.0  # noqa: N815 (match sklearn LogisticRegression hyperparameter name)
+    decoder_standardize: bool = True
+    decoder_seed: int = 0
+    decoder_continuous_strategy: str = "none"  # "none", "binned", "gaussian"
+    decoder_continuous_max_total_dim: int = (
+        2  # only used if decoder_continuous_strategy != "none"
+    )
+    decoder_gaussian_ridge: float = 1e-6  # covariance ridge for gaussian strategy
+
+    # Binned (method="binned") hyperparameters
+    binning_strategy: str = "quantile"  # "quantile" or "uniform"
+    binning_bias_correction: str = "none"  # "none" or "miller_madow"
+
+    # Optional: estimate finite-sample (estimator) bias via a shuffled-null baseline.
+    #
+    # If > 0, the analyzer will compute MI again after permuting the target across
+    # samples (e.g. shuffling class labels) and report the null mean/std as a
+    # diagnostic. This is separate from `lda_n_shuffles`, which creates random
+    # *signal variants* (random-weight baselines).
+    mi_null_shuffles: int = 0  # int >= 0; 0 disables
+    mi_null_seed: int = 0  # RNG seed for the null permutations
 
     # Which metrics to compute
     compute_basic_mi: bool = True  # I(E;C), I(I;C), I(Vout;C)

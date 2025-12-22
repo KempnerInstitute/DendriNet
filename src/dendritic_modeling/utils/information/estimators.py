@@ -17,15 +17,25 @@ from typing import Any, ClassVar, Optional, Union
 import numpy as np
 from scipy import stats
 from sklearn.feature_selection import mutual_info_classif, mutual_info_regression
-from sklearn.metrics import mutual_info_score
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import log_loss, mutual_info_score
+from sklearn.model_selection import StratifiedKFold
+from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import StandardScaler
 
-from dendritic_modeling.utils.information import compute_mi_cc, compute_mi_cd
+from dendritic_modeling.utils.information.nearest_neighbors import (
+    compute_cmi_ccc,
+    compute_mi_cc,
+    compute_mi_cd,
+)
 
 
 class EstimationMethod(Enum):
     """Available estimation methods for mutual information."""
 
     KRASKOV = "kraskov"
+    DECODER = "decoder"  # Cross-validated decoder-based I(X;C) for discrete targets
+    BINNED = "binned"  # Histogram/binning plug-in estimator (best for low-dim)
     SKLEARN = "sklearn"
     COPULA = "copula"
     AUTO = "auto"  # Automatically select based on data properties
@@ -89,6 +99,44 @@ class BaseInformationEstimator(ABC):
         joint_source = np.hstack([self._ensure_2d(s) for s in sources])
         return self.mutual_information(joint_source, target)
 
+    def mutual_information_null(
+        self,
+        x: np.ndarray,
+        y: np.ndarray,
+        *,
+        n_shuffles: int = 100,
+        seed: int = 0,
+        return_values: bool = False,
+    ):
+        """Permutation (shuffled-null) baseline for MI.
+
+        This is a practical way to estimate finite-sample bias and a null
+        distribution: it permutes `y` across samples and recomputes I(X;Y).
+
+        Returns
+        -------
+        (mean, std) or (mean, std, values) in nats, where values has length n_shuffles.
+        """
+        n = int(n_shuffles)
+        if n <= 0:
+            return (
+                (0.0, 0.0, np.array([], dtype=float)) if return_values else (0.0, 0.0)
+            )
+
+        x = self._ensure_2d(np.asarray(x))
+        y = self._ensure_2d(np.asarray(y))
+        self._validate_inputs(x, y)
+
+        rng = np.random.default_rng(int(seed))
+        vals = np.empty(n, dtype=float)
+        for i in range(n):
+            perm = rng.permutation(y.shape[0])
+            vals[i] = float(self.mutual_information(x, y[perm]))
+
+        mean = float(np.mean(vals))
+        std = float(np.std(vals))
+        return (mean, std, vals) if return_values else (mean, std)
+
     @staticmethod
     def _ensure_2d(arr: np.ndarray) -> np.ndarray:
         """Ensure array is 2D for consistent processing."""
@@ -121,44 +169,463 @@ class KraskovEstimator(BaseInformationEstimator):
         super().__init__(config)
         self.n_neighbors = config.n_neighbors
 
-    def mutual_information(self, x: np.ndarray, y: np.ndarray) -> float:
-        """Compute MI using Kraskov's k-NN estimator."""
+    @staticmethod
+    def _is_discrete_1d(values: np.ndarray) -> bool:
+        """Heuristic: decide whether a 1D array should be treated as discrete.
 
+        We treat a variable as discrete if:
+        - It has a small number of unique values (e.g. class labels), OR
+        - It is integer-like with a moderate number of unique values.
+        """
+        values = np.asarray(values).ravel()
+        if values.size == 0:
+            return False
+        unique = np.unique(values)
+        if unique.size <= 1:
+            return True
+        # Small-unique AND clearly not continuous-like (unique << n_samples)
+        if unique.size <= 20 and unique.size <= max(5, values.size // 5):
+            return True
+        # Integer-like labels (classification), allow more uniques.
+        if unique.size <= 200 and np.allclose(unique, np.round(unique), atol=1e-6):
+            return True
+        return False
+
+    @staticmethod
+    def _to_int_labels(values: np.ndarray) -> np.ndarray:
+        """Map arbitrary 1D values to contiguous integer labels [0..K-1]."""
+        values = np.asarray(values).ravel()
+        unique = np.unique(values)
+        # np.unique returns sorted uniques; searchsorted is fast and stable.
+        return np.searchsorted(unique, values).astype(int)
+
+    def _mutual_information_with_k(self, x: np.ndarray, y: np.ndarray, k: int) -> float:
+        """Mutual information with an explicit k (neighbors) parameter."""
         x = self._ensure_2d(x)
         y = self._ensure_2d(y)
         self._validate_inputs(x, y)
 
-        # Check if y is discrete (single column with few unique values)
-        if y.shape[1] == 1 and len(np.unique(y)) < 20:
-            # Treat as discrete
-            if self.config.verbose:
-                self.logger.debug(
-                    f"    Computing MI (continuous-discrete): x{x.shape}, y{y.shape}, k={self.n_neighbors}"
-                )
-            return compute_mi_cd(x, y.ravel(), self.n_neighbors)
-        else:
-            # Both continuous
-            if self.config.verbose:
-                self.logger.debug(
-                    f"    Computing MI (continuous-continuous): x{x.shape}, y{y.shape}, k={self.n_neighbors}"
-                )
-            return compute_mi_cc(x, y, self.n_neighbors)
+        x_is_discrete = x.shape[1] == 1 and self._is_discrete_1d(x[:, 0])
+        y_is_discrete = y.shape[1] == 1 and self._is_discrete_1d(y[:, 0])
+
+        # Handle discrete-discrete exactly (in nats).
+        if x_is_discrete and y_is_discrete:
+            x_lab = self._to_int_labels(x.ravel())
+            y_lab = self._to_int_labels(y.ravel())
+            return float(mutual_info_score(x_lab, y_lab))
+
+        # Handle mixed continuous/discrete using Ross (2014).
+        if x_is_discrete and not y_is_discrete:
+            # compute_mi_cd expects (continuous, discrete)
+            return compute_mi_cd(y, self._to_int_labels(x.ravel()), k)
+        if not x_is_discrete and y_is_discrete:
+            return compute_mi_cd(x, self._to_int_labels(y.ravel()), k)
+
+        # Continuous-continuous KSG.
+        return compute_mi_cc(x, y, k)
+
+    def mutual_information(self, x: np.ndarray, y: np.ndarray) -> float:
+        """Compute MI using Kraskov's k-NN estimator."""
+        if self.config.verbose:
+            self.logger.debug(
+                f"    Computing MI: x{np.asarray(x).shape}, y{np.asarray(y).shape}, k={self.n_neighbors}"
+            )
+        return self._mutual_information_with_k(x, y, self.n_neighbors)
 
     def conditional_mutual_information(
         self, x: np.ndarray, y: np.ndarray, z: np.ndarray
     ) -> float:
-        """Compute CMI using chain rule: I(X;Y|Z) = I(X;Y,Z) - I(X;Z)."""
+        """Compute CMI I(X;Y|Z) with discrete-aware handling.
+
+        Cases handled explicitly:
+        - Z discrete (e.g. class labels): I(X;Y|Z) = Σ_z p(z) I(X;Y | Z=z)
+        - Y discrete, Z continuous: I(X;Y|Z) = I([X,Z];Y) - I(Z;Y)
+        - Otherwise (all continuous): default chain-rule approximation
+        """
         x = self._ensure_2d(x)
         y = self._ensure_2d(y)
         z = self._ensure_2d(z)
         self._validate_inputs(x, y, z)
 
-        # I(X;Y|Z) = I(X;Y,Z) - I(X;Z)
-        yz = np.hstack([y, z])
-        mi_xyz = self.mutual_information(x, yz)
-        mi_xz = self.mutual_information(x, z)
+        k = int(self.n_neighbors)
+        if k < 1:
+            return 0.0
 
-        return max(0.0, mi_xyz - mi_xz)
+        y_is_discrete = y.shape[1] == 1 and self._is_discrete_1d(y[:, 0])
+        z_is_discrete = z.shape[1] == 1 and self._is_discrete_1d(z[:, 0])
+
+        # If Z is discrete, compute a weighted average of within-class MI.
+        if z_is_discrete:
+            z_labels = z.ravel()
+            n_total = int(z_labels.size)
+            if n_total <= 1:
+                return 0.0
+
+            cmi = 0.0
+            for val in np.unique(z_labels):
+                mask = z_labels == val
+                n = int(np.sum(mask))
+                if n <= 1:
+                    continue
+                k_sub = min(k, n - 1)
+                if k_sub < 1:
+                    continue
+                mi_sub = self._mutual_information_with_k(x[mask], y[mask], k_sub)
+                cmi += (n / n_total) * mi_sub
+            return float(max(0.0, cmi))
+
+        # If Y is discrete and Z is continuous, use chain rule with the mixed MI estimator.
+        if y_is_discrete:
+            y_labels = self._to_int_labels(y.ravel())
+            xz = np.hstack([x, z])
+            mi_xz_y = compute_mi_cd(xz, y_labels, k)
+            mi_z_y = compute_mi_cd(z, y_labels, k)
+            return float(max(0.0, mi_xz_y - mi_z_y))
+
+        # Default (continuous) chain rule: I(X;Y|Z) = I(X;[Y,Z]) - I(X;Z)
+        return float(compute_cmi_ccc(x, y, z, k))
+
+
+class BinnedEstimator(BaseInformationEstimator):
+    """Binning / histogram plug-in estimator (discrete MI on discretized data).
+
+    This is most appropriate for low-dimensional settings. For high-dimensional
+    vectors, binning quickly becomes sparse and strongly biased; treat it as a
+    diagnostic/baseline rather than a primary estimator.
+    """
+
+    def __init__(self, config: EstimatorConfig):
+        super().__init__(config)
+        self.n_bins = int(config.n_bins)
+        mp = dict(config.method_params or {})
+        self.binning_strategy = str(mp.get("binning_strategy", "quantile")).lower()
+        self.bias_correction = str(mp.get("bias_correction", "none")).lower()
+
+    def _bin_continuous(self, x: np.ndarray) -> np.ndarray:
+        x = self._ensure_2d(np.asarray(x))
+        n, d = x.shape
+        if self.n_bins < 2:
+            return np.zeros((n, d), dtype=int)
+
+        binned = np.zeros((n, d), dtype=int)
+        for j in range(d):
+            col = x[:, j]
+            if np.allclose(col, col[0], atol=1e-12):
+                binned[:, j] = 0
+                continue
+
+            if self.binning_strategy == "uniform":
+                edges = np.linspace(col.min(), col.max(), self.n_bins + 1)[1:-1]
+            else:
+                # Default: quantile binning
+                qs = np.linspace(0.0, 1.0, self.n_bins + 1)[1:-1]
+                edges = np.quantile(col, qs)
+
+            edges = np.unique(edges)
+            if edges.size == 0:
+                binned[:, j] = 0
+            else:
+                binned[:, j] = np.digitize(col, edges, right=False)
+
+        return binned
+
+    def _to_states(self, x: np.ndarray) -> np.ndarray:
+        x = self._ensure_2d(np.asarray(x))
+        if x.shape[1] == 1 and KraskovEstimator._is_discrete_1d(x[:, 0]):
+            return KraskovEstimator._to_int_labels(x[:, 0])
+
+        binned = self._bin_continuous(x)
+        _, inv = np.unique(binned, axis=0, return_inverse=True)
+        return inv.astype(int)
+
+    @staticmethod
+    def _miller_madow_mi_correction(
+        n_samples: int, x_states: np.ndarray, y_states: np.ndarray
+    ) -> float:
+        n = float(max(1, int(n_samples)))
+        kx = int(np.unique(x_states).size)
+        ky = int(np.unique(y_states).size)
+        _, inv_xy = np.unique(
+            np.column_stack([x_states, y_states]), axis=0, return_inverse=True
+        )
+        kxy = int(np.unique(inv_xy).size)
+        return float((kx + ky - kxy - 1) / (2.0 * n))
+
+    def mutual_information(self, x: np.ndarray, y: np.ndarray) -> float:
+        x = self._ensure_2d(x)
+        y = self._ensure_2d(y)
+        self._validate_inputs(x, y)
+
+        xs = self._to_states(x)
+        ys = self._to_states(y)
+        mi = float(mutual_info_score(xs, ys))
+
+        if self.bias_correction in {"miller_madow", "mm"}:
+            mi += self._miller_madow_mi_correction(xs.size, xs, ys)
+
+        return float(max(0.0, mi))
+
+    def conditional_mutual_information(
+        self, x: np.ndarray, y: np.ndarray, z: np.ndarray
+    ) -> float:
+        x = self._ensure_2d(x)
+        y = self._ensure_2d(y)
+        z = self._ensure_2d(z)
+        self._validate_inputs(x, y, z)
+
+        xs = self._to_states(x)
+        ys = self._to_states(y)
+        zs = self._to_states(z)
+
+        yz = np.column_stack([ys, zs])
+        _, yz_states = np.unique(yz, axis=0, return_inverse=True)
+
+        mi_x_yz = float(mutual_info_score(xs, yz_states))
+        mi_x_z = float(mutual_info_score(xs, zs))
+        return float(max(0.0, mi_x_yz - mi_x_z))
+
+
+class DecoderEstimator(BaseInformationEstimator):
+    """Decoder-based MI estimator for discrete targets.
+
+    For I(X;C) where C is discrete (class labels), estimate:
+      I(X;C) = H(C) - H(C|X)
+    where H(C|X) is approximated by cross-validated negative log-likelihood of
+    a probabilistic classifier (default: multinomial logistic regression).
+
+    Continuous-continuous MI/CMI is only supported when explicitly enabled via
+    `continuous_strategy` ("binned" or "gaussian") and the total dimension is
+    <= `continuous_max_dim`; otherwise this returns NaN (with a warning).
+    """
+
+    def __init__(self, config: EstimatorConfig):
+        super().__init__(config)
+        self.n_bins = int(config.n_bins)
+        mp = dict(config.method_params or {})
+        self.cv_folds = int(mp.get("cv_folds", 5))
+        self.C = float(mp.get("C", 1.0))
+        self.standardize = bool(mp.get("standardize", True))
+        self.seed = int(mp.get("seed", 0))
+        self.continuous_strategy = str(mp.get("continuous_strategy", "none")).lower()
+        self.continuous_max_dim = int(mp.get("continuous_max_dim", 2))
+        self.gaussian_ridge = float(mp.get("gaussian_ridge", 1e-6))
+        self.binning_strategy = str(mp.get("binning_strategy", "quantile")).lower()
+        self.bias_correction = str(mp.get("bias_correction", "none")).lower()
+
+    def _unsupported(self, msg: str) -> float:
+        self.logger.warning(msg)
+        return float("nan")
+
+    def _binned_helper(self) -> BinnedEstimator:
+        cfg = EstimatorConfig(
+            method=EstimationMethod.BINNED,
+            n_bins=self.n_bins,
+            method_params={
+                "binning_strategy": self.binning_strategy,
+                "bias_correction": self.bias_correction,
+            },
+        )
+        return BinnedEstimator(cfg)
+
+    def _cov(self, x: np.ndarray) -> np.ndarray:
+        x = self._ensure_2d(np.asarray(x))
+        cov = np.cov(x, rowvar=False)
+        cov = np.atleast_2d(cov)
+        cov = cov + float(self.gaussian_ridge) * np.eye(cov.shape[0])
+        return cov
+
+    def _gaussian_mi(self, x: np.ndarray, y: np.ndarray) -> float:
+        x = self._ensure_2d(np.asarray(x))
+        y = self._ensure_2d(np.asarray(y))
+        xy = np.hstack([x, y])
+
+        sx, ldx = np.linalg.slogdet(self._cov(x))
+        sy, ldy = np.linalg.slogdet(self._cov(y))
+        sxy, ldxy = np.linalg.slogdet(self._cov(xy))
+        if sx <= 0 or sy <= 0 or sxy <= 0:
+            return self._unsupported(
+                "decoder(gaussian): non-positive definite covariance"
+            )
+        mi = 0.5 * (ldx + ldy - ldxy)
+        return float(max(0.0, mi))
+
+    def _gaussian_cmi(self, x: np.ndarray, y: np.ndarray, z: np.ndarray) -> float:
+        x = self._ensure_2d(np.asarray(x))
+        y = self._ensure_2d(np.asarray(y))
+        z = self._ensure_2d(np.asarray(z))
+        xz = np.hstack([x, z])
+        yz = np.hstack([y, z])
+        xyz = np.hstack([x, y, z])
+
+        sxz, ldxz = np.linalg.slogdet(self._cov(xz))
+        syz, ldyz = np.linalg.slogdet(self._cov(yz))
+        sz, ldz = np.linalg.slogdet(self._cov(z))
+        sxyz, ldxyz = np.linalg.slogdet(self._cov(xyz))
+        if sxz <= 0 or syz <= 0 or sz <= 0 or sxyz <= 0:
+            return self._unsupported(
+                "decoder(gaussian): non-positive definite covariance for CMI"
+            )
+        cmi = 0.5 * (ldxz + ldyz - ldz - ldxyz)
+        return float(max(0.0, cmi))
+
+    def _continuous_dim_ok(self, total_dim: int) -> bool:
+        return int(total_dim) <= int(self.continuous_max_dim)
+
+    def _mi_cont_cont(self, x: np.ndarray, y: np.ndarray) -> float:
+        x = self._ensure_2d(np.asarray(x))
+        y = self._ensure_2d(np.asarray(y))
+        total_dim = int(x.shape[1] + y.shape[1])
+
+        if not self._continuous_dim_ok(total_dim):
+            return self._unsupported(
+                f"decoder: continuous MI unsupported for dim={total_dim} (max {self.continuous_max_dim}). "
+                f"Use method='kraskov' for high-dim, or set decoder_continuous_strategy for low-dim."
+            )
+
+        if self.continuous_strategy in {"binned", "bin", "hist", "histogram"}:
+            return float(self._binned_helper().mutual_information(x, y))
+        if self.continuous_strategy in {"gaussian", "bayes"}:
+            return float(self._gaussian_mi(x, y))
+        return self._unsupported(
+            "decoder: continuous MI disabled (decoder_continuous_strategy='none')."
+        )
+
+    @staticmethod
+    def _discrete_entropy_nats(labels: np.ndarray) -> float:
+        labels = np.asarray(labels).ravel().astype(int)
+        if labels.size == 0:
+            return 0.0
+        counts = np.bincount(labels)
+        counts = counts[counts > 0]
+        if counts.size == 0:
+            return 0.0
+        p = counts.astype(float) / float(counts.sum())
+        return float(-np.sum(p * np.log(p + 1e-12)))
+
+    def _mi_cont_disc_decoder(self, x: np.ndarray, labels: np.ndarray) -> float:
+        x = self._ensure_2d(np.asarray(x))
+        y = KraskovEstimator._to_int_labels(np.asarray(labels).ravel())
+
+        n_classes = int(np.unique(y).size)
+        if n_classes <= 1:
+            return 0.0
+
+        H = self._discrete_entropy_nats(y)
+
+        # Choose a feasible number of folds based on minimum class count.
+        counts = np.bincount(y)
+        min_count = int(counts[counts > 0].min()) if np.any(counts > 0) else 0
+        n_splits = min(max(2, int(self.cv_folds)), min_count) if min_count >= 2 else 0
+        if n_splits < 2:
+            return 0.0
+
+        cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=self.seed)
+
+        base_clf = LogisticRegression(
+            C=self.C,
+            penalty="l2",
+            solver="lbfgs",
+            max_iter=1000,
+            multi_class="auto",
+        )
+        clf = (
+            make_pipeline(StandardScaler(), base_clf) if self.standardize else base_clf
+        )
+
+        classes = np.arange(n_classes)
+        total_loss = 0.0
+        total_n = 0
+        for train_idx, test_idx in cv.split(x, y):
+            x_tr, x_te = x[train_idx], x[test_idx]
+            y_tr, y_te = y[train_idx], y[test_idx]
+
+            try:
+                clf.fit(x_tr, y_tr)
+                proba = clf.predict_proba(x_te)
+            except Exception:
+                return 0.0
+
+            total_loss += float(log_loss(y_te, proba, labels=classes, normalize=False))
+            total_n += int(y_te.size)
+
+        if total_n <= 0:
+            return 0.0
+
+        H_cond = total_loss / float(total_n)
+        return float(max(0.0, H - H_cond))
+
+    def mutual_information(self, x: np.ndarray, y: np.ndarray) -> float:
+        x = self._ensure_2d(x)
+        y = self._ensure_2d(y)
+        self._validate_inputs(x, y)
+
+        x_is_discrete = x.shape[1] == 1 and KraskovEstimator._is_discrete_1d(x[:, 0])
+        y_is_discrete = y.shape[1] == 1 and KraskovEstimator._is_discrete_1d(y[:, 0])
+
+        if x_is_discrete and y_is_discrete:
+            return float(
+                mutual_info_score(
+                    KraskovEstimator._to_int_labels(x[:, 0]),
+                    KraskovEstimator._to_int_labels(y[:, 0]),
+                )
+            )
+
+        if y_is_discrete and not x_is_discrete:
+            return self._mi_cont_disc_decoder(x, y[:, 0])
+
+        if x_is_discrete and not y_is_discrete:
+            return self._mi_cont_disc_decoder(y, x[:, 0])
+
+        # Continuous-continuous: only if explicitly enabled for low-dimensional cases.
+        return self._mi_cont_cont(x, y)
+
+    def conditional_mutual_information(
+        self, x: np.ndarray, y: np.ndarray, z: np.ndarray
+    ) -> float:
+        x = self._ensure_2d(x)
+        y = self._ensure_2d(y)
+        z = self._ensure_2d(z)
+        self._validate_inputs(x, y, z)
+
+        y_is_discrete = y.shape[1] == 1 and KraskovEstimator._is_discrete_1d(y[:, 0])
+        z_is_discrete = z.shape[1] == 1 and KraskovEstimator._is_discrete_1d(z[:, 0])
+
+        if z_is_discrete:
+            z_labels = z[:, 0]
+            n_total = int(z_labels.size)
+            if n_total <= 1:
+                return 0.0
+            cmi = 0.0
+            for val in np.unique(z_labels):
+                mask = z_labels == val
+                n = int(np.sum(mask))
+                if n <= 1:
+                    continue
+                cmi += (n / n_total) * float(self.mutual_information(x[mask], y[mask]))
+            return float(max(0.0, cmi))
+
+        if y_is_discrete:
+            xz = np.hstack([x, z])
+            mi_xz_y = self.mutual_information(xz, y)
+            mi_z_y = self.mutual_information(z, y)
+            return float(max(0.0, float(mi_xz_y) - float(mi_z_y)))
+
+        # All-continuous: only if explicitly enabled for low-dimensional cases.
+        x = self._ensure_2d(np.asarray(x))
+        y = self._ensure_2d(np.asarray(y))
+        z = self._ensure_2d(np.asarray(z))
+        total_dim = int(x.shape[1] + y.shape[1] + z.shape[1])
+        if not self._continuous_dim_ok(total_dim):
+            return self._unsupported(
+                f"decoder: continuous CMI unsupported for dim={total_dim} (max {self.continuous_max_dim})."
+            )
+        if self.continuous_strategy in {"binned", "bin", "hist", "histogram"}:
+            return float(self._binned_helper().conditional_mutual_information(x, y, z))
+        if self.continuous_strategy in {"gaussian", "bayes"}:
+            return float(self._gaussian_cmi(x, y, z))
+        return self._unsupported(
+            "decoder: continuous CMI disabled (decoder_continuous_strategy='none')."
+        )
 
 
 class SklearnEstimator(BaseInformationEstimator):
@@ -492,6 +959,8 @@ class InformationEstimatorFactory:
 
     _estimators: ClassVar[dict[EstimationMethod, type]] = {
         EstimationMethod.KRASKOV: KraskovEstimator,
+        EstimationMethod.DECODER: DecoderEstimator,
+        EstimationMethod.BINNED: BinnedEstimator,
         EstimationMethod.SKLEARN: SklearnEstimator,
         EstimationMethod.COPULA: CopulaEstimator,
     }

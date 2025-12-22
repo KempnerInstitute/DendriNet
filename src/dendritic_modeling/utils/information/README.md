@@ -73,10 +73,29 @@ Computed for:
 ## Estimation Methods
 
 ### Kraskov (k-NN) Estimator
-- Best for: General continuous data
-- Parameters: `n_neighbors` (default: 10)
-- Pros: Non-parametric, handles multivariate well
-- Cons: Can be slow for large datasets
+- Best for: Continuous data (including multivariate), and continuous↔discrete (e.g. activations vs class labels)
+- Parameters: `n_neighbors` (k, default: 10)
+- Pros:
+  - Non-parametric; captures non-linear dependencies
+  - Supports multivariate X/Y directly
+  - Handles discrete labels with a dedicated continuous–discrete estimator (Ross, 2014)
+  - Conditional MI uses a kNN CMI estimator for continuous Z (Frenzel–Pompe, 2007), and exact conditioning for discrete Z
+- Cons / gotchas:
+  - kNN estimators have finite-sample bias; results depend on k and sample size
+  - High-dimensional inputs (many features) can be noisy; consider reducing dimension or using fewer neighbors
+  - Output units are **nats** (use division by log(2) to convert to bits if needed)
+
+### Decoder Estimator (cross-validated classifier)
+- Best for: Estimating information about **discrete labels** (e.g. I(X;C))
+- Core idea: \(I(X;C) = H(C) - H(C|X)\) where \(H(C|X)\) is approximated by CV log-loss
+- Pros: Often more stable than kNN in very high-dimensional feature spaces
+- Cons: Gives a **model-dependent lower bound**; does not directly provide MI between two continuous variables
+
+### Binned Estimator (histogram / discretize-then-count)
+- Best for: Low-dimensional signals (sanity checks, quick baselines)
+- Parameters: `n_bins` + binning strategy (e.g. quantile vs uniform)
+- Pros: Simple, fast, interpretable
+- Cons: Strong finite-sample bias in higher dimensions (sparsity)
 
 ### Scikit-learn Estimator
 - Best for: Mixed discrete/continuous data

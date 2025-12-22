@@ -530,7 +530,7 @@ base_config:
       enabled: true                       # Enable information analysis (true/false)
       training: false                     # Run during training (true/false)
       params:
-        method: "kraskov"                 # MI estimation: "kraskov", "sklearn", "copula", "auto"
+        method: "kraskov"                 # MI estimation: "kraskov", "decoder", "binned", "sklearn", "copula", "auto"
         max_samples: 1000                 # Max samples (null = all)
         n_neighbors: 10                    # Kraskov k-NN (int >= 1)
         n_bins: 20                         # Histogram bins (int >= 2)
@@ -548,6 +548,17 @@ base_config:
         signal_variants: ["network", "lda"] # Variants: "network", "lda", "random" (random requires lda_n_shuffles > 0)
         lda_n_shuffles: 0                  # Random baseline shuffles (int >= 0)
         layer_total_topk: 10               # K for *_topK_sum proxies (int >= 1)
+        mi_null_shuffles: 0                # Null (label-shuffle) baseline shuffles (int >= 0; 0 disables)
+        mi_null_seed: 0                    # Null baseline seed (int)
+        decoder_cv_folds: 5                # decoder: CV folds (int >= 2)
+        decoder_C: 1.0                     # decoder: LogisticRegression C (float > 0)
+        decoder_standardize: true          # decoder: standardize X (true|false)
+        decoder_seed: 0                    # decoder: CV shuffle seed (int)
+        decoder_continuous_strategy: "none"  # decoder continuous: "none", "binned", "gaussian"
+        decoder_continuous_max_total_dim: 2  # decoder continuous: max total dim (x+y [+z]); used only if strategy != "none"
+        decoder_gaussian_ridge: 1e-6        # decoder continuous: gaussian ridge (float > 0)
+        binning_strategy: "quantile"       # binned: "quantile" or "uniform"
+        binning_bias_correction: "none"    # binned: "none" or "miller_madow"
 
     correlation_analysis:
       enabled: false                      # Enable correlation analysis (true/false)

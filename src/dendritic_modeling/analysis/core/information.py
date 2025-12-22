@@ -69,6 +69,8 @@ class InformationAnalyzer(AbstractAnalyzer):
         self.n_neighbors = getattr(params, "n_neighbors", 10)
         self.n_bins = getattr(params, "n_bins", 20)
         self.copula_type = getattr(params, "copula_type", "gaussian")
+        self.mi_null_shuffles = int(getattr(params, "mi_null_shuffles", 0) or 0)
+        self.mi_null_seed = int(getattr(params, "mi_null_seed", 0) or 0)
 
         def _norm(x: str) -> str:
             return str(x).strip().lower().replace("-", "_").replace(" ", "_")
@@ -190,12 +192,46 @@ class InformationAnalyzer(AbstractAnalyzer):
         # Create estimators for each method
         self.estimators = {}
         # For now, just use the single method specified, but keep the dict structure for compatibility
+        method_params: dict[str, Any] = {}
+        if _norm(self.method) == "decoder":
+            method_params = {
+                "cv_folds": int(getattr(params, "decoder_cv_folds", 5)),
+                "C": float(getattr(params, "decoder_C", 1.0)),
+                "standardize": bool(getattr(params, "decoder_standardize", True)),
+                "seed": int(getattr(params, "decoder_seed", 0)),
+                "continuous_strategy": str(
+                    getattr(params, "decoder_continuous_strategy", "none")
+                ),
+                "continuous_max_dim": int(
+                    getattr(params, "decoder_continuous_max_total_dim", 2)
+                ),
+                "gaussian_ridge": float(
+                    getattr(params, "decoder_gaussian_ridge", 1e-6)
+                ),
+                # Used if decoder_continuous_strategy="binned"
+                "binning_strategy": str(
+                    getattr(params, "binning_strategy", "quantile")
+                ),
+                "bias_correction": str(
+                    getattr(params, "binning_bias_correction", "none")
+                ),
+            }
+        elif _norm(self.method) == "binned":
+            method_params = {
+                "binning_strategy": str(
+                    getattr(params, "binning_strategy", "quantile")
+                ),
+                "bias_correction": str(
+                    getattr(params, "binning_bias_correction", "none")
+                ),
+            }
         estimator_config = EstimatorConfig(
             method=self.method,
             n_neighbors=self.n_neighbors,
             n_bins=self.n_bins,
             copula_type=self.copula_type,
             verbose=self.verbose,
+            method_params=method_params,
         )
         self.estimators[self.method] = InformationEstimatorFactory.create(
             estimator_config
@@ -890,7 +926,7 @@ class InformationAnalyzer(AbstractAnalyzer):
         for method, estimator in self.estimators.items():
             mi = estimator.mutual_information(acts, labels.reshape(-1, 1))
             results[f"{method}_mi_class"] = mi
-            if self.normalize:
+            if self.normalize_mi:
                 h_labels = estimator.entropy(labels.reshape(-1, 1))
                 results[f"{method}_normalized_mi_class"] = (
                     mi / h_labels if h_labels > 0 else 0
