@@ -45,22 +45,26 @@ class PerformancePlotter(BasePlotter):
         # Generate E/I ratio plots if applicable
         if "ei" in sweep_types:
             plot_paths.extend(self.plot_metrics_vs_ei_ratio(data, plots_dir))
-        
+
         if "stoch1" in sweep_types:
-            plot_paths.extend(self.plot_performance_heatmaps(
-                data, 
-                plots_dir,
-                "stimulus_duration",
-                "max_gain_factor",
-            ))
-        
+            plot_paths.extend(
+                self.plot_performance_heatmaps(
+                    data,
+                    plots_dir,
+                    "stimulus_duration",
+                    "max_gain_factor",
+                )
+            )
+
         if "stoch2" in sweep_types:
-            plot_paths.extend(self.plot_performance_heatmaps(
-                data, 
-                plots_dir,
-                "stimulus_duration",
-                "max_gain_tau_ratio",
-            ))
+            plot_paths.extend(
+                self.plot_performance_heatmaps(
+                    data,
+                    plots_dir,
+                    "stimulus_duration",
+                    "max_gain_tau_ratio",
+                )
+            )
 
         # Generate parameter scaling plots if applicable
         if "nparams" in sweep_types:
@@ -126,11 +130,7 @@ class PerformancePlotter(BasePlotter):
         return plot_paths
 
     def plot_performance_heatmaps(
-        self, 
-        data: pd.DataFrame, 
-        output_dir: Path,
-        colx: str,
-        coly: str
+        self, data: pd.DataFrame, output_dir: Path, colx: str, coly: str
     ) -> list[Path]:
         """
         Generate performance heatmaps (metric vs EE vs IE).
@@ -170,7 +170,7 @@ class PerformancePlotter(BasePlotter):
                     if not category_data.empty and mean_col in category_data.columns:
                         values = category_data[mean_col].dropna()
                         all_values.extend(values.tolist())
-                
+
                 # Calculate global vmin/vmax for consistent scaling
                 if all_values:
                     vmin, vmax = min(all_values), max(all_values)
@@ -234,7 +234,7 @@ class PerformancePlotter(BasePlotter):
                         cbar_kws={"label": get_metric_label(metric)},
                         ax=ax,
                         vmin=vmin,
-                        vmax=vmax
+                        vmax=vmax,
                     )
                     # Invert y-axis to place origin at lower left
                     ax.invert_yaxis()
@@ -249,27 +249,31 @@ class PerformancePlotter(BasePlotter):
                     # Align indices and columns for subtraction
                     shunt_pivot = pivot_tables["shunting"]
                     no_shunt_pivot = pivot_tables["no_shunting"]
-                    
+
                     # Reindex to ensure same index and columns
                     common_index = shunt_pivot.index.union(no_shunt_pivot.index)
                     common_cols = shunt_pivot.columns.union(no_shunt_pivot.columns)
-                    
-                    shunt_aligned = shunt_pivot.reindex(index=common_index, columns=common_cols)
-                    no_shunt_aligned = no_shunt_pivot.reindex(index=common_index, columns=common_cols)
-                    
+
+                    shunt_aligned = shunt_pivot.reindex(
+                        index=common_index, columns=common_cols
+                    )
+                    no_shunt_aligned = no_shunt_pivot.reindex(
+                        index=common_index, columns=common_cols
+                    )
+
                     # Calculate difference
                     diff_pivot = shunt_aligned - no_shunt_aligned
-                    
+
                     # Calculate symmetric vmin/vmax centered at 0
                     diff_values = diff_pivot.values.flatten()
                     diff_values = diff_values[~pd.isna(diff_values)]
-                    
+
                     if len(diff_values) > 0:
                         abs_max = max(abs(diff_values.min()), abs(diff_values.max()))
                         diff_vmin, diff_vmax = -abs_max, abs_max
                     else:
                         diff_vmin, diff_vmax = -1, 1
-                    
+
                     sns.heatmap(
                         diff_pivot,
                         cmap="seismic_r",
@@ -279,14 +283,16 @@ class PerformancePlotter(BasePlotter):
                         ax=ax_diff,
                         vmin=diff_vmin,
                         vmax=diff_vmax,
-                        center=0
+                        center=0,
                     )
                     # Invert y-axis to place origin at lower left
                     ax_diff.invert_yaxis()
-                    
+
                     ax_diff.set_xlabel(colx, fontsize=12)
                     ax_diff.set_ylabel(coly, fontsize=12)
-                    ax_diff.set_title("Difference (Shunting - Non-Shunting)", fontsize=14)
+                    ax_diff.set_title(
+                        "Difference (Shunting - Non-Shunting)", fontsize=14
+                    )
                 else:
                     ax_diff.text(
                         0.5,
@@ -296,7 +302,9 @@ class PerformancePlotter(BasePlotter):
                         va="center",
                         transform=ax_diff.transAxes,
                     )
-                    ax_diff.set_title("Difference (Shunting - Non-Shunting)", fontsize=14)
+                    ax_diff.set_title(
+                        "Difference (Shunting - Non-Shunting)", fontsize=14
+                    )
 
                 fig.tight_layout()
                 plot_path = output_dir / f"{metric}_heatmap.png"

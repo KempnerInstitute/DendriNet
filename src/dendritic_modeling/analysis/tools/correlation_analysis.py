@@ -50,8 +50,17 @@ class CorrelationAnalyzer(AbstractAnalyzer):
         def _norm(x: str) -> str:
             return str(x).strip().lower().replace("-", "_").replace(" ", "_")
 
+        # New (preferred) grouped config blocks (optional; keep backward compatibility)
+        selection_cfg = getattr(params, "selection", None)
+        compute_cfg = getattr(params, "compute", None)
+        sampling_cfg = getattr(params, "sampling", None)
+
         # Core parameters
-        self.computation_level = getattr(params, "computation_level", "layer_branch")
+        self.computation_level = getattr(
+            compute_cfg,
+            "computation_level",
+            getattr(params, "computation_level", "layer_branch"),
+        )
 
         # ------------------------------------------------------------------
         # Legacy boolean selection (still supported).
@@ -78,14 +87,35 @@ class CorrelationAnalyzer(AbstractAnalyzer):
             getattr(params, "analyze_output_output", True)
         )
 
-        self.per_layer_analysis = bool(getattr(params, "per_layer_analysis", True))
-        self.per_einet_analysis = bool(getattr(params, "per_einet_analysis", True))
-        self.per_neuron_analysis = bool(getattr(params, "per_neuron_analysis", False))
+        self.per_layer_analysis = bool(
+            getattr(
+                compute_cfg,
+                "per_layer_analysis",
+                getattr(params, "per_layer_analysis", True),
+            )
+        )
+        self.per_einet_analysis = bool(
+            getattr(
+                compute_cfg,
+                "per_einet_analysis",
+                getattr(params, "per_einet_analysis", True),
+            )
+        )
+        self.per_neuron_analysis = bool(
+            getattr(
+                compute_cfg,
+                "per_neuron_analysis",
+                getattr(params, "per_neuron_analysis", False),
+            )
+        )
 
         # ------------------------------------------------------------------
         # Preferred list-based selectors (override booleans if non-empty).
         # ------------------------------------------------------------------
-        components_raw = list(getattr(params, "components", []) or [])
+        components_raw = list(
+            getattr(selection_cfg, "components", getattr(params, "components", []))
+            or []
+        )
         if components_raw:
             comps = {_norm(x) for x in components_raw if str(x).strip()}
             self.compute_total_correlations = bool({"total", "all"}.intersection(comps))
@@ -95,7 +125,9 @@ class CorrelationAnalyzer(AbstractAnalyzer):
                 {"tuning", "tuning_curves"}.intersection(comps)
             )
 
-        pairs_raw = list(getattr(params, "pairs", []) or [])
+        pairs_raw = list(
+            getattr(selection_cfg, "pairs", getattr(params, "pairs", [])) or []
+        )
         if pairs_raw:
             pairs = {_norm(x) for x in pairs_raw if str(x).strip()}
             self.analyze_EE = bool({"ee"}.intersection(pairs))
@@ -111,7 +143,9 @@ class CorrelationAnalyzer(AbstractAnalyzer):
                 {"output_output", "vout_vout", "out_out"}.intersection(pairs)
             )
 
-        scopes_raw = list(getattr(params, "scopes", []) or [])
+        scopes_raw = list(
+            getattr(selection_cfg, "scopes", getattr(params, "scopes", [])) or []
+        )
         if scopes_raw:
             scopes = {_norm(x) for x in scopes_raw if str(x).strip()}
             self.per_layer_analysis = bool({"layer", "per_layer"}.intersection(scopes))
@@ -121,14 +155,32 @@ class CorrelationAnalyzer(AbstractAnalyzer):
             )
 
         # Sampling parameters (for synaptic level) (with defaults)
-        self.n_synapse_pairs = getattr(params, "n_synapse_pairs", 1000)
-        self.sampling_strategy = getattr(params, "sampling_strategy", "random")
-        self.stratified_categories = getattr(params, "stratified_categories", None)
-        self.max_pairs_per_category = getattr(params, "max_pairs_per_category", None)
+        self.n_synapse_pairs = getattr(
+            sampling_cfg, "n_synapse_pairs", getattr(params, "n_synapse_pairs", 1000)
+        )
+        self.sampling_strategy = getattr(
+            sampling_cfg,
+            "sampling_strategy",
+            getattr(params, "sampling_strategy", "random"),
+        )
+        self.stratified_categories = getattr(
+            sampling_cfg,
+            "stratified_categories",
+            getattr(params, "stratified_categories", None),
+        )
+        self.max_pairs_per_category = getattr(
+            sampling_cfg,
+            "max_pairs_per_category",
+            getattr(params, "max_pairs_per_category", None),
+        )
 
         # Performance (with defaults)
-        self.max_samples = getattr(params, "max_samples", 5000)
-        self.batch_process = getattr(params, "batch_process", True)
+        self.max_samples = getattr(
+            compute_cfg, "max_samples", getattr(params, "max_samples", 5000)
+        )
+        self.batch_process = getattr(
+            compute_cfg, "batch_process", getattr(params, "batch_process", True)
+        )
 
         self.logger.info(
             f"Initialized CorrelationAnalyzer with computation_level: {self.computation_level}"
@@ -718,6 +770,72 @@ class CorrelationAnalyzer(AbstractAnalyzer):
 
         return stats
 
+    def _compute_per_neuron_correlation_summary(
+        self, correlations: dict[str, Any]
+    ) -> dict[str, Any]:
+        r"""Compute per-unit correlation strength summaries.
+
+        This is a lightweight "per-neuron" view: instead of returning full
+        correlation matrices only, we also compute a per-unit summary such as
+        the mean absolute correlation of each unit with others.
+
+        Notes
+        -----
+        - For self-correlation matrices (EE / II / Vout_Vout), we compute for each
+          unit \(i\): mean_j!=i |corr(i, j)|.
+        - For cross-correlation matrices (EI / E_Vout / I_Vout), we compute mean
+          absolute correlations per row (x-side) and per column (y-side).
+        """
+
+        by_type: dict[str, Any] = {}
+        corr_types = ["EE", "II", "EI", "E_Vout", "I_Vout", "Vout_Vout"]
+        conds = ["total", "noise", "signal"]
+
+        for corr_type in corr_types:
+            corr_data = correlations.get(corr_type)
+            if not isinstance(corr_data, dict):
+                continue
+
+            by_type[corr_type] = {}
+            for cond in conds:
+                matrix = corr_data.get(cond)
+                if not isinstance(matrix, np.ndarray):
+                    continue
+
+                abs_mat = np.abs(matrix)
+                if corr_type in {"EE", "II", "Vout_Vout"}:
+                    n = int(abs_mat.shape[0])
+                    if n <= 1:
+                        per_unit = np.zeros(n, dtype=float)
+                    else:
+                        per_unit = (np.sum(abs_mat, axis=1) - np.diag(abs_mat)) / (
+                            n - 1
+                        )
+
+                    by_type[corr_type][cond] = {
+                        "per_unit_mean_abs": per_unit,
+                        "mean": float(np.mean(per_unit)) if per_unit.size else 0.0,
+                        "std": float(np.std(per_unit)) if per_unit.size else 0.0,
+                        "n_units": n,
+                    }
+                else:
+                    n_x, n_y = int(abs_mat.shape[0]), int(abs_mat.shape[1])
+                    per_x = np.mean(abs_mat, axis=1) if n_y > 0 else np.zeros(n_x)
+                    per_y = np.mean(abs_mat, axis=0) if n_x > 0 else np.zeros(n_y)
+
+                    by_type[corr_type][cond] = {
+                        "per_x_mean_abs": per_x,
+                        "per_y_mean_abs": per_y,
+                        "x_mean": float(np.mean(per_x)) if per_x.size else 0.0,
+                        "x_std": float(np.std(per_x)) if per_x.size else 0.0,
+                        "y_mean": float(np.mean(per_y)) if per_y.size else 0.0,
+                        "y_std": float(np.std(per_y)) if per_y.size else 0.0,
+                        "n_x": n_x,
+                        "n_y": n_y,
+                    }
+
+        return {"by_type": by_type}
+
     def analyze(
         self,
         model: BaseModel,
@@ -943,6 +1061,12 @@ class CorrelationAnalyzer(AbstractAnalyzer):
 
         results["network_level"] = network_corr
 
+        # Per-neuron analysis (summary distributions of per-unit correlation strength)
+        if self.per_neuron_analysis:
+            results["per_neuron_analysis"] = (
+                self._compute_per_neuron_correlation_summary(network_corr)
+            )
+
         # Per E/I network analysis
         if self.per_einet_analysis:
             results["per_einet_analysis"] = self._compute_per_ei_analysis(
@@ -982,6 +1106,41 @@ class CorrelationAnalyzer(AbstractAnalyzer):
         network_corr["summary_stats"] = self._compute_summary_statistics(network_corr)
 
         results["network_level"] = network_corr
+
+        # Optional per-layer analysis (still meaningful even in all-branch mode)
+        if self.per_layer_analysis:
+            layer_results = {}
+            layers = list(self.data_dict.items())
+            for layer_name, layer_data in tqdm(
+                layers, desc="Layer correlation", leave=False, ncols=100
+            ):
+                E = layer_data["excitation"].cpu().numpy()
+                Inh = layer_data["inhibition"].cpu().numpy()
+                Vout = layer_data["output"].cpu().numpy()
+
+                layer_corr = self._compute_branch_correlations(E, Inh, Vout, labels)
+                if self.compute_tuning_curves:
+                    layer_corr["tuning"] = self._compute_tuning_curves(
+                        E, Inh, Vout, labels
+                    )
+                layer_corr["summary_stats"] = self._compute_summary_statistics(
+                    layer_corr
+                )
+                layer_results[layer_name] = layer_corr
+
+            results["per_layer_analysis"] = layer_results
+
+        # Per-neuron analysis (summary distributions of per-unit correlation strength)
+        if self.per_neuron_analysis:
+            results["per_neuron_analysis"] = (
+                self._compute_per_neuron_correlation_summary(network_corr)
+            )
+
+        # Per E/I network analysis
+        if self.per_einet_analysis:
+            results["per_einet_analysis"] = self._compute_per_ei_analysis(
+                network_E, network_I, network_Vout, labels
+            )
 
     def _compute_per_ei_analysis(
         self, E: np.ndarray, Inh: np.ndarray, Vout: np.ndarray, labels: np.ndarray

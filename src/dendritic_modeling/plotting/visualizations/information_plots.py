@@ -962,6 +962,12 @@ def _generate_layer_comparison_plots(
                 def depth_sort_key(depth_name):
                     if depth_name == "Soma":
                         return 0
+                    # Backward-compatible: some plots use "Layer N" labels
+                    elif depth_name.startswith("Layer"):
+                        try:
+                            return int(depth_name.split()[-1])
+                        except ValueError:
+                            return 99
                     elif depth_name.startswith("Distal Layer"):
                         try:
                             return int(depth_name.split()[-1])
@@ -1070,9 +1076,64 @@ def plot_layer_wise_aggregated_analysis(
         logger = logging.getLogger(__name__)
 
     logger.info("Generating layer-wise aggregated plots...")
-    # Implementation similar to _plot_structured_ei_network_analysis but aggregating E/I
-    # This would be called when per_layer=True, per_einet=False
-    # Placeholder for now
+    # Goal: keep EI layers separate, but aggregate E/I networks within each layer.
+    # We implement this by generating a fully-aggregated dendritic-depth plot *per EI layer*.
+    import os
+
+    # Collect EI layer indices present in layer_statistics
+    layer_indices: set[int] = set()
+    for layer_name in layer_statistics.keys():
+        parts = str(layer_name).split(".")
+        if "layers" in parts:
+            try:
+                idx = parts.index("layers")
+                layer_indices.add(int(parts[idx + 1]))
+            except (ValueError, IndexError):
+                continue
+
+    if not layer_indices:
+        logger.warning(
+            "No EI layers found in layer_statistics; skipping layer-wise plots."
+        )
+        return
+
+    out_root = os.path.join(save_path, "layer_wise_aggregated")
+    os.makedirs(out_root, exist_ok=True)
+
+    for layer_idx in sorted(layer_indices):
+        subset: dict[str, Any] = {}
+        for layer_name, stats in layer_statistics.items():
+            if layer_name == "synthetic_soma":
+                # Include synthetic soma in all subsets (safe no-op if absent).
+                subset[layer_name] = stats
+                continue
+
+            parts = str(layer_name).split(".")
+            if "layers" not in parts:
+                continue
+            try:
+                idx = parts.index("layers")
+                ei_layer_idx = int(parts[idx + 1])
+            except (ValueError, IndexError):
+                continue
+            if ei_layer_idx == layer_idx:
+                subset[layer_name] = stats
+
+        if not subset:
+            continue
+
+        layer_dir = os.path.join(out_root, f"ei_layer_{layer_idx}")
+        os.makedirs(layer_dir, exist_ok=True)
+
+        # Re-use the robust aggregation/plotting logic.
+        plot_fully_aggregated_analysis(
+            subset,
+            save_path=layer_dir,
+            logger=logger,
+            somatic_synapses=somatic_synapses,
+        )
+
+    logger.info(f"Saved layer-wise aggregated plots under: {out_root}")
 
 
 def plot_network_wise_aggregated_analysis(
@@ -1089,9 +1150,42 @@ def plot_network_wise_aggregated_analysis(
         logger = logging.getLogger(__name__)
 
     logger.info("Generating network-wise aggregated plots...")
-    # Implementation would aggregate across layers but keep E/I separate
-    # This would be called when per_layer=False, per_einet=True
-    # Placeholder for now
+    # Goal: aggregate across EI layers, but keep E/I networks separate.
+    # We implement this by generating a fully-aggregated dendritic-depth plot *per network type*.
+    import os
+
+    # Partition layer_statistics by cell type (excitatory_cells vs inhibitory_cells)
+    groups: dict[str, dict[str, Any]] = {"excitatory_cells": {}, "inhibitory_cells": {}}
+    for layer_name, stats in layer_statistics.items():
+        if layer_name == "synthetic_soma":
+            # Include synthetic soma in both networks (safe no-op if absent).
+            groups["excitatory_cells"][layer_name] = stats
+            groups["inhibitory_cells"][layer_name] = stats
+            continue
+
+        lname = str(layer_name)
+        if "excitatory_cells" in lname:
+            groups["excitatory_cells"][layer_name] = stats
+        elif "inhibitory_cells" in lname:
+            groups["inhibitory_cells"][layer_name] = stats
+
+    out_root = os.path.join(save_path, "network_wise_aggregated")
+    os.makedirs(out_root, exist_ok=True)
+
+    for cell_type, subset in groups.items():
+        if not subset:
+            continue
+        net_dir = os.path.join(out_root, cell_type.replace("_cells", ""))
+        os.makedirs(net_dir, exist_ok=True)
+
+        plot_fully_aggregated_analysis(
+            subset,
+            save_path=net_dir,
+            logger=logger,
+            somatic_synapses=somatic_synapses,
+        )
+
+    logger.info(f"Saved network-wise aggregated plots under: {out_root}")
 
 
 def plot_info_vs_ei_depth_per_dendritic_layer(
@@ -1676,6 +1770,7 @@ def plot_fully_aggregated_analysis(
                         ("I(E;C)", "#1f77b4", "DendriNet"),
                         ("I(E_lin;C)", "#ff7f0e", r"LDA$_{+}$"),
                         ("I(E_sh;C)", "#7f7f7f", "Random"),  # Gray for random baseline
+                        ("I(E;C)_null", "#000000", "Label-shuffle"),
                     ],
                 ),
                 (
@@ -1684,6 +1779,7 @@ def plot_fully_aggregated_analysis(
                         ("I(I;C)", "#1f77b4", "DendriNet"),
                         ("I(I_lin;C)", "#ff7f0e", r"LDA$_{+}$"),
                         ("I(I_sh;C)", "#7f7f7f", "Random"),
+                        ("I(I;C)_null", "#000000", "Label-shuffle"),
                     ],
                 ),
                 (
@@ -1692,6 +1788,7 @@ def plot_fully_aggregated_analysis(
                         ("I(Vb;C)", "#1f77b4", "DendriNet"),
                         ("I(Vb_lin;C)", "#ff7f0e", r"LDA$_{+}$"),
                         ("I(Vb_sh;C)", "#7f7f7f", "Random"),
+                        ("I(Vb;C)_null", "#000000", "Label-shuffle"),
                     ],
                 ),
                 (
@@ -1700,6 +1797,7 @@ def plot_fully_aggregated_analysis(
                         ("I(Vout;C)", "#1f77b4", "DendriNet"),
                         ("I(Vout_lin;C)", "#ff7f0e", r"LDA$_{+}$"),
                         ("I(Vout_sh;C)", "#7f7f7f", "Random"),
+                        ("I(Vout;C)_null", "#000000", "Label-shuffle"),
                     ],
                 ),
                 (
@@ -1708,6 +1806,7 @@ def plot_fully_aggregated_analysis(
                         ("I(E,I;C)", "#1f77b4", "DendriNet"),
                         ("I(E_lin,I_lin;C)", "#ff7f0e", r"LDA$_{+}$"),
                         ("I(E_sh,I_sh;C)", "#7f7f7f", "Random"),
+                        ("I(E,I;C)_null", "#000000", "Label-shuffle"),
                     ],
                 ),
             ],

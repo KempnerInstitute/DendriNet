@@ -37,18 +37,231 @@ class PerformanceAnalysisConfig(BaseConfig):
 
 
 @dataclass
+class InformationSelectionParams(BaseConfig):
+    """Selectors for what to compute and how to break it down.
+
+    - components: metric families to compute
+      - "basic": I(E;C), I(I;C), I(Vb;C), I(Vout;C), I(E,I;C), ...
+      - "pairwise": I(E;I), I(E;Vout), I(Vb;Vout), ...
+      - "conditional": conditional MI terms like I(E;Vout|C) or I(Vout;C|E,I)
+      - "pid": partial information decomposition (currently disabled; reserved)
+      - "ablation_aligned": extra CMI terms designed to mirror ablations
+      - "layer_proxies": layer-total proxies derived from single-branch metrics
+      - "upstream_unique_cmi": adds I(Vb;C|E,I) (can be expensive)
+    - scopes: extra summaries/breakdowns to run
+      - "layer": per-layer breakdown
+      - "einet": separate excitatory vs inhibitory pathway summaries
+      - "neuron": per-neuron breakdown (expensive)
+    - signal_variants: which signal variants to compute/plot
+      - "network": DendriNet signals (always included)
+      - "lda": *_lin variants using LDA projections
+      - "random": *_sh random-weight baseline for LDA (requires baselines.random_weights.n_shuffles > 0)
+    """
+
+    components: list[str] = field(default_factory=list)
+    scopes: list[str] = field(default_factory=list)
+    signal_variants: list[str] = field(default_factory=list)
+    # Backward-compatible alias (deprecated): prefer `scopes`.
+    views: list[str] = field(default_factory=list)
+
+
+@dataclass
+class InformationComputeParams(BaseConfig):
+    """Runtime/aggregation controls (method-agnostic)."""
+
+    max_samples: Optional[int] = None
+    include_vinf: bool = True  # Include soma activation (Vinf)
+    normalize_mi: bool = False  # Normalize by H(C)
+    verbose: bool = False
+
+    computation_level: str = (
+        "single_branch"  # "single_branch", "layer_branch", "all_branch"
+    )
+    branch_aggregation: str = "mean"  # "mean", "multivariate", "sample"
+
+    # Layer-total proxies derived from single-branch metrics
+    layer_total_topk: int = 10  # K used for *_topK_sum metrics (int >= 1)
+
+    # Legacy (deprecated) scope toggles (use selection.scopes)
+    per_neuron_analysis: bool = False
+    per_einet_analysis: bool = False
+    per_layer_analysis: bool = False
+
+    # Legacy (deprecated) signal-variant toggles (use selection.signal_variants / baselines)
+    compute_lda_weights: bool = False
+
+
+@dataclass
+class InformationPIDParams(BaseConfig):
+    """PID-specific options (currently disabled; reserved for future use).
+
+    Notes
+    -----
+    PID is currently disabled:
+    - Synergy/redundancy are computed via an optional external PID backend.
+      If that backend is not installed, PID metrics are skipped.
+    - The reported "unique_*" terms are computed as:
+      ``I(source;target) - redundancy`` using the *same* MI estimator selected by
+      ``estimator.method``.
+
+    Because typical PID backends assume **discrete** variables, we default to
+    binarization. Treat PID numbers as exploratory diagnostics, not a primary
+    metric.
+    """
+
+    binarize: bool = True
+    binarize_method: str = "median"  # "median", "mean", "quantile"
+    binarize_threshold: float = 0.5
+
+
+@dataclass
+class InformationEstimatorKraskovParams(BaseConfig):
+    """Kraskov/KSG (kNN) estimator hyperparameters."""
+
+    n_neighbors: int = 10
+
+
+@dataclass
+class InformationEstimatorBinnedParams(BaseConfig):
+    """Histogram/binning plug-in estimator hyperparameters."""
+
+    n_bins: int = 20
+    binning_strategy: str = "quantile"  # "quantile", "uniform"
+    bias_correction: str = "none"  # "none", "miller_madow"
+
+
+@dataclass
+class InformationEstimatorDecoderContinuousParams(BaseConfig):
+    """Continuous fallback options for the decoder estimator."""
+
+    strategy: str = "none"  # "none", "binned", "gaussian"
+    max_total_dim: int = 2  # max total dim (x+y [+z]) for continuous MI/CMI
+    gaussian_ridge: float = 1e-6
+
+
+@dataclass
+class InformationEstimatorDecoderParams(BaseConfig):
+    """Decoder-based estimator hyperparameters (discrete target C)."""
+
+    cv_folds: int = 5
+    C: float = 1.0
+    standardize: bool = True
+    seed: int = 0
+    continuous: InformationEstimatorDecoderContinuousParams = field(
+        default_factory=InformationEstimatorDecoderContinuousParams
+    )
+
+
+@dataclass
+class InformationEstimatorCopulaParams(BaseConfig):
+    """Copula-based estimator hyperparameters (experimental).
+
+    - type="gaussian": Gaussian copula (closed-form in the univariate case).
+    - type="kernel": nonparametric KDE on the copula density (sample-hungry).
+    - type="dvc": placeholder for a TF/DVC implementation; currently falls back
+      to the simple copula path in this repository.
+
+    Note: for multivariate inputs, the current implementation falls back to a
+    kNN/KSG estimator on rank-transformed (uniform-marginal) data.
+    """
+
+    type: str = "gaussian"  # "gaussian", "kernel", "dvc"
+
+
+@dataclass
+class InformationEstimatorSklearnParams(BaseConfig):
+    """Sklearn MI estimator hyperparameters (histogram/KDE depending on dimensionality)."""
+
+    n_bins: int = 20
+    bandwidth: Optional[float] = None
+
+
+@dataclass
+class InformationEstimatorParams(BaseConfig):
+    """Estimator selection and method-specific hyperparameters.
+
+    - method: "kraskov", "decoder", "binned", "sklearn", "copula", "auto"
+    """
+
+    method: str = "kraskov"
+    kraskov: InformationEstimatorKraskovParams = field(
+        default_factory=InformationEstimatorKraskovParams
+    )
+    binned: InformationEstimatorBinnedParams = field(
+        default_factory=InformationEstimatorBinnedParams
+    )
+    decoder: InformationEstimatorDecoderParams = field(
+        default_factory=InformationEstimatorDecoderParams
+    )
+    copula: InformationEstimatorCopulaParams = field(
+        default_factory=InformationEstimatorCopulaParams
+    )
+    sklearn: InformationEstimatorSklearnParams = field(
+        default_factory=InformationEstimatorSklearnParams
+    )
+
+
+@dataclass
+class InformationBaselinesRandomWeightsParams(BaseConfig):
+    """Random-weight baseline for LDA aggregation (produces *_sh metrics).
+
+    This baseline generates random non-negative weights (with the same
+    normalization/constraints as LDA weights) and recomputes the aggregated
+    signals before running MI. It is **not** a permutation/null baseline.
+    """
+
+    n_shuffles: int = 0  # int >= 0; 0 disables
+    seed: int = 0
+
+
+@dataclass
+class InformationBaselinesLabelShuffleNullParams(BaseConfig):
+    """Label-shuffle null baseline for MI terms with C (produces *_null metrics).
+
+    This is a finite-sample bias / null diagnostic: it permutes the label vector
+    ``C`` across samples and recomputes MI using the same estimator selected by
+    ``estimator.method``.
+    """
+
+    n_shuffles: int = 0  # int >= 0; 0 disables
+    seed: int = 0
+
+
+@dataclass
+class InformationBaselinesParams(BaseConfig):
+    """Baseline configuration for information analysis.
+
+    All baselines use the same estimator selected by ``estimator.method``. They
+    differ only in how surrogate data are generated:
+    - random_weights: random-weight aggregation baseline (*_sh)
+    - label_shuffle_null: label-permutation null (*_null)
+    """
+
+    random_weights: InformationBaselinesRandomWeightsParams = field(
+        default_factory=InformationBaselinesRandomWeightsParams
+    )
+    label_shuffle_null: InformationBaselinesLabelShuffleNullParams = field(
+        default_factory=InformationBaselinesLabelShuffleNullParams
+    )
+
+
+@dataclass
 class InformationAnalysisParams(BaseConfig):
     """Parameters for information-theoretic analysis.
 
-    Core string options:
-    - method: "kraskov", "decoder", "binned", "sklearn", "copula", "auto"
-    - copula_type (for method="copula"): "gaussian", "kernel", "dvc"
-    - computation_level: "single_branch", "layer_branch", "all_branch"
-    - branch_aggregation (layer_branch/all_branch): "mean", "multivariate", "sample"
-    - pid_binarize_method: "median", "mean", "quantile"
+    Core string options (new grouped structure):
+    - estimator.method: "kraskov", "decoder", "binned", "sklearn", "copula", "auto"
+    - estimator.copula.type (method="copula"): "gaussian", "kernel", "dvc"
+      (experimental; "dvc" is a placeholder and currently falls back to the simple copula path)
+    - compute.computation_level: "single_branch", "layer_branch", "all_branch"
+    - compute.branch_aggregation (layer_branch/all_branch): "mean", "multivariate", "sample"
+    - pid.binarize_method: "median", "mean", "quantile" (PID is currently disabled)
+
+    Baselines are computed with the same ``estimator.method``; baseline settings
+    only control how surrogate data are constructed and how many repeats to run.
 
     Preferred (list-based) selectors:
-    - components: which families of metrics to compute
+    - selection.components: which families of metrics to compute
       - "basic": I(E;C), I(I;C), I(Vout;C)
       - "pairwise": I(E;I), I(E;Vout), I(I;Vout)
       - "conditional": conditional MI terms like I(E;C|I,Vb)
@@ -56,14 +269,14 @@ class InformationAnalysisParams(BaseConfig):
       - "ablation_aligned": extra conditional terms designed to mirror ablations
       - "layer_proxies": layer-total proxies derived from single-branch metrics
       - "upstream_unique_cmi": adds I(Vb;C|E,I) (can be expensive)
-    - scopes: which additional breakdowns to run
+    - selection.scopes: which additional breakdowns to run
       - "layer": per-layer breakdown
       - "einet": separate excitatory vs inhibitory pathway summaries
       - "neuron": per-neuron breakdown (expensive)
-    - signal_variants: which signal variants to compute/plot
+    - selection.signal_variants: which signal variants to compute/plot
       - "network": DendriNet signals
       - "lda": *_lin variants using LDA projections
-      - "random": *_sh random-weight baseline (requires lda_n_shuffles > 0)
+      - "random": *_sh random-weight baseline (requires baselines.random_weights.n_shuffles > 0)
 
     If any list-based selector is non-empty, it overrides the corresponding legacy
     boolean flags.
@@ -77,6 +290,25 @@ class InformationAnalysisParams(BaseConfig):
     - binning_strategy: "quantile" or "uniform"
     - binning_bias_correction: "none" or "miller_madow"
     """
+
+    # ------------------------------------------------------------------
+    # New (preferred) grouped structure
+    # ------------------------------------------------------------------
+    selection: InformationSelectionParams = field(
+        default_factory=InformationSelectionParams
+    )
+    compute: InformationComputeParams = field(default_factory=InformationComputeParams)
+    estimator: InformationEstimatorParams = field(
+        default_factory=InformationEstimatorParams
+    )
+    baselines: InformationBaselinesParams = field(
+        default_factory=InformationBaselinesParams
+    )
+    pid: InformationPIDParams = field(default_factory=InformationPIDParams)
+
+    # ------------------------------------------------------------------
+    # Legacy flat keys (deprecated; still supported for backward compatibility)
+    # ------------------------------------------------------------------
 
     # Estimation method: "kraskov", "decoder", "binned", "sklearn", "copula", "auto"
     method: str = "kraskov"
@@ -276,6 +508,24 @@ class NoisePerturbationAnalysisConfig(BaseConfig):
 
 
 @dataclass
+class AblationSelectionParams(BaseConfig):
+    """Preferred (grouped) selectors for ablation analysis."""
+
+    levels: list[str] = field(default_factory=list)
+    targets: list[str] = field(default_factory=list)
+    metrics: list[str] = field(default_factory=list)
+
+
+@dataclass
+class AblationMethodsParams(BaseConfig):
+    """Preferred (grouped) method settings for ablation analysis."""
+
+    ablation_methods: list[str] = field(default_factory=lambda: ["lesion"])
+    shuffle_seed: int = 0
+    clamp_statistic: str = "mean"  # "mean" (supported), "median" (future)
+
+
+@dataclass
 class AblationAnalysisParams(BaseConfig):
     """Configuration for ablation / intervention analysis.
 
@@ -308,6 +558,16 @@ class AblationAnalysisParams(BaseConfig):
     If any selector list is non-empty, it overrides the corresponding legacy boolean
     flags below.
     """
+
+    # ------------------------------------------------------------------
+    # New (preferred) grouped structure
+    # ------------------------------------------------------------------
+    selection: AblationSelectionParams = field(default_factory=AblationSelectionParams)
+    methods: AblationMethodsParams = field(default_factory=AblationMethodsParams)
+
+    # ------------------------------------------------------------------
+    # Legacy flat keys (deprecated; still supported for backward compatibility)
+    # ------------------------------------------------------------------
 
     # Which ablation/intervention methods to run. Example:
     # ["lesion", "shuffle", "mean_clamp"]
@@ -613,6 +873,42 @@ class ReceptiveFieldAnalysisConfig(BaseConfig):
 
 
 @dataclass
+class CorrelationSelectionParams(BaseConfig):
+    """Preferred (grouped) selectors for correlation analysis."""
+
+    components: list[str] = field(default_factory=list)
+    pairs: list[str] = field(default_factory=list)
+    scopes: list[str] = field(default_factory=list)
+
+
+@dataclass
+class CorrelationComputeParams(BaseConfig):
+    """Runtime/aggregation controls for correlation analysis."""
+
+    computation_level: str = (
+        "layer_branch"  # "synaptic", "single_branch", "layer_branch", "all_branch"
+    )
+    max_samples: Optional[int] = 5000
+    batch_process: bool = True
+    # Breakdown/visualization level (overridden by selection.scopes if provided)
+    per_layer_analysis: bool = True
+    per_einet_analysis: bool = True
+    per_neuron_analysis: bool = False
+
+
+@dataclass
+class CorrelationSamplingParams(BaseConfig):
+    """Sampling controls (used only when computation_level="synaptic")."""
+
+    n_synapse_pairs: int = 10000
+    sampling_strategy: str = "stratified"  # "random", "stratified", "importance"
+    stratified_categories: list[str] = field(
+        default_factory=lambda: ["within_branch", "within_layer", "across_layer"]
+    )
+    max_pairs_per_category: int = 1000
+
+
+@dataclass
 class CorrelationAnalysisParams(BaseConfig):
     """Parameters for correlation analysis.
 
@@ -639,6 +935,21 @@ class CorrelationAnalysisParams(BaseConfig):
     If any selector list is non-empty, it overrides the corresponding legacy boolean
     flags below.
     """
+
+    # ------------------------------------------------------------------
+    # New (preferred) grouped structure
+    # ------------------------------------------------------------------
+    selection: CorrelationSelectionParams = field(
+        default_factory=CorrelationSelectionParams
+    )
+    compute: CorrelationComputeParams = field(default_factory=CorrelationComputeParams)
+    sampling: CorrelationSamplingParams = field(
+        default_factory=CorrelationSamplingParams
+    )
+
+    # ------------------------------------------------------------------
+    # Legacy flat keys (deprecated; still supported for backward compatibility)
+    # ------------------------------------------------------------------
 
     # Computation level (aligned with information analysis)
     # "synaptic": Individual synapse correlations (most detailed, uses sampling)

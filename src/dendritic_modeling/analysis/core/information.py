@@ -63,14 +63,79 @@ class InformationAnalyzer(AbstractAnalyzer):
         """
         super().__init__("InformationAnalyzer")
 
-        # Extract configuration parameters
-        self.method = getattr(params, "method", "kraskov")
-        self.max_samples = getattr(params, "max_samples", None)
-        self.n_neighbors = getattr(params, "n_neighbors", 10)
-        self.n_bins = getattr(params, "n_bins", 20)
-        self.copula_type = getattr(params, "copula_type", "gaussian")
-        self.mi_null_shuffles = int(getattr(params, "mi_null_shuffles", 0) or 0)
-        self.mi_null_seed = int(getattr(params, "mi_null_seed", 0) or 0)
+        def _get(obj: Any, key: str, default: Any = None) -> Any:
+            """Get `key` from obj via attribute/dict access (DictConfig-safe)."""
+            if obj is None:
+                return default
+            try:
+                val = getattr(obj, key)
+            except Exception:
+                try:
+                    val = obj.get(key, default)  # type: ignore[attr-defined]
+                except Exception:
+                    return default
+            return default if val is None else val
+
+        def _get_path(obj: Any, path: tuple[str, ...], default: Any = None) -> Any:
+            cur = obj
+            for k in path:
+                cur = _get(cur, k, None)
+                if cur is None:
+                    return default
+            return cur
+
+        # New (preferred) grouped configs (all optional for backward compatibility)
+        selection_cfg = _get(params, "selection", None)
+        compute_cfg = _get(params, "compute", None)
+        estimator_cfg = _get(params, "estimator", None)
+        baselines_cfg = _get(params, "baselines", None)
+        pid_cfg = _get(params, "pid", None)
+
+        # ------------------------------------------------------------------
+        # Extract configuration parameters (support both new nested and legacy flat keys).
+        # ------------------------------------------------------------------
+        self.method = str(
+            _get(estimator_cfg, "method", _get(params, "method", "kraskov"))
+        )
+        self.max_samples = _get(
+            compute_cfg, "max_samples", _get(params, "max_samples", None)
+        )
+
+        self.n_neighbors = int(
+            _get_path(
+                estimator_cfg,
+                ("kraskov", "n_neighbors"),
+                _get(params, "n_neighbors", 10),
+            )
+        )
+        self.n_bins = int(
+            _get_path(estimator_cfg, ("binned", "n_bins"), _get(params, "n_bins", 20))
+        )
+        self.copula_type = str(
+            _get_path(
+                estimator_cfg,
+                ("copula", "type"),
+                _get(params, "copula_type", "gaussian"),
+            )
+        )
+
+        # Label-shuffle null baseline (finite-sample bias diagnostic)
+        self.mi_null_shuffles = int(
+            _get_path(
+                baselines_cfg,
+                ("label_shuffle_null", "n_shuffles"),
+                _get(params, "mi_null_shuffles", 0),
+            )
+            or 0
+        )
+        self.mi_null_seed = int(
+            _get_path(
+                baselines_cfg,
+                ("label_shuffle_null", "seed"),
+                _get(params, "mi_null_seed", 0),
+            )
+            or 0
+        )
 
         def _norm(x: str) -> str:
             return str(x).strip().lower().replace("-", "_").replace(" ", "_")
@@ -85,9 +150,23 @@ class InformationAnalyzer(AbstractAnalyzer):
         )
         self.compute_pid = bool(getattr(params, "compute_pid", False))
 
-        self.pid_binarize = getattr(params, "pid_binarize", False)
-        self.pid_binarize_method = getattr(params, "pid_binarize_method", "median")
-        self.pid_binarize_threshold = getattr(params, "pid_binarize_threshold", 0.5)
+        self.pid_binarize = bool(
+            _get(pid_cfg, "binarize", _get(params, "pid_binarize", False))
+        )
+        self.pid_binarize_method = str(
+            _get(
+                pid_cfg,
+                "binarize_method",
+                _get(params, "pid_binarize_method", "median"),
+            )
+        )
+        self.pid_binarize_threshold = float(
+            _get(
+                pid_cfg,
+                "binarize_threshold",
+                _get(params, "pid_binarize_threshold", 0.5),
+            )
+        )
 
         # Ablation-aligned extras (conditional MI terms and single-branch -> layer proxies)
         self.compute_ablation_aligned_mi = bool(
@@ -99,14 +178,18 @@ class InformationAnalyzer(AbstractAnalyzer):
         self.compute_layer_total_proxies = bool(
             getattr(params, "compute_layer_total_proxies", True)
         )
-        self.layer_total_topk = int(getattr(params, "layer_total_topk", 10))
+        self.layer_total_topk = int(
+            _get(compute_cfg, "layer_total_topk", _get(params, "layer_total_topk", 10))
+        )
 
         # ------------------------------------------------------------------
         # Preferred list-based selection of components.
         #
         # If provided, overrides the individual compute_* booleans above.
         # ------------------------------------------------------------------
-        components_raw = list(getattr(params, "components", []) or [])
+        components_raw = list(
+            _get(selection_cfg, "components", _get(params, "components", [])) or []
+        )
         if components_raw:
             comps = {_norm(x) for x in components_raw if str(x).strip()}
             self.compute_basic_mi = bool({"basic", "basic_mi"}.intersection(comps))
@@ -130,37 +213,90 @@ class InformationAnalyzer(AbstractAnalyzer):
                 {"upstream_unique_cmi", "upstream_unique"}.intersection(comps)
             )
 
-        self.include_vinf = getattr(
-            params, "include_vinf", False
+        # ------------------------------------------------------------------
+        # PID is currently disabled.
+        #
+        # The existing PID implementation depends on an optional external backend
+        # and assumes discrete variables; our current wiring/binarization is not
+        # robust for general use (e.g., multi-class C). To avoid silently
+        # producing misleading numbers, we ignore PID requests for now.
+        # ------------------------------------------------------------------
+        if self.compute_pid:
+            self.logger.warning(
+                "PID requested via selection.components, but PID is currently disabled "
+                "and will be skipped."
+            )
+            self.compute_pid = False
+
+        self.include_vinf = bool(
+            _get(compute_cfg, "include_vinf", _get(params, "include_vinf", False))
         )  # Default to False to match 245MR behavior
-        self.normalize_mi = getattr(params, "normalize_mi", False)
-        self.verbose = getattr(params, "verbose", False)
+        self.normalize_mi = bool(
+            _get(compute_cfg, "normalize_mi", _get(params, "normalize_mi", False))
+        )
+        self.verbose = bool(
+            _get(compute_cfg, "verbose", _get(params, "verbose", False))
+        )
 
         # Computation level control - determines the granularity of information analysis
         # "branch": Individual branches (most granular and accurate)
         # "layer": Layer-level aggregation (treats each layer as a unit)
         # "network": Full network aggregation (most efficient)
-        self.computation_level = getattr(params, "computation_level", "single_branch")
+        self.computation_level = str(
+            _get(
+                compute_cfg,
+                "computation_level",
+                _get(params, "computation_level", "single_branch"),
+            )
+        )
 
         # Branch aggregation method - only used when computation_level is "layer_branch" or "all_branch"
         # Options: "mean", "multivariate", "sample"
-        self.branch_aggregation = getattr(params, "branch_aggregation", "mean")
+        self.branch_aggregation = str(
+            _get(
+                compute_cfg,
+                "branch_aggregation",
+                _get(params, "branch_aggregation", "mean"),
+            )
+        )
 
         # Per-neuron analysis - return information values per individual neuron
-        self.per_neuron_analysis = bool(getattr(params, "per_neuron_analysis", False))
+        self.per_neuron_analysis = bool(
+            _get(
+                compute_cfg,
+                "per_neuron_analysis",
+                _get(params, "per_neuron_analysis", False),
+            )
+        )
 
         # Per-EI-network analysis - analyze excitatory and inhibitory networks separately
-        self.per_einet_analysis = bool(getattr(params, "per_einet_analysis", False))
+        self.per_einet_analysis = bool(
+            _get(
+                compute_cfg,
+                "per_einet_analysis",
+                _get(params, "per_einet_analysis", False),
+            )
+        )
 
         # Per-layer analysis - compute enhanced analysis for each layer separately
-        self.per_layer_analysis = bool(getattr(params, "per_layer_analysis", False))
+        self.per_layer_analysis = bool(
+            _get(
+                compute_cfg,
+                "per_layer_analysis",
+                _get(params, "per_layer_analysis", False),
+            )
+        )
 
         # Preferred list-based selection of scopes (overrides per_* flags if provided).
         #
         # `views` is a backward-compatible alias for `scopes`.
-        scopes_raw = list(getattr(params, "scopes", []) or [])
+        scopes_raw = list(
+            _get(selection_cfg, "scopes", _get(params, "scopes", [])) or []
+        )
         if not scopes_raw:
-            scopes_raw = list(getattr(params, "views", []) or [])
+            scopes_raw = list(
+                _get(selection_cfg, "views", _get(params, "views", [])) or []
+            )
         if scopes_raw:
             scopes = {_norm(x) for x in scopes_raw if str(x).strip()}
             self.per_neuron_analysis = bool(
@@ -170,20 +306,55 @@ class InformationAnalyzer(AbstractAnalyzer):
             self.per_layer_analysis = bool({"layer", "per_layer"}.intersection(scopes))
 
         # Compute LDA-based versions of E, I, Vb
-        self.compute_lda_weights = bool(getattr(params, "compute_lda_weights", False))
+        self.compute_lda_weights = bool(
+            _get(
+                compute_cfg,
+                "compute_lda_weights",
+                _get(params, "compute_lda_weights", False),
+            )
+        )
 
-        # Number of random weight shuffles for LDA baseline comparison
-        self.lda_n_shuffles = int(getattr(params, "lda_n_shuffles", 0))
+        # Number of random-weight baselines for LDA aggregation (*_sh) to generate.
+        #
+        # Preferred key: baselines.random_weights.n_shuffles
+        # Backward-compatible alias (legacy): baselines.signal_shuffle.n_shuffles
+        self.lda_n_shuffles = int(
+            _get_path(
+                baselines_cfg,
+                ("random_weights", "n_shuffles"),
+                _get_path(
+                    baselines_cfg,
+                    ("signal_shuffle", "n_shuffles"),
+                    _get(params, "lda_n_shuffles", 0),
+                ),
+            )
+            or 0
+        )
+        self.random_weights_seed = int(
+            _get_path(
+                baselines_cfg,
+                ("random_weights", "seed"),
+                _get_path(
+                    baselines_cfg,
+                    ("signal_shuffle", "seed"),
+                    _get(params, "random_weights_seed", 0),
+                ),
+            )
+            or 0
+        )
 
-        # Preferred list-based selection of signal variants (overrides compute_lda_weights/lda_n_shuffles).
-        variants_raw = list(getattr(params, "signal_variants", []) or [])
+        # Preferred list-based selection of signal variants.
+        variants_raw = list(
+            _get(selection_cfg, "signal_variants", _get(params, "signal_variants", []))
+            or []
+        )
         if variants_raw:
             variants = {_norm(x) for x in variants_raw if str(x).strip()}
             want_lda = "lda" in variants
             want_random = bool({"random", "shuffle", "shuffled"}.intersection(variants))
 
-            # Random baseline currently uses the same pipeline as LDA aggregation.
-            self.compute_lda_weights = want_lda or want_random
+            # "random" is a baseline for the LDA aggregation; enable LDA when requested.
+            self.compute_lda_weights = bool(want_lda or want_random)
             self.lda_n_shuffles = self.lda_n_shuffles if want_random else 0
 
         if self.verbose:
@@ -193,36 +364,75 @@ class InformationAnalyzer(AbstractAnalyzer):
         self.estimators = {}
         # For now, just use the single method specified, but keep the dict structure for compatibility
         method_params: dict[str, Any] = {}
+        decoder_cfg = _get(estimator_cfg, "decoder", None)
+        decoder_cont_cfg = _get(decoder_cfg, "continuous", None)
+        binned_cfg = _get(estimator_cfg, "binned", None)
         if _norm(self.method) == "decoder":
             method_params = {
-                "cv_folds": int(getattr(params, "decoder_cv_folds", 5)),
-                "C": float(getattr(params, "decoder_C", 1.0)),
-                "standardize": bool(getattr(params, "decoder_standardize", True)),
-                "seed": int(getattr(params, "decoder_seed", 0)),
+                "cv_folds": int(
+                    _get(decoder_cfg, "cv_folds", _get(params, "decoder_cv_folds", 5))
+                ),
+                "C": float(_get(decoder_cfg, "C", _get(params, "decoder_C", 1.0))),
+                "standardize": bool(
+                    _get(
+                        decoder_cfg,
+                        "standardize",
+                        _get(params, "decoder_standardize", True),
+                    )
+                ),
+                "seed": int(_get(decoder_cfg, "seed", _get(params, "decoder_seed", 0))),
                 "continuous_strategy": str(
-                    getattr(params, "decoder_continuous_strategy", "none")
+                    _get(
+                        decoder_cont_cfg,
+                        "strategy",
+                        _get(params, "decoder_continuous_strategy", "none"),
+                    )
                 ),
                 "continuous_max_dim": int(
-                    getattr(params, "decoder_continuous_max_total_dim", 2)
+                    _get(
+                        decoder_cont_cfg,
+                        "max_total_dim",
+                        _get(params, "decoder_continuous_max_total_dim", 2),
+                    )
                 ),
                 "gaussian_ridge": float(
-                    getattr(params, "decoder_gaussian_ridge", 1e-6)
+                    _get(
+                        decoder_cont_cfg,
+                        "gaussian_ridge",
+                        _get(params, "decoder_gaussian_ridge", 1e-6),
+                    )
                 ),
                 # Used if decoder_continuous_strategy="binned"
                 "binning_strategy": str(
-                    getattr(params, "binning_strategy", "quantile")
+                    _get(
+                        binned_cfg,
+                        "binning_strategy",
+                        _get(params, "binning_strategy", "quantile"),
+                    )
                 ),
                 "bias_correction": str(
-                    getattr(params, "binning_bias_correction", "none")
+                    _get(
+                        binned_cfg,
+                        "bias_correction",
+                        _get(params, "binning_bias_correction", "none"),
+                    )
                 ),
             }
         elif _norm(self.method) == "binned":
             method_params = {
                 "binning_strategy": str(
-                    getattr(params, "binning_strategy", "quantile")
+                    _get(
+                        binned_cfg,
+                        "binning_strategy",
+                        _get(params, "binning_strategy", "quantile"),
+                    )
                 ),
                 "bias_correction": str(
-                    getattr(params, "binning_bias_correction", "none")
+                    _get(
+                        binned_cfg,
+                        "bias_correction",
+                        _get(params, "binning_bias_correction", "none"),
+                    )
                 ),
             }
         estimator_config = EstimatorConfig(
@@ -1826,7 +2036,7 @@ class InformationAnalyzer(AbstractAnalyzer):
         Vout_sh = np.zeros((n_samples, n_branches))
 
         # Create RNG with reproducible seed
-        rng = np.random.default_rng(42 + shuffle_idx)
+        rng = np.random.default_rng(int(self.random_weights_seed) + int(shuffle_idx))
 
         # For E: Apply random weights on TopK-masked excitatory inputs
         if raw_exc is not None and module.branch_excitation is not None:
@@ -2545,7 +2755,7 @@ class InformationAnalyzer(AbstractAnalyzer):
                     else:
                         E_lin, I_lin, Vb_lin, Vout_lin = None, None, None, None
 
-                    # Compute shuffled (random) versions for baseline comparison
+                    # Compute random-weight versions for baseline comparison
                     shuffled_signals_list = []
                     if self.compute_lda_weights and self.lda_n_shuffles > 0:
                         for shuffle_idx in range(self.lda_n_shuffles):
@@ -2593,6 +2803,65 @@ class InformationAnalyzer(AbstractAnalyzer):
                         branch_results = self.compute_metrics(
                             E_branch, I_branch, Vout_branch, C, None, Vb_branch
                         )
+                        # Optional: estimate finite-sample bias via a label-shuffle null baseline
+                        # for basic MI terms involving C.
+                        if self.mi_null_shuffles > 0 and "basic_mi" in branch_results:
+                            try:
+                                estimator = self.estimators[self.method]
+                                n_shuf = int(self.mi_null_shuffles)
+                                seed = int(self.mi_null_seed)
+                                basic = branch_results["basic_mi"]
+
+                                if has_exc_synapses:
+                                    basic["I(E;C)_null"] = float(
+                                        estimator.mutual_information_null(
+                                            E_branch,
+                                            C,
+                                            n_shuffles=n_shuf,
+                                            seed=seed + 0,
+                                        )[0]
+                                    )
+                                if has_inh_synapses:
+                                    basic["I(I;C)_null"] = float(
+                                        estimator.mutual_information_null(
+                                            I_branch,
+                                            C,
+                                            n_shuffles=n_shuf,
+                                            seed=seed + 1,
+                                        )[0]
+                                    )
+                                if has_branch_input and Vb_branch is not None:
+                                    basic["I(Vb;C)_null"] = float(
+                                        estimator.mutual_information_null(
+                                            Vb_branch,
+                                            C,
+                                            n_shuffles=n_shuf,
+                                            seed=seed + 2,
+                                        )[0]
+                                    )
+
+                                basic["I(Vout;C)_null"] = float(
+                                    estimator.mutual_information_null(
+                                        Vout_branch,
+                                        C,
+                                        n_shuffles=n_shuf,
+                                        seed=seed + 3,
+                                    )[0]
+                                )
+
+                                if has_exc_synapses and has_inh_synapses:
+                                    basic["I(E,I;C)_null"] = float(
+                                        estimator.mutual_information_null(
+                                            np.hstack([E_branch, I_branch]),
+                                            C,
+                                            n_shuffles=n_shuf,
+                                            seed=seed + 4,
+                                        )[0]
+                                    )
+                            except Exception as e:
+                                self.logger.warning(
+                                    f"Null (label-shuffle) baseline failed for branch {branch_idx}: {e}"
+                                )
                         all_results.append(branch_results)
                         layer_branch_results.append(branch_results)
                         branch_names.append(f"{layer_name}_branch_{branch_idx}")

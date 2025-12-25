@@ -7,10 +7,10 @@ import pandas as pd
 
 from ..plotters import (
     AblationPlotter,
-    SNRPlotter,
     InformationPlotter,
     NoisePlotter,
     PerformancePlotter,
+    SNRPlotter,
     WeightPlotter,
 )
 from .base_analyzer import BaseSweepAnalyzer
@@ -76,7 +76,7 @@ class EISweepAnalyzer(BaseSweepAnalyzer):
             "ei_ratio",
             "use_shunting",
             "network_category",
-            "nparams"
+            "nparams",
         ]
 
     def get_plot_types(self) -> list[str]:

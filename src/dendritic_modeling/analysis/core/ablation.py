@@ -46,19 +46,43 @@ class AblationAnalyzer(AbstractAnalyzer):
         def _norm(x: str) -> str:
             return str(x).strip().lower().replace("-", "_").replace(" ", "_")
 
-        self.ablation_methods = list(getattr(params, "ablation_methods", ["lesion"]))
+        # New (preferred) grouped config blocks (optional; keep backward compatibility)
+        selection_cfg = getattr(params, "selection", None)
+        methods_cfg = getattr(params, "methods", None)
+
+        self.ablation_methods = list(
+            getattr(
+                methods_cfg,
+                "ablation_methods",
+                getattr(params, "ablation_methods", ["lesion"]),
+            )
+        )
         if not self.ablation_methods:
             self.ablation_methods = ["lesion"]
-        self.shuffle_seed = int(getattr(params, "shuffle_seed", 0))
-        self.clamp_statistic = str(getattr(params, "clamp_statistic", "mean"))
+        self.shuffle_seed = int(
+            getattr(methods_cfg, "shuffle_seed", getattr(params, "shuffle_seed", 0))
+        )
+        self.clamp_statistic = str(
+            getattr(
+                methods_cfg,
+                "clamp_statistic",
+                getattr(params, "clamp_statistic", "mean"),
+            )
+        )
 
         # ------------------------------------------------------------------
         # Preferred list-based configuration (levels/targets/metrics).
         # If lists are provided, they override the legacy boolean flags.
         # ------------------------------------------------------------------
-        levels_raw = list(getattr(params, "levels", []) or [])
-        targets_raw = list(getattr(params, "targets", []) or [])
-        metrics_raw = list(getattr(params, "metrics", []) or [])
+        levels_raw = list(
+            getattr(selection_cfg, "levels", getattr(params, "levels", [])) or []
+        )
+        targets_raw = list(
+            getattr(selection_cfg, "targets", getattr(params, "targets", [])) or []
+        )
+        metrics_raw = list(
+            getattr(selection_cfg, "metrics", getattr(params, "metrics", [])) or []
+        )
 
         levels = {_norm(x) for x in levels_raw if str(x).strip()}
         targets = {_norm(x) for x in targets_raw if str(x).strip()}
@@ -116,9 +140,9 @@ class AblationAnalyzer(AbstractAnalyzer):
             )
             self.mse = bool(getattr(params, "mse", False))
             self.cosine_similarity = bool(getattr(params, "cosine_similarity", False))
-            self.compute_pred_label_mi = bool(
-                getattr(params, "compute_pred_label_mi", False)
-            )
+        self.compute_pred_label_mi = bool(
+            getattr(params, "compute_pred_label_mi", False)
+        )
 
     @staticmethod
     def _pred_label_mi_bits(y_true: np.ndarray, y_pred: np.ndarray) -> float:
@@ -279,8 +303,13 @@ class AblationAnalyzer(AbstractAnalyzer):
 
         # Check if this is a soma layer without somatic synapses (using config)
         somatic_synapses_enabled = getattr(model.core_network, "somatic_synapses", True)
+        # If somatic synapses are disabled, the soma layer has no E/I synapses.
+        # We only short-circuit to "zero drop" for synapse-based targets; upstream
+        # (branch input / branches_to_output) is still meaningful and must be computed.
         is_soma_without_synapses = (
-            module.layer_idx == 0 and not somatic_synapses_enabled
+            module.layer_idx == 0
+            and not somatic_synapses_enabled
+            and target_type_norm in {"all_synapses", "excitation", "inhibition"}
         )
 
         if is_soma_without_synapses:
@@ -752,17 +781,76 @@ class AblationAnalyzer(AbstractAnalyzer):
                             state_dict=state_dict,
                         )
 
+        # ------------------------------------------------------------------
+        # Ensure upstream (branch input / branches_to_output) is evaluated at the
+        # soma even when somatic_synapses=False.
+        #
+        # When somatic synapses are disabled, the soma DendriticBranchLayer exists
+        # (layer_idx==0) but has no E/I synapse modules, so it is excluded by the
+        # main loop filter above. Upstream, however, is still meaningful at soma
+        # (it is the only remaining input pathway there), so we compute it here.
+        # ------------------------------------------------------------------
+        somatic_synapses_enabled = getattr(model.core_network, "somatic_synapses", True)
+        if self.ablate_upstream and not somatic_synapses_enabled:
+            for _name, module in model.named_modules():
+                if not isinstance(module, DendriticBranchLayer):
+                    continue
+                if getattr(module, "layer_idx", None) != 0:
+                    continue
+                if not hasattr(module, "branches_to_output"):
+                    continue
+
+                for method in self.ablation_methods:
+                    ablation_key = f"{method}_upstream"
+
+                    if self.layer_ablation:
+                        # Avoid duplicate entries if somehow already computed.
+                        if _name in layer_results.get(ablation_key, {}):
+                            continue
+                        layer_results = self.ablate_layer_and_evaluate(
+                            test_dataset=test_dataset,
+                            model=model,
+                            module=module,
+                            module_name=_name,
+                            ablation_type=ablation_key,
+                            ablation_method=method,
+                            baseline_dict=baselines,
+                            results_dict=layer_results,
+                            state_dict=state_dict,
+                        )
+
+                    if self.compartment_ablation and method == "lesion":
+                        if _name in compartment_results.get(ablation_key, {}):
+                            continue
+                        compartment_results = self.ablate_compartment_and_evaluate(
+                            test_dataset=test_dataset,
+                            model=model,
+                            module=module,
+                            module_name=_name,
+                            ablation_type=ablation_key,
+                            ablation_method=method,
+                            baseline_dict=baselines,
+                            results_dict=compartment_results,
+                            state_dict=state_dict,
+                        )
+
         results = {"baseline": baselines}
         if self.layer_ablation:
             results["layer"] = layer_results
         if self.compartment_ablation:
             results["compartment"] = compartment_results
 
-        # Add synthetic soma entry when somatic_synapses=False for uniform plotting
-        somatic_synapses_enabled = getattr(model.core_network, "somatic_synapses", True)
+        # Add synthetic soma entry when somatic_synapses=False for uniform plotting.
+        #
+        # IMPORTANT: We only add placeholders for synapse-based ablations when soma
+        # has no E/I synapses. Upstream is computed explicitly above and must NOT be
+        # forced to zero by a placeholder.
         if not somatic_synapses_enabled and "layer" in results:
             # Add soma entry with zero values for all ablation types
             for ablation_type in results["layer"]:
+                ablation_type_norm = str(ablation_type).replace(" ", "_")
+                if ablation_type_norm.endswith("_upstream"):
+                    continue
                 soma_entry = {"depth": 0}
                 if self.accuracy:
                     soma_entry["accuracy drop"] = 0.0

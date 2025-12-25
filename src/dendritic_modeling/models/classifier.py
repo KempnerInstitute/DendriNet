@@ -10,8 +10,8 @@ import torch
 import torch.nn as nn
 
 from dendritic_modeling.models.base import BaseModel
-from dendritic_modeling.networks.base import BaseNetwork
 from dendritic_modeling.networks import Identity
+from dendritic_modeling.networks.base import BaseNetwork
 
 
 class Classifier(BaseModel):

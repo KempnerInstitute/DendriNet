@@ -7,7 +7,6 @@ synaptic connectivity in dendritic computation.
 """
 
 from math import log
-
 from typing import Optional
 
 import torch
@@ -69,7 +68,7 @@ class TopKLinear(nn.Module):
         noise_level=0.0,
         weight_transform: WeightTransformType = "exp",
         weight_norm_order: Optional[int] = None,
-        gamma: float = 1.0
+        gamma: float = 1.0,
     ):
         super().__init__()
 
@@ -157,7 +156,7 @@ class TopKLinear(nn.Module):
         # If x is a 1D tensor, unsqueeze to make it 2D [1, features]
         if x.dim() == 1:
             x = x.unsqueeze(0)
-        
+
         pruned_weight = self.pruned_weight()
 
         return torch.matmul(x, pruned_weight.t())
@@ -197,7 +196,7 @@ class TopKLinear(nn.Module):
     def pruned_weight(self):
         """Return the pruned synaptic weights after applying the mask."""
         pruned_weight = self.weight_mask() * self.weight()
-        
+
         if self.weight_norm_order is not None:
             w_norm = torch.norm(pruned_weight, p=self.weight_norm_order, dim=-1)
             pruned_weight = (pruned_weight / w_norm[:, None]) * self.gamma

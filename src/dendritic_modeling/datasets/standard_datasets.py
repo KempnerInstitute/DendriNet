@@ -262,7 +262,7 @@ class PoissonGeneratorDataset(Dataset):
         stimulus_duration: float = 1.0,
         max_gain_factor: Optional[float] = None,
         max_gain_tau_ratio: Optional[float] = None,
-        uniform_gain: bool = True
+        uniform_gain: bool = True,
     ):
         stimulus_duration = float(stimulus_duration)
 
@@ -291,7 +291,7 @@ class PoissonGeneratorDataset(Dataset):
                 gain_factor = gain_factor[..., None]
         else:
             gain_factor = torch.rand_like(input) * self.max_gain_factor
-                
+
         scaled_input = gain_factor * self.tau * input
         noisy_scaled_input = torch.poisson(scaled_input)
         noisy_input = noisy_scaled_input / self.tau
@@ -344,25 +344,25 @@ def load_poisson_generator_datasets(
         raise ValueError(f"Unknown base dataset: {base_dataset}")
 
     train_ds = PoissonGeneratorDataset(
-        *train_ds[:], 
-        stimulus_duration=stimulus_duration, 
-        max_gain_factor=max_gain_factor, 
+        *train_ds[:],
+        stimulus_duration=stimulus_duration,
+        max_gain_factor=max_gain_factor,
         max_gain_tau_ratio=max_gain_tau_ratio,
-        uniform_gain=uniform_gain
+        uniform_gain=uniform_gain,
     )
     valid_ds = PoissonGeneratorDataset(
-        *valid_ds[:], 
-        stimulus_duration=stimulus_duration, 
-        max_gain_factor=max_gain_factor, 
+        *valid_ds[:],
+        stimulus_duration=stimulus_duration,
+        max_gain_factor=max_gain_factor,
         max_gain_tau_ratio=max_gain_tau_ratio,
-        uniform_gain=uniform_gain
+        uniform_gain=uniform_gain,
     )
     test_ds = PoissonGeneratorDataset(
-        *test_ds[:], 
-        stimulus_duration=stimulus_duration, 
-        max_gain_factor=max_gain_factor, 
+        *test_ds[:],
+        stimulus_duration=stimulus_duration,
+        max_gain_factor=max_gain_factor,
         max_gain_tau_ratio=max_gain_tau_ratio,
-        uniform_gain=uniform_gain
+        uniform_gain=uniform_gain,
     )
 
     return train_ds, valid_ds, test_ds
@@ -537,7 +537,7 @@ def get_unified_datasets(task_cfg):
             uniform_gain=uniform_gain,
             train_valid_split=train_valid_split,
             flatten=flatten,
-            task_data_path=task_data_path
+            task_data_path=task_data_path,
         )
     elif dataset_name == "imagenet":
         return load_imagenet_as_datasets(
