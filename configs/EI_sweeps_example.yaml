@@ -577,6 +577,7 @@ base_config:
           label_shuffle_null:
             n_shuffles: 0                   # Null (label-shuffle) baseline shuffles (int >= 0; produces *_null metrics)
             seed: 0                         # Null baseline seed (int)
+            components: ["basic"]           # Null components: "basic", "conditional", "ablation_aligned", "upstream_unique_cmi", "all"
 
         pid:
           binarize: true                    # PID binarize: true|false

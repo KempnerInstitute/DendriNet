@@ -221,10 +221,16 @@ class InformationBaselinesLabelShuffleNullParams(BaseConfig):
     This is a finite-sample bias / null diagnostic: it permutes the label vector
     ``C`` across samples and recomputes MI using the same estimator selected by
     ``estimator.method``.
+
+    You can control which metric groups receive a *_null counterpart via
+    ``components``. Example: components=["basic", "conditional", "ablation_aligned"].
     """
 
     n_shuffles: int = 0  # int >= 0; 0 disables
     seed: int = 0
+    components: list[str] = field(
+        default_factory=lambda: ["basic"]
+    )  # "basic", "conditional", "ablation_aligned", "layer_proxies", "upstream_unique_cmi", "all"
 
 
 @dataclass

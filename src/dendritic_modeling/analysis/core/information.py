@@ -140,6 +140,20 @@ class InformationAnalyzer(AbstractAnalyzer):
         def _norm(x: str) -> str:
             return str(x).strip().lower().replace("-", "_").replace(" ", "_")
 
+        # Which metric groups should receive label-shuffle (*_null) baselines.
+        # Default: only basic MI terms involving C.
+        null_components_raw = list(
+            _get_path(
+                baselines_cfg,
+                ("label_shuffle_null", "components"),
+                _get(params, "mi_null_components", ["basic"]),
+            )
+            or ["basic"]
+        )
+        self.mi_null_components = {
+            _norm(x) for x in null_components_raw if str(x).strip()
+        } or {"basic"}
+
         # ------------------------------------------------------------------
         # Legacy boolean selection (still supported).
         # ------------------------------------------------------------------
@@ -1573,6 +1587,146 @@ class InformationAnalyzer(AbstractAnalyzer):
                 )
             }
 
+    def _add_label_shuffle_null_baselines_in_place(
+        self,
+        result: dict[str, Any],
+        *,
+        E: Optional[np.ndarray],
+        I_var: Optional[np.ndarray],
+        Vout: Optional[np.ndarray],
+        C: np.ndarray,
+        Vinf: Optional[np.ndarray] = None,
+        Vb: Optional[np.ndarray] = None,
+        has_exc_synapses: bool = True,
+        has_inh_synapses: bool = True,
+        has_branch_input: bool = True,
+        seed_offset: int = 0,
+    ) -> None:
+        """Add label-shuffle (*_null) baselines for C-targeted metrics (in-place).
+
+        This is a finite-sample bias / null diagnostic: it permutes the label
+        vector ``C`` and recomputes MI/CMI using the *same* estimator selected by
+        ``estimator.method``.
+
+        Baselines are added only for metrics of the form:
+        - ``I(X;C)`` (basic MI)  -> uses ``mutual_information_null``
+        - ``I(X;C|Z)`` (conditional) -> shuffles C and recomputes ``conditional_mutual_information``
+        """
+        if int(getattr(self, "mi_null_shuffles", 0) or 0) <= 0:
+            return
+
+        null_components = getattr(self, "mi_null_components", {"basic"})
+        want_all = "all" in null_components
+        want_basic = want_all or ("basic" in null_components)
+        want_conditional = want_all or bool(
+            {"conditional", "ablation_aligned", "upstream_unique_cmi"}.intersection(
+                null_components
+            )
+        )
+        categories: list[str] = []
+        if want_basic:
+            categories.append("basic_mi")
+        if want_conditional:
+            categories.append("conditional_mi")
+        if not categories:
+            return
+
+        estimator = self.estimators[self.method]
+        n_shuf = int(self.mi_null_shuffles)
+        seed_base = int(getattr(self, "mi_null_seed", 0) or 0) + int(seed_offset)
+        C_vec = np.asarray(C).ravel()
+
+        def _parse_mi_key(mi_key: Any) -> Any:
+            if not isinstance(mi_key, str):
+                return None
+            key = mi_key.strip().replace(" ", "")
+            if not (key.startswith("I(") and key.endswith(")")):
+                return None
+            inside = key[2:-1]
+            if ";" not in inside:
+                return None
+            left, right = inside.split(";", 1)
+            if "|" in right:
+                y, z = right.split("|", 1)
+                z_vars = [t for t in z.split(",") if t]
+            else:
+                y = right
+                z_vars = []
+            x_vars = [t for t in left.split(",") if t]
+            return x_vars, y, z_vars
+
+        def _var_data(token: str) -> Optional[np.ndarray]:
+            base = token.split("_", 1)[0]
+            if base == "E":
+                return E if has_exc_synapses else None
+            if base == "I":
+                return I_var if has_inh_synapses else None
+            if base == "Vb":
+                return Vb if has_branch_input else None
+            if base == "Vout":
+                return Vout
+            if base == "Vinf":
+                return Vinf
+            return None
+
+        perms: Optional[list[np.ndarray]] = None
+        seed_off = 0
+        for category in categories:
+            if category not in result or not isinstance(result[category], dict):
+                continue
+            metrics_dict: dict[str, Any] = result[category]
+            for metric_key in list(metrics_dict.keys()):
+                if not isinstance(metric_key, str):
+                    continue
+                if metric_key.endswith(("_null", "_std", "_normalized")):
+                    continue
+                if f"{metric_key}_null" in metrics_dict:
+                    continue
+
+                parsed = _parse_mi_key(metric_key)
+                if parsed is None:
+                    continue
+                x_vars, y_var, z_vars = parsed
+                if y_var != "C":
+                    continue
+
+                x_parts = [_var_data(t) for t in x_vars]
+                if any(p is None for p in x_parts):
+                    continue
+                x = np.hstack([p for p in x_parts if p is not None])
+
+                # Unconditional: I(X;C)
+                if not z_vars:
+                    null_mean, null_std = estimator.mutual_information_null(
+                        x,
+                        C_vec,
+                        n_shuffles=n_shuf,
+                        seed=seed_base + seed_off,
+                    )
+                    metrics_dict[f"{metric_key}_null"] = float(null_mean)
+                    metrics_dict[f"{metric_key}_null_std"] = float(null_std)
+                    seed_off += 1
+                    continue
+
+                # Conditional: I(X;C|Z)
+                z_parts = [_var_data(t) for t in z_vars]
+                if any(p is None for p in z_parts):
+                    continue
+                z = np.hstack([p for p in z_parts if p is not None])
+
+                if perms is None:
+                    rng = np.random.default_rng(seed_base + 10_000)
+                    perms = [rng.permutation(C_vec.shape[0]) for _ in range(n_shuf)]
+
+                vals: list[float] = []
+                for perm in perms:
+                    C_perm = C_vec[perm].reshape(-1, 1)
+                    vals.append(
+                        float(estimator.conditional_mutual_information(x, C_perm, z))
+                    )
+                metrics_dict[f"{metric_key}_null"] = float(np.mean(vals))
+                metrics_dict[f"{metric_key}_null_std"] = float(np.std(vals))
+
     def _compute_variance_analysis(self, results: dict) -> dict:
         """
         Compute variance analysis across different hierarchical levels.
@@ -2804,60 +2958,23 @@ class InformationAnalyzer(AbstractAnalyzer):
                             E_branch, I_branch, Vout_branch, C, None, Vb_branch
                         )
                         # Optional: estimate finite-sample bias via a label-shuffle null baseline
-                        # for basic MI terms involving C.
-                        if self.mi_null_shuffles > 0 and "basic_mi" in branch_results:
+                        # (produces *_null metrics) using the same estimator.method.
+                        if self.mi_null_shuffles > 0:
                             try:
-                                estimator = self.estimators[self.method]
-                                n_shuf = int(self.mi_null_shuffles)
-                                seed = int(self.mi_null_seed)
-                                basic = branch_results["basic_mi"]
-
-                                if has_exc_synapses:
-                                    basic["I(E;C)_null"] = float(
-                                        estimator.mutual_information_null(
-                                            E_branch,
-                                            C,
-                                            n_shuffles=n_shuf,
-                                            seed=seed + 0,
-                                        )[0]
-                                    )
-                                if has_inh_synapses:
-                                    basic["I(I;C)_null"] = float(
-                                        estimator.mutual_information_null(
-                                            I_branch,
-                                            C,
-                                            n_shuffles=n_shuf,
-                                            seed=seed + 1,
-                                        )[0]
-                                    )
-                                if has_branch_input and Vb_branch is not None:
-                                    basic["I(Vb;C)_null"] = float(
-                                        estimator.mutual_information_null(
-                                            Vb_branch,
-                                            C,
-                                            n_shuffles=n_shuf,
-                                            seed=seed + 2,
-                                        )[0]
-                                    )
-
-                                basic["I(Vout;C)_null"] = float(
-                                    estimator.mutual_information_null(
-                                        Vout_branch,
-                                        C,
-                                        n_shuffles=n_shuf,
-                                        seed=seed + 3,
-                                    )[0]
+                                self._add_label_shuffle_null_baselines_in_place(
+                                    branch_results,
+                                    E=E_branch,
+                                    I_var=I_branch,
+                                    Vout=Vout_branch,
+                                    C=C,
+                                    Vb=Vb_branch,
+                                    Vinf=None,
+                                    has_exc_synapses=has_exc_synapses,
+                                    has_inh_synapses=has_inh_synapses,
+                                    has_branch_input=has_branch_input
+                                    and (Vb_branch is not None),
+                                    seed_offset=int(layer_count * 10_000 + branch_idx),
                                 )
-
-                                if has_exc_synapses and has_inh_synapses:
-                                    basic["I(E,I;C)_null"] = float(
-                                        estimator.mutual_information_null(
-                                            np.hstack([E_branch, I_branch]),
-                                            C,
-                                            n_shuffles=n_shuf,
-                                            seed=seed + 4,
-                                        )[0]
-                                    )
                             except Exception as e:
                                 self.logger.warning(
                                     f"Null (label-shuffle) baseline failed for branch {branch_idx}: {e}"
@@ -2885,6 +3002,30 @@ class InformationAnalyzer(AbstractAnalyzer):
                                 None,
                                 Vb_branch_lin,
                             )
+                            if self.mi_null_shuffles > 0:
+                                try:
+                                    self._add_label_shuffle_null_baselines_in_place(
+                                        branch_results_lin,
+                                        E=E_branch_lin,
+                                        I_var=I_branch_lin,
+                                        Vout=Vout_branch_lin,
+                                        C=C,
+                                        Vb=Vb_branch_lin,
+                                        Vinf=None,
+                                        has_exc_synapses=has_exc_synapses,
+                                        has_inh_synapses=has_inh_synapses,
+                                        has_branch_input=has_branch_input
+                                        and (Vb_branch_lin is not None),
+                                        seed_offset=int(
+                                            1_000_000
+                                            + layer_count * 10_000
+                                            + branch_idx
+                                        ),
+                                    )
+                                except Exception as e:
+                                    self.logger.warning(
+                                        f"Null (label-shuffle) baseline failed for LDA branch {branch_idx}: {e}"
+                                    )
                             # Rename keys to indicate LDA versions
                             branch_results_lin_renamed = {}
                             for key, value in branch_results_lin.items():
@@ -3075,6 +3216,7 @@ class InformationAnalyzer(AbstractAnalyzer):
                     # Keep Vb as None when it doesn't exist (e.g., outermost distal layer)
                     # or when config disables branch input analysis.
                     Vb_layer_data = Vb_layer_data_raw if has_branch_input else None
+                    C_for_layer = C
 
                     if self.branch_aggregation == "mean":
                         E_layer = (
@@ -3137,7 +3279,7 @@ class InformationAnalyzer(AbstractAnalyzer):
                         C_expanded = np.repeat(
                             C, n_branches, axis=0
                         )  # Expand C to match new sample count
-                        C = C_expanded  # Update C for this layer computation
+                        C_for_layer = C_expanded
                     else:
                         # Default to mean
                         E_layer = E_layer_data.mean(dim=1).detach().cpu().numpy()
@@ -3155,7 +3297,7 @@ class InformationAnalyzer(AbstractAnalyzer):
 
                     # Compute MI for this layer
                     layer_results = self.compute_metrics(
-                        E_layer, I_layer, Vout_layer, C, None, Vb_layer
+                        E_layer, I_layer, Vout_layer, C_for_layer, None, Vb_layer
                     )
                     self._filter_result_metrics_in_place(
                         layer_results,
@@ -3163,6 +3305,26 @@ class InformationAnalyzer(AbstractAnalyzer):
                         has_inh_synapses=has_inh_synapses,
                         has_branch_input=has_branch_input,
                     )
+                    if self.mi_null_shuffles > 0:
+                        try:
+                            self._add_label_shuffle_null_baselines_in_place(
+                                layer_results,
+                                E=E_layer,
+                                I_var=I_layer,
+                                Vout=Vout_layer,
+                                C=C_for_layer,
+                                Vb=Vb_layer,
+                                Vinf=None,
+                                has_exc_synapses=has_exc_synapses,
+                                has_inh_synapses=has_inh_synapses,
+                                has_branch_input=has_branch_input
+                                and (Vb_layer is not None),
+                                seed_offset=int(len(all_results)),
+                            )
+                        except Exception as e:
+                            self.logger.warning(
+                                f"Null (label-shuffle) baseline failed for layer {layer_name}: {e}"
+                            )
                     all_results.append(layer_results)
                     layer_names.append(layer_name)
 
@@ -3299,6 +3461,7 @@ class InformationAnalyzer(AbstractAnalyzer):
                     return
 
                 # Handle concatenation based on aggregation method
+                C_for_metrics = C
                 if self.branch_aggregation == "sample":
                     # For sample aggregation, concatenate along sample dimension (axis=0)
                     E = (
@@ -3316,7 +3479,7 @@ class InformationAnalyzer(AbstractAnalyzer):
                     total_samples = E.shape[0]
                     original_samples = C.shape[0]
                     expansion_factor = total_samples // original_samples
-                    C = np.repeat(C, expansion_factor, axis=0)
+                    C_for_metrics = np.repeat(C, expansion_factor, axis=0)
                 elif self.branch_aggregation == "multivariate":
                     # For multivariate, concatenate along feature dimension (axis=1)
                     E = (
@@ -3344,7 +3507,7 @@ class InformationAnalyzer(AbstractAnalyzer):
 
                 self.logger.info(
                     "Aggregated data shapes - "
-                    f"E: {E.shape}, I: {I_var.shape}, Vb: {None if Vb is None else Vb.shape}, Vout: {Vout.shape}, C: {C.shape}"
+                    f"E: {E.shape}, I: {I_var.shape}, Vb: {None if Vb is None else Vb.shape}, Vout: {Vout.shape}, C: {C_for_metrics.shape}"
                 )
 
                 # Get soma activation (Vinf) if available for aggregate mode
@@ -3357,7 +3520,26 @@ class InformationAnalyzer(AbstractAnalyzer):
                         Vinf = final_output.detach().cpu().numpy()
 
                 # Run information analysis on aggregated data
-                results = self.compute_metrics(E, I_var, Vout, C, Vinf, Vb)
+                results = self.compute_metrics(E, I_var, Vout, C_for_metrics, Vinf, Vb)
+                if self.mi_null_shuffles > 0:
+                    try:
+                        self._add_label_shuffle_null_baselines_in_place(
+                            results,
+                            E=E,
+                            I_var=I_var,
+                            Vout=Vout,
+                            C=C_for_metrics,
+                            Vb=Vb,
+                            Vinf=Vinf,
+                            has_exc_synapses=True,
+                            has_inh_synapses=True,
+                            has_branch_input=Vb is not None,
+                            seed_offset=999_999,
+                        )
+                    except Exception as e:
+                        self.logger.warning(
+                            f"Null (label-shuffle) baseline failed for all-branch analysis: {e}"
+                        )
                 results["aggregation_method"] = self.branch_aggregation
                 results["computation_level"] = "all_branch"
 
