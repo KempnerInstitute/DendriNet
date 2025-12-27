@@ -1425,7 +1425,37 @@ class InformationAnalyzer(AbstractAnalyzer):
 
                 arr = np.asarray(values, dtype=float)
                 layer_stats[f"{key}_mean"] = float(np.mean(arr))
-                layer_stats[f"{key}_std"] = float(np.std(arr))
+
+                # Default std: across branches (between-branch variability).
+                std_val = float(np.std(arr))
+
+                # For permutation-null baselines, prefer the within-shuffle spread.
+                # The baseline is stored as:
+                #   <metric>_null      : mean across permutations (per-branch)
+                #   <metric>_null_std  : std across permutations (per-branch)
+                # For plotting, it is more informative for <metric>_null error bars
+                # to reflect <metric>_null_std rather than branch-to-branch variability
+                # of the null mean.
+                if isinstance(key, str) and key.endswith("_null"):
+                    null_std_key = f"{key}_std"
+                    null_stds: list[float] = []
+                    for r in results_list:
+                        if (
+                            metric_category in r
+                            and isinstance(r[metric_category], dict)
+                            and null_std_key in r[metric_category]
+                        ):
+                            v = r[metric_category][null_std_key]
+                            if isinstance(v, (int, float, np.number)) and np.isfinite(
+                                v
+                            ):
+                                null_stds.append(float(v))
+                    if null_stds:
+                        std_val = float(
+                            np.sqrt(np.mean(np.asarray(null_stds, dtype=float) ** 2))
+                        )
+
+                layer_stats[f"{key}_std"] = std_val
                 layer_stats[f"{key}_n"] = float(arr.size)
 
                 # Only compute "layer total" heuristics for class-targeted metrics.
@@ -1602,15 +1632,21 @@ class InformationAnalyzer(AbstractAnalyzer):
         has_branch_input: bool = True,
         seed_offset: int = 0,
     ) -> None:
-        """Add label-shuffle (*_null) baselines for C-targeted metrics (in-place).
+        r"""Add permutation (*_null) baselines for selected MI/CMI metrics (in-place).
 
-        This is a finite-sample bias / null diagnostic: it permutes the label
-        vector ``C`` and recomputes MI/CMI using the *same* estimator selected by
-        ``estimator.method``.
+        This is a finite-sample bias / null diagnostic: it permutes *one of the
+        variables* across samples and recomputes MI/CMI using the *same* estimator
+        selected by ``estimator.method``.
 
-        Baselines are added only for metrics of the form:
-        - ``I(X;C)`` (basic MI)  -> uses ``mutual_information_null``
-        - ``I(X;C|Z)`` (conditional) -> shuffles C and recomputes ``conditional_mutual_information``
+        Notes
+        -----
+        - For ``I(X;Y)`` we use ``estimator.mutual_information_null(X, Y)`` which
+          permutes ``Y`` across samples.
+        - For ``I(X;Y|Z)`` we permute ``Y`` and recompute
+          ``estimator.conditional_mutual_information(X, Y_perm, Z)``.
+          If the conditioning variable is exactly ``Z=C`` (discrete labels),
+          we permute ``Y`` \emph{within each class} to preserve the marginal
+          distribution of ``Y|C`` while destroying within-class dependence.
         """
         if int(getattr(self, "mi_null_shuffles", 0) or 0) <= 0:
             return
@@ -1618,6 +1654,7 @@ class InformationAnalyzer(AbstractAnalyzer):
         null_components = getattr(self, "mi_null_components", {"basic"})
         want_all = "all" in null_components
         want_basic = want_all or ("basic" in null_components)
+        want_pairwise = want_all or ("pairwise" in null_components)
         want_conditional = want_all or bool(
             {"conditional", "ablation_aligned", "upstream_unique_cmi"}.intersection(
                 null_components
@@ -1626,6 +1663,8 @@ class InformationAnalyzer(AbstractAnalyzer):
         categories: list[str] = []
         if want_basic:
             categories.append("basic_mi")
+        if want_pairwise:
+            categories.append("pairwise_mi")
         if want_conditional:
             categories.append("conditional_mi")
         if not categories:
@@ -1635,6 +1674,7 @@ class InformationAnalyzer(AbstractAnalyzer):
         n_shuf = int(self.mi_null_shuffles)
         seed_base = int(getattr(self, "mi_null_seed", 0) or 0) + int(seed_offset)
         C_vec = np.asarray(C).ravel()
+        C_col = C_vec.reshape(-1, 1)
 
         def _parse_mi_key(mi_key: Any) -> Any:
             if not isinstance(mi_key, str):
@@ -1657,6 +1697,8 @@ class InformationAnalyzer(AbstractAnalyzer):
 
         def _var_data(token: str) -> Optional[np.ndarray]:
             base = token.split("_", 1)[0]
+            if base == "C":
+                return C_col
             if base == "E":
                 return E if has_exc_synapses else None
             if base == "I":
@@ -1687,19 +1729,21 @@ class InformationAnalyzer(AbstractAnalyzer):
                 if parsed is None:
                     continue
                 x_vars, y_var, z_vars = parsed
-                if y_var != "C":
-                    continue
 
                 x_parts = [_var_data(t) for t in x_vars]
                 if any(p is None for p in x_parts):
                     continue
                 x = np.hstack([p for p in x_parts if p is not None])
 
-                # Unconditional: I(X;C)
+                y_arr = _var_data(y_var)
+                if y_arr is None:
+                    continue
+
+                # Unconditional: I(X;Y)
                 if not z_vars:
                     null_mean, null_std = estimator.mutual_information_null(
                         x,
-                        C_vec,
+                        y_arr,
                         n_shuffles=n_shuf,
                         seed=seed_base + seed_off,
                     )
@@ -1708,21 +1752,32 @@ class InformationAnalyzer(AbstractAnalyzer):
                     seed_off += 1
                     continue
 
-                # Conditional: I(X;C|Z)
+                # Conditional: I(X;Y|Z)
                 z_parts = [_var_data(t) for t in z_vars]
                 if any(p is None for p in z_parts):
                     continue
                 z = np.hstack([p for p in z_parts if p is not None])
 
+                stratify_by_c = len(z_vars) == 1 and z_vars[0].split("_", 1)[0] == "C"
                 if perms is None:
                     rng = np.random.default_rng(seed_base + 10_000)
                     perms = [rng.permutation(C_vec.shape[0]) for _ in range(n_shuf)]
 
                 vals: list[float] = []
                 for perm in perms:
-                    C_perm = C_vec[perm].reshape(-1, 1)
+                    if stratify_by_c:
+                        # Permute Y within each class label to preserve Y|C.
+                        y_perm = np.asarray(y_arr).copy()
+                        for c_val in np.unique(C_vec):
+                            idx = np.flatnonzero(C_vec == c_val)
+                            if idx.size <= 1:
+                                continue
+                            idx_perm = rng.permutation(idx)
+                            y_perm[idx] = y_arr[idx_perm]
+                    else:
+                        y_perm = y_arr[perm]
                     vals.append(
-                        float(estimator.conditional_mutual_information(x, C_perm, z))
+                        float(estimator.conditional_mutual_information(x, y_perm, z))
                     )
                 metrics_dict[f"{metric_key}_null"] = float(np.mean(vals))
                 metrics_dict[f"{metric_key}_null_std"] = float(np.std(vals))

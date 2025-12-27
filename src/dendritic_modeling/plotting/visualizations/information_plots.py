@@ -1820,6 +1820,7 @@ def plot_fully_aggregated_analysis(
                         ("I(E;I)", "#1f77b4", "DendriNet"),
                         ("I(E_lin;I_lin)", "#ff7f0e", r"LDA$_{+}$"),
                         ("I(E_sh;I_sh)", "#7f7f7f", "Random"),
+                        ("I(E;I)_null", "#000000", "Shuffle-null"),
                     ],
                 ),
                 (
@@ -1828,6 +1829,7 @@ def plot_fully_aggregated_analysis(
                         ("I(E;Vout)", "#1f77b4", "DendriNet"),
                         ("I(E_lin;Vout_lin)", "#ff7f0e", r"LDA$_{+}$"),
                         ("I(E_sh;Vout_sh)", "#7f7f7f", "Random"),
+                        ("I(E;Vout)_null", "#000000", "Shuffle-null"),
                     ],
                 ),
                 (
@@ -1836,6 +1838,7 @@ def plot_fully_aggregated_analysis(
                         ("I(I;Vout)", "#1f77b4", "DendriNet"),
                         ("I(I_lin;Vout_lin)", "#ff7f0e", r"LDA$_{+}$"),
                         ("I(I_sh;Vout_sh)", "#7f7f7f", "Random"),
+                        ("I(I;Vout)_null", "#000000", "Shuffle-null"),
                     ],
                 ),
                 (
@@ -1844,6 +1847,7 @@ def plot_fully_aggregated_analysis(
                         ("I(E;Vb)", "#1f77b4", "DendriNet"),
                         ("I(E_lin;Vb_lin)", "#ff7f0e", r"LDA$_{+}$"),
                         ("I(E_sh;Vb_sh)", "#7f7f7f", "Random"),
+                        ("I(E;Vb)_null", "#000000", "Shuffle-null"),
                     ],
                 ),
                 (
@@ -1852,6 +1856,7 @@ def plot_fully_aggregated_analysis(
                         ("I(I;Vb)", "#1f77b4", "DendriNet"),
                         ("I(I_lin;Vb_lin)", "#ff7f0e", r"LDA$_{+}$"),
                         ("I(I_sh;Vb_sh)", "#7f7f7f", "Random"),
+                        ("I(I;Vb)_null", "#000000", "Shuffle-null"),
                     ],
                 ),
                 (
@@ -1860,6 +1865,7 @@ def plot_fully_aggregated_analysis(
                         ("I(Vb;Vout)", "#1f77b4", "DendriNet"),
                         ("I(Vb_lin;Vout_lin)", "#ff7f0e", r"LDA$_{+}$"),
                         ("I(Vb_sh;Vout_sh)", "#7f7f7f", "Random"),
+                        ("I(Vb;Vout)_null", "#000000", "Shuffle-null"),
                     ],
                 ),
             ],
@@ -1873,6 +1879,7 @@ def plot_fully_aggregated_analysis(
                         ("I(E;I|C)", "#1f77b4", "DendriNet"),
                         ("I(E_lin;I_lin|C)", "#ff7f0e", r"LDA$_{+}$"),
                         ("I(E_sh;I_sh|C)", "#7f7f7f", "Random"),
+                        ("I(E;I|C)_null", "#000000", "Shuffle-null"),
                     ],
                 ),
                 (
@@ -1881,6 +1888,7 @@ def plot_fully_aggregated_analysis(
                         ("I(E;Vout|C)", "#1f77b4", "DendriNet"),
                         ("I(E_lin;Vout_lin|C)", "#ff7f0e", r"LDA$_{+}$"),
                         ("I(E_sh;Vout_sh|C)", "#7f7f7f", "Random"),
+                        ("I(E;Vout|C)_null", "#000000", "Shuffle-null"),
                     ],
                 ),
                 (
@@ -1889,6 +1897,7 @@ def plot_fully_aggregated_analysis(
                         ("I(I;Vout|C)", "#1f77b4", "DendriNet"),
                         ("I(I_lin;Vout_lin|C)", "#ff7f0e", r"LDA$_{+}$"),
                         ("I(I_sh;Vout_sh|C)", "#7f7f7f", "Random"),
+                        ("I(I;Vout|C)_null", "#000000", "Shuffle-null"),
                     ],
                 ),
                 (
@@ -1897,6 +1906,7 @@ def plot_fully_aggregated_analysis(
                         ("I(E;Vb|C)", "#1f77b4", "DendriNet"),
                         ("I(E_lin;Vb_lin|C)", "#ff7f0e", r"LDA$_{+}$"),
                         ("I(E_sh;Vb_sh|C)", "#7f7f7f", "Random"),
+                        ("I(E;Vb|C)_null", "#000000", "Shuffle-null"),
                     ],
                 ),
                 (
@@ -1905,6 +1915,7 @@ def plot_fully_aggregated_analysis(
                         ("I(I;Vb|C)", "#1f77b4", "DendriNet"),
                         ("I(I_lin;Vb_lin|C)", "#ff7f0e", r"LDA$_{+}$"),
                         ("I(I_sh;Vb_sh|C)", "#7f7f7f", "Random"),
+                        ("I(I;Vb|C)_null", "#000000", "Shuffle-null"),
                     ],
                 ),
                 (
@@ -1913,6 +1924,7 @@ def plot_fully_aggregated_analysis(
                         ("I(Vb;Vout|C)", "#1f77b4", "DendriNet"),
                         ("I(Vb_lin;Vout_lin|C)", "#ff7f0e", r"LDA$_{+}$"),
                         ("I(Vb_sh;Vout_sh|C)", "#7f7f7f", "Random"),
+                        ("I(Vb;Vout|C)_null", "#000000", "Shuffle-null"),
                     ],
                 ),
                 (
@@ -1921,6 +1933,7 @@ def plot_fully_aggregated_analysis(
                         ("I(Vout;C|Vb)", "#1f77b4", "DendriNet"),
                         ("I(Vout_lin;C|Vb_lin)", "#ff7f0e", r"LDA$_{+}$"),
                         ("I(Vout_sh;C|Vb_sh)", "#7f7f7f", "Random"),
+                        ("I(Vout;C|Vb)_null", "#000000", "Shuffle-null"),
                     ],
                 ),
                 (
@@ -1929,6 +1942,7 @@ def plot_fully_aggregated_analysis(
                         ("I(Vb;C|Vout)", "#1f77b4", "DendriNet"),
                         ("I(Vb_lin;C|Vout_lin)", "#ff7f0e", r"LDA$_{+}$"),
                         ("I(Vb_sh;C|Vout_sh)", "#7f7f7f", "Random"),
+                        ("I(Vb;C|Vout)_null", "#000000", "Shuffle-null"),
                     ],
                 ),
                 (
@@ -1937,6 +1951,7 @@ def plot_fully_aggregated_analysis(
                         ("I(Vout;C|E,I)", "#1f77b4", "DendriNet"),
                         ("I(Vout_lin;C|E_lin,I_lin)", "#ff7f0e", r"LDA$_{+}$"),
                         ("I(Vout_sh;C|E_sh,I_sh)", "#7f7f7f", "Random"),
+                        ("I(Vout;C|E,I)_null", "#000000", "Shuffle-null"),
                     ],
                 ),
                 (
@@ -1945,6 +1960,7 @@ def plot_fully_aggregated_analysis(
                         ("I(E;C|Vb)", "#1f77b4", "DendriNet"),
                         ("I(E_lin;C|Vb_lin)", "#ff7f0e", r"LDA$_{+}$"),
                         ("I(E_sh;C|Vb_sh)", "#7f7f7f", "Random"),
+                        ("I(E;C|Vb)_null", "#000000", "Shuffle-null"),
                     ],
                 ),
                 (
@@ -1953,6 +1969,7 @@ def plot_fully_aggregated_analysis(
                         ("I(I;C|Vb)", "#1f77b4", "DendriNet"),
                         ("I(I_lin;C|Vb_lin)", "#ff7f0e", r"LDA$_{+}$"),
                         ("I(I_sh;C|Vb_sh)", "#7f7f7f", "Random"),
+                        ("I(I;C|Vb)_null", "#000000", "Shuffle-null"),
                     ],
                 ),
                 (
@@ -1961,6 +1978,7 @@ def plot_fully_aggregated_analysis(
                         ("I(E,I;C|Vb)", "#1f77b4", "DendriNet"),
                         ("I(E_lin,I_lin;C|Vb_lin)", "#ff7f0e", r"LDA$_{+}$"),
                         ("I(E_sh,I_sh;C|Vb_sh)", "#7f7f7f", "Random"),
+                        ("I(E,I;C|Vb)_null", "#000000", "Shuffle-null"),
                     ],
                 ),
                 (
@@ -1969,6 +1987,7 @@ def plot_fully_aggregated_analysis(
                         ("I(E;C|I,Vb)", "#1f77b4", "DendriNet"),
                         ("I(E_lin;C|I_lin,Vb_lin)", "#ff7f0e", r"LDA$_{+}$"),
                         ("I(E_sh;C|I_sh,Vb_sh)", "#7f7f7f", "Random"),
+                        ("I(E;C|I,Vb)_null", "#000000", "Shuffle-null"),
                     ],
                 ),
                 (
@@ -1977,6 +1996,7 @@ def plot_fully_aggregated_analysis(
                         ("I(I;C|E,Vb)", "#1f77b4", "DendriNet"),
                         ("I(I_lin;C|E_lin,Vb_lin)", "#ff7f0e", r"LDA$_{+}$"),
                         ("I(I_sh;C|E_sh,Vb_sh)", "#7f7f7f", "Random"),
+                        ("I(I;C|E,Vb)_null", "#000000", "Shuffle-null"),
                     ],
                 ),
             ],

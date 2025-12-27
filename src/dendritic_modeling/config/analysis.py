@@ -216,21 +216,26 @@ class InformationBaselinesRandomWeightsParams(BaseConfig):
 
 @dataclass
 class InformationBaselinesLabelShuffleNullParams(BaseConfig):
-    """Label-shuffle null baseline for MI terms with C (produces *_null metrics).
+    """Permutation null baseline for MI/CMI terms (produces *_null metrics).
 
     This is a finite-sample bias / null diagnostic: it permutes the label vector
-    ``C`` across samples and recomputes MI using the same estimator selected by
-    ``estimator.method``.
+    (or, more generally, permutes one variable across samples) and recomputes MI/CMI
+    using the same estimator selected by ``estimator.method``.
 
     You can control which metric groups receive a *_null counterpart via
-    ``components``. Example: components=["basic", "conditional", "ablation_aligned"].
+    ``components``.
+
+    - components=["basic"]: add *_null for basic MI terms (typically I(*;C))
+    - components=["pairwise"]: add *_null for pairwise MI terms like I(E;I), I(E;Vout)
+    - components=["conditional"]: add *_null for conditional MI terms like I(E;Vout|C)
+    - components=["all"]: apply to all available groups
     """
 
     n_shuffles: int = 0  # int >= 0; 0 disables
     seed: int = 0
     components: list[str] = field(
         default_factory=lambda: ["basic"]
-    )  # "basic", "conditional", "ablation_aligned", "layer_proxies", "upstream_unique_cmi", "all"
+    )  # "basic", "pairwise", "conditional", "ablation_aligned", "layer_proxies", "upstream_unique_cmi", "all"
 
 
 @dataclass
