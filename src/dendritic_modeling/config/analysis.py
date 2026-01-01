@@ -220,9 +220,15 @@ class CompartmentStatisticsAnalysisConfig(BaseConfig):
 @dataclass
 class CompartmentSNRAnalysisParams(BaseConfig):
     """Enhanced configuration for compartment SNR analysis."""
-    global_analysis: bool = True  # Analyze global statistics
+    # global_analysis: bool = True  # Analyze global statistics
     layer_analysis: bool = True  # Analyze layer statistics
     branch_analysis: bool = True  # Analyze branch statistics
+
+    global_aggregation: bool = True  # Aggregate global statistics
+    layer_aggregation: bool = True  # Aggregate layer statistics
+    branch_aggregation: bool = True  # Aggregate branch statistics
+
+    epsilon: float = 1e-6
 
 
 @dataclass

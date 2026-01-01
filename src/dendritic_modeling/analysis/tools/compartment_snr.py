@@ -12,19 +12,18 @@ import json
 import traceback
 import logging
 import time
-from typing import Any, Optional, Union
+from typing import Optional, Union
 
 import numpy as np
 import torch
 import pandas as pd
 import seaborn as sns
-from scipy.stats import differential_entropy
-from math import exp
 
 import matplotlib.pyplot as plt
+import matplotlib.animation as animation
 
 from dendritic_modeling.analysis.core.base import AbstractAnalyzer
-from dendritic_modeling.config import CompartmentStatisticsAnalysisParams
+from dendritic_modeling.config import CompartmentSNRAnalysisParams
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.networks import (
     TopKLinear,
@@ -34,34 +33,31 @@ from dendritic_modeling.networks import (
 )
 from dendritic_modeling.utils import save_dict
 
-from dendritic_modeling.plotting.visualizations.synaptic_weight_plots import (
-    plot_synaptic_weight_analysis,
-)
-from dendritic_modeling.plotting.visualizations.plotting_utils import (
-    convert_layer_names,
-    setup_basic_plot,
-)
 
 logger = logging.getLogger(__name__)
 
 
 class CompartmentSNRAnalyzer(AbstractAnalyzer):
     """
-    Unified analyzer for comprehensive synaptic weight analysis.
+    Unified analyzer for comprehensive compartment SNR analysis.
 
-    Provides both global weight statistics and hierarchical per-layer analysis
-    with enhanced plotting capabilities including min/max and dendritic strength plots.
+    Provides both global SNR statistics and hierarchical per-layer analysis
+    with enhanced plotting capabilities including SNR vs. depth plots.
     """
 
-    def __init__(self, params: CompartmentStatisticsAnalysisParams):
-        """Initialize the unified compartment statistics analyzer."""
+    def __init__(self, params: CompartmentSNRAnalysisParams):
+        """Initialize the unified compartment SNR analyzer."""
         super().__init__("CompartmentSNRAnalyzer")
         # Enhanced analysis modes
-        self.global_analysis = getattr(params, "global_analysis", True)
+        # self.global_analysis = getattr(params, "global_analysis", True)
         self.layer_analysis = getattr(params, "layer_analysis", True)
         self.branch_analysis = getattr(params, "branch_analysis", True)
 
-        self.epsilon = torch.finfo(torch.float32).eps
+        self.global_aggregation = getattr(params, "global_aggregation", True)
+        self.layer_aggregation = getattr(params, "layer_aggregation", True)
+        self.branch_aggregation = getattr(params, "branch_aggregation", True)
+
+        self.epsilon = getattr(params, "epsilon", torch.finfo(torch.float32).eps)
     
     def collect_raw_data(self, model: BaseModel, x: torch.Tensor):
         """Collect raw data from the model."""
@@ -140,15 +136,171 @@ class CompartmentSNRAnalyzer(AbstractAnalyzer):
             self.raw_dict[key][branch_idx][
                 activation_type
             ] = branch_activation
+    
+    def _layer_analysis(self, labels: torch.Tensor):
+        """Analyze layers of the dendritic network."""
+        
+        layer_statistics = {}
+        for layer_key, layer_data in self.raw_dict.items():
+            layer_data: dict[int, dict[str, torch.Tensor]]
+            layer_agg: dict[str, list[torch.Tensor] | torch.Tensor] = {}
+            for branch_idx, branch_data in layer_data.items():
+                for prefix, data_tensor in branch_data.items():
+                    if prefix != "depth":
+                        if prefix not in layer_agg.keys():
+                            layer_agg[prefix] = []
+                        layer_agg[prefix].append(data_tensor)
+            
+            layer_stats = {"depth": branch_data["depth"]}
+            for prefix, tensor_list in layer_agg.items():
+                data_tensor = torch.stack(tensor_list, dim=-1)
+                layer_stats = self._compute_discriminality_multivariate(
+                    data_tensor, labels, prefix, layer_stats
+                )
+            layer_statistics[layer_key] = layer_stats
+        
+        results = {}
 
-    def _compute_statistics(
+        if self.global_aggregation:
+            global_statistics = self._global_layer_aggregation(layer_statistics)
+            results["global_statistics"] = global_statistics
+        
+        if self.layer_aggregation:
+            results["layer_statistics"] = layer_statistics
+        
+        return results
+    
+    def _compute_discriminality_multivariate(
         self, 
         data_tensor: torch.Tensor,
         labels: torch.Tensor,
         prefix: str,
         stats_dict: dict[str, float],
     ) -> dict[str, float]:
-        """Compute comprehensive statistics for an activation tensor."""
+        """Compute discriminability for a multivariate activation tensor."""
+        cov = torch.cov(data_tensor.T, correction=0)
+        eigvals_cov, eigvecs_cov = torch.linalg.eigh(cov)
+        inv_sqrt_e = torch.diag(
+            torch.clamp(eigvals_cov, min=1e-6).rsqrt()
+        )
+        cov_inv_sqrt = eigvecs_cov @ inv_sqrt_e @ eigvecs_cov.T
+
+        total_mean = data_tensor.mean(dim=0)
+        
+        n_samples = data_tensor.shape[0]
+        n_dims = data_tensor.shape[1]
+
+        cov_b = torch.zeros_like(cov)
+
+        for label in torch.unique(labels):
+            class_data = data_tensor[labels == label]
+            
+            class_mean = class_data.mean(dim=0)
+            class_prob = class_data.shape[0] / n_samples
+            
+            diff_means = (class_mean - total_mean)[:, None]
+            cov_b += class_prob * (diff_means @ diff_means.T)
+        
+        F = cov_inv_sqrt @ cov_b @ cov_inv_sqrt.T
+        eigvals_F = torch.linalg.eigvalsh(F)
+        eigvals_F = torch.where(eigvals_F > self.epsilon, eigvals_F, 0)
+        
+        d_max = eigvals_F[-1].item()
+        d_total = eigvals_F.sum().item()
+
+        n_sig_dims = (eigvals_F > self.epsilon).sum().float().item()
+        ratio_sig_dims = n_sig_dims / n_dims
+
+        stats_dict[f"{prefix}_d_max"] = d_max
+        stats_dict[f"{prefix}_d_total"] = d_total
+        stats_dict[f"{prefix}_n_sig_dims"] = n_sig_dims
+        stats_dict[f"{prefix}_ratio_sig_dims"] = ratio_sig_dims
+
+        # total_mean = data_tensor.mean(dim=0)
+        # inv_cov: torch.Tensor = torch.linalg.pinv(
+        #     torch.cov(data_tensor.T, correction=0)
+        # )
+
+        # n_samples = data_tensor.shape[0]
+        # discrim = 0
+
+        # for label in torch.unique(labels):
+        #     class_data = data_tensor[labels == label]
+            
+        #     class_mean = class_data.mean(dim=0)
+        #     class_prob = class_data.shape[0] / n_samples
+
+        #     diff = (class_mean - total_mean)[:, None]
+        #     discrim += class_prob * (diff.T @ inv_cov @ diff).item()
+
+        # stats_dict[f"{prefix}_d'^2"] = discrim
+        # stats_dict[f"{prefix}_d'^2/D"] = discrim / data_tensor.shape[1]
+
+        return stats_dict
+
+    def _global_layer_aggregation(
+        self,
+        layer_statistics: dict[str, dict[str, int | float]]
+    ):
+        """Compute global statistics from layer statistics."""
+        global_aggregated: dict[str, int | list[float]] = {}
+        for layer_data in layer_statistics.values():
+            for field, value in layer_data.items():
+                if field not in global_aggregated.keys() and field != "depth":
+                    global_aggregated[field] = []
+                if field != "depth":
+                    global_aggregated[field].append(value)
+        
+        global_statistics = {}
+        for field, values in global_aggregated.items():
+            data_tensor = torch.tensor(values)
+            global_statistics[f"{field}_mean"] = data_tensor.mean().item()
+            global_statistics[f"{field}_std"] = data_tensor.std().item()
+        return global_statistics
+    
+    def _branch_analysis(self, labels: torch.Tensor):
+        """Analyze branches of the dendritic network."""
+        
+        branch_statistics = {}
+        for layer_key, layer_data in self.raw_dict.items():
+            branch_statistics[layer_key] = {}
+            layer_data: dict[int, dict[str, torch.Tensor]]
+            for branch_idx, branch_data in layer_data.items():
+                branch_stats = {}
+
+                for prefix, data_tensor in branch_data.items():
+                    if prefix == "depth":
+                        branch_stats[prefix] = data_tensor  # data_tensor is the depth index
+                    else:
+                        branch_stats = self._compute_discriminality_univariate(
+                            data_tensor, labels, prefix, branch_stats
+                        )
+                
+                branch_statistics[layer_key][branch_idx] = branch_stats
+        
+        results = {}
+
+        if self.global_aggregation:
+            global_statistics = self._global_branch_aggregation(branch_statistics)
+            results["global_statistics"] = global_statistics
+        
+        if self.layer_aggregation:
+            layer_statistics = self._layer_branch_aggregation(branch_statistics)
+            results["layer_statistics"] = layer_statistics
+        
+        if self.branch_aggregation:
+            results["branch_statistics"] = branch_statistics
+        
+        return results
+    
+    def _compute_discriminality_univariate(
+        self, 
+        data_tensor: torch.Tensor,
+        labels: torch.Tensor,
+        prefix: str,
+        stats_dict: dict[str, float],
+    ) -> dict[str, float]:
+        """Compute discriminability for a univariate activation tensor."""
         total_mean = data_tensor.mean().item()
         total_var = data_tensor.var().item()
 
@@ -165,41 +317,29 @@ class CompartmentSNRAnalyzer(AbstractAnalyzer):
         stats_dict[f"{prefix}_d'^2"] = var_E_C / (total_var + self.epsilon)
 
         return stats_dict
-    
-    def _compute_branch_statistics(
-        self, 
-        model: BaseModel, 
-        test_dataset: torch.utils.data.Dataset, 
-        device: str = "cpu"
+
+    def _global_branch_aggregation(
+        self,
+        branch_statistics: dict[str, dict[int, dict[str, float]]]
     ):
-        """Compute branch statistics from model and test dataset."""
-        model.to(device)
-        x, labels = test_dataset[:]
-        x: torch.Tensor = x.to(device)
-        labels: torch.Tensor = labels.cpu()
+        """Compute global statistics from branch statistics."""
+        global_aggregated: dict[str, list[float]] = {}
+        for layer_data in branch_statistics.values():
+            for branch_data in layer_data.values():
+                for field, value in branch_data.items():
+                    if field not in global_aggregated.keys() and field != "depth":
+                        global_aggregated[field] = []
+                    if field != "depth":
+                        global_aggregated[field].append(value)
         
-        self.collect_raw_data(model, x)
-        
-        branch_statistics = {}
-        for layer_key, layer_data in self.raw_dict.items():
-            branch_statistics[layer_key] = {}
-            layer_data: dict[int, dict[str, torch.Tensor]]
-            for branch_idx, branch_data in layer_data.items():
-                branch_stats = {}
+        global_statistics = {}
+        for field, values in global_aggregated.items():
+            data_tensor = torch.tensor(values)
+            global_statistics[f"{field}_mean"] = data_tensor.mean().item()
+            global_statistics[f"{field}_std"] = data_tensor.std().item()
+        return global_statistics
 
-                for prefix, data_tensor in branch_data.items():
-                    if prefix == "depth":
-                        branch_stats[prefix] = data_tensor  # data_tensor is the depth index
-                    else:
-                        branch_stats = self._compute_statistics(
-                            data_tensor, labels, prefix, branch_stats
-                        )
-                
-                branch_statistics[layer_key][branch_idx] = branch_stats
-        
-        return branch_statistics
-
-    def _layer_aggregation(
+    def _layer_branch_aggregation(
         self, 
         branch_statistics: dict[str, dict[int, dict[str, float]]]
     ):
@@ -223,27 +363,6 @@ class CompartmentSNRAnalyzer(AbstractAnalyzer):
             
             layer_statistics[layer_key] = layer_stats
         return layer_statistics
-
-    def _global_aggregation(
-        self,
-        branch_statistics: dict[str, dict[int, dict[str, float]]]
-    ):
-        """Compute global statistics from branch statistics."""
-        global_aggregated: dict[str, list[float]] = {}
-        for layer_data in branch_statistics.values():
-            for branch_data in layer_data.values():
-                for field, value in branch_data.items():
-                    if field not in global_aggregated.keys() and field != "depth":
-                        global_aggregated[field] = []
-                    if field != "depth":
-                        global_aggregated[field].append(value)
-        
-        global_statistics = {}
-        for field, values in global_aggregated.items():
-            data_tensor = torch.tensor(values)
-            global_statistics[f"{field}_mean"] = data_tensor.mean().item()
-            global_statistics[f"{field}_std"] = data_tensor.std().item()
-        return global_statistics
     
     def analyze(
         self,
@@ -277,24 +396,22 @@ class CompartmentSNRAnalyzer(AbstractAnalyzer):
         self.logger.info("Starting comprehensive excitation-inhibition analysis...")        
         start_time = time.time()
 
-        branch_statistics = self._compute_branch_statistics(
-            model = model,
-            test_dataset = test_dataset,
-            device = device
-        )
+        model.to(device)
+        x, labels = test_dataset[:]
+        x: torch.Tensor = x.to(device)
+        labels: torch.Tensor = labels.cpu()
+        
+        self.collect_raw_data(model, x)
 
         results = {}
 
-        if self.global_analysis:
-            global_statistics = self._global_aggregation(branch_statistics)
-            results["global_statistics"] = global_statistics
-        
         if self.layer_analysis:
-            layer_statistics = self._layer_aggregation(branch_statistics)
-            results["layer_statistics"] = layer_statistics
+            layer_analysis = self._layer_analysis(labels)
+            results["layer_analysis"] = layer_analysis
         
         if self.branch_analysis:
-            results["branch_statistics"] = branch_statistics
+            branch_analysis = self._branch_analysis(labels)
+            results["branch_analysis"] = branch_analysis
 
         elapsed_time = time.time() - start_time
         self.logger.info(f"SNR analysis completed in {elapsed_time:.2f} seconds")
@@ -311,29 +428,110 @@ class CompartmentSNRAnalyzer(AbstractAnalyzer):
 
             if not training:
                 epochs_data, epoch_numbers = self.load_epochs_data(save_path)
-                if self.global_analysis:
-                    if epochs_data:
-                        plot_global_vs_training(
-                            epochs_data["global_statistics"], epoch_numbers, save_path
-                        )
 
                 if self.layer_analysis:
-                    if epochs_data:
-                        plot_layer_vs_training(
-                            epochs_data["layer_statistics"], epoch_numbers, save_path
+                    layer_save_path = os.path.join(save_path, "layer_analysis")
+                    if self.global_aggregation:
+                        if epochs_data:
+                            pass
+
+                    if self.layer_aggregation:
+                        if epochs_data:
+                            plot_layer_analysis_layer_agg_vs_training(
+                                epochs_data["layer_analysis"]["layer_statistics"],
+                                epoch_numbers,
+                                layer_save_path,
+                                # metric="d'^2"
+                                metric="d_max"
+                            )
+                            plot_layer_analysis_layer_agg_vs_training(
+                                epochs_data["layer_analysis"]["layer_statistics"],
+                                epoch_numbers,
+                                layer_save_path,
+                                # metric="d'^2/D"
+                                metric="d_total"
+                            )
+                            plot_layer_analysis_layer_agg_vs_training(
+                                epochs_data["layer_analysis"]["layer_statistics"],
+                                epoch_numbers,
+                                layer_save_path,
+                                metric="n_sig_dims"
+                            )
+                            plot_layer_analysis_layer_agg_vs_training(
+                                epochs_data["layer_analysis"]["layer_statistics"],
+                                epoch_numbers,
+                                layer_save_path,
+                                metric="ratio_sig_dims"
+                            )
+                            # plot_layer_analysis_layer_agg_vs_training_both_metrics(
+                            #     epochs_data["layer_analysis"]["layer_statistics"],
+                            #     epoch_numbers,
+                            #     layer_save_path
+                            # )
+
+                        plot_layer_analysis_layer_agg_final(
+                            results["layer_analysis"]["layer_statistics"], 
+                            layer_save_path,
+                            # metric="d'^2"
+                            metric="d_max"
                         )
-                    
-                    plot_layer_final(results["layer_statistics"], save_path)
+                        plot_layer_analysis_layer_agg_final(
+                            results["layer_analysis"]["layer_statistics"], 
+                            layer_save_path,
+                            # metric="d'^2/D"
+                            metric="d_total"
+                        )
+                        plot_layer_analysis_layer_agg_final(
+                            results["layer_analysis"]["layer_statistics"], 
+                            layer_save_path,
+                            metric="n_sig_dims"
+                        )
+                        plot_layer_analysis_layer_agg_final(
+                            results["layer_analysis"]["layer_statistics"], 
+                            layer_save_path,
+                            metric="ratio_sig_dims"
+                        )
+                        # plot_layer_analysis_layer_agg_final_both_metrics(
+                        #     results["layer_analysis"]["layer_statistics"], 
+                        #     layer_save_path
+                        # )
+
+                    if self.branch_aggregation:
+                        if epochs_data:
+                            pass
                 
                 if self.branch_analysis:
-                    if epochs_data:
-                        pass
+                    branch_save_path = os.path.join(save_path, "branch_analysis")
+                    if self.global_aggregation:
+                        if epochs_data:
+                            plot_branch_analysis_global_agg_vs_training(
+                                epochs_data["branch_analysis"]["global_statistics"], 
+                                epoch_numbers, 
+                                branch_save_path
+                            )
                     
-                    plot_branch_final(results["branch_statistics"], save_path)
-
-
-
-
+                    if self.layer_aggregation:
+                        if epochs_data:
+                            plot_branch_analysis_layer_agg_vs_training(
+                                epochs_data["branch_analysis"]["layer_statistics"], 
+                                epoch_numbers, 
+                                branch_save_path
+                            )
+                        
+                        plot_branch_analysis_layer_agg_final(
+                            results["branch_analysis"]["layer_statistics"], 
+                            branch_save_path
+                        )
+                    
+                    if self.branch_aggregation:
+                        if epochs_data:
+                            pass
+                    
+                        plot_branch_analysis_branch_agg_final(
+                            results["branch_analysis"]["branch_statistics"], 
+                            branch_save_path
+                        )
+        
         return results
 
     def _initialize_agg_structure(self, data: dict) -> dict:
@@ -421,9 +619,9 @@ class CompartmentSNRAnalyzer(AbstractAnalyzer):
         return agg_dict, epoch_numbers
     
 
-def plot_global_vs_training(global_data: dict, epoch_numbers: list, save_path: str):
+def plot_branch_analysis_global_agg_vs_training(global_data: dict, epoch_numbers: list, save_path: str):
     """
-    Plot mean +/- 1 standard deviation for all activation types across training epochs.
+    Plot mean +/- 1 standard deviation for all activation types across training epochs for branch analysis global aggregation.
     
     Args:
         global_data: Aggregated dictionary with lists of values for each metric
@@ -479,17 +677,17 @@ def plot_global_vs_training(global_data: dict, epoch_numbers: list, save_path: s
     
     plt.tight_layout()
     os.makedirs(save_path, exist_ok=True)
-    fig.savefig(os.path.join(save_path, "global_vs_training.png"), dpi=300, bbox_inches="tight")
+    plot_path = os.path.join(save_path, "branch_analysis_global_agg_vs_training.png")
+    fig.savefig(plot_path, dpi=300, bbox_inches="tight")
     plt.close(fig)
 
 
-def plot_layer_vs_training(layer_data: dict, epoch_numbers: list, save_path: str):
+def plot_branch_analysis_layer_agg_vs_training(layer_data: dict, epoch_numbers: list, save_path: str):
     """
-    Plot d'^2 for excitation, inhibition, and vout across training epochs, 
-    with different colored lines for different layers.
+    Plot d'^2 for excitation, inhibition, and vout across training epochs for branch analysis layer aggregation.
     
     Args:
-        layer_data: Aggregated dictionary with layer statistics
+        layer_data: Aggregated dictionary with layer statistics for branch analysis
                    Structure: {layer_key: {metric_key: [list of values across epochs]}}
         epoch_numbers: List of epoch numbers corresponding to the data
         save_path: Path to save the plot
@@ -564,26 +762,27 @@ def plot_layer_vs_training(layer_data: dict, epoch_numbers: list, save_path: str
     
     plt.tight_layout()
     os.makedirs(save_path, exist_ok=True)
-    fig.savefig(os.path.join(save_path, "layer_vs_training.png"), dpi=300, bbox_inches="tight")
+    plot_path = os.path.join(save_path, "branch_analysis_layer_agg_vs_training.png")
+    fig.savefig(plot_path, dpi=300, bbox_inches="tight")
     plt.close(fig)
 
 
-def plot_layer_final(
+def plot_branch_analysis_layer_agg_final(
     layer_statistics: dict,
     save_path: Optional[str] = None
 ) -> Optional[plt.Figure]:
     """
-    Plot layer statistics showing d'^2 for vout, excitation, inhibition, and upstream across layers.
+    Plot layer statistics showing d'^2 for vout, excitation, inhibition, and upstream across layers for branch analysis layer aggregation.
     
     This function produces a figure analogous to plot_layer_ablation but shows d'^2 values
     instead of accuracy/log-likelihood decrease.
     
     Args:
-        layer_statistics: Dictionary containing layer statistics with structure:
+        layer_statistics: Dictionary containing layer statistics for branch analysis with structure:
                          {layer_key: {depth: int, exc_d'^2_mean: float, 
                                      inh_d'^2_mean: float, vout_d'^2_mean: float, 
                                      upstream_d'^2_mean: float, ...}}
-        save_path: Path to save plot. If None, returns figure
+        save_path: Path to save plot for branch analysis layer aggregation. If None, returns figure
         
     Returns:
         Figure if save_path is None, otherwise None
@@ -726,7 +925,7 @@ def plot_layer_final(
     
     if save_path is not None:
         os.makedirs(save_path, exist_ok=True)
-        plot_path = os.path.join(save_path, "layer_final.png")
+        plot_path = os.path.join(save_path, "branch_analysis_layer_agg_final.png")
         fig.savefig(plot_path, dpi=300, bbox_inches="tight")
         plt.close(fig)
         return None
@@ -734,12 +933,12 @@ def plot_layer_final(
         return fig
 
 
-def plot_branch_final(branch_data: dict, save_path: str):
+def plot_branch_analysis_branch_agg_final(branch_data: dict, save_path: str):
     """
-    Plot the final branch statistics.
+    Plot the final branch statistics for branch analysis branch aggregation.
     
     Args:
-        branch_data: The branch data dictionary to plot
+        branch_data: The branch data dictionary to plot for branch analysis branch aggregation
         save_path: Path to save the plot
     """
     agg_data: dict[str, dict[str, list[float]]] = {}
@@ -853,9 +1052,1159 @@ def plot_branch_final(branch_data: dict, save_path: str):
                 ax.set_ylabel("")
 
     plt.tight_layout()
-    g.figure.savefig(os.path.join(save_path, "branch_final.png"), dpi=300, bbox_inches="tight")
+    os.makedirs(save_path, exist_ok=True)
+    plot_path = os.path.join(save_path, "branch_analysis_branch_agg_final.png")
+    g.figure.savefig(plot_path, dpi=300, bbox_inches="tight")
     plt.close(g.figure)
 
+
+
+def plot_layer_analysis_layer_agg_final(
+    layer_statistics: dict,
+    save_path: Optional[str] = None,
+    # metric: str = "d'^2"
+    metric: str = "d_max"
+) -> Optional[plt.Figure]:
+    """
+    Plot layer statistics showing d'^2 for vout, excitation, inhibition, and upstream across layers for branch analysis layer aggregation.
+    
+    This function produces a figure analogous to plot_layer_ablation but shows d'^2 values
+    instead of accuracy/log-likelihood decrease.
+    
+    Args:
+        layer_statistics: Dictionary containing layer statistics for branch analysis with structure:
+                         {layer_key: {depth: int, exc_d'^2_mean: float, 
+                                     inh_d'^2_mean: float, vout_d'^2_mean: float, 
+                                     upstream_d'^2_mean: float, ...}}
+        save_path: Path to save plot for branch analysis layer aggregation. If None, returns figure
+        
+    Returns:
+        Figure if save_path is None, otherwise None
+    """
+    # Extract activation types we want to plot (in desired order: vout, exc, inh, upstream)
+    # vout is always present, others are optional
+    activation_types = ["vout", "exc", "inh", "upstream"]
+    activation_labels = {
+        "exc": "Excitation",
+        "inh": "Inhibition",
+        "vout": "Vout",
+        "upstream": "Upstream"
+    }
+    
+    # Color scheme - using a different palette
+    colors = {
+        "vout": "#2c3e50",    # Dark blue-gray
+        "exc": "#e74c3c",     # Red
+        "inh": "#3498db",     # Blue
+        "upstream": "#808080" # Medium grey
+    }
+    
+    # Sort layers by depth to ensure correct ordering
+    sorted_layers = sorted(
+        layer_statistics.items(),
+        key=lambda x: x[1].get("depth", float('inf'))
+    )
+    
+    # First, get all depths from vout (which is always present)
+    plot_depths = []
+    for layer_key, layer_data in sorted_layers:
+        depth = layer_data.get("depth")
+        vout_key = f"vout_{metric}"
+        if depth is not None and vout_key in layer_data:
+            plot_depths.append(depth)
+    
+    if not plot_depths:
+        logger.warning("No vout data found in layer statistics")
+        return None
+    
+    # Create a mapping from depth to layer_data for quick lookup
+    depth_to_layer = {}
+    for layer_key, layer_data in sorted_layers:
+        depth = layer_data.get("depth")
+        if depth is not None:
+            depth_to_layer[depth] = layer_data
+    
+    # Collect d'^2 values and standard deviations for each activation type
+    # Aligned to plot_depths (vout reference) - use None for missing values
+    results = {}
+    for act_type in activation_types:
+        act_key = f"{act_type}_{metric}"
+        
+        y_values = []
+        yerr_values = []
+        valid_mask = []  # Track which depths have data
+        
+        for depth in plot_depths:
+            if depth in depth_to_layer:
+                layer_data = depth_to_layer[depth]
+                if act_key in layer_data:
+                    y_values.append(layer_data[act_key])
+                    valid_mask.append(True)
+                else:
+                    y_values.append(None)
+                    valid_mask.append(False)
+            else:
+                y_values.append(None)
+                valid_mask.append(False)
+        
+        # Only add if we have at least some data for this activation type
+        if any(valid_mask):
+            results[act_type] = {
+                "depths": plot_depths,
+                metric: y_values,
+                "valid_mask": valid_mask
+            }
+    
+    if not results:
+        logger.warning("No layer statistics data found for plotting")
+        return None
+    
+    # Create the plot
+    fig, ax = plt.subplots(figsize=(10, 8))
+    
+    # Count only activation types that have data
+    available_types = [act_type for act_type in activation_types if act_type in results]
+    n_activation_types = len(available_types)
+    
+    if n_activation_types == 0:
+        logger.warning("No activation types with data to plot")
+        return None
+    
+    width = 0.2
+    
+    # Plot bars for each activation type with error bars
+    for i, act_type in enumerate(available_types):
+        act_data = results[act_type]
+        act_depths = np.array(act_data["depths"])
+        valid_mask = np.array(act_data["valid_mask"])
+        
+        # Filter to only valid data points before converting to numpy
+        valid_depths = act_depths[valid_mask]
+        valid_y_values = np.array([v for j, v in enumerate(act_data[metric]) if valid_mask[j]])
+        
+        # Calculate x positions for bars (aligned to plot_depths)
+        x = valid_depths + width * (i - (n_activation_types - 1) / 2)
+        
+        ax.bar(
+            x, valid_y_values, 
+            width=width, 
+            label=activation_labels[act_type],
+            color=colors[act_type],
+            capsize=5,
+            error_kw={'elinewidth': 1.5, 'capthick': 1.5}
+        )
+    
+    # Create depth labels - if depth=0 label as "Soma", else f"Depth {depth}"
+    depth_labels = []
+    for depth in plot_depths:
+        if depth == 0:
+            depth_labels.append("Soma")
+        else:
+            depth_labels.append(f"Depth {depth}")
+    
+    ax.set_xticks(plot_depths)
+    ax.set_xticklabels(depth_labels, rotation=45)
+    ax.set_xlabel("Branch Depth (Soma → Distal)")
+
+    metric_mapping = {
+        "d_max": "Max Discriminability",
+        "d_total": "Total Discriminability",
+        "n_sig_dims": "Number of Significant Dimensions",
+        "ratio_sig_dims": "Ratio of Significant Dimensions"
+    }
+    # if metric == "d'^2":
+    #     ylabel = r"d'$^2$"
+    # else:
+    #     ylabel = r"d'$^2$/D"
+    ylabel = metric_mapping[metric]
+    ax.set_ylabel(ylabel)
+    ax.set_title(f"{ylabel} vs. Branch Depth")
+    ax.legend()
+    ax.grid(True, axis="y", alpha=0.3)
+    
+    if save_path is not None:
+        os.makedirs(save_path, exist_ok=True)
+        # plot_path = os.path.join(save_path, f"layer_analysis_layer_agg_final_{metric.replace('/', 'div')}.png")
+        plot_path = os.path.join(save_path, f"layer_analysis_layer_agg_final_{metric}.png")
+        fig.savefig(plot_path, dpi=300, bbox_inches="tight")
+        plt.close(fig)
+        return None
+    else:
+        return fig
+
+def plot_layer_analysis_layer_agg_final_both_metrics(
+    layer_statistics: dict,
+    save_path: Optional[str] = None
+) -> Optional[plt.Figure]:
+    """
+    Plot layer statistics with dual subplots showing different metrics.
+    
+    Left subplot: d'^2/D for vout and upstream across depths
+    Right subplot: d'^2 for exc and inh across depths
+    
+    This function produces a static figure with the same layout as frames in
+    plot_layer_analysis_layer_agg_vs_training_both_metrics.
+    
+    Args:
+        layer_statistics: Dictionary containing layer statistics with structure:
+                         {layer_key: {depth: int, exc_d'^2: float, 
+                                     inh_d'^2: float, vout_d'^2: float,
+                                     vout_d'^2/D: float, upstream_d'^2/D: float, ...}}
+        save_path: Path to save plot. If None, returns figure
+        
+    Returns:
+        Figure if save_path is None, otherwise None
+    """
+    # Define activation types and labels for each subplot
+    left_activation_types = ["vout", "upstream"]  # d'^2/D
+    right_activation_types = ["exc", "inh"]  # d'^2
+    
+    activation_labels = {
+        "exc": "Excitation",
+        "inh": "Inhibition",
+        "vout": "Vout",
+        "upstream": "Upstream"
+    }
+    
+    colors = {
+        "vout": "#2c3e50",    # Dark blue-gray
+        "exc": "#e74c3c",     # Red
+        "inh": "#3498db",     # Blue
+        "upstream": "#808080" # Medium grey
+    }
+    
+    # Sort layers by depth to ensure correct ordering
+    sorted_layers = sorted(
+        layer_statistics.items(),
+        key=lambda x: x[1].get("depth", float('inf'))
+    )
+    
+    # Get all depths from vout d'^2/D (which should be present)
+    plot_depths = []
+    for layer_key, layer_data in sorted_layers:
+        depth = layer_data.get("depth")
+        vout_key = "vout_d'^2/D"
+        if depth is not None and vout_key in layer_data:
+            plot_depths.append(depth)
+    
+    if not plot_depths:
+        logger.warning("No vout d'^2/D data found in layer statistics")
+        return None
+    
+    # Create a mapping from depth to layer_data for quick lookup
+    depth_to_layer = {}
+    for layer_key, layer_data in sorted_layers:
+        depth = layer_data.get("depth")
+        if depth is not None:
+            depth_to_layer[depth] = layer_data
+    
+    # Collect values for left subplot (d'^2/D for vout and upstream)
+    left_results = {}
+    for act_type in left_activation_types:
+        act_key = f"{act_type}_d'^2/D"
+        
+        y_values = []
+        valid_mask = []
+        
+        for depth in plot_depths:
+            if depth in depth_to_layer:
+                layer_data = depth_to_layer[depth]
+                if act_key in layer_data:
+                    y_values.append(layer_data[act_key])
+                    valid_mask.append(True)
+                else:
+                    y_values.append(None)
+                    valid_mask.append(False)
+            else:
+                y_values.append(None)
+                valid_mask.append(False)
+        
+        if any(valid_mask):
+            left_results[act_type] = {
+                "depths": plot_depths,
+                "values": y_values,
+                "valid_mask": valid_mask
+            }
+    
+    # Collect values for right subplot (d'^2 for exc and inh)
+    right_results = {}
+    for act_type in right_activation_types:
+        act_key = f"{act_type}_d'^2"
+        
+        y_values = []
+        valid_mask = []
+        
+        for depth in plot_depths:
+            if depth in depth_to_layer:
+                layer_data = depth_to_layer[depth]
+                if act_key in layer_data:
+                    y_values.append(layer_data[act_key])
+                    valid_mask.append(True)
+                else:
+                    y_values.append(None)
+                    valid_mask.append(False)
+            else:
+                y_values.append(None)
+                valid_mask.append(False)
+        
+        if any(valid_mask):
+            right_results[act_type] = {
+                "depths": plot_depths,
+                "values": y_values,
+                "valid_mask": valid_mask
+            }
+    
+    if not left_results and not right_results:
+        logger.warning("No layer statistics data found for plotting")
+        return None
+    
+    # Create figure with two subplots
+    fig, axes = plt.subplots(1, 2, figsize=(20, 8))
+    ax_left = axes[0]
+    ax_right = axes[1]
+    
+    # Determine available activation types for each subplot
+    left_available_types = [act_type for act_type in left_activation_types if act_type in left_results]
+    right_available_types = [act_type for act_type in right_activation_types if act_type in right_results]
+    
+    if not left_available_types and not right_available_types:
+        logger.warning("No activation types with data to plot")
+        plt.close(fig)
+        return None
+    
+    # Calculate y-axis ranges for each subplot
+    left_all_values = []
+    for act_type in left_available_types:
+        act_data = left_results[act_type]
+        valid_values = [v for j, v in enumerate(act_data["values"]) if act_data["valid_mask"][j]]
+        left_all_values.extend(valid_values)
+    
+    right_all_values = []
+    for act_type in right_available_types:
+        act_data = right_results[act_type]
+        valid_values = [v for j, v in enumerate(act_data["values"]) if act_data["valid_mask"][j]]
+        right_all_values.extend(valid_values)
+    
+    # Set y-axis ranges
+    if not left_all_values:
+        left_y_min, left_y_max = 0.0, 1.0
+    else:
+        left_y_min = 0.0
+        left_y_max = max(left_all_values)
+        y_range = left_y_max - left_y_min
+        if y_range == 0:
+            left_y_max += 0.1
+        else:
+            padding = y_range * 0.05
+            left_y_max = left_y_max + padding
+    
+    if not right_all_values:
+        right_y_min, right_y_max = 0.0, 1.0
+    else:
+        right_y_min = 0.0
+        right_y_max = max(right_all_values)
+        y_range = right_y_max - right_y_min
+        if y_range == 0:
+            right_y_max += 0.1
+        else:
+            padding = y_range * 0.05
+            right_y_max = right_y_max + padding
+    
+    width = 0.2
+    
+    # Calculate x-position mapping: groups spaced by one bar width
+    # Center-to-center distance = (n_bars * width) + width = width * (n_bars + 1)
+    left_group_spacing = width * (len(left_available_types) + 1)
+    right_group_spacing = width * (len(right_available_types) + 1)
+    
+    # Map depth values to x-positions
+    depth_to_x_left = {depth: i * left_group_spacing for i, depth in enumerate(plot_depths)}
+    depth_to_x_right = {depth: i * right_group_spacing for i, depth in enumerate(plot_depths)}
+    
+    # Plot left subplot: d'^2/D for vout and upstream
+    for i, act_type in enumerate(left_available_types):
+        act_data = left_results[act_type]
+        act_depths = np.array(act_data["depths"])
+        valid_mask = np.array(act_data["valid_mask"])
+        
+        valid_depths = act_depths[valid_mask]
+        valid_y_values = np.array([v for j, v in enumerate(act_data["values"]) if valid_mask[j]])
+        
+        # Map depths to x-positions and offset by bar position within group
+        x = np.array([depth_to_x_left[depth] for depth in valid_depths]) + width * (i - (len(left_available_types) - 1) / 2)
+        
+        ax_left.bar(
+            x, valid_y_values,
+            width=width,
+            label=activation_labels[act_type],
+            color=colors[act_type],
+            capsize=5,
+            error_kw={'elinewidth': 1.5, 'capthick': 1.5}
+        )
+    
+    # Plot right subplot: d'^2 for exc and inh
+    for i, act_type in enumerate(right_available_types):
+        act_data = right_results[act_type]
+        act_depths = np.array(act_data["depths"])
+        valid_mask = np.array(act_data["valid_mask"])
+        
+        valid_depths = act_depths[valid_mask]
+        valid_y_values = np.array([v for j, v in enumerate(act_data["values"]) if valid_mask[j]])
+        
+        # Map depths to x-positions and offset by bar position within group
+        x = np.array([depth_to_x_right[depth] for depth in valid_depths]) + width * (i - (len(right_available_types) - 1) / 2)
+        
+        ax_right.bar(
+            x, valid_y_values,
+            width=width,
+            label=activation_labels[act_type],
+            color=colors[act_type],
+            capsize=5,
+            error_kw={'elinewidth': 1.5, 'capthick': 1.5}
+        )
+    
+    # Create depth labels
+    depth_labels = []
+    for depth in plot_depths:
+        if depth == 0:
+            depth_labels.append("Soma")
+        else:
+            depth_labels.append(f"Depth {depth}")
+    
+    # Configure left subplot - use mapped x-positions for ticks
+    left_x_positions = [depth_to_x_left[depth] for depth in plot_depths]
+    ax_left.set_xticks(left_x_positions)
+    ax_left.set_xticklabels(depth_labels, rotation=45)
+    ax_left.set_xlabel("Branch Depth (Soma → Distal)")
+    ax_left.set_ylabel(r"d'$^2$/D")
+    ax_left.set_ylim(left_y_min, left_y_max)
+    ax_left.set_title(r"d'$^2$/D vs. Branch Depth")
+    ax_left.legend()
+    ax_left.grid(True, axis="y", alpha=0.3)
+    
+    # Configure right subplot - use mapped x-positions for ticks
+    right_x_positions = [depth_to_x_right[depth] for depth in plot_depths]
+    ax_right.set_xticks(right_x_positions)
+    ax_right.set_xticklabels(depth_labels, rotation=45)
+    ax_right.set_xlabel("Branch Depth (Soma → Distal)")
+    ax_right.set_ylabel(r"d'$^2$")
+    ax_right.set_ylim(right_y_min, right_y_max)
+    ax_right.set_title(r"d'$^2$ vs. Branch Depth")
+    ax_right.legend()
+    ax_right.grid(True, axis="y", alpha=0.3)
+    
+    plt.tight_layout()
+    
+    if save_path is not None:
+        os.makedirs(save_path, exist_ok=True)
+        plot_path = os.path.join(save_path, "layer_analysis_layer_agg_final_both_metrics.png")
+        fig.savefig(plot_path, dpi=300, bbox_inches="tight")
+        plt.close(fig)
+        return None
+    else:
+        return fig
+
+
+def plot_layer_analysis_layer_agg_vs_training(
+    layer_data: dict,
+    epoch_numbers: list,
+    save_path: str,
+    # metric: str = "d'^2"
+    metric: str = "d_max"
+):
+    """
+    Create a video showing layer analysis statistics evolving over training epochs.
+    
+    Each frame in the video looks exactly like the figure produced by 
+    plot_layer_analysis_layer_agg_final, showing d'^2 values vs. branch depth.
+    
+    Args:
+        layer_data: Aggregated dictionary with layer statistics from epochs_data.
+                   Structure: {layer_key: {depth: int, exc_d'^2: [list], 
+                                          inh_d'^2: [list], vout_d'^2: [list], ...}}
+        epoch_numbers: List of epoch numbers corresponding to the data
+        save_path: Path to save the video
+    """
+    if not layer_data:
+        logger.warning("No layer data provided for video creation")
+        return
+    
+    # Determine number of epochs from the data structure
+    # Check the length of any list value to get number of epochs
+    num_epochs = None
+    for layer_key, layer_stats in layer_data.items():
+        for key, value in layer_stats.items():
+            if key != "depth" and isinstance(value, list):
+                if num_epochs is None:
+                    num_epochs = len(value)
+                elif len(value) != num_epochs:
+                    logger.warning(f"Inconsistent epoch counts: {num_epochs} vs {len(value)}")
+                    num_epochs = min(num_epochs, len(value))
+                break
+        if num_epochs is not None:
+            break
+    
+    if num_epochs is None or num_epochs == 0:
+        logger.warning("No epoch data found in layer_data")
+        return
+    
+    # Calculate fps targeting ~30 seconds total
+    # fps = int(num_epochs / 30.0)
+    # fps = min(max(fps, 2), 10)  # Clamp between 2 and 10 fps
+    fps = 10
+    
+    # Extract activation types and labels (same as plot_layer_analysis_layer_agg_final)
+    activation_types = ["vout", "exc", "inh", "upstream"]
+    activation_labels = {
+        "exc": "Excitation",
+        "inh": "Inhibition",
+        "vout": "Vout",
+        "upstream": "Upstream"
+    }
+    
+    colors = {
+        "vout": "#2c3e50",    # Dark blue-gray
+        "exc": "#e74c3c",     # Red
+        "inh": "#3498db",     # Blue
+        "upstream": "#808080" # Medium grey
+    }
+    
+    # Sort layers by depth to ensure correct ordering
+    sorted_layers = sorted(
+        layer_data.items(),
+        key=lambda x: x[1].get("depth", float('inf'))
+    )
+    
+    # Get all depths from vout (which is always present)
+    plot_depths = []
+    for layer_key, layer_stats in sorted_layers:
+        depth = layer_stats.get("depth")
+        vout_key = f"vout_{metric}"
+        if depth is not None and vout_key in layer_stats:
+            if isinstance(layer_stats[vout_key], list) and len(layer_stats[vout_key]) > 0:
+                plot_depths.append(depth)
+    
+    if not plot_depths:
+        logger.warning("No vout data found in layer statistics")
+        return
+    
+    # Create a mapping from depth to layer_key for quick lookup
+    depth_to_layer_key = {}
+    for layer_key, layer_stats in sorted_layers:
+        depth = layer_stats.get("depth")
+        if depth is not None:
+            depth_to_layer_key[depth] = layer_key
+    
+    # Create figure and axes
+    fig, ax = plt.subplots(figsize=(10, 8))
+    
+    # Determine available activation types (check first epoch)
+    # Maintain order from activation_types list
+    available_types = []
+    for act_type in activation_types:
+        act_key = f"{act_type}_{metric}"
+        for depth in plot_depths:
+            if depth in depth_to_layer_key:
+                layer_key = depth_to_layer_key[depth]
+                if act_key in layer_data[layer_key]:
+                    value = layer_data[layer_key][act_key]
+                    if isinstance(value, list) and len(value) > 0:
+                        available_types.append(act_type)
+                        break
+    n_activation_types = len(available_types)
+    
+    if n_activation_types == 0:
+        logger.warning("No activation types with data to plot")
+        plt.close(fig)
+        return
+    
+    # Calculate global min and max values across all epochs for consistent y-axis
+    all_values = []
+    for epoch_idx in range(num_epochs):
+        # Extract data at this epoch index
+        for layer_key, layer_stats in layer_data.items():
+            for act_type in available_types:
+                act_key = f"{act_type}_{metric}"
+                if act_key in layer_stats:
+                    value = layer_stats[act_key]
+                    if isinstance(value, list):
+                        if epoch_idx < len(value):
+                            val = value[epoch_idx]
+                            if val is not None:
+                                all_values.append(float(val))
+                    elif value is not None:
+                        all_values.append(float(value))
+    
+    if not all_values:
+        y_min, y_max = 0.0, 1.0
+    else:
+        y_min = 0.0  # Hard set to 0 as requested
+        y_max = max(all_values)
+        # Add small padding (5% of range)
+        y_range = y_max - y_min
+        if y_range == 0:
+            y_max += 0.1
+        else:
+            padding = y_range * 0.05
+            y_max = y_max + padding
+    
+    # Create evenly spaced y-ticks rounded to 1 decimal place
+    num_ticks = 6  # Number of ticks desired
+    y_ticks = np.linspace(y_min, y_max, num_ticks)
+    y_ticks = np.round(y_ticks, 1)  # Round to 1 decimal place
+    y_ticks = np.unique(y_ticks)  # Remove duplicates
+    
+    width = 0.2
+    
+    def animate(frame):
+        """Animation function that updates the plot for each epoch"""
+        ax.clear()
+        
+        # Extract data at this epoch index
+        epoch_snapshot = {}
+        for layer_key, layer_stats in layer_data.items():
+            epoch_snapshot[layer_key] = {"depth": layer_stats.get("depth")}
+            for key, value in layer_stats.items():
+                if key != "depth":
+                    if isinstance(value, list):
+                        if frame < len(value):
+                            epoch_snapshot[layer_key][key] = value[frame]
+                        else:
+                            # Use last available value if frame exceeds list length
+                            epoch_snapshot[layer_key][key] = value[-1] if value else None
+                    else:
+                        epoch_snapshot[layer_key][key] = value
+        
+        # Create depth_to_layer mapping for this epoch
+        depth_to_layer = {}
+        for layer_key, layer_stats in epoch_snapshot.items():
+            depth = layer_stats.get("depth")
+            if depth is not None:
+                depth_to_layer[depth] = layer_stats
+        
+        # Collect d'^2 values for each activation type
+        results = {}
+        for act_type in activation_types:
+            act_key = f"{act_type}_{metric}"
+            
+            y_values = []
+            valid_mask = []
+            
+            for depth in plot_depths:
+                if depth in depth_to_layer:
+                    layer_stats = depth_to_layer[depth]
+                    if act_key in layer_stats and layer_stats[act_key] is not None:
+                        y_values.append(layer_stats[act_key])
+                        valid_mask.append(True)
+                    else:
+                        y_values.append(None)
+                        valid_mask.append(False)
+                else:
+                    y_values.append(None)
+                    valid_mask.append(False)
+            
+            if any(valid_mask):
+                results[act_type] = {
+                    "depths": plot_depths,
+                    metric: y_values,
+                    "valid_mask": valid_mask
+                }
+        
+        # Plot bars for each activation type
+        for i, act_type in enumerate(available_types):
+            if act_type not in results:
+                continue
+                
+            act_data = results[act_type]
+            act_depths = np.array(act_data["depths"])
+            valid_mask = np.array(act_data["valid_mask"])
+            
+            # Filter to only valid data points
+            valid_depths = act_depths[valid_mask]
+            valid_y_values = np.array([v for j, v in enumerate(act_data[metric]) if valid_mask[j]])
+            
+            # Calculate x positions for bars
+            x = valid_depths + width * (i - (n_activation_types - 1) / 2)
+            
+            ax.bar(
+                x, valid_y_values,
+                width=width,
+                label=activation_labels[act_type],
+                color=colors[act_type],
+                capsize=5,
+                error_kw={'elinewidth': 1.5, 'capthick': 1.5}
+            )
+        
+        # Create depth labels
+        depth_labels = []
+        for depth in plot_depths:
+            if depth == 0:
+                depth_labels.append("Soma")
+            else:
+                depth_labels.append(f"Depth {depth}")
+        
+        ax.set_xticks(plot_depths)
+        ax.set_xticklabels(depth_labels, rotation=45)
+        ax.set_xlabel("Branch Depth (Soma → Distal)")
+        
+        metric_mapping = {
+            "d_max": "Max Discriminability",
+            "d_total": "Total Discriminability",
+            "n_sig_dims": "Number of Significant Dimensions",
+            "ratio_sig_dims": "Ratio of Significant Dimensions"
+        }
+        ylabel = metric_mapping[metric]
+        # if metric == "d'^2":
+        #     ylabel = r"d'$^2$"
+        # else:
+        #     ylabel = r"d'$^2$/D"
+        ax.set_ylabel(ylabel)
+        ax.set_ylim(y_min, y_max)
+        ax.set_yticks(y_ticks)
+        
+        # Get epoch number for title
+        epoch_num = epoch_numbers[frame] if frame < len(epoch_numbers) else frame
+        ax.set_title(f"{ylabel} vs. Branch Depth (Epoch {epoch_num})")
+        ax.legend(loc='upper right')
+        ax.grid(True, axis="y", alpha=0.3)
+        
+        return []
+    
+    # Create animation
+    ani = animation.FuncAnimation(
+        fig,
+        animate,
+        frames=num_epochs,
+        interval=1000 / fps,  # Convert fps to interval in milliseconds
+        repeat=True,
+        blit=True
+    )
+    
+    # Save video
+    video_filename = f"layer_analysis_layer_agg_vs_training_{metric.replace('/', 'div')}"
+    logger.info(f"Creating {num_epochs}-frame video at {fps:.2f} fps (~{num_epochs/fps:.1f} seconds total)")
+    
+    os.makedirs(save_path, exist_ok=True)
+    
+    try:
+        writer = animation.FFMpegWriter(fps=fps, bitrate=1800)
+        video_path = os.path.join(save_path, f"{video_filename}.mp4")
+        ani.save(video_path, writer=writer)
+        logger.info(f"Video saved to {video_path}")
+    except Exception as e:
+        logger.warning(f"Error saving MP4 video: {e}")
+        logger.info("Falling back to GIF format...")
+        try:
+            writer = animation.PillowWriter(fps=fps)
+            video_path = os.path.join(save_path, f"{video_filename}.gif")
+            ani.save(video_path, writer=writer)
+            logger.info(f"GIF saved to {video_path}")
+        except Exception as e2:
+            logger.error(f"Error saving GIF video: {e2}")
+    
+    plt.close(fig)
+
+def plot_layer_analysis_layer_agg_vs_training_both_metrics(
+    layer_data: dict,
+    epoch_numbers: list,
+    save_path: str
+):
+    """
+    Create a video showing layer analysis statistics evolving over training epochs with dual subplots.
+    
+    Left subplot: d'^2/D for vout and upstream across depths
+    Right subplot: d'^2 for exc and inh across depths
+    
+    Args:
+        layer_data: Aggregated dictionary with layer statistics from epochs_data.
+                   Structure: {layer_key: {depth: int, exc_d'^2: [list], 
+                                          inh_d'^2: [list], vout_d'^2: [list], 
+                                          vout_d'^2/D: [list], upstream_d'^2/D: [list], ...}}
+        epoch_numbers: List of epoch numbers corresponding to the data
+        save_path: Path to save the video
+    """
+    if not layer_data:
+        logger.warning("No layer data provided for video creation")
+        return
+    
+    # Determine number of epochs from the data structure
+    num_epochs = None
+    for layer_key, layer_stats in layer_data.items():
+        for key, value in layer_stats.items():
+            if key != "depth" and isinstance(value, list):
+                if num_epochs is None:
+                    num_epochs = len(value)
+                elif len(value) != num_epochs:
+                    logger.warning(f"Inconsistent epoch counts: {num_epochs} vs {len(value)}")
+                    num_epochs = min(num_epochs, len(value))
+                break
+        if num_epochs is not None:
+            break
+    
+    if num_epochs is None or num_epochs == 0:
+        logger.warning("No epoch data found in layer_data")
+        return
+    
+    fps = 10
+    
+    # Define activation types and labels for each subplot
+    left_activation_types = ["vout", "upstream"]  # d'^2/D
+    right_activation_types = ["exc", "inh"]  # d'^2
+    
+    activation_labels = {
+        "exc": "Excitation",
+        "inh": "Inhibition",
+        "vout": "Vout",
+        "upstream": "Upstream"
+    }
+    
+    colors = {
+        "vout": "#2c3e50",    # Dark blue-gray
+        "exc": "#e74c3c",     # Red
+        "inh": "#3498db",     # Blue
+        "upstream": "#808080" # Medium grey
+    }
+    
+    # Sort layers by depth to ensure correct ordering
+    sorted_layers = sorted(
+        layer_data.items(),
+        key=lambda x: x[1].get("depth", float('inf'))
+    )
+    
+    # Get all depths from vout (which is always present)
+    plot_depths = []
+    for layer_key, layer_stats in sorted_layers:
+        depth = layer_stats.get("depth")
+        vout_key = "vout_d'^2/D"
+        if depth is not None and vout_key in layer_stats:
+            if isinstance(layer_stats[vout_key], list) and len(layer_stats[vout_key]) > 0:
+                plot_depths.append(depth)
+    
+    if not plot_depths:
+        logger.warning("No vout data found in layer statistics")
+        return
+    
+    # Create a mapping from depth to layer_key for quick lookup
+    depth_to_layer_key = {}
+    for layer_key, layer_stats in sorted_layers:
+        depth = layer_stats.get("depth")
+        if depth is not None:
+            depth_to_layer_key[depth] = layer_key
+    
+    # Create figure with two subplots
+    fig, axes = plt.subplots(1, 2, figsize=(20, 8))
+    ax_left = axes[0]
+    ax_right = axes[1]
+    
+    # Determine available activation types for each subplot
+    left_available_types = []
+    for act_type in left_activation_types:
+        act_key = f"{act_type}_d'^2/D"
+        for depth in plot_depths:
+            if depth in depth_to_layer_key:
+                layer_key = depth_to_layer_key[depth]
+                if act_key in layer_data[layer_key]:
+                    value = layer_data[layer_key][act_key]
+                    if isinstance(value, list) and len(value) > 0:
+                        left_available_types.append(act_type)
+                        break
+    
+    right_available_types = []
+    for act_type in right_activation_types:
+        act_key = f"{act_type}_d'^2"
+        for depth in plot_depths:
+            if depth in depth_to_layer_key:
+                layer_key = depth_to_layer_key[depth]
+                if act_key in layer_data[layer_key]:
+                    value = layer_data[layer_key][act_key]
+                    if isinstance(value, list) and len(value) > 0:
+                        right_available_types.append(act_type)
+                        break
+    
+    if not left_available_types and not right_available_types:
+        logger.warning("No activation types with data to plot")
+        plt.close(fig)
+        return
+    
+    # Calculate global min and max values for left subplot (d'^2/D)
+    left_all_values = []
+    if left_available_types:
+        for epoch_idx in range(num_epochs):
+            for layer_key, layer_stats in layer_data.items():
+                for act_type in left_available_types:
+                    act_key = f"{act_type}_d'^2/D"
+                    if act_key in layer_stats:
+                        value = layer_stats[act_key]
+                        if isinstance(value, list):
+                            if epoch_idx < len(value):
+                                val = value[epoch_idx]
+                                if val is not None:
+                                    left_all_values.append(float(val))
+                        elif value is not None:
+                            left_all_values.append(float(value))
+    
+    # Calculate global min and max values for right subplot (d'^2)
+    right_all_values = []
+    if right_available_types:
+        for epoch_idx in range(num_epochs):
+            for layer_key, layer_stats in layer_data.items():
+                for act_type in right_available_types:
+                    act_key = f"{act_type}_d'^2"
+                    if act_key in layer_stats:
+                        value = layer_stats[act_key]
+                        if isinstance(value, list):
+                            if epoch_idx < len(value):
+                                val = value[epoch_idx]
+                                if val is not None:
+                                    right_all_values.append(float(val))
+                        elif value is not None:
+                            right_all_values.append(float(value))
+    
+    # Set y-axis ranges
+    if not left_all_values:
+        left_y_min, left_y_max = 0.0, 1.0
+    else:
+        left_y_min = 0.0
+        left_y_max = max(left_all_values)
+        y_range = left_y_max - left_y_min
+        if y_range == 0:
+            left_y_max += 0.1
+        else:
+            padding = y_range * 0.05
+            left_y_max = left_y_max + padding
+    
+    if not right_all_values:
+        right_y_min, right_y_max = 0.0, 1.0
+    else:
+        right_y_min = 0.0
+        right_y_max = max(right_all_values)
+        y_range = right_y_max - right_y_min
+        if y_range == 0:
+            right_y_max += 0.1
+        else:
+            padding = y_range * 0.05
+            right_y_max = right_y_max + padding
+    
+    # Create evenly spaced y-ticks for each subplot
+    num_ticks = 6
+    left_y_ticks = np.linspace(left_y_min, left_y_max, num_ticks)
+    left_y_ticks = np.round(left_y_ticks, 1)
+    left_y_ticks = np.unique(left_y_ticks)
+    
+    right_y_ticks = np.linspace(right_y_min, right_y_max, num_ticks)
+    right_y_ticks = np.round(right_y_ticks, 1)
+    right_y_ticks = np.unique(right_y_ticks)
+    
+    width = 0.2
+    
+    # Calculate x-position mapping: groups spaced by one bar width
+    # Center-to-center distance = (n_bars * width) + width = width * (n_bars + 1)
+    left_group_spacing = width * (len(left_available_types) + 1)
+    right_group_spacing = width * (len(right_available_types) + 1)
+    
+    # Map depth values to x-positions
+    depth_to_x_left = {depth: i * left_group_spacing for i, depth in enumerate(plot_depths)}
+    depth_to_x_right = {depth: i * right_group_spacing for i, depth in enumerate(plot_depths)}
+    
+    def animate(frame):
+        """Animation function that updates both subplots for each epoch"""
+        ax_left.clear()
+        ax_right.clear()
+        
+        # Extract data at this epoch index
+        epoch_snapshot = {}
+        for layer_key, layer_stats in layer_data.items():
+            epoch_snapshot[layer_key] = {"depth": layer_stats.get("depth")}
+            for key, value in layer_stats.items():
+                if key != "depth":
+                    if isinstance(value, list):
+                        if frame < len(value):
+                            epoch_snapshot[layer_key][key] = value[frame]
+                        else:
+                            epoch_snapshot[layer_key][key] = value[-1] if value else None
+                    else:
+                        epoch_snapshot[layer_key][key] = value
+        
+        # Create depth_to_layer mapping for this epoch
+        depth_to_layer = {}
+        for layer_key, layer_stats in epoch_snapshot.items():
+            depth = layer_stats.get("depth")
+            if depth is not None:
+                depth_to_layer[depth] = layer_stats
+        
+        # LEFT SUBPLOT: d'^2/D for vout and upstream
+        left_results = {}
+        for act_type in left_activation_types:
+            act_key = f"{act_type}_d'^2/D"
+            
+            y_values = []
+            valid_mask = []
+            
+            for depth in plot_depths:
+                if depth in depth_to_layer:
+                    layer_stats = depth_to_layer[depth]
+                    if act_key in layer_stats and layer_stats[act_key] is not None:
+                        y_values.append(layer_stats[act_key])
+                        valid_mask.append(True)
+                    else:
+                        y_values.append(None)
+                        valid_mask.append(False)
+                else:
+                    y_values.append(None)
+                    valid_mask.append(False)
+            
+            if any(valid_mask):
+                left_results[act_type] = {
+                    "depths": plot_depths,
+                    "values": y_values,
+                    "valid_mask": valid_mask
+                }
+        
+        # Plot left subplot
+        for i, act_type in enumerate(left_available_types):
+            if act_type not in left_results:
+                continue
+            
+            act_data = left_results[act_type]
+            act_depths = np.array(act_data["depths"])
+            valid_mask = np.array(act_data["valid_mask"])
+            
+            valid_depths = act_depths[valid_mask]
+            valid_y_values = np.array([v for j, v in enumerate(act_data["values"]) if valid_mask[j]])
+            
+            # Map depths to x-positions and offset by bar position within group
+            x = np.array([depth_to_x_left[depth] for depth in valid_depths]) + width * (i - (len(left_available_types) - 1) / 2)
+            
+            ax_left.bar(
+                x, valid_y_values,
+                width=width,
+                label=activation_labels[act_type],
+                color=colors[act_type],
+                capsize=5,
+                error_kw={'elinewidth': 1.5, 'capthick': 1.5}
+            )
+        
+        # RIGHT SUBPLOT: d'^2 for exc and inh
+        right_results = {}
+        for act_type in right_activation_types:
+            act_key = f"{act_type}_d'^2"
+            
+            y_values = []
+            valid_mask = []
+            
+            for depth in plot_depths:
+                if depth in depth_to_layer:
+                    layer_stats = depth_to_layer[depth]
+                    if act_key in layer_stats and layer_stats[act_key] is not None:
+                        y_values.append(layer_stats[act_key])
+                        valid_mask.append(True)
+                    else:
+                        y_values.append(None)
+                        valid_mask.append(False)
+                else:
+                    y_values.append(None)
+                    valid_mask.append(False)
+            
+            if any(valid_mask):
+                right_results[act_type] = {
+                    "depths": plot_depths,
+                    "values": y_values,
+                    "valid_mask": valid_mask
+                }
+        
+        # Plot right subplot
+        for i, act_type in enumerate(right_available_types):
+            if act_type not in right_results:
+                continue
+            
+            act_data = right_results[act_type]
+            act_depths = np.array(act_data["depths"])
+            valid_mask = np.array(act_data["valid_mask"])
+            
+            valid_depths = act_depths[valid_mask]
+            valid_y_values = np.array([v for j, v in enumerate(act_data["values"]) if valid_mask[j]])
+            
+            # Map depths to x-positions and offset by bar position within group
+            x = np.array([depth_to_x_right[depth] for depth in valid_depths]) + width * (i - (len(right_available_types) - 1) / 2)
+            
+            ax_right.bar(
+                x, valid_y_values,
+                width=width,
+                label=activation_labels[act_type],
+                color=colors[act_type],
+                capsize=5,
+                error_kw={'elinewidth': 1.5, 'capthick': 1.5}
+            )
+        
+        # Create depth labels
+        depth_labels = []
+        for depth in plot_depths:
+            if depth == 0:
+                depth_labels.append("Soma")
+            else:
+                depth_labels.append(f"Depth {depth}")
+        
+        # Configure left subplot - use mapped x-positions for ticks
+        left_x_positions = [depth_to_x_left[depth] for depth in plot_depths]
+        ax_left.set_xticks(left_x_positions)
+        ax_left.set_xticklabels(depth_labels, rotation=45)
+        ax_left.set_xlabel("Branch Depth (Soma → Distal)")
+        ax_left.set_ylabel(r"d'$^2$/D")
+        ax_left.set_ylim(left_y_min, left_y_max)
+        ax_left.set_yticks(left_y_ticks)
+        ax_left.legend(loc='upper right')
+        ax_left.grid(True, axis="y", alpha=0.3)
+        
+        # Configure right subplot - use mapped x-positions for ticks
+        right_x_positions = [depth_to_x_right[depth] for depth in plot_depths]
+        ax_right.set_xticks(right_x_positions)
+        ax_right.set_xticklabels(depth_labels, rotation=45)
+        ax_right.set_xlabel("Branch Depth (Soma → Distal)")
+        ax_right.set_ylabel(r"d'$^2$")
+        ax_right.set_ylim(right_y_min, right_y_max)
+        ax_right.set_yticks(right_y_ticks)
+        ax_right.legend(loc='upper right')
+        ax_right.grid(True, axis="y", alpha=0.3)
+        
+        # Set overall title with epoch number
+        epoch_num = epoch_numbers[frame] if frame < len(epoch_numbers) else frame
+        fig.suptitle(f"Layer Analysis Across Training (Epoch {epoch_num})", fontsize=16)
+        
+        return []
+    
+    # Create animation
+    ani = animation.FuncAnimation(
+        fig,
+        animate,
+        frames=num_epochs,
+        interval=1000 / fps,
+        repeat=True,
+        blit=True
+    )
+    
+    # Save video
+    video_filename = "layer_analysis_layer_agg_vs_training_both_metrics"
+    logger.info(f"Creating {num_epochs}-frame video at {fps:.2f} fps (~{num_epochs/fps:.1f} seconds total)")
+    
+    os.makedirs(save_path, exist_ok=True)
+    
+    try:
+        writer = animation.FFMpegWriter(fps=fps, bitrate=1800)
+        video_path = os.path.join(save_path, f"{video_filename}.mp4")
+        ani.save(video_path, writer=writer)
+        logger.info(f"Video saved to {video_path}")
+    except Exception as e:
+        logger.warning(f"Error saving MP4 video: {e}")
+        logger.info("Falling back to GIF format...")
+        try:
+            writer = animation.PillowWriter(fps=fps)
+            video_path = os.path.join(save_path, f"{video_filename}.gif")
+            ani.save(video_path, writer=writer)
+            logger.info(f"GIF saved to {video_path}")
+        except Exception as e2:
+            logger.error(f"Error saving GIF video: {e2}")
+    
+    plt.close(fig)
 
 
 __all__ = ["CompartmentSNRAnalyzer"]
