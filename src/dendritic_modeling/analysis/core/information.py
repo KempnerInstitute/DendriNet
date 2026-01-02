@@ -1062,6 +1062,96 @@ class InformationAnalyzer(AbstractAnalyzer):
 
         return F, I_proxy
 
+    def _fisher_mi_from_f(self, f: float) -> float:
+        """Map a Fisher/discriminability-like scalar to an MI-like proxy."""
+        mi_transform = (
+            str(getattr(self, "gaussian_fisher_mi_transform", "half_log1p"))
+            .strip()
+            .lower()
+        )
+
+        f = float(f)
+        if not np.isfinite(f) or f <= 0.0:
+            return 0.0
+
+        if mi_transform == "none":
+            return f
+        if mi_transform == "log1p":
+            return float(np.log1p(f))
+        return float(0.5 * np.log1p(f))
+
+    def _fisher_dprime2_binary(self, x: np.ndarray, labels: np.ndarray) -> float:
+        """Binary-class Fisher discriminability: d'^2 = Δμᵀ Σ^{-1} Δμ (ridge-regularized)."""
+        x = np.asarray(x)
+        if x.ndim == 1:
+            x = x[:, None]
+        else:
+            x = x.reshape(x.shape[0], -1)
+
+        labels = np.asarray(labels).reshape(-1)
+        uniq = np.unique(labels)
+        if uniq.size != 2 or x.shape[0] <= 2:
+            return 0.0
+
+        c0, c1 = uniq[0], uniq[1]
+        m0 = labels == c0
+        m1 = labels == c1
+        if np.sum(m0) <= 1 or np.sum(m1) <= 1:
+            return 0.0
+
+        x0 = x[m0]
+        x1 = x[m1]
+        mu0 = np.mean(x0, axis=0)
+        mu1 = np.mean(x1, axis=0)
+        dmu = mu1 - mu0
+
+        cov0 = np.atleast_2d(np.cov(x0, rowvar=False))
+        cov1 = np.atleast_2d(np.cov(x1, rowvar=False))
+        pooled = 0.5 * (cov0 + cov1)
+
+        eps = float(getattr(self, "gaussian_fisher_eps", 1e-8))
+        pooled = pooled + eps * np.eye(pooled.shape[0])
+
+        try:
+            sol = np.linalg.solve(pooled, dmu)
+        except np.linalg.LinAlgError:
+            sol = np.linalg.lstsq(pooled, dmu, rcond=None)[0]
+
+        d2 = float(dmu @ sol)
+        if not np.isfinite(d2):
+            return 0.0
+        return float(max(0.0, d2))
+
+    def _fisher_dprime2_pairwise_avg(self, x: np.ndarray, labels: np.ndarray) -> float:
+        """Multi-class surrogate: average binary d'^2 over all class pairs."""
+        x = np.asarray(x)
+        if x.ndim == 1:
+            x = x[:, None]
+        else:
+            x = x.reshape(x.shape[0], -1)
+
+        labels = np.asarray(labels).reshape(-1)
+        uniq = np.unique(labels)
+        if uniq.size <= 1 or x.shape[0] <= 2:
+            return 0.0
+        if uniq.size == 2:
+            return self._fisher_dprime2_binary(x, labels)
+
+        d2s: list[float] = []
+        for i in range(uniq.size):
+            for j in range(i + 1, uniq.size):
+                a, b = uniq[i], uniq[j]
+                m = (labels == a) | (labels == b)
+                if np.sum(m) <= 2:
+                    continue
+                d2 = self._fisher_dprime2_binary(x[m], labels[m])
+                if np.isfinite(d2):
+                    d2s.append(float(d2))
+
+        if not d2s:
+            return 0.0
+        return float(np.mean(d2s))
+
     def _compute_gaussian_fisher(
         self,
         E: np.ndarray,
@@ -1087,6 +1177,25 @@ class InformationAnalyzer(AbstractAnalyzer):
             # Use an I(.;.) prefix so LDA/shuffled variants get token-renamed.
             metrics[f"I({name};C)_fisher_F"] = float(F)
             metrics[f"I({name};C)_fisher"] = float(I_proxy)
+
+        # Information-flow-style increment from upstream branches (Vb) beyond local synapses (E,I).
+        # This mirrors the Schur-complement increment in the theory draft (Sec. 'Multi-branch Trees
+        # and Information Flow') but uses a Fisher/geometry surrogate (d'^2) computed from moments.
+        if Vb is not None:
+            try:
+                EI = np.hstack([E, I_var])
+                EIVb = np.hstack([E, I_var, Vb])
+                d2_full = self._fisher_dprime2_pairwise_avg(EIVb, C)
+                d2_base = self._fisher_dprime2_pairwise_avg(EI, C)
+                inc = float(max(0.0, d2_full - d2_base))
+                metrics["I(Vb;C|E,I)_fisher_F"] = inc
+                metrics["I(Vb;C|E,I)_fisher"] = float(self._fisher_mi_from_f(inc))
+            except Exception as e:
+                self.logger.warning(
+                    f"Failed to compute Fisher flow increment I(Vb;C|E,I)_fisher: {e}"
+                )
+                metrics["I(Vb;C|E,I)_fisher_F"] = 0.0
+                metrics["I(Vb;C|E,I)_fisher"] = 0.0
 
         return metrics
 
