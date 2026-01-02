@@ -44,6 +44,7 @@ class InformationSelectionParams(BaseConfig):
       - "basic": I(E;C), I(I;C), I(Vb;C), I(Vout;C), I(E,I;C), ...
       - "pairwise": I(E;I), I(E;Vout), I(Vb;Vout), ...
       - "conditional": conditional MI terms like I(E;Vout|C) or I(Vout;C|E,I)
+      - "gaussian_fisher": Gaussian/Fisher MI proxy metrics (fast; theory-inspired)
       - "pid": partial information decomposition (currently disabled; reserved)
       - "ablation_aligned": extra CMI terms designed to mirror ablations
       - "layer_proxies": layer-total proxies derived from single-branch metrics
@@ -66,6 +67,17 @@ class InformationSelectionParams(BaseConfig):
 
 
 @dataclass
+class InformationGaussianFisherParams(BaseConfig):
+    """Gaussian/Fisher proxy parameters (enabled via selection.components)."""
+
+    aggregation: str = "sum"  # "sum"|"mean"|"max"
+    mi_transform: str = "half_log1p"  # "half_log1p"|"log1p"|"none"
+    eps: float = 1e-8
+    # Optional alias for `eps` (if provided, prefer ridge over eps).
+    ridge: Optional[float] = None
+
+
+@dataclass
 class InformationComputeParams(BaseConfig):
     """Runtime/aggregation controls (method-agnostic)."""
 
@@ -81,6 +93,11 @@ class InformationComputeParams(BaseConfig):
 
     # Layer-total proxies derived from single-branch metrics
     layer_total_topk: int = 10  # K used for *_topK_sum metrics (int >= 1)
+
+    # Method-specific compute configs (enabled via selection.components)
+    gaussian_fisher: InformationGaussianFisherParams = field(
+        default_factory=InformationGaussianFisherParams
+    )
 
     # Legacy (deprecated) scope toggles (use selection.scopes)
     per_neuron_analysis: bool = False
@@ -360,7 +377,6 @@ class InformationAnalysisParams(BaseConfig):
     compute_basic_mi: bool = True  # I(E;C), I(I;C), I(Vout;C)
     compute_pairwise_mi: bool = True  # I(E;I), I(E;Vout), I(I;Vout)
     compute_conditional_mi: bool = True  # I(E;I|C), I(E;Vout|C), etc.
-    compute_pid: bool = False  # Partial Information Decomposition
 
     # New (preferred): list-based selection of analysis components.
     #

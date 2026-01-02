@@ -172,7 +172,6 @@ config_dict = {
     "compute_basic_mi": True,
     "compute_pairwise_mi": True,
     "compute_conditional_mi": False,
-    "compute_pid": True,
     "normalize_mi": True,
 }
 

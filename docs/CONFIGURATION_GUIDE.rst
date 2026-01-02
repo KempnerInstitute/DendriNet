@@ -172,6 +172,49 @@ Enable analysis during training:
          targets: ["excitation", "inhibition", "upstream", "all_synapses"]
          metrics: ["accuracy", "pred_label_mi_bits"]
 
+Information analysis: Gaussian/Fisher proxy + PID
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Method-specific computations are enabled via ``analysis.information_analysis.params.selection.components``:
+
+- ``gaussian_fisher``: a fast Fisher-criterion / Gaussian MI-proxy computed from
+  class-conditional means/variances (inspired by the theory draft). Configuration
+  lives under ``params.compute.gaussian_fisher``.
+- ``pid``: optional PID-style synergy/redundancy diagnostics. Configuration lives
+  under ``params.pid`` (PID is currently disabled in the analyzer).
+
+.. code-block:: yaml
+
+   analysis:
+     information_analysis:
+       enabled: true
+       training: false
+       params:
+         selection:
+           components: ["basic", "pairwise", "conditional", "gaussian_fisher"]
+           scopes: []
+           signal_variants: ["network"]
+
+         compute:
+           max_samples: 1000
+           computation_level: "single_branch"
+           branch_aggregation: "mean"
+
+           gaussian_fisher:
+             aggregation: "sum"        # "sum" | "mean" | "max"
+             mi_transform: "half_log1p" # "half_log1p" | "log1p" | "none"
+             eps: 1.0e-8               # (alias: ridge) denominator stabilizer
+
+         pid:
+           binarize: true
+           binarize_method: "median"
+           binarize_threshold: 0.5
+
+         estimator:
+           method: "kraskov"
+           kraskov:
+             n_neighbors: 10
+
 Ablation / Intervention Analysis
 --------------------------------
 
@@ -193,7 +236,7 @@ operating point / baseline distribution).
 
 For an information-theoretic complement aligned to these interventions, include
 ``ablation_aligned`` (and optionally ``layer_proxies``) in
-``analysis.information_analysis.params.components``. This adds conditional-MI terms such as
+``analysis.information_analysis.params.selection.components``. This adds conditional-MI terms such as
 ``I(E;C|I,Vb)``, ``I(I;C|E,Vb)``, and synapse-vs-upstream decompositions like
 ``I(Vout;C|Vb)`` (class information added by synapses beyond upstream input) and
 ``I(Vb;C|Vout)`` (upstream class information not reflected in the layer output).

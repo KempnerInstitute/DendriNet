@@ -90,6 +90,7 @@ class InformationAnalyzer(AbstractAnalyzer):
         estimator_cfg = _get(params, "estimator", None)
         baselines_cfg = _get(params, "baselines", None)
         pid_cfg = _get(params, "pid", None)
+        gaussian_fisher_cfg = _get(compute_cfg, "gaussian_fisher", None)
 
         # ------------------------------------------------------------------
         # Extract configuration parameters (support both new nested and legacy flat keys).
@@ -163,6 +164,8 @@ class InformationAnalyzer(AbstractAnalyzer):
             getattr(params, "compute_conditional_mi", False)
         )
         self.compute_pid = bool(getattr(params, "compute_pid", False))
+        # Enabled via selection.components ("gaussian_fisher").
+        self.compute_gaussian_fisher = False
 
         self.pid_binarize = bool(
             _get(pid_cfg, "binarize", _get(params, "pid_binarize", False))
@@ -214,6 +217,9 @@ class InformationAnalyzer(AbstractAnalyzer):
                 {"conditional", "conditional_mi"}.intersection(comps)
             )
             self.compute_pid = "pid" in comps
+            self.compute_gaussian_fisher = bool(
+                {"gaussian_fisher", "gaussianfisher", "fisher"}.intersection(comps)
+            )
 
             self.compute_ablation_aligned_mi = bool(
                 {"ablation_aligned", "ablation"}.intersection(comps)
@@ -241,6 +247,21 @@ class InformationAnalyzer(AbstractAnalyzer):
                 "and will be skipped."
             )
             self.compute_pid = False
+
+        # Gaussian/Fisher proxy configuration (enabled via selection.components).
+        self.gaussian_fisher_aggregation = (
+            str(_get(gaussian_fisher_cfg, "aggregation", "sum")).strip().lower()
+        )
+        self.gaussian_fisher_mi_transform = (
+            str(_get(gaussian_fisher_cfg, "mi_transform", "half_log1p")).strip().lower()
+        )
+        self.gaussian_fisher_eps = float(
+            _get(
+                gaussian_fisher_cfg,
+                "ridge",
+                _get(gaussian_fisher_cfg, "eps", 1e-8),
+            )
+        )
 
         self.include_vinf = bool(
             _get(compute_cfg, "include_vinf", _get(params, "include_vinf", False))
@@ -971,6 +992,104 @@ class InformationAnalyzer(AbstractAnalyzer):
         self.logger.info("  Conditional MI computation completed.")
         return metrics
 
+    def _gaussian_fisher_proxy(
+        self, x: np.ndarray, labels: np.ndarray
+    ) -> tuple[float, float]:
+        """Return (F, I_proxy) for I(X;C) under a Gaussian/Fisher proxy."""
+        eps = float(getattr(self, "gaussian_fisher_eps", 1e-8))
+        agg = str(getattr(self, "gaussian_fisher_aggregation", "sum")).strip().lower()
+        mi_transform = (
+            str(getattr(self, "gaussian_fisher_mi_transform", "half_log1p"))
+            .strip()
+            .lower()
+        )
+
+        x = np.asarray(x)
+        if x.ndim == 1:
+            x = x[:, None]
+        else:
+            x = x.reshape(x.shape[0], -1)
+
+        labels = np.asarray(labels).reshape(-1)
+        uniq = np.unique(labels)
+        if x.shape[0] <= 2 or uniq.size <= 1:
+            return 0.0, 0.0
+
+        if uniq.size == 2:
+            c0, c1 = uniq[0], uniq[1]
+            m0 = labels == c0
+            m1 = labels == c1
+            if np.sum(m0) <= 1 or np.sum(m1) <= 1:
+                return 0.0, 0.0
+            mu0 = np.mean(x[m0], axis=0)
+            mu1 = np.mean(x[m1], axis=0)
+            var0 = np.var(x[m0], axis=0)
+            var1 = np.var(x[m1], axis=0)
+            pooled_var = 0.5 * (var0 + var1)
+            fisher = (mu1 - mu0) ** 2 / (pooled_var + eps)
+        else:
+            means = []
+            variances = []
+            for c in uniq:
+                mc = labels == c
+                if np.sum(mc) <= 1:
+                    continue
+                means.append(np.mean(x[mc], axis=0))
+                variances.append(np.var(x[mc], axis=0))
+            if len(means) <= 1:
+                return 0.0, 0.0
+            means = np.stack(means, axis=0)
+            variances = np.stack(variances, axis=0)
+            between_var = np.var(means, axis=0)
+            within_var = np.mean(variances, axis=0)
+            fisher = between_var / (within_var + eps)
+
+        fisher = np.maximum(0.0, fisher)
+
+        if agg == "mean":
+            F = float(np.mean(fisher))
+        elif agg == "max":
+            F = float(np.max(fisher))
+        else:
+            F = float(np.sum(fisher))
+
+        if mi_transform == "none":
+            I_proxy = F
+        elif mi_transform == "log1p":
+            I_proxy = float(np.log1p(F))
+        else:
+            I_proxy = float(0.5 * np.log1p(F))
+
+        return F, I_proxy
+
+    def _compute_gaussian_fisher(
+        self,
+        E: np.ndarray,
+        I_var: np.ndarray,
+        Vout: np.ndarray,
+        C: np.ndarray,
+        Vinf: Optional[np.ndarray] = None,
+        Vb: Optional[np.ndarray] = None,
+    ) -> dict[str, float]:
+        """Compute Gaussian/Fisher proxy metrics for available variables."""
+        metrics: dict[str, float] = {}
+
+        for name, X in [
+            ("E", E),
+            ("I", I_var),
+            ("Vb", Vb),
+            ("Vout", Vout),
+            ("Vinf", Vinf if (Vinf is not None and self.include_vinf) else None),
+        ]:
+            if X is None:
+                continue
+            F, I_proxy = self._gaussian_fisher_proxy(X, C)
+            # Use an I(.;.) prefix so LDA/shuffled variants get token-renamed.
+            metrics[f"I({name};C)_fisher_F"] = float(F)
+            metrics[f"I({name};C)_fisher"] = float(I_proxy)
+
+        return metrics
+
     def _compute_pid(
         self, E: np.ndarray, I_var: np.ndarray, Vout: np.ndarray, C: np.ndarray
     ) -> dict[str, Any]:
@@ -1129,6 +1248,11 @@ class InformationAnalyzer(AbstractAnalyzer):
             for key, value in results["conditional_mi"].items():
                 summary_lines.append(f"  {key}: {value:.4f}")
 
+        if "gaussian_fisher" in results:
+            summary_lines.append("\nGaussian/Fisher proxy:")
+            for key, value in results["gaussian_fisher"].items():
+                summary_lines.append(f"  {key}: {value:.4f}")
+
         if "pid" in results:
             summary_lines.append("\nPID Results:")
             for pid_key, pid_values in results["pid"].items():
@@ -1225,6 +1349,13 @@ class InformationAnalyzer(AbstractAnalyzer):
                 E, I_var, Vout, C, Vinf, Vb
             )
 
+        # 4. Gaussian/Fisher MI proxy
+        if self.compute_gaussian_fisher:
+            self.logger.info("Computing Gaussian/Fisher proxy metrics...")
+            results["gaussian_fisher"] = self._compute_gaussian_fisher(
+                E, I_var, Vout, C, Vinf, Vb
+            )
+
         # 4. PID decomposition
         if self.compute_pid and self.pid_available:
             self.logger.info("Computing PID metrics...")
@@ -1244,7 +1375,12 @@ class InformationAnalyzer(AbstractAnalyzer):
             "n_samples": results_list[0].get("n_samples", 0),
         }
 
-        for metric_category in ("basic_mi", "pairwise_mi", "conditional_mi"):
+        for metric_category in (
+            "basic_mi",
+            "pairwise_mi",
+            "conditional_mi",
+            "gaussian_fisher",
+        ):
             # Collect all keys across results (some branches/layers may omit metrics
             # when the underlying variable does not exist, e.g. no synapses or no Vb).
             all_keys: set[str] = set()
@@ -1601,7 +1737,12 @@ class InformationAnalyzer(AbstractAnalyzer):
         has_branch_input: bool,
     ) -> None:
         """Remove metrics that depend on non-existent variables (in-place)."""
-        for metric_category in ("basic_mi", "pairwise_mi", "conditional_mi"):
+        for metric_category in (
+            "basic_mi",
+            "pairwise_mi",
+            "conditional_mi",
+            "gaussian_fisher",
+        ):
             if metric_category not in result or not isinstance(
                 result[metric_category], dict
             ):

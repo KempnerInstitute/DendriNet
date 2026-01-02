@@ -531,7 +531,7 @@ base_config:
       training: false                     # Run during training (true/false)
       params:
         selection:
-          components: ["basic", "pairwise", "conditional", "ablation_aligned", "layer_proxies"]  # Components: "basic", "pairwise", "conditional", "pid", "ablation_aligned", "layer_proxies", "upstream_unique_cmi"
+          components: ["basic", "pairwise", "conditional", "ablation_aligned", "layer_proxies"]  # Components: "basic", "pairwise", "conditional", "gaussian_fisher", "pid", "ablation_aligned", "layer_proxies", "upstream_unique_cmi"
           scopes: []                         # Scopes: "layer", "einet", "neuron" (alias: views)
           signal_variants: ["network", "lda"] # Variants: "network", "lda", "random" (random requires baselines.random_weights.n_shuffles > 0)
 
@@ -546,6 +546,15 @@ base_config:
           per_einet_analysis: false          # Extra breakdown/plots: per-E/I-net (overridden by selection.scopes if non-empty)
           per_neuron_analysis: false         # Extra breakdown/plots: per-neuron (expensive; overridden by selection.scopes if non-empty)
           layer_total_topk: 10               # K for *_topK_sum proxies (int >= 1)
+          gaussian_fisher:
+            aggregation: "sum"  # Aggregate per-feature F: "sum"|"mean"|"max"
+            mi_transform: "half_log1p"  # Transform F→MI proxy: "half_log1p"|"log1p"|"none"
+            eps: 1.0e-8  # Denominator stabilizer (alias: ridge) (float > 0)
+
+        pid:
+          binarize: true  # Binarize continuous vars: true|false
+          binarize_method: "median"  # Binarization: "median"|"mean"|"quantile"
+          binarize_threshold: 0.5  # Used only if binarize_method="quantile": q∈[0,1]
 
         estimator:
           method: "kraskov"                 # MI estimation: "kraskov", "decoder", "binned", "sklearn", "copula", "auto"
@@ -578,11 +587,8 @@ base_config:
             n_shuffles: 0                   # Null (label-shuffle) baseline shuffles (int >= 0; produces *_null metrics)
             seed: 0                         # Null baseline seed (int)
             components: ["basic"]           # Null components: "basic", "conditional", "ablation_aligned", "upstream_unique_cmi", "all"
-
-        pid:
-          binarize: true                    # PID binarize: true|false
-          binarize_method: "median"         # PID method: "median", "mean", "quantile"
-          binarize_threshold: 0.5           # PID threshold (float)
+            conditional_shuffle: "auto"     # Conditional null shuffle: "auto", "global", "bins"
+            conditional_bins: 10            # If using bins: number of Z-bins (int >= 2)
 
     correlation_analysis:
       enabled: false                      # Enable correlation analysis (true/false)
