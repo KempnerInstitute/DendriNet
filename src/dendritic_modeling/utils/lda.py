@@ -110,7 +110,10 @@ def fit_nonnegative_lda(
         if w_norm > 1e-10:
             w_opt = (w_opt / w_norm) * gamma
         else:
-            w_opt = np.ones(n_features) / n_features
+            # Fallback: uniform weights with the requested norm and gamma scaling.
+            w_opt = np.ones(n_features, dtype=float)
+            w_norm = np.linalg.norm(w_opt, ord=weight_norm_order)
+            w_opt = (w_opt / max(w_norm, 1e-10)) * gamma
     else:
         # Fallback to sum to 1 if no specific norm order
         w_sum = np.sum(w_opt)
@@ -176,7 +179,10 @@ def generate_random_nonnegative_weights(
         if w_norm > 1e-10:
             w = (w / w_norm) * gamma
         else:
-            w = np.ones(n_features) / n_features
+            # Fallback: uniform weights with the requested norm and gamma scaling.
+            w = np.ones(n_features, dtype=float)
+            w_norm = np.linalg.norm(w, ord=weight_norm_order)
+            w = (w / max(w_norm, 1e-10)) * gamma
     else:
         # Fallback to sum to 1
         w_sum = np.sum(w)

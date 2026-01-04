@@ -140,9 +140,9 @@ class AblationAnalyzer(AbstractAnalyzer):
             )
             self.mse = bool(getattr(params, "mse", False))
             self.cosine_similarity = bool(getattr(params, "cosine_similarity", False))
-        self.compute_pred_label_mi = bool(
-            getattr(params, "compute_pred_label_mi", False)
-        )
+            self.compute_pred_label_mi = bool(
+                getattr(params, "compute_pred_label_mi", False)
+            )
 
     @staticmethod
     def _pred_label_mi_bits(y_true: np.ndarray, y_pred: np.ndarray) -> float:
@@ -195,8 +195,14 @@ class AblationAnalyzer(AbstractAnalyzer):
         loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
         preds = []
         trues = []
+        try:
+            model_device = next(model.parameters()).device
+        except StopIteration:
+            model_device = torch.device("cpu")
         with torch.no_grad():
             for xb, yb in loader:
+                if isinstance(xb, torch.Tensor):
+                    xb = xb.to(model_device)
                 logits = model(xb)
                 preds.append(torch.argmax(logits, dim=-1).detach().cpu())
                 trues.append(yb.detach().cpu())

@@ -269,6 +269,17 @@ class InformationAnalyzer(AbstractAnalyzer):
         self.normalize_mi = bool(
             _get(compute_cfg, "normalize_mi", _get(params, "normalize_mi", False))
         )
+        # Estimators operate in nats; for reporting/plots we optionally convert to bits.
+        self.output_units = _norm(
+            _get(compute_cfg, "output_units", _get(params, "output_units", "bits"))
+        )
+        if self.output_units not in {"bits", "bit", "nats", "nat"}:
+            self.logger.warning(
+                "Unknown output_units=%r; falling back to 'bits'.", self.output_units
+            )
+            self.output_units = "bits"
+        # Canonicalize.
+        self.output_units = "bits" if self.output_units in {"bits", "bit"} else "nats"
         self.verbose = bool(
             _get(compute_cfg, "verbose", _get(params, "verbose", False))
         )
@@ -504,70 +515,70 @@ class InformationAnalyzer(AbstractAnalyzer):
         Vb: Optional[np.ndarray] = None,
     ) -> dict[str, float]:
         """Compute mutual information between each variable and C."""
-        self.logger.info(
+        self.logger.debug(
             f"Computing basic MI: E{E.shape}, I{I_var.shape}, Vout{Vout.shape}, C{C.shape}"
         )
         metrics = {}
 
         # I(E;C)
-        self.logger.info("  Computing I(E;C)...")
+        self.logger.debug("  Computing I(E;C)...")
         start_time = time.time()
         metrics["I(E;C)"] = self.estimators[self.method].mutual_information(E, C)
-        self.logger.info(
+        self.logger.debug(
             f"  I(E;C) = {metrics['I(E;C)']:.4f} (took {time.time() - start_time:.1f}s)"
         )
 
         # I(I;C)
-        self.logger.info("  Computing I(I;C)...")
+        self.logger.debug("  Computing I(I;C)...")
         start_time = time.time()
         metrics["I(I;C)"] = self.estimators[self.method].mutual_information(I_var, C)
-        self.logger.info(
+        self.logger.debug(
             f"  I(I;C) = {metrics['I(I;C)']:.4f} (took {time.time() - start_time:.1f}s)"
         )
 
         # I(Vb;C) if available
         if Vb is not None:
-            self.logger.info("  Computing I(Vb;C)...")
+            self.logger.debug("  Computing I(Vb;C)...")
             start_time = time.time()
             metrics["I(Vb;C)"] = self.estimators[self.method].mutual_information(Vb, C)
-            self.logger.info(
+            self.logger.debug(
                 f"  I(Vb;C) = {metrics['I(Vb;C)']:.4f} (took {time.time() - start_time:.1f}s)"
             )
 
         # I(Vout;C)
-        self.logger.info("  Computing I(Vout;C)...")
+        self.logger.debug("  Computing I(Vout;C)...")
         start_time = time.time()
         metrics["I(Vout;C)"] = self.estimators[self.method].mutual_information(Vout, C)
-        self.logger.info(
+        self.logger.debug(
             f"  I(Vout;C) = {metrics['I(Vout;C)']:.4f} (took {time.time() - start_time:.1f}s)"
         )
 
         # I(Vinf;C) if available
         if Vinf is not None and self.include_vinf:
-            self.logger.info("  Computing I(Vinf;C)...")
+            self.logger.debug("  Computing I(Vinf;C)...")
             start_time = time.time()
             metrics["I(Vinf;C)"] = self.estimators[self.method].mutual_information(
                 Vinf, C
             )
-            self.logger.info(
+            self.logger.debug(
                 f"  I(Vinf;C) = {metrics['I(Vinf;C)']:.4f} (took {time.time() - start_time:.1f}s)"
             )
 
         # Joint MI: I(E,I;C)
-        self.logger.info("  Computing I(E,I;C)...")
+        self.logger.debug("  Computing I(E,I;C)...")
         start_time = time.time()
         EI = np.hstack([E, I_var])
         metrics["I(E,I;C)"] = self.estimators[self.method].mutual_information(EI, C)
-        self.logger.info(
+        self.logger.debug(
             f"  I(E,I;C) = {metrics['I(E,I;C)']:.4f} (took {time.time() - start_time:.1f}s)"
         )
 
         # Optionally normalize by entropy
         if self.normalize_mi:
-            self.logger.info("  Computing entropy H(C) for normalization...")
+            self.logger.debug("  Computing entropy H(C) for normalization...")
             start_time = time.time()
             H_C = self.estimators[self.method].entropy(C.reshape(-1, 1))
-            self.logger.info(
+            self.logger.debug(
                 f"  H(C) = {H_C:.4f} (took {time.time() - start_time:.1f}s)"
             )
             # Create a list of keys to avoid modifying dict during iteration
@@ -575,7 +586,7 @@ class InformationAnalyzer(AbstractAnalyzer):
             for key in keys_to_normalize:
                 metrics[f"{key}_normalized"] = metrics[key] / H_C if H_C > 0 else 0.0
 
-        self.logger.info("  Basic MI computation completed.")
+        self.logger.debug("  Basic MI computation completed.")
         return metrics
 
     def _compute_pairwise_mi(
@@ -587,97 +598,97 @@ class InformationAnalyzer(AbstractAnalyzer):
         Vb: Optional[np.ndarray] = None,
     ) -> dict[str, float]:
         """Compute pairwise mutual information between variables."""
-        self.logger.info("Computing pairwise MI between neural variables...")
+        self.logger.debug("Computing pairwise MI between neural variables...")
         metrics = {}
 
         # I(E;I)
-        self.logger.info("  Computing I(E;I)...")
+        self.logger.debug("  Computing I(E;I)...")
         start_time = time.time()
         metrics["I(E;I)"] = self.estimators[self.method].mutual_information(E, I_var)
-        self.logger.info(
+        self.logger.debug(
             f"  I(E;I) = {metrics['I(E;I)']:.4f} (took {time.time() - start_time:.1f}s)"
         )
 
         # I(E;Vout)
-        self.logger.info("  Computing I(E;Vout)...")
+        self.logger.debug("  Computing I(E;Vout)...")
         start_time = time.time()
         metrics["I(E;Vout)"] = self.estimators[self.method].mutual_information(E, Vout)
-        self.logger.info(
+        self.logger.debug(
             f"  I(E;Vout) = {metrics['I(E;Vout)']:.4f} (took {time.time() - start_time:.1f}s)"
         )
 
         # I(I;Vout)
-        self.logger.info("  Computing I(I;Vout)...")
+        self.logger.debug("  Computing I(I;Vout)...")
         start_time = time.time()
         metrics["I(I;Vout)"] = self.estimators[self.method].mutual_information(
             I_var, Vout
         )
-        self.logger.info(
+        self.logger.debug(
             f"  I(I;Vout) = {metrics['I(I;Vout)']:.4f} (took {time.time() - start_time:.1f}s)"
         )
 
         # Pairwise MI with Vb if available
         if Vb is not None:
             # I(E;Vb)
-            self.logger.info("  Computing I(E;Vb)...")
+            self.logger.debug("  Computing I(E;Vb)...")
             start_time = time.time()
             metrics["I(E;Vb)"] = self.estimators[self.method].mutual_information(E, Vb)
-            self.logger.info(
+            self.logger.debug(
                 f"  I(E;Vb) = {metrics['I(E;Vb)']:.4f} (took {time.time() - start_time:.1f}s)"
             )
 
             # I(I;Vb)
-            self.logger.info("  Computing I(I;Vb)...")
+            self.logger.debug("  Computing I(I;Vb)...")
             start_time = time.time()
             metrics["I(I;Vb)"] = self.estimators[self.method].mutual_information(
                 I_var, Vb
             )
-            self.logger.info(
+            self.logger.debug(
                 f"  I(I;Vb) = {metrics['I(I;Vb)']:.4f} (took {time.time() - start_time:.1f}s)"
             )
 
             # I(Vb;Vout)
-            self.logger.info("  Computing I(Vb;Vout)...")
+            self.logger.debug("  Computing I(Vb;Vout)...")
             start_time = time.time()
             metrics["I(Vb;Vout)"] = self.estimators[self.method].mutual_information(
                 Vb, Vout
             )
-            self.logger.info(
+            self.logger.debug(
                 f"  I(Vb;Vout) = {metrics['I(Vb;Vout)']:.4f} (took {time.time() - start_time:.1f}s)"
             )
 
         if Vinf is not None and self.include_vinf:
             # I(E;Vinf)
-            self.logger.info("  Computing I(E;Vinf)...")
+            self.logger.debug("  Computing I(E;Vinf)...")
             start_time = time.time()
             metrics["I(E;Vinf)"] = self.estimators[self.method].mutual_information(
                 E, Vinf
             )
-            self.logger.info(
+            self.logger.debug(
                 f"  I(E;Vinf) = {metrics['I(E;Vinf)']:.4f} (took {time.time() - start_time:.1f}s)"
             )
 
             # I(I;Vinf)
-            self.logger.info("  Computing I(I;Vinf)...")
+            self.logger.debug("  Computing I(I;Vinf)...")
             start_time = time.time()
             metrics["I(I;Vinf)"] = self.estimators[self.method].mutual_information(
                 I_var, Vinf
             )
-            self.logger.info(
+            self.logger.debug(
                 f"  I(I;Vinf) = {metrics['I(I;Vinf)']:.4f} (took {time.time() - start_time:.1f}s)"
             )
 
             # I(Vout;Vinf)
-            self.logger.info("  Computing I(Vout;Vinf)...")
+            self.logger.debug("  Computing I(Vout;Vinf)...")
             start_time = time.time()
             metrics["I(Vout;Vinf)"] = self.estimators[self.method].mutual_information(
                 Vout, Vinf
             )
-            self.logger.info(
+            self.logger.debug(
                 f"  I(Vout;Vinf) = {metrics['I(Vout;Vinf)']:.4f} (took {time.time() - start_time:.1f}s)"
             )
 
-        self.logger.info("  Pairwise MI computation completed.")
+        self.logger.debug("  Pairwise MI computation completed.")
         return metrics
 
     def _compute_conditional_mi(
@@ -690,70 +701,70 @@ class InformationAnalyzer(AbstractAnalyzer):
         Vb: Optional[np.ndarray] = None,
     ) -> dict[str, float]:
         """Compute conditional mutual information given C."""
-        self.logger.info(
+        self.logger.debug(
             "Computing conditional MI metrics (conditioned on class labels)..."
         )
         metrics = {}
 
         # I(E;I|C)
-        self.logger.info("  Computing I(E;I|C)...")
+        self.logger.debug("  Computing I(E;I|C)...")
         start_time = time.time()
         metrics["I(E;I|C)"] = self.estimators[
             self.method
         ].conditional_mutual_information(E, I_var, C.reshape(-1, 1))
-        self.logger.info(
+        self.logger.debug(
             f"  I(E;I|C) = {metrics['I(E;I|C)']:.4f} (took {time.time() - start_time:.1f}s)"
         )
 
         # I(E;Vout|C)
-        self.logger.info("  Computing I(E;Vout|C)...")
+        self.logger.debug("  Computing I(E;Vout|C)...")
         start_time = time.time()
         metrics["I(E;Vout|C)"] = self.estimators[
             self.method
         ].conditional_mutual_information(E, Vout, C.reshape(-1, 1))
-        self.logger.info(
+        self.logger.debug(
             f"  I(E;Vout|C) = {metrics['I(E;Vout|C)']:.4f} (took {time.time() - start_time:.1f}s)"
         )
 
         # I(I;Vout|C)
-        self.logger.info("  Computing I(I;Vout|C)...")
+        self.logger.debug("  Computing I(I;Vout|C)...")
         start_time = time.time()
         metrics["I(I;Vout|C)"] = self.estimators[
             self.method
         ].conditional_mutual_information(I_var, Vout, C.reshape(-1, 1))
-        self.logger.info(
+        self.logger.debug(
             f"  I(I;Vout|C) = {metrics['I(I;Vout|C)']:.4f} (took {time.time() - start_time:.1f}s)"
         )
 
         # Conditional MI with Vb if available
         if Vb is not None:
             # I(E;Vb|C)
-            self.logger.info("  Computing I(E;Vb|C)...")
+            self.logger.debug("  Computing I(E;Vb|C)...")
             start_time = time.time()
             metrics["I(E;Vb|C)"] = self.estimators[
                 self.method
             ].conditional_mutual_information(E, Vb, C.reshape(-1, 1))
-            self.logger.info(
+            self.logger.debug(
                 f"  I(E;Vb|C) = {metrics['I(E;Vb|C)']:.4f} (took {time.time() - start_time:.1f}s)"
             )
 
             # I(I;Vb|C)
-            self.logger.info("  Computing I(I;Vb|C)...")
+            self.logger.debug("  Computing I(I;Vb|C)...")
             start_time = time.time()
             metrics["I(I;Vb|C)"] = self.estimators[
                 self.method
             ].conditional_mutual_information(I_var, Vb, C.reshape(-1, 1))
-            self.logger.info(
+            self.logger.debug(
                 f"  I(I;Vb|C) = {metrics['I(I;Vb|C)']:.4f} (took {time.time() - start_time:.1f}s)"
             )
 
             # I(Vb;Vout|C)
-            self.logger.info("  Computing I(Vb;Vout|C)...")
+            self.logger.debug("  Computing I(Vb;Vout|C)...")
             start_time = time.time()
             metrics["I(Vb;Vout|C)"] = self.estimators[
                 self.method
             ].conditional_mutual_information(Vb, Vout, C.reshape(-1, 1))
-            self.logger.info(
+            self.logger.debug(
                 f"  I(Vb;Vout|C) = {metrics['I(Vb;Vout|C)']:.4f} (took {time.time() - start_time:.1f}s)"
             )
 
@@ -769,42 +780,42 @@ class InformationAnalyzer(AbstractAnalyzer):
 
         if self.compute_ablation_aligned_mi and Vb is not None:
             # How much class info is present in the layer output beyond upstream input
-            self.logger.info("  Computing I(Vout;C|Vb)...")
+            self.logger.debug("  Computing I(Vout;C|Vb)...")
             start_time = time.time()
             metrics["I(Vout;C|Vb)"] = estimator.conditional_mutual_information(
                 Vout, C_col, Vb
             )
-            self.logger.info(
+            self.logger.debug(
                 f"  I(Vout;C|Vb) = {metrics['I(Vout;C|Vb)']:.4f} (took {time.time() - start_time:.1f}s)"
             )
 
             # Complement: how much upstream class information is *not* reflected in the layer output
             # (helps interpret upstream vs synapse contributions).
-            self.logger.info("  Computing I(Vb;C|Vout)...")
+            self.logger.debug("  Computing I(Vb;C|Vout)...")
             start_time = time.time()
             metrics["I(Vb;C|Vout)"] = estimator.conditional_mutual_information(
                 Vb, C_col, Vout
             )
-            self.logger.info(
+            self.logger.debug(
                 f"  I(Vb;C|Vout) = {metrics['I(Vb;C|Vout)']:.4f} (took {time.time() - start_time:.1f}s)"
             )
 
             # How much class information in Vout remains after conditioning on synapse inputs
             # (proxy for upstream contribution to class information in Vout).
-            self.logger.info("  Computing I(Vout;C|E,I)...")
+            self.logger.debug("  Computing I(Vout;C|E,I)...")
             start_time = time.time()
             EI = np.hstack([E, I_var])
             metrics["I(Vout;C|E,I)"] = estimator.conditional_mutual_information(
                 Vout, C_col, EI
             )
-            self.logger.info(
+            self.logger.debug(
                 f"  I(Vout;C|E,I) = {metrics['I(Vout;C|E,I)']:.4f} (took {time.time() - start_time:.1f}s)"
             )
 
             # Optional (can be expensive for high-dimensional synapse sets):
             # unique upstream class information beyond the full synapse set.
             if self.compute_upstream_unique_cmi:
-                self.logger.info("  Computing I(Vb;C|E,I)...")
+                self.logger.debug("  Computing I(Vb;C|E,I)...")
                 start_time = time.time()
                 try:
                     metrics["I(Vb;C|E,I)"] = estimator.conditional_mutual_information(
@@ -813,7 +824,7 @@ class InformationAnalyzer(AbstractAnalyzer):
                 except Exception as e:
                     self.logger.warning(f"  Failed to compute I(Vb;C|E,I): {e}")
                     metrics["I(Vb;C|E,I)"] = 0.0
-                self.logger.info(
+                self.logger.debug(
                     f"  I(Vb;C|E,I) = {metrics['I(Vb;C|E,I)']:.4f} (took {time.time() - start_time:.1f}s)"
                 )
 
@@ -824,172 +835,172 @@ class InformationAnalyzer(AbstractAnalyzer):
             # independent of class labels. They complement ablation results because
             # they isolate each input's contribution to Vout beyond the others.
             # ------------------------------------------------------------------
-            self.logger.info("  Computing I(E;Vout|I,Vb)...")
+            self.logger.debug("  Computing I(E;Vout|I,Vb)...")
             start_time = time.time()
             metrics["I(E;Vout|I,Vb)"] = estimator.conditional_mutual_information(
                 E, Vout, np.hstack([I_var, Vb])
             )
-            self.logger.info(
+            self.logger.debug(
                 f"  I(E;Vout|I,Vb) = {metrics['I(E;Vout|I,Vb)']:.4f} (took {time.time() - start_time:.1f}s)"
             )
 
-            self.logger.info("  Computing I(I;Vout|E,Vb)...")
+            self.logger.debug("  Computing I(I;Vout|E,Vb)...")
             start_time = time.time()
             metrics["I(I;Vout|E,Vb)"] = estimator.conditional_mutual_information(
                 I_var, Vout, np.hstack([E, Vb])
             )
-            self.logger.info(
+            self.logger.debug(
                 f"  I(I;Vout|E,Vb) = {metrics['I(I;Vout|E,Vb)']:.4f} (took {time.time() - start_time:.1f}s)"
             )
 
-            self.logger.info("  Computing I(Vb;Vout|E,I)...")
+            self.logger.debug("  Computing I(Vb;Vout|E,I)...")
             start_time = time.time()
             metrics["I(Vb;Vout|E,I)"] = estimator.conditional_mutual_information(
                 Vb, Vout, EI
             )
-            self.logger.info(
+            self.logger.debug(
                 f"  I(Vb;Vout|E,I) = {metrics['I(Vb;Vout|E,I)']:.4f} (took {time.time() - start_time:.1f}s)"
             )
 
             # Unique class information in E / I beyond upstream input
-            self.logger.info("  Computing I(E;C|Vb)...")
+            self.logger.debug("  Computing I(E;C|Vb)...")
             start_time = time.time()
             metrics["I(E;C|Vb)"] = estimator.conditional_mutual_information(
                 E, C_col, Vb
             )
-            self.logger.info(
+            self.logger.debug(
                 f"  I(E;C|Vb) = {metrics['I(E;C|Vb)']:.4f} (took {time.time() - start_time:.1f}s)"
             )
 
-            self.logger.info("  Computing I(I;C|Vb)...")
+            self.logger.debug("  Computing I(I;C|Vb)...")
             start_time = time.time()
             metrics["I(I;C|Vb)"] = estimator.conditional_mutual_information(
                 I_var, C_col, Vb
             )
-            self.logger.info(
+            self.logger.debug(
                 f"  I(I;C|Vb) = {metrics['I(I;C|Vb)']:.4f} (took {time.time() - start_time:.1f}s)"
             )
 
             # Unique class information in (E,I) beyond upstream input (proxy for "all synapses")
-            self.logger.info("  Computing I(E,I;C|Vb)...")
+            self.logger.debug("  Computing I(E,I;C|Vb)...")
             start_time = time.time()
             EI = np.hstack([E, I_var])
             metrics["I(E,I;C|Vb)"] = estimator.conditional_mutual_information(
                 EI, C_col, Vb
             )
-            self.logger.info(
+            self.logger.debug(
                 f"  I(E,I;C|Vb) = {metrics['I(E,I;C|Vb)']:.4f} (took {time.time() - start_time:.1f}s)"
             )
 
             # Fine-grained: unique info in E (or I) beyond upstream + the other synapse type
-            self.logger.info("  Computing I(E;C|I,Vb)...")
+            self.logger.debug("  Computing I(E;C|I,Vb)...")
             start_time = time.time()
             metrics["I(E;C|I,Vb)"] = estimator.conditional_mutual_information(
                 E, C_col, np.hstack([I_var, Vb])
             )
-            self.logger.info(
+            self.logger.debug(
                 f"  I(E;C|I,Vb) = {metrics['I(E;C|I,Vb)']:.4f} (took {time.time() - start_time:.1f}s)"
             )
 
-            self.logger.info("  Computing I(I;C|E,Vb)...")
+            self.logger.debug("  Computing I(I;C|E,Vb)...")
             start_time = time.time()
             metrics["I(I;C|E,Vb)"] = estimator.conditional_mutual_information(
                 I_var, C_col, np.hstack([E, Vb])
             )
-            self.logger.info(
+            self.logger.debug(
                 f"  I(I;C|E,Vb) = {metrics['I(I;C|E,Vb)']:.4f} (took {time.time() - start_time:.1f}s)"
             )
         elif self.compute_ablation_aligned_mi:
             # No upstream branch input (outermost layer): still compute unique info between E and I
-            self.logger.info("  Computing I(E;C|I)...")
+            self.logger.debug("  Computing I(E;C|I)...")
             start_time = time.time()
             metrics["I(E;C|I)"] = estimator.conditional_mutual_information(
                 E, C_col, I_var
             )
-            self.logger.info(
+            self.logger.debug(
                 f"  I(E;C|I) = {metrics['I(E;C|I)']:.4f} (took {time.time() - start_time:.1f}s)"
             )
 
-            self.logger.info("  Computing I(I;C|E)...")
+            self.logger.debug("  Computing I(I;C|E)...")
             start_time = time.time()
             metrics["I(I;C|E)"] = estimator.conditional_mutual_information(
                 I_var, C_col, E
             )
-            self.logger.info(
+            self.logger.debug(
                 f"  I(I;C|E) = {metrics['I(I;C|E)']:.4f} (took {time.time() - start_time:.1f}s)"
             )
 
             # Information-processing conditionals without upstream input.
-            self.logger.info("  Computing I(E;Vout|I)...")
+            self.logger.debug("  Computing I(E;Vout|I)...")
             start_time = time.time()
             metrics["I(E;Vout|I)"] = estimator.conditional_mutual_information(
                 E, Vout, I_var
             )
-            self.logger.info(
+            self.logger.debug(
                 f"  I(E;Vout|I) = {metrics['I(E;Vout|I)']:.4f} (took {time.time() - start_time:.1f}s)"
             )
 
-            self.logger.info("  Computing I(I;Vout|E)...")
+            self.logger.debug("  Computing I(I;Vout|E)...")
             start_time = time.time()
             metrics["I(I;Vout|E)"] = estimator.conditional_mutual_information(
                 I_var, Vout, E
             )
-            self.logger.info(
+            self.logger.debug(
                 f"  I(I;Vout|E) = {metrics['I(I;Vout|E)']:.4f} (took {time.time() - start_time:.1f}s)"
             )
 
-            self.logger.info("  Computing I(Vout;C|E,I)...")
+            self.logger.debug("  Computing I(Vout;C|E,I)...")
             start_time = time.time()
             EI = np.hstack([E, I_var])
             metrics["I(Vout;C|E,I)"] = estimator.conditional_mutual_information(
                 Vout, C_col, EI
             )
-            self.logger.info(
+            self.logger.debug(
                 f"  I(Vout;C|E,I) = {metrics['I(Vout;C|E,I)']:.4f} (took {time.time() - start_time:.1f}s)"
             )
 
         if Vinf is not None and self.include_vinf:
             # I(E;Vinf|C)
-            self.logger.info("  Computing I(E;Vinf|C)...")
+            self.logger.debug("  Computing I(E;Vinf|C)...")
             start_time = time.time()
             metrics["I(E;Vinf|C)"] = self.estimators[
                 self.method
             ].conditional_mutual_information(E, Vinf, C.reshape(-1, 1))
-            self.logger.info(
+            self.logger.debug(
                 f"  I(E;Vinf|C) = {metrics['I(E;Vinf|C)']:.4f} (took {time.time() - start_time:.1f}s)"
             )
 
             # I(I;Vinf|C)
-            self.logger.info("  Computing I(I;Vinf|C)...")
+            self.logger.debug("  Computing I(I;Vinf|C)...")
             start_time = time.time()
             metrics["I(I;Vinf|C)"] = self.estimators[
                 self.method
             ].conditional_mutual_information(I_var, Vinf, C.reshape(-1, 1))
-            self.logger.info(
+            self.logger.debug(
                 f"  I(I;Vinf|C) = {metrics['I(I;Vinf|C)']:.4f} (took {time.time() - start_time:.1f}s)"
             )
 
             # Somatic processing conditionals (low-dimensional and useful for "Vout -> Vinf -> C" chain).
             if self.compute_ablation_aligned_mi:
-                self.logger.info("  Computing I(Vinf;C|Vout)...")
+                self.logger.debug("  Computing I(Vinf;C|Vout)...")
                 start_time = time.time()
                 metrics["I(Vinf;C|Vout)"] = estimator.conditional_mutual_information(
                     Vinf, C_col, Vout
                 )
-                self.logger.info(
+                self.logger.debug(
                     f"  I(Vinf;C|Vout) = {metrics['I(Vinf;C|Vout)']:.4f} (took {time.time() - start_time:.1f}s)"
                 )
 
-                self.logger.info("  Computing I(Vout;C|Vinf)...")
+                self.logger.debug("  Computing I(Vout;C|Vinf)...")
                 start_time = time.time()
                 metrics["I(Vout;C|Vinf)"] = estimator.conditional_mutual_information(
                     Vout, C_col, Vinf
                 )
-                self.logger.info(
+                self.logger.debug(
                     f"  I(Vout;C|Vinf) = {metrics['I(Vout;C|Vinf)']:.4f} (took {time.time() - start_time:.1f}s)"
                 )
 
-        self.logger.info("  Conditional MI computation completed.")
+        self.logger.debug("  Conditional MI computation completed.")
         return metrics
 
     def _gaussian_fisher_proxy(
@@ -1867,6 +1878,62 @@ class InformationAnalyzer(AbstractAnalyzer):
                 )
             }
 
+    @staticmethod
+    def _should_convert_information_key_to_bits(key: Any) -> bool:
+        """Heuristic: return True if `key` is an MI/CMI-like metric name in nats.
+
+        We convert keys that contain an MI-style token (e.g. "I(E;C)") and are
+        *not* clearly dimensionless or in non-MI units.
+        """
+        if not isinstance(key, str):
+            return False
+        if "I(" not in key:
+            return False
+        # Dimensionless ratios; do not convert.
+        if "_normalized" in key:
+            return False
+        # Fisher discriminability proxy (d'^2-like); not an information unit.
+        if "_fisher_F" in key:
+            return False
+        # Counts used for proxy bookkeeping.
+        if key.endswith("_n"):
+            return False
+        return True
+
+    def _convert_information_units_in_place(self, obj: Any) -> None:
+        """Convert MI/CMI-like quantities in-place from nats -> bits.
+
+        Estimators operate in nats internally. Many plots and summaries are in bits,
+        so we convert any MI/CMI-like metrics (including *_std and *_null variants)
+        before saving/plotting when `compute.output_units="bits"`.
+        """
+        if getattr(self, "output_units", "bits") != "bits":
+            return
+
+        nat_to_bit = 1.0 / float(np.log(2.0))
+        nat_to_bit_sq = nat_to_bit * nat_to_bit
+
+        def _convert_any(x: Any) -> None:
+            if isinstance(x, dict):
+                for k in list(x.keys()):
+                    v = x.get(k)
+                    if isinstance(v, (dict, list)):
+                        _convert_any(v)
+                    elif isinstance(v, (int, float, np.floating)):
+                        if not self._should_convert_information_key_to_bits(k):
+                            continue
+                        scale = (
+                            nat_to_bit_sq
+                            if isinstance(k, str) and k.endswith(("_var", "_variance"))
+                            else nat_to_bit
+                        )
+                        x[k] = float(v) * scale
+            elif isinstance(x, list):
+                for item in x:
+                    _convert_any(item)
+
+        _convert_any(obj)
+
     def _add_label_shuffle_null_baselines_in_place(
         self,
         result: dict[str, Any],
@@ -2611,153 +2678,50 @@ class InformationAnalyzer(AbstractAnalyzer):
         Returns:
             Tuple of (E_lin, I_lin, Vb_lin, Vout_lin) each shape [n_samples, n_branches]
         """
-        module = layer_data.get("module")
-        if module is None:
-            return None, None, None, None
+        # The "chained" path is identical to the standard LDA aggregation, except
+        # that the upstream branch input can be replaced with the previous layer's
+        # LDA-computed output (Vout_lin). To avoid duplicated logic (and to ensure
+        # we still respect TopK masks / BlockLinear block structure), we delegate
+        # to `compute_lda_aggregated_signals` after injecting the overridden
+        # `raw_branch_input` when provided.
 
-        raw_exc = layer_data.get("raw_excitatory_input")
-        raw_inh = layer_data.get("raw_inhibitory_input")
+        if prev_layer_vout_lin is None:
+            return self.compute_lda_aggregated_signals(layer_data, C)
 
-        # Use chained branch input if provided, otherwise use raw_branch_input
-        if prev_layer_vout_lin is not None:
-            # Convert to tensor if needed
-            if isinstance(prev_layer_vout_lin, np.ndarray):
-                raw_branch = torch.tensor(prev_layer_vout_lin, dtype=torch.float32)
+        try:
+            # Convert override to a torch Tensor so downstream code can `.detach()`.
+            if isinstance(prev_layer_vout_lin, torch.Tensor):
+                raw_branch_override = prev_layer_vout_lin
             else:
-                raw_branch = prev_layer_vout_lin
-        else:
-            raw_branch = layer_data.get("raw_branch_input")
+                raw_branch_override = torch.as_tensor(
+                    prev_layer_vout_lin, dtype=torch.float32
+                )
 
-        n_samples = C.shape[0]
-        n_branches = layer_data["excitation"].shape[1]
+            # Move override to the same device as existing layer tensors if possible.
+            device = None
+            for key in (
+                "raw_excitatory_input",
+                "raw_inhibitory_input",
+                "excitation",
+                "inhibition",
+                "output",
+            ):
+                t = layer_data.get(key)
+                if isinstance(t, torch.Tensor):
+                    device = t.device
+                    break
+            if device is not None:
+                raw_branch_override = raw_branch_override.to(device)
 
-        E_lin = np.zeros((n_samples, n_branches))
-        I_lin = np.zeros((n_samples, n_branches))
-        Vb_lin = np.zeros((n_samples, n_branches))
-
-        # Check if we have enough classes for LDA
-        if len(np.unique(C)) <= 1:
-            E_lin = layer_data["excitation"].detach().cpu().numpy()
-            I_lin = layer_data["inhibition"].detach().cpu().numpy()
-            if raw_branch is not None:
-                if isinstance(raw_branch, torch.Tensor):
-                    Vb_lin = raw_branch.detach().cpu().numpy()
-                else:
-                    Vb_lin = raw_branch
-            Vout_lin = layer_data["output"].detach().cpu().numpy()
-            return E_lin, I_lin, Vb_lin, Vout_lin
-
-        # Process each branch using non-negative LDA
-        # Get weight normalization parameters from the module (matching TopKLinear)
-        exc_weight_norm_order = None
-        exc_gamma = 1.0
-        if (
-            hasattr(module, "branch_excitation")
-            and module.branch_excitation is not None
-        ):
-            exc_weight_norm_order = getattr(
-                module.branch_excitation, "weight_norm_order", None
+            tmp = dict(layer_data)
+            tmp["raw_branch_input"] = raw_branch_override
+            return self.compute_lda_aggregated_signals(tmp, C)
+        except Exception as e:
+            self.logger.warning(
+                "Chained LDA branch-input override failed; falling back to raw branch input. Error: %s",
+                e,
             )
-            exc_gamma = getattr(module.branch_excitation, "gamma", 1.0)
-
-        inh_weight_norm_order = None
-        inh_gamma = 1.0
-        if (
-            hasattr(module, "branch_inhibition")
-            and module.branch_inhibition is not None
-        ):
-            inh_weight_norm_order = getattr(
-                module.branch_inhibition, "weight_norm_order", None
-            )
-            inh_gamma = getattr(module.branch_inhibition, "gamma", 1.0)
-
-        vb_weight_norm_order = None
-        vb_gamma = 1.0
-        if (
-            hasattr(module, "branches_to_output")
-            and module.branches_to_output is not None
-        ):
-            vb_weight_norm_order = getattr(
-                module.branches_to_output, "weight_norm_order", None
-            )
-            vb_gamma = getattr(module.branches_to_output, "gamma", 1.0)
-
-        for branch_idx in range(n_branches):
-            # E: Non-negative LDA on excitatory inputs
-            if raw_exc is not None and hasattr(module, "branch_excitation"):
-                try:
-                    exc_np = raw_exc.detach().cpu().numpy()
-                    # Use same weight normalization as the network's TopKLinear
-                    E_lin[:, branch_idx] = self._apply_nonnegative_lda(
-                        exc_np,
-                        C,
-                        weight_norm_order=exc_weight_norm_order,
-                        gamma=exc_gamma,
-                    )
-                except Exception:
-                    E_lin[:, branch_idx] = (
-                        layer_data["excitation"][:, branch_idx].cpu().numpy()
-                    )
-
-            # I: Non-negative LDA on inhibitory inputs
-            if raw_inh is not None and hasattr(module, "branch_inhibition"):
-                try:
-                    inh_np = raw_inh.detach().cpu().numpy()
-                    # Use same weight normalization as the network's TopKLinear
-                    I_lin[:, branch_idx] = self._apply_nonnegative_lda(
-                        inh_np,
-                        C,
-                        weight_norm_order=inh_weight_norm_order,
-                        gamma=inh_gamma,
-                    )
-                except Exception:
-                    I_lin[:, branch_idx] = (
-                        layer_data["inhibition"][:, branch_idx].cpu().numpy()
-                    )
-
-            # Vb: Non-negative LDA on branch inputs (chained from previous layer)
-            if raw_branch is not None and hasattr(module, "branches_to_output"):
-                try:
-                    if isinstance(raw_branch, torch.Tensor):
-                        branch_np = raw_branch.detach().cpu().numpy()
-                    else:
-                        branch_np = raw_branch
-                    # Use same weight normalization as the network's BlockLinear
-                    Vb_lin[:, branch_idx] = self._apply_nonnegative_lda(
-                        branch_np,
-                        C,
-                        weight_norm_order=vb_weight_norm_order,
-                        gamma=vb_gamma,
-                    )
-                except Exception:
-                    if isinstance(raw_branch, torch.Tensor):
-                        Vb_lin[:, branch_idx] = raw_branch[:, branch_idx].cpu().numpy()
-                    else:
-                        Vb_lin[:, branch_idx] = raw_branch[:, branch_idx]
-
-        # Compute Vout_lin using the same dendritic computation as the network
-        # With non-negative LDA weights, E_lin, I_lin, Vb_lin are all non-negative
-        use_shunting = getattr(module, "use_shunting", True)
-        epsilon = getattr(module, "epsilon", 1e-8)
-
-        if use_shunting:
-            numerator = E_lin + Vb_lin
-            denominator = 1.0 + E_lin + I_lin + Vb_lin
-            voltage_lin = numerator / (denominator + epsilon)
-        else:
-            voltage_lin = E_lin + Vb_lin - I_lin
-
-        # Apply reactivation
-        if hasattr(module, "reactivation") and module.reactivation is not None:
-            voltage_tensor = torch.tensor(voltage_lin, dtype=torch.float32)
-            device = next(module.parameters()).device
-            voltage_tensor = voltage_tensor.to(device)
-            with torch.no_grad():
-                Vout_lin = module.reactivation(voltage_tensor).cpu().numpy()
-        else:
-            Vout_lin = voltage_lin
-
-        return E_lin, I_lin, Vb_lin, Vout_lin
+            return self.compute_lda_aggregated_signals(layer_data, C)
 
     def ensure_inhibitory_data(
         self, excitation_data: torch.Tensor, inhibition_data: torch.Tensor
@@ -4149,6 +4113,14 @@ class InformationAnalyzer(AbstractAnalyzer):
                     "somatic_synapses=False but no layer_statistics found in results"
                 )
 
+            # ------------------------------------------------------------------
+            # Unit handling: estimators produce nats; optionally convert to bits
+            # for saved results and plots.
+            # ------------------------------------------------------------------
+            results["information_units"] = getattr(self, "output_units", "nats")
+            if results["information_units"] == "bits":
+                self._convert_information_units_in_place(results)
+
             # Compute variance analysis for plotting (AFTER synthetic soma is added)
             self.logger.info("Computing variance analysis for plotting...")
             variance_analysis = self._compute_variance_analysis(results)
@@ -4420,16 +4392,16 @@ class InformationAnalyzer(AbstractAnalyzer):
                     )
 
             # Generate info vs EI depth per dendritic layer plots if we have layer statistics
-            self.logger.info(
+            self.logger.debug(
                 f"Checking for layer_statistics: results exists={results is not None}"
             )
             if results:
-                self.logger.info(f"Results keys: {list(results.keys())}")
-                self.logger.info(
+                self.logger.debug(f"Results keys: {list(results.keys())}")
+                self.logger.debug(
                     f"layer_statistics in results: {'layer_statistics' in results}"
                 )
                 if "layer_statistics" in results:
-                    self.logger.info(
+                    self.logger.debug(
                         f"layer_statistics length: {len(results['layer_statistics'])}"
                     )
 
@@ -4438,7 +4410,7 @@ class InformationAnalyzer(AbstractAnalyzer):
                 and "layer_statistics" in results
                 and len(results["layer_statistics"]) > 0
             ):
-                self.logger.info(
+                self.logger.debug(
                     f"Calling plot_info_vs_ei_depth_per_dendritic_layer with {len(results['layer_statistics'])} layer statistics"
                 )
                 plot_info_vs_ei_depth_per_dendritic_layer(
@@ -4458,7 +4430,7 @@ class InformationAnalyzer(AbstractAnalyzer):
                     self.logger.info(
                         "Generating information variance analysis plots..."
                     )
-                    self.logger.info(
+                    self.logger.debug(
                         f"Variance analysis keys: {list(results['variance_analysis'].keys())}"
                     )
                     from dendritic_modeling.plotting.visualizations.information_plots import (

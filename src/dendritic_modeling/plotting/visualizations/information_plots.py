@@ -1499,8 +1499,8 @@ def plot_info_vs_ei_depth_per_dendritic_layer(
                 # Remove empty subplots and finalize the figure
                 if plots_created:
                     # Remove unused subplots
-                    for i in range(len(metric_names), 4):
-                        fig.delaxes(axes[i])
+                    for j in range(len(metric_names), len(axes)):
+                        fig.delaxes(axes[j])
 
                     cell_type_name = cell_type.replace("_cells", "").title()
                     fig.suptitle(

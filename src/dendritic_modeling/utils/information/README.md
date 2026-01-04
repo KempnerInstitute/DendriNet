@@ -83,7 +83,9 @@ Computed for:
 - Cons / gotchas:
   - kNN estimators have finite-sample bias; results depend on k and sample size
   - High-dimensional inputs (many features) can be noisy; consider reducing dimension or using fewer neighbors
-  - Output units are **nats** (use division by log(2) to convert to bits if needed)
+  - Estimator internals return **nats** (natural-log units). The main `InformationAnalyzer`
+    can convert reported metrics to **bits** via
+    `analysis.information_analysis.params.compute.output_units` (default: `"bits"`).
 
 ### Decoder Estimator (cross-validated classifier)
 - Best for: Estimating information about **discrete labels** (e.g. I(X;C))

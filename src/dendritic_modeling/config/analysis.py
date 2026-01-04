@@ -84,6 +84,9 @@ class InformationComputeParams(BaseConfig):
     max_samples: Optional[int] = None
     include_vinf: bool = True  # Include soma activation (Vinf)
     normalize_mi: bool = False  # Normalize by H(C)
+    # Output units for MI/CMI-like quantities reported by the analyzer/plots.
+    # Estimators operate in nats internally; the analyzer can convert to bits for reporting.
+    output_units: str = "bits"  # "bits"|"nats"
     verbose: bool = False
 
     computation_level: str = (

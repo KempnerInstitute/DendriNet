@@ -302,10 +302,16 @@ class CompartmentStatisticsAnalyzer(AbstractAnalyzer):
                                             )
                                             # Add small noise to avoid zero variance
                                             if np.var(data_for_entropy) < 1e-10:
+                                                seed = zlib.adler32(
+                                                    f"{layer_key}:{branch_idx}:{prefix}:class_{class_idx}".encode()
+                                                )
+                                                rng = np.random.default_rng(seed)
                                                 data_for_entropy = (
                                                     data_for_entropy
-                                                    + np.random.normal(
-                                                        0, 1e-8, data_for_entropy.shape
+                                                    + rng.normal(
+                                                        0.0,
+                                                        1e-8,
+                                                        data_for_entropy.shape,
                                                     )
                                                 )
                                             branch_stats[f"{class_prefix}_entropy"] = (
@@ -319,10 +325,16 @@ class CompartmentStatisticsAnalyzer(AbstractAnalyzer):
                                             ).numpy()
                                             # Add small noise to avoid zero variance
                                             if np.var(data_for_entropy) < 1e-10:
+                                                seed = zlib.adler32(
+                                                    f"{layer_key}:{branch_idx}:{prefix}:class_{class_idx}".encode()
+                                                )
+                                                rng = np.random.default_rng(seed)
                                                 data_for_entropy = (
                                                     data_for_entropy
-                                                    + np.random.normal(
-                                                        0, 1e-8, data_for_entropy.shape
+                                                    + rng.normal(
+                                                        0.0,
+                                                        1e-8,
+                                                        data_for_entropy.shape,
                                                     )
                                                 )
                                             branch_stats[f"{class_prefix}_entropy"] = (
