@@ -108,17 +108,80 @@ class AblationPlotter(BasePlotter):
             if "ei" in sweep_types:
                 try:
                     plot_paths.extend(
-                        self._create_ablation_ei_plots(
-                            valid_data,
-                            plots_dir,
-                            ablation_type,
-                            metric,
-                            depths,
+                        self._create_ablation_plots_1d_sweep(
+                            valid_data=valid_data,
+                            sweep_var="ei_ratio",
+                            var_name="E/I Ratio",
+                            logscale=True,
+                            output_dir=plots_dir,
+                            ablation_type=ablation_type,
+                            metric=metric,
+                            depths=depths
                         )
                     )
                 except Exception as e:
                     print(
                         f"Error generating E/I ablation plot for {ablation_type}_{metric}: {e}"
+                    )
+                    traceback.print_exc()
+            
+            if "stim_duration" in sweep_types:
+                try:
+                    plot_paths.extend(
+                        self._create_ablation_plots_1d_sweep(
+                            valid_data=valid_data,
+                            sweep_var="stimulus_duration",
+                            var_name="Stimulus Duration",
+                            logscale=True,
+                            output_dir=plots_dir,
+                            ablation_type=ablation_type,
+                            metric=metric,
+                            depths=depths
+                        )
+                    )
+                except Exception as e:
+                    print(
+                        f"Error generating stimulus duration ablation plot for {ablation_type}_{metric}: {e}"
+                    )
+                    traceback.print_exc()
+            
+            if "max_gf" in sweep_types:
+                try:
+                    plot_paths.extend(
+                        self._create_ablation_plots_1d_sweep(
+                            valid_data=valid_data,
+                            sweep_var="max_gain_factor",
+                            var_name="Max Gain Factor",
+                            logscale=True,
+                            output_dir=plots_dir,
+                            ablation_type=ablation_type,
+                            metric=metric,
+                            depths=depths
+                        )
+                    )
+                except Exception as e:
+                    print(
+                        f"Error generating max gain factor ablation plot for {ablation_type}_{metric}: {e}"
+                    )
+                    traceback.print_exc()
+            
+            if "nparams" in sweep_types:
+                try:
+                    plot_paths.extend(
+                        self._create_ablation_plots_1d_sweep(
+                            valid_data=valid_data,
+                            sweep_var="nparams",
+                            var_name="Number of Parameters",
+                            logscale=True,
+                            output_dir=plots_dir,
+                            ablation_type=ablation_type,
+                            metric=metric,
+                            depths=depths
+                        )
+                    )
+                except Exception as e:
+                    print(
+                        f"Error generating stimulus duration ablation plot for {ablation_type}_{metric}: {e}"
                     )
                     traceback.print_exc()
             
@@ -163,15 +226,18 @@ class AblationPlotter(BasePlotter):
         print(f"Created {len(plot_paths)} ablation analysis plots")
         return plot_paths
 
-    def _create_ablation_ei_plots(
+    def _create_ablation_plots_1d_sweep(
         self,
         valid_data: pd.DataFrame,
+        sweep_var: str,
+        var_name: str,
+        logscale: bool,
         output_dir: str,
         ablation_type: str,
         metric: str,
         depths: list[int],
     ) -> list[str]:
-        """Create ablation vs E/I ratio plots by depth"""
+        """Create ablation vs sweep_var plots by depth"""
         plot_paths = []
 
         # Find columns for this ablation type and metric
@@ -189,7 +255,7 @@ class AblationPlotter(BasePlotter):
 
         fig, axes = plt.subplots(1, 2, figsize=(15, 6))
         fig.suptitle(
-            f"{ablation_type.title()} Ablation: {metric.title()} vs E/I Ratio by Depth",
+            f"{ablation_type.title()} Ablation: {metric.title()} vs {var_name} by Depth",
             fontsize=16,
         )
 
@@ -216,10 +282,10 @@ class AblationPlotter(BasePlotter):
                     continue
 
                 # Sort by E/I ratio for proper line plotting
-                sorted_data = category_data.sort_values("ei_ratio")
+                sorted_data = category_data.sort_values(sweep_var)
 
                 # Filter out non-numeric or missing values
-                plot_data = sorted_data[[depth_col, "ei_ratio"]].dropna()
+                plot_data = sorted_data[[depth_col, sweep_var]].dropna()
                 if plot_data.empty:
                     continue
 
@@ -228,7 +294,7 @@ class AblationPlotter(BasePlotter):
                     y_vals = pd.to_numeric(
                         plot_data[depth_col], errors="coerce"
                     ).dropna()
-                    x_vals = plot_data.loc[y_vals.index, "ei_ratio"]
+                    x_vals = plot_data.loc[y_vals.index, sweep_var]
 
                     if len(y_vals) > 0:
                         ax.plot(
@@ -245,10 +311,10 @@ class AblationPlotter(BasePlotter):
 
             self.setup_axes_style(
                 ax=ax,
-                xlabel="E/I Ratio",
+                xlabel=var_name,
                 ylabel=f"{metric.title()}",
                 title=f"{category.title()}",
-                use_log_x=True,
+                use_log_x=logscale,
                 grid=True
             )
             ax.legend()

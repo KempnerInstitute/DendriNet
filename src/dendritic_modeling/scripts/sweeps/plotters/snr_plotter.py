@@ -3,6 +3,8 @@
 import logging
 from pathlib import Path
 from copy import deepcopy
+import itertools
+import traceback
 
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -15,10 +17,18 @@ logger = logging.getLogger(__name__)
 
 
 SNR_PREFIX_MAP = {
+    "exc_inputs": "Excitatory Inputs",
+    "inh_inputs": "Inhibitory Inputs",
     "exc": "Excitation",
     "inh": "Inhibition",
     "upstream": "Upstream",
     "vout": "Vout"
+}
+METRIC_MAPPING = {
+    "d_max": "Max Discriminability",
+    "d_total": "Total Discriminability",
+    "n_sig_dirs": "Number of Significant Directions",
+    "ratio_sig_dirs": "Ratio of Significant Directions"
 }
 
 
@@ -58,29 +68,49 @@ class SNRPlotter(BasePlotter):
         plot_paths = []
 
         # Find SNR columns (look for both column name patterns)
-        snr_cols = [
+        input_snr_cols: list[str] = [
             col
             for col in valid_data.columns
-            if "snr_" in col
+            if "snr_" in col and "inputs" in col
         ]
 
-        if not snr_cols:
+        act_snr_cols: list[str] = [
+            col for col in valid_data.columns
+            if "snr_" in col and "depth" in col
+        ]
+
+        if not input_snr_cols and not act_snr_cols:
             print("No SNR columns found")
             return plot_paths
+        
+        input_prefixes = []
+        input_metrics = []
 
-        prefixes = []
+        for col in input_snr_cols:
+            if "std" not in col:
+                parts = col.replace("snr_", "").replace("_mean", "").split("_inputs_")
+                input_prefix = f"{parts[0]}_inputs"
+                input_metric = parts[1]
+                if input_prefix not in input_prefixes:
+                    input_prefixes.append(input_prefix)
+                if input_metric not in input_metrics:
+                    input_metrics.append(input_metric)
+
+        act_prefixes = []
+        act_metrics = []
         depths = []
 
-        for col in snr_cols:
-            col: str
+        for col in act_snr_cols:
             if "std" not in col:
-                # Pattern: snr_prefix_d'^2_mean_depthX_mean
-                parts = col.replace("snr_", "").replace("d'^2_mean_depth", "").split("_")
-                prefix = parts[0]
-                depth = int(parts[1])
+                parts = col.replace("snr_", "").replace("depth", "").replace("_mean", "").split("_")
+                act_prefix = parts[0]
+                act_metric = "_".join(parts[1:-1])
+                depth = int(parts[-1])
 
-                if prefix not in prefixes:
-                    prefixes.append(prefix)
+                if act_prefix not in act_prefixes:
+                    act_prefixes.append(act_prefix)
+                if act_metric not in act_metrics:
+                    act_metrics.append(act_metric)
                 if depth not in depths:
                     depths.append(depth)
 
@@ -92,82 +122,300 @@ class SNRPlotter(BasePlotter):
         
         sweep_types = self.detect_sweep_types(valid_data)
         # Generate E/I ratio plots by depth (current approach)
-        for prefix in prefixes:
-            if "ei" in sweep_types:
-                try:
-                    plot_paths.extend(
-                        self._create_snr_ei_plots(
-                            valid_data,
-                            plots_dir,
-                            prefix,
-                            depths
-                        )
+        if "ei" in sweep_types:
+            try:
+                plot_paths.extend(
+                    self._create_snr_plots_1d_sweep(
+                        valid_data=valid_data,
+                        sweep_var="ei_ratio",
+                        var_name="E/I Ratio",
+                        logscale=True,
+                        output_dir=plots_dir,
+                        input_prefixes=input_prefixes,
+                        input_metrics=input_metrics,
+                        act_prefixes=act_prefixes,
+                        act_metrics=act_metrics,
+                        depths=depths
                     )
-                except Exception as e:
-                    print(
-                        f"Error generating E/I SNR plot for {prefix}: {e}"
+                )
+            except Exception as e:
+                logger.error(
+                    f"Error generating E/I SNR plot: {e}"
+                )
+                traceback.print_exc()
+        
+        if "stim_duration" in sweep_types:
+            try:
+                plot_paths.extend(
+                    self._create_snr_plots_1d_sweep(
+                        valid_data=valid_data,
+                        sweep_var="stimulus_duration",
+                        var_name="Stimulus Duration",
+                        logscale=True,
+                        output_dir=plots_dir,
+                        input_prefixes=input_prefixes,
+                        input_metrics=input_metrics,
+                        act_prefixes=act_prefixes,
+                        act_metrics=act_metrics,
+                        depths=depths
                     )
-            if "stoch1" in sweep_types:
-                try:
-                    plot_paths.extend(
-                        self._create_snr_heatmaps(
-                            valid_data,
-                            plots_dir,
-                            prefix,
-                            depths,
-                            "stimulus_duration",
-                            "max_gain_factor"
-                        )
+                )
+            except Exception as e:
+                logger.error(
+                    f"Error generating stimulus duration SNR plot: {e}"
+                )
+                traceback.print_exc()
+        
+        if "max_gf" in sweep_types:
+            try:
+                plot_paths.extend(
+                    self._create_snr_plots_1d_sweep(
+                        valid_data=valid_data,
+                        sweep_var="max_gain_factor",
+                        var_name="Max Gain Factor",
+                        logscale=True,
+                        output_dir=plots_dir,
+                        input_prefixes=input_prefixes,
+                        input_metrics=input_metrics,
+                        act_prefixes=act_prefixes,
+                        act_metrics=act_metrics,
+                        depths=depths
                     )
-                except Exception as e:
-                    print(
-                        f"Error generating stochastic SNR plot for {prefix}: {e}"
+                )
+            except Exception as e:
+                logger.error(
+                    f"Error generating max gain factor SNR plot: {e}"
+                )
+                traceback.print_exc()
+        
+        if "nparams" in sweep_types:
+            try:
+                plot_paths.extend(
+                    self._create_snr_plots_1d_sweep(
+                        valid_data=valid_data,
+                        sweep_var="nparams",
+                        var_name="Number of Parameters",
+                        logscale=True,
+                        output_dir=plots_dir,
+                        input_prefixes=input_prefixes,
+                        input_metrics=input_metrics,
+                        act_prefixes=act_prefixes,
+                        act_metrics=act_metrics,
+                        depths=depths
                     )
-            
-            if "stoch2" in sweep_types:
-                try:
-                    plot_paths.extend(
-                        self._create_snr_heatmaps(
-                            valid_data,
-                            plots_dir,
-                            prefix,
-                            depths,
-                            "stimulus_duration",
-                            "max_gain_tau_ratio"
-                        )
-                    )
-                except Exception as e:
-                    print(
-                        f"Error generating stochastic GV SNR plot for {prefix}: {e}"
-                    )
+                )
+            except Exception as e:
+                logger.error(
+                    f"Error generating nparams SNR plot: {e}"
+                )
+                traceback.print_exc()
 
-        print(f"Created {len(plot_paths)} SNR analysis plots")
+        if "stoch1" in sweep_types:
+            try:
+                plot_paths.extend(
+                    self._create_snr_heatmaps(
+                        valid_data,
+                        plots_dir,
+                        prefix,
+                        depths,
+                        "stimulus_duration",
+                        "max_gain_factor"
+                    )
+                )
+            except Exception as e:
+                logger.error(
+                    f"Error generating stochastic SNR plot for {prefix}: {e}"
+                )
+                traceback.print_exc()
+        
+        if "stoch2" in sweep_types:
+            try:
+                plot_paths.extend(
+                    self._create_snr_heatmaps(
+                        valid_data,
+                        plots_dir,
+                        prefix,
+                        depths,
+                        "stimulus_duration",
+                        "max_gain_tau_ratio"
+                    )
+                )
+            except Exception as e:
+                logger.error(
+                    f"Error generating stochastic GV SNR plot for {prefix}: {e}"
+                )
+                traceback.print_exc()
+
+        logger.info(f"Created {len(plot_paths)} SNR analysis plots")
         return plot_paths
 
-    def _create_snr_ei_plots(
+    def _create_snr_plots_1d_sweep(
         self,
         valid_data: pd.DataFrame,
+        sweep_var: str,
+        var_name: str,
+        logscale: bool,
         output_dir: str,
-        prefix: str,
+        input_prefixes: list[str],
+        input_metrics: list[str],
+        act_prefixes: list[str],
+        act_metrics: list[str],
         depths: list[int]
     ) -> list[str]:
-        """Create SNR vs E/I ratio plots by depth"""
+        """Create SNR vs sweep_var plots"""
         plot_paths = []
 
-        # Find snr columns for this state variable
-        snr_cols_filtered = [
-            col
-            for col in valid_data.columns
-            if f"snr_{prefix}_" in col and "std" not in col
-        ]
+        for input_metric in input_metrics:
+            plot_paths.extend(
+                self._create_input_snr_plots_1d_sweep(
+                    valid_data=valid_data,
+                    sweep_var=sweep_var,
+                    var_name=var_name,
+                    logscale=logscale,
+                    output_dir=output_dir,
+                    input_prefixes=input_prefixes,
+                    input_metric=input_metric
+                )
+            )
 
-        if not snr_cols_filtered:
-            return plot_paths
+        for act_prefix, act_metric in itertools.product(act_prefixes, act_metrics):
+            plot_paths.extend(
+                self._create_activation_snr_plots_1d_sweep(
+                    valid_data=valid_data,
+                    sweep_var=sweep_var,
+                    var_name=var_name,
+                    logscale=logscale,
+                    output_dir=output_dir,
+                    act_prefix=act_prefix,
+                    act_metric=act_metric,
+                    depths=depths
+                )
+            )
+        
+        return plot_paths
+
+    def _create_input_snr_plots_1d_sweep(
+        self,
+        valid_data: pd.DataFrame,
+        sweep_var: str,
+        var_name: str,
+        logscale: bool,
+        output_dir: str,
+        input_prefixes: list[str],
+        input_metric: list[str]
+    ) -> list[str]:
+        """Create input SNR vs sweep_var plots"""
+        plot_paths = []
 
         # Create separate plots for each network category
         categories = ["shunting", "no_shunting"]
 
-        d_prime_sq_str = r"d'$^2$"
+        # Choose a colormap (viridis, plasma, inferno, tab10, etc.)
+        # cmap = plt.get_cmap("gnuplot2")
+        
+        # # Create depth -> color mapping
+        # depth_colors = {
+        #     depth: cmap(norm_val) for depth, norm_val in zip(depths, normalized_depths)
+        # }
+
+        color_mapping = {
+            "exc_inputs": "m",
+            "inh_inputs": "g"
+        }
+
+        fig, axes = plt.subplots(1, 2, figsize=(15, 6))
+        fig.suptitle(
+            "Input Disciminability: " + \
+            f"{METRIC_MAPPING[input_metric]} vs {var_name}",
+            fontsize=16,
+        )
+
+        for idx, category in enumerate(categories):
+            ax = axes[idx]
+            category_data = valid_data[valid_data["network_category"] == category]
+
+            if category_data.empty:
+                ax.text(
+                    0.5,
+                    0.5,
+                    f"No {category} data",
+                    ha="center",
+                    va="center",
+                    transform=ax.transAxes,
+                )
+                ax.set_title(f"{category.title()}")
+                continue
+
+            for input_prefix in input_prefixes:
+                mean_col = f"snr_{input_prefix}_{input_metric}_mean"
+                std_col = f"snr_{input_prefix}_{input_metric}_std"
+
+                sorted_data = category_data.sort_values(sweep_var)
+
+                # Filter out non-numeric or missing values
+                plot_data = sorted_data[[mean_col, std_col, sweep_var]].dropna()
+                if plot_data.empty:
+                    continue
+
+                try:
+                    # Convert to numeric if needed
+                    mean_vals = pd.to_numeric(
+                        plot_data[mean_col], errors="coerce"
+                    ).dropna()
+                    std_vals = pd.to_numeric(
+                        plot_data[std_col], errors="coerce"
+                    ).dropna()
+                    x_vals = plot_data.loc[mean_vals.index, sweep_var]
+
+                    if len(mean_vals) > 0:
+                        ax.errorbar(
+                            x_vals,
+                            mean_vals,
+                            yerr=std_vals,
+                            marker="o",
+                            label=f"{SNR_PREFIX_MAP[input_prefix]}",
+                            color=color_mapping[input_prefix],
+                            alpha=0.8,
+                            linewidth=2,
+                            capsize=3
+                        )
+                except Exception as e:
+                    print(f"Warning: Could not plot {input_prefix} for {category}: {e}")
+                    continue
+
+            self.setup_axes_style(
+                ax=ax,
+                xlabel=var_name,
+                ylabel=f"{METRIC_MAPPING[input_metric]}",
+                title=f"{category.title()}",
+                use_log_x=logscale,
+                grid=True
+            )
+            ax.legend()
+
+        fig.tight_layout()
+        
+        plot_path = output_dir / f"input_{input_metric}_vs_{sweep_var}.png"
+        plot_paths.append(self.save_figure(fig, plot_path))
+
+        return plot_paths
+
+    def _create_activation_snr_plots_1d_sweep(
+        self,
+        valid_data: pd.DataFrame,
+        sweep_var: str,
+        var_name: str,
+        logscale: bool,
+        output_dir: str,
+        act_prefix: str,
+        act_metric: str,
+        depths: list[int]
+    ) -> list[str]:
+        """Create SNR vs sweep_var plots by depth"""
+        plot_paths = []
+
+        # Create separate plots for each network category
+        categories = ["shunting", "no_shunting"]
 
         # Create color mapping for depths using a colormap
         # Normalize depths to [0, 1] range using linspace
@@ -192,7 +440,8 @@ class SNRPlotter(BasePlotter):
 
         fig, axes = plt.subplots(1, 2, figsize=(15, 6))
         fig.suptitle(
-            f"{SNR_PREFIX_MAP[prefix]} Disciminality: {d_prime_sq_str} vs E/I Ratio by Depth",
+            f"{SNR_PREFIX_MAP[act_prefix]} Disciminability: " + \
+            f"{METRIC_MAPPING[act_metric]} vs {var_name} by Depth",
             fontsize=16,
         )
         depths = deepcopy(depths)
@@ -216,15 +465,15 @@ class SNRPlotter(BasePlotter):
 
             # Plot lines for each depth
             for depth in depths:
-                depth_col = f"snr_{prefix}_d'^2_mean_depth{depth}_mean"
+                depth_col = f"snr_{act_prefix}_{act_metric}_depth{depth}_mean"
                 if depth_col not in category_data.columns:
                     continue
 
                 # Sort by E/I ratio for proper line plotting
-                sorted_data = category_data.sort_values("ei_ratio")
+                sorted_data = category_data.sort_values(sweep_var)
 
                 # Filter out non-numeric or missing values
-                plot_data = sorted_data[[depth_col, "ei_ratio"]].dropna()
+                plot_data = sorted_data[[depth_col, sweep_var]].dropna()
                 if plot_data.empty:
                     continue
 
@@ -233,7 +482,7 @@ class SNRPlotter(BasePlotter):
                     y_vals = pd.to_numeric(
                         plot_data[depth_col], errors="coerce"
                     ).dropna()
-                    x_vals = plot_data.loc[y_vals.index, "ei_ratio"]
+                    x_vals = plot_data.loc[y_vals.index, sweep_var]
 
                     if len(y_vals) > 0:
                         ax.plot(
@@ -251,17 +500,17 @@ class SNRPlotter(BasePlotter):
 
             self.setup_axes_style(
                 ax=ax,
-                xlabel="E/I Ratio",
-                ylabel=f"{SNR_PREFIX_MAP[prefix]} {d_prime_sq_str}",
+                xlabel=var_name,
+                ylabel=f"{SNR_PREFIX_MAP[act_prefix]} {METRIC_MAPPING[act_metric]}",
                 title=f"{category.title()}",
-                use_log_x=True,
+                use_log_x=logscale,
                 grid=True
             )
             ax.legend()
 
         fig.tight_layout()
         
-        plot_path = output_dir / f"{prefix}_snr_vs_ei_ratio.png"
+        plot_path = output_dir / f"{act_prefix}_act_{act_metric}_vs_{sweep_var}.png"
         plot_paths.append(self.save_figure(fig, plot_path))
 
         return plot_paths

@@ -44,7 +44,37 @@ class PerformancePlotter(BasePlotter):
 
         # Generate E/I ratio plots if applicable
         if "ei" in sweep_types:
-            plot_paths.extend(self.plot_metrics_vs_ei_ratio(data, plots_dir))
+            plot_paths.extend(
+                self.plot_performance_1d_sweep(
+                    data=data, 
+                    sweep_var="ei_ratio", 
+                    var_name="E/I Ratio",
+                    logscale=True,
+                    output_dir=plots_dir
+                )
+            )
+        
+        if "stim_duration" in sweep_types:
+            plot_paths.extend(
+                self.plot_performance_1d_sweep(
+                    data=data, 
+                    sweep_var="stimulus_duration",
+                    var_name="Stimulus Duration",
+                    logscale=True,
+                    output_dir=plots_dir
+                )
+            )
+        
+        if "max_gf" in sweep_types:
+            plot_paths.extend(
+                self.plot_performance_1d_sweep(
+                    data=data, 
+                    sweep_var="max_gain_factor",
+                    var_name="Max Gain Factor",
+                    logscale=True,
+                    output_dir=plots_dir
+                )
+            )
         
         if "stoch1" in sweep_types:
             plot_paths.extend(self.plot_performance_heatmaps(
@@ -68,14 +98,22 @@ class PerformancePlotter(BasePlotter):
 
         return plot_paths
 
-    def plot_metrics_vs_ei_ratio(
-        self, data: pd.DataFrame, output_dir: Path
+    def plot_performance_1d_sweep(
+        self, 
+        data: pd.DataFrame, 
+        sweep_var: str, 
+        var_name: str,
+        logscale: bool,
+        output_dir: Path
     ) -> list[Path]:
         """
-        Generate metric vs E/I ratio line plots with error bars.
+        Generate metric vs sweep_var line plots with error bars.
 
         Args:
-            data: Aggregated data with ei_ratio column
+            data: Aggregated data with sweep_var column
+            sweep_var: Sweep variable column name
+            var_name: Name of the sweep variable
+            logscale: Whether to use log scale for the x-axis
             output_dir: Output directory
 
         Returns:
@@ -97,7 +135,7 @@ class PerformancePlotter(BasePlotter):
                 self.plot_by_category(
                     ax=ax,
                     data=data,
-                    x_col="ei_ratio",
+                    x_col=sweep_var,
                     y_col=metric,
                     category_col="network_category",
                     show_error=True,
@@ -106,23 +144,23 @@ class PerformancePlotter(BasePlotter):
                 # Style axes
                 self.setup_axes_style(
                     ax=ax,
-                    xlabel="E/I Ratio",
+                    xlabel=var_name,
                     ylabel=get_metric_label(metric),
-                    title=f"{get_metric_label(metric)} vs E/I Ratio",
-                    use_log_x=True,
+                    title=f"{get_metric_label(metric)} vs {var_name}",
+                    use_log_x=logscale,
                     grid=True,
                 )
 
                 ax.legend(fontsize=10)
                 fig.tight_layout()
 
-                plot_path = output_dir / f"{metric}_vs_ei_ratio.png"
+                plot_path = output_dir / f"{metric}_vs_{sweep_var}.png"
                 plot_paths.append(self.save_figure(fig, plot_path))
 
             except Exception as e:
-                logger.error(f"Error generating {metric} vs E/I plot: {e}")
+                logger.error(f"Error generating {metric} vs {var_name} plot: {e}")
 
-        logger.info(f"Generated {len(plot_paths)} E/I ratio plots")
+        logger.info(f"Generated {len(plot_paths)} {var_name} performance plots")
         return plot_paths
 
     def plot_performance_heatmaps(
