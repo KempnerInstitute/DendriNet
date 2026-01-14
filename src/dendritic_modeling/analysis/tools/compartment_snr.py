@@ -439,9 +439,6 @@ class CompartmentSNRAnalyzer(AbstractAnalyzer):
         try:
             assert isinstance(model.core_network, ExcitationInhibitionNetwork)
         except AssertionError:
-            self.logger.error(
-                "Model must have ExcitationInhibitionNetwork for weight analysis"
-            )
             return None
         
         try:
