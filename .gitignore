@@ -216,5 +216,6 @@ scripts_backup/
 # Ignore experiments folder completely (managed as separate repo)
 /experiments/
 
-# Drafts: keep most drafts untracked, but *include* the dendritic-information-processing paper.
-drafts/*
+# Local scratch + external dependencies (kept untracked in this repo).
+drafts/
+external/
