@@ -24,7 +24,7 @@ import matplotlib.animation as animation
 
 from dendritic_modeling.analysis.core.base import AbstractAnalyzer
 from dendritic_modeling.config import CompartmentSNRAnalysisParams
-from dendritic_modeling.models import BaseModel
+from dendritic_modeling.models import BaseModel, Classifier, Regressor
 from dendritic_modeling.networks import (
     TopKLinear,
     ParametricActivation,
@@ -35,6 +35,14 @@ from dendritic_modeling.utils import save_dict
 
 
 logger = logging.getLogger(__name__)
+
+
+METRIC_MAPPING = {
+    "d_max": "Max Discriminability",
+    "d_total": "Total Discriminability",
+    "n_sig_dirs": "Number of Significant Directions",
+    "ratio_sig_dirs": "Ratio of Significant Directions"
+}
 
 
 class CompartmentSNRAnalyzer(AbstractAnalyzer):
@@ -49,7 +57,7 @@ class CompartmentSNRAnalyzer(AbstractAnalyzer):
         """Initialize the unified compartment SNR analyzer."""
         super().__init__("CompartmentSNRAnalyzer")
         # Enhanced analysis modes
-        # self.global_analysis = getattr(params, "global_analysis", True)
+        self.input_analysis = getattr(params, "input_analysis", True)
         self.layer_analysis = getattr(params, "layer_analysis", True)
         self.branch_analysis = getattr(params, "branch_analysis", True)
 
@@ -127,6 +135,12 @@ class CompartmentSNRAnalyzer(AbstractAnalyzer):
         key: str,
         activation_type: str
     ):
+        if self.input_analysis:
+            if activation_type == "exc" and not hasattr(self, "excitatory_inputs"):
+                self.excitatory_inputs = input[0].detach().cpu()
+            elif activation_type == "inh" and not hasattr(self, "inhibitory_inputs"):
+                self.inhibitory_inputs = input[0].detach().cpu()
+
         for branch_idx in range(output.shape[-1]):
             if activation_type == "vinf":
                 branch_activation = input[0][..., branch_idx].detach().cpu()
@@ -136,6 +150,29 @@ class CompartmentSNRAnalyzer(AbstractAnalyzer):
             self.raw_dict[key][branch_idx][
                 activation_type
             ] = branch_activation
+    
+    def _input_analysis(self, labels: torch.Tensor):
+        results = {}
+
+        if hasattr(self, "excitatory_inputs"):
+            results = self._compute_discriminability_multivariate(
+                data_tensor=self.excitatory_inputs,
+                labels=labels,
+                prefix="exc_inputs",
+                stats_dict=results
+            )
+            delattr(self, "excitatory_inputs")
+
+        if hasattr(self, "inhibitory_inputs"):
+            results = self._compute_discriminability_multivariate(
+                data_tensor=self.inhibitory_inputs,
+                labels=labels,
+                prefix="inh_inputs",
+                stats_dict=results
+            )
+            delattr(self, "inhibitory_inputs")
+        
+        return results
     
     def _layer_analysis(self, labels: torch.Tensor):
         """Analyze layers of the dendritic network."""
@@ -154,7 +191,7 @@ class CompartmentSNRAnalyzer(AbstractAnalyzer):
             layer_stats = {"depth": branch_data["depth"]}
             for prefix, tensor_list in layer_agg.items():
                 data_tensor = torch.stack(tensor_list, dim=-1)
-                layer_stats = self._compute_discriminality_multivariate(
+                layer_stats = self._compute_discriminability_multivariate(
                     data_tensor, labels, prefix, layer_stats
                 )
             layer_statistics[layer_key] = layer_stats
@@ -170,7 +207,7 @@ class CompartmentSNRAnalyzer(AbstractAnalyzer):
         
         return results
     
-    def _compute_discriminality_multivariate(
+    def _compute_discriminability_multivariate(
         self, 
         data_tensor: torch.Tensor,
         labels: torch.Tensor,
@@ -178,19 +215,52 @@ class CompartmentSNRAnalyzer(AbstractAnalyzer):
         stats_dict: dict[str, float],
     ) -> dict[str, float]:
         """Compute discriminability for a multivariate activation tensor."""
-        cov = torch.cov(data_tensor.T, correction=0)
-        eigvals_cov, eigvecs_cov = torch.linalg.eigh(cov)
-        inv_sqrt_e = torch.diag(
-            torch.clamp(eigvals_cov, min=1e-6).rsqrt()
-        )
-        cov_inv_sqrt = eigvecs_cov @ inv_sqrt_e @ eigvecs_cov.T
+        # cov = torch.cov(data_tensor.T, correction=0)
+        # eigvals_cov, eigvecs_cov = torch.linalg.eigh(cov)
+        # inv_sqrt_e = torch.diag(
+        #     torch.clamp(eigvals_cov, min=1e-3).rsqrt()
+        # )
+        # cov_inv_sqrt = eigvecs_cov @ inv_sqrt_e @ eigvecs_cov.T
 
-        total_mean = data_tensor.mean(dim=0)
+        # total_mean = data_tensor.mean(dim=0)
         
+        # n_samples = data_tensor.shape[0]
+        # n_dims = data_tensor.shape[1]
+
+        # cov_b = torch.zeros_like(cov)
+
+        # for label in torch.unique(labels):
+        #     class_data = data_tensor[labels == label]
+            
+        #     class_mean = class_data.mean(dim=0)
+        #     class_prob = class_data.shape[0] / n_samples
+            
+        #     diff_means = (class_mean - total_mean)[:, None]
+        #     cov_b += class_prob * (diff_means @ diff_means.T)
+        
+        # F = cov_inv_sqrt @ cov_b @ cov_inv_sqrt.T
+        # eigvals_F = torch.linalg.eigvalsh(F)
+        # eigvals_F = torch.where(eigvals_F > self.epsilon, eigvals_F, 0)
+        
+        # d_max = eigvals_F[-1].item()
+        # d_total = eigvals_F.sum().item()
+
+        # n_sig_dims = (eigvals_F > self.epsilon).sum().float().item()
+        # ratio_sig_dims = n_sig_dims / n_dims
+
+        # stats_dict[f"{prefix}_d_max"] = d_max
+        # stats_dict[f"{prefix}_d_total"] = d_total
+        # stats_dict[f"{prefix}_n_sig_dims"] = n_sig_dims
+        # stats_dict[f"{prefix}_ratio_sig_dims"] = ratio_sig_dims
+
+        cov = torch.cov(data_tensor.T, correction=0)
+        inv_cov: torch.Tensor = torch.linalg.pinv(cov)
+
         n_samples = data_tensor.shape[0]
         n_dims = data_tensor.shape[1]
 
         cov_b = torch.zeros_like(cov)
+        total_mean = data_tensor.mean(dim=0)
 
         for label in torch.unique(labels):
             class_data = data_tensor[labels == label]
@@ -201,40 +271,21 @@ class CompartmentSNRAnalyzer(AbstractAnalyzer):
             diff_means = (class_mean - total_mean)[:, None]
             cov_b += class_prob * (diff_means @ diff_means.T)
         
-        F = cov_inv_sqrt @ cov_b @ cov_inv_sqrt.T
-        eigvals_F = torch.linalg.eigvalsh(F)
-        eigvals_F = torch.where(eigvals_F > self.epsilon, eigvals_F, 0)
-        
-        d_max = eigvals_F[-1].item()
+        F = inv_cov @ cov_b
+
+        eigvals_F: torch.Tensor = torch.linalg.eigvals(F)
+        eigvals_F = eigvals_F.real
+
+        d_max = torch.max(eigvals_F).item()
         d_total = eigvals_F.sum().item()
 
-        n_sig_dims = (eigvals_F > self.epsilon).sum().float().item()
-        ratio_sig_dims = n_sig_dims / n_dims
+        n_sig_dirs = (eigvals_F > self.epsilon).sum().float().item()
+        ratio_sig_dirs = n_sig_dirs / n_dims
 
         stats_dict[f"{prefix}_d_max"] = d_max
         stats_dict[f"{prefix}_d_total"] = d_total
-        stats_dict[f"{prefix}_n_sig_dims"] = n_sig_dims
-        stats_dict[f"{prefix}_ratio_sig_dims"] = ratio_sig_dims
-
-        # total_mean = data_tensor.mean(dim=0)
-        # inv_cov: torch.Tensor = torch.linalg.pinv(
-        #     torch.cov(data_tensor.T, correction=0)
-        # )
-
-        # n_samples = data_tensor.shape[0]
-        # discrim = 0
-
-        # for label in torch.unique(labels):
-        #     class_data = data_tensor[labels == label]
-            
-        #     class_mean = class_data.mean(dim=0)
-        #     class_prob = class_data.shape[0] / n_samples
-
-        #     diff = (class_mean - total_mean)[:, None]
-        #     discrim += class_prob * (diff.T @ inv_cov @ diff).item()
-
-        # stats_dict[f"{prefix}_d'^2"] = discrim
-        # stats_dict[f"{prefix}_d'^2/D"] = discrim / data_tensor.shape[1]
+        stats_dict[f"{prefix}_n_sig_dirs"] = n_sig_dirs
+        stats_dict[f"{prefix}_ratio_sig_dirs"] = ratio_sig_dirs
 
         return stats_dict
 
@@ -392,6 +443,14 @@ class CompartmentSNRAnalyzer(AbstractAnalyzer):
                 "Model must have ExcitationInhibitionNetwork for weight analysis"
             )
             return None
+        
+        try:
+            assert isinstance(model, Classifier)
+        except AssertionError:
+            self.logger.error(
+                "Model must be a Classifier for SNR analysis"
+            )
+            return None
 
         self.logger.info("Starting comprehensive excitation-inhibition analysis...")        
         start_time = time.time()
@@ -404,6 +463,10 @@ class CompartmentSNRAnalyzer(AbstractAnalyzer):
         self.collect_raw_data(model, x)
 
         results = {}
+
+        if self.input_analysis and not training:
+            input_analysis = self._input_analysis(labels)
+            results["input_analysis"] = input_analysis
 
         if self.layer_analysis:
             layer_analysis = self._layer_analysis(labels)
@@ -428,6 +491,7 @@ class CompartmentSNRAnalyzer(AbstractAnalyzer):
 
             if not training:
                 epochs_data, epoch_numbers = self.load_epochs_data(save_path)
+                metrics = list(METRIC_MAPPING.keys())
 
                 if self.layer_analysis:
                     layer_save_path = os.path.join(save_path, "layer_analysis")
@@ -436,65 +500,20 @@ class CompartmentSNRAnalyzer(AbstractAnalyzer):
                             pass
 
                     if self.layer_aggregation:
-                        if epochs_data:
-                            plot_layer_analysis_layer_agg_vs_training(
-                                epochs_data["layer_analysis"]["layer_statistics"],
-                                epoch_numbers,
-                                layer_save_path,
-                                # metric="d'^2"
-                                metric="d_max"
-                            )
-                            plot_layer_analysis_layer_agg_vs_training(
-                                epochs_data["layer_analysis"]["layer_statistics"],
-                                epoch_numbers,
-                                layer_save_path,
-                                # metric="d'^2/D"
-                                metric="d_total"
-                            )
-                            plot_layer_analysis_layer_agg_vs_training(
-                                epochs_data["layer_analysis"]["layer_statistics"],
-                                epoch_numbers,
-                                layer_save_path,
-                                metric="n_sig_dims"
-                            )
-                            plot_layer_analysis_layer_agg_vs_training(
-                                epochs_data["layer_analysis"]["layer_statistics"],
-                                epoch_numbers,
-                                layer_save_path,
-                                metric="ratio_sig_dims"
-                            )
-                            # plot_layer_analysis_layer_agg_vs_training_both_metrics(
-                            #     epochs_data["layer_analysis"]["layer_statistics"],
-                            #     epoch_numbers,
-                            #     layer_save_path
-                            # )
+                        for metric in metrics:
+                            if epochs_data:
+                                plot_layer_analysis_layer_agg_vs_training(
+                                    epochs_data["layer_analysis"]["layer_statistics"],
+                                    epoch_numbers,
+                                    layer_save_path,
+                                    metric=metric
+                                )
 
-                        plot_layer_analysis_layer_agg_final(
-                            results["layer_analysis"]["layer_statistics"], 
-                            layer_save_path,
-                            # metric="d'^2"
-                            metric="d_max"
-                        )
-                        plot_layer_analysis_layer_agg_final(
-                            results["layer_analysis"]["layer_statistics"], 
-                            layer_save_path,
-                            # metric="d'^2/D"
-                            metric="d_total"
-                        )
-                        plot_layer_analysis_layer_agg_final(
-                            results["layer_analysis"]["layer_statistics"], 
-                            layer_save_path,
-                            metric="n_sig_dims"
-                        )
-                        plot_layer_analysis_layer_agg_final(
-                            results["layer_analysis"]["layer_statistics"], 
-                            layer_save_path,
-                            metric="ratio_sig_dims"
-                        )
-                        # plot_layer_analysis_layer_agg_final_both_metrics(
-                        #     results["layer_analysis"]["layer_statistics"], 
-                        #     layer_save_path
-                        # )
+                            plot_layer_analysis_layer_agg_final(
+                                results["layer_analysis"]["layer_statistics"], 
+                                layer_save_path,
+                                metric=metric
+                            )
 
                     if self.branch_aggregation:
                         if epochs_data:
@@ -1206,17 +1225,8 @@ def plot_layer_analysis_layer_agg_final(
     ax.set_xticklabels(depth_labels, rotation=45)
     ax.set_xlabel("Branch Depth (Soma → Distal)")
 
-    metric_mapping = {
-        "d_max": "Max Discriminability",
-        "d_total": "Total Discriminability",
-        "n_sig_dims": "Number of Significant Dimensions",
-        "ratio_sig_dims": "Ratio of Significant Dimensions"
-    }
-    # if metric == "d'^2":
-    #     ylabel = r"d'$^2$"
-    # else:
-    #     ylabel = r"d'$^2$/D"
-    ylabel = metric_mapping[metric]
+    
+    ylabel = METRIC_MAPPING[metric]
     ax.set_ylabel(ylabel)
     ax.set_title(f"{ylabel} vs. Branch Depth")
     ax.legend()
@@ -1747,17 +1757,7 @@ def plot_layer_analysis_layer_agg_vs_training(
         ax.set_xticklabels(depth_labels, rotation=45)
         ax.set_xlabel("Branch Depth (Soma → Distal)")
         
-        metric_mapping = {
-            "d_max": "Max Discriminability",
-            "d_total": "Total Discriminability",
-            "n_sig_dims": "Number of Significant Dimensions",
-            "ratio_sig_dims": "Ratio of Significant Dimensions"
-        }
-        ylabel = metric_mapping[metric]
-        # if metric == "d'^2":
-        #     ylabel = r"d'$^2$"
-        # else:
-        #     ylabel = r"d'$^2$/D"
+        ylabel = METRIC_MAPPING[metric]
         ax.set_ylabel(ylabel)
         ax.set_ylim(y_min, y_max)
         ax.set_yticks(y_ticks)

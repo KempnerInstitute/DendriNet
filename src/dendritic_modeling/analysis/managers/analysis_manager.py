@@ -29,6 +29,7 @@ from dendritic_modeling.analysis.tools.synaptic_turnover import SynapticTurnover
 from dendritic_modeling.analysis.tools.weight import WeightAnalyzer
 from dendritic_modeling.analysis.tools.compartment_statistics import CompartmentStatisticsAnalyzer
 from dendritic_modeling.analysis.tools.compartment_snr import CompartmentSNRAnalyzer
+from dendritic_modeling.analysis.tools.multiplicative_gain import MultiplicativeGainAnalyzer
 from dendritic_modeling.analysis.tools.receptive_fields import ReceptiveFieldAnalyzer
 from dendritic_modeling.config import AnalysisConfig
 from dendritic_modeling.models import BaseModel
@@ -110,6 +111,11 @@ class AnalysisManager:
         if self.config.compartment_snr_analysis.enabled:
             self.compartment_snr_analyzer = CompartmentSNRAnalyzer(
                 self.config.compartment_snr_analysis.params
+            )
+        
+        if self.config.multiplicative_gain_analysis.enabled:
+            self.multiplicative_gain_analyzer = MultiplicativeGainAnalyzer(
+                self.config.multiplicative_gain_analysis.params
             )
 
         # Initialize Receptive Field Analysis
@@ -276,6 +282,19 @@ class AnalysisManager:
                 test_dataset=self.data["test"],
                 device=self.device,
                 save_path=os.path.join(self.save_root, "compartment_snr_analysis"),
+                filename=filename,
+                training=training
+            )
+
+        # Multiplicative Gain Analysis
+        if self.config.multiplicative_gain_analysis.enabled and (
+            (self.config.multiplicative_gain_analysis.training and training) or not training
+        ):
+            self.multiplicative_gain_analyzer.analyze(
+                model=self.model,
+                test_dataset=self.data["test"],
+                device=self.device,
+                save_path=os.path.join(self.save_root, "multiplicative_gain_analysis"),
                 filename=filename,
                 training=training
             )

@@ -124,10 +124,12 @@ base_config:
 
       poisson_generator:
         base_dataset: "mnist"             # Base dataset for Poisson generation
-        stimulus_duration: 2.5              # Rate multiplier for Poisson process
+        multiplicative_gain: true        # Multiplicative gain (true/false)
         max_gain_factor: 10              # Maximum gain factor for Poisson process
-        max_gain_tau_ratio: null
         uniform_gain: false              # Uniform gain factor for Poisson process
+        poisson_sampling: false           # Poisson sampling (true/false)
+        stimulus_duration: 1.0           # Stimulus duration
+        max_gain_tau_ratio: null
 
       multixor:
         n_bits: 8                         # Number of bits for multi-XOR problem
@@ -699,10 +701,27 @@ base_config:
       enabled: true
       training: true
       params:
-        global_analysis: true
+        input_analysis: true
         layer_analysis: true
         branch_analysis: true
+        global_aggregation: true
+        layer_aggregation: true
+        branch_aggregation: true
   
+    multiplicative_gain_analysis:
+      enabled: true
+      training: true
+      params:
+        gain_min: 0.0
+        gain_max: 100.0
+        n_steps: 50
+        logspace: true
+        accuracy: true
+        auc: true
+        categorical_loglikelihood: true
+        mse: true
+        cosine_similarity: true
+
   # ============================================================================
   # LOGGING
   # ============================================================================

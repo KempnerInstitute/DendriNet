@@ -29,6 +29,8 @@ from dendritic_modeling.config.analysis import (
     CompartmentStatisticsAnalysisParams,
     CompartmentSNRAnalysisConfig,
     CompartmentSNRAnalysisParams,
+    MultiplicativeGainAnalysisConfig,
+    MultiplicativeGainAnalysisParams,
     ReceptiveFieldAnalysisConfig,
     ReceptiveFieldAnalysisParams,
 )
@@ -149,6 +151,8 @@ __all__ = [
     "CompartmentStatisticsAnalysisParams",
     "CompartmentSNRAnalysisConfig",
     "CompartmentSNRAnalysisParams",
+    "MultiplicativeGainAnalysisConfig",
+    "MultiplicativeGainAnalysisParams",
     "ReceptiveFieldAnalysisConfig",
     "ReceptiveFieldAnalysisParams",
     "load_config",

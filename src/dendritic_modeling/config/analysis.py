@@ -220,7 +220,7 @@ class CompartmentStatisticsAnalysisConfig(BaseConfig):
 @dataclass
 class CompartmentSNRAnalysisParams(BaseConfig):
     """Enhanced configuration for compartment SNR analysis."""
-    # global_analysis: bool = True  # Analyze global statistics
+    input_analysis: bool = True  # Analyze global statistics
     layer_analysis: bool = True  # Analyze layer statistics
     branch_analysis: bool = True  # Analyze branch statistics
 
@@ -236,6 +236,26 @@ class CompartmentSNRAnalysisConfig(BaseConfig):
     enabled: bool = False
     training: bool = False
     params: CompartmentSNRAnalysisParams = field(default_factory=CompartmentSNRAnalysisParams)
+
+
+@dataclass
+class MultiplicativeGainAnalysisParams(BaseConfig):
+    gain_min: float = 0.0
+    gain_max: float = 10.0
+    n_steps: int = 10
+    logspace: bool = False
+    accuracy: bool = False
+    auc: bool = False
+    categorical_loglikelihood: bool = False
+    mse: bool = False
+    cosine_similarity: bool = False
+
+
+@dataclass
+class MultiplicativeGainAnalysisConfig(BaseConfig):
+    enabled: bool = False
+    training: bool = False
+    params: MultiplicativeGainAnalysisParams = field(default_factory=MultiplicativeGainAnalysisParams)
 
 
 @dataclass
@@ -399,6 +419,9 @@ class AnalysisConfig(BaseConfig):
     
     compartment_snr_analysis: CompartmentSNRAnalysisConfig = field(
         default_factory=CompartmentSNRAnalysisConfig
+    )
+    multiplicative_gain_analysis: MultiplicativeGainAnalysisConfig = field(
+        default_factory=MultiplicativeGainAnalysisConfig
     )
     synaptic_activation_analysis: SynapticActivationAnalysisConfig = field(
         default_factory=SynapticActivationAnalysisConfig
