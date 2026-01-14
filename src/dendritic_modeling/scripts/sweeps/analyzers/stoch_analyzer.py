@@ -12,6 +12,7 @@ from ..plotters import (
     NoisePlotter,
     PerformancePlotter,
     WeightPlotter,
+    MultiplicativeGainPlotter,
 )
 from .base_analyzer import BaseSweepAnalyzer
 
@@ -30,6 +31,7 @@ class StochasticDatasetSweepAnalyzer(BaseSweepAnalyzer):
         self.ablation_plotter = AblationPlotter()
         self.snr_plotter = SNRPlotter()
         self.noise_plotter = NoisePlotter()
+        self.multiplicative_gain_plotter = MultiplicativeGainPlotter()
 
     def can_handle(self, results_dir: Path) -> bool:
         """
@@ -109,13 +111,13 @@ class StochasticDatasetSweepAnalyzer(BaseSweepAnalyzer):
         plot_paths = []
 
         # Validate we have stochastic dataset data
-        if (
-            "stimulus_duration" not in data.columns 
-            or "max_gain_factor" not in data.columns
-            or "max_gain_tau_ratio" not in data.columns
-        ):
-            logger.warning("No stimulus_duration or max_gain_factor or max_gain_tau_ratio column found - cannot generate stochastic dataset plots")
-            return plot_paths
+        # if (
+        #     "stimulus_duration" not in data.columns 
+        #     or "max_gain_factor" not in data.columns
+        #     or "max_gain_tau_ratio" not in data.columns
+        # ):
+        #     logger.warning("No stimulus_duration or max_gain_factor or max_gain_tau_ratio column found - cannot generate stochastic dataset plots")
+        #     return plot_paths
 
         # Generate performance plots
         logger.info("Generating performance plots...")
@@ -136,6 +138,10 @@ class StochasticDatasetSweepAnalyzer(BaseSweepAnalyzer):
         # Generate SNR plots (if data available)
         logger.info("Generating SNR plots...")
         plot_paths.extend(self.snr_plotter.generate_all(data, output_dir))
+
+        # Generate multiplicative gain plots (if data available)
+        logger.info("Generating multiplicative gain plots...")
+        plot_paths.extend(self.multiplicative_gain_plotter.generate_all(data, output_dir))
 
         # # Generate noise plots (if data available)
         # logger.info("Generating noise plots...")
