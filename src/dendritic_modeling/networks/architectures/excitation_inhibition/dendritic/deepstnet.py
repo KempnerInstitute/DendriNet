@@ -59,6 +59,7 @@ class DeepstNet(nn.Module):
         efficient_blocklinear: bool = False,
         freeze_excitatory_connectivity=False,
         freeze_inhibitory_connectivity=False,
+        freeze_all_connectivity=False,
         init_method=None,
         weight_threshold=1e-6,
         weight_init=0.01,
@@ -259,6 +260,7 @@ class DeepstNet(nn.Module):
         self.rewiring_mode = rewiring_mode
         self.rewire_frequency = rewire_frequency
         self.step_counter = 0
+        self.freeze_all_connectivity = freeze_all_connectivity
         
         # Create branch-to-neuron mapping for local rewiring
         self._create_branch_to_neuron_mapping()
@@ -324,7 +326,8 @@ class DeepstNet(nn.Module):
         self.step_counter += 1
         if self.step_counter % self.rewire_frequency != 0:
             return
-            
+        if self.freeze_all_connectivity: ## TODO: ADDED, need to test
+            return
         if self.rewiring_mode == 'global':
             self._apply_global_network_rewiring()
         elif self.rewiring_mode == 'local':

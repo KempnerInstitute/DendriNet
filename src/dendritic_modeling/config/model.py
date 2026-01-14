@@ -72,6 +72,7 @@ class SparsityConfig(BaseConfig):
             "synapses_per_branch": None,
             "freeze_excitatory_connectivity": False,
             "freeze_inhibitory_connectivity": False,
+            "freeze_all_connectivity": False,
             "init_method": "xavier_normal",
             "weight_threshold": 1e-6,
             "weight_init": 0.01,

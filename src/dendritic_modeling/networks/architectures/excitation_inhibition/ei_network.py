@@ -63,6 +63,7 @@ class ExcitationInhibitionNetwork(nn.Module):
         efficient_blocklinear: Whether to use efficient blocklinear.
         freeze_excitatory_connectivity: Whether to freeze excitatory connectivity.
         freeze_inhibitory_connectivity: Whether to freeze inhibitory connectivity.
+        freeze_all_connectivity: Whether to freeze all connectivity.
         init_method: Method for initializing weights.
         weight_threshold: Threshold for weight pruning.
         input_noise: Noise for input.
@@ -107,6 +108,7 @@ class ExcitationInhibitionNetwork(nn.Module):
         efficient_blocklinear: bool = False,
         freeze_excitatory_connectivity=False,
         freeze_inhibitory_connectivity=False,
+        freeze_all_connectivity=False,
         init_method="xavier_normal",
         weight_threshold=1e-6,
         weight_init=0.01,
@@ -160,6 +162,7 @@ class ExcitationInhibitionNetwork(nn.Module):
         self.synapses_per_branch = synapses_per_branch
         self.freeze_excitatory_connectivity = freeze_excitatory_connectivity
         self.freeze_inhibitory_connectivity = freeze_inhibitory_connectivity
+        self.freeze_all_connectivity = freeze_all_connectivity
         self.init_method = init_method
         self.weight_threshold = weight_threshold
         self.weight_init = weight_init
@@ -348,6 +351,7 @@ class ExcitationInhibitionNetwork(nn.Module):
                 synapses_per_branch=self.synapses_per_branch,
                 freeze_excitatory_connectivity=self.freeze_excitatory_connectivity,
                 freeze_inhibitory_connectivity=self.freeze_inhibitory_connectivity,
+                freeze_all_connectivity=self.freeze_all_connectivity,
                 init_method=self.init_method,
                 weight_threshold=self.weight_threshold,
                 weight_init=self.weight_init,
