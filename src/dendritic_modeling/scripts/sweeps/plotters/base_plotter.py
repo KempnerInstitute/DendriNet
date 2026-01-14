@@ -46,6 +46,12 @@ class BasePlotter:
                 and data["max_gain_factor"].unique().size > 1
             ):
                 sweep_types.append("stoch1")
+            
+            elif data["stimulus_duration"].unique().size > 1:
+                sweep_types.append("stim_duration")
+            
+            elif data["max_gain_factor"].unique().size > 1:
+                sweep_types.append("max_gf")
         
         if (
             "stimulus_duration" in data.columns 
@@ -59,6 +65,9 @@ class BasePlotter:
         
         if data["nparams"].unique().size > 1:
             sweep_types.append("nparams")
+        
+        if not sweep_types:
+            sweep_types.append("sh_ns_comp")
 
         return sweep_types
 
