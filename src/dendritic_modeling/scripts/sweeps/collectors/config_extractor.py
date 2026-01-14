@@ -62,6 +62,9 @@ class ConfigExtractor:
             if hasattr(config, "model") and hasattr(config.model, "core"):
                 core = config.model.core
 
+                if hasattr(core, "type"):
+                    params["network_type"] = str(core.type).lower()
+
                 # Connectivity parameters
                 if hasattr(core, "connectivity"):
                     conn = core.connectivity

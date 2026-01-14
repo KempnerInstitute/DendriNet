@@ -149,7 +149,35 @@ def extract_network_category(data: pd.DataFrame) -> pd.DataFrame:
 
     result = data.copy()
     result["network_category"] = "unknown"
-    result.loc[result["use_shunting"] == True, "network_category"] = "shunting"
-    result.loc[result["use_shunting"] == False, "network_category"] = "no_shunting"
+    
+    result.loc[
+        (result["network_type"] == "einet") and (result["use_shunting"] == True), 
+        "network_category"
+    ] = "shunting"
+    
+    result.loc[
+        (result["network_type"] == "einet") and (result["use_shunting"] == False), 
+        "network_category"
+    ] = "no_shunting"
+
+    result.loc[
+        result["network_type"] == "einet_sh", 
+        "network_category"
+    ] = "shunting"
+    
+    result.loc[
+        result["network_type"] == "einet_ns", 
+        "network_category"
+    ] = "no_shunting"
+
+    result.loc[
+        result["network_type"] == "matchedtotalparammlp", 
+        "network_category"
+    ] = "total_param_mlp"
+
+    result.loc[
+        result["network_type"] == "matchedactiveparammlp", 
+        "network_category"
+    ] = "active_param_mlp"
 
     return result

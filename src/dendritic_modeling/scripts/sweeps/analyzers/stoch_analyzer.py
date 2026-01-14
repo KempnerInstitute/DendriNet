@@ -77,6 +77,7 @@ class StochasticDatasetSweepAnalyzer(BaseSweepAnalyzer):
             "ie_value",
             "ei_ratio",
             "use_shunting",
+            "network_type",
             "network_category",
             "nparams",
             "stimulus_duration",
