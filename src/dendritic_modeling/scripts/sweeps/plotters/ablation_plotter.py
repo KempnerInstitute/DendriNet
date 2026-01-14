@@ -188,8 +188,11 @@ class AblationPlotter(BasePlotter):
 
         depths.sort()
 
-        if not valid_data["network_category"].isin(["shunting", "no_shunting"]).any():
-            logger.info("No shunting/no_shunting data for ablation analysis")
+        shunt_cat, add_cat = self.get_shunting_additive_pair(valid_data)
+        if shunt_cat is None or add_cat is None:
+            logger.info(
+                "No shunting/additive baseline pair found for ablation analysis"
+            )
             return plot_paths
 
         sweep_types = self.detect_sweep_types(valid_data)
@@ -272,8 +275,11 @@ class AblationPlotter(BasePlotter):
         if not ablation_cols_filtered:
             return plot_paths
 
-        # Create separate plots for each network category
-        categories = ["shunting", "no_shunting"]
+        # Create separate plots for shunting vs additive baselines
+        shunt_cat, add_cat = self.get_shunting_additive_pair(valid_data)
+        if shunt_cat is None or add_cat is None:
+            return plot_paths
+        categories = [shunt_cat, add_cat]
 
         fig, axes = plt.subplots(1, 2, figsize=(15, 6))
         fig.suptitle(
@@ -389,8 +395,11 @@ class AblationPlotter(BasePlotter):
             logger.warning(f"Column {coly} not found in data")
             return plot_paths
 
-        # Create separate plots for each network category
-        categories = ["shunting", "no_shunting"]
+        # Create separate plots for shunting vs additive baselines
+        shunt_cat, add_cat = self.get_shunting_additive_pair(valid_data)
+        if shunt_cat is None or add_cat is None:
+            return plot_paths
+        categories = [shunt_cat, add_cat]
 
         # Filter depths to only those with actual data
         valid_depths = []

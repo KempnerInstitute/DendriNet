@@ -102,7 +102,14 @@ model:
 
   core:
     type: "EINet"                       # Core network type
-    # Options: "EINet", "MLP", "MatchedParamMLP", "EffectiveMatchedParamMLP"
+    # Preferred options (4-way comparison):
+    #   - "dendritic_shunting"
+    #   - "dendritic_additive"
+    #   - "dendritic_mlp"   (same dendritic morphology, but *no* E/I synapse sign constraint)
+    #   - "point_mlp"       (point-neuron baseline; matches *effective* params post-TopK)
+    #
+    # Legacy option:
+    #   - "EINet"           (uses `morphology.use_shunting: true/false`)
 
     architecture:
       excitatory_layer_sizes: [20]      # Number of excitatory neurons per layer
@@ -131,8 +138,8 @@ model:
 
     morphology:
       somatic_synapses: false           # Include somatic synapses (true/false)
-      use_shunting: true                # Use shunting inhibition (true/false)
-      weight_transform: "softplus"      # Weight transformation: "exp", "relu", "softplus"
+      use_shunting: true                # Legacy (only used when core.type == "EINet")
+      weight_transform: "softplus"      # Weight transform: "exp", "relu", "softplus", "identity" (signed)
       dbl_init_method: "analytical_expectation"  # DBL initialization: "analytical_expectation", "default", "ei_equivalence", "naive"
 
     sparsity:

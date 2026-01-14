@@ -526,7 +526,6 @@ class DecoderEstimator(BaseInformationEstimator):
             penalty="l2",
             solver="lbfgs",
             max_iter=1000,
-            multi_class="auto",
         )
         clf = (
             make_pipeline(StandardScaler(), base_clf) if self.standardize else base_clf

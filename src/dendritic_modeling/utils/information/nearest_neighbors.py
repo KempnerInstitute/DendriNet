@@ -133,11 +133,12 @@ def compute_cmi_ccc(
     nyz = np.asarray(nyz, dtype=float) - 1.0
     nz = np.asarray(nz, dtype=float) - 1.0
 
-    cmi = (
-        digamma(n_samples)
-        + digamma(k)
-        - np.mean(digamma(nxz + 1) + digamma(nyz + 1) - digamma(nz + 1))
-    )
+    # Frenzel-Pompe (2007) kNN conditional MI estimator:
+    #   I(X;Y|Z) = ψ(k) - ⟨ ψ(n_xz+1) + ψ(n_yz+1) - ψ(n_z+1) ⟩
+    # where counts are the number of neighbors within the joint-space radius.
+    #
+    # NOTE: Unlike the KSG MI estimator, this expression does NOT include ψ(N).
+    cmi = digamma(k) - np.mean(digamma(nxz + 1) + digamma(nyz + 1) - digamma(nz + 1))
     return float(max(0.0, cmi))
 
 

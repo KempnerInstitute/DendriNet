@@ -136,20 +136,57 @@ def compute_ei_ratio(data: pd.DataFrame) -> pd.DataFrame:
 
 def extract_network_category(data: pd.DataFrame) -> pd.DataFrame:
     """
-    Extract network category from use_shunting column.
+    Extract network category from `network_type` (preferred) or legacy `use_shunting`.
 
     Args:
-        data: DataFrame with use_shunting column
+        data: DataFrame with network_type and/or use_shunting columns
 
     Returns:
         DataFrame with network_category column added
     """
-    if "use_shunting" not in data.columns:
-        return data
-
     result = data.copy()
     result["network_category"] = "unknown"
-    result.loc[result["use_shunting"].eq(True), "network_category"] = "shunting"
-    result.loc[result["use_shunting"].eq(False), "network_category"] = "no_shunting"
+
+    # Preferred: explicit architecture selector from config (model.core.type)
+    if "network_type" in result.columns:
+        nt = result["network_type"].astype(str).str.lower()
+        # Normalize common aliases / historical names
+        nt = nt.replace(
+            {
+                "dendriti_additive": "dendritic_additive",
+                "dendritic_shuntng": "dendritic_shunting",
+                "mlp": "point_mlp",
+            }
+        )
+
+        # Direct mapping for the new 4-way comparisons
+        for name in [
+            "dendritic_shunting",
+            "dendritic_additive",
+            "dendritic_mlp",
+            "point_mlp",
+        ]:
+            result.loc[nt.eq(name), "network_category"] = name
+
+        # Legacy configs: core.type == EINet, decide by use_shunting
+        einet_mask = nt.isin(["einet", "einetwork"])
+        if "use_shunting" in result.columns:
+            result.loc[
+                einet_mask & result["use_shunting"].eq(True), "network_category"
+            ] = "dendritic_shunting"
+            result.loc[
+                einet_mask & result["use_shunting"].eq(False), "network_category"
+            ] = "dendritic_additive"
+
+    # Fallback: legacy boolean only
+    if (
+        result["network_category"] == "unknown"
+    ).all() and "use_shunting" in result.columns:
+        result.loc[result["use_shunting"].eq(True), "network_category"] = (
+            "dendritic_shunting"
+        )
+        result.loc[result["use_shunting"].eq(False), "network_category"] = (
+            "dendritic_additive"
+        )
 
     return result

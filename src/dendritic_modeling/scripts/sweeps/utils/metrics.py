@@ -64,15 +64,29 @@ METRIC_CATEGORIES: dict[str, list[str]] = {
 
 # Color schemes for different network categories
 NETWORK_CATEGORY_COLORS: dict[str, str] = {
-    "shunting": "#1f77b4",  # Blue
-    "no_shunting": "#ff7f0e",  # Orange
+    # New canonical categories (selected via `model.core.type`)
+    "dendritic_shunting": "#1f77b4",  # Blue
+    "dendritic_additive": "#ff7f0e",  # Orange
+    "dendritic_mlp": "#2ca02c",  # Green
+    "point_mlp": "#9467bd",  # Purple
+    # Legacy categories (kept for backward compatibility)
+    "shunting": "#1f77b4",
+    "no_shunting": "#ff7f0e",
+    "mlp": "#9467bd",
     "unknown": "#7f7f7f",  # Gray
     "default": "#2ca02c",  # Green
 }
 
 NETWORK_CATEGORY_MARKERS: dict[str, str] = {
-    "shunting": "o",  # Circle
-    "no_shunting": "s",  # Square
+    # New canonical categories
+    "dendritic_shunting": "o",  # Circle
+    "dendritic_additive": "s",  # Square
+    "dendritic_mlp": "^",  # Triangle
+    "point_mlp": "D",  # Diamond
+    # Legacy categories
+    "shunting": "o",
+    "no_shunting": "s",
+    "mlp": "D",
     "unknown": "x",  # X
     "default": "^",  # Triangle
 }

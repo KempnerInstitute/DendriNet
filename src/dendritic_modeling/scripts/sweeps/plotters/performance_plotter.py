@@ -153,7 +153,19 @@ class PerformancePlotter(BasePlotter):
             logger.warning("Missing 'network_category' column for performance heatmaps")
             return plot_paths
 
-        categories = ["shunting", "no_shunting"]
+        # Prefer canonical 4-way naming (dendritic_*) but remain compatible with legacy.
+        present = set(data["network_category"].unique())
+        shunt_cat = (
+            "dendritic_shunting"
+            if "dendritic_shunting" in present
+            else ("shunting" if "shunting" in present else None)
+        )
+        add_cat = (
+            "dendritic_additive"
+            if "dendritic_additive" in present
+            else ("no_shunting" if "no_shunting" in present else None)
+        )
+        categories = [c for c in [shunt_cat, add_cat] if c is not None]
 
         for metric in ["test_accuracy", "valid_accuracy"]:
             # Handle both aggregated (_mean) and non-aggregated (no suffix) data
@@ -245,10 +257,15 @@ class PerformancePlotter(BasePlotter):
 
                 # Create difference plot (shunting - non_shunting)
                 ax_diff = axes[2]
-                if "shunting" in pivot_tables and "no_shunting" in pivot_tables:
+                if (
+                    shunt_cat is not None
+                    and add_cat is not None
+                    and shunt_cat in pivot_tables
+                    and add_cat in pivot_tables
+                ):
                     # Align indices and columns for subtraction
-                    shunt_pivot = pivot_tables["shunting"]
-                    no_shunt_pivot = pivot_tables["no_shunting"]
+                    shunt_pivot = pivot_tables[shunt_cat]
+                    no_shunt_pivot = pivot_tables[add_cat]
 
                     # Reindex to ensure same index and columns
                     common_index = shunt_pivot.index.union(no_shunt_pivot.index)
@@ -291,7 +308,7 @@ class PerformancePlotter(BasePlotter):
                     ax_diff.set_xlabel(colx, fontsize=12)
                     ax_diff.set_ylabel(coly, fontsize=12)
                     ax_diff.set_title(
-                        "Difference (Shunting - Non-Shunting)", fontsize=14
+                        f"Difference ({shunt_cat} - {add_cat})", fontsize=14
                     )
                 else:
                     ax_diff.text(
@@ -302,9 +319,7 @@ class PerformancePlotter(BasePlotter):
                         va="center",
                         transform=ax_diff.transAxes,
                     )
-                    ax_diff.set_title(
-                        "Difference (Shunting - Non-Shunting)", fontsize=14
-                    )
+                    ax_diff.set_title("Difference (missing data)", fontsize=14)
 
                 fig.tight_layout()
                 plot_path = output_dir / f"{metric}_heatmap.png"

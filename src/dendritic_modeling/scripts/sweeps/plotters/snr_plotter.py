@@ -83,8 +83,9 @@ class SNRPlotter(BasePlotter):
 
         depths.sort()
 
-        if not valid_data["network_category"].isin(["shunting", "no_shunting"]).any():
-            logger.info("No shunting/no_shunting data for SNR analysis")
+        shunt_cat, add_cat = self.get_shunting_additive_pair(valid_data)
+        if shunt_cat is None or add_cat is None:
+            logger.info("No shunting/additive baseline pair found for SNR analysis")
             return plot_paths
 
         sweep_types = self.detect_sweep_types(valid_data)
@@ -154,8 +155,11 @@ class SNRPlotter(BasePlotter):
         if not snr_cols_filtered:
             return plot_paths
 
-        # Create separate plots for each network category
-        categories = ["shunting", "no_shunting"]
+        # Create separate plots for shunting vs additive baselines
+        shunt_cat, add_cat = self.get_shunting_additive_pair(valid_data)
+        if shunt_cat is None or add_cat is None:
+            return plot_paths
+        categories = [shunt_cat, add_cat]
 
         d_prime_sq_str = r"d'$^2$"
 
@@ -279,8 +283,11 @@ class SNRPlotter(BasePlotter):
             logger.warning(f"Column {coly} not found in data")
             return plot_paths
 
-        # Create separate plots for each network category
-        categories = ["shunting", "no_shunting"]
+        # Create separate plots for shunting vs additive baselines
+        shunt_cat, add_cat = self.get_shunting_additive_pair(valid_data)
+        if shunt_cat is None or add_cat is None:
+            return plot_paths
+        categories = [shunt_cat, add_cat]
 
         d_prime_sq_str = r"d'$^2$"
 

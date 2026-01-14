@@ -215,4 +215,6 @@ docs_notebooks_backup/
 scripts_backup/
 # Ignore experiments folder completely (managed as separate repo)
 /experiments/
+
+# Drafts: keep most drafts untracked, but *include* the dendritic-information-processing paper.
 drafts/*

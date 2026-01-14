@@ -320,6 +320,40 @@ class DendriticBranchLayer(nn.Module):
             )
 
     def initialize(self):
+        # ------------------------------------------------------------------
+        # Signed-weight mode (identity transform)
+        # ------------------------------------------------------------------
+        # The analytical initializers assume a positive conductance interpretation
+        # (exp/softplus/relu). For identity (signed) weights, use a simple, stable
+        # initializer based on the underlying synapse modules.
+        if (self.weight_transform or "").lower() == "identity":
+            with torch.no_grad():
+                if self.branch_excitation is not None and hasattr(
+                    self.branch_excitation, "initialize"
+                ):
+                    self.branch_excitation.initialize()
+                if self.branch_inhibition is not None and hasattr(
+                    self.branch_inhibition, "initialize"
+                ):
+                    self.branch_inhibition.initialize()
+
+                if (
+                    getattr(self, "input_branches", False)
+                    and hasattr(self, "branches_to_output")
+                    and self.branches_to_output is not None
+                    and hasattr(self.branches_to_output, "initialize")
+                ):
+                    # In signed-weight mode this is just a linear connection.
+                    self.branches_to_output.initialize(g_branch=1.0)
+
+                if not isinstance(self.reactivation, torch.nn.Identity):
+                    # Match historical defaults (shunting vs additive)
+                    self.reactivation.initialize(
+                        1.5 if self.use_shunting else 0.1,
+                        0.5 if self.use_shunting else 0.0,
+                    )
+            return
+
         if self.dbl_init_method == "analytical_expectation":
             analytical_expectation_dbl_init(
                 self,
@@ -454,9 +488,15 @@ class DendriticBranchLayer(nn.Module):
                     and self.blocklinear_strategy == "conductance_dynamic"
                 ):
                     # only apply input_scale_vec = 1 / branch_weights
-                    self.branches_to_output.input_scale_vec = torch.exp(
-                        -1 * self.branches_to_output.weight().log()
-                    ).flatten()
+                    w = self.branches_to_output.weight()
+                    if (self.weight_transform or "").lower() == "identity":
+                        self.branches_to_output.input_scale_vec = (
+                            1.0 / (w.abs() + self.epsilon)
+                        ).flatten()
+                    else:
+                        self.branches_to_output.input_scale_vec = torch.exp(
+                            -1 * w.log()
+                        ).flatten()
 
     def get_weights(self):
         if self.input_inhibitory and self.input_excitatory:

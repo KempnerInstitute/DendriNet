@@ -129,6 +129,10 @@ class TopKLinear(nn.Module):
                 p_prime = torch.log(torch.exp(decayed_w) - 1 + 1e-8)
                 p_prime_masked = torch.where(weight_mask > 0, p_prime, self.pre_w.data)
                 self.pre_w.data = p_prime_masked
+            elif self.weight_transform == "identity":
+                # Signed weights: decay active weights multiplicatively, preserve sign
+                decay = torch.where(weight_mask > 0, 1 - weight_decay, 1.0)
+                self.pre_w.data *= decay
 
             if weight_boosting:
                 inv_weight_mask = (-1 * weight_mask) + 1
@@ -146,6 +150,9 @@ class TopKLinear(nn.Module):
                         inv_weight_mask > 0, p_prime, self.pre_w.data
                     )
                     self.pre_w.data = p_prime_masked
+                elif self.weight_transform == "identity":
+                    boost = torch.where(inv_weight_mask > 0, 1 + weight_decay, 1.0)
+                    self.pre_w.data *= boost
 
     def forward(self, x):
         """Forward pass through the TopK linear layer."""
@@ -167,7 +174,11 @@ class TopKLinear(nn.Module):
 
     def log_weight(self):
         """Return the log of the transformed weights."""
-        return self.weight().log()
+        w = self.weight()
+        if self.weight_transform == "identity":
+            # Avoid log of negative values; use magnitude as a stable proxy
+            return (w.abs() + 1e-8).log()
+        return w.log()
 
     def weight_mask(self):
         """Return a mask indicating the top K synaptic connections per output neuron."""
@@ -180,6 +191,9 @@ class TopKLinear(nn.Module):
             weights_for_topk = self.pre_w + noise
 
         # Perform topk on the (potentially noisy) weights
+        if self.weight_transform == "identity":
+            # Signed weights: keep strongest synapses by magnitude
+            weights_for_topk = weights_for_topk.abs()
         topK_indices = torch.topk(
             weights_for_topk, self.K, dim=-1, largest=True, sorted=False
         )[1]

@@ -87,6 +87,7 @@ class ExcitationInhibitionNetwork(nn.Module):
         ii_synapses_per_branch_per_layer: Optional[list[int]] = None,
         inhibitory_network_type: str = "dendritic",
         use_shunting: bool = True,
+        synapse_mode: str = "ei",
         reactivation_type: str = "param_tanh",
         reactivation_strategy: str = "none",
         blocklinear_strategy: str = "none",
@@ -140,6 +141,7 @@ class ExcitationInhibitionNetwork(nn.Module):
             ii_synapses_per_branch_per_layer if ii_synapses_per_branch_per_layer else []
         )
         self.use_shunting = use_shunting
+        self.synapse_mode = synapse_mode
         self.reactivation_type = reactivation_type
         self.reactivation_strategy = reactivation_strategy
         self.blocklinear_strategy = blocklinear_strategy
@@ -330,6 +332,7 @@ class ExcitationInhibitionNetwork(nn.Module):
                 somatic_synapses=self.somatic_synapses,
                 topk_init_method=self.topk_init_method,
                 use_shunting=self.use_shunting,
+                synapse_mode=self.synapse_mode,
                 reactivation_strategy=self.reactivation_strategy,
                 blocklinear_strategy=self.blocklinear_strategy,
                 reactivation_type=self.reactivation_type,

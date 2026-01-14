@@ -153,7 +153,15 @@ class BlockLinear(nn.Module):
 
     def decay_weights(self, weight_decay):
         with torch.no_grad():
-            self.log_weight.data -= weight_decay
+            if self.weight_transform == "exp":
+                # Multiplicative decay in weight space corresponds to additive in log space
+                self.log_weight.data -= weight_decay
+            elif self.weight_transform in ["relu", "softplus", "identity"]:
+                # Apply decay directly in weight space. For identity this preserves sign.
+                self.log_weight.data *= 1 - weight_decay
+            else:
+                # Fallback: behave like exp-style (historical)
+                self.log_weight.data -= weight_decay
 
     def forward(self, x):
         # Ensure x is a tensor

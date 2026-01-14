@@ -396,9 +396,21 @@ class InformationPlotter(BasePlotter):
             ax.set_title("Shunting Advantage")
             return
 
-        # Calculate difference
-        shunting_data = data[data["network_category"] == "shunting"]
-        no_shunting_data = data[data["network_category"] == "no_shunting"]
+        shunt_cat, add_cat = self.get_shunting_additive_pair(data)
+        if shunt_cat is None or add_cat is None:
+            ax.text(
+                0.5,
+                0.5,
+                "Insufficient data",
+                ha="center",
+                va="center",
+                transform=ax.transAxes,
+            )
+            return
+
+        # Calculate difference (shunting - additive)
+        shunting_data = data[data["network_category"] == shunt_cat]
+        no_shunting_data = data[data["network_category"] == add_cat]
 
         if shunting_data.empty or no_shunting_data.empty:
             ax.text(
@@ -435,7 +447,7 @@ class InformationPlotter(BasePlotter):
         self.setup_axes_style(
             ax=ax,
             xlabel="E/I Ratio",
-            ylabel="Accuracy Difference (Shunting - No Shunting)",
+            ylabel=f"Accuracy Difference ({shunt_cat} - {add_cat})",
             title="Shunting Advantage",
             use_log_x=True,
             grid=True,
@@ -502,17 +514,19 @@ class InformationPlotter(BasePlotter):
 
         if "ei_ratio" not in data.columns or "network_category" not in data.columns:
             return plot_paths
+        shunt_cat, add_cat = self.get_shunting_additive_pair(data)
+        if shunt_cat is None or add_cat is None:
+            return plot_paths
 
         for group_name, group_info in self.METRIC_GROUPS.items():
             try:
                 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
 
                 # Plot for shunting and no_shunting separately
-                for use_shunting, ax, title_suffix in [
-                    (True, ax1, "Shunting"),
-                    (False, ax2, "No Shunting"),
+                for category, ax, title_suffix in [
+                    (shunt_cat, ax1, "Shunting"),
+                    (add_cat, ax2, "Additive"),
                 ]:
-                    category = "shunting" if use_shunting else "no_shunting"
                     cat_data = data[data["network_category"] == category]
 
                     if cat_data.empty:
@@ -757,6 +771,11 @@ class InformationPlotter(BasePlotter):
     ) -> Path:
         """Plot first vs last layer comparison for a metric group."""
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
+        shunt_cat, add_cat = self.get_shunting_additive_pair(data)
+        if shunt_cat is None or add_cat is None:
+            # No baseline pair; return without saving a figure
+            plt.close(fig)
+            return None
 
         for layer_idx, ax, title in [
             (first_layer, ax1, f"Layer {first_layer} (First)"),
@@ -780,7 +799,7 @@ class InformationPlotter(BasePlotter):
                     (True, "-", 0.9),
                     (False, "--", 0.6),
                 ]:
-                    category = "shunting" if use_shunting else "no_shunting"
+                    category = shunt_cat if use_shunting else add_cat
                     cat_data = data[data["network_category"] == category]
 
                     if cat_data.empty or "ei_ratio" not in cat_data.columns:
@@ -794,7 +813,7 @@ class InformationPlotter(BasePlotter):
                         grouped.values,
                         color=color,
                         linestyle=linestyle,
-                        label=f"{label} ({'S' if use_shunting else 'NS'})",
+                        label=f"{label} ({'Sh' if use_shunting else 'Ad'})",
                         linewidth=2,
                         marker="o" if use_shunting else "s",
                         markersize=5,
@@ -835,9 +854,21 @@ class InformationPlotter(BasePlotter):
             ax.set_title("Shunting Advantage")
             return
 
-        # Separate shunting and no_shunting data
-        shunting = data[data["network_category"] == "shunting"]
-        no_shunting = data[data["network_category"] == "no_shunting"]
+        shunt_cat, add_cat = self.get_shunting_additive_pair(data)
+        if shunt_cat is None or add_cat is None:
+            ax.text(
+                0.5,
+                0.5,
+                "Insufficient data",
+                ha="center",
+                va="center",
+                transform=ax.transAxes,
+            )
+            return
+
+        # Separate shunting and additive data
+        shunting = data[data["network_category"] == shunt_cat]
+        no_shunting = data[data["network_category"] == add_cat]
 
         if shunting.empty or no_shunting.empty or "ei_ratio" not in data.columns:
             ax.text(
@@ -880,7 +911,7 @@ class InformationPlotter(BasePlotter):
             ax=ax,
             xlabel="E/I Ratio",
             ylabel=f"{get_metric_label(metric)} Difference",
-            title="Shunting Advantage (Shunting - Non-Shunting)",
+            title=f"Shunting Advantage ({shunt_cat} - {add_cat})",
             use_log_x=True,
             grid=True,
         )
@@ -924,8 +955,11 @@ class InformationPlotter(BasePlotter):
             logger.info("No mutual information metrics found")
             return plot_paths
 
-        if not valid_data["network_category"].isin(["shunting", "no_shunting"]).any():
-            logger.info("No shunting/no_shunting data for information analysis")
+        shunt_cat, add_cat = self.get_shunting_additive_pair(valid_data)
+        if shunt_cat is None or add_cat is None:
+            logger.info(
+                "No shunting/additive baseline pair found for information analysis"
+            )
             return plot_paths
 
         # Define metric groups matching old analysis exactly
@@ -1079,7 +1113,7 @@ class InformationPlotter(BasePlotter):
                 plot_data = {}
 
                 for use_shunting in [True, False]:
-                    category = "shunting" if use_shunting else "no_shunting"
+                    category = shunt_cat if use_shunting else add_cat
                     shunt_data = valid_data[valid_data["network_category"] == category]
                     plot_data[use_shunting] = {}
 
@@ -1223,6 +1257,9 @@ class InformationPlotter(BasePlotter):
         if "network_category" not in data.columns:
             logger.warning("Missing 'network_category' column")
             return plot_paths
+        shunt_cat, add_cat = self.get_shunting_additive_pair(data)
+        if shunt_cat is None or add_cat is None:
+            return plot_paths
 
         # Generate one figure per metric group
         for group_name, group_info in self.METRIC_GROUPS.items():
@@ -1259,7 +1296,7 @@ class InformationPlotter(BasePlotter):
                 plot_data = {}
 
                 for use_shunting in [True, False]:
-                    category = "shunting" if use_shunting else "no_shunting"
+                    category = shunt_cat if use_shunting else add_cat
                     cat_data = data[data["network_category"] == category]
                     plot_data[use_shunting] = {}
 
@@ -1284,11 +1321,11 @@ class InformationPlotter(BasePlotter):
                     for col_idx, (use_shunting, title_suffix) in enumerate(
                         [
                             (True, "Shunting"),
-                            (False, "Non-Shunting"),
+                            (False, "Additive"),
                         ]
                     ):
                         ax = axes[metric_idx, col_idx]
-                        category = "shunting" if use_shunting else "no_shunting"
+                        category = shunt_cat if use_shunting else add_cat
                         cat_data = data[data["network_category"] == category]
 
                         if cat_data.empty or mean_col not in cat_data.columns:
@@ -1492,8 +1529,13 @@ class InformationPlotter(BasePlotter):
                 # Collect all values for consistent color scaling across all depths
                 all_values = []
 
+                shunt_cat, add_cat = self.get_shunting_additive_pair(data)
+                if shunt_cat is None or add_cat is None:
+                    plt.close(fig)
+                    continue
+
                 for use_shunting in [True, False]:
-                    category = "shunting" if use_shunting else "no_shunting"
+                    category = shunt_cat if use_shunting else add_cat
                     cat_data = data[data["network_category"] == category]
 
                     if not cat_data.empty:
@@ -1516,11 +1558,11 @@ class InformationPlotter(BasePlotter):
                     for col_idx, (use_shunting, title_suffix) in enumerate(
                         [
                             (True, "Shunting"),
-                            (False, "Non-Shunting"),
+                            (False, "Additive"),
                         ]
                     ):
                         ax = axes[row_idx, col_idx]
-                        category = "shunting" if use_shunting else "no_shunting"
+                        category = shunt_cat if use_shunting else add_cat
                         cat_data = data[data["network_category"] == category]
 
                         if cat_data.empty or layer_col not in cat_data.columns:

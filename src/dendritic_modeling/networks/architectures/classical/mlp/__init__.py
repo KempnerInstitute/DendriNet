@@ -11,5 +11,8 @@ from dendritic_modeling.networks.architectures.classical.mlp.matched_param impor
     MatchedParamMLP,
 )
 from dendritic_modeling.networks.architectures.classical.mlp.mlp import MLP
+from dendritic_modeling.networks.architectures.classical.mlp.point_mlp import (
+    PointMatchedParamMLP,
+)
 
-__all__ = ["MLP", "EffectiveMatchedParamMLP", "MatchedParamMLP"]
+__all__ = ["MLP", "EffectiveMatchedParamMLP", "MatchedParamMLP", "PointMatchedParamMLP"]
