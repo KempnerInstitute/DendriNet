@@ -41,17 +41,17 @@ logger = logger_manager.get_logger()
 __version__ = "0.1.0"
 
 __all__ = [
-    "__version__"
-    "analysis"
-    "config"
-    "datasets"
-    "logger"
-    "models"
-    "networks"
-    "plotting"
-    "scripts"
-    "training"
-    "utils"
+    "__version__",
+    "analysis",
+    "config",
+    "datasets",
+    "logger",
+    "models",
+    "networks",
+    "plotting",
+    "scripts",
+    "training",
+    "utils",
 ]
 
 # from dendritic_modeling import pid_utils

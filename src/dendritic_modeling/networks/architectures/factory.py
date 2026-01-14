@@ -18,7 +18,8 @@ from dendritic_modeling.networks.architectures.classical.identity import Identit
 from dendritic_modeling.networks.architectures.classical.mlp import (
     MLP,
     EffectiveMatchedParamMLP,
-    MatchedParamMLP,
+    MatchedTotalParamMLP,
+    MatchedActiveParamMLP,
 )
 from dendritic_modeling.networks.architectures.excitation_inhibition import (
     ConfigurableEINetwork,
@@ -44,7 +45,7 @@ def get_architecture(
     type = type.lower()
 
     # Handle EINet - requires structured config
-    if type == "einet":
+    if type in ["einet_sh", "einet_ns", "einet"]:
         if not (
             isinstance(parameters, DictConfig)
             or (
@@ -61,7 +62,21 @@ def get_architecture(
             raise ValueError(
                 "input_dim required when passing structured config to EINet"
             )
-        return ConfigurableEINetwork(parameters, input_dim)
+        
+        if type == "einet_sh":
+            use_shunting = True
+        elif type == "einet_ns":
+            use_shunting = False
+        else:
+            use_shunting = None
+        
+        return ConfigurableEINetwork(parameters, input_dim, use_shunting)
+    
+    elif type == "matchedtotalparammlp":
+        return MatchedTotalParamMLP(parameters, input_dim)
+    
+    elif type == "matchedactiveparammlp":
+        return MatchedActiveParamMLP(parameters, input_dim)
 
     # All other architectures expect flat parameters
     if isinstance(parameters, DictConfig):
@@ -77,8 +92,6 @@ def get_architecture(
         return CNNUpsample(**parameters)
     elif type == "mlp":
         return MLP(**parameters)
-    elif type == "matchedparammlp":
-        return MatchedParamMLP(**parameters)
     elif type == "effectivematchedparammlp":
         return EffectiveMatchedParamMLP(**parameters)
     elif type == "mlpautoencoder":

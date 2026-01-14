@@ -30,7 +30,8 @@ from dendritic_modeling.networks.architectures import (
     Identity,
     IdentityInputTransform,
     IndexInputTransform,
-    MatchedParamMLP,
+    MatchedTotalParamMLP,
+    MatchedActiveParamMLP,
     StochasticTopKLinear,
     TopKLinear,
     TransferLayer,
@@ -50,39 +51,40 @@ from dendritic_modeling.networks.base import BaseNetwork
 from dendritic_modeling.networks.input import InputNetTransform, SigmoidOutputNetwork
 
 __all__ = [
-    "ActivationFactory"
-    "AlexNet"
-    "BaseAutoencoder"
-    "BaseNetwork"
-    "BlockLinear"
-    "CNNAutoencoder"
-    "CNNDownsample"
-    "CNNUpsample"
-    "CNNVariationalAutoencoder"
-    "DeepstLinear"
-    "DendriNet"
-    "DendriticBranchLayer"
-    "ExcitationInhibitionLayer"
-    "ExcitationInhibitionNetwork"
-    "GradientScaler"
-    "Identity"
-    "IdentityInputTransform"
-    "IndexInputTransform"
-    "analytical_expectation_dbl_init"
-    "InputNetTransform"
-    "MatchedParamMLP"
-    "MLP"
-    "MLPAutoencoder"
-    "MLPVariationalAutoencoder"
-    "ParametricActivation"
-    "ParametricLinearSigmoid"
-    "ParametricLinearTanh"
-    "ParametricLinearTanhTransition"
-    "ParametricTanh"
-    "ParametricTanhOnlyM"
-    "SigmoidOutputNetwork"
-    "StochasticTopKLinear"
-    "TopKLinear"
-    "TransferLayer"
-    "VarianceTopKLinear"
+    "ActivationFactory",
+    "AlexNet",
+    "BaseAutoencoder",
+    "BaseNetwork",
+    "BlockLinear",
+    "CNNAutoencoder",
+    "CNNDownsample",
+    "CNNUpsample",
+    "CNNVariationalAutoencoder",
+    "DeepstLinear",
+    "DendriNet",
+    "DendriticBranchLayer",
+    "ExcitationInhibitionLayer",
+    "ExcitationInhibitionNetwork",
+    "GradientScaler",
+    "Identity",
+    "IdentityInputTransform",
+    "IndexInputTransform",
+    "analytical_expectation_dbl_init",
+    "InputNetTransform",
+    "MatchedTotalParamMLP",
+    "MatchedActiveParamMLP",
+    "MLP",
+    "MLPAutoencoder",
+    "MLPVariationalAutoencoder",
+    "ParametricActivation",
+    "ParametricLinearSigmoid",
+    "ParametricLinearTanh",
+    "ParametricLinearTanhTransition",
+    "ParametricTanh",
+    "ParametricTanhOnlyM",
+    "SigmoidOutputNetwork",
+    "StochasticTopKLinear",
+    "TopKLinear",
+    "TransferLayer",
+    "VarianceTopKLinear",
 ]

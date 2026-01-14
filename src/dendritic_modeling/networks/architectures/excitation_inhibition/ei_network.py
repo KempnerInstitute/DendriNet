@@ -406,12 +406,12 @@ class ExcitationInhibitionNetwork(nn.Module):
         for layer in self.layers:
             layer: ExcitationInhibitionLayer
             if hasattr(layer, "excitatory_cells"):
-                branch_layers.append(layer.excitatory_cells)
+                branch_layers.extend(layer.excitatory_cells.branch_layers)
             if (
                 hasattr(layer, "inhibitory_cells")
                 and layer.inhibitory_cells is not None
             ):
-                branch_layers.append(layer.inhibitory_cells)
+                branch_layers.extend(layer.inhibitory_cells.branch_layers)
         return branch_layers
 
     @property
@@ -529,7 +529,12 @@ class ConfigurableEINetwork(ExcitationInhibitionNetwork):
     separating configuration structure from implementation details.
     """
 
-    def __init__(self, config: Union[dict, DictConfig], input_dim: int):
+    def __init__(
+        self, 
+        config: Union[dict, DictConfig], 
+        input_dim: int,
+        use_shunting: Optional[bool] = None
+    ):
         """
         Initialize from structured config.
 
@@ -537,12 +542,13 @@ class ConfigurableEINetwork(ExcitationInhibitionNetwork):
             config: Structured configuration (e.g., core_config from YAML)
                    Must contain 'architecture', 'connectivity', 'transfer', etc. sections
             input_dim: Input dimension from encoder
+            use_shunting: Whether to use shunting inhibition.
         """
         from dendritic_modeling.scripts.script_utils.config_utils import (
             prepare_ei_network_params,
         )
 
-        params = prepare_ei_network_params(config, input_dim)
+        params = prepare_ei_network_params(config, input_dim, use_shunting)
         super().__init__(**params)
 
 
