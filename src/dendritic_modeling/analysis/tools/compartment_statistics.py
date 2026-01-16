@@ -418,7 +418,6 @@ class CompartmentStatisticsAnalyzer(AbstractAnalyzer):
         except AssertionError:
             return None
 
-        self.logger.info("Starting comprehensive excitation-inhibition analysis...")
         start_time = time.time()
 
         model.to(device)

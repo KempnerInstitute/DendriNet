@@ -85,11 +85,9 @@ class ReceptiveFieldAnalyzer(AbstractAnalyzer):
         """
         Analyze receptive fields in the model.
         """
-        if not isinstance(model.core_network, ExcitationInhibitionNetwork):
-            self.logger.error(
-                "Model must be an instance of ExcitationInhibitionNetwork " + \
-                "for receptive field analysis"
-            )
+        try:
+            assert isinstance(model.core_network, ExcitationInhibitionNetwork)
+        except AssertionError:
             return
 
         self.collect_raw_data(model)

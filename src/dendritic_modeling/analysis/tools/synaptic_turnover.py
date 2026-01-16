@@ -42,10 +42,10 @@ class SynapticTurnoverAnalyzer:
 
         This automatically takes an initial snapshot of the model's synaptic masks.
         """
-        assert isinstance(model.core_network, ExcitationInhibitionNetwork), (
-            "model.core_network must be an instance of ExcitationInhibitionNetwork. "
-            + f"Got model.core_network type: {type(model.core_network)}"
-        )
+        try:
+            assert isinstance(model.core_network, ExcitationInhibitionNetwork)
+        except AssertionError:
+            return
 
         self.data_dict_list = []
         self.snapshot_interval = params.snapshot_interval

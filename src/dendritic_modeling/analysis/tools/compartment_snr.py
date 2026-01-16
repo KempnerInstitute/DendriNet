@@ -444,12 +444,8 @@ class CompartmentSNRAnalyzer(AbstractAnalyzer):
         try:
             assert isinstance(model, Classifier)
         except AssertionError:
-            self.logger.error(
-                "Model must be a Classifier for SNR analysis"
-            )
             return None
 
-        self.logger.info("Starting comprehensive excitation-inhibition analysis...")        
         start_time = time.time()
 
         model.to(device)
