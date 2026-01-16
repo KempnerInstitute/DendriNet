@@ -11,7 +11,7 @@ from typing import Literal
 import torch
 import torch.nn.functional as functional
 
-WeightTransformType = Literal["exp", "relu", "softplus"]
+WeightTransformType = Literal["none","exp", "relu", "softplus"]
 
 
 def apply_weight_transform(
@@ -30,7 +30,9 @@ def apply_weight_transform(
     Raises:
         ValueError: If transform_type is not supported
     """
-    if transform_type == "exp":
+    if transform_type == "none":
+        return weights
+    elif transform_type == "exp":
         return torch.exp(weights)
     elif transform_type == "relu":
         return functional.relu(weights)
