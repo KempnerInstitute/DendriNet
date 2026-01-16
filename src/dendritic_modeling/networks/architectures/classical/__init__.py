@@ -7,7 +7,8 @@ from dendritic_modeling.networks.architectures.classical.identity import Identit
 from dendritic_modeling.networks.architectures.classical.mlp import (
     MLP, 
     MatchedTotalParamMLP, 
-    MatchedActiveParamMLP
+    MatchedActiveParamMLP,
+    SparseStructuredMLP,
 )
 
 __all__ = [
@@ -17,5 +18,6 @@ __all__ = [
     "Identity",
     "MatchedTotalParamMLP",
     "MatchedActiveParamMLP",
-    "MLP"
+    "MLP",
+    "SparseStructuredMLP",
 ]

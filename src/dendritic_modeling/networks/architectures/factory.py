@@ -20,6 +20,7 @@ from dendritic_modeling.networks.architectures.classical.mlp import (
     EffectiveMatchedParamMLP,
     MatchedTotalParamMLP,
     MatchedActiveParamMLP,
+    SparseStructuredMLP,
 )
 from dendritic_modeling.networks.architectures.excitation_inhibition import (
     ConfigurableEINetwork,
@@ -45,7 +46,9 @@ def get_architecture(
     type = type.lower()
 
     # Handle EINet - requires structured config
-    if type in ["einet_sh", "einet_ns", "einet"]:
+    if type in [
+        "einet_sh", "einet_sh_flat", "einet_ns", "einet_ns_flat", "einet"
+    ]:
         if not (
             isinstance(parameters, DictConfig)
             or (
@@ -63,20 +66,33 @@ def get_architecture(
                 "input_dim required when passing structured config to EINet"
             )
         
-        if type == "einet_sh":
+        if type in ["einet_sh", "einet_sh_flat"]:
             use_shunting = True
-        elif type == "einet_ns":
+        elif type in ["einet_ns", "einet_ns_flat"]:
             use_shunting = False
         else:
             use_shunting = None
         
-        return ConfigurableEINetwork(parameters, input_dim, use_shunting)
+        if type in ["einet_sh_flat", "einet_ns_flat"]:
+            flatten_dendrites = True
+        else:
+            flatten_dendrites = False
+        
+        return ConfigurableEINetwork(
+            config=parameters, 
+            input_dim=input_dim, 
+            use_shunting=use_shunting, 
+            flatten_dendrites=flatten_dendrites
+        )
     
     elif type == "matchedtotalparammlp":
         return MatchedTotalParamMLP(parameters, input_dim)
     
     elif type == "matchedactiveparammlp":
         return MatchedActiveParamMLP(parameters, input_dim)
+
+    elif type == "sparsestructuredmlp":
+        return SparseStructuredMLP(parameters, input_dim)
 
     # All other architectures expect flat parameters
     if isinstance(parameters, DictConfig):

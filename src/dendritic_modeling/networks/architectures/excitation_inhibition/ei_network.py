@@ -533,7 +533,8 @@ class ConfigurableEINetwork(ExcitationInhibitionNetwork):
         self, 
         config: Union[dict, DictConfig], 
         input_dim: int,
-        use_shunting: Optional[bool] = None
+        use_shunting: Optional[bool] = None,
+        flatten_dendrites: bool = False
     ):
         """
         Initialize from structured config.
@@ -549,6 +550,14 @@ class ConfigurableEINetwork(ExcitationInhibitionNetwork):
         )
 
         params = prepare_ei_network_params(config, input_dim, use_shunting)
+
+        if flatten_dendrites:
+            exc_branch_factors = deepcopy(params["excitatory_branch_factors"])
+            for i in range(1, len(exc_branch_factors)):
+                exc_branch_factors[i] = exc_branch_factors[i] * exc_branch_factors[i-1]
+            branch_compartments_per_soma = sum(exc_branch_factors)
+            params["excitatory_branch_factors"] = [branch_compartments_per_soma]
+
         super().__init__(**params)
 
 

@@ -13,6 +13,7 @@ from dendritic_modeling.networks.architectures.classical import (
     Identity,
     MatchedTotalParamMLP,
     MatchedActiveParamMLP,
+    SparseStructuredMLP,
 )
 from dendritic_modeling.networks.architectures.excitation_inhibition import (
     BlockLinear,
@@ -53,4 +54,5 @@ __all__ = [
     "TopKLinear",
     "TransferLayer",
     "VarianceTopKLinear",
+    "SparseStructuredMLP",
 ]
