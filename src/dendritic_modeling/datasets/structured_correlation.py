@@ -6,6 +6,7 @@ from scipy.stats import norm
 class StructuredCorrelationDataset(Dataset):
     def __init__(
         self,
+        n_classes=2,
         n_samples=10000,
         n_dims=10,
         block_size=2,
@@ -26,13 +27,15 @@ class StructuredCorrelationDataset(Dataset):
             np.random.seed(seed)
 
         self.n_dims = n_dims
-        self.n_samples = n_samples // 2
+        self.n_classes = n_classes
+        self.samples_per_class = n_samples // n_classes
         self.mean = mean
         self.sigma = sigma
         self.rho_modular = rho_modular
         self.condition = condition
 
-        self.R0, self.R1 = self.get_condition_matrices(
+        # Get list of correlation matrices (one per class)
+        self.correlation_matrices = self.get_condition_matrices(
             condition,
             n_dims,
             block_size,
@@ -42,19 +45,27 @@ class StructuredCorrelationDataset(Dataset):
             shift,
             difference,
             permute_ratio,
-            noise_ratio
+            noise_ratio,
+            n_classes  # Pass n_classes here
         )
 
-        self.X0, self.Z0 = self.sample_from_gaussian_copula(self.R0, self.n_samples, mean, sigma)
-        self.X1, self.Z1 = self.sample_from_gaussian_copula(self.R1, self.n_samples, mean, sigma)
+        # Sample from each class's correlation matrix
+        self.X_per_class = []
+        self.Z_per_class = []
+        for R in self.correlation_matrices:
+            X, Z = self.sample_from_gaussian_copula(R, self.samples_per_class, mean, sigma)
+            self.X_per_class.append(X)
+            self.Z_per_class.append(Z)
 
-        X_combined = np.vstack([self.X0, self.X1])
-        X_normalized = X_combined # Removing robust clipping to make analytically tractable
-        self.X0 = X_normalized[:self.n_samples]
-        self.X1 = X_normalized[self.n_samples:]
+        # Combine all samples
+        X_combined = np.vstack(self.X_per_class)
+        # X_normalized = X_combined  # Keeping your comment about removing robust clipping
 
-        self.data = torch.tensor(np.vstack([self.X0, self.X1]), dtype=torch.float32)
-        self.labels = torch.tensor([0] * self.n_samples + [1] * self.n_samples, dtype=torch.long)
+        self.data = torch.tensor(X_combined, dtype=torch.float32)
+        self.labels = torch.tensor(
+            [i for i in range(n_classes) for _ in range(self.samples_per_class)],
+            dtype=torch.long
+        )
 
     def __len__(self):
         return len(self.labels)
@@ -153,36 +164,51 @@ class StructuredCorrelationDataset(Dataset):
         return np.all(eigenvalues >= -tol)
 
     @staticmethod
-    def get_condition_matrices(condition, n_dims, block_size, rho_modular, rho_nested_local, rho_nested_global, shift=None, difference=None, permute_ratio=None, noise_ratio=0.5):
+    def get_condition_matrices(condition, n_dims, block_size, rho_modular, rho_nested_local, rho_nested_global, shift=None, difference=None, permute_ratio=None, noise_ratio=0.5, n_classes=2):
         if shift is None or difference is None:
             raise ValueError("Both 'shift' and 'difference' must be specified for this condition.")
 
+        matrices = []
+        
         if condition == "intra_block_corr":
-            rho0 = shift
-            rho1 = shift + difference
-            R0 = StructuredCorrelationDataset.make_block_diagonal_matrix(n_dims, block_size, rho0)
-            R1 = StructuredCorrelationDataset.make_block_diagonal_matrix(n_dims, block_size, rho1)
+            for i in range(n_classes):
+                rho = shift + i * difference
+                R = StructuredCorrelationDataset.make_block_diagonal_matrix(n_dims, block_size, rho)
+                matrices.append(R)
+                
         elif condition == "modularity_blur":
-            rho0 = shift
-            rho1 = shift + difference
-            R0 = StructuredCorrelationDataset.make_nested_block_matrix(n_dims, block_size, rho_nested_local, rho0)
-            R1 = StructuredCorrelationDataset.make_nested_block_matrix(n_dims, block_size, rho_nested_local, rho1)
+            for i in range(n_classes):
+                rho = shift + i * difference
+                R = StructuredCorrelationDataset.make_nested_block_matrix(n_dims, block_size, rho_nested_local, rho)
+                matrices.append(R)
+                
         elif condition == "modularity_blur_structural":
             rho = shift
             if permute_ratio is None:
                 permute_ratio = 1.0
+            # R0 is the base (unpermuted)
             R0 = StructuredCorrelationDataset.make_nested_block_matrix(n_dims, block_size, rho_nested_local, rho)
-            R1 = StructuredCorrelationDataset.make_partially_permuted_nested_matrix(n_dims, block_size, rho_nested_local, rho, permute_ratio)
+            matrices.append(R0)
+            # R1...R(n_classes-1) are different permuted versions
+            for i in range(1, n_classes):
+                R = StructuredCorrelationDataset.make_partially_permuted_nested_matrix(n_dims, block_size, rho_nested_local, rho, permute_ratio)
+                matrices.append(R)
+                
         elif condition == "noisy_permute":
             rho = shift
             if permute_ratio is None:
                 permute_ratio = 1.0
+            # R0 is the base (unpermuted subset)
             R0 = StructuredCorrelationDataset.make_nested_block_matrix_subset(n_dims, block_size, rho_nested_local, rho, noise_ratio)
-            R1 = StructuredCorrelationDataset.make_partially_permuted_nested_matrix_subset(n_dims, block_size, rho_nested_local, rho, permute_ratio, noise_ratio)
+            matrices.append(R0)
+            # R1...R(n_classes-1) are different permuted versions
+            for i in range(1, n_classes):
+                R = StructuredCorrelationDataset.make_partially_permuted_nested_matrix_subset(n_dims, block_size, rho_nested_local, rho, permute_ratio, noise_ratio)
+                matrices.append(R)
         else:
             raise ValueError(f"Invalid condition: {condition}")
 
-        assert StructuredCorrelationDataset.is_valid_correlation_matrix(R0), "R0 is not a valid correlation matrix"
-        assert StructuredCorrelationDataset.is_valid_correlation_matrix(R1), "R1 is not a valid correlation matrix"
+        for i, R in enumerate(matrices):
+            assert StructuredCorrelationDataset.is_valid_correlation_matrix(R), f"R{i} is not a valid correlation matrix"
 
-        return R0, R1
+        return matrices

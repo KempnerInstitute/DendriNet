@@ -77,6 +77,7 @@ class DatasetParamsConfig(BaseConfig):
     )
     structured_correlation: dict[str, Any] = field(
         default_factory=lambda: {
+            "n_classes": 2,
             "n_train_samples": 10000,
             "n_test_samples": 1000,
             "n_dims": 200,

@@ -509,6 +509,7 @@ def get_unified_datasets(task_cfg):
         test_ds = data["test"]
         return train_ds, valid_ds, test_ds
     elif dataset_name == "structured_correlation":
+        n_classes = p.get('n_classes', 2)
         n_train_samples = p.get('n_train_samples', 10000)
         n_test_samples = p.get('n_test_samples', 1000)
         n_dims = p.get('n_dims', 10)
@@ -532,6 +533,7 @@ def get_unified_datasets(task_cfg):
 
         n_samples = n_train_samples + n_test_samples
         full_ds = StructuredCorrelationDataset(
+            n_classes=n_classes,
             n_samples=n_samples,
             n_dims=n_dims,
             block_size=block_size,
