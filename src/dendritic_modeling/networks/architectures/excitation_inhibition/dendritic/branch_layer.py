@@ -494,8 +494,9 @@ class DendriticBranchLayer(nn.Module):
                             1.0 / (w.abs() + self.epsilon)
                         ).flatten()
                     else:
-                        self.branches_to_output.input_scale_vec = torch.exp(
-                            -1 * w.log()
+                        # For non-identity transforms, weights are nonnegative; keep epsilon for stability.
+                        self.branches_to_output.input_scale_vec = (
+                            1.0 / (w + self.epsilon)
                         ).flatten()
 
     def get_weights(self):

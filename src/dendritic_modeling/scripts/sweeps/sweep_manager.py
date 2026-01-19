@@ -35,9 +35,10 @@ from typing import Optional
 
 from omegaconf import OmegaConf
 
-# Add the project root to the path
-project_root = Path(__file__).parent.parent.parent
-sys.path.insert(0, str(project_root / "src"))
+# Add the repo root/src to the path (so `import dendritic_modeling` works when run as a script)
+# File is: <repo>/src/dendritic_modeling/scripts/sweeps/sweep_manager.py
+repo_root = Path(__file__).resolve().parents[4]
+sys.path.insert(0, str(repo_root / "src"))
 
 # Use absolute imports to avoid relative import issues
 try:

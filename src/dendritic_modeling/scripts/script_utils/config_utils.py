@@ -1,6 +1,7 @@
 """Utilities for configuration handling and transformation."""
 
 import logging
+from dataclasses import asdict as dataclass_asdict, is_dataclass
 from typing import Any, Union
 
 from omegaconf import DictConfig, OmegaConf
@@ -149,13 +150,18 @@ def prepare_trainer_config(
 
     # Helper function to convert config to dict
     def to_dict(config):
+        if config is None:
+            return {}
         if isinstance(config, dict):
             return config
-        return (
-            OmegaConf.to_container(config, resolve=True)
-            if hasattr(config, "_metadata")
-            else dict(config)
-        )
+        if isinstance(config, DictConfig) or hasattr(config, "_metadata"):
+            return OmegaConf.to_container(config, resolve=True)
+        # Many config objects are dataclasses/BaseConfig
+        if hasattr(config, "asdict") and callable(config.asdict):
+            return config.asdict()
+        if is_dataclass(config):
+            return dataclass_asdict(config)
+        return dict(config)
 
     # Start with common training parameters
     common_config = (
