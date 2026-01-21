@@ -336,6 +336,12 @@ class SweepJobManager:
                 f.write(f"# Using conda environment at: {conda_env_path}\n")
                 f.write(f'PYTHON_BIN="{python_path}"\n')
                 f.write("\n")
+                # Add LD_LIBRARY_PATH to ensure conda libs are found
+                f.write("# Set library path for conda environment\n")
+                f.write(
+                    f'export LD_LIBRARY_PATH="{conda_env_path}/lib:$LD_LIBRARY_PATH"\n'
+                )
+                f.write("\n")
                 f.write("# Verify environment works\n")
                 f.write(
                     "$PYTHON_BIN -c \"import torch; print(f'PyTorch version: {torch.__version__}')\"\n"
@@ -447,6 +453,11 @@ class SweepJobManager:
                 python_path = f"{conda_env_path}/bin/python"
                 f.write(f"# Using conda environment at: {conda_env_path}\n")
                 f.write(f'PYTHON="{python_path}"\n\n')
+                # Add LD_LIBRARY_PATH to ensure conda libs are found
+                f.write("# Set library path for conda environment\n")
+                f.write(
+                    f'export LD_LIBRARY_PATH="{conda_env_path}/lib:$LD_LIBRARY_PATH"\n\n'
+                )
                 f.write("# Verify environment works\n")
                 f.write(
                     "$PYTHON -c \"import torch; print(f'PyTorch version: {torch.__version__}')\"\n\n"
