@@ -195,7 +195,7 @@ class StructuredCorrelationDataset(Dataset):
                 matrices.append(R)
                 
         elif condition == "noisy_permute":
-            rho = shift
+            rho = rho_nested_global
             if permute_ratio is None:
                 permute_ratio = 1.0
             # R0 is the base (unpermuted subset)
