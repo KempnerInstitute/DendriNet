@@ -100,6 +100,8 @@ class TopKLinear(nn.Module):
         self.param_space = param_space
         self.input_scale_vec = None  # may be used for gradient scaling
         self.param_scale_vec = None  # may be used for gradient scaling
+        # Stores the exact mask used in the most recent forward pass.
+        self._last_forward_weight_mask: Optional[torch.Tensor] = None
 
     def initialize(self):
         """Initialize the layer weights using the specified method."""
@@ -164,7 +166,15 @@ class TopKLinear(nn.Module):
         if x.dim() == 1:
             x = x.unsqueeze(0)
 
-        pruned_weight = self.pruned_weight()
+        # Keep the exact forward-pass mask for downstream consumers (e.g., local rules).
+        mask = self.weight_mask()
+        self._last_forward_weight_mask = mask.detach()
+
+        pruned_weight = mask * self.weight()
+
+        if self.weight_norm_order is not None:
+            w_norm = torch.norm(pruned_weight, p=self.weight_norm_order, dim=-1)
+            pruned_weight = (pruned_weight / w_norm[:, None]) * self.gamma
 
         return torch.matmul(x, pruned_weight.t())
 

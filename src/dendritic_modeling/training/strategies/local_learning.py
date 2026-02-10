@@ -70,6 +70,105 @@ class LocalCreditAssignment(Trainer):
         self.filename_prefix = "local_learning_"
         self.logger_info_prefix = "[Local] "
 
+    @staticmethod
+    def _section_to_dict(section: Any) -> dict[str, Any]:
+        """Convert a config section object to a plain dict."""
+        if section is None:
+            return {}
+        if isinstance(section, dict):
+            return dict(section)
+        if hasattr(section, "asdict") and callable(section.asdict):
+            return section.asdict()
+        if hasattr(section, "__dict__"):
+            return {
+                key: value
+                for key, value in vars(section).items()
+                if not key.startswith("_")
+            }
+        return {}
+
+    def _coerce_legacy_local_rule_config(
+        self, config_dict: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Normalize legacy flat local learning config to nested LocalRuleConfig layout."""
+        cfg = dict(config_dict)
+
+        def ensure_section(section_name: str) -> dict[str, Any]:
+            section = self._section_to_dict(cfg.get(section_name))
+            cfg[section_name] = section
+            return section
+
+        legacy_group_fields = {
+            "three_factor": [
+                "use_conductance_scaling",
+                "use_driving_force",
+                "theta",
+                "e_rev_exc",
+                "e_rev_inh",
+            ],
+            "four_factor": [
+                "rho_mode",
+                "rho_estimator",
+                "ema_alpha",
+                "layer_wise_rho_scale",
+                "augment_k",
+                "augment_noise_sigma",
+            ],
+            "five_factor": [
+                "phi_mode",
+                "phi_estimator",
+                "phi_ridge_lambda",
+                "layer_wise_phi_scale",
+                "rls_forgetting",
+            ],
+            "morphology_aware": [
+                "use_path_propagation",
+                "morphology_modulator_mode",
+                "morphology_depth_offset",
+                "morphology_centrality_metric",
+                "use_dendritic_normalization",
+                "use_branch_type_rules",
+                "apical_branch_scale",
+                "basal_branch_scale",
+                "use_branch_length_modulation",
+            ],
+        }
+
+        for section_name, field_names in legacy_group_fields.items():
+            section = ensure_section(section_name)
+            for field_name in field_names:
+                if field_name in cfg and field_name not in section:
+                    section[field_name] = cfg.pop(field_name)
+
+        hsic_section = ensure_section("hsic")
+        hsic_field_map = {
+            "hsic_enabled": "enabled",
+            "hsic_weight": "weight",
+            "hsic_self_weight": "self_weight",
+            "hsic_target_weight": "target_weight",
+            "hsic_target_source": "target_source",
+            "hsic_kernel": "kernel",
+            "hsic_sigma": "sigma",
+            "hsic_degree": "degree",
+            "hsic_coef0": "coef0",
+            "hsic_grad_clip_value": "grad_clip_value",
+            "hsic_warmup_epochs": "warmup_epochs",
+            "hsic_apply_last_layer_only": "apply_last_layer_only",
+        }
+        for legacy_name, nested_name in hsic_field_map.items():
+            if legacy_name in cfg and nested_name not in hsic_section:
+                hsic_section[nested_name] = cfg.pop(legacy_name)
+
+        # Drop known legacy-only keys that are not part of LocalRuleConfig.
+        for legacy_only_key in [
+            "rho_value",
+            "weight_lr_multiplier",
+            "compute_gradient_stats",
+        ]:
+            cfg.pop(legacy_only_key, None)
+
+        return cfg
+
     def _build_local_rule_config(self, config_dict: dict) -> LocalRuleConfig:
         """Build LocalRuleConfig from dict with proper nested config handling."""
         from ...config.training import (
@@ -80,7 +179,7 @@ class LocalCreditAssignment(Trainer):
             ThreeFactorConfig,
         )
 
-        cfg_kwargs = dict(config_dict)
+        cfg_kwargs = self._coerce_legacy_local_rule_config(dict(config_dict))
 
         # Handle nested configs - convert dicts to proper config objects
         if "three_factor" in cfg_kwargs and isinstance(
@@ -314,13 +413,58 @@ class LocalCreditAssignment(Trainer):
         return self._error_by_mode(y_hat, y, "mse")
 
     @staticmethod
+    def _reduce_error_to_scalar(delta: torch.Tensor, eps: float = 1e-6) -> torch.Tensor:
+        """Reduce output error to a per-sample scalar for broadcast modes.
+
+        For CE-like errors, per-sample mean can be near zero due to probability
+        simplex constraints. In that case we fall back to the max-magnitude
+        component to keep a meaningful signed modulatory signal.
+        """
+        if delta.dim() == 1:
+            return delta.unsqueeze(-1)
+        if delta.dim() != 2:
+            delta = delta.view(delta.size(0), -1)
+
+        delta_scalar = delta.mean(dim=1, keepdim=True)
+        near_zero = delta_scalar.abs() <= eps
+        if near_zero.any():
+            max_idx = delta.abs().argmax(dim=1, keepdim=True)
+            fallback = delta.gather(dim=1, index=max_idx)
+            delta_scalar = torch.where(near_zero, fallback, delta_scalar)
+        return delta_scalar
+
+    @staticmethod
+    def _weight_transform_derivative(
+        raw_param: torch.Tensor, transform_type: str
+    ) -> torch.Tensor:
+        """Derivative of transformed conductance w.r.t. raw parameter."""
+        t = (transform_type or "exp").lower()
+        if t == "exp":
+            return raw_param.exp()
+        if t == "relu":
+            return (raw_param > 0).to(raw_param.dtype)
+        if t == "softplus":
+            return torch.sigmoid(raw_param)
+        if t == "identity":
+            return torch.ones_like(raw_param)
+        logger.warning(
+            f"Unknown weight transform '{transform_type}', falling back to exp derivative."
+        )
+        return raw_param.exp()
+
+    @staticmethod
     def _error_by_mode(y_hat: torch.Tensor, y: torch.Tensor, mode: str) -> torch.Tensor:
         if mode == "mse":
             # d/dy_hat (1/2 ||y_hat - y||^2) = (y_hat - y)
             return y_hat - y
         elif mode == "bce":
-            # Assume y_hat are logits; gradient of BCEWithLogits ≈ sigmoid(y_hat) - y
-            return torch.sigmoid(y_hat) - y
+            # Support both logits (BCEWithLogits-style) and probability outputs (BCELoss).
+            y_hat_detached = y_hat.detach()
+            if y_hat_detached.min() < 0 or y_hat_detached.max() > 1:
+                pred = torch.sigmoid(y_hat)
+            else:
+                pred = torch.clamp(y_hat, min=1e-6, max=1.0 - 1e-6)
+            return pred - y
         elif mode == "ce":
             # Gradient of CrossEntropy w.r.t logits: softmax(y_hat) - one_hot(y)
             if y.dim() == 1 or (y.dim() == 2 and y.size(1) == 1):
@@ -391,7 +535,11 @@ class LocalCreditAssignment(Trainer):
                     rec["exc_out"] = outputs.detach()
                     rec["exc_module"] = layer
                     try:
-                        rec["exc_mask"] = layer.weight_mask().detach()
+                        cached_mask = getattr(layer, "_last_forward_weight_mask", None)
+                        if isinstance(cached_mask, torch.Tensor):
+                            rec["exc_mask"] = cached_mask.detach()
+                        else:
+                            rec["exc_mask"] = layer.weight_mask().detach()
                     except Exception:
                         rec["exc_mask"] = None
 
@@ -406,7 +554,11 @@ class LocalCreditAssignment(Trainer):
                     rec["inh_out"] = outputs.detach()
                     rec["inh_module"] = layer
                     try:
-                        rec["inh_mask"] = layer.weight_mask().detach()
+                        cached_mask = getattr(layer, "_last_forward_weight_mask", None)
+                        if isinstance(cached_mask, torch.Tensor):
+                            rec["inh_mask"] = cached_mask.detach()
+                        else:
+                            rec["inh_mask"] = layer.weight_mask().detach()
                     except Exception:
                         rec["inh_mask"] = None
 
@@ -438,13 +590,14 @@ class LocalCreditAssignment(Trainer):
         update_reactivation: bool = True,
     ) -> None:
         batch_size = v0.size(0)
-        delta_mean: torch.Tensor = delta.mean(dim=1, keepdim=True)  # [B, 1]
+        delta_scalar: torch.Tensor = self._reduce_error_to_scalar(delta)  # [B, 1]
 
         # Initialize branch morphology if using morphology-aware features
         if (
             self.local_cfg.morphology_aware.use_path_propagation
             or self.local_cfg.morphology_aware.morphology_modulator_mode != "none"
             or self.local_cfg.morphology_aware.use_branch_type_rules
+            or self.local_cfg.morphology_aware.use_branch_length_modulation
         ):
             self._initialize_branch_morphology(layer_records)
 
@@ -478,7 +631,7 @@ class LocalCreditAssignment(Trainer):
                     parent = rec.get("inh_out")
                 if parent is None:
                     # Fallback to scalar broadcast if no parent signal is available
-                    e_n = delta_mean.expand(-1, out_features)
+                    e_n = delta_scalar.expand(-1, out_features)
                 else:
                     # Centered mismatch as a simple local error proxy
                     p = parent
@@ -489,15 +642,15 @@ class LocalCreditAssignment(Trainer):
                         except Exception:
                             p = None
                     if p is None:
-                        e_n = delta_mean.expand(-1, out_features)
+                        e_n = delta_scalar.expand(-1, out_features)
                     else:
                         mismatch = p - v_n  # [B, out]
                         # Optionally center mismatch per-batch to avoid bias
                         mismatch = mismatch - mismatch.mean(dim=0, keepdim=True)
-                        e_n = delta_mean.expand(-1, out_features) * mismatch
+                        e_n = delta_scalar.expand(-1, out_features) * mismatch
             else:
                 # Scalar broadcast
-                e_n = delta_mean.expand(-1, out_features)  # [B, out]
+                e_n = delta_scalar.expand(-1, out_features)  # [B, out]
 
             # Conductance scaling: R_tot = 1 / g_tot
             if self.local_cfg.three_factor.use_conductance_scaling:
@@ -543,12 +696,22 @@ class LocalCreditAssignment(Trainer):
                 # Branch-specific morphology modulation
                 if self.local_cfg.morphology_aware.morphology_modulator_mode == "depth":
                     rho = self._compute_branch_depth_modulator(rec, rho)
+                elif (
+                    self.local_cfg.morphology_aware.morphology_modulator_mode
+                    == "centrality"
+                ):
+                    rho = self._compute_branch_centrality_modulator(rec, rho)
 
             # === INFORMATION PROXY PHI (scalar per layer) ===
             phi = 1.0
             if self.local_cfg.rule_variant == "5f":
-                if self.local_cfg.five_factor.phi_mode == "conditional":
-                    phi = self._compute_layer_phi_conditional(rec)
+                phi_mode = self.local_cfg.five_factor.phi_mode.lower()
+                phi_estimator = self.local_cfg.five_factor.phi_estimator.lower()
+                if phi_mode == "conditional":
+                    if phi_estimator == "variance_ema":
+                        phi = self._compute_layer_phi(rec)
+                    else:
+                        phi = self._compute_layer_phi_conditional(rec)
                 else:
                     phi = self._compute_layer_phi(rec)
                 # Apply layer-wise scaling if enabled
@@ -560,7 +723,10 @@ class LocalCreditAssignment(Trainer):
 
             # === BRANCH TYPE SCALING ===
             branch_scale = 1.0
-            if self.local_cfg.morphology_aware.use_branch_type_rules:
+            if (
+                self.local_cfg.morphology_aware.use_branch_type_rules
+                or self.local_cfg.morphology_aware.use_branch_length_modulation
+            ):
                 branch_scale = self._get_branch_type_scale(rec)
 
             # Post-synaptic modulation per-sample, per-neuron
@@ -596,8 +762,11 @@ class LocalCreditAssignment(Trainer):
                 grad_g = post_factor.t() @ x_exc
                 if self.local_cfg.normalize_by_batch:
                     grad_g = grad_g / float(batch_size)
-                g_current = exc_layer.weight().detach()
-                grad_param = grad_g * g_current
+                exc_chain = self._weight_transform_derivative(
+                    exc_layer.pre_w.detach(),
+                    getattr(exc_layer, "weight_transform", "exp"),
+                )
+                grad_param = grad_g * exc_chain
                 mask = rec.get("exc_mask")
                 if mask is not None and not self.local_cfg.update_inactive_weights:
                     grad_param = grad_param * mask
@@ -613,7 +782,7 @@ class LocalCreditAssignment(Trainer):
             if inh_layer is not None and rec.get("x_inh") is not None:
                 x_inh: torch.Tensor = rec["x_inh"]  # [B, in]
                 if self.local_cfg.three_factor.use_driving_force:
-                    inh_post = -v_n
+                    inh_post = self.local_cfg.three_factor.e_rev_inh - v_n
                 else:
                     inh_post = self.local_cfg.three_factor.theta - v_n
                 inh_factor = e_n * R_tot * inh_post  # [B, out]
@@ -647,8 +816,11 @@ class LocalCreditAssignment(Trainer):
                 grad_g_inh = inh_factor.t() @ x_inh
                 if self.local_cfg.normalize_by_batch:
                     grad_g_inh = grad_g_inh / float(batch_size)
-                g_current_inh = inh_layer.weight().detach()
-                grad_param_inh = grad_g_inh * g_current_inh
+                inh_chain = self._weight_transform_derivative(
+                    inh_layer.pre_w.detach(),
+                    getattr(inh_layer, "weight_transform", "exp"),
+                )
+                grad_param_inh = grad_g_inh * inh_chain
                 mask_inh = rec.get("inh_mask")
                 if mask_inh is not None and not self.local_cfg.update_inactive_weights:
                     grad_param_inh = grad_param_inh * mask_inh
@@ -706,8 +878,11 @@ class LocalCreditAssignment(Trainer):
                 if self.local_cfg.morphology_aware.use_dendritic_normalization:
                     grad_g_den = self._compute_dendritic_normalization(rec, grad_g_den)
 
-                g_current_den = blk_layer.log_weight.detach().exp()
-                grad_param_den = grad_g_den * g_current_den
+                den_chain = self._weight_transform_derivative(
+                    blk_layer.log_weight.detach(),
+                    getattr(blk_layer, "weight_transform", "exp"),
+                )
+                grad_param_den = grad_g_den * den_chain
                 if blk_layer.log_weight.grad is None:
                     blk_layer.log_weight.grad = grad_param_den.to(
                         blk_layer.log_weight.dtype
@@ -1424,6 +1599,32 @@ class LocalCreditAssignment(Trainer):
         modulator = rho_base / (depths + offset)
         return modulator
 
+    def _compute_branch_centrality_modulator(
+        self, rec: dict[str, Any], rho_base: float
+    ) -> torch.Tensor:
+        """Compute branch-specific modulator based on centrality proxy.
+
+        Without explicit tree metadata, we use depth-derived centrality:
+        proximal branches (lower depth) receive higher centrality.
+        """
+        layer_id = id(rec.get("layer"))
+        stats = self._layer_stats.get(layer_id)
+        if stats is None or stats.branch_depths is None:
+            return rho_base
+
+        depths = stats.branch_depths
+        offset = self.local_cfg.morphology_aware.morphology_depth_offset
+        metric = self.local_cfg.morphology_aware.morphology_centrality_metric.lower()
+
+        if metric in {"betweenness", "closeness", "degree"}:
+            centrality = 1.0 / (depths + offset)
+        else:
+            centrality = 1.0 / (depths + offset)
+
+        # Keep average scale near rho_base.
+        centrality = centrality / (centrality.mean() + 1e-8)
+        return rho_base * centrality
+
     def _compute_dendritic_normalization(
         self, rec: dict[str, Any], grad_g_den: torch.Tensor
     ) -> torch.Tensor:
@@ -1466,16 +1667,30 @@ class LocalCreditAssignment(Trainer):
         layer_id = id(rec.get("layer"))
         stats = self._layer_stats.get(layer_id)
 
-        if stats is None or stats.branch_types is None:
-            # No branch type info: return uniform scaling
+        if stats is None:
             return 1.0
 
-        branch_types = stats.branch_types  # [out_features], 1=apical, 0=basal
-        apical_scale = self.local_cfg.morphology_aware.apical_branch_scale
-        basal_scale = self.local_cfg.morphology_aware.basal_branch_scale
+        scale: Any = 1.0
+        if stats.branch_types is not None:
+            branch_types = stats.branch_types  # [out_features], 1=apical, 0=basal
+            apical_scale = self.local_cfg.morphology_aware.apical_branch_scale
+            basal_scale = self.local_cfg.morphology_aware.basal_branch_scale
 
-        # Linear interpolation based on branch type
-        scale = basal_scale + branch_types * (apical_scale - basal_scale)
+            # Linear interpolation based on branch type
+            scale = basal_scale + branch_types * (apical_scale - basal_scale)
+
+        if (
+            self.local_cfg.morphology_aware.use_branch_length_modulation
+            and stats.branch_depths is not None
+        ):
+            depth_offset = self.local_cfg.morphology_aware.morphology_depth_offset
+            length_factor = 1.0 / (stats.branch_depths + depth_offset)
+            length_factor = length_factor / (length_factor.mean() + 1e-8)
+            if isinstance(scale, torch.Tensor):
+                scale = scale * length_factor
+            else:
+                scale = float(scale) * length_factor
+
         return scale
 
     def _initialize_branch_morphology(
@@ -1503,12 +1718,17 @@ class LocalCreditAssignment(Trainer):
             if stats.branch_depths is None:
                 # Assign uniform depth based on layer position
                 base_depth = float(layer_idx + 1)
-                stats.branch_depths = torch.ones(out_features) * base_depth
+                stats.branch_depths = (
+                    torch.ones(out_features, device=v_n.device, dtype=v_n.dtype)
+                    * base_depth
+                )
 
             # Heuristic branch types: assume first half are basal, second half apical
             # In future, this should come from actual branch annotations
             if stats.branch_types is None:
-                branch_types = torch.zeros(out_features)
+                branch_types = torch.zeros(
+                    out_features, device=v_n.device, dtype=v_n.dtype
+                )
                 # Simple heuristic: deeper layers tend to have more apical character
                 if layer_idx >= len(layer_records) // 2:
                     branch_types[:] = 1.0  # Mark as apical
