@@ -14,9 +14,10 @@ import torch.nn as nn
 from dendritic_modeling.config import ParamGroupsConfig
 from dendritic_modeling.networks import (
     BaseNetwork,
-    DendriticBranchLayer,
-    ExcitationInhibitionLayer,
-    ExcitationInhibitionNetwork,
+    TopKLinear,
+    BlockLinear,
+    ParametricActivation,
+    ExcitationInhibitionLayer
 )
 
 
@@ -30,11 +31,7 @@ class BaseModel(nn.Module):
         super().__init__()
 
         self.encoder_network = encoder_network
-
-        self.core_network: Union[ExcitationInhibitionNetwork, BaseNetwork] = (
-            core_network
-        )
-
+        self.core_network = core_network
         self.decoder_network = decoder_network
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -65,26 +62,21 @@ class BaseModel(nn.Module):
         Get parameter groups for optimizer.
         """
         split_params = getattr(param_groups_config, "split_params", True)
-        if split_params and isinstance(self.core_network, ExcitationInhibitionNetwork):
-            mlp_inh_net_params = []
+
+        if split_params:
             topk_params = []
             blocklinear_params = []
             reactivation_params = []
+            mlp_inh_net_params = []
             decoder_params = []
 
             for module in self.core_network.modules():
-                if isinstance(module, DendriticBranchLayer):
-                    if module.branch_excitation is not None:
-                        topk_params.append(module.branch_excitation.parameters())
-                    if module.branch_inhibition is not None:
-                        topk_params.append(module.branch_inhibition.parameters())
-                    if hasattr(module, "branches_to_output"):
-                        blocklinear_params.append(
-                            module.branches_to_output.parameters()
-                        )
-                    if module.reactivate:
-                        reactivation_params.append(module.reactivation.parameters())
-
+                if isinstance(module, TopKLinear):
+                    topk_params.append(module.parameters())
+                elif isinstance(module, BlockLinear):
+                    blocklinear_params.append(module.parameters())
+                elif isinstance(module, ParametricActivation):
+                    reactivation_params.append(module.parameters())
                 elif isinstance(module, ExcitationInhibitionLayer):
                     if isinstance(module.inhibitory_cells, nn.Sequential):
                         mlp_inh_net_params.append(module.inhibitory_cells.parameters())
@@ -95,13 +87,6 @@ class BaseModel(nn.Module):
                 decoder_params.append([self.log_output_scale])
 
             param_groups = []
-            if mlp_inh_net_params:
-                param_groups.append(
-                    {
-                        "params": chain(*mlp_inh_net_params),
-                        "lr": getattr(param_groups_config, "lr", 0.001),
-                    }
-                )
             if topk_params:
                 param_groups.append(
                     {
@@ -123,24 +108,13 @@ class BaseModel(nn.Module):
                         "lr": getattr(param_groups_config, "reactivation_lr", 0.001),
                     }
                 )
-
-            # transfer_fn_params = []
-            # for module in self.core_network.transfer_fn.modules():
-            #     if (
-            #         not isinstance(module, DendriNet)
-            #         and not isinstance(module, DendriticBranchLayer)
-            #         and not isinstance(module,BlockLinear)
-            #         and not isinstance(module,TopKLinear)
-            #         and not isinstance(module,DeepstLinear)
-            #         and not isinstance(module,ParametricActivation)
-            #     ):
-            #         transfer_fn_params.append(module.parameters())
-
-            # param_groups.append({
-            #     'params': chain(*transfer_fn_params),
-            #     'lr': optim_dict.get('transfer_fn_lr', 0.001)
-            # })
-
+            if mlp_inh_net_params:
+                param_groups.append(
+                    {
+                        "params": chain(*mlp_inh_net_params),
+                        "lr": getattr(param_groups_config, "lr", 0.001),
+                    }
+                )
             if decoder_params:
                 param_groups.append(
                     {

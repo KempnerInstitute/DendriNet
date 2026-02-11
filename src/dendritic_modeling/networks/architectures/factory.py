@@ -91,8 +91,11 @@ def get_architecture(
     elif type == "matchedactiveparammlp":
         return MatchedActiveParamMLP(parameters, input_dim)
 
-    elif type == "sparsestructuredmlp":
+    elif type == "ss_mlp":
         return SparseStructuredMLP(parameters, input_dim)
+    
+    elif type == "ss_mlp_flat":
+        return SparseStructuredMLP(parameters, input_dim, flatten_dendrites=True)
 
     # All other architectures expect flat parameters
     if isinstance(parameters, DictConfig):

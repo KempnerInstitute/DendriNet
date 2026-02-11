@@ -8,17 +8,15 @@ at least as many parameters as an equivalent EINet configuration.
 import torch
 from torch import nn
 
-from torch.nn import functional as F
-
-from typing import Union
+from typing import Union, Optional
 from omegaconf import DictConfig
 
 from dendritic_modeling.networks.activations.factory import ActivationFactory
 from dendritic_modeling.networks.architectures.excitation_inhibition import (
     ConfigurableEINetwork,
-    ExcitationInhibitionNetwork,
     DendriticBranchLayer,
     BlockLinear,
+    TopKLinear,
     DendriNet
 )
 from dendritic_modeling.networks.base import BaseNetwork
@@ -266,63 +264,161 @@ class MatchedActiveParamMLP(BaseNetwork):
         return self.hidden(x)
 
 
-class SparseLinear(nn.Module):
-    def __init__(self, in_features, out_features, K):
+class SparseStructuredLayer(nn.Module):
+    def __init__(
+        self,
+        output_dim: int,
+        synaptic_input_dim: Optional[int] = None,
+        synaptic_K: Optional[int] = None,
+        input_branch_factor: Optional[int] = None,
+        reactivate: bool = False
+    ):
         super().__init__()
-        self.in_features = in_features
-        self.out_features = out_features
-        self.K = K
-        self.weight = nn.Parameter(torch.randn(out_features, in_features))
-        self.bias = nn.Parameter(torch.zeros(out_features))
-    
-    def weight_mask(self):
-        topK_indices = torch.topk(
-            torch.abs(self.weight), self.K, dim=-1, largest=True, sorted=False
-        )[1]
+        self.synaptic_inputs = synaptic_input_dim is not None
+        if self.synaptic_inputs:
+            self.synapse_layer = TopKLinear(
+                in_features=synaptic_input_dim,
+                out_features=output_dim,
+                K=synaptic_K,
+                weight_transform="magnitude"
+            )
+            nn.init.xavier_normal_(self.synapse_layer.pre_w)
+        else:
+            self.synapse_layer = None
+
+        self.input_branches = input_branch_factor is not None
+        if self.input_branches:
+            self.branches_to_output = BlockLinear(
+                output_dim * input_branch_factor,
+                output_dim,
+                weight_transform="none"
+            )
+            nn.init.xavier_normal_(self.branches_to_output.log_weight)
         
-        mask = torch.zeros_like(
-            self.weight, 
-            device=self.weight.device, 
-            dtype=self.weight.dtype
-        )
-        mask[torch.arange(self.weight.shape[0])[:, None], topK_indices] = 1
-        return mask
-    
-    def pruned_weight(self):
-        return self.weight_mask() * self.weight
+        if reactivate:
+            self.reactivation = ActivationFactory.create(
+                act_type="param_tanh",
+                output_dim=output_dim,
+                init_m=1.0,
+                init_b=0.0
+            )
+        else:
+            self.reactivation = nn.Identity()
+        self.reactivate = reactivate
     
     def decay_weights(self, weight_decay=0.1, weight_boosting=False):
-        with torch.no_grad():
-            weight_mask = self.weight_mask().bool()
-            decay = torch.where(weight_mask, 1 - weight_decay, 1)
-            self.weight.data *= decay
-            
-            if weight_boosting:
-                boost = torch.where(weight_mask, 1, 1 + weight_decay)
-                self.weight.data *= boost
+        if self.synapse_layer is not None:
+            self.synapse_layer.decay_weights(weight_decay, weight_boosting)
     
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return F.linear(x, self.pruned_weight(), self.bias)
+    def forward(
+        self, 
+        x: torch.Tensor, 
+        branch_input: Optional[torch.Tensor] = None
+    ) -> torch.Tensor:
+        activation = 0
+
+        if self.synaptic_inputs:
+            activation = activation + self.synapse_layer(x)
+        
+        if self.input_branches and branch_input is not None:
+            activation = activation + self.branches_to_output(branch_input)
+        
+        output = self.reactivation(activation)
+        return output
 
 
 class SparseStructuredMLP(BaseNetwork):
     def __init__(
         self,
         config: Union[dict, DictConfig],
-        input_dim
+        input_dim: int,
+        flatten_dendrites=False
     ):
         super().__init__()
-        from dendritic_modeling.scripts.script_utils.config_utils import (
-            prepare_ei_network_params
+        
+        einet = ConfigurableEINetwork(
+            config, input_dim, 
+            flatten_dendrites=flatten_dendrites
         )
-        # Create EINet to get parameter count and number of layers
-        params = prepare_ei_network_params(config, input_dim)
-        einet = ExcitationInhibitionNetwork(**params)
-
         self.output_dim = einet.output_dim
 
-        K = params["ee_synapses_per_branch_per_layer"][0]
-        K += params["ie_synapses_per_branch_per_layer"][0]
+        inh_ss_layers = []
+        exc_ss_layers = []
+
+        n_params = 0
+
+        with torch.no_grad():
+            final_layer = einet.layers[-1]
+            n_inh_cells = 0
+
+            if final_layer.inhibitory_cells is not None:
+                inh_dendrinet = final_layer.inhibitory_cells
+                n_inh_cells = inh_dendrinet.n_soma
+
+                for i, branch_layer in enumerate(inh_dendrinet.branch_layers):
+                    branch_layer: DendriticBranchLayer
+
+                    if i != len(inh_dendrinet.branch_layers) - 1:
+                        K = branch_layer.branch_excitation.K
+                        synaptic_input_dim = input_dim
+
+                        n_params += K * branch_layer.n_branches  # synapse params
+                    else:
+                        K = None
+                        synaptic_input_dim = None
+                    
+                    if i != 0:
+                        n_params += branch_layer.n_branches * branch_layer.input_branch_factor  # blocklinear params
+                    
+                    n_params += branch_layer.n_branches * 2  # reactivation params
+                        
+                    inh_ss_layers.append(
+                        SparseStructuredLayer(
+                            output_dim=branch_layer.n_branches,
+                            synaptic_input_dim=synaptic_input_dim,
+                            synaptic_K=K,
+                            input_branch_factor=branch_layer.input_branch_factor,
+                            reactivate=True
+                        )
+                    )
+
+            exc_dendrinet = final_layer.excitatory_cells
+
+            for i, branch_layer in enumerate(exc_dendrinet.branch_layers):
+                branch_layer: DendriticBranchLayer
+
+                if i != len(exc_dendrinet.branch_layers) - 1:
+                    K = branch_layer.branch_excitation.K
+                    K += branch_layer.branch_inhibition.K
+                    synaptic_input_dim = input_dim + n_inh_cells
+
+                    n_params += K * branch_layer.n_branches  # synapse params
+                else:
+                    K = None
+                    synaptic_input_dim = None
+                
+                if i != 0:
+                    n_params += branch_layer.n_branches * branch_layer.input_branch_factor  # blocklinear params
+                
+                n_params += branch_layer.n_branches * 2  # reactivation params
+                
+                exc_ss_layers.append(
+                    SparseStructuredLayer(
+                        output_dim=branch_layer.n_branches,
+                        synaptic_input_dim=synaptic_input_dim,
+                        synaptic_K=K,
+                        input_branch_factor=branch_layer.input_branch_factor,
+                        reactivate=True
+                    )
+                )
+        
+        if inh_ss_layers:
+            self.inh_layers = nn.ModuleList(inh_ss_layers)
+        else:
+            self.inh_layers = None
+        
+        self.exc_layers = nn.ModuleList(exc_ss_layers)
+
 
         target_params = 0
         with torch.no_grad():
@@ -353,64 +449,27 @@ class SparseStructuredMLP(BaseNetwork):
                     else:
                         target_params += sum(p.numel() for p in layer.inhibitory_cells.parameters() if p.requires_grad)
 
-        # Calculate required hidden layer widths
-        # For n hidden layers (n+1 total layers), we need:
-        # input_dim * h1 + h1 * h2 + h2 * h3 + ... + hn * output_dim ≥ target_params
-        # Minimize total parameters while satisfying this constraint
-        # We'll use equal width hidden layers for simplicity
-        # Then: input_dim * h + h * h * (n-1) + h * output_dim ≥ target_params
-        # where n is number of hidden layers
-
-        def get_param_count(nodes_per_output_dim):
-            """Calculate total parameters for given hidden width"""
-            params = (K + 1) * nodes_per_output_dim  # First layer, +1 for bias
-            params += (
-                nodes_per_output_dim * self.output_dim
-            )
-            
-            return params
-
-        # Binary search for minimum hidden width that exceeds target params
-        left, right = 1, 10000
-        min_nodes_per_output_dim = right
-
-        while left <= right:
-            mid = (left + right) // 2
-            params = get_param_count(mid)
-
-            if params >= target_params:
-                min_nodes_per_output_dim = mid
-                right = mid - 1
-            else:
-                left = mid + 1
-
-        nodes_per_output_dim = min_nodes_per_output_dim
-
-        sparse_linear = SparseLinear(
-            input_dim, nodes_per_output_dim * self.output_dim, K
-        )
-        sparse_block = BlockLinear(
-            nodes_per_output_dim * self.output_dim, 
-            self.output_dim, 
-            weight_transform="none"
-        )
-
-        nn.init.xavier_normal_(sparse_linear.weight)
-        nn.init.zeros_(sparse_linear.bias)
-
-        nn.init.xavier_normal_(sparse_block.log_weight)
-
-        self.sparse_linear = sparse_linear
-        self.sparse_block = sparse_block
+    def cell_forward(self, mod_list: nn.ModuleList, x: torch.Tensor) -> torch.Tensor:
+        output = None
+        for module in mod_list:
+            output = module(x, output)
+        return output
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.sparse_linear(x)
-        x = torch.sigmoid(x)
-        x = self.sparse_block(x)
-        return torch.sigmoid(x)
+        if self.inh_layers is not None:
+            inh_input = self.cell_forward(self.inh_layers, x)
+            x = torch.cat([x, inh_input], dim=-1)
+        
+        output = self.cell_forward(self.exc_layers, x)
+        return output
     
     def decay_weights(self, weight_decay=0.1, weight_boosting=False):
-        self.sparse_linear.decay_weights(weight_decay, weight_boosting)
-        self.sparse_block.decay_weights(weight_decay, weight_boosting)
+        if self.inh_layers is not None:
+            for branch_layer in self.inh_layers:
+                branch_layer.decay_weights(weight_decay, weight_boosting)
+        
+        for branch_layer in self.exc_layers:
+            branch_layer.decay_weights(weight_decay, weight_boosting)
+
 
 __all__ = ["MatchedTotalParamMLP", "MatchedActiveParamMLP", "SparseStructuredMLP"]
