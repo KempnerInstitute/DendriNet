@@ -24,9 +24,10 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.ei_layer im
 from dendritic_modeling.networks.architectures.excitation_inhibition.input_transform.transfer import (
     TransferLayer,
 )
+from dendritic_modeling.networks.base import BaseNetwork
 
 
-class ExcitationInhibitionNetwork(nn.Module):
+class ExcitationInhibitionNetwork(BaseNetwork):
     """Excitation-Inhibition network for dendritic modeling.
 
     Args:
