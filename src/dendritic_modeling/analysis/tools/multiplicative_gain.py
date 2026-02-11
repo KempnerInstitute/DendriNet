@@ -42,6 +42,7 @@ class MultiplicativeGainAnalyzer(AbstractAnalyzer):
     def __init__(self, params: MultiplicativeGainAnalysisParams):
         super().__init__("MultiplicativeGainAnalyzer")
         
+        self.uniform_gain = getattr(params, "uniform_gain", True)
         self.gain_min = getattr(params, "gain_min", 0.0)
         self.gain_max = getattr(params, "gain_max", 10.0)
         self.n_steps = getattr(params, "n_steps", 10)
@@ -59,12 +60,26 @@ class MultiplicativeGainAnalyzer(AbstractAnalyzer):
         gain_factor: float
     ) -> torch.Tensor:
         if isinstance(dataset, PoissonGeneratorDataset):
-            dataset._set_gain_factor(gain_factor)
+            if self.uniform_gain:
+                dataset._set_gain_factor(gain_factor)
+            else:
+                dataset._set_max_gain_factor(gain_factor)
+            
             inputs, _ = dataset[:]
             return inputs
         
         else:
             inputs, _ = dataset[:]
+            
+            if not self.uniform_gain:
+                gain_factor = (
+                    torch.rand_like(inputs) * (gain_factor - 1)
+                ) + 1
+                # gain_factor = torch.exp(
+                #     ((torch.rand_like(inputs) * 2) - 1
+                #     ) * log(gain_factor)
+                # )
+
             inputs = inputs * gain_factor
             return inputs
 
