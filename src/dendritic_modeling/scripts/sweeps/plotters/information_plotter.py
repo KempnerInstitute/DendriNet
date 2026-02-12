@@ -116,6 +116,21 @@ class InformationPlotter(BasePlotter):
                 logger.error(f"Error generating max gain factor information plots: {e}")
                 traceback.print_exc()
         
+        if "fixed_gf" in sweep_types:
+            try:
+                plot_paths.extend(
+                    self._create_information_plots_1d_sweep(
+                        data=data, 
+                        sweep_var="fixed_gain_factor",
+                        var_name="Fixed Gain Factor",
+                        logscale=True,
+                        output_dir=info_dir
+                    )
+                )
+            except Exception as e:
+                logger.error(f"Error generating fixed gain factor information plots: {e}")
+                traceback.print_exc()
+        
         if "nparams" in sweep_types:
             try:
                 plot_paths.extend(
@@ -177,7 +192,7 @@ class InformationPlotter(BasePlotter):
 
         # Generate individual metric group plots
         plot_paths.extend(
-            self.plot_metric_groups_ei(
+            self.plot_metric_groups_1d_sweep(
                 data=data, 
                 sweep_var=sweep_var,
                 var_name=var_name,
@@ -443,8 +458,8 @@ class InformationPlotter(BasePlotter):
             return
 
         # Calculate difference
-        shunting_data = data[data["network_category"] == "shunting"]
-        no_shunting_data = data[data["network_category"] == "no_shunting"]
+        shunting_data = data[data["network_category"] == "einet_sh"]
+        no_shunting_data = data[data["network_category"] == "einet_ns"]
 
         if shunting_data.empty or no_shunting_data.empty:
             ax.text(
@@ -533,7 +548,7 @@ class InformationPlotter(BasePlotter):
             ax.set_title("Information Metric Summary", fontsize=12)
             ax.grid(True, alpha=0.3, axis="y")
 
-    def plot_metric_groups_ei(
+    def plot_metric_groups_1d_sweep(
         self, 
         data: pd.DataFrame, 
         sweep_var: str, 
@@ -565,7 +580,7 @@ class InformationPlotter(BasePlotter):
                     (True, ax1, "Shunting"),
                     (False, ax2, "No Shunting"),
                 ]:
-                    category = "shunting" if use_shunting else "no_shunting"
+                    category = "einet_sh" if use_shunting else "einet_ns"
                     cat_data = data[data["network_category"] == category]
 
                     if cat_data.empty:
@@ -703,7 +718,7 @@ class InformationPlotter(BasePlotter):
                                 "layer": depth,
                                 sweep_var: row[sweep_var],
                                 "use_shunting": row.get("network_category")
-                                == "shunting",
+                                == "einet_sh",
                                 "ivc_value": row[col],
                             }
                         )
@@ -871,7 +886,7 @@ class InformationPlotter(BasePlotter):
                     (True, "-", 0.9),
                     (False, "--", 0.6),
                 ]:
-                    category = "shunting" if use_shunting else "no_shunting"
+                    category = "einet_sh" if use_shunting else "einet_ns"
                     cat_data = data[data["network_category"] == category]
 
                     if cat_data.empty or sweep_var not in cat_data.columns:
@@ -947,8 +962,8 @@ class InformationPlotter(BasePlotter):
             return
 
         # Separate shunting and no_shunting data
-        shunting = data[data["network_category"] == "shunting"]
-        no_shunting = data[data["network_category"] == "no_shunting"]
+        shunting = data[data["network_category"] == "einet_sh"]
+        no_shunting = data[data["network_category"] == "einet_ns"]
 
         if shunting.empty or no_shunting.empty or sweep_var not in data.columns:
             ax.text(
@@ -1040,7 +1055,9 @@ class InformationPlotter(BasePlotter):
             print("No mutual information metrics found")
             return plot_paths
 
-        if not valid_data["network_category"].isin(["shunting", "no_shunting"]).any():
+        if not valid_data["network_category"].isin(
+            ["einet_sh", "einet_ns"]
+        ).any():
             print("No shunting/no_shunting data for information analysis")
             return plot_paths
 
@@ -1106,7 +1123,7 @@ class InformationPlotter(BasePlotter):
                 plot_data = {}
 
                 for use_shunting in [True, False]:
-                    category = "shunting" if use_shunting else "no_shunting"
+                    category = "einet_sh" if use_shunting else "einet_ns"
                     shunt_data = valid_data[valid_data["network_category"] == category]
                     plot_data[use_shunting] = {}
 
@@ -1299,7 +1316,7 @@ class InformationPlotter(BasePlotter):
                 plot_data = {}
                 
                 for use_shunting in [True, False]:
-                    category = "shunting" if use_shunting else "no_shunting"
+                    category = "einet_sh" if use_shunting else "einet_ns"
                     cat_data = data[data["network_category"] == category]
                     plot_data[use_shunting] = {}
                     
@@ -1324,7 +1341,7 @@ class InformationPlotter(BasePlotter):
                         (False, "Non-Shunting"),
                     ]):
                         ax = axes[metric_idx, col_idx]
-                        category = "shunting" if use_shunting else "no_shunting"
+                        category = "einet_sh" if use_shunting else "einet_ns"
                         cat_data = data[data["network_category"] == category]
                         
                         if cat_data.empty or mean_col not in cat_data.columns:
@@ -1537,7 +1554,7 @@ class InformationPlotter(BasePlotter):
                 all_values = []
                 
                 for use_shunting in [True, False]:
-                    category = "shunting" if use_shunting else "no_shunting"
+                    category = "einet_sh" if use_shunting else "einet_ns"
                     cat_data = data[data["network_category"] == category]
                     
                     if not cat_data.empty:
@@ -1562,7 +1579,7 @@ class InformationPlotter(BasePlotter):
                         (False, "Non-Shunting"),
                     ]):
                         ax = axes[row_idx, col_idx]
-                        category = "shunting" if use_shunting else "no_shunting"
+                        category = "einet_sh" if use_shunting else "einet_ns"
                         cat_data = data[data["network_category"] == category]
                         
                         if cat_data.empty or layer_col not in cat_data.columns:

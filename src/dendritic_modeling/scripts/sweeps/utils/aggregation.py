@@ -151,24 +151,34 @@ def extract_network_category(data: pd.DataFrame) -> pd.DataFrame:
     result["network_category"] = "unknown"
     
     result.loc[
-        (result["network_type"] == "einet") and (result["use_shunting"] == True), 
+        (result["network_type"] == "einet") & (result["use_shunting"] == True), 
         "network_category"
-    ] = "shunting"
+    ] = "einet_sh"
     
     result.loc[
-        (result["network_type"] == "einet") and (result["use_shunting"] == False), 
+        (result["network_type"] == "einet") & (result["use_shunting"] == False), 
         "network_category"
-    ] = "no_shunting"
+    ] = "einet_ns"
 
     result.loc[
         result["network_type"] == "einet_sh", 
         "network_category"
-    ] = "shunting"
+    ] = "einet_sh"
     
     result.loc[
         result["network_type"] == "einet_ns", 
         "network_category"
-    ] = "no_shunting"
+    ] = "einet_ns"
+
+    result.loc[
+        result["network_type"] == "einet_sh_flat", 
+        "network_category"
+    ] = "einet_sh_flat"
+    
+    result.loc[
+        result["network_type"] == "einet_ns_flat", 
+        "network_category"
+    ] = "einet_ns_flat"
 
     result.loc[
         result["network_type"] == "matchedtotalparammlp", 
@@ -179,5 +189,15 @@ def extract_network_category(data: pd.DataFrame) -> pd.DataFrame:
         result["network_type"] == "matchedactiveparammlp", 
         "network_category"
     ] = "active_param_mlp"
+
+    result.loc[
+        result["network_type"] == "ss_mlp", 
+        "network_category"
+    ] = "ss_mlp"
+
+    result.loc[
+        result["network_type"] == "ss_mlp_flat", 
+        "network_category"
+    ] = "ss_mlp_flat"
 
     return result

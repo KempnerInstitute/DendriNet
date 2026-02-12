@@ -38,8 +38,6 @@ class AblationPlotter(BasePlotter):
             logger.info("No ablation data found, skipping ablation plots")
             return plot_paths
 
-        # Generate layer contribution plots
-        # plot_paths.extend(self._plot_layer_contributions(data, ablation_dir))
         # Generate ablation analysis plots
         plot_paths.extend(self._generate_ablation_plots(data, ablation_dir))
 
@@ -97,7 +95,9 @@ class AblationPlotter(BasePlotter):
 
         depths.sort()
 
-        if not valid_data["network_category"].isin(["shunting", "no_shunting"]).any():
+        if not valid_data["network_category"].isin(
+            ["einet_sh", "einet_ns"]
+        ).any():
             print("No shunting/no_shunting data for ablation analysis")
             return plot_paths
         
@@ -162,6 +162,26 @@ class AblationPlotter(BasePlotter):
                 except Exception as e:
                     print(
                         f"Error generating max gain factor ablation plot for {ablation_type}_{metric}: {e}"
+                    )
+                    traceback.print_exc()
+            
+            if "fixed_gf" in sweep_types:
+                try:
+                    plot_paths.extend(
+                        self._create_ablation_plots_1d_sweep(
+                            valid_data=valid_data,
+                            sweep_var="fixed_gain_factor",
+                            var_name="Fixed Gain Factor",
+                            logscale=True,
+                            output_dir=plots_dir,
+                            ablation_type=ablation_type,
+                            metric=metric,
+                            depths=depths
+                        )
+                    )
+                except Exception as e:
+                    print(
+                        f"Error generating fixed gain factor ablation plot for {ablation_type}_{metric}: {e}"
                     )
                     traceback.print_exc()
             
@@ -251,7 +271,7 @@ class AblationPlotter(BasePlotter):
             return plot_paths
 
         # Create separate plots for each network category
-        categories = ["shunting", "no_shunting"]
+        categories = ["einet_sh", "einet_ns"]
 
         fig, axes = plt.subplots(1, 2, figsize=(15, 6))
         fig.suptitle(

@@ -116,7 +116,9 @@ class SNRPlotter(BasePlotter):
 
         depths.sort()
 
-        if not valid_data["network_category"].isin(["shunting", "no_shunting"]).any():
+        if not valid_data["network_category"].isin(
+            ["einet_sh", "einet_ns"]
+        ).any():
             print("No shunting/no_shunting data for ablation analysis")
             return plot_paths
         
@@ -185,6 +187,28 @@ class SNRPlotter(BasePlotter):
             except Exception as e:
                 logger.error(
                     f"Error generating max gain factor SNR plot: {e}"
+                )
+                traceback.print_exc()
+        
+        if "fixed_gf" in sweep_types:
+            try:
+                plot_paths.extend(
+                    self._create_snr_plots_1d_sweep(
+                        valid_data=valid_data,
+                        sweep_var="fixed_gain_factor",
+                        var_name="Fixed Gain Factor",
+                        logscale=True,
+                        output_dir=plots_dir,
+                        input_prefixes=input_prefixes,
+                        input_metrics=input_metrics,
+                        act_prefixes=act_prefixes,
+                        act_metrics=act_metrics,
+                        depths=depths
+                    )
+                )
+            except Exception as e:
+                logger.error(
+                    f"Error generating fixed gain factor SNR plot: {e}"
                 )
                 traceback.print_exc()
         
@@ -308,7 +332,7 @@ class SNRPlotter(BasePlotter):
         plot_paths = []
 
         # Create separate plots for each network category
-        categories = ["shunting", "no_shunting"]
+        categories = ["einet_sh", "einet_ns"]
 
         # Choose a colormap (viridis, plasma, inferno, tab10, etc.)
         # cmap = plt.get_cmap("gnuplot2")
@@ -415,7 +439,7 @@ class SNRPlotter(BasePlotter):
         plot_paths = []
 
         # Create separate plots for each network category
-        categories = ["shunting", "no_shunting"]
+        categories = ["einet_sh", "einet_ns"]
 
         # Create color mapping for depths using a colormap
         # Normalize depths to [0, 1] range using linspace
@@ -556,7 +580,7 @@ class SNRPlotter(BasePlotter):
             return plot_paths
 
         # Create separate plots for each network category
-        categories = ["shunting", "no_shunting"]
+        categories = ["einet_sh", "einet_ns"]
 
         d_prime_sq_str = r"d'$^2$"
 

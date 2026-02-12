@@ -64,17 +64,42 @@ METRIC_CATEGORIES: dict[str, list[str]] = {
 
 # Color schemes for different network categories
 NETWORK_CATEGORY_COLORS: dict[str, str] = {
-    "shunting": "#1f77b4",  # Blue
-    "no_shunting": "#ff7f0e",  # Orange
+    "einet_sh": "#1f77b4",  # Blue
+    "einet_ns": "#ff0000",  # Red
+    "einet_sh_flat": "#1f77b4",  # Blue
+    "einet_ns_flat": "#ff0000",  # Red
+    "ss_mlp": "#7f7f7f",  # Gray
+    "ss_mlp_flat": "#7f7f7f",  # Gray
+    "active_param_mlp": "#7f7f7f",  # Gray
+    "total_param_mlp": "#7f7f7f",  # Gray
     "unknown": "#7f7f7f",  # Gray
     "default": "#2ca02c",  # Green
 }
 
 NETWORK_CATEGORY_MARKERS: dict[str, str] = {
-    "shunting": "o",  # Circle
-    "no_shunting": "s",  # Square
+    "einet_sh": "o",  # Circle
+    "einet_ns": "s",  # Square
+    "einet_sh_flat": "^",  # Circle
+    "einet_ns_flat": "+",  # Square
+    "ss_mlp": "*",  # X
+    "ss_mlp_flat": "d",  # X
+    "active_param_mlp": "d",  # X
+    "total_param_mlp": ".",  # Triangle
     "unknown": "x",  # X
     "default": "^",  # Triangle
+}
+
+NETWORK_CATEGORY_LINESTYLES: dict[str, str] = {
+    "einet_sh": "-",  # Circle
+    "einet_ns": "-",  # Square
+    "einet_sh_flat": "--",  # Circle
+    "einet_ns_flat": "--",  # Square
+    "ss_mlp": "-",  # X
+    "ss_mlp_flat": "--",  # X
+    "active_param_mlp": "-.",  # X
+    "total_param_mlp": ":",  # Triangle
+    "unknown": "-",  # X
+    "default": "-",  # Triangle
 }
 
 # Information theory color scheme

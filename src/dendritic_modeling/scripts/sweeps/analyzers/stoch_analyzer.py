@@ -81,6 +81,7 @@ class StochasticDatasetSweepAnalyzer(BaseSweepAnalyzer):
             "network_category",
             "nparams",
             "stimulus_duration",
+            "fixed_gain_factor",
             "max_gain_factor",
             "max_gain_tau_ratio",
         ]

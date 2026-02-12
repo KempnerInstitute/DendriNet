@@ -23,6 +23,17 @@ METRIC_MAPPING = {
     "cosine_similarity": "Cosine Similarity"
 }
 
+CATEGORY_MAP = {
+    "einet_sh": "Shunting",
+    "einet_ns": "No Shunting",
+    "einet_sh_flat": "Shunting Flat",
+    "einet_ns_flat": "No Shunting Flat",
+    "ss_mlp": "Sparse Structured MLP",
+    "ss_mlp_flat": "Sparse Structured MLP Flat",
+    "active_param_mlp": "Matched Active Param MLP",
+    "total_param_mlp": "Matched Total Param MLP",
+}
+
 
 class MultiplicativeGainPlotter(BasePlotter):
     """Generates multiplicative gain analysis plots."""
@@ -119,15 +130,32 @@ class MultiplicativeGainPlotter(BasePlotter):
                 logger.error(f"Error generating max gain factor gain plot for {metric}: {e}")
                 traceback.print_exc()
         
+        if "fixed_gf" in sweep_types:
+            try:
+                plot_paths.extend(
+                    self._create_gain_plots_1d_sweep(
+                        data=data,
+                        sweep_var="fixed_gain_factor",
+                        var_name="Fixed Gain Factor",
+                        plots_dir=plots_dir,
+                        metrics=metrics,
+                        gain_factors=gain_factors
+                    )
+                )
+            except Exception as e:
+                logger.error(f"Error generating fixed gain factor gain plot for {metric}: {e}")
+                traceback.print_exc()
+        
         if "nparams" in sweep_types:
             try:
                 plot_paths.extend(
                     self._create_gain_plots_1d_sweep(
-                        data,
-                        "nparams",
-                        plots_dir,
-                        metrics,
-                        gain_factors
+                        data=data,
+                        sweep_var="nparams",
+                        var_name="Number of Parameters",
+                        plots_dir=plots_dir,
+                        metrics=metrics,
+                        gain_factors=gain_factors
                     )
                 )
             except Exception as e:
@@ -166,10 +194,10 @@ class MultiplicativeGainPlotter(BasePlotter):
                 logger.error(f"Error generating stochastic GV gain plot for {metric}: {e}")
                 traceback.print_exc()
         
-        if "sh_ns_comp" in sweep_types:
+        if "network_type_comp" in sweep_types:
             try:
                 plot_paths.extend(
-                    self._create_gain_plots_sh_ns_comparison(
+                    self._create_gain_plots_network_type_comparison(
                         data,
                         plots_dir,
                         metrics,
@@ -223,12 +251,25 @@ class MultiplicativeGainPlotter(BasePlotter):
         # Get unique values of sweep_var and sort them
         sweep_values = sorted(data[sweep_var].unique())
 
+        possible_categories = [
+            "einet_sh", 
+            "einet_ns", 
+            "einet_sh_flat", 
+            "einet_ns_flat", 
+            "ss_mlp", 
+            "ss_mlp_flat", 
+            "active_param_mlp", 
+            "total_param_mlp"
+        ]
+        categories = [
+            cat for cat in possible_categories
+            if cat in data["network_category"].unique()
+        ]
+        
         for metric in metrics:
             heatmap_dict = {}
-            vmin = float("inf")
-            vmax = float("-inf")
 
-            for category in ["shunting", "no_shunting"]:
+            for category in categories:
                 cat_data = data[data["network_category"] == category]
 
                 # Create a 2D array for the heatmap: rows = gain_factors, columns = sweep_values
@@ -248,14 +289,12 @@ class MultiplicativeGainPlotter(BasePlotter):
                             heatmap_data[i, j] = np.nan
                 
                 heatmap_dict[category] = heatmap_data
-                vmin = min(vmin, np.min(heatmap_data))
-                vmax = max(vmax, np.max(heatmap_data))
             
             # Create the heatmap
-            fig, axes = plt.subplots(1, 3, figsize=(24, 8))
-            fig.suptitle(
-                f"Multiplicative Gain: {METRIC_MAPPING[metric]} vs {var_name}",
-                fontsize=16,
+            fig, axes = plt.subplots(
+                len(categories)-1, 3, 
+                figsize=(24, 6 * (len(categories)-1) + 4), 
+                squeeze=False
             )
             
             def create_heatmap(
@@ -286,36 +325,45 @@ class MultiplicativeGainPlotter(BasePlotter):
                 ax.set_ylabel('Gain Factor', fontsize=12)
                 ax.set_title(ax_title, fontsize=14)
 
-            create_heatmap(
-                ax=axes[0],
-                data=heatmap_dict["shunting"],
-                cmap="viridis",
-                cbar_label=METRIC_MAPPING[metric],
-                ax_title="Shunting",
-                vmin=vmin,
-                vmax=vmax
-            )
-            create_heatmap(
-                ax=axes[2],
-                data=heatmap_dict["no_shunting"],
-                cmap="viridis",
-                cbar_label=METRIC_MAPPING[metric],
-                ax_title="No Shunting",
-                vmin=vmin,
-                vmax=vmax
-            )
+            for i in range(len(categories)-1):
+                vmin = min(
+                    np.min(heatmap_dict["einet_sh"]), 
+                    np.min(heatmap_dict[categories[i+1]])
+                )
+                vmax = max(
+                    np.max(heatmap_dict["einet_sh"]), 
+                    np.max(heatmap_dict[categories[i+1]])
+                )
+                create_heatmap(
+                    ax=axes[i, 0],
+                    data=heatmap_dict["einet_sh"],
+                    cmap="viridis",
+                    cbar_label=METRIC_MAPPING[metric],
+                    ax_title="Shunting",
+                    vmin=vmin,
+                    vmax=vmax
+                )
+                create_heatmap(
+                    ax=axes[i, 2],
+                    data=heatmap_dict[categories[i+1]],
+                    cmap="viridis",
+                    cbar_label=METRIC_MAPPING[metric],
+                    ax_title=CATEGORY_MAP[categories[i+1]],
+                    vmin=vmin,
+                    vmax=vmax
+                )
 
-            diff_data = heatmap_dict["shunting"] - heatmap_dict["no_shunting"]
-            max_abs = np.max(np.abs(diff_data))
-            create_heatmap(
-                ax=axes[1],
-                data=diff_data,
-                cmap="seismic_r",
-                cbar_label=f"{METRIC_MAPPING[metric]} Difference",
-                ax_title="Difference (Shunting - No Shunting)",
-                vmin=-max_abs,
-                vmax=max_abs
-            )
+                diff_data = heatmap_dict["einet_sh"] - heatmap_dict[categories[i+1]]
+                max_abs = np.max(np.abs(diff_data))
+                create_heatmap(
+                    ax=axes[i, 1],
+                    data=diff_data,
+                    cmap="seismic_r",
+                    cbar_label=f"{METRIC_MAPPING[metric]} Difference",
+                    ax_title=f"Difference (Shunting - {CATEGORY_MAP[categories[i+1]]})",
+                    vmin=-max_abs,
+                    vmax=max_abs
+                )
             
             fig.tight_layout()
             
@@ -338,7 +386,7 @@ class MultiplicativeGainPlotter(BasePlotter):
         
         return plot_paths
 
-    def _create_gain_plots_sh_ns_comparison(
+    def _create_gain_plots_network_type_comparison(
         self, 
         data: pd.DataFrame, 
         plots_dir: Path, 
@@ -350,7 +398,7 @@ class MultiplicativeGainPlotter(BasePlotter):
 
         for metric in metrics:
             plot_paths.extend(
-                self._plot_gain_performance_sh_ns_comparison(
+                self._plot_gain_performance_network_type_comparison(
                     data=data,
                     plots_dir=plots_dir,
                     metric=metric,
@@ -360,18 +408,31 @@ class MultiplicativeGainPlotter(BasePlotter):
 
         return plot_paths
 
-    def _plot_gain_performance_sh_ns_comparison(
+    def _plot_gain_performance_network_type_comparison(
         self, 
         data: pd.DataFrame, 
         plots_dir: Path, 
         metric: str, 
         gain_factors: list[float]
     ) -> list[Path]:
-        """Create multiplicative gain performance shunting vs non-shunting comparison plots"""
+        """Create multiplicative gain performance network type comparison plots"""
         plot_paths = []
 
-        categories = ["shunting", "no_shunting"]
-
+        possible_categories = [
+            "einet_sh", 
+            "einet_ns", 
+            "einet_sh_flat", 
+            "einet_ns_flat", 
+            "ss_mlp", 
+            "ss_mlp_flat", 
+            "active_param_mlp", 
+            "total_param_mlp"
+        ]
+        categories = [
+            cat for cat in possible_categories
+            if cat in data["network_category"].unique()
+        ]
+        
         fig, ax = plt.subplots(1, 1, figsize=(10, 6))
         fig.suptitle(
             f"Multiplicative Gain: {METRIC_MAPPING[metric]} vs Gain Factor",
@@ -392,8 +453,15 @@ class MultiplicativeGainPlotter(BasePlotter):
             
             color = self.category_colors.get(category, "black")
             marker = self.category_markers.get(category, "o")
+            linestyle = self.category_linestyles.get(category, "-")
 
-            ax.plot(gain_factors, mean_data, color=color, marker=marker, label=category)
+            ax.plot(
+                gain_factors, mean_data, 
+                color=color, 
+                marker=marker, 
+                label=category, 
+                linestyle=linestyle
+            )
             ax.fill_between(
                 gain_factors, 
                 mean_data - std_data, 
@@ -413,7 +481,7 @@ class MultiplicativeGainPlotter(BasePlotter):
         ax.legend(fontsize=10)
         fig.tight_layout()
 
-        plot_path = plots_dir / f"gain_{metric}_vs_sh_vs_ns.png"
+        plot_path = plots_dir / f"gain_{metric}_vs_network_type.png"
         plot_paths.append(self.save_figure(fig, plot_path))
 
         return plot_paths

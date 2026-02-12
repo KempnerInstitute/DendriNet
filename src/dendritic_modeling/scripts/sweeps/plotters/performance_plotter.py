@@ -76,6 +76,17 @@ class PerformancePlotter(BasePlotter):
                 )
             )
         
+        if "fixed_gf" in sweep_types:
+            plot_paths.extend(
+                self.plot_performance_1d_sweep(
+                    data=data, 
+                    sweep_var="fixed_gain_factor",
+                    var_name="Fixed Gain Factor",
+                    logscale=True,
+                    output_dir=plots_dir
+                )
+            )
+        
         if "stoch1" in sweep_types:
             plot_paths.extend(self.plot_performance_heatmaps(
                 data, 
@@ -190,8 +201,21 @@ class PerformancePlotter(BasePlotter):
         if "network_category" not in data.columns:
             logger.warning("Missing 'network_category' column for performance heatmaps")
             return plot_paths
-
-        categories = ["shunting", "no_shunting"]
+        
+        possible_categories = [
+            "einet_sh", 
+            "einet_ns", 
+            "einet_sh_flat", 
+            "einet_ns_flat", 
+            "ss_mlp", 
+            "ss_mlp_flat", 
+            "active_param_mlp", 
+            "total_param_mlp"
+        ]
+        categories = [
+            cat for cat in possible_categories
+            if cat in data["network_category"].unique()
+        ]
 
         for metric in ["test_accuracy", "valid_accuracy"]:
             # Handle both aggregated (_mean) and non-aggregated (no suffix) data
@@ -389,6 +413,7 @@ class PerformancePlotter(BasePlotter):
 
                     color = self.category_colors.get(category, "black")
                     marker = self.category_markers.get(category, "o")
+                    linestyle = self.category_linestyles.get(category, "-")
 
                     y_values = cat_data[mean_col]
                     yerr = cat_data[std_col] if std_col in cat_data.columns else None
@@ -398,7 +423,7 @@ class PerformancePlotter(BasePlotter):
                         y_values,
                         marker=marker,
                         color=color,
-                        linestyle="-",
+                        linestyle=linestyle,
                         alpha=0.8,
                         label=category,
                     )
