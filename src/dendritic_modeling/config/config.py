@@ -73,6 +73,7 @@ class DatasetParamsConfig(BaseConfig):
         default_factory=lambda: {
             "base_dataset": "mnist",
             "multiplicative_gain": True,
+            "fixed_gain_factor": None,
             "max_gain_factor": None,
             "uniform_gain": True,
             "poisson_sampling": True,
