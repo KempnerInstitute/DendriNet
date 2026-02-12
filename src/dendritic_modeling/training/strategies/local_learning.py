@@ -67,6 +67,7 @@ class LocalCreditAssignment(Trainer):
         self.local_cfg = self._build_local_rule_config(config_dict)
         self._layer_stats: dict[int, _LayerStats] = {}
         self._decoder_cache: dict[str, Any] = {}
+        self._warned_decoder_soma_fallback = False
         self.filename_prefix = "local_learning_"
         self.logger_info_prefix = "[Local] "
 
@@ -275,8 +276,14 @@ class LocalCreditAssignment(Trainer):
             train_loss_base += loss_item  # Local learning doesn't separate base/reg
             # train_loss_reg remains 0
 
-            # Compute broadcast soma error dL/dV0 per-sample
-            delta: torch.Tensor = self._compute_soma_error(y_hat, y_batch)
+            # Compute output-space error (dL/dy_hat) then resolve local soma-space
+            # signals for local dendritic updates.
+            delta_out: torch.Tensor = self._compute_soma_error(y_hat, y_batch)
+            v0_local, delta_local = self._resolve_local_soma_signals(
+                model=model,
+                y_hat=y_hat.detach(),
+                delta_out=delta_out.detach(),
+            )
 
             # Prepare HSIC targets if needed
             y_target: Optional[torch.Tensor] = None
@@ -304,8 +311,8 @@ class LocalCreditAssignment(Trainer):
             self._apply_local_rule_gradients(
                 model,
                 layer_records,
-                v0=y_hat.detach(),
-                delta=delta.detach(),
+                v0=v0_local,
+                delta=delta_local,
                 y_target=y_target,
                 update_reactivation=update_reactivation,
             )
@@ -334,7 +341,7 @@ class LocalCreditAssignment(Trainer):
                     if isinstance(lin_mod, nn.Linear) and isinstance(
                         h_in, torch.Tensor
                     ):
-                        e_out = delta.detach()  # [B, out]
+                        e_out = delta_out.detach()  # [B, out]
                         if self.local_cfg.normalize_by_batch and e_out.size(0) > 0:
                             scale = 1.0 / float(e_out.size(0))
                         else:
@@ -380,7 +387,7 @@ class LocalCreditAssignment(Trainer):
         return self.loss_function(model, x, y)
 
     def _compute_soma_error(self, y_hat: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
-        """Compute broadcast error signal at the soma: dL/dV0 per sample.
+        """Compute output-space error signal: dL/dy_hat per sample.
 
         Supports common losses. Falls back to MSE-like residual if unknown.
         Returns tensor of shape [batch, output_dim].
@@ -411,6 +418,74 @@ class LocalCreditAssignment(Trainer):
             return self._error_by_mode(y_hat, y, "ce")
         # Default: MSE-like
         return self._error_by_mode(y_hat, y, "mse")
+
+    def _resolve_local_soma_signals(
+        self,
+        model: BaseModel,
+        y_hat: torch.Tensor,
+        delta_out: torch.Tensor,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """Resolve soma-space signals for local rules.
+
+        Local dendritic rules ideally use error at the core soma output (pre-decoder).
+        If decoder is a single linear layer, map output-space error back to core space:
+            delta_core = delta_out @ W_dec
+        and use the cached decoder input as v0.
+
+        Otherwise fall back to output-space behavior for backward compatibility.
+        """
+        # Backward-compatible fallback
+        v0_local = y_hat
+        delta_local = delta_out
+
+        if not hasattr(model, "decoder_network"):
+            return v0_local, delta_local
+
+        try:
+            linear_layers = [
+                module
+                for module in model.decoder_network.modules()
+                if isinstance(module, nn.Linear)
+            ]
+        except Exception:
+            linear_layers = []
+
+        # We only apply explicit mapping when decoder is a single linear readout.
+        if len(linear_layers) != 1:
+            if not self._warned_decoder_soma_fallback:
+                logger.info(
+                    "Local soma-error mapping fallback: decoder is not a single linear layer."
+                )
+                self._warned_decoder_soma_fallback = True
+            return v0_local, delta_local
+
+        lin_mod = self._decoder_cache.get("module")
+        h_in = self._decoder_cache.get("input")
+        if not (isinstance(lin_mod, nn.Linear) and isinstance(h_in, torch.Tensor)):
+            if not self._warned_decoder_soma_fallback:
+                logger.info(
+                    "Local soma-error mapping fallback: missing cached decoder input."
+                )
+                self._warned_decoder_soma_fallback = True
+            return v0_local, delta_local
+
+        # Ensure dimensions are aligned before mapping.
+        if (
+            delta_out.dim() != 2
+            or h_in.dim() != 2
+            or delta_out.size(0) != h_in.size(0)
+            or delta_out.size(1) != lin_mod.weight.size(0)
+            or h_in.size(1) != lin_mod.weight.size(1)
+        ):
+            if not self._warned_decoder_soma_fallback:
+                logger.info(
+                    "Local soma-error mapping fallback: incompatible decoder shapes."
+                )
+                self._warned_decoder_soma_fallback = True
+            return v0_local, delta_local
+
+        delta_core = delta_out @ lin_mod.weight.detach()
+        return h_in.detach(), delta_core.detach()
 
     @staticmethod
     def _reduce_error_to_scalar(delta: torch.Tensor, eps: float = 1e-6) -> torch.Tensor:

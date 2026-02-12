@@ -52,7 +52,10 @@ from dendritic_modeling.networks import Identity
 from dendritic_modeling.plotting.visualizations.performance_plots import (
     PerformancePlotter,
 )
-from dendritic_modeling.scripts.script_utils.config_utils import prepare_trainer_config
+from dendritic_modeling.scripts.script_utils.config_utils import (
+    normalize_param_groups_config,
+    prepare_trainer_config,
+)
 from dendritic_modeling.scripts.script_utils.setup_utils import setup_environment
 from dendritic_modeling.scripts.training.train_encoder_network import (
     load_train_encoder_network,
@@ -274,6 +277,8 @@ def main(config_path: str, args=None):
         weight_decay_rate = common_config.weight_decay_rate
         weight_boosting = getattr(common_config, "weight_boosting", False)
         common_epochs = common_config.epochs
+
+    param_groups = normalize_param_groups_config(param_groups)
 
     optimizer = CustomWeightDecayOptimizer(
         model=model,

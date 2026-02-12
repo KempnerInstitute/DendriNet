@@ -74,6 +74,8 @@ class SweepManager:
         split_jobs: Optional[int] = None,
         use_array_jobs: bool = True,
         exclude_nodes: Optional[list[str]] = None,
+        slurm_account: Optional[str] = None,
+        slurm_partition: Optional[str] = None,
     ) -> dict:
         """
         Generate sweep configurations and job scripts.
@@ -90,6 +92,20 @@ class SweepManager:
 
         # Load configuration
         config = OmegaConf.load(config_path)
+
+        # Ensure slurm section exists and normalize account/partition defaults.
+        if "slurm_config" not in config or config.slurm_config is None:
+            config.slurm_config = OmegaConf.create({})
+
+        if slurm_account is not None:
+            config.slurm_config.account = slurm_account
+        elif not config.slurm_config.get("account"):
+            config.slurm_config.account = "kempner_dev"
+
+        if slurm_partition is not None:
+            config.slurm_config.partition = slurm_partition
+        elif not config.slurm_config.get("partition"):
+            config.slurm_config.partition = "kempner_eng"
 
         # Validate configuration
         if not self.generator.validate_config(config):
@@ -262,6 +278,8 @@ class SweepManager:
         split_jobs: Optional[int] = None,
         dry_run: bool = False,
         exclude_nodes: Optional[list[str]] = None,
+        slurm_account: Optional[str] = None,
+        slurm_partition: Optional[str] = None,
     ) -> dict:
         """
         Run a complete sweep: generate configs, submit jobs.
@@ -278,7 +296,11 @@ class SweepManager:
 
         # Generate sweep
         sweep_info = self.generate_sweep(
-            config_path, split_jobs=split_jobs, exclude_nodes=exclude_nodes
+            config_path,
+            split_jobs=split_jobs,
+            exclude_nodes=exclude_nodes,
+            slurm_account=slurm_account,
+            slurm_partition=slurm_partition,
         )
 
         # Submit jobs
@@ -312,6 +334,9 @@ Examples:
 
   # Dry run (show what would be submitted)
   python sweep_manager.py --config configs/my_sweep.yaml --dry-run
+
+  # Override SLURM account/partition at submission time
+  python sweep_manager.py --config configs/my_sweep.yaml --slurm-account kempner_dev --slurm-partition kempner_eng
 """,
     )
 
@@ -352,6 +377,14 @@ Examples:
         nargs="+",
         help="List of nodes to exclude from job scheduling (e.g., --exclude-nodes node1 node2)",
     )
+    parser.add_argument(
+        "--slurm-account",
+        help="Override slurm_config.account in sweep config (e.g., kempner_dev)",
+    )
+    parser.add_argument(
+        "--slurm-partition",
+        help="Override slurm_config.partition in sweep config (supports comma-separated partitions)",
+    )
 
     # Options for analysis
     parser.add_argument(
@@ -390,6 +423,8 @@ def main():
                     output_dir=args.output_dir,
                     split_jobs=args.split_jobs,
                     exclude_nodes=args.exclude_nodes,
+                    slurm_account=args.slurm_account,
+                    slurm_partition=args.slurm_partition,
                 )
 
                 print("\nTo submit jobs, run:")
@@ -402,6 +437,8 @@ def main():
                     split_jobs=args.split_jobs,
                     dry_run=args.dry_run,
                     exclude_nodes=args.exclude_nodes,
+                    slurm_account=args.slurm_account,
+                    slurm_partition=args.slurm_partition,
                 )
 
     except Exception as e:

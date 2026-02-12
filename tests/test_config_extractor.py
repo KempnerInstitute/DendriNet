@@ -78,6 +78,7 @@ class TestConfigExtractor(unittest.TestCase):
                         "learning_strategy_config": {
                             "rule_variant": "5f",
                             "error_broadcast_mode": "scalar",
+                            "decoder_update_mode": "local",
                             "four_factor": {
                                 "rho_mode": "dot",
                                 "rho_estimator": "ema",
@@ -95,6 +96,7 @@ class TestConfigExtractor(unittest.TestCase):
 
         self.assertEqual(params["rule_variant"], "5f")
         self.assertEqual(params["error_broadcast_mode"], "scalar")
+        self.assertEqual(params["decoder_update_mode"], "local")
         self.assertEqual(params["rho_mode"], "dot")
         self.assertEqual(params["use_dendritic_normalization"], True)
 

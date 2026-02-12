@@ -236,6 +236,11 @@ class DendriticBranchLayer(nn.Module):
         synapse_type="exc",
     ):
         """Helper function that picks which topk class to use based on strategy."""
+        # Keep invalid sweep configs runnable by capping requested synapse count to
+        # available presynaptic features for this layer.
+        if K is not None and K > in_features:
+            K = in_features
+
         # For 'standard' strategy, use the original TopKLinear class exactly as before
         # This provides a direct path with zero overhead compared to the original code
         if self.topk_type is None or self.topk_type == "standard":

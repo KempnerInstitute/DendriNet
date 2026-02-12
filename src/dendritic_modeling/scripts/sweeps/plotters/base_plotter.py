@@ -36,7 +36,7 @@ class BasePlotter:
         """
         sweep_types = []
 
-        if data["ei_ratio"].unique().size > 1:
+        if "ei_ratio" in data.columns and data["ei_ratio"].unique().size > 1:
             sweep_types.append("ei")
 
         if "stimulus_duration" in data.columns and "max_gain_factor" in data.columns:
@@ -76,11 +76,14 @@ class BasePlotter:
                 sweep_types.append("stoch2")
 
         if (
-            data[
+            "nparams" in data.columns
+            and "network_category" in data.columns
+            and data[
                 data["network_category"].isin(
                     ["dendritic_shunting", "dendritic_additive"]
                 )
             ]["nparams"]
+            .dropna()
             .unique()
             .size
             > 1

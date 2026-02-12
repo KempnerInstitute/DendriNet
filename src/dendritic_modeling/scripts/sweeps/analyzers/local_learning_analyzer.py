@@ -7,7 +7,13 @@ from typing import ClassVar
 import matplotlib.pyplot as plt
 import pandas as pd
 
-from ..plotters import InformationPlotter, PerformancePlotter
+from ..plotters import (
+    AblationPlotter,
+    InformationPlotter,
+    NoisePlotter,
+    PerformancePlotter,
+    WeightPlotter,
+)
 from ..utils.metrics import get_metric_label
 from .base_analyzer import BaseSweepAnalyzer
 
@@ -20,6 +26,7 @@ class LocalLearningSweepAnalyzer(BaseSweepAnalyzer):
     LOCAL_LEARNING_PARAMS: ClassVar[list[str]] = [
         "rule_variant",
         "error_broadcast_mode",
+        "decoder_update_mode",
         "rho_mode",
         "rho_estimator",
         "phi_mode",
@@ -36,6 +43,9 @@ class LocalLearningSweepAnalyzer(BaseSweepAnalyzer):
         super().__init__()
         self.performance_plotter = PerformancePlotter()
         self.information_plotter = InformationPlotter()
+        self.weight_plotter = WeightPlotter()
+        self.ablation_plotter = AblationPlotter()
+        self.noise_plotter = NoisePlotter()
 
     def can_handle(self, results_dir: Path) -> bool:
         """

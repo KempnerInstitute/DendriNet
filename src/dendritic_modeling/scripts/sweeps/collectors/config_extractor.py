@@ -187,6 +187,8 @@ class ConfigExtractor:
                 params["rule_variant"] = local_cfg.rule_variant
             if hasattr(local_cfg, "error_broadcast_mode"):
                 params["error_broadcast_mode"] = local_cfg.error_broadcast_mode
+            if hasattr(local_cfg, "decoder_update_mode"):
+                params["decoder_update_mode"] = local_cfg.decoder_update_mode
             if hasattr(local_cfg, "update_inactive_weights"):
                 params["update_inactive_weights"] = local_cfg.update_inactive_weights
 
