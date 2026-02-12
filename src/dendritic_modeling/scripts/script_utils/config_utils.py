@@ -6,6 +6,8 @@ from typing import Any, Union
 
 from omegaconf import DictConfig, OmegaConf
 
+from dendritic_modeling.config.training import ParamGroupsConfig
+
 logger = logging.getLogger(__name__)
 
 # Cache for converted configs to avoid repeated conversions
@@ -28,6 +30,52 @@ def get_config_value(config: Union[dict, object], key: str, default: Any = None)
         return config.get(key, default)
     else:
         return getattr(config, key, default)
+
+
+def normalize_param_groups_config(
+    param_groups: Union[dict, DictConfig, ParamGroupsConfig, object, None],
+) -> ParamGroupsConfig:
+    """
+    Normalize parameter-group configuration to ParamGroupsConfig.
+
+    The training script can receive param_groups as either a typed config object
+    or a plain dict (e.g., sweep-generated configs). BaseModel.get_param_groups
+    expects attribute access, so dict inputs must be converted.
+
+    Args:
+        param_groups: Param-groups configuration in any supported representation
+
+    Returns:
+        ParamGroupsConfig with defaults filled for unspecified fields
+    """
+    if param_groups is None:
+        return ParamGroupsConfig()
+
+    if isinstance(param_groups, ParamGroupsConfig):
+        return param_groups
+
+    if isinstance(param_groups, DictConfig):
+        param_groups = OmegaConf.to_container(param_groups, resolve=True)
+
+    if is_dataclass(param_groups):
+        param_groups = dataclass_asdict(param_groups)
+
+    if hasattr(param_groups, "asdict") and callable(param_groups.asdict):
+        param_groups = param_groups.asdict()
+
+    if not isinstance(param_groups, dict):
+        if hasattr(param_groups, "__dict__"):
+            param_groups = {
+                key: value
+                for key, value in vars(param_groups).items()
+                if not key.startswith("_")
+            }
+        else:
+            return ParamGroupsConfig()
+
+    allowed_fields = set(ParamGroupsConfig.__dataclass_fields__.keys())
+    sanitized = {k: v for k, v in param_groups.items() if k in allowed_fields}
+    return ParamGroupsConfig(**sanitized)
 
 
 def prepare_ei_network_params(

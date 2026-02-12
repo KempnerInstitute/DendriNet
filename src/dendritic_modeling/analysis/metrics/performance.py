@@ -12,7 +12,7 @@ from typing import Callable, Optional
 os.environ["TORCHDYNAMO_DISABLE"] = "1"
 
 import torch
-from torch.utils.data import TensorDataset
+from torch.utils.data import DataLoader, TensorDataset
 
 from dendritic_modeling.config import PerformanceAnalysisParams
 from dendritic_modeling.models import BaseModel
@@ -75,7 +75,19 @@ class PerformanceAnalyzer:
             dataset: Optional[torch.utils.data.Dataset], device: str = "cpu"
         ):
             if dataset is not None:
-                inputs, labels = dataset[:]
+                try:
+                    inputs, labels = dataset[:]
+                except Exception:
+                    # Some dataset wrappers (e.g., Subset over custom datasets) do not
+                    # support slice/list indexing. Materialize via DataLoader instead.
+                    xs = []
+                    ys = []
+                    loader = DataLoader(dataset, batch_size=1024, shuffle=False)
+                    for x_batch, y_batch in loader:
+                        xs.append(x_batch)
+                        ys.append(y_batch)
+                    inputs = torch.cat(xs, dim=0)
+                    labels = torch.cat(ys, dim=0)
                 inputs: torch.Tensor = inputs.to(device)
                 labels: torch.Tensor = labels.to(device)
                 return TensorDataset(inputs, labels)

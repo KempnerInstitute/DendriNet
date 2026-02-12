@@ -5,6 +5,7 @@ This module contains functions for loading and preprocessing standard datasets
 like MNIST, CIFAR-10, and ImageNet, as well as synthetic datasets for theoretical validation.
 """
 
+import importlib
 import os
 from typing import Any, Optional, Union
 
@@ -573,28 +574,44 @@ def get_unified_datasets(task_cfg):
         dataset_config["type"] = dataset_name
         return get_synthetic_datasets(dataset_config)
     else:
-        # For synthetic/experimental datasets, delegate to the experiments folder
-        try:
-            # Add experiments directory to path
-            experiments_path = os.path.join(
-                os.path.dirname(
-                    os.path.dirname(
-                        os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-                    )
-                ),
-                "experiments",
-            )
-            import sys
+        # For synthetic/experimental datasets, delegate to experiments synthetic datasets.
+        # Keep this robust to both layouts:
+        #   <repo>/experiments/experiments/data_generation/synthetic_datasets.py
+        #   <repo>/experiments/data_generation/synthetic_datasets.py
+        repo_root = os.path.dirname(
+            os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        )
+        experiments_root = os.path.join(repo_root, "experiments")
 
-            if experiments_path not in sys.path:
-                sys.path.insert(0, experiments_path)
+        import sys
 
-            from data_generation.synthetic_datasets import (
-                get_unified_datasets as get_experimental_datasets,
-            )
+        # Try canonical package imports first.
+        import_candidates = [
+            "experiments.data_generation.synthetic_datasets",
+            "data_generation.synthetic_datasets",
+        ]
+        # Ensure both candidate roots are importable regardless launch cwd/PYTHONPATH.
+        path_candidates = [
+            experiments_root,
+            os.path.join(experiments_root, "experiments"),
+        ]
+        for candidate_path in path_candidates:
+            if os.path.isdir(candidate_path) and candidate_path not in sys.path:
+                sys.path.insert(0, candidate_path)
 
-            return get_experimental_datasets(task_cfg)
-        except ImportError as e:
+        last_error: Exception | None = None
+        get_experimental_datasets = None
+        for module_name in import_candidates:
+            try:
+                module = importlib.import_module(module_name)
+                get_experimental_datasets = module.get_unified_datasets
+                break
+            except Exception as e:  # pragma: no cover - fallback path
+                last_error = e
+
+        if get_experimental_datasets is None:
             raise ValueError(
-                f"Unknown dataset name: {dataset_name}. Synthetic datasets not available: {e}"
+                f"Unknown dataset name: {dataset_name}. Synthetic datasets not available: {last_error}"
             )
+
+        return get_experimental_datasets(task_cfg, task_cfg)

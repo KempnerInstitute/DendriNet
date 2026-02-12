@@ -34,7 +34,7 @@ class BasePlotter:
         """
         sweep_types = []
 
-        if data["ei_ratio"].unique().size > 1:
+        if "ei_ratio" in data.columns and data["ei_ratio"].unique().size > 1:
             sweep_types.append("ei")
 
         if "stimulus_duration" in data.columns and "max_gain_factor" in data.columns:
@@ -51,7 +51,7 @@ class BasePlotter:
             ):
                 sweep_types.append("stoch2")
 
-        if data["nparams"].unique().size > 1:
+        if "nparams" in data.columns and data["nparams"].dropna().unique().size > 1:
             sweep_types.append("nparams")
 
         return sweep_types

@@ -286,17 +286,15 @@ class SweepJobManager:
     ):
         """Create a single SLURM job script."""
         repo_root = Path(__file__).resolve().parents[5]
+        account = self.slurm_config.get("account") or "kempner_dev"
+        partition = self.slurm_config.get("partition") or "kempner_eng"
         with open(script_path, "w") as f:
             f.write("#!/bin/bash\n")
             f.write(
                 f"#SBATCH --job-name={self.slurm_config.get('run_name') or self.slurm_config.get('job_name', 'sweep')}\n"
             )
-            f.write(
-                f"#SBATCH --account={self.slurm_config.get('account', 'kempner_dev')}\n"
-            )
-            f.write(
-                f"#SBATCH --partition={self.slurm_config.get('partition', 'kempner')}\n"
-            )
+            f.write(f"#SBATCH --account={account}\n")
+            f.write(f"#SBATCH --partition={partition}\n")
             f.write(f"#SBATCH --chdir={repo_root}\n")
             constraint = self.slurm_config.get("constraint", None)
             if constraint:
@@ -350,6 +348,7 @@ class SweepJobManager:
                 # Fallback to system python
                 f.write("# Using system python\n")
                 f.write('PYTHON_BIN="python"\n')
+            f.write('export PYTHONPATH="$(pwd)/src:${PYTHONPATH:-}"\n')
 
             f.write("\n# Run experiments\n")
 
@@ -370,6 +369,8 @@ class SweepJobManager:
     ):
         """Create a SLURM array job script for parallel execution."""
         repo_root = Path(__file__).resolve().parents[5]
+        account = self.slurm_config.get("account") or "kempner_dev"
+        partition = self.slurm_config.get("partition") or "kempner_eng"
         num_configs = len(config_paths)
         max_concurrent = self.slurm_config.get("max_concurrent_jobs", 10)
 
@@ -391,12 +392,8 @@ class SweepJobManager:
             f.write(
                 f"#SBATCH --job-name={self.slurm_config.get('run_name') or self.slurm_config.get('job_name', 'sweep')}\n"
             )
-            f.write(
-                f"#SBATCH --account={self.slurm_config.get('account', 'kempner_dev')}\n"
-            )
-            f.write(
-                f"#SBATCH --partition={self.slurm_config.get('partition', 'kempner')}\n"
-            )
+            f.write(f"#SBATCH --account={account}\n")
+            f.write(f"#SBATCH --partition={partition}\n")
             f.write(f"#SBATCH --chdir={repo_root}\n")
             f.write(f"#SBATCH --time={formatted_time}\n")
             f.write(f"#SBATCH --nodes={self.slurm_config.get('nodes', 1)}\n")
@@ -465,6 +462,7 @@ class SweepJobManager:
             else:
                 f.write("# Using system python\n")
                 f.write('PYTHON="python"\n\n')
+            f.write('export PYTHONPATH="$(pwd)/src:${PYTHONPATH:-}"\n\n')
 
             # Define config directory and files
             config_dir = (

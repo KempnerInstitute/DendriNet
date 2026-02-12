@@ -176,13 +176,20 @@ class ExcitationInhibitionLayer(nn.Module):
         else:
             self.inhibitory_cells = None
 
-        # Excitatory cells receive inhibitory input from the inhibitory cells in the same layer
-        # The dimension is the number of inhibitory neurons (each outputs one value)
+        # Excitatory cells may receive inhibitory input from the same layer or transferred pathway.
+        # In MLP-synapse mode this must be gated by IE connectivity; otherwise concatenating
+        # stale inhibitory tensors can create shape mismatches across layers.
         excitatory_inhibitory_input_dim = (
             n_inhibitory_cells
             if (build_inhibitory_cells and n_inhibitory_cells is not None)
             else inhibitory_input_dim
         )
+        self.concat_inhibitory_to_excitatory = bool(
+            excitatory_inhibitory_input_dim is not None
+            and int(ie_synapses_per_branch or 0) > 0
+        )
+        if not self.concat_inhibitory_to_excitatory:
+            excitatory_inhibitory_input_dim = None
 
         if self.synapse_mode == "ei":
             self.excitatory_cells = DendriNet(
@@ -305,7 +312,11 @@ class ExcitationInhibitionLayer(nn.Module):
             elif isinstance(self.inhibitory_cells, nn.Sequential):
                 inhibitory_x = self.inhibitory_cells(excitatory_x)
 
-            exc_in = _cat(excitatory_x, inhibitory_x)
+            exc_in = (
+                _cat(excitatory_x, inhibitory_x)
+                if self.concat_inhibitory_to_excitatory
+                else excitatory_x
+            )
             excitatory_x = self.excitatory_cells(exc_in, None)
         else:
             if isinstance(self.inhibitory_cells, DendriNet):
