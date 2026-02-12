@@ -112,17 +112,6 @@ class StochasticDatasetSweepAnalyzer(BaseSweepAnalyzer):
         """
         plot_paths = []
 
-        # Validate we have stochastic dataset data
-        if (
-            "stimulus_duration" not in data.columns
-            or "max_gain_factor" not in data.columns
-            or "max_gain_tau_ratio" not in data.columns
-        ):
-            logger.warning(
-                "No stimulus_duration or max_gain_factor or max_gain_tau_ratio column found - cannot generate stochastic dataset plots"
-            )
-            return plot_paths
-
         # Generate performance plots
         logger.info("Generating performance plots...")
         plot_paths.extend(self.performance_plotter.generate_all(data, output_dir))
