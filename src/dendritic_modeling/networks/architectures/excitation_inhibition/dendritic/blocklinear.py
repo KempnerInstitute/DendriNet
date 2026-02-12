@@ -153,7 +153,7 @@ class BlockLinear(nn.Module):
 
     def decay_weights(self, weight_decay, weight_boosting=False):
         with torch.no_grad():
-            if self.weight_transform in ["none", "identity", "relu"]:
+            if self.weight_transform in ["identity", "relu"]:
                 self.log_weight.data *= 1 - weight_decay
             elif self.weight_transform == "exp":
                 decay = log(1 - weight_decay)
@@ -165,7 +165,7 @@ class BlockLinear(nn.Module):
                 self.log_weight.data = p_prime
 
             if weight_boosting:
-                if self.weight_transform in ["none", "identity", "relu"]:
+                if self.weight_transform in ["identity", "relu"]:
                     self.log_weight.data *= 1 + weight_decay
                 elif self.weight_transform == "exp":
                     boost = log(1 + weight_decay)

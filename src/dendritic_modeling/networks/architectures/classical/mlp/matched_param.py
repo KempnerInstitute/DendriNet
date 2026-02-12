@@ -300,7 +300,7 @@ class SparseStructuredLayer(nn.Module):
                 in_features=synaptic_input_dim,
                 out_features=output_dim,
                 K=synaptic_K,
-                weight_transform="magnitude",
+                weight_transform="identity",
             )
             nn.init.xavier_normal_(self.synapse_layer.pre_w)
         else:
@@ -309,7 +309,7 @@ class SparseStructuredLayer(nn.Module):
         self.input_branches = input_branch_factor is not None
         if self.input_branches:
             self.branches_to_output = BlockLinear(
-                output_dim * input_branch_factor, output_dim, weight_transform="none"
+                output_dim * input_branch_factor, output_dim, weight_transform="identity"
             )
             nn.init.xavier_normal_(self.branches_to_output.log_weight)
 
