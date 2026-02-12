@@ -191,6 +191,30 @@ def compute_network_scale_factor(dbl, branch_factors=None):
     return scale_factor
 
 
+def identity_weighttransform_dbl_init(dbl):
+    """
+    Initialize a dendritic branch layer.
+
+    Args:
+        dbl: The DendriticBranchLayer to initialize
+    """
+    from .branch_layer import DendriticBranchLayer
+    assert isinstance(dbl, DendriticBranchLayer)
+
+    with torch.no_grad():
+        if dbl.branch_excitation is not None:
+            torch.nn.init.xavier_normal_(dbl.branch_excitation.pre_w)
+        
+        if dbl.branch_inhibition is not None:
+            torch.nn.init.xavier_normal_(dbl.branch_inhibition.pre_w)
+        
+        if hasattr(dbl, "branches_to_output"):
+            torch.nn.init.xavier_normal_(dbl.branches_to_output.log_weight)
+
+        if dbl.reactivate:
+            dbl.reactivation.initialize(1.0, 0.0)
+
+
 def analytical_expectation_dbl_init(dbl, adaptive=True, branch_factors=None):
     """
     Initialize a dendritic branch layer.
