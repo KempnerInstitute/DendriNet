@@ -2,7 +2,7 @@
 
 import logging
 from dataclasses import asdict as dataclass_asdict, is_dataclass
-from typing import Any, Union
+from typing import Any, Optional, Union
 
 from omegaconf import DictConfig, OmegaConf
 
@@ -31,7 +31,7 @@ def get_config_value(config: Union[dict, object], key: str, default: Any = None)
 
 
 def prepare_ei_network_params(
-    config: Union[dict, DictConfig], input_dim: int
+    config: Union[dict, DictConfig], input_dim: int, use_shunting: Optional[bool] = None
 ) -> dict[str, Any]:
     """
     Prepare parameters for ExcitationInhibitionNetwork from structured config.
@@ -88,6 +88,9 @@ def prepare_ei_network_params(
         **morphology_dict,
         **implementation_dict,
     }
+
+    if use_shunting is not None:
+        params["use_shunting"] = use_shunting
 
     # Add sparsity parameters with proper naming
     for key, value in sparsity_dict.items():

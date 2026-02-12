@@ -11,7 +11,9 @@ from typing import Literal
 import torch
 import torch.nn.functional as functional
 
-WeightTransformType = Literal["exp", "relu", "softplus", "identity"]
+WeightTransformType = Literal[
+    "none", "identity", "magnitude", "exp", "relu", "softplus"
+]
 
 
 def apply_weight_transform(
@@ -30,7 +32,9 @@ def apply_weight_transform(
     Raises:
         ValueError: If transform_type is not supported
     """
-    if transform_type == "exp":
+    if transform_type in ["none", "magnitude"]:
+        return weights
+    elif transform_type == "exp":
         return torch.exp(weights)
     elif transform_type == "relu":
         return functional.relu(weights)
@@ -42,7 +46,7 @@ def apply_weight_transform(
     else:
         raise ValueError(
             f"Unsupported weight transform type: {transform_type}. "
-            f"Supported types: 'exp', 'relu', 'softplus', 'identity'"
+            f"Supported types: 'none', 'identity', 'magnitude', 'exp', 'relu', 'softplus'"
         )
 
 
@@ -56,7 +60,9 @@ def get_weight_transform_fn(transform_type: WeightTransformType):
     Returns:
         Function that applies the transformation
     """
-    if transform_type == "exp":
+    if transform_type in ["none", "magnitude"]:
+        return lambda x: x
+    elif transform_type == "exp":
         return torch.exp
     elif transform_type == "relu":
         return functional.relu
@@ -67,7 +73,7 @@ def get_weight_transform_fn(transform_type: WeightTransformType):
     else:
         raise ValueError(
             f"Unsupported weight transform type: {transform_type}. "
-            f"Supported types: 'exp', 'relu', 'softplus', 'identity'"
+            f"Supported types: 'none', 'identity', 'magnitude', 'exp', 'relu', 'softplus'"
         )
 
 

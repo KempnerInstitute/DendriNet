@@ -11,7 +11,9 @@ from dendritic_modeling.networks.architectures.classical import (
     CNNDownsample,
     CNNUpsample,
     Identity,
-    MatchedParamMLP,
+    MatchedTotalParamMLP,
+    MatchedActiveParamMLP,
+    SparseStructuredMLP,
 )
 from dendritic_modeling.networks.architectures.excitation_inhibition import (
     BlockLinear,
@@ -31,24 +33,26 @@ from dendritic_modeling.networks.architectures.excitation_inhibition import (
 )
 
 __all__ = [
-    "AlexNet"
-    "BlockLinear"
-    "CNNDownsample"
-    "CNNUpsample"
-    "DeepstLinear"
-    "DendriNet"
-    "DendriticBranchLayer"
-    "ExcitationInhibitionLayer"
-    "ExcitationInhibitionNetwork"
-    "GradientScaler"
-    "Identity"
-    "IdentityInputTransform"
-    "IndexInputTransform"
-    "analytical_expectation_dbl_init"
-    "MatchedParamMLP"
-    "MLP"
-    "StochasticTopKLinear"
-    "TopKLinear"
-    "TransferLayer"
-    "VarianceTopKLinear"
+    "AlexNet",
+    "BlockLinear",
+    "CNNDownsample",
+    "CNNUpsample",
+    "DeepstLinear",
+    "DendriNet",
+    "DendriticBranchLayer",
+    "ExcitationInhibitionLayer",
+    "ExcitationInhibitionNetwork",
+    "GradientScaler",
+    "Identity",
+    "IdentityInputTransform",
+    "IndexInputTransform",
+    "analytical_expectation_dbl_init",
+    "MatchedTotalParamMLP",
+    "MatchedActiveParamMLP",
+    "MLP",
+    "StochasticTopKLinear",
+    "TopKLinear",
+    "TransferLayer",
+    "VarianceTopKLinear",
+    "SparseStructuredMLP",
 ]

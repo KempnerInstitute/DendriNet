@@ -122,7 +122,7 @@ class TopKLinear(nn.Module):
             if self.weight_transform == "exp":
                 decay = log(1 - weight_decay) * weight_mask
                 self.pre_w.data += decay
-            elif self.weight_transform == "relu":
+            elif self.weight_transform in ["none", "relu", "magnitude"]:
                 decay = torch.where(weight_mask > 0, 1 - weight_decay, 1)
                 self.pre_w.data *= decay
             elif self.weight_transform == "softplus":
@@ -141,7 +141,7 @@ class TopKLinear(nn.Module):
                 if self.weight_transform == "exp":
                     boost = log(1 + weight_decay) * inv_weight_mask
                     self.pre_w.data += boost
-                elif self.weight_transform == "relu":
+                elif self.weight_transform in ["none", "relu", "magnitude"]:
                     boost = torch.where(inv_weight_mask > 0, 1 + weight_decay, 1)
                     self.pre_w.data *= boost
                 elif self.weight_transform == "softplus":
@@ -199,6 +199,9 @@ class TopKLinear(nn.Module):
             noise = torch.randn_like(self.pre_w) * self.noise_level
             # Add noise to the raw weights
             weights_for_topk = self.pre_w + noise
+
+        if self.weight_transform == "magnitude":
+            weights_for_topk = weights_for_topk.abs()
 
         # Perform topk on the (potentially noisy) weights
         if self.weight_transform == "identity":

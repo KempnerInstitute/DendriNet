@@ -491,12 +491,8 @@ class CompartmentStatisticsAnalyzer(AbstractAnalyzer):
         try:
             assert isinstance(model.core_network, ExcitationInhibitionNetwork)
         except AssertionError:
-            self.logger.error(
-                "Model must have ExcitationInhibitionNetwork for weight analysis"
-            )
             return None
 
-        self.logger.info("Starting comprehensive excitation-inhibition analysis...")
         start_time = time.time()
 
         model.to(device)

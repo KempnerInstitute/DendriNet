@@ -755,14 +755,22 @@ class CompartmentSNRAnalysisParams(BaseConfig):
     """Parameters for compartment SNR analysis.
 
     Toggles which aggregation levels to compute:
+    - input_analysis
     - global_analysis
     - layer_analysis
     - branch_analysis
     """
 
+    input_analysis: bool = True  # Analyze input-level statistics
     global_analysis: bool = True  # Analyze global statistics
     layer_analysis: bool = True  # Analyze layer statistics
     branch_analysis: bool = True  # Analyze branch statistics
+
+    global_aggregation: bool = True  # Aggregate global statistics
+    layer_aggregation: bool = True  # Aggregate layer statistics
+    branch_aggregation: bool = True  # Aggregate branch statistics
+
+    epsilon: float = 1e-6
 
 
 @dataclass
@@ -773,6 +781,29 @@ class CompartmentSNRAnalysisConfig(BaseConfig):
     training: bool = False
     params: CompartmentSNRAnalysisParams = field(
         default_factory=CompartmentSNRAnalysisParams
+    )
+
+
+@dataclass
+class MultiplicativeGainAnalysisParams(BaseConfig):
+    uniform_gain: bool = True
+    gain_min: float = 0.0
+    gain_max: float = 10.0
+    n_steps: int = 10
+    logspace: bool = False
+    accuracy: bool = False
+    auc: bool = False
+    categorical_loglikelihood: bool = False
+    mse: bool = False
+    cosine_similarity: bool = False
+
+
+@dataclass
+class MultiplicativeGainAnalysisConfig(BaseConfig):
+    enabled: bool = False
+    training: bool = False
+    params: MultiplicativeGainAnalysisParams = field(
+        default_factory=MultiplicativeGainAnalysisParams
     )
 
 
@@ -1073,6 +1104,9 @@ class AnalysisConfig(BaseConfig):
 
     compartment_snr_analysis: CompartmentSNRAnalysisConfig = field(
         default_factory=CompartmentSNRAnalysisConfig
+    )
+    multiplicative_gain_analysis: MultiplicativeGainAnalysisConfig = field(
+        default_factory=MultiplicativeGainAnalysisConfig
     )
     synaptic_activation_analysis: SynapticActivationAnalysisConfig = field(
         default_factory=SynapticActivationAnalysisConfig

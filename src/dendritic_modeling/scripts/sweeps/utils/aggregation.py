@@ -136,7 +136,24 @@ def compute_ei_ratio(data: pd.DataFrame) -> pd.DataFrame:
 
 def extract_network_category(data: pd.DataFrame) -> pd.DataFrame:
     """
-    Extract network category from `network_type` (preferred) or legacy `use_shunting`.
+    Extract network category from ``network_type`` (preferred) or legacy ``use_shunting``.
+
+    Canonical category names
+    ------------------------
+    dendritic_shunting   - EINet with shunting inhibition
+    dendritic_additive   - EINet with subtractive inhibition
+    flat_shunting        - EINet shunting, flattened dendritic tree
+    flat_additive        - EINet additive, flattened dendritic tree
+    dendritic_mlp        - EINet with synapse_mode="mlp", signed weights
+    point_mlp            - Shallow parameter-matched point-neuron MLP
+    ss_mlp               - Sparse structured MLP (structural match)
+    ss_mlp_flat          - Sparse structured MLP, flattened
+    total_param_mlp      - Dense MLP matching total EINet params
+    active_param_mlp     - Dense MLP matching active EINet params
+
+    Backward-compatible aliases (from MR branch) are mapped to canonical names:
+    einet_sh -> dendritic_shunting, einet_ns -> dendritic_additive,
+    einet_sh_flat -> flat_shunting, einet_ns_flat -> flat_additive.
 
     Args:
         data: DataFrame with network_type and/or use_shunting columns
@@ -147,38 +164,63 @@ def extract_network_category(data: pd.DataFrame) -> pd.DataFrame:
     result = data.copy()
     result["network_category"] = "unknown"
 
-    # Preferred: explicit architecture selector from config (model.core.type)
-    if "network_type" in result.columns:
-        nt = result["network_type"].astype(str).str.lower()
-        # Normalize common aliases / historical names
-        nt = nt.replace(
-            {
-                "dendriti_additive": "dendritic_additive",
-                "dendritic_shuntng": "dendritic_shunting",
-                "mlp": "point_mlp",
-            }
-        )
-
-        # Direct mapping for the new 4-way comparisons
-        for name in [
-            "dendritic_shunting",
-            "dendritic_additive",
-            "dendritic_mlp",
-            "point_mlp",
-        ]:
-            result.loc[nt.eq(name), "network_category"] = name
-
-        # Legacy configs: core.type == EINet, decide by use_shunting
-        einet_mask = nt.isin(["einet", "einetwork"])
+    if "network_type" not in result.columns:
+        # Fallback: legacy boolean only
         if "use_shunting" in result.columns:
-            result.loc[
-                einet_mask & result["use_shunting"].eq(True), "network_category"
-            ] = "dendritic_shunting"
-            result.loc[
-                einet_mask & result["use_shunting"].eq(False), "network_category"
-            ] = "dendritic_additive"
+            result.loc[result["use_shunting"].eq(True), "network_category"] = (
+                "dendritic_shunting"
+            )
+            result.loc[result["use_shunting"].eq(False), "network_category"] = (
+                "dendritic_additive"
+            )
+        return result
 
-    # Fallback: legacy boolean only
+    nt = result["network_type"].astype(str).str.lower()
+
+    # ---- Normalize common typos / historical aliases ----
+    nt = nt.replace(
+        {
+            "dendriti_additive": "dendritic_additive",
+            "dendritic_shuntng": "dendritic_shunting",
+            "mlp": "point_mlp",
+            # MR aliases → canonical names
+            "einet_sh": "dendritic_shunting",
+            "einet_ns": "dendritic_additive",
+            "einet_sh_flat": "flat_shunting",
+            "einet_ns_flat": "flat_additive",
+        }
+    )
+
+    # ---- Direct mapping for canonical category names ----
+    for name in [
+        "dendritic_shunting",
+        "dendritic_additive",
+        "flat_shunting",
+        "flat_additive",
+        "dendritic_mlp",
+        "point_mlp",
+        "ss_mlp",
+        "ss_mlp_flat",
+        "total_param_mlp",
+        "active_param_mlp",
+    ]:
+        result.loc[nt.eq(name), "network_category"] = name
+
+    # ---- MR-style network_type values that differ from category names ----
+    result.loc[nt.eq("matchedtotalparammlp"), "network_category"] = "total_param_mlp"
+    result.loc[nt.eq("matchedactiveparammlp"), "network_category"] = "active_param_mlp"
+
+    # ---- Legacy: network_type == "einet"/"einetwork", decide by use_shunting ----
+    einet_mask = nt.isin(["einet", "einetwork"])
+    if "use_shunting" in result.columns:
+        result.loc[einet_mask & result["use_shunting"].eq(True), "network_category"] = (
+            "dendritic_shunting"
+        )
+        result.loc[
+            einet_mask & result["use_shunting"].eq(False), "network_category"
+        ] = "dendritic_additive"
+
+    # ---- Ultimate fallback: use_shunting boolean only ----
     if (
         result["network_category"] == "unknown"
     ).all() and "use_shunting" in result.columns:

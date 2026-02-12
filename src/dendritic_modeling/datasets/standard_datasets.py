@@ -259,24 +259,41 @@ class PoissonGeneratorDataset(Dataset):
         self,
         base_inputs: torch.Tensor,
         base_labels: torch.Tensor,
-        stimulus_duration: float = 1.0,
+        multiplicative_gain: bool = True,
+        fixed_gain_factor: Optional[float] = None,
         max_gain_factor: Optional[float] = None,
-        max_gain_tau_ratio: Optional[float] = None,
         uniform_gain: bool = True,
+        poisson_sampling: bool = True,
+        stimulus_duration: float = 1.0,
+        max_gain_tau_ratio: Optional[float] = None,
     ):
         stimulus_duration = float(stimulus_duration)
 
-        if max_gain_factor:
+        if fixed_gain_factor:
+            fixed_gain_factor = float(fixed_gain_factor)
+        elif max_gain_factor:
             max_gain_factor = float(max_gain_factor)
         elif max_gain_tau_ratio:
             max_gain_factor = float(max_gain_tau_ratio) * stimulus_duration
 
         self.base_inputs = base_inputs
         self.base_labels = base_labels
-        self.stimulus_duration = stimulus_duration
-        self.tau = stimulus_duration
+        self.multiplicative_gain = multiplicative_gain
+        self.fixed_gain_factor = fixed_gain_factor
         self.max_gain_factor = max_gain_factor
         self.uniform_gain = uniform_gain
+        self.poisson_sampling = poisson_sampling
+        self.stimulus_duration = stimulus_duration
+        self.tau = stimulus_duration
+
+        self._fixed_gf = None
+        self._max_gf = None
+
+    def _set_gain_factor(self, gain_factor: float | torch.Tensor):
+        self._fixed_gf = gain_factor
+
+    def _set_max_gain_factor(self, max_gain_factor: float | torch.Tensor):
+        self._max_gf = max_gain_factor
 
     def __len__(self):
         return len(self.base_inputs)
@@ -285,26 +302,62 @@ class PoissonGeneratorDataset(Dataset):
         input = self.base_inputs[idx]
         label = self.base_labels[idx]
 
-        if self.uniform_gain:
-            gain_factor = torch.rand(input.shape[0]) * self.max_gain_factor
-            while gain_factor.ndim < input.ndim:
-                gain_factor = gain_factor[..., None]
+        if self._fixed_gf is not None:
+            input = input * self._fixed_gf
+            self._fixed_gf = None
+
+        elif self._max_gf is not None:
+            input = input * ((torch.rand_like(input) * (self._max_gf - 1)) + 1)
+            # input = input * torch.exp(
+            #     ((torch.rand_like(input) * 2) - 1
+            #     ) * math.log(self.mgf)
+            # )
+            self._max_gf = None
+
+        elif self.multiplicative_gain:
+            if self.fixed_gain_factor is not None:
+                gain_factor = self.fixed_gain_factor
+
+            elif self.uniform_gain:
+                gain_factor = (
+                    torch.rand(input.shape[0]) * (self.max_gain_factor - 1)
+                ) + 1
+                while gain_factor.ndim < input.ndim:
+                    gain_factor = gain_factor[..., None]
+
+            else:
+                # gain_factor = torch.exp(
+                #     ((torch.rand(input.shape[0]) * 2) - 1
+                #     ) * math.log(self.max_gain_factor)
+                # )
+                # gain_factor = torch.exp(
+                #     torch.rand(input.shape[0]) * math.log(self.max_gain_factor)
+                # )
+                gain_factor = (torch.rand_like(input) * (self.max_gain_factor - 1)) + 1
+                # gain_factor = torch.exp(
+                #     ((torch.rand_like(input) * 2) - 1
+                #     ) * math.log(self.max_gain_factor)
+                # )
+
+            input = gain_factor * input
+
+        if self.poisson_sampling:
+            noisy_input = torch.poisson(self.tau * input)
+            noisy_input = noisy_input / self.tau
+            return noisy_input, label
         else:
-            gain_factor = torch.rand_like(input) * self.max_gain_factor
-
-        scaled_input = gain_factor * self.tau * input
-        noisy_scaled_input = torch.poisson(scaled_input)
-        noisy_input = noisy_scaled_input / self.tau
-
-        return noisy_input, label
+            return input, label
 
 
 def load_poisson_generator_datasets(
     base_dataset: str,
-    stimulus_duration: float = 1.0,
+    multiplicative_gain: bool = True,
+    fixed_gain_factor: Optional[float] = None,
     max_gain_factor: Optional[float] = None,
-    max_gain_tau_ratio: Optional[float] = None,
     uniform_gain: bool = True,
+    poisson_sampling: bool = True,
+    stimulus_duration: float = 1.0,
+    max_gain_tau_ratio: Optional[float] = None,
     train_valid_split: float = 0.8,
     flatten: bool = False,
     task_data_path: Optional[str] = None,
@@ -315,6 +368,7 @@ def load_poisson_generator_datasets(
     Args:
         base_dataset (str): The base dataset to sample from
         stimulus_duration (float): The stimulus duration for the Poisson distribution
+        fixed_gain_factor (float): The fixed gain factor for the Poisson distribution
         max_gain_factor (float): The maximum gain factor for the Poisson distribution
         max_gain_tau_ratio (float): The maximum gain tau ratio for the Poisson distribution
         uniform_gain (bool): Whether to use uniform gain for the Poisson distribution
@@ -345,24 +399,33 @@ def load_poisson_generator_datasets(
 
     train_ds = PoissonGeneratorDataset(
         *train_ds[:],
-        stimulus_duration=stimulus_duration,
+        multiplicative_gain=multiplicative_gain,
+        fixed_gain_factor=fixed_gain_factor,
         max_gain_factor=max_gain_factor,
-        max_gain_tau_ratio=max_gain_tau_ratio,
         uniform_gain=uniform_gain,
+        poisson_sampling=poisson_sampling,
+        stimulus_duration=stimulus_duration,
+        max_gain_tau_ratio=max_gain_tau_ratio,
     )
     valid_ds = PoissonGeneratorDataset(
         *valid_ds[:],
-        stimulus_duration=stimulus_duration,
+        multiplicative_gain=multiplicative_gain,
+        fixed_gain_factor=fixed_gain_factor,
         max_gain_factor=max_gain_factor,
-        max_gain_tau_ratio=max_gain_tau_ratio,
         uniform_gain=uniform_gain,
+        poisson_sampling=poisson_sampling,
+        stimulus_duration=stimulus_duration,
+        max_gain_tau_ratio=max_gain_tau_ratio,
     )
     test_ds = PoissonGeneratorDataset(
         *test_ds[:],
-        stimulus_duration=stimulus_duration,
+        multiplicative_gain=multiplicative_gain,
+        fixed_gain_factor=fixed_gain_factor,
         max_gain_factor=max_gain_factor,
-        max_gain_tau_ratio=max_gain_tau_ratio,
         uniform_gain=uniform_gain,
+        poisson_sampling=poisson_sampling,
+        stimulus_duration=stimulus_duration,
+        max_gain_tau_ratio=max_gain_tau_ratio,
     )
 
     return train_ds, valid_ds, test_ds
@@ -507,7 +570,10 @@ def get_unified_datasets(task_cfg):
     flatten = p.get("flatten", True)
     normalize = p.get("normalize", False)
     base_dataset = p.get("base_dataset", "mnist")
+    poisson_sampling = p.get("poisson_sampling", True)
     stimulus_duration = p.get("stimulus_duration", 1.0)
+    multiplicative_gain = p.get("multiplicative_gain", True)
+    fixed_gain_factor = p.get("fixed_gain_factor", None)
     max_gain_factor = p.get("max_gain_factor", None)
     max_gain_tau_ratio = p.get("max_gain_tau_ratio", None)
     uniform_gain = p.get("uniform_gain", True)
@@ -531,10 +597,13 @@ def get_unified_datasets(task_cfg):
     elif dataset_name == "poisson_generator":
         return load_poisson_generator_datasets(
             base_dataset=base_dataset,
-            stimulus_duration=stimulus_duration,
+            multiplicative_gain=multiplicative_gain,
+            fixed_gain_factor=fixed_gain_factor,
             max_gain_factor=max_gain_factor,
-            max_gain_tau_ratio=max_gain_tau_ratio,
             uniform_gain=uniform_gain,
+            poisson_sampling=poisson_sampling,
+            stimulus_duration=stimulus_duration,
+            max_gain_tau_ratio=max_gain_tau_ratio,
             train_valid_split=train_valid_split,
             flatten=flatten,
             task_data_path=task_data_path,

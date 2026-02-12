@@ -1,6 +1,7 @@
 """Information theory plotters (inspired by comprehensive_analysis.py)."""
 
 import logging
+import traceback
 from pathlib import Path
 from typing import ClassVar
 
@@ -21,116 +22,27 @@ class InformationPlotter(BasePlotter):
     # Metric groups for organized plotting
     METRIC_GROUPS: ClassVar[dict[str, dict]] = {
         "class_information": {
-            "metrics": [
-                "mi_E_C",
-                "mi_I_C",
-                "mi_Vb_C",
-                "mi_V_C",
-                "mi_E_lin_C",
-                "mi_I_lin_C",
-                "mi_Vb_lin_C",
-            ],
-            "labels": [
-                "I(E;C)",
-                "I(I;C)",
-                "I(Vb;C)",
-                "I(V;C)",
-                "I(E_lin;C)",
-                "I(I_lin;C)",
-                "I(Vb_lin;C)",
-            ],
-            "colors": [
-                "#FF6B6B",
-                "#4ECDC4",
-                "#FFB347",
-                "#45B7D1",
-                "#90EE90",
-                "#FFB6C1",
-                "#FFD700",
-            ],  # Added light green, light pink, gold for LDA
+            "metrics": ["mi_E_C", "mi_I_C", "mi_V_C"],
+            "labels": ["I(E;C)", "I(I;C)", "I(V;C)"],
+            "colors": ["#FF6B6B", "#4ECDC4", "#45B7D1"],  # Red, Teal, Blue
             "title": "Information with Class Labels",
             "ylabel": "Mutual Information (bits)",
         },
         "component_information": {
-            "metrics": [
-                "mi_E_I",
-                "mi_E_Vb",
-                "mi_I_Vb",
-                "mi_E_V",
-                "mi_I_V",
-                "mi_Vb_V",
-                "mi_E_lin_I_lin",
-                "mi_E_lin_Vb_lin",
-                "mi_I_lin_Vb_lin",
-                "mi_E_lin_V",
-                "mi_I_lin_V",
-            ],
-            "labels": [
-                "I(E;I)",
-                "I(E;Vb)",
-                "I(I;Vb)",
-                "I(E;V)",
-                "I(I;V)",
-                "I(Vb;V)",
-                "I(E_lin;I_lin)",
-                "I(E_lin;Vb_lin)",
-                "I(I_lin;Vb_lin)",
-                "I(E_lin;V)",
-                "I(I_lin;V)",
-            ],
-            "colors": [
-                "#8B5A96",
-                "#E91E63",
-                "#9C27B0",
-                "#FFA726",
-                "#FF9800",
-                "#FF5722",
-                "#BA68C8",
-                "#F06292",
-                "#CE93D8",
-                "#FFB74D",
-                "#FFCC80",
-            ],  # Added lighter shades for LDA
+            "metrics": ["mi_E_I", "mi_E_V", "mi_I_V"],
+            "labels": ["I(E;I)", "I(E;V)", "I(I;V)"],
+            "colors": ["#8B5A96", "#FFA726", "#9C27B0"],  # Purple, Orange, Purple
             "title": "Component Information",
             "ylabel": "Mutual Information (bits)",
         },
         "conditional_information": {
-            "metrics": [
-                "mi_E_I_given_C",
-                "mi_E_Vb_given_C",
-                "mi_I_Vb_given_C",
-                "mi_E_V_given_C",
-                "mi_I_V_given_C",
-                "mi_Vb_V_given_C",
-                "mi_E_lin_I_lin_given_C",
-                "mi_E_lin_Vb_lin_given_C",
-                "mi_E_lin_V_given_C",
-                "mi_I_lin_V_given_C",
-            ],
-            "labels": [
-                "I(E;I|C)",
-                "I(E;Vb|C)",
-                "I(I;Vb|C)",
-                "I(E;V|C)",
-                "I(I;V|C)",
-                "I(Vb;V|C)",
-                "I(E_lin;I_lin|C)",
-                "I(E_lin;Vb_lin|C)",
-                "I(E_lin;V|C)",
-                "I(I_lin;V|C)",
-            ],
+            "metrics": ["mi_E_I_given_C", "mi_E_V_given_C", "mi_I_V_given_C"],
+            "labels": ["I(E;I|C)", "I(E;V|C)", "I(I;V|C)"],
             "colors": [
                 "#2E7D32",
-                "#388E3C",
                 "#558B2F",
-                "#689F38",
-                "#7CB342",
                 "#827717",
-                "#9CCC65",
-                "#AED581",
-                "#C5E1A5",
-                "#DCEDC8",
-            ],  # Dark green through light green gradient
+            ],  # Dark green, Forest green, Olive
             "title": "Conditional Information",
             "ylabel": "Mutual Information (bits)",
         },
@@ -158,11 +70,87 @@ class InformationPlotter(BasePlotter):
             return plot_paths
 
         sweep_types = self.detect_sweep_types(data)
+
         if "ei" in sweep_types:
             try:
-                plot_paths.extend(self._create_information_ei_plots(data, info_dir))
+                plot_paths.extend(
+                    self._create_information_plots_1d_sweep(
+                        data=data,
+                        sweep_var="ei_ratio",
+                        var_name="E/I Ratio",
+                        logscale=True,
+                        output_dir=info_dir,
+                    )
+                )
             except Exception as e:
-                logger.exception(f"Error generating E/I information plots: {e}")
+                logger.error(f"Error generating E/I information plots: {e}")
+                traceback.print_exc()
+
+        if "stim_duration" in sweep_types:
+            try:
+                plot_paths.extend(
+                    self._create_information_plots_1d_sweep(
+                        data=data,
+                        sweep_var="stimulus_duration",
+                        var_name="Stimulus Duration",
+                        logscale=True,
+                        output_dir=info_dir,
+                    )
+                )
+            except Exception as e:
+                logger.error(
+                    f"Error generating stimulus duration information plots: {e}"
+                )
+                traceback.print_exc()
+
+        if "max_gf" in sweep_types:
+            try:
+                plot_paths.extend(
+                    self._create_information_plots_1d_sweep(
+                        data=data,
+                        sweep_var="max_gain_factor",
+                        var_name="Max Gain Factor",
+                        logscale=True,
+                        output_dir=info_dir,
+                    )
+                )
+            except Exception as e:
+                logger.error(f"Error generating max gain factor information plots: {e}")
+                traceback.print_exc()
+
+        if "fixed_gf" in sweep_types:
+            try:
+                plot_paths.extend(
+                    self._create_information_plots_1d_sweep(
+                        data=data,
+                        sweep_var="fixed_gain_factor",
+                        var_name="Fixed Gain Factor",
+                        logscale=True,
+                        output_dir=info_dir,
+                    )
+                )
+            except Exception as e:
+                logger.error(
+                    f"Error generating fixed gain factor information plots: {e}"
+                )
+                traceback.print_exc()
+
+        if "nparams" in sweep_types:
+            try:
+                plot_paths.extend(
+                    self._create_information_plots_1d_sweep(
+                        data=data,
+                        sweep_var="nparams",
+                        var_name="Number of Parameters",
+                        logscale=True,
+                        output_dir=info_dir,
+                    )
+                )
+            except Exception as e:
+                logger.error(
+                    f"Error generating number of parameters information plots: {e}"
+                )
+                traceback.print_exc()
 
         if "stoch1" in sweep_types:
             try:
@@ -172,9 +160,10 @@ class InformationPlotter(BasePlotter):
                     )
                 )
             except Exception as e:
-                logger.exception(
+                logger.error(
                     f"Error generating stochastic dataset information plots: {e}"
                 )
+                traceback.print_exc()
 
         if "stoch2" in sweep_types:
             try:
@@ -184,33 +173,76 @@ class InformationPlotter(BasePlotter):
                     )
                 )
             except Exception as e:
-                logger.exception(
+                logger.error(
                     f"Error generating stochastic GV dataset information plots: {e}"
                 )
+                traceback.print_exc()
 
         return plot_paths
 
-    def _create_information_ei_plots(
-        self, data: pd.DataFrame, output_dir: Path
+    def _create_information_plots_1d_sweep(
+        self,
+        data: pd.DataFrame,
+        sweep_var: str,
+        var_name: str,
+        logscale: bool,
+        output_dir: Path,
     ) -> list[Path]:
         plot_paths = []
         # Generate comprehensive multi-panel plot
-        panel_path = self.plot_information_panels_ei(data, output_dir)
+        panel_path = self.plot_information_panels_1d_sweep(
+            data=data,
+            sweep_var=sweep_var,
+            var_name=var_name,
+            logscale=logscale,
+            output_dir=output_dir,
+        )
         if panel_path:
             plot_paths.append(panel_path)
 
         # Generate individual metric group plots
-        plot_paths.extend(self.plot_metric_groups_ei(data, output_dir))
+        plot_paths.extend(
+            self.plot_metric_groups_1d_sweep(
+                data=data,
+                sweep_var=sweep_var,
+                var_name=var_name,
+                logscale=logscale,
+                output_dir=output_dir,
+            )
+        )
 
         # Generate layer-wise information plots
-        plot_paths.extend(self.plot_layerwise_information_ei(data, output_dir))
+        plot_paths.extend(
+            self.plot_layerwise_information_1d_sweep(
+                data=data,
+                sweep_var=sweep_var,
+                var_name=var_name,
+                logscale=logscale,
+                output_dir=output_dir,
+            )
+        )
 
         # Generate legacy information plots
-        plot_paths.extend(self._generate_information_plots_ei(data, output_dir))
+        plot_paths.extend(
+            self._generate_information_plots_1d_sweep(
+                valid_data=data,
+                sweep_var=sweep_var,
+                var_name=var_name,
+                logscale=logscale,
+                plots_dir=output_dir,
+            )
+        )
 
         return plot_paths
 
-    def plot_information_panels_ei(self, data: pd.DataFrame, output_dir: Path) -> Path:
+    def plot_information_panels_1d_sweep(
+        self,
+        data: pd.DataFrame,
+        sweep_var: str,
+        var_name: str,
+        logscale: bool,
+        output_dir: Path,
+    ) -> Path:
         """
         Generate comprehensive multi-panel information plot.
 
@@ -237,13 +269,32 @@ class InformationPlotter(BasePlotter):
             # Panel 1-3: Metric groups
             for idx, (_group_name, group_info) in enumerate(self.METRIC_GROUPS.items()):
                 if idx < 3:
-                    self._plot_metric_group_panel(data, axes[idx], group_info)
+                    self._plot_metric_group_panel(
+                        data=data,
+                        sweep_var=sweep_var,
+                        var_name=var_name,
+                        logscale=logscale,
+                        ax=axes[idx],
+                        group_info=group_info,
+                    )
 
             # Panel 4: Layer-wise I(V;C)
-            self._plot_layerwise_ivc_panel(data, axes[3])
+            self._plot_layerwise_ivc_panel(
+                data=data,
+                sweep_var=sweep_var,
+                var_name=var_name,
+                logscale=logscale,
+                ax=axes[3],
+            )
 
             # Panel 5: Shunting advantage
-            self._plot_shunting_advantage_panel(data, axes[4])
+            self._plot_shunting_advantage_panel(
+                data=data,
+                sweep_var=sweep_var,
+                var_name=var_name,
+                logscale=logscale,
+                ax=axes[4],
+            )
 
             # Panel 6: Information summary statistics
             self._plot_information_summary_panel(data, axes[5])
@@ -257,7 +308,13 @@ class InformationPlotter(BasePlotter):
             return None
 
     def _plot_metric_group_panel(
-        self, data: pd.DataFrame, ax: plt.Axes, group_info: dict
+        self,
+        data: pd.DataFrame,
+        sweep_var: str,
+        var_name: str,
+        logscale: bool,
+        ax: plt.Axes,
+        group_info: dict,
     ):
         """Plot a single metric group panel."""
         metrics = group_info["metrics"]
@@ -291,8 +348,8 @@ class InformationPlotter(BasePlotter):
             )
 
             # Group by ei_ratio and plot
-            if "ei_ratio" in data.columns:
-                grouped = data.groupby("ei_ratio")[mean_col].mean().sort_index()
+            if sweep_var in data.columns:
+                grouped = data.groupby(sweep_var)[mean_col].mean().sort_index()
                 ax.plot(
                     grouped.index,
                     grouped.values,
@@ -304,15 +361,22 @@ class InformationPlotter(BasePlotter):
 
         self.setup_axes_style(
             ax=ax,
-            xlabel="E/I Ratio",
+            xlabel=var_name,
             ylabel=group_info["ylabel"],
             title=group_info["title"],
-            use_log_x=True,
+            use_log_x=logscale,
             grid=True,
         )
         ax.legend(fontsize=9)
 
-    def _plot_layerwise_ivc_panel(self, data: pd.DataFrame, ax: plt.Axes):
+    def _plot_layerwise_ivc_panel(
+        self,
+        data: pd.DataFrame,
+        sweep_var: str,
+        var_name: str,
+        logscale: bool,
+        ax: plt.Axes,
+    ):
         """Plot layer-wise I(V;C) across depths."""
         # Find layer MI columns
         layer_cols = [
@@ -359,8 +423,8 @@ class InformationPlotter(BasePlotter):
         for depth in depths:
             col = f"layer_mi_V_C_depth{depth}_mean"
             if col in data.columns:
-                if "ei_ratio" in data.columns:
-                    grouped = data.groupby("ei_ratio")[col].mean().sort_index()
+                if sweep_var in data.columns:
+                    grouped = data.groupby(sweep_var)[col].mean().sort_index()
                     ax.plot(
                         grouped.index,
                         grouped.values,
@@ -371,15 +435,22 @@ class InformationPlotter(BasePlotter):
 
         self.setup_axes_style(
             ax=ax,
-            xlabel="E/I Ratio",
+            xlabel=var_name,
             ylabel="I(V;C) (bits)",
             title="Layer-wise Information with Class",
-            use_log_x=True,
+            use_log_x=logscale,
             grid=True,
         )
         ax.legend(fontsize=8, ncol=2)
 
-    def _plot_shunting_advantage_panel(self, data: pd.DataFrame, ax: plt.Axes):
+    def _plot_shunting_advantage_panel(
+        self,
+        data: pd.DataFrame,
+        sweep_var: str,
+        var_name: str,
+        logscale: bool,
+        ax: plt.Axes,
+    ):
         """Plot shunting advantage (difference in metrics)."""
         metric = "test_accuracy"
         mean_col = f"{metric}_mean" if f"{metric}_mean" in data.columns else "metric"
@@ -396,21 +467,9 @@ class InformationPlotter(BasePlotter):
             ax.set_title("Shunting Advantage")
             return
 
-        shunt_cat, add_cat = self.get_shunting_additive_pair(data)
-        if shunt_cat is None or add_cat is None:
-            ax.text(
-                0.5,
-                0.5,
-                "Insufficient data",
-                ha="center",
-                va="center",
-                transform=ax.transAxes,
-            )
-            return
-
-        # Calculate difference (shunting - additive)
-        shunting_data = data[data["network_category"] == shunt_cat]
-        no_shunting_data = data[data["network_category"] == add_cat]
+        # Calculate difference
+        shunting_data = data[data["network_category"] == "dendritic_shunting"]
+        no_shunting_data = data[data["network_category"] == "dendritic_additive"]
 
         if shunting_data.empty or no_shunting_data.empty:
             ax.text(
@@ -425,9 +484,9 @@ class InformationPlotter(BasePlotter):
 
         # Merge on ei_ratio
         merged = pd.merge(
-            shunting_data[["ei_ratio", mean_col]],
-            no_shunting_data[["ei_ratio", mean_col]],
-            on="ei_ratio",
+            shunting_data[[sweep_var, mean_col]],
+            no_shunting_data[[sweep_var, mean_col]],
+            on=sweep_var,
             suffixes=("_shunt", "_no_shunt"),
         )
 
@@ -436,7 +495,7 @@ class InformationPlotter(BasePlotter):
         )
 
         ax.plot(
-            merged["ei_ratio"],
+            merged[sweep_var],
             merged["advantage"],
             marker="o",
             color="#2E7D32",
@@ -446,10 +505,10 @@ class InformationPlotter(BasePlotter):
 
         self.setup_axes_style(
             ax=ax,
-            xlabel="E/I Ratio",
-            ylabel=f"Accuracy Difference ({shunt_cat} - {add_cat})",
+            xlabel=var_name,
+            ylabel="Accuracy Difference (Shunting - No Shunting)",
             title="Shunting Advantage",
-            use_log_x=True,
+            use_log_x=logscale,
             grid=True,
         )
 
@@ -499,7 +558,14 @@ class InformationPlotter(BasePlotter):
             ax.set_title("Information Metric Summary", fontsize=12)
             ax.grid(True, alpha=0.3, axis="y")
 
-    def plot_metric_groups_ei(self, data: pd.DataFrame, output_dir: Path) -> list[Path]:
+    def plot_metric_groups_1d_sweep(
+        self,
+        data: pd.DataFrame,
+        sweep_var: str,
+        var_name: str,
+        logscale: bool,
+        output_dir: Path,
+    ) -> list[Path]:
         """
         Generate individual plots for each metric group.
 
@@ -512,10 +578,7 @@ class InformationPlotter(BasePlotter):
         """
         plot_paths = []
 
-        if "ei_ratio" not in data.columns or "network_category" not in data.columns:
-            return plot_paths
-        shunt_cat, add_cat = self.get_shunting_additive_pair(data)
-        if shunt_cat is None or add_cat is None:
+        if sweep_var not in data.columns or "network_category" not in data.columns:
             return plot_paths
 
         for group_name, group_info in self.METRIC_GROUPS.items():
@@ -523,10 +586,13 @@ class InformationPlotter(BasePlotter):
                 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
 
                 # Plot for shunting and no_shunting separately
-                for category, ax, title_suffix in [
-                    (shunt_cat, ax1, "Shunting"),
-                    (add_cat, ax2, "Additive"),
+                for use_shunting, ax, title_suffix in [
+                    (True, ax1, "Shunting"),
+                    (False, ax2, "No Shunting"),
                 ]:
+                    category = (
+                        "dendritic_shunting" if use_shunting else "dendritic_additive"
+                    )
                     cat_data = data[data["network_category"] == category]
 
                     if cat_data.empty:
@@ -554,7 +620,7 @@ class InformationPlotter(BasePlotter):
                         )
                         if mean_col in cat_data.columns:
                             grouped = (
-                                cat_data.groupby("ei_ratio")[mean_col]
+                                cat_data.groupby(sweep_var)[mean_col]
                                 .mean()
                                 .sort_index()
                             )
@@ -570,10 +636,10 @@ class InformationPlotter(BasePlotter):
 
                     self.setup_axes_style(
                         ax=ax,
-                        xlabel="E/I Ratio",
+                        xlabel=var_name,
                         ylabel=group_info["ylabel"],
                         title=f"{group_info['title']} - {title_suffix}",
-                        use_log_x=True,
+                        use_log_x=logscale,
                         grid=True,
                     )
                     ax.legend(fontsize=10)
@@ -588,8 +654,13 @@ class InformationPlotter(BasePlotter):
         logger.info(f"Generated {len(plot_paths)} metric group plots")
         return plot_paths
 
-    def plot_layerwise_information_ei(
-        self, data: pd.DataFrame, output_dir: Path
+    def plot_layerwise_information_1d_sweep(
+        self,
+        data: pd.DataFrame,
+        sweep_var: str,
+        var_name: str,
+        logscale: bool,
+        output_dir: Path,
     ) -> list[Path]:
         """
         Generate layer-wise information plots and heatmaps.
@@ -606,19 +677,29 @@ class InformationPlotter(BasePlotter):
         layer_dir.mkdir(parents=True, exist_ok=True)
 
         # Generate I(V;C) heatmap by layer
-        heatmap_path = self._plot_ivc_heatmap_by_layer(data, layer_dir)
+        heatmap_path = self._plot_ivc_heatmap_by_layer(
+            data=data, sweep_var=sweep_var, var_name=var_name, output_dir=layer_dir
+        )
         if heatmap_path:
             plot_paths.append(heatmap_path)
 
         # Generate first vs last layer comparison
-        comparison_paths = self._plot_first_last_layer_comparison(data, layer_dir)
+        comparison_paths = self._plot_first_last_layer_comparison(
+            data=data,
+            sweep_var=sweep_var,
+            var_name=var_name,
+            logscale=logscale,
+            output_dir=layer_dir,
+        )
         plot_paths.extend(comparison_paths)
 
         logger.info(f"Generated {len(plot_paths)} layer-wise information plots")
         return plot_paths
 
-    def _plot_ivc_heatmap_by_layer(self, data: pd.DataFrame, output_dir: Path) -> Path:
-        """Generate I(V;C) heatmap across layers and E/I ratios."""
+    def _plot_ivc_heatmap_by_layer(
+        self, data: pd.DataFrame, sweep_var: str, var_name: str, output_dir: Path
+    ) -> Path:
+        """Generate I(V;C) heatmap across layers and sweep variable."""
         # Find layer MI columns for I(V;C)
         ivc_cols = [
             col
@@ -636,13 +717,13 @@ class InformationPlotter(BasePlotter):
             for col in ivc_cols:
                 depth = int(col.split("_depth")[1].split("_mean")[0])
                 for _, row in data.iterrows():
-                    if not pd.isna(row[col]) and "ei_ratio" in row:
+                    if not pd.isna(row[col]) and sweep_var in row:
                         layer_data.append(
                             {
                                 "layer": depth,
-                                "ei_ratio": row["ei_ratio"],
+                                sweep_var: row[sweep_var],
                                 "use_shunting": row.get("network_category")
-                                == "shunting",
+                                == "dendritic_shunting",
                                 "ivc_value": row[col],
                             }
                         )
@@ -679,7 +760,7 @@ class InformationPlotter(BasePlotter):
                 pivot = subset.pivot_table(
                     values="ivc_value",
                     index="layer",
-                    columns="ei_ratio",
+                    columns=sweep_var,
                     aggfunc="mean",
                 )
 
@@ -696,11 +777,11 @@ class InformationPlotter(BasePlotter):
                 # Invert y-axis to place origin at lower left
                 ax.invert_yaxis()
 
-                ax.set_xlabel("E/I Ratio", fontsize=12)
+                ax.set_xlabel(var_name, fontsize=12)
                 ax.set_ylabel("Layer Index", fontsize=12)
                 ax.set_title(f"I(V;C) Heatmap - {title}", fontsize=14)
 
-            fig.suptitle("Information with Class by Layer and E/I Ratio", fontsize=16)
+            fig.suptitle(f"Information with Class by Layer and {var_name}", fontsize=16)
             fig.tight_layout()
 
             plot_path = output_dir / "ivc_heatmap_by_layer.png"
@@ -711,7 +792,12 @@ class InformationPlotter(BasePlotter):
             return None
 
     def _plot_first_last_layer_comparison(
-        self, data: pd.DataFrame, output_dir: Path
+        self,
+        data: pd.DataFrame,
+        sweep_var: str,
+        var_name: str,
+        logscale: bool,
+        output_dir: Path,
     ) -> list[Path]:
         """Generate first vs last layer comparison plots."""
         plot_paths = []
@@ -749,7 +835,15 @@ class InformationPlotter(BasePlotter):
         for group_name, group_info in self.METRIC_GROUPS.items():
             try:
                 plot_path = self._plot_metric_group_first_last(
-                    data, first_layer, last_layer, group_name, group_info, output_dir
+                    data=data,
+                    sweep_var=sweep_var,
+                    var_name=var_name,
+                    logscale=logscale,
+                    first_layer=first_layer,
+                    last_layer=last_layer,
+                    group_name=group_name,
+                    group_info=group_info,
+                    output_dir=output_dir,
                 )
                 if plot_path:
                     plot_paths.append(plot_path)
@@ -763,6 +857,9 @@ class InformationPlotter(BasePlotter):
     def _plot_metric_group_first_last(
         self,
         data: pd.DataFrame,
+        sweep_var: str,
+        var_name: str,
+        logscale: bool,
         first_layer: int,
         last_layer: int,
         group_name: str,
@@ -771,11 +868,6 @@ class InformationPlotter(BasePlotter):
     ) -> Path:
         """Plot first vs last layer comparison for a metric group."""
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
-        shunt_cat, add_cat = self.get_shunting_additive_pair(data)
-        if shunt_cat is None or add_cat is None:
-            # No baseline pair; return without saving a figure
-            plt.close(fig)
-            return None
 
         for layer_idx, ax, title in [
             (first_layer, ax1, f"Layer {first_layer} (First)"),
@@ -799,21 +891,21 @@ class InformationPlotter(BasePlotter):
                     (True, "-", 0.9),
                     (False, "--", 0.6),
                 ]:
-                    category = shunt_cat if use_shunting else add_cat
+                    category = (
+                        "dendritic_shunting" if use_shunting else "dendritic_additive"
+                    )
                     cat_data = data[data["network_category"] == category]
 
-                    if cat_data.empty or "ei_ratio" not in cat_data.columns:
+                    if cat_data.empty or sweep_var not in cat_data.columns:
                         continue
 
-                    grouped = (
-                        cat_data.groupby("ei_ratio")[layer_col].mean().sort_index()
-                    )
+                    grouped = cat_data.groupby(sweep_var)[layer_col].mean().sort_index()
                     ax.plot(
                         grouped.index,
                         grouped.values,
                         color=color,
                         linestyle=linestyle,
-                        label=f"{label} ({'Sh' if use_shunting else 'Ad'})",
+                        label=f"{label} ({'S' if use_shunting else 'NS'})",
                         linewidth=2,
                         marker="o" if use_shunting else "s",
                         markersize=5,
@@ -822,10 +914,10 @@ class InformationPlotter(BasePlotter):
 
             self.setup_axes_style(
                 ax=ax,
-                xlabel="E/I Ratio",
+                xlabel=var_name,
                 ylabel=group_info["ylabel"],
                 title=title,
-                use_log_x=True,
+                use_log_x=logscale,
                 grid=True,
             )
             ax.legend(bbox_to_anchor=(1.05, 1), loc="upper left", fontsize=8)
@@ -836,13 +928,33 @@ class InformationPlotter(BasePlotter):
         plot_path = output_dir / f"{group_name}_first_last_layer.png"
         return self.save_figure(fig, plot_path)
 
-    def _plot_shunting_advantage_panel(self, data: pd.DataFrame, ax: plt.Axes):
-        """Plot shunting advantage across metrics."""
+    def _plot_shunting_advantage_panel(
+        self,
+        data: pd.DataFrame,
+        sweep_var: str,
+        var_name: str,
+        logscale: bool,
+        ax: plt.Axes,
+    ):
+        """Plot shunting advantage across sweep variable."""
         # Calculate shunting advantage for test accuracy
-        self._plot_shunting_advantage_for_metric(data, ax, "test_accuracy")
+        self._plot_shunting_advantage_for_metric(
+            data=data,
+            sweep_var=sweep_var,
+            var_name=var_name,
+            logscale=logscale,
+            ax=ax,
+            metric="test_accuracy",
+        )
 
     def _plot_shunting_advantage_for_metric(
-        self, data: pd.DataFrame, ax: plt.Axes, metric: str
+        self,
+        data: pd.DataFrame,
+        sweep_var: str,
+        var_name: str,
+        logscale: bool,
+        ax: plt.Axes,
+        metric: str,
     ):
         """Plot shunting advantage for a specific metric."""
         mean_col = f"{metric}_mean" if f"{metric}_mean" in data.columns else "metric"
@@ -854,23 +966,11 @@ class InformationPlotter(BasePlotter):
             ax.set_title("Shunting Advantage")
             return
 
-        shunt_cat, add_cat = self.get_shunting_additive_pair(data)
-        if shunt_cat is None or add_cat is None:
-            ax.text(
-                0.5,
-                0.5,
-                "Insufficient data",
-                ha="center",
-                va="center",
-                transform=ax.transAxes,
-            )
-            return
+        # Separate shunting and no_shunting data
+        shunting = data[data["network_category"] == "dendritic_shunting"]
+        no_shunting = data[data["network_category"] == "dendritic_additive"]
 
-        # Separate shunting and additive data
-        shunting = data[data["network_category"] == shunt_cat]
-        no_shunting = data[data["network_category"] == add_cat]
-
-        if shunting.empty or no_shunting.empty or "ei_ratio" not in data.columns:
+        if shunting.empty or no_shunting.empty or sweep_var not in data.columns:
             ax.text(
                 0.5,
                 0.5,
@@ -883,19 +983,19 @@ class InformationPlotter(BasePlotter):
 
         # Merge on ei_ratio
         merged = pd.merge(
-            shunting[["ei_ratio", mean_col]],
-            no_shunting[["ei_ratio", mean_col]],
-            on="ei_ratio",
+            shunting[[sweep_var, mean_col]],
+            no_shunting[[sweep_var, mean_col]],
+            on=sweep_var,
             suffixes=("_shunt", "_no_shunt"),
         )
 
         merged["advantage"] = (
             merged[f"{mean_col}_shunt"] - merged[f"{mean_col}_no_shunt"]
         )
-        merged = merged.sort_values("ei_ratio")
+        merged = merged.sort_values(sweep_var)
 
         ax.plot(
-            merged["ei_ratio"],
+            merged[sweep_var],
             merged["advantage"],
             marker="o",
             color="#2E7D32",
@@ -904,25 +1004,30 @@ class InformationPlotter(BasePlotter):
         )
         ax.axhline(y=0, color="gray", linestyle="--", alpha=0.5, linewidth=1)
         ax.fill_between(
-            merged["ei_ratio"], 0, merged["advantage"], alpha=0.3, color="#2E7D32"
+            merged[sweep_var], 0, merged["advantage"], alpha=0.3, color="#2E7D32"
         )
 
         self.setup_axes_style(
             ax=ax,
-            xlabel="E/I Ratio",
+            xlabel=var_name,
             ylabel=f"{get_metric_label(metric)} Difference",
-            title=f"Shunting Advantage ({shunt_cat} - {add_cat})",
-            use_log_x=True,
+            title="Shunting Advantage (Shunting - Non-Shunting)",
+            use_log_x=logscale,
             grid=True,
         )
 
-    def _generate_information_plots_ei(
-        self, valid_data: pd.DataFrame, plots_dir: Path
-    ) -> list[Path]:
+    def _generate_information_plots_1d_sweep(
+        self,
+        valid_data: pd.DataFrame,
+        sweep_var: str,
+        var_name: str,
+        logscale: bool,
+        plots_dir: Path,
+    ) -> list[str]:
         """Generate information theory plots matching old analysis format"""
         plot_paths = []
 
-        if "ei_ratio" not in valid_data.columns:
+        if sweep_var not in valid_data.columns:
             return plot_paths
 
         info_plot_dir = plots_dir / "information_theory_plots"
@@ -952,129 +1057,41 @@ class InformationPlotter(BasePlotter):
                             global_mi_metrics.append(metric_name)
 
         if not global_mi_metrics and not layer_mi_metrics:
-            logger.info("No mutual information metrics found")
+            print("No mutual information metrics found")
             return plot_paths
 
-        shunt_cat, add_cat = self.get_shunting_additive_pair(valid_data)
-        if shunt_cat is None or add_cat is None:
-            logger.info(
-                "No shunting/additive baseline pair found for information analysis"
-            )
+        if (
+            not valid_data["network_category"]
+            .isin(["dendritic_shunting", "dendritic_additive"])
+            .any()
+        ):
+            print("No shunting/no_shunting data for information analysis")
             return plot_paths
 
         # Define metric groups matching old analysis exactly
         metric_groups = {
             "class_information": {
-                "metrics": [
-                    "mi_E_C",
-                    "mi_I_C",
-                    "mi_Vb_C",
-                    "mi_V_C",
-                    "mi_E_lin_C",
-                    "mi_I_lin_C",
-                    "mi_Vb_lin_C",
-                ],
-                "labels": [
-                    "I(E;C)",
-                    "I(I;C)",
-                    "I(Vb;C)",
-                    "I(V;C)",
-                    "I(E_lin;C)",
-                    "I(I_lin;C)",
-                    "I(Vb_lin;C)",
-                ],
+                "metrics": ["mi_E_C", "mi_I_C", "mi_V_C"],
+                "labels": ["I(E;C)", "I(I;C)", "I(V;C)"],
                 "colors": [
                     self.info_colors["excitatory"],
                     self.info_colors["inhibitory"],
-                    "#FFB347",  # Orange for Vb
                     self.info_colors["combined"],
-                    "#90EE90",  # Light green for E_lin
-                    "#FFB6C1",  # Light pink for I_lin
-                    "#FFD700",  # Gold for Vb_lin
                 ],
                 "title": "Information with Class Labels",
                 "ylabel": "Mutual Information (bits)",
             },
             "component_information": {
-                "metrics": [
-                    "mi_E_I",
-                    "mi_E_Vb",
-                    "mi_I_Vb",
-                    "mi_E_V",
-                    "mi_I_V",
-                    "mi_Vb_V",
-                    "mi_E_lin_I_lin",
-                    "mi_E_lin_Vb_lin",
-                    "mi_I_lin_Vb_lin",
-                    "mi_E_lin_V",
-                    "mi_I_lin_V",
-                ],
-                "labels": [
-                    "I(E;I)",
-                    "I(E;Vb)",
-                    "I(I;Vb)",
-                    "I(E;V)",
-                    "I(I;V)",
-                    "I(Vb;V)",
-                    "I(E_lin;I_lin)",
-                    "I(E_lin;Vb_lin)",
-                    "I(I_lin;Vb_lin)",
-                    "I(E_lin;V)",
-                    "I(I_lin;V)",
-                ],
-                "colors": [
-                    "purple",
-                    "#E91E63",
-                    "#9C27B0",
-                    "orange",
-                    "#FF9800",
-                    "brown",
-                    "#BA68C8",
-                    "#F06292",
-                    "#CE93D8",
-                    "#FFB74D",
-                    "#FFCC80",
-                ],
+                "metrics": ["mi_E_I", "mi_E_V", "mi_I_V"],
+                "labels": ["I(E;I)", "I(E;V)", "I(I;V)"],
+                "colors": ["purple", "orange", "brown"],
                 "title": "Component Information",
                 "ylabel": "Mutual Information (bits)",
             },
             "conditional_information": {
-                "metrics": [
-                    "mi_E_I_given_C",
-                    "mi_E_Vb_given_C",
-                    "mi_I_Vb_given_C",
-                    "mi_E_V_given_C",
-                    "mi_I_V_given_C",
-                    "mi_Vb_V_given_C",
-                    "mi_E_lin_I_lin_given_C",
-                    "mi_E_lin_Vb_lin_given_C",
-                    "mi_E_lin_V_given_C",
-                    "mi_I_lin_V_given_C",
-                ],
-                "labels": [
-                    "I(E;I|C)",
-                    "I(E;Vb|C)",
-                    "I(I;Vb|C)",
-                    "I(E;V|C)",
-                    "I(I;V|C)",
-                    "I(Vb;V|C)",
-                    "I(E_lin;I_lin|C)",
-                    "I(E_lin;Vb_lin|C)",
-                    "I(E_lin;V|C)",
-                    "I(I_lin;V|C)",
-                ],
-                "colors": [
-                    "darkgreen",
-                    "#388E3C",
-                    "forestgreen",
-                    "#689F38",
-                    "olive",
-                    "#827717",
-                    "#9CCC65",
-                    "#AED581",
-                    "#C5E1A5",
-                    "#DCEDC8",
-                ],
+                "metrics": ["mi_E_I_given_C", "mi_E_V_given_C", "mi_I_V_given_C"],
+                "labels": ["I(E;I|C)", "I(E;V|C)", "I(I;V|C)"],
+                "colors": ["darkgreen", "forestgreen", "olive"],
                 "title": "Conditional Information",
                 "ylabel": "Mutual Information (bits)",
             },
@@ -1101,7 +1118,7 @@ class InformationPlotter(BasePlotter):
                     available_colors.append(color)
 
             if not available_metrics:
-                logger.info(f"No {group_name} metrics found")
+                print(f"No {group_name} metrics found")
                 continue
 
             try:
@@ -1113,7 +1130,9 @@ class InformationPlotter(BasePlotter):
                 plot_data = {}
 
                 for use_shunting in [True, False]:
-                    category = shunt_cat if use_shunting else add_cat
+                    category = (
+                        "dendritic_shunting" if use_shunting else "dendritic_additive"
+                    )
                     shunt_data = valid_data[valid_data["network_category"] == category]
                     plot_data[use_shunting] = {}
 
@@ -1121,7 +1140,7 @@ class InformationPlotter(BasePlotter):
                         for metric in available_metrics:
                             mean_col = f"{metric}_mean"
                             # Group by E/I ratio and calculate statistics
-                            grouped = shunt_data.groupby("ei_ratio")[mean_col].mean()
+                            grouped = shunt_data.groupby(sweep_var)[mean_col].mean()
                             plot_data[use_shunting][metric] = grouped
                             all_y_values.extend(grouped.values)
 
@@ -1174,10 +1193,10 @@ class InformationPlotter(BasePlotter):
 
                     self.setup_axes_style(
                         ax=ax,
-                        xlabel="E/I Ratio",
+                        xlabel=var_name,
                         ylabel=ylabel,
                         title=f"{group_title}\\n{title_suffix} Networks",
-                        use_log_x=True,
+                        use_log_x=logscale,
                         grid=True,
                     )
 
@@ -1188,7 +1207,7 @@ class InformationPlotter(BasePlotter):
                 plot_paths.append(self.save_figure(fig, plot_path))
 
             except Exception as e:
-                logger.error(f"Error generating {group_name} plot: {e}")
+                print(f"Error generating {group_name} plot: {e}")
 
         # # Generate layer-specific information plots and heatmaps
         # layer_plot_dir = os.path.join(plots_dir, "layer_information_plots")
@@ -1204,7 +1223,7 @@ class InformationPlotter(BasePlotter):
         #     self._create_first_last_layer_plots(valid_data, layer_plot_dir, base_name)
         # )
 
-        logger.info(
+        print(
             f"Created {len(plot_paths)} information theory plots (global + layer-specific + heatmaps)"
         )
         return plot_paths
@@ -1257,9 +1276,6 @@ class InformationPlotter(BasePlotter):
         if "network_category" not in data.columns:
             logger.warning("Missing 'network_category' column")
             return plot_paths
-        shunt_cat, add_cat = self.get_shunting_additive_pair(data)
-        if shunt_cat is None or add_cat is None:
-            return plot_paths
 
         # Generate one figure per metric group
         for group_name, group_info in self.METRIC_GROUPS.items():
@@ -1296,7 +1312,9 @@ class InformationPlotter(BasePlotter):
                 plot_data = {}
 
                 for use_shunting in [True, False]:
-                    category = shunt_cat if use_shunting else add_cat
+                    category = (
+                        "dendritic_shunting" if use_shunting else "dendritic_additive"
+                    )
                     cat_data = data[data["network_category"] == category]
                     plot_data[use_shunting] = {}
 
@@ -1321,11 +1339,15 @@ class InformationPlotter(BasePlotter):
                     for col_idx, (use_shunting, title_suffix) in enumerate(
                         [
                             (True, "Shunting"),
-                            (False, "Additive"),
+                            (False, "Non-Shunting"),
                         ]
                     ):
                         ax = axes[metric_idx, col_idx]
-                        category = shunt_cat if use_shunting else add_cat
+                        category = (
+                            "dendritic_shunting"
+                            if use_shunting
+                            else "dendritic_additive"
+                        )
                         cat_data = data[data["network_category"] == category]
 
                         if cat_data.empty or mean_col not in cat_data.columns:
@@ -1403,7 +1425,8 @@ class InformationPlotter(BasePlotter):
                 plot_paths.append(self.save_figure(fig, plot_path))
 
             except Exception as e:
-                logger.exception(f"Error generating {group_name} heatmaps: {e}")
+                logger.error(f"Error generating {group_name} heatmaps: {e}")
+                traceback.print_exc()
 
         logger.info(f"Generated {len(plot_paths)} metric group heatmap figures")
         return plot_paths
@@ -1529,13 +1552,10 @@ class InformationPlotter(BasePlotter):
                 # Collect all values for consistent color scaling across all depths
                 all_values = []
 
-                shunt_cat, add_cat = self.get_shunting_additive_pair(data)
-                if shunt_cat is None or add_cat is None:
-                    plt.close(fig)
-                    continue
-
                 for use_shunting in [True, False]:
-                    category = shunt_cat if use_shunting else add_cat
+                    category = (
+                        "dendritic_shunting" if use_shunting else "dendritic_additive"
+                    )
                     cat_data = data[data["network_category"] == category]
 
                     if not cat_data.empty:
@@ -1558,11 +1578,15 @@ class InformationPlotter(BasePlotter):
                     for col_idx, (use_shunting, title_suffix) in enumerate(
                         [
                             (True, "Shunting"),
-                            (False, "Additive"),
+                            (False, "Non-Shunting"),
                         ]
                     ):
                         ax = axes[row_idx, col_idx]
-                        category = shunt_cat if use_shunting else add_cat
+                        category = (
+                            "dendritic_shunting"
+                            if use_shunting
+                            else "dendritic_additive"
+                        )
                         cat_data = data[data["network_category"] == category]
 
                         if cat_data.empty or layer_col not in cat_data.columns:
@@ -1646,9 +1670,8 @@ class InformationPlotter(BasePlotter):
                 plot_paths.append(self.save_figure(fig, plot_path))
 
             except Exception as e:
-                logger.exception(
-                    f"Error generating layerwise heatmaps for {metric}: {e}"
-                )
+                logger.error(f"Error generating layerwise heatmaps for {metric}: {e}")
+                traceback.print_exc()
 
         logger.info(f"Generated {len(plot_paths)} layerwise heatmap figures")
         return plot_paths

@@ -65,8 +65,17 @@ def __dir__() -> list[str]:
 
 __all__ = [
     "__version__",
+    "analysis",
+    "config",
+    "datasets",
     "logger",
     "logger_manager",
+    "models",
+    "networks",
+    "plotting",
+    "scripts",
+    "training",
+    "utils",
 ]
 
 # from dendritic_modeling import pid_utils

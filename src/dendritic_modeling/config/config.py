@@ -72,10 +72,13 @@ class DatasetParamsConfig(BaseConfig):
     poisson_generator: dict[str, Any] = field(
         default_factory=lambda: {
             "base_dataset": "mnist",
-            "stimulus_duration": 1.0,
+            "multiplicative_gain": True,
+            "fixed_gain_factor": None,
             "max_gain_factor": None,
             "max_gain_tau_ratio": None,
             "uniform_gain": True,
+            "poisson_sampling": True,
+            "stimulus_duration": 1.0,
         }
     )
 
@@ -215,6 +218,7 @@ def _map_analysis_config(analysis_data: dict) -> dict:
         "weight": "weight_analysis",
         "compartment_statistics": "compartment_statistics_analysis",
         "compartment_snr": "compartment_snr_analysis",
+        "multiplicative_gain": "multiplicative_gain_analysis",
         "receptive_field": "receptive_field_analysis",
         "single_layer_contribution": "single_layer_contribution",
         "synaptic_activation": "synaptic_activation_analysis",

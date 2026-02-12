@@ -18,12 +18,32 @@ from dendritic_modeling.networks.architectures.classical.identity import Identit
 from dendritic_modeling.networks.architectures.classical.mlp import (
     MLP,
     EffectiveMatchedParamMLP,
-    MatchedParamMLP,
+    MatchedActiveParamMLP,
+    MatchedTotalParamMLP,
     PointMatchedParamMLP,
+    SparseStructuredMLP,
 )
 from dendritic_modeling.networks.architectures.excitation_inhibition import (
     ConfigurableEINetwork,
 )
+
+# Backward-compatible aliases: MR branch names -> canonical names
+_EINET_ALIASES: dict[str, str] = {
+    "einet_sh": "dendritic_shunting",
+    "einet_ns": "dendritic_additive",
+    "einet_sh_flat": "flat_shunting",
+    "einet_ns_flat": "flat_additive",
+}
+
+# All EINet type strings handled via ConfigurableEINetwork (+ dendritic_mlp special-cased)
+_EINET_TYPES: set[str] = {
+    "einet",
+    "dendritic_shunting",
+    "dendritic_additive",
+    "dendritic_mlp",
+    "flat_shunting",
+    "flat_additive",
+}
 
 
 def get_architecture(
@@ -44,12 +64,13 @@ def get_architecture(
     """
     type = (type or "").lower()
 
+    # Normalize MR aliases to canonical names
+    type = _EINET_ALIASES.get(type, type)
+
     # ------------------------------------------------------------------
-    # Structured (DictConfig) architectures / core-network variants
+    # EINet variants (require structured config)
     # ------------------------------------------------------------------
-    # We support selecting EI/shunting variants via `model.core.type`, since these
-    # are architectural comparisons (not just a morphology toggle).
-    if type in ["einet", "dendritic_shunting", "dendritic_additive", "dendritic_mlp"]:
+    if type in _EINET_TYPES:
         if not (
             isinstance(parameters, DictConfig)
             or (
@@ -66,37 +87,48 @@ def get_architecture(
             raise ValueError(
                 "input_dim required when passing structured config to EINet"
             )
-        if type == "einet":
-            return ConfigurableEINetwork(parameters, input_dim)
 
-        # For the dendritic_* variants, flatten the config once and override
-        # only the behavioral flags we intend to compare.
-        from dendritic_modeling.networks.architectures.excitation_inhibition import (
-            ExcitationInhibitionNetwork,
-        )
-        from dendritic_modeling.scripts.script_utils.config_utils import (
-            prepare_ei_network_params,
-        )
+        # dendritic_mlp: signed weights via ExcitationInhibitionNetwork directly
+        if type == "dendritic_mlp":
+            from dendritic_modeling.networks.architectures.excitation_inhibition import (
+                ExcitationInhibitionNetwork,
+            )
+            from dendritic_modeling.scripts.script_utils.config_utils import (
+                prepare_ei_network_params,
+            )
 
-        params = prepare_ei_network_params(parameters, input_dim)
-        params["synapse_mode"] = "ei"
+            params = prepare_ei_network_params(parameters, input_dim)
+            params["synapse_mode"] = "mlp"
+            params["use_shunting"] = False
+            params["weight_transform"] = "identity"
+            return ExcitationInhibitionNetwork(**params)
+
+        # All other EINet variants go through ConfigurableEINetwork
+        use_shunting: Optional[bool] = None
+        flatten_dendrites: bool = False
 
         if type == "dendritic_shunting":
-            params["use_shunting"] = True
+            use_shunting = True
         elif type == "dendritic_additive":
-            params["use_shunting"] = False
-        elif type == "dendritic_mlp":
-            # Remove explicit E/I synapse constraint: merge inputs and allow signed weights.
-            params["use_shunting"] = False
-            params["synapse_mode"] = "mlp"
-            params["weight_transform"] = "identity"
-        else:
-            raise ValueError(f"Unhandled structured dendritic type: {type}")
+            use_shunting = False
+        elif type == "flat_shunting":
+            use_shunting = True
+            flatten_dendrites = True
+        elif type == "flat_additive":
+            use_shunting = False
+            flatten_dendrites = True
+        # type == "einet": use_shunting=None reads from config
 
-        return ExcitationInhibitionNetwork(**params)
+        return ConfigurableEINetwork(
+            config=parameters,
+            input_dim=input_dim,
+            use_shunting=use_shunting,
+            flatten_dendrites=flatten_dendrites,
+        )
 
-    # Structured point-neuron MLP baseline (parameter-matched).
-    # Preferred name: "point_mlp". We also accept "mlp" for backward compatibility.
+    # ------------------------------------------------------------------
+    # Point-neuron MLP baseline (parameter-matched, structured config)
+    # ------------------------------------------------------------------
     if type in ["point_mlp", "mlp"] and (
         isinstance(parameters, DictConfig)
         or (
@@ -113,10 +145,26 @@ def get_architecture(
         )
 
         params = prepare_ei_network_params(parameters, input_dim)
-        # Use the parameter-matched *point-neuron* baseline.
         return PointMatchedParamMLP(**params)
 
+    # ------------------------------------------------------------------
+    # MR-style structured-config MLP baselines
+    # ------------------------------------------------------------------
+    if type in ["matchedtotalparammlp", "total_param_mlp"]:
+        return MatchedTotalParamMLP(parameters, input_dim)
+
+    if type in ["matchedactiveparammlp", "active_param_mlp"]:
+        return MatchedActiveParamMLP(parameters, input_dim)
+
+    if type == "ss_mlp":
+        return SparseStructuredMLP(parameters, input_dim)
+
+    if type == "ss_mlp_flat":
+        return SparseStructuredMLP(parameters, input_dim, flatten_dendrites=True)
+
+    # ------------------------------------------------------------------
     # All other architectures expect flat parameters
+    # ------------------------------------------------------------------
     if isinstance(parameters, DictConfig):
         raise ValueError(
             f"Architecture {type} expects flat parameters, not structured config"
@@ -130,8 +178,6 @@ def get_architecture(
         return CNNUpsample(**parameters)
     elif type == "mlp":
         return MLP(**parameters)
-    elif type == "matchedparammlp":
-        return MatchedParamMLP(**parameters)
     elif type == "effectivematchedparammlp":
         return EffectiveMatchedParamMLP(**parameters)
     elif type == "mlpautoencoder":

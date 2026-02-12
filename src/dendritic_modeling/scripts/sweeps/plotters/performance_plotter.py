@@ -44,7 +44,48 @@ class PerformancePlotter(BasePlotter):
 
         # Generate E/I ratio plots if applicable
         if "ei" in sweep_types:
-            plot_paths.extend(self.plot_metrics_vs_ei_ratio(data, plots_dir))
+            plot_paths.extend(
+                self.plot_performance_1d_sweep(
+                    data=data,
+                    sweep_var="ei_ratio",
+                    var_name="E/I Ratio",
+                    logscale=True,
+                    output_dir=plots_dir,
+                )
+            )
+
+        if "stim_duration" in sweep_types:
+            plot_paths.extend(
+                self.plot_performance_1d_sweep(
+                    data=data,
+                    sweep_var="stimulus_duration",
+                    var_name="Stimulus Duration",
+                    logscale=True,
+                    output_dir=plots_dir,
+                )
+            )
+
+        if "max_gf" in sweep_types:
+            plot_paths.extend(
+                self.plot_performance_1d_sweep(
+                    data=data,
+                    sweep_var="max_gain_factor",
+                    var_name="Max Gain Factor",
+                    logscale=True,
+                    output_dir=plots_dir,
+                )
+            )
+
+        if "fixed_gf" in sweep_types:
+            plot_paths.extend(
+                self.plot_performance_1d_sweep(
+                    data=data,
+                    sweep_var="fixed_gain_factor",
+                    var_name="Fixed Gain Factor",
+                    logscale=True,
+                    output_dir=plots_dir,
+                )
+            )
 
         if "stoch1" in sweep_types:
             plot_paths.extend(
@@ -72,14 +113,22 @@ class PerformancePlotter(BasePlotter):
 
         return plot_paths
 
-    def plot_metrics_vs_ei_ratio(
-        self, data: pd.DataFrame, output_dir: Path
+    def plot_performance_1d_sweep(
+        self,
+        data: pd.DataFrame,
+        sweep_var: str,
+        var_name: str,
+        logscale: bool,
+        output_dir: Path,
     ) -> list[Path]:
         """
-        Generate metric vs E/I ratio line plots with error bars.
+        Generate metric vs sweep_var line plots with error bars.
 
         Args:
-            data: Aggregated data with ei_ratio column
+            data: Aggregated data with sweep_var column
+            sweep_var: Sweep variable column name
+            var_name: Name of the sweep variable
+            logscale: Whether to use log scale for the x-axis
             output_dir: Output directory
 
         Returns:
@@ -101,7 +150,7 @@ class PerformancePlotter(BasePlotter):
                 self.plot_by_category(
                     ax=ax,
                     data=data,
-                    x_col="ei_ratio",
+                    x_col=sweep_var,
                     y_col=metric,
                     category_col="network_category",
                     show_error=True,
@@ -110,23 +159,23 @@ class PerformancePlotter(BasePlotter):
                 # Style axes
                 self.setup_axes_style(
                     ax=ax,
-                    xlabel="E/I Ratio",
+                    xlabel=var_name,
                     ylabel=get_metric_label(metric),
-                    title=f"{get_metric_label(metric)} vs E/I Ratio",
-                    use_log_x=True,
+                    title=f"{get_metric_label(metric)} vs {var_name}",
+                    use_log_x=logscale,
                     grid=True,
                 )
 
                 ax.legend(fontsize=10)
                 fig.tight_layout()
 
-                plot_path = output_dir / f"{metric}_vs_ei_ratio.png"
+                plot_path = output_dir / f"{metric}_vs_{sweep_var}.png"
                 plot_paths.append(self.save_figure(fig, plot_path))
 
             except Exception as e:
-                logger.error(f"Error generating {metric} vs E/I plot: {e}")
+                logger.error(f"Error generating {metric} vs {var_name} plot: {e}")
 
-        logger.info(f"Generated {len(plot_paths)} E/I ratio plots")
+        logger.info(f"Generated {len(plot_paths)} {var_name} performance plots")
         return plot_paths
 
     def plot_performance_heatmaps(
@@ -153,19 +202,21 @@ class PerformancePlotter(BasePlotter):
             logger.warning("Missing 'network_category' column for performance heatmaps")
             return plot_paths
 
-        # Prefer canonical 4-way naming (dendritic_*) but remain compatible with legacy.
-        present = set(data["network_category"].unique())
-        shunt_cat = (
-            "dendritic_shunting"
-            if "dendritic_shunting" in present
-            else ("shunting" if "shunting" in present else None)
-        )
-        add_cat = (
-            "dendritic_additive"
-            if "dendritic_additive" in present
-            else ("no_shunting" if "no_shunting" in present else None)
-        )
-        categories = [c for c in [shunt_cat, add_cat] if c is not None]
+        possible_categories = [
+            "dendritic_shunting",
+            "dendritic_additive",
+            "flat_shunting",
+            "flat_additive",
+            "ss_mlp",
+            "ss_mlp_flat",
+            "active_param_mlp",
+            "total_param_mlp",
+        ]
+        categories = [
+            cat
+            for cat in possible_categories
+            if cat in data["network_category"].unique()
+        ]
 
         for metric in ["test_accuracy", "valid_accuracy"]:
             # Handle both aggregated (_mean) and non-aggregated (no suffix) data
@@ -257,15 +308,10 @@ class PerformancePlotter(BasePlotter):
 
                 # Create difference plot (shunting - non_shunting)
                 ax_diff = axes[2]
-                if (
-                    shunt_cat is not None
-                    and add_cat is not None
-                    and shunt_cat in pivot_tables
-                    and add_cat in pivot_tables
-                ):
+                if "shunting" in pivot_tables and "no_shunting" in pivot_tables:
                     # Align indices and columns for subtraction
-                    shunt_pivot = pivot_tables[shunt_cat]
-                    no_shunt_pivot = pivot_tables[add_cat]
+                    shunt_pivot = pivot_tables["shunting"]
+                    no_shunt_pivot = pivot_tables["no_shunting"]
 
                     # Reindex to ensure same index and columns
                     common_index = shunt_pivot.index.union(no_shunt_pivot.index)
@@ -308,7 +354,7 @@ class PerformancePlotter(BasePlotter):
                     ax_diff.set_xlabel(colx, fontsize=12)
                     ax_diff.set_ylabel(coly, fontsize=12)
                     ax_diff.set_title(
-                        f"Difference ({shunt_cat} - {add_cat})", fontsize=14
+                        "Difference (Shunting - Non-Shunting)", fontsize=14
                     )
                 else:
                     ax_diff.text(
@@ -319,7 +365,9 @@ class PerformancePlotter(BasePlotter):
                         va="center",
                         transform=ax_diff.transAxes,
                     )
-                    ax_diff.set_title("Difference (missing data)", fontsize=14)
+                    ax_diff.set_title(
+                        "Difference (Shunting - Non-Shunting)", fontsize=14
+                    )
 
                 fig.tight_layout()
                 plot_path = output_dir / f"{metric}_heatmap.png"
@@ -374,6 +422,7 @@ class PerformancePlotter(BasePlotter):
 
                     color = self.category_colors.get(category, "black")
                     marker = self.category_markers.get(category, "o")
+                    linestyle = self.category_linestyles.get(category, "-")
 
                     y_values = cat_data[mean_col]
                     yerr = cat_data[std_col] if std_col in cat_data.columns else None
@@ -383,7 +432,7 @@ class PerformancePlotter(BasePlotter):
                         y_values,
                         marker=marker,
                         color=color,
-                        linestyle="-",
+                        linestyle=linestyle,
                         alpha=0.8,
                         label=category,
                     )

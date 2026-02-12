@@ -127,6 +127,7 @@ class DataCollector:
         params.update(self._load_weights(config_dir))
         params.update(self._load_ablation(config_dir))
         params.update(self._load_snr(config_dir))
+        params.update(self._load_gain(config_dir))
         params.update(self._load_noise(config_dir))
         params.update(self._load_nparams(config_dir))
 
@@ -385,7 +386,9 @@ class DataCollector:
             # Fallback to original path
             compartment_snr_file = config_dir / "compartment_snr_analysis" / "final"
 
-        data = self._load_json_file(compartment_snr_file)
+        data: dict[str, dict[str, dict[str, float]]] = self._load_json_file(
+            compartment_snr_file
+        )
 
         if not data:
             return {}
@@ -393,16 +396,64 @@ class DataCollector:
         result = {}
 
         prefixes = ["exc", "inh", "upstream", "vout"]
-        # Handle layer ablation format
-        if "layer_statistics" in data.keys():
-            for layer_data in data["layer_statistics"].values():
-                depth = layer_data["depth"]
-                for prefix in prefixes:
-                    field_name = f"{prefix}_d'^2_mean"
-                    if field_name in layer_data:
-                        result[f"snr_{field_name}_depth{depth}"] = layer_data[
-                            field_name
-                        ]
+        metrics = ["d_max", "d_total", "n_sig_dirs", "ratio_sig_dirs"]
+
+        if "input_analysis" in data.keys():
+            input_data = data["input_analysis"]
+            for prefix in ["exc", "inh"]:
+                for metric in metrics:
+                    field_name = f"{prefix}_inputs_{metric}"
+                    if field_name in input_data:
+                        result[f"snr_{field_name}"] = input_data[field_name]
+
+        # Handle layer analysis format
+        if "layer_analysis" in data.keys():
+            if "layer_statistics" in data["layer_analysis"].keys():
+                for layer_data in data["layer_analysis"]["layer_statistics"].values():
+                    depth = layer_data["depth"]
+                    for prefix in prefixes:
+                        for metric in metrics:
+                            field_name = f"{prefix}_{metric}"
+                            if field_name in layer_data:
+                                result[f"snr_{field_name}_depth{depth}"] = layer_data[
+                                    field_name
+                                ]
+
+        return result
+
+    def _load_gain(self, config_dir: Path) -> dict:
+        """Load multiplicative gain analysis metrics."""
+        multiplicative_gain_files = list(
+            config_dir.rglob("multiplicative_gain_analysis/final.json")
+        )
+
+        if not multiplicative_gain_files:
+            multiplicative_gain_files = list(
+                config_dir.rglob("multiplicative_gain_analysis/final")
+            )
+
+        if multiplicative_gain_files:
+            multiplicative_gain_file = multiplicative_gain_files[0]
+        else:
+            multiplicative_gain_file = (
+                config_dir / "multiplicative_gain_analysis" / "final"
+            )
+
+        data = self._load_json_file(multiplicative_gain_file)
+
+        if not data:
+            return {}
+
+        result = {}
+
+        gain_factors = data["gain_factors"]
+
+        metrics = list(data.keys())
+        metrics.remove("gain_factors")
+
+        for metric in metrics:
+            for i, gain_factor in enumerate(gain_factors):
+                result[f"mult_gain_{metric}_gf{gain_factor}"] = data[metric][i]
 
         return result
 
