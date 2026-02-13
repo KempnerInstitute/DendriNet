@@ -262,12 +262,18 @@ class LocalCreditAssignment(Trainer):
 
             # Capture layer-wise local signals via forward hooks
             layer_records, handles = self._attach_local_recorders(model)
+            topk_modules = [m for m in model.modules() if isinstance(m, TopKLinear)]
+            for m in topk_modules:
+                m.cache_mask = True
             try:
                 # Forward once to obtain outputs and local signals
                 y_hat: torch.Tensor = model(x_batch)
             finally:
                 for h in handles:
                     h.remove()
+                for m in topk_modules:
+                    m.cache_mask = False
+                    m._last_forward_weight_mask = None
 
             # Compute scalar loss for logging (no backward)
             loss = self._compute_logging_loss(model, x_batch, y_batch)
