@@ -6,6 +6,11 @@ from unittest.mock import patch
 import torch
 from torch.utils.data import Dataset
 
+from dendritic_modeling.datasets.standard_datasets import (
+    SliceSafeDataset,
+    get_unified_datasets as get_standard_unified_datasets,
+)
+
 experiments_path = os.path.join(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "experiments"
 )
@@ -16,11 +21,6 @@ try:
     from data_generation.synthetic_datasets import get_unified_datasets
 except ImportError:  # pragma: no cover - integration-only path
     get_unified_datasets = None
-
-from dendritic_modeling.datasets.standard_datasets import (  # noqa: E402
-    SliceSafeDataset,
-    get_unified_datasets as get_standard_unified_datasets,
-)
 
 
 def _manual_batch(dataset, indices):
