@@ -44,18 +44,17 @@ import torch
 # External imports
 import torchinfo
 import wandb
+from omegaconf import DictConfig, OmegaConf
 
 from dendritic_modeling.analysis import AnalysisManager
 from dendritic_modeling.config import load_config
+from dendritic_modeling.config.training import ParamGroupsConfig
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.networks import Identity
 from dendritic_modeling.plotting.visualizations.performance_plots import (
     PerformancePlotter,
 )
-from dendritic_modeling.scripts.script_utils.config_utils import (
-    normalize_param_groups_config,
-    prepare_trainer_config,
-)
+from dendritic_modeling.scripts.script_utils import config_utils as _config_utils
 from dendritic_modeling.scripts.script_utils.setup_utils import setup_environment
 from dendritic_modeling.scripts.training.train_encoder_network import (
     load_train_encoder_network,
@@ -69,6 +68,40 @@ from dendritic_modeling.utils.training_stability_validator import (
 )
 
 logger = logging.getLogger(__name__)
+
+prepare_trainer_config = _config_utils.prepare_trainer_config
+normalize_param_groups_config = getattr(
+    _config_utils, "normalize_param_groups_config", None
+)
+
+
+if normalize_param_groups_config is None:
+    # Backward-compatible fallback for environments where config_utils lacks this helper.
+    def normalize_param_groups_config(param_groups):
+        if param_groups is None:
+            return ParamGroupsConfig()
+
+        if isinstance(param_groups, ParamGroupsConfig):
+            return param_groups
+
+        if isinstance(param_groups, DictConfig):
+            param_groups = OmegaConf.to_container(param_groups, resolve=True)
+
+        if hasattr(param_groups, "asdict") and callable(param_groups.asdict):
+            param_groups = param_groups.asdict()
+        elif not isinstance(param_groups, dict) and hasattr(param_groups, "__dict__"):
+            param_groups = {
+                key: value
+                for key, value in vars(param_groups).items()
+                if not key.startswith("_")
+            }
+
+        if not isinstance(param_groups, dict):
+            return ParamGroupsConfig()
+
+        allowed_fields = set(ParamGroupsConfig.__dataclass_fields__.keys())
+        sanitized = {k: v for k, v in param_groups.items() if k in allowed_fields}
+        return ParamGroupsConfig(**sanitized)
 
 
 def run_analysis(
