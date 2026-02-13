@@ -1,0 +1,22 @@
+name: demod_env
+channels:
+  - conda-forge
+  - pytorch
+  - nvidia
+dependencies:
+  - python=3.11
+  - pytorch
+  - torchvision
+  - numpy
+  - scipy
+  - pandas
+  - matplotlib
+  - scikit-learn
+  - pyyaml
+  - python-dateutil
+  - tqdm
+  - wandb
+  - pip
+  - pip:
+    - torchinfo
+    - omegaconf>=2.3.0

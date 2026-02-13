@@ -1,0 +1,208 @@
+# Ablation: only conv1 dendritic. fc8 always standard.
+# Run: python src/dendritic_modeling/scripts/training/train_experiments.py configs/vision/alexnet_cifar10_conv1_only.yaml
+# Use >=3 seeds (override experiment.seed or run_name per seed).
+
+experiment:
+  seed: 42
+  train_valid_split: 0.8
+  enable_amp: false
+  enable_profiling: false
+  profiling_output_dir: "results/profiling/"
+  enable_hooks: true
+  checkpointing:
+    enabled: false
+    save_every_n_epochs: 10
+    checkpoint_dir: "results/checkpoints/"
+
+data:
+  dataset_name: "cifar10"
+  base_dir: ""
+  processing:
+    flatten: false
+    normalize: false
+  dataset_params: {}
+
+model:
+  task: "classification"
+  encoder:
+    type: "alexnet_cifar10_adi"
+    load_save_root: "./.trained_encoder_networks/"
+    params:
+      conv_type: [dendritic, standard, standard, standard, standard]
+      fc_type: [standard, standard]
+      activation: "relu"
+
+  core:
+    type: "identity"
+    input_dim: 4096
+
+  decoder:
+    type: "MLP"
+    params:
+      input_dim: null
+      hidden_dims: [32, 16]
+      activation: "relu"
+      output_dim: 10
+
+training:
+  encoder:
+    strategy: "standard"
+    common:
+      lr: 0.001
+      loss_function: "log_mse"
+      epochs: 500
+      early_stopping: true
+      patience: 100
+      batch_size: 512
+      shuffle: true
+      grad_clip_value: 5.0
+      load_best_state_dict: true
+      plot_losses: false
+      suppress_prints: false
+      print_every: 10
+      use_amp: false
+      enable_nan_checking: false
+      enable_adaptive_clipping: false
+
+  main:
+    strategy: "standard"
+    common:
+      epochs: 1000
+      batch_size: 128
+      shuffle: true
+      grad_clip_value: 5.0
+      loss_function: "cat_nll"
+      early_stopping: false
+      patience: 500
+      load_best_state_dict: true
+      save_path: null
+      plot_losses: true
+      suppress_prints: false
+      print_every: 10
+      use_amp: false
+      enable_nan_checking: false
+      enable_adaptive_clipping: false
+      weight_decay_rate: 0.0
+      weight_boosting: false
+      param_groups:
+        lr: 0.001
+        split_params: false
+        topk_lr: 0.001
+        blocklinear_lr: 0.0001
+        reactivation_lr: 0.0001
+        decoder_lr: 0.01
+
+    regularization:
+      l1_weight: 0.0
+      l2_weight: 0.0
+      selective: { layers: [], branches: [], weight_types: ["all"] }
+      split_params: false
+      param_group_weights:
+        topk: { l1_weight: 0.0, l2_weight: 0.0 }
+        blocklinear: { l1_weight: 0.0, l2_weight: 0.0 }
+        reactivation: { l1_weight: 0.0, l2_weight: 0.0 }
+        decoder: { l1_weight: 0.0, l2_weight: 0.0 }
+      enforce_ei_weight_ratio: false
+      target_ei_weight_ratio: 0.5
+      ei_ratio_loss_weight: 0.5
+      ei_ratio_scope: "per_branch"
+      ei_ratio_metric: "mean"
+
+    pruning:
+      enabled: false
+      threshold: 2
+      selective: { layers: [], branches: [], weight_types: ["excitatory", "inhibitory"] }
+      re_evaluate_after: false
+      dynamic_pruning: false
+      pruning_frequency: 10
+      report_non_pruned: true
+      save_pruning_stats: false
+      detailed_branch_report: true
+      redo_analysis_after_pruning: false
+
+    strategies:
+      standard: {}
+
+analysis:
+  performance_analysis:
+    enabled: true
+    training: true
+    params:
+      accuracy: true
+      auc: true
+      categorical_loglikelihood: true
+      mse: false
+      cosine_similarity: false
+  information_analysis: { enabled: false, training: false, params: {} }
+  correlation_analysis: { enabled: false, training: false, params: {} }
+  ablation_analysis: { enabled: false, training: false, params: {} }
+  synapse_turnover_analysis: { enabled: false, training: false, params: {} }
+  noise_perturbation_analysis:
+    enabled: true
+    training: false
+    params:
+      uniform_noise: true
+      uniform_magnitudes: [0.1, 0.2, 0.3, 0.4, 0.5]
+      gaussian_noise: true
+      gaussian_sdevs: [0.1, 0.2, 0.3, 0.4, 0.5]
+      n_samples: 10
+      accuracy: true
+      auc: true
+      categorical_loglikelihood: true
+      mse: false
+      cosine_similarity: false
+  weight_analysis:
+    enabled: true
+    training: false
+    params:
+      synapse_weights: true
+      branch_weights: true
+      computation_level: "single_branch"
+      branch_aggregation: "mean"
+      per_layer_analysis: true
+      per_einet_analysis: true
+      per_neuron_analysis: false
+      analyze_excitatory: true
+      analyze_inhibitory: true
+      analyze_branch_output: false
+      compute_mean: true
+      compute_variance: true
+      compute_percentiles: false
+      compute_min_max: true
+      compute_dendritic_strength: true
+      weight_threshold: 1e-6
+  single_layer_contribution: { enabled: false, training: false, params: {} }
+  synaptic_activation_analysis: { enabled: false, training: false, params: {} }
+  branch_activation_analysis: { enabled: false, training: false, params: {} }
+  compartment_statistics_analysis: { enabled: false, training: false, params: {} }
+  compartment_snr_analysis: { enabled: false, training: false, params: {} }
+
+wandb:
+  use_wandb: false
+  entity: ""
+  project: "dendritic-sweeps"
+  group: "vision_ablation"
+  tags: ["vision", "conv1_only"]
+  enabled: true
+  log_freq: 100
+  log_gradients: false
+  log_parameters: false
+  log_activations: false
+
+outputs:
+  run_name: "alexnet_cifar10_conv1_only"
+  results_dir: "outputs"
+
+fsdp:
+  use_fsdp: false
+  sharding_strategy: "FULL_SHARD"
+  mixed_precision: true
+  cpu_offload: false
+  min_num_params: 1000000
+  reduce_communication_overhead: true
+  limit_all_gathers: true
+  forward_prefetch: true
+  sync_module_states: true
+  use_orig_params: true
+  backward_prefetch: "BACKWARD_PRE"
+  gradient_checkpointing: false

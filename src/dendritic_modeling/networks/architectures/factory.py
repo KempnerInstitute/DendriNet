@@ -91,5 +91,11 @@ def get_architecture(
         return CNNVariationalAutoencoder(**parameters)
     elif type in ["identity", "none", None]:
         return Identity(**parameters)
+    elif type == "alexnet_cifar10_baseline":
+        from dendritic_modeling.Adi.vision_encoder import get_baseline_encoder
+        return get_baseline_encoder(parameters)
+    elif type == "alexnet_cifar10_adi":
+        from dendritic_modeling.Adi.vision_encoder import get_hybrid_encoder
+        return get_hybrid_encoder(parameters)
     else:
         raise ValueError(f"Invalid architecture type: {type}")
