@@ -207,13 +207,12 @@ class TestGetTrainer:
     def test_get_enhanced_trainer_with_warning(
         self, mock_optimizer, basic_trainer_config
     ):
-        """Test creating enhanced trainer (deprecated) with warning."""
+        """Test creating enhanced trainer (alias of standard strategy)."""
         with patch("dendritic_modeling.training.factory.Trainer") as MockTrainer:
             with patch("dendritic_modeling.training.factory.logger") as mock_logger:
                 get_trainer("enhanced", mock_optimizer, basic_trainer_config)
 
-                mock_logger.warning.assert_called_once()
-                assert "deprecated" in mock_logger.warning.call_args[0][0]
+                mock_logger.warning.assert_not_called()
                 MockTrainer.assert_called_once()
 
     def test_get_layerwise_trainer(self, mock_optimizer, basic_trainer_config):
@@ -259,7 +258,7 @@ class TestGetTrainer:
         with patch(
             "dendritic_modeling.training.factory.VoltageStabilizationTrainer"
         ) as MockTrainer:
-            get_trainer("voltage_stablization", mock_optimizer, basic_trainer_config)
+            get_trainer("voltage_stabilization", mock_optimizer, basic_trainer_config)
 
             MockTrainer.assert_called_once()
 
@@ -337,9 +336,8 @@ class TestGetTrainer:
             get_trainer("standard", mock_optimizer, trainer_config)
 
             call_args = MockTrainer.call_args[1]
-            assert "optimizer_config" in call_args
             assert "pruning_config" in call_args
-            assert isinstance(call_args["optimizer_config"], OptimizerConfig)
+            assert call_args["optimizer"] == mock_optimizer
             assert isinstance(call_args["pruning_config"], PruningConfig)
 
 
@@ -625,9 +623,9 @@ class TestTrainingFactoryEdgeCases:
 
         with patch("dendritic_modeling.training.factory.Trainer"):
             with patch("dendritic_modeling.training.factory.logger") as mock_logger:
-                # Test warning for enhanced strategy
+                # Enhanced is treated as an alias for standard.
                 get_trainer("enhanced", mock_optimizer, trainer_config)
-                mock_logger.warning.assert_called_once()
+                mock_logger.warning.assert_not_called()
 
                 # Test info for unknown strategy
                 get_trainer("unknown", mock_optimizer, trainer_config)
