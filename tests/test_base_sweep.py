@@ -380,7 +380,9 @@ class TestSweepJobManager:
 
     def test_create_single_job_script_no_conda(self):
         """Test job script creation without conda environment."""
-        slurm_config = OmegaConf.create({"job_name": "test"})
+        slurm_config = OmegaConf.create(
+            {"job_name": "test", "account": "test", "partition": "test"}
+        )
         manager = SweepJobManager(slurm_config)
 
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -454,7 +456,9 @@ class TestSweepJobManagerEdgeCases:
 
     def test_empty_config_paths(self):
         """Test with empty config paths."""
-        slurm_config = OmegaConf.create({"job_name": "test"})
+        slurm_config = OmegaConf.create(
+            {"job_name": "test", "account": "test", "partition": "test"}
+        )
         manager = SweepJobManager(slurm_config)
 
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -468,7 +472,9 @@ class TestSweepJobManagerEdgeCases:
 
     def test_split_jobs_more_than_configs(self):
         """Test when split_jobs is larger than number of configs."""
-        slurm_config = OmegaConf.create({"job_name": "test"})
+        slurm_config = OmegaConf.create(
+            {"job_name": "test", "account": "test", "partition": "test"}
+        )
         manager = SweepJobManager(slurm_config)
 
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -484,8 +490,8 @@ class TestSweepJobManagerEdgeCases:
             job_files = [script for script in job_scripts if "run_sweep_" in script]
             assert len(job_files) == 1
 
-    def test_slurm_config_defaults(self):
-        """Test SLURM config with default values."""
+    def test_slurm_config_missing_account_raises(self):
+        """Test that account is required in SLURM config."""
         slurm_config = OmegaConf.create({})  # Empty config
         manager = SweepJobManager(slurm_config)
 
@@ -493,19 +499,18 @@ class TestSweepJobManagerEdgeCases:
             script_path = os.path.join(tmp_dir, "test_job.sh")
             config_paths = ["config1.yaml"]
 
-            manager._create_single_job_script(script_path, config_paths, tmp_dir)
-
-            with open(script_path) as f:
-                content = f.read()
-                # Check that defaults are used
-                assert "#SBATCH --job-name=sweep" in content
-                assert "#SBATCH --account=kempner_dev" in content
-                assert "#SBATCH --partition=kempner" in content
+            with pytest.raises(ValueError, match="SLURM account not set"):
+                manager._create_single_job_script(script_path, config_paths, tmp_dir)
 
     def test_job_manager_with_empty_modules(self):
         """Test job manager with empty modules list."""
         slurm_config = OmegaConf.create(
-            {"job_name": "test", "modules_to_load": []}  # Empty modules list
+            {
+                "job_name": "test",
+                "modules_to_load": [],
+                "account": "test",
+                "partition": "test",
+            }  # Empty modules list
         )
         manager = SweepJobManager(slurm_config)
 
