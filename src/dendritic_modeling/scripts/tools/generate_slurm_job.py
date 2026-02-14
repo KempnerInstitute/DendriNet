@@ -237,12 +237,15 @@ class SlurmJobGenerator:
         return f"{max_mem_int}GB"
 
     def _determine_partition(self, gpu_type: str) -> str:
-        """Determine the SLURM partition based on GPU type."""
-        partition_map = {
-            "A100-40GB": "kempner_a100",
-            "H100": "kempner_h100",
-        }
-        return partition_map.get(gpu_type, "kempner_a100")
+        """Determine the SLURM partition based on GPU type.
+
+        The partition must be specified in run_config. Falls back to
+        gpu_type-based lookup only if an explicit mapping is provided.
+        """
+        partition = self.run_config.get("partition")
+        if partition:
+            return partition
+        raise ValueError("SLURM partition not set. Provide 'partition' in run_config.")
 
     def _generate_module_loads(self) -> str:
         """Generate module load commands from SLURM config.
@@ -311,7 +314,9 @@ conda activate dendritic_env"""
         partition = self._determine_partition(
             resources["gpu_type"]
         )  # Use estimated partition
-        account = self.run_config.get("account", "kempner_dev")
+        account = self.run_config.get("account")
+        if not account:
+            raise ValueError("SLURM account not set. Provide 'account' in run_config.")
         job_name = self.run_name
         self.run_config.get("dir", "results/")
 
