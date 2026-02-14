@@ -6,11 +6,14 @@ are selected probabilistically based on rank, allowing smaller weights a
 chance to remain active.
 """
 
+from typing import Optional
+
 import torch
 
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.topk import (
     TopKLinear,
 )
+from dendritic_modeling.networks.utils.weight_transforms import WeightTransformType
 
 
 class StochasticTopKLinear(TopKLinear):
@@ -30,6 +33,9 @@ class StochasticTopKLinear(TopKLinear):
         init_method="xavier_normal",
         init_gain=1.0,
         noise_level=0.0,
+        weight_transform: WeightTransformType = "exp",
+        weight_norm_order: Optional[int] = None,
+        gamma: float = 1.0,
         temperature=0.5,  # extra hyperparam for sharper or flatter gating
         ultrafast=False,  # Set to True for much faster but approximate implementation
     ):
@@ -41,6 +47,9 @@ class StochasticTopKLinear(TopKLinear):
             init_method=init_method,
             init_gain=init_gain,
             noise_level=noise_level,
+            weight_transform=weight_transform,
+            weight_norm_order=weight_norm_order,
+            gamma=gamma,
         )
         self.temperature = temperature
         self.ultrafast = ultrafast
