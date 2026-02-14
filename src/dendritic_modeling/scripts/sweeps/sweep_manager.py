@@ -100,12 +100,18 @@ class SweepManager:
         if slurm_account is not None:
             config.slurm_config.account = slurm_account
         elif not config.slurm_config.get("account"):
-            config.slurm_config.account = "kempner_dev"
+            raise ValueError(
+                "SLURM account not set. Provide 'account' in slurm_config "
+                "or pass --slurm-account on the command line."
+            )
 
         if slurm_partition is not None:
             config.slurm_config.partition = slurm_partition
         elif not config.slurm_config.get("partition"):
-            config.slurm_config.partition = "kempner_eng"
+            raise ValueError(
+                "SLURM partition not set. Provide 'partition' in slurm_config "
+                "or pass --slurm-partition on the command line."
+            )
 
         # Validate configuration
         if not self.generator.validate_config(config):

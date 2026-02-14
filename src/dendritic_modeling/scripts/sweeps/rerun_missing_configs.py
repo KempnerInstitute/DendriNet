@@ -356,7 +356,7 @@ def generate_rerun_script(
     lines = [
         "#!/bin/bash",
         f"#SBATCH --job-name=rerun_{sweep_timestamp}",
-        f"#SBATCH --account={slurm_config.get('account', 'kempner_dev')}",
+        f"#SBATCH --account={slurm_config['account']}",
     ]
 
     # Output paths - use config-based directories
@@ -423,7 +423,7 @@ def generate_rerun_script(
         # If it's a number, assume it's in MB
         lines.append(f"#SBATCH --mem={mem_value}MB")
 
-    lines.append(f"#SBATCH --partition={slurm_config.get('partition', 'kempner')}")
+    lines.append(f"#SBATCH --partition={slurm_config['partition']}")
 
     # Handle array job configuration
     if len(missing_ids) > 1:
