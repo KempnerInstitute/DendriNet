@@ -10,7 +10,7 @@ import unittest
 import torch
 import torch.nn as nn
 
-from dendritic_modeling.config import TransferFunctionParams
+from dendritic_modeling.config import TransferFunctionConfig
 from dendritic_modeling.models import Classifier
 from dendritic_modeling.networks import MLP, ExcitationInhibitionNetwork
 
@@ -62,7 +62,7 @@ class TestEINetworkIntegration(unittest.TestCase):
 
     def test_ei_network_creation(self):
         """Test creating an EI network."""
-        transfer_params = TransferFunctionParams().asdict()
+        transfer_params = TransferFunctionConfig().asdict()
 
         ei_network = ExcitationInhibitionNetwork(
             input_dim=8,
@@ -81,7 +81,7 @@ class TestEINetworkIntegration(unittest.TestCase):
 
     def test_ei_classifier_integration(self):
         """Test integrating EI network with classifier."""
-        transfer_params = TransferFunctionParams().asdict()
+        transfer_params = TransferFunctionConfig().asdict()
 
         ei_network = ExcitationInhibitionNetwork(
             input_dim=8,
@@ -122,7 +122,7 @@ class TestModelParameterGroups(unittest.TestCase):
         from dendritic_modeling.config import ParamGroupsConfig
 
         # Create EI network
-        transfer_params = TransferFunctionParams().asdict()
+        transfer_params = TransferFunctionConfig().asdict()
         ei_network = ExcitationInhibitionNetwork(
             input_dim=8,
             transfer_params=transfer_params,

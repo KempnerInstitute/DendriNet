@@ -23,3 +23,18 @@ repos:
     hooks:
       - id: isort
         exclude: '^external/'
+
+  - repo: local
+    hooks:
+      - id: pytest-validator-guard
+        name: pytest validator guardrails
+        entry: >
+          bash -c 'PYTHONPATH=src MPLBACKEND=Agg CUDA_VISIBLE_DEVICES=""
+          python -m pytest
+          tests/test_training_stability_validator.py
+          tests/test_config_validation_utils.py
+          tests/test_model_architecture_validator_utils.py
+          -q'
+        language: system
+        pass_filenames: false
+        stages: [pre-commit]

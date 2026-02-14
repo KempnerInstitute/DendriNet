@@ -79,8 +79,8 @@ class TestAggregation(unittest.TestCase):
         result = extract_network_category(data)
 
         self.assertIn("network_category", result.columns)
-        self.assertEqual(result.iloc[0]["network_category"], "shunting")
-        self.assertEqual(result.iloc[1]["network_category"], "no_shunting")
+        self.assertEqual(result.iloc[0]["network_category"], "dendritic_shunting")
+        self.assertEqual(result.iloc[1]["network_category"], "dendritic_additive")
         self.assertEqual(result.iloc[2]["network_category"], "unknown")
 
 
