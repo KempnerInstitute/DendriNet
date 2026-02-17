@@ -286,8 +286,16 @@ class SweepJobManager:
     ):
         """Create a single SLURM job script."""
         repo_root = Path(__file__).resolve().parents[5]
-        account = self.slurm_config.get("account") or "kempner_dev"
-        partition = self.slurm_config.get("partition") or "kempner_eng"
+        account = self.slurm_config.get("account")
+        partition = self.slurm_config.get("partition")
+        if not account:
+            raise ValueError(
+                "SLURM account not set. Provide 'account' in slurm_config."
+            )
+        if not partition:
+            raise ValueError(
+                "SLURM partition not set. Provide 'partition' in slurm_config."
+            )
         with open(script_path, "w") as f:
             f.write("#!/bin/bash\n")
             f.write(
@@ -369,8 +377,16 @@ class SweepJobManager:
     ):
         """Create a SLURM array job script for parallel execution."""
         repo_root = Path(__file__).resolve().parents[5]
-        account = self.slurm_config.get("account") or "kempner_dev"
-        partition = self.slurm_config.get("partition") or "kempner_eng"
+        account = self.slurm_config.get("account")
+        partition = self.slurm_config.get("partition")
+        if not account:
+            raise ValueError(
+                "SLURM account not set. Provide 'account' in slurm_config."
+            )
+        if not partition:
+            raise ValueError(
+                "SLURM partition not set. Provide 'partition' in slurm_config."
+            )
         num_configs = len(config_paths)
         max_concurrent = self.slurm_config.get("max_concurrent_jobs", 10)
 

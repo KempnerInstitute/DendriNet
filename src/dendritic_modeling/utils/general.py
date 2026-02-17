@@ -73,6 +73,15 @@ def convert_to_serializable(obj: Any) -> Any:
         return obj.item()
     elif isinstance(obj, np.ndarray):
         return obj.tolist()
+    elif isinstance(obj, torch.Tensor):
+        tensor = obj.detach().cpu()
+        if tensor.numel() == 1:
+            return tensor.item()
+        return tensor.tolist()
+    elif isinstance(obj, torch.device):
+        return str(obj)
+    elif isinstance(obj, torch.dtype):
+        return str(obj)
     else:
         return obj
 

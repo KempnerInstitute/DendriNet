@@ -100,18 +100,26 @@ def test_trainer_config_dict_structure():
 def test_requirements_structure():
     """Test that our requirements.txt file exists and has expected structure."""
     requirements_path = "requirements.txt"
+    pyproject_path = "pyproject.toml"
 
     if os.path.exists(requirements_path):
         with open(requirements_path) as f:
             content = f.read()
 
-        # Check for key dependencies we implemented
-        assert "torch>=" in content
-        assert "omegaconf>=" in content
-        assert "pytest>=" in content
-        assert "tensorboard>=" in content
+        # Editable install style is allowed; dependencies are then declared in pyproject.
+        assert content.strip()
+        assert "-e ." in content or "torch" in content
 
-        print("requirements.txt exists with correct dependencies")
+        if "-e ." in content:
+            assert os.path.exists(pyproject_path)
+            with open(pyproject_path) as f:
+                pyproject_content = f.read()
+            assert "dependencies" in pyproject_content
+            assert "torch>=" in pyproject_content
+            assert "omegaconf>=" in pyproject_content
+            assert "tensorboard>=" in pyproject_content
+
+        print("requirements/pyproject dependency structure is valid")
     else:
         pytest.fail("requirements.txt file not found")
 
@@ -222,16 +230,24 @@ def test_dataloader_optimization():
     small_train_loader, _ = trainer._dataloaders(small_data, small_data)
     large_train_loader, _ = trainer._dataloaders(large_data, large_data)
 
-    # Small dataset should use optimized settings
-    assert small_train_loader.num_workers == 0
-    assert not small_train_loader.pin_memory
+    # Auto-detected worker count should be valid
+    assert small_train_loader.num_workers >= 0
+    assert large_train_loader.num_workers >= 0
+    expected_pin_memory = (
+        torch.cuda.is_available() and small_train_loader.num_workers > 0
+    )
+    assert small_train_loader.pin_memory == expected_pin_memory
 
-    # Large dataset should use parallel settings (if optimization is implemented)
-    # This is an optimization feature, so we make it optional for this branch
-    if hasattr(large_train_loader, "num_workers"):
-        # Just check that the property exists, optimization may not be implemented
-        print(f"Large dataset num_workers: {large_train_loader.num_workers}")
-        # assert large_train_loader.num_workers > 0  # Commented out - optimization not required
+    # Explicit override should still work
+    override_trainer = Trainer(
+        optimizer=torch.optim.Adam([torch.tensor(1.0, requires_grad=True)]),
+        loss_function="mse",
+        batch_size=32,
+        num_workers=0,
+    )
+    override_train_loader, _ = override_trainer._dataloaders(small_data, small_data)
+    assert override_train_loader.num_workers == 0
+    assert not override_train_loader.pin_memory
 
     print("DataLoader optimization test passed")
 

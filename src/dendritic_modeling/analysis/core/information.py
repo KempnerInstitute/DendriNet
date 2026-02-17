@@ -9,10 +9,12 @@ import logging
 import os
 import re
 import time
+import traceback
 from typing import Any, Optional, Union
 
 import numpy as np
 import torch
+from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from dendritic_modeling.analysis.core.base import AbstractAnalyzer
@@ -3057,7 +3059,37 @@ class InformationAnalyzer(AbstractAnalyzer):
             model.eval()
 
             self.logger.info("Loading test dataset...")
-            inputs, labels = test_dataset[:]
+            try:
+                inputs, labels = test_dataset[:]
+            except Exception:
+                self.logger.warning(
+                    "Dataset does not support full slicing; materializing via DataLoader."
+                )
+                xs = []
+                ys = []
+                max_samples = self.max_samples if self.max_samples else None
+                total = 0
+
+                for x_batch, y_batch in DataLoader(
+                    test_dataset, batch_size=1024, shuffle=False
+                ):
+                    if max_samples is not None and total >= max_samples:
+                        break
+
+                    if (
+                        max_samples is not None
+                        and total + x_batch.shape[0] > max_samples
+                    ):
+                        keep = max_samples - total
+                        x_batch = x_batch[:keep]
+                        y_batch = y_batch[:keep]
+
+                    xs.append(x_batch)
+                    ys.append(y_batch)
+                    total += x_batch.shape[0]
+
+                inputs = torch.cat(xs, dim=0)
+                labels = torch.cat(ys, dim=0)
             inputs: torch.Tensor
             labels: torch.Tensor
             self.logger.info(
@@ -4158,8 +4190,6 @@ class InformationAnalyzer(AbstractAnalyzer):
                     self.logger.error(
                         f"Error computing LDA vs trained performance: {e}"
                     )
-                    import traceback
-
                     traceback.print_exc()
 
             # Save results
@@ -4446,8 +4476,6 @@ class InformationAnalyzer(AbstractAnalyzer):
                     self.logger.info("Variance plots completed successfully!")
                 except Exception as e:
                     self.logger.error(f"Error generating variance plots: {e}")
-                    import traceback
-
                     traceback.print_exc()
             else:
                 self.logger.warning(

@@ -289,7 +289,7 @@ class TestRealDatasets(unittest.TestCase):
             train_valid_split=0.8,
             flatten=True,
             normalize=False,
-            output_dir=self.temp_dir,
+            task_data_path=self.temp_dir,
         )
 
         # Check that datasets were created
@@ -313,7 +313,7 @@ class TestRealDatasets(unittest.TestCase):
             train_valid_split=0.8,
             flatten=False,
             normalize=False,
-            output_dir=self.temp_dir,
+            task_data_path=self.temp_dir,
         )
 
         # Check that datasets were created
@@ -352,7 +352,7 @@ class TestRealDatasets(unittest.TestCase):
                 shuffle_iterations=1,
                 train_valid_split=0.8,
                 flatten=True,
-                output_dir=self.temp_dir,
+                task_data_path=self.temp_dir,
             )
 
             # Check that data dictionary was created
@@ -379,15 +379,15 @@ class TestDatasetUtilities(unittest.TestCase):
 
     def test_get_data_directory(self):
         """Test data directory creation and path handling."""
-        # Test with custom path
-        data_dir = get_data_directory("mnist", custom_path=self.temp_dir)
-        expected_path = os.path.join(self.temp_dir, "mnist")
+        # Test with task data path
+        data_dir = get_data_directory("mnist", task_data_path=self.temp_dir)
+        expected_path = os.path.join(self.temp_dir, "datasets", "mnist")
         self.assertEqual(data_dir, expected_path)
         self.assertTrue(os.path.exists(data_dir))
 
-        # Test with output directory
-        data_dir2 = get_data_directory("cifar", output_dir=self.temp_dir)
-        expected_path2 = os.path.join(self.temp_dir, "datasets", "cifar")
+        # Test with default fallback path
+        data_dir2 = get_data_directory("cifar", task_data_path=None)
+        expected_path2 = os.path.join("./data", "cifar")
         self.assertEqual(data_dir2, expected_path2)
         self.assertTrue(os.path.exists(data_dir2))
 
@@ -401,8 +401,7 @@ class TestGetUnifiedDatasets(unittest.TestCase):
 
         # Create mock configs
         self.task_cfg = Mock()
-        self.train_cfg = Mock()
-        self.train_cfg.train_valid_split = 0.8
+        self.task_cfg.train_valid_split = 0.8
 
     def tearDown(self):
         """Clean up test fixtures."""
@@ -443,12 +442,10 @@ class TestGetUnifiedDatasets(unittest.TestCase):
 
         # Configure for MNIST
         self.task_cfg.dataset = "mnist"
-        self.task_cfg.data_path = None
+        self.task_cfg.data_path = self.temp_dir
         self.task_cfg.parameters = {"flatten": True, "normalize": False}
 
-        train_ds, valid_ds, test_ds = get_unified_datasets(
-            self.task_cfg, self.train_cfg
-        )
+        train_ds, valid_ds, test_ds = get_unified_datasets(self.task_cfg)
 
         # Verify results
         self.assertEqual(len(train_ds), 48)
@@ -458,7 +455,7 @@ class TestGetUnifiedDatasets(unittest.TestCase):
         # Verify the function was called with correct parameters
         mock_load_mnist.assert_called_once()
         _, kwargs = mock_load_mnist.call_args
-        self.assertEqual(kwargs["output_dir"], self.temp_dir)
+        self.assertEqual(kwargs["task_data_path"], self.temp_dir)
 
     def test_invalid_dataset(self):
         """Test handling of invalid dataset names."""
@@ -467,7 +464,7 @@ class TestGetUnifiedDatasets(unittest.TestCase):
         self.task_cfg.parameters = {}
 
         with self.assertRaises(ValueError):
-            get_unified_datasets(self.task_cfg, self.train_cfg)
+            get_unified_datasets(self.task_cfg)
 
 
 class TestSpecializedDatasets(unittest.TestCase):

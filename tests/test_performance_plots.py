@@ -316,7 +316,9 @@ class TestPerformancePlotterIntegration:
         ]
 
         # Test loss curves
-        fig1, ax1 = plotter.plot_loss_curves(train_losses, valid_losses, "CrossEntropy")
+        fig1, _ax1 = plotter.plot_loss_curves(
+            train_losses, valid_losses, "CrossEntropy"
+        )
 
         # Test performance summary
         final_results = {

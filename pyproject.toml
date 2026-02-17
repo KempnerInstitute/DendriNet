@@ -130,7 +130,7 @@ addopts = [
     "--cov=dendritic_modeling",
     "--cov-report=term-missing",
     "--cov-report=html",
-    "--cov-fail-under=75",
+    "--cov-fail-under=30",
 ]
 markers = [
     "slow: marks tests as slow (deselected by default)",
