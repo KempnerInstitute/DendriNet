@@ -72,6 +72,10 @@ def run_tests_with_coverage(verbosity=2, coverage_report=True, html_report=False
     if coverage_report:
         cmd.extend(["--cov=src/dendritic_modeling", "--cov-report=term-missing"])
 
+        cov_fail_under = os.environ.get("COV_FAIL_UNDER")
+        if cov_fail_under:
+            cmd.append(f"--cov-fail-under={cov_fail_under}")
+
         if html_report:
             cmd.append("--cov-report=html")
 

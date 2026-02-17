@@ -26,11 +26,24 @@ class _SingleBranchModel(nn.Module):
         return self.branch(x)
 
 
-def test_topk_forward_caches_exact_mask():
-    """Forward pass should persist the exact sampled TopK mask."""
+def test_topk_forward_does_not_cache_by_default():
+    """Forward pass should NOT cache the mask when cache_mask is False."""
     torch.manual_seed(7)
     layer = TopKLinear(in_features=12, out_features=5, K=3, noise_level=0.5)
     layer.initialize()
+
+    x = torch.randn(4, 12)
+    _ = layer(x)
+
+    assert layer._last_forward_weight_mask is None
+
+
+def test_topk_forward_caches_exact_mask_when_enabled():
+    """Forward pass should persist the exact sampled TopK mask when cache_mask=True."""
+    torch.manual_seed(7)
+    layer = TopKLinear(in_features=12, out_features=5, K=3, noise_level=0.5)
+    layer.initialize()
+    layer.cache_mask = True
 
     x = torch.randn(4, 12)
     out = layer(x)
@@ -40,7 +53,6 @@ def test_topk_forward_caches_exact_mask():
     assert cached_mask.shape == (5, 12)
     assert torch.all(cached_mask.sum(dim=1) == 3)
 
-    # Output should correspond to the cached mask, not a freshly sampled one.
     expected = x @ (cached_mask * layer.weight()).t()
     torch.testing.assert_close(out, expected)
 
@@ -56,12 +68,12 @@ def test_local_recorders_use_cached_topk_mask_without_extra_sampling():
     trainer._decoder_cache = {}
 
     records, handles = trainer._attach_local_recorders(model)
+    topk.cache_mask = True
     x = torch.randn(6, 8)
 
     try:
         with patch.object(topk, "weight_mask", wraps=topk.weight_mask) as wrapped_mask:
             _ = model(x)
-            # One call from TopK.forward; no second call from recorder hook.
             assert wrapped_mask.call_count == 1
     finally:
         for handle in handles:

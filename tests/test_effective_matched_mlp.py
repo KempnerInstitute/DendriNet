@@ -97,30 +97,36 @@ class TestEffectiveMatchedParamMLP(unittest.TestCase):
         net = get_architecture("effectivematchedparammlp", self.params)
         self.assertIsInstance(net, EffectiveMatchedParamMLP)
 
-    def test_comparison_with_regular_matched_mlp(self):
-        """Test that EffectiveMatchedParamMLP has fewer params than regular MatchedParamMLP."""
-        from dendritic_modeling.networks.architectures.classical.mlp import (
-            MatchedParamMLP,
+    def test_comparison_with_einet_total_params(self):
+        """Test that EffectiveMatchedParamMLP uses fewer params than dense EINet total."""
+        transfer_params = {
+            "input_mode": 0,
+            "independent_pathways": False,
+            "excitatory_dim": [],
+            "inhibitory_dim": [],
+            "output_activation": "none",
+        }
+
+        einet = ExcitationInhibitionNetwork(
+            transfer_params=transfer_params, **self.params
         )
 
-        # Create both MLPs
+        # Create effective MLP
         effective_mlp = EffectiveMatchedParamMLP(**self.params)
-        regular_mlp = MatchedParamMLP(**self.params)
 
         # Count parameters
         effective_params = sum(
             p.numel() for p in effective_mlp.parameters() if p.requires_grad
         )
-        regular_params = sum(
-            p.numel() for p in regular_mlp.parameters() if p.requires_grad
+        einet_total_params = sum(
+            p.numel() for p in einet.parameters() if p.requires_grad
         )
 
-        # EffectiveMatchedParamMLP should have fewer parameters than regular MatchedParamMLP
-        # because it accounts for topk sparsity
+        # Effective-matched baseline should be smaller than dense EINet total parameters.
         self.assertLess(
             effective_params,
-            regular_params,
-            f"EffectiveMatchedParamMLP ({effective_params}) should have fewer params than MatchedParamMLP ({regular_params})",
+            einet_total_params,
+            f"EffectiveMatchedParamMLP ({effective_params}) should have fewer params than EINet total ({einet_total_params})",
         )
 
     def test_small_network(self):

@@ -103,7 +103,10 @@ class TestSingleLayerContributionAnalyzer:
         """Test that logger is properly set up."""
         analyzer = SingleLayerContributionAnalyzer(mock_params)
 
-        assert analyzer.logger.name == "dendritic_modeling.analysis"
+        assert (
+            analyzer.logger.name
+            == "dendritic_modeling.analysis.metrics.layer_contribution"
+        )
 
     def test_analyze_method_exists(self, mock_params):
         """Test that the analyze method exists."""
@@ -112,12 +115,12 @@ class TestSingleLayerContributionAnalyzer:
         assert hasattr(analyzer, "analyze")
         assert callable(analyzer.analyze)
 
-    def test_private_evaluate_single_layer_exists(self, mock_params):
-        """Test that private evaluation method exists."""
+    def test_evaluate_layer_contribution_method_exists(self, mock_params):
+        """Test that layer evaluation method exists."""
         analyzer = SingleLayerContributionAnalyzer(mock_params)
 
-        assert hasattr(analyzer, "_evaluate_single_layer")
-        assert callable(analyzer._evaluate_single_layer)
+        assert hasattr(analyzer, "evaluate_layer_contribution")
+        assert callable(analyzer.evaluate_layer_contribution)
 
     def test_selective_parameter_access(self):
         """Test accessing parameters that may not exist."""

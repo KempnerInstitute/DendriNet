@@ -7,8 +7,10 @@ like MNIST, CIFAR-10, and ImageNet, as well as synthetic datasets for theoretica
 
 import importlib
 import os
+from collections.abc import Sequence
 from typing import Any, Optional, Union
 
+import numpy as np
 import torch
 from torch.utils.data import Dataset, TensorDataset
 from torchvision import datasets, transforms
@@ -24,6 +26,76 @@ def _get_config_value(
         return config.get(key, default)
     else:
         return getattr(config, key, default)
+
+
+def _normalize_dataset_index(idx: Any, length: int) -> tuple[Any, bool]:
+    """Normalize scalar/slice/batch indices into scalar int or list[int]."""
+    if isinstance(idx, slice):
+        return list(range(*idx.indices(length))), False
+
+    if isinstance(idx, torch.Tensor):
+        if idx.ndim == 0:
+            return int(idx.item()), True
+        return [int(i) for i in idx.detach().cpu().reshape(-1).tolist()], False
+
+    if isinstance(idx, np.ndarray):
+        if idx.ndim == 0:
+            return int(idx.item()), True
+        return [int(i) for i in idx.reshape(-1).tolist()], False
+
+    if isinstance(idx, Sequence) and not isinstance(idx, (str, bytes)):
+        return [int(i) for i in idx], False
+
+    return int(idx), True
+
+
+class SliceSafeDataset(Dataset):
+    """
+    Dataset adapter that adds robust list/slice/tensor indexing support.
+
+    Scalar access is delegated unchanged. Batch-style indexing is materialized by
+    stacking scalar reads, which keeps behavior consistent for wrapped datasets.
+    """
+
+    def __init__(self, base_dataset: Dataset):
+        super().__init__()
+        self.base_dataset = base_dataset
+
+    def __len__(self):
+        return len(self.base_dataset)
+
+    def __getitem__(self, idx):
+        normalized_idx, is_scalar = _normalize_dataset_index(
+            idx, len(self.base_dataset)
+        )
+
+        if is_scalar:
+            return self.base_dataset[normalized_idx]
+
+        samples = [self.base_dataset[i] for i in normalized_idx]
+        if len(samples) == 0:
+            return torch.empty((0,)), torch.empty((0,), dtype=torch.long)
+
+        xs, ys = zip(*samples)
+        xs = [x if torch.is_tensor(x) else torch.as_tensor(x) for x in xs]
+        ys = [y if torch.is_tensor(y) else torch.as_tensor(y) for y in ys]
+        return torch.stack(xs, dim=0), torch.stack(ys, dim=0)
+
+
+def _ensure_slice_safe_dataset(dataset: Dataset) -> Dataset:
+    if isinstance(dataset, (TensorDataset, SliceSafeDataset)):
+        return dataset
+    return SliceSafeDataset(dataset)
+
+
+def _ensure_slice_safe_triplet(
+    train_ds: Dataset, valid_ds: Dataset, test_ds: Dataset
+) -> tuple[Dataset, Dataset, Dataset]:
+    return (
+        _ensure_slice_safe_dataset(train_ds),
+        _ensure_slice_safe_dataset(valid_ds),
+        _ensure_slice_safe_dataset(test_ds),
+    )
 
 
 def get_data_directory(data_type, task_data_path=None):
@@ -683,4 +755,5 @@ def get_unified_datasets(task_cfg):
                 f"Unknown dataset name: {dataset_name}. Synthetic datasets not available: {last_error}"
             )
 
-        return get_experimental_datasets(task_cfg, task_cfg)
+        train_ds, valid_ds, test_ds = get_experimental_datasets(task_cfg, task_cfg)
+        return _ensure_slice_safe_triplet(train_ds, valid_ds, test_ds)
