@@ -44,23 +44,68 @@ class PerformancePlotter(BasePlotter):
 
         # Generate E/I ratio plots if applicable
         if "ei" in sweep_types:
-            plot_paths.extend(self.plot_metrics_vs_ei_ratio(data, plots_dir))
-        
+            plot_paths.extend(
+                self.plot_performance_1d_sweep(
+                    data=data,
+                    sweep_var="ei_ratio",
+                    var_name="E/I Ratio",
+                    logscale=True,
+                    output_dir=plots_dir,
+                )
+            )
+
+        if "stim_duration" in sweep_types:
+            plot_paths.extend(
+                self.plot_performance_1d_sweep(
+                    data=data,
+                    sweep_var="stimulus_duration",
+                    var_name="Stimulus Duration",
+                    logscale=True,
+                    output_dir=plots_dir,
+                )
+            )
+
+        if "max_gf" in sweep_types:
+            plot_paths.extend(
+                self.plot_performance_1d_sweep(
+                    data=data,
+                    sweep_var="max_gain_factor",
+                    var_name="Max Gain Factor",
+                    logscale=True,
+                    output_dir=plots_dir,
+                )
+            )
+
+        if "fixed_gf" in sweep_types:
+            plot_paths.extend(
+                self.plot_performance_1d_sweep(
+                    data=data,
+                    sweep_var="fixed_gain_factor",
+                    var_name="Fixed Gain Factor",
+                    logscale=True,
+                    output_dir=plots_dir,
+                )
+            )
+
         if "stoch1" in sweep_types:
-            plot_paths.extend(self.plot_performance_heatmaps(
-                data, 
-                plots_dir,
-                "stimulus_duration",
-                "max_gain_factor",
-            ))
-        
+            plot_paths.extend(
+                self.plot_performance_heatmaps(
+                    data,
+                    plots_dir,
+                    "stimulus_duration",
+                    "max_gain_factor",
+                )
+            )
+
         if "stoch2" in sweep_types:
-            plot_paths.extend(self.plot_performance_heatmaps(
-                data, 
-                plots_dir,
-                "stimulus_duration",
-                "max_gain_tau_ratio",
-            ))
+            plot_paths.extend(
+                self.plot_performance_heatmaps(
+                    data,
+                    plots_dir,
+                    "stimulus_duration",
+                    "max_gain_tau_ratio",
+                )
+            )
 
         # Generate parameter scaling plots if applicable
         if "nparams" in sweep_types:
@@ -68,14 +113,22 @@ class PerformancePlotter(BasePlotter):
 
         return plot_paths
 
-    def plot_metrics_vs_ei_ratio(
-        self, data: pd.DataFrame, output_dir: Path
+    def plot_performance_1d_sweep(
+        self,
+        data: pd.DataFrame,
+        sweep_var: str,
+        var_name: str,
+        logscale: bool,
+        output_dir: Path,
     ) -> list[Path]:
         """
-        Generate metric vs E/I ratio line plots with error bars.
+        Generate metric vs sweep_var line plots with error bars.
 
         Args:
-            data: Aggregated data with ei_ratio column
+            data: Aggregated data with sweep_var column
+            sweep_var: Sweep variable column name
+            var_name: Name of the sweep variable
+            logscale: Whether to use log scale for the x-axis
             output_dir: Output directory
 
         Returns:
@@ -97,7 +150,7 @@ class PerformancePlotter(BasePlotter):
                 self.plot_by_category(
                     ax=ax,
                     data=data,
-                    x_col="ei_ratio",
+                    x_col=sweep_var,
                     y_col=metric,
                     category_col="network_category",
                     show_error=True,
@@ -106,31 +159,27 @@ class PerformancePlotter(BasePlotter):
                 # Style axes
                 self.setup_axes_style(
                     ax=ax,
-                    xlabel="E/I Ratio",
+                    xlabel=var_name,
                     ylabel=get_metric_label(metric),
-                    title=f"{get_metric_label(metric)} vs E/I Ratio",
-                    use_log_x=True,
+                    title=f"{get_metric_label(metric)} vs {var_name}",
+                    use_log_x=logscale,
                     grid=True,
                 )
 
                 ax.legend(fontsize=10)
                 fig.tight_layout()
 
-                plot_path = output_dir / f"{metric}_vs_ei_ratio.png"
+                plot_path = output_dir / f"{metric}_vs_{sweep_var}.png"
                 plot_paths.append(self.save_figure(fig, plot_path))
 
             except Exception as e:
-                logger.error(f"Error generating {metric} vs E/I plot: {e}")
+                logger.error(f"Error generating {metric} vs {var_name} plot: {e}")
 
-        logger.info(f"Generated {len(plot_paths)} E/I ratio plots")
+        logger.info(f"Generated {len(plot_paths)} {var_name} performance plots")
         return plot_paths
 
     def plot_performance_heatmaps(
-        self, 
-        data: pd.DataFrame, 
-        output_dir: Path,
-        colx: str,
-        coly: str
+        self, data: pd.DataFrame, output_dir: Path, colx: str, coly: str
     ) -> list[Path]:
         """
         Generate performance heatmaps (metric vs EE vs IE).
@@ -153,7 +202,21 @@ class PerformancePlotter(BasePlotter):
             logger.warning("Missing 'network_category' column for performance heatmaps")
             return plot_paths
 
-        categories = ["shunting", "no_shunting"]
+        possible_categories = [
+            "dendritic_shunting",
+            "dendritic_additive",
+            "flat_shunting",
+            "flat_additive",
+            "ss_mlp",
+            "ss_mlp_flat",
+            "active_param_mlp",
+            "total_param_mlp",
+        ]
+        categories = [
+            cat
+            for cat in possible_categories
+            if cat in data["network_category"].unique()
+        ]
 
         for metric in ["test_accuracy", "valid_accuracy"]:
             # Handle both aggregated (_mean) and non-aggregated (no suffix) data
@@ -170,7 +233,7 @@ class PerformancePlotter(BasePlotter):
                     if not category_data.empty and mean_col in category_data.columns:
                         values = category_data[mean_col].dropna()
                         all_values.extend(values.tolist())
-                
+
                 # Calculate global vmin/vmax for consistent scaling
                 if all_values:
                     vmin, vmax = min(all_values), max(all_values)
@@ -234,7 +297,7 @@ class PerformancePlotter(BasePlotter):
                         cbar_kws={"label": get_metric_label(metric)},
                         ax=ax,
                         vmin=vmin,
-                        vmax=vmax
+                        vmax=vmax,
                     )
                     # Invert y-axis to place origin at lower left
                     ax.invert_yaxis()
@@ -249,27 +312,31 @@ class PerformancePlotter(BasePlotter):
                     # Align indices and columns for subtraction
                     shunt_pivot = pivot_tables["shunting"]
                     no_shunt_pivot = pivot_tables["no_shunting"]
-                    
+
                     # Reindex to ensure same index and columns
                     common_index = shunt_pivot.index.union(no_shunt_pivot.index)
                     common_cols = shunt_pivot.columns.union(no_shunt_pivot.columns)
-                    
-                    shunt_aligned = shunt_pivot.reindex(index=common_index, columns=common_cols)
-                    no_shunt_aligned = no_shunt_pivot.reindex(index=common_index, columns=common_cols)
-                    
+
+                    shunt_aligned = shunt_pivot.reindex(
+                        index=common_index, columns=common_cols
+                    )
+                    no_shunt_aligned = no_shunt_pivot.reindex(
+                        index=common_index, columns=common_cols
+                    )
+
                     # Calculate difference
                     diff_pivot = shunt_aligned - no_shunt_aligned
-                    
+
                     # Calculate symmetric vmin/vmax centered at 0
                     diff_values = diff_pivot.values.flatten()
                     diff_values = diff_values[~pd.isna(diff_values)]
-                    
+
                     if len(diff_values) > 0:
                         abs_max = max(abs(diff_values.min()), abs(diff_values.max()))
                         diff_vmin, diff_vmax = -abs_max, abs_max
                     else:
                         diff_vmin, diff_vmax = -1, 1
-                    
+
                     sns.heatmap(
                         diff_pivot,
                         cmap="seismic_r",
@@ -279,14 +346,16 @@ class PerformancePlotter(BasePlotter):
                         ax=ax_diff,
                         vmin=diff_vmin,
                         vmax=diff_vmax,
-                        center=0
+                        center=0,
                     )
                     # Invert y-axis to place origin at lower left
                     ax_diff.invert_yaxis()
-                    
+
                     ax_diff.set_xlabel(colx, fontsize=12)
                     ax_diff.set_ylabel(coly, fontsize=12)
-                    ax_diff.set_title("Difference (Shunting - Non-Shunting)", fontsize=14)
+                    ax_diff.set_title(
+                        "Difference (Shunting - Non-Shunting)", fontsize=14
+                    )
                 else:
                     ax_diff.text(
                         0.5,
@@ -296,7 +365,9 @@ class PerformancePlotter(BasePlotter):
                         va="center",
                         transform=ax_diff.transAxes,
                     )
-                    ax_diff.set_title("Difference (Shunting - Non-Shunting)", fontsize=14)
+                    ax_diff.set_title(
+                        "Difference (Shunting - Non-Shunting)", fontsize=14
+                    )
 
                 fig.tight_layout()
                 plot_path = output_dir / f"{metric}_heatmap.png"
@@ -351,6 +422,7 @@ class PerformancePlotter(BasePlotter):
 
                     color = self.category_colors.get(category, "black")
                     marker = self.category_markers.get(category, "o")
+                    linestyle = self.category_linestyles.get(category, "-")
 
                     y_values = cat_data[mean_col]
                     yerr = cat_data[std_col] if std_col in cat_data.columns else None
@@ -360,7 +432,7 @@ class PerformancePlotter(BasePlotter):
                         y_values,
                         marker=marker,
                         color=color,
-                        linestyle="-",
+                        linestyle=linestyle,
                         alpha=0.8,
                         label=category,
                     )

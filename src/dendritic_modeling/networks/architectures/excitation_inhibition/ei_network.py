@@ -24,9 +24,10 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.ei_layer im
 from dendritic_modeling.networks.architectures.excitation_inhibition.input_transform.transfer import (
     TransferLayer,
 )
+from dendritic_modeling.networks.base import BaseNetwork
 
 
-class ExcitationInhibitionNetwork(nn.Module):
+class ExcitationInhibitionNetwork(BaseNetwork):
     """Excitation-Inhibition network for dendritic modeling.
 
     Args:
@@ -87,6 +88,7 @@ class ExcitationInhibitionNetwork(nn.Module):
         ii_synapses_per_branch_per_layer: Optional[list[int]] = None,
         inhibitory_network_type: str = "dendritic",
         use_shunting: bool = True,
+        synapse_mode: str = "ei",
         reactivation_type: str = "param_tanh",
         reactivation_strategy: str = "none",
         blocklinear_strategy: str = "none",
@@ -140,6 +142,7 @@ class ExcitationInhibitionNetwork(nn.Module):
             ii_synapses_per_branch_per_layer if ii_synapses_per_branch_per_layer else []
         )
         self.use_shunting = use_shunting
+        self.synapse_mode = synapse_mode
         self.reactivation_type = reactivation_type
         self.reactivation_strategy = reactivation_strategy
         self.blocklinear_strategy = blocklinear_strategy
@@ -330,6 +333,7 @@ class ExcitationInhibitionNetwork(nn.Module):
                 somatic_synapses=self.somatic_synapses,
                 topk_init_method=self.topk_init_method,
                 use_shunting=self.use_shunting,
+                synapse_mode=self.synapse_mode,
                 reactivation_strategy=self.reactivation_strategy,
                 blocklinear_strategy=self.blocklinear_strategy,
                 reactivation_type=self.reactivation_type,
@@ -406,12 +410,12 @@ class ExcitationInhibitionNetwork(nn.Module):
         for layer in self.layers:
             layer: ExcitationInhibitionLayer
             if hasattr(layer, "excitatory_cells"):
-                branch_layers.append(layer.excitatory_cells)
+                branch_layers.extend(layer.excitatory_cells.branch_layers)
             if (
                 hasattr(layer, "inhibitory_cells")
                 and layer.inhibitory_cells is not None
             ):
-                branch_layers.append(layer.inhibitory_cells)
+                branch_layers.extend(layer.inhibitory_cells.branch_layers)
         return branch_layers
 
     @property
@@ -529,7 +533,13 @@ class ConfigurableEINetwork(ExcitationInhibitionNetwork):
     separating configuration structure from implementation details.
     """
 
-    def __init__(self, config: Union[dict, DictConfig], input_dim: int):
+    def __init__(
+        self,
+        config: Union[dict, DictConfig],
+        input_dim: int,
+        use_shunting: Optional[bool] = None,
+        flatten_dendrites: bool = False,
+    ):
         """
         Initialize from structured config.
 
@@ -537,12 +547,23 @@ class ConfigurableEINetwork(ExcitationInhibitionNetwork):
             config: Structured configuration (e.g., core_config from YAML)
                    Must contain 'architecture', 'connectivity', 'transfer', etc. sections
             input_dim: Input dimension from encoder
+            use_shunting: Whether to use shunting inhibition.
         """
         from dendritic_modeling.scripts.script_utils.config_utils import (
             prepare_ei_network_params,
         )
 
-        params = prepare_ei_network_params(config, input_dim)
+        params = prepare_ei_network_params(config, input_dim, use_shunting)
+
+        if flatten_dendrites:
+            exc_branch_factors = deepcopy(params["excitatory_branch_factors"])
+            for i in range(1, len(exc_branch_factors)):
+                exc_branch_factors[i] = (
+                    exc_branch_factors[i] * exc_branch_factors[i - 1]
+                )
+            branch_compartments_per_soma = sum(exc_branch_factors)
+            params["excitatory_branch_factors"] = [branch_compartments_per_soma]
+
         super().__init__(**params)
 
 

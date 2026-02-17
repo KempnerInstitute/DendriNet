@@ -11,7 +11,9 @@ from typing import Literal
 import torch
 import torch.nn.functional as functional
 
-WeightTransformType = Literal["exp", "relu", "softplus"]
+WeightTransformType = Literal[
+    "identity", "exp", "relu", "softplus"
+]
 
 
 def apply_weight_transform(
@@ -36,10 +38,13 @@ def apply_weight_transform(
         return functional.relu(weights)
     elif transform_type == "softplus":
         return functional.softplus(weights)
+    elif transform_type == "identity":
+        # No constraint: signed weights allowed
+        return weights
     else:
         raise ValueError(
             f"Unsupported weight transform type: {transform_type}. "
-            f"Supported types: 'exp', 'relu', 'softplus'"
+            f"Supported types: 'identity', 'exp', 'relu', 'softplus'"
         )
 
 
@@ -59,10 +64,12 @@ def get_weight_transform_fn(transform_type: WeightTransformType):
         return functional.relu
     elif transform_type == "softplus":
         return functional.softplus
+    elif transform_type == "identity":
+        return lambda x: x
     else:
         raise ValueError(
             f"Unsupported weight transform type: {transform_type}. "
-            f"Supported types: 'exp', 'relu', 'softplus'"
+            f"Supported types: 'identity', 'exp', 'relu', 'softplus'"
         )
 
 
@@ -92,10 +99,13 @@ def inverse_weight_transform(
         # Inverse of softplus: log(exp(x) - 1)
         # For numerical stability, use the identity: softplus_inverse(x) = log(exp(x) - 1) = x + log(1 - exp(-x)) for x > 0
         return torch.log(torch.exp(positive_weights) - 1 + 1e-8)
+    elif transform_type == "identity":
+        # Identity transform is its own inverse (signed weights allowed)
+        return positive_weights
     else:
         raise ValueError(
             f"Unsupported weight transform type: {transform_type}. "
-            f"Supported types: 'exp', 'relu', 'softplus'"
+            f"Supported types: 'identity', 'exp', 'relu', 'softplus'"
         )
 
 

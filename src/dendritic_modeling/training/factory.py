@@ -12,6 +12,7 @@ import torch
 
 from dendritic_modeling.config.training import (
     OptimizerConfig,
+    ParamGroupsConfig,
     PruningConfig,
     RegularizationConfig,
     ReportingConfig,
@@ -113,6 +114,14 @@ def _extract_enhanced_configs(trainer_config_dict: dict[str, Any]) -> dict[str, 
     # Extract param_groups config (preserve original parameter grouping behavior)
     if "param_groups" in trainer_config_dict:
         param_groups_config = trainer_config_dict.pop("param_groups")
+        if isinstance(param_groups_config, dict):
+            allowed_fields = set(ParamGroupsConfig.__dataclass_fields__.keys())
+            sanitized = {
+                key: value
+                for key, value in param_groups_config.items()
+                if key in allowed_fields
+            }
+            param_groups_config = ParamGroupsConfig(**sanitized)
         enhanced_configs["param_groups_config"] = param_groups_config
 
     # Extract strategy-specific nested configs and flatten into kwargs

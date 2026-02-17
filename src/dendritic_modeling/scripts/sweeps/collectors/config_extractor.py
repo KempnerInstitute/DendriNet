@@ -61,6 +61,13 @@ class ConfigExtractor:
         try:
             if hasattr(config, "model") and hasattr(config.model, "core"):
                 core = config.model.core
+                if hasattr(core, "type"):
+                    # Canonical architecture selector (preferred over legacy booleans)
+                    core_type = str(core.type)
+                    params["network_type"] = core_type
+
+                if hasattr(core, "type"):
+                    params["network_type"] = str(core.type).lower()
 
                 # Connectivity parameters
                 if hasattr(core, "connectivity"):
@@ -107,6 +114,20 @@ class ConfigExtractor:
                     morph = core.morphology
                     if hasattr(morph, "use_shunting"):
                         params["use_shunting"] = morph.use_shunting
+
+                # If core.type explicitly specifies the network variant, make sure the
+                # extracted `use_shunting` matches the *actual* instantiated behavior.
+                if "network_type" in params:
+                    nt = str(params["network_type"]).lower()
+                    if nt == "dendritic_shunting":
+                        params["use_shunting"] = True
+                    elif nt in [
+                        "dendritic_additive",
+                        "dendritic_mlp",
+                        "mlp",
+                        "point_mlp",
+                    ]:
+                        params["use_shunting"] = False
 
         except Exception as e:
             logger.warning(f"Error extracting model params: {e}")
@@ -166,6 +187,8 @@ class ConfigExtractor:
                 params["rule_variant"] = local_cfg.rule_variant
             if hasattr(local_cfg, "error_broadcast_mode"):
                 params["error_broadcast_mode"] = local_cfg.error_broadcast_mode
+            if hasattr(local_cfg, "decoder_update_mode"):
+                params["decoder_update_mode"] = local_cfg.decoder_update_mode
             if hasattr(local_cfg, "update_inactive_weights"):
                 params["update_inactive_weights"] = local_cfg.update_inactive_weights
 

@@ -7,7 +7,6 @@ synaptic connectivity in dendritic computation.
 """
 
 from math import log
-
 from typing import Optional
 
 import torch
@@ -69,7 +68,7 @@ class TopKLinear(nn.Module):
         noise_level=0.0,
         weight_transform: WeightTransformType = "exp",
         weight_norm_order: Optional[int] = None,
-        gamma: float = 1.0
+        gamma: float = 1.0,
     ):
         super().__init__()
 
@@ -101,6 +100,8 @@ class TopKLinear(nn.Module):
         self.param_space = param_space
         self.input_scale_vec = None  # may be used for gradient scaling
         self.param_scale_vec = None  # may be used for gradient scaling
+        # Stores the exact mask used in the most recent forward pass.
+        self._last_forward_weight_mask: Optional[torch.Tensor] = None
 
     def initialize(self):
         """Initialize the layer weights using the specified method."""
@@ -121,24 +122,22 @@ class TopKLinear(nn.Module):
             if self.weight_transform == "exp":
                 decay = log(1 - weight_decay) * weight_mask
                 self.pre_w.data += decay
-            elif self.weight_transform == "relu":
-                decay = torch.where(weight_mask > 0, 1 - weight_decay, 1)
-                self.pre_w.data *= decay
             elif self.weight_transform == "softplus":
                 w = nn.functional.softplus(self.pre_w.data)
                 decayed_w = w * (1 - weight_decay)
                 p_prime = torch.log(torch.exp(decayed_w) - 1 + 1e-8)
                 p_prime_masked = torch.where(weight_mask > 0, p_prime, self.pre_w.data)
                 self.pre_w.data = p_prime_masked
+            elif self.weight_transform in ["identity", "relu"]:
+                # Signed weights: decay active weights multiplicatively, preserve sign
+                decay = torch.where(weight_mask > 0, 1 - weight_decay, 1.0)
+                self.pre_w.data *= decay
 
             if weight_boosting:
                 inv_weight_mask = (-1 * weight_mask) + 1
                 if self.weight_transform == "exp":
                     boost = log(1 + weight_decay) * inv_weight_mask
                     self.pre_w.data += boost
-                elif self.weight_transform == "relu":
-                    boost = torch.where(inv_weight_mask > 0, 1 + weight_decay, 1)
-                    self.pre_w.data *= boost
                 elif self.weight_transform == "softplus":
                     w = nn.functional.softplus(self.pre_w.data)
                     boosted_w = w * (1 + weight_decay)
@@ -147,6 +146,9 @@ class TopKLinear(nn.Module):
                         inv_weight_mask > 0, p_prime, self.pre_w.data
                     )
                     self.pre_w.data = p_prime_masked
+                elif self.weight_transform in ["identity", "relu"]:
+                    boost = torch.where(inv_weight_mask > 0, 1 + weight_decay, 1.0)
+                    self.pre_w.data *= boost
 
     def forward(self, x):
         """Forward pass through the TopK linear layer."""
@@ -157,8 +159,16 @@ class TopKLinear(nn.Module):
         # If x is a 1D tensor, unsqueeze to make it 2D [1, features]
         if x.dim() == 1:
             x = x.unsqueeze(0)
-        
-        pruned_weight = self.pruned_weight()
+
+        # Keep the exact forward-pass mask for downstream consumers (e.g., local rules).
+        mask = self.weight_mask()
+        self._last_forward_weight_mask = mask.detach()
+
+        pruned_weight = mask * self.weight()
+
+        if self.weight_norm_order is not None:
+            w_norm = torch.norm(pruned_weight, p=self.weight_norm_order, dim=-1)
+            pruned_weight = (pruned_weight / w_norm[:, None]) * self.gamma
 
         return torch.matmul(x, pruned_weight.t())
 
@@ -168,7 +178,11 @@ class TopKLinear(nn.Module):
 
     def log_weight(self):
         """Return the log of the transformed weights."""
-        return self.weight().log()
+        w = self.weight()
+        if self.weight_transform == "identity":
+            # Avoid log of negative values; use magnitude as a stable proxy
+            return (w.abs() + 1e-8).log()
+        return w.log()
 
     def weight_mask(self):
         """Return a mask indicating the top K synaptic connections per output neuron."""
@@ -180,7 +194,9 @@ class TopKLinear(nn.Module):
             # Add noise to the raw weights
             weights_for_topk = self.pre_w + noise
 
-        # Perform topk on the (potentially noisy) weights
+        if self.weight_transform == "identity":
+            weights_for_topk = weights_for_topk.abs()
+        
         topK_indices = torch.topk(
             weights_for_topk, self.K, dim=-1, largest=True, sorted=False
         )[1]
@@ -197,7 +213,7 @@ class TopKLinear(nn.Module):
     def pruned_weight(self):
         """Return the pruned synaptic weights after applying the mask."""
         pruned_weight = self.weight_mask() * self.weight()
-        
+
         if self.weight_norm_order is not None:
             w_norm = torch.norm(pruned_weight, p=self.weight_norm_order, dim=-1)
             pruned_weight = (pruned_weight / w_norm[:, None]) * self.gamma

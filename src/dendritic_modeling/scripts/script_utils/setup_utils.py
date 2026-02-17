@@ -32,12 +32,27 @@ def initialize_model(model_config: ModelConfig):
     core_config = model_config.core
     decoder_config = model_config.decoder
 
+    def _cfg_to_dict(cfg) -> dict:
+        """Convert params configs to a plain dict (supports DictConfig, dataclasses, and dict)."""
+        if cfg is None:
+            return {}
+        if isinstance(cfg, dict):
+            return cfg
+        if OmegaConf.is_config(cfg):
+            return OmegaConf.to_container(cfg, resolve=True)
+        # Many config objects in this repo are dataclasses/BaseConfig
+        try:
+            return asdict(cfg)
+        except TypeError:
+            # Fall back for objects that implement iteration or mapping protocol
+            return dict(cfg)
+
     # Build encoder parameters dict
     encoder_params = {}
     if encoder_config.type.lower() == "identity":
         encoder_params["input_dim"] = encoder_config.params.input_dim or 784
     else:
-        encoder_params = OmegaConf.to_container(encoder_config.params, resolve=True)
+        encoder_params = _cfg_to_dict(encoder_config.params)
 
     # Create encoder
     encoder_network = get_architecture(encoder_config.type, encoder_params)
@@ -52,7 +67,7 @@ def initialize_model(model_config: ModelConfig):
     )
 
     # Build decoder parameters
-    decoder_params_dict = OmegaConf.to_container(decoder_config.params, resolve=True)
+    decoder_params_dict = _cfg_to_dict(decoder_config.params)
     # Filter out None values to allow auto-setting
     decoder_params_dict = {
         k: v for k, v in decoder_params_dict.items() if v is not None

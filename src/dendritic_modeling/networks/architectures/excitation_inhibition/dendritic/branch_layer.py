@@ -20,6 +20,7 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.g
     GradientScaler,
 )
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.initialize import (
+    identity_weighttransform_dbl_init,
     analytical_expectation_dbl_init,
     default_dbl_init,
     ei_equivalence_dbl_init,
@@ -236,6 +237,11 @@ class DendriticBranchLayer(nn.Module):
         synapse_type="exc",
     ):
         """Helper function that picks which topk class to use based on strategy."""
+        # Keep invalid sweep configs runnable by capping requested synapse count to
+        # available presynaptic features for this layer.
+        if K is not None and K > in_features:
+            K = in_features
+
         # For 'standard' strategy, use the original TopKLinear class exactly as before
         # This provides a direct path with zero overhead compared to the original code
         if self.topk_type is None or self.topk_type == "standard":
@@ -320,7 +326,10 @@ class DendriticBranchLayer(nn.Module):
             )
 
     def initialize(self):
-        if self.dbl_init_method == "analytical_expectation":
+        if (self.weight_transform or "").lower() == "identity":
+            identity_weighttransform_dbl_init(self)
+
+        elif self.dbl_init_method == "analytical_expectation":
             analytical_expectation_dbl_init(
                 self,
                 adaptive=self.adaptive_initialization,
@@ -454,9 +463,13 @@ class DendriticBranchLayer(nn.Module):
                     and self.blocklinear_strategy == "conductance_dynamic"
                 ):
                     # only apply input_scale_vec = 1 / branch_weights
-                    self.branches_to_output.input_scale_vec = torch.exp(
-                        -1 * self.branches_to_output.weight().log()
-                    ).flatten()
+                    w = self.branches_to_output.weight()
+                    
+                    if (self.weight_transform or "").lower() == "identity":
+                        w = w.abs() + self.epsilon
+                    
+                    self.branches_to_output.input_scale_vec = torch.exp(-1 * w.log()).flatten()
+
 
     def get_weights(self):
         if self.input_inhibitory and self.input_excitatory:

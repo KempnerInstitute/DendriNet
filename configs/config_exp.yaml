@@ -39,7 +39,7 @@ experiment:
 # DATA
 # ============================================================================
 data:
-  dataset_name: "cifar10"               # Dataset name
+  dataset_name: "mnist"               # Dataset name
   # Options: "mnist", "cifar10", "imagenet", "mnist_modulo10", "random_flip_mnist",
   #          "poisson_generator", "multixor", "orientation_bars", "orthonet"
 
@@ -55,10 +55,12 @@ data:
 
     poisson_generator:
       base_dataset: "mnist"             # Base dataset for Poisson generation
-      stimulus_duration: 2.5              # Rate multiplier for Poisson process
+      multiplicative_gain: true        # Multiplicative gain (true/false)
       max_gain_factor: 10              # Maximum gain factor for Poisson process
-      max_gain_tau_ratio: null
       uniform_gain: false              # Uniform gain factor for Poisson process
+      poisson_sampling: false           # Poisson sampling (true/false)
+      stimulus_duration: 1.0           # Stimulus duration
+      max_gain_tau_ratio: null
 
     multixor:
       n_bits: 8                         # Number of bits for multi-XOR problem
@@ -102,12 +104,19 @@ model:
 
   core:
     type: "EINet"                       # Core network type
-    # Options: "EINet", "MLP", "MatchedParamMLP", "EffectiveMatchedParamMLP"
+    # Preferred options (4-way comparison):
+    #   - "dendritic_shunting"
+    #   - "dendritic_additive"
+    #   - "dendritic_mlp"   (same dendritic morphology, but *no* E/I synapse sign constraint)
+    #   - "point_mlp"       (point-neuron baseline; matches *effective* params post-TopK)
+    #
+    # Legacy option:
+    #   - "EINet"           (uses `morphology.use_shunting: true/false`)
 
     architecture:
       excitatory_layer_sizes: [20]      # Number of excitatory neurons per layer
       inhibitory_layer_sizes: []        # Number of inhibitory neurons per layer
-      excitatory_branch_factors: [3, 3, 3, 3]  # Branching factors for excitatory dendrites
+      excitatory_branch_factors: [3, 3]  # Branching factors for excitatory dendrites
       inhibitory_branch_factors: [1]    # Branching factors for inhibitory dendrites
 
       # Inhibitory network configuration
@@ -131,9 +140,9 @@ model:
 
     morphology:
       somatic_synapses: false           # Include somatic synapses (true/false)
-      use_shunting: true                # Use shunting inhibition (true/false)
-      weight_transform: "softplus"      # Weight transformation: "exp", "relu", "softplus"
-      dbl_init_method: "analytical_expectation"  # DBL initialization: "analytical_expectation", "default"
+      use_shunting: true                # Legacy (only used when core.type == "EINet")
+      weight_transform: "softplus"      # Weight transform: "exp", "relu", "softplus", "identity" (signed)
+      dbl_init_method: "analytical_expectation"  # DBL initialization: "analytical_expectation", "default", "ei_equivalence", "naive"
 
     sparsity:
       init_method: "xavier_normal"      # Weight initialization: "xavier_normal", "xavier_uniform", "kaiming_normal"
@@ -216,7 +225,7 @@ training:
     #          "freeze_layers", "freeze_branches", "local_ca", "multi_stage"
 
     common:
-      epochs: 1000                      # Number of training epochs
+      epochs: 100                      # Number of training epochs
       batch_size: 128                   # Training batch size
       shuffle: true                     # Shuffle training data (true/false)
       grad_clip_value: 5.0              # Gradient clipping value
@@ -461,68 +470,102 @@ analysis:
     enabled: true                       # Enable information analysis (true/false)
     training: false                     # Run during training (true/false)
     params:
-      method: "kraskov"                 # MI estimation method: "kraskov", "sklearn", "copula", "auto"
-      max_samples: 1000                 # Maximum samples for analysis (null = all)
-      n_neighbors: 10                   # K-NN neighbors for Kraskov estimator
-      n_bins: 20                        # Bins for histogram estimator
-      copula_type: "gaussian"           # Copula type: "gaussian", "kernel", "dvc"
-      compute_basic_mi: true            # Compute basic MI (true/false)
-      compute_pairwise_mi: true         # Compute pairwise MI (true/false)
-      compute_conditional_mi: true      # Compute conditional MI (true/false)
-      compute_pid: false                # Compute PID (true/false)
-      pid_binarize: true                # Binarize for PID (true/false)
-      pid_binarize_method: "median"     # Binarization method: "median", "mean", "quantile"
-      pid_binarize_threshold: 0.5       # Binarization threshold (0.0-1.0)
-      include_vinf: true                # Include soma activation (true/false)
-      normalize_mi: false               # Normalize MI by entropy (true/false)
-      verbose: false                    # Verbose output (true/false)
-      computation_level: "single_branch" # Computation level: "single_branch", "layer_branch", "all_branch"
-      branch_aggregation: "mean"        # Aggregation method: "mean", "multivariate", "sample"
-      per_neuron_analysis: false        # Per-neuron analysis (true/false)
-      per_einet_analysis: false         # Per-EI-network analysis (true/false)
-      per_layer_analysis: false         # Per-layer analysis (true/false)
+      selection:
+        components: ["basic", "pairwise", "conditional", "ablation_aligned", "layer_proxies"]  # Components: "basic", "pairwise", "conditional", "gaussian_fisher", "pid", "ablation_aligned", "layer_proxies", "upstream_unique_cmi"
+        scopes: []                        # Scopes: "layer", "einet", "neuron" (alias: views)
+        signal_variants: ["network", "lda"]  # Variants: "network", "lda", "random" (random requires baselines.random_weights.n_shuffles > 0)
+
+      compute:
+        max_samples: 1000                 # Max samples (null = all)
+        include_vinf: true                # Include soma activation: true|false
+        normalize_mi: false               # Normalize by entropy: true|false
+        verbose: false                    # Verbose: true|false
+        computation_level: "single_branch" # Level: "single_branch", "layer_branch", "all_branch"
+        branch_aggregation: "mean"        # Aggregation: "mean", "multivariate", "sample"
+        per_layer_analysis: false         # Extra breakdown/plots: per-layer (overridden by selection.scopes if non-empty)
+        per_einet_analysis: false         # Extra breakdown/plots: per-E/I-net (overridden by selection.scopes if non-empty)
+        per_neuron_analysis: false        # Extra breakdown/plots: per-neuron (expensive; overridden by selection.scopes if non-empty)
+        layer_total_topk: 10              # K for *_topK_sum proxies (int >= 1)
+        gaussian_fisher:
+          aggregation: "sum"  # Aggregate per-feature F: "sum"|"mean"|"max"
+          mi_transform: "half_log1p"  # Transform F→MI proxy: "half_log1p"|"log1p"|"none"
+          eps: 1.0e-8  # Denominator stabilizer (alias: ridge) (float > 0)
+
+      pid:
+        binarize: true  # Binarize continuous vars: true|false
+        binarize_method: "median"  # Binarization: "median"|"mean"|"quantile"
+        binarize_threshold: 0.5  # Used only if binarize_method="quantile": q∈[0,1]
+
+      estimator:
+        method: "kraskov"                 # MI estimation: "kraskov", "decoder", "binned", "sklearn", "copula", "auto"
+        kraskov:
+          n_neighbors: 10                 # Kraskov k-NN (int >= 1)
+        binned:
+          n_bins: 20                      # Binned/sklearn histogram bins (int >= 2)
+          binning_strategy: "quantile"    # binned: "quantile" or "uniform"
+          bias_correction: "none"         # binned: "none" or "miller_madow"
+        decoder:
+          cv_folds: 5                     # decoder: CV folds (int >= 2)
+          C: 1.0                          # decoder: LogisticRegression C (float > 0)
+          standardize: true               # decoder: standardize X (true|false)
+          seed: 0                         # decoder: CV shuffle seed (int)
+          continuous:
+            strategy: "none"              # decoder continuous: "none", "binned", "gaussian"
+            max_total_dim: 2              # decoder continuous: max total dim (x+y [+z]); used only if strategy != "none"
+            gaussian_ridge: 1e-6          # decoder continuous: gaussian ridge (float > 0)
+        copula:
+          type: "gaussian"                # Copula: "gaussian", "kernel", "dvc"
+        sklearn:
+          n_bins: 20                      # sklearn histogram bins (int >= 2)
+          bandwidth: null                 # sklearn KDE bandwidth (null = auto)
+
+      baselines:
+        random_weights:
+          n_shuffles: 0                   # Random-weight baseline shuffles (int >= 0; produces *_sh metrics)
+          seed: 42                        # Random-weight seed (int)
+        label_shuffle_null:
+          n_shuffles: 0                   # Null (label-shuffle) baseline shuffles (int >= 0; produces *_null metrics)
+          seed: 0                         # Null baseline seed (int)
+          components: ["basic"]           # Null components: "basic", "conditional", "ablation_aligned", "upstream_unique_cmi", "all"
+          conditional_shuffle: "auto"     # Conditional null shuffle: "auto", "global", "bins"
+          conditional_bins: 10            # If using bins: number of Z-bins (int >= 2)
 
   correlation_analysis:
     enabled: false                      # Enable correlation analysis (true/false)
     training: false
     params:
-      computation_level: "layer_branch" # Computation level: "synaptic", "single_branch", "layer_branch", "all_branch"
-      compute_synaptic_correlations: true # Compute synaptic correlations (true/false)
-      compute_noise_correlations: true  # Compute noise correlations (true/false)
-      compute_signal_correlations: true # Compute signal correlations (true/false)
-      compute_total_correlations: true  # Compute total correlations (true/false)
-      compute_tuning_curves: true       # Compute tuning curves (true/false)
-      analyze_EE: true                  # Analyze E-E correlations (true/false)
-      analyze_II: true                  # Analyze I-I correlations (true/false)
-      analyze_EI: true                  # Analyze E-I correlations (true/false)
-      analyze_E_output: true            # Analyze E-output correlations (true/false)
-      analyze_I_output: true            # Analyze I-output correlations (true/false)
-      analyze_output_output: true       # Analyze output-output correlations (true/false)
-      per_layer_analysis: true          # Per-layer analysis (true/false)
-      per_einet_analysis: true          # Per-EI-network analysis (true/false)
-      per_neuron_analysis: false        # Per-neuron analysis (true/false)
-      n_synapse_pairs: 1000             # Number of synapse pairs to sample
-      sampling_strategy: "stratified"   # Sampling strategy: "random", "stratified", "importance"
-      stratified_categories: ["within_branch", "within_layer", "across_layer"]
-      max_pairs_per_category: 500       # Max pairs per category
-      max_samples: 2000                 # Max data samples for analysis
-      batch_process: true               # Process in batches (true/false)
+      selection:
+        components: ["total", "noise", "signal", "tuning"]  # Components: "total", "noise", "signal", "tuning"
+        pairs: ["EE", "II", "EI", "E_output", "I_output", "output_output"]  # Pairs: "EE", "II", "EI", "E_output", "I_output", "output_output"
+        scopes: ["layer", "einet"]        # Scopes: "layer", "einet", "neuron"
+
+      compute:
+        computation_level: "layer_branch" # Level: "synaptic", "single_branch", "layer_branch", "all_branch"
+        max_samples: 2000                 # Max samples (null = all)
+        batch_process: true               # Batch processing: true|false
+        per_layer_analysis: true          # Extra breakdown/plots: per-layer (overridden by selection.scopes if non-empty)
+        per_einet_analysis: true          # Extra breakdown/plots: per-E/I-net (overridden by selection.scopes if non-empty)
+        per_neuron_analysis: false        # Extra breakdown/plots: per-neuron (expensive; overridden by selection.scopes if non-empty)
+
+      sampling:
+        n_synapse_pairs: 1000             # Synaptic-only: number of synapse pairs (int >= 1)
+        sampling_strategy: "stratified"   # Sampling: "random", "stratified", "importance"
+        stratified_categories: ["within_branch", "within_layer", "across_layer"]  # Stratified categories: "within_branch", "within_layer", "across_layer"
+        max_pairs_per_category: 500       # Stratified-only: max pairs per category (int >= 1)
 
   ablation_analysis:
     enabled: true                       # Enable ablation analysis (true/false)
     training: false
     params:
-      layer_ablation: true              # Ablate entire layers (true/false)
-      compartment_ablation: false       # Ablate compartments (true/false)
-      ablate_all_synapses: true         # Ablate all synapses (true/false)
-      ablate_excitation: true           # Ablate excitatory synapses (true/false)
-      ablate_inhibition: true           # Ablate inhibitory synapses (true/false)
-      ablate_upstream: true             # Ablate upstream connections (true/false)
-      accuracy: true                    # Compute accuracy (true/false)
-      auc: true                         # Compute AUC (true/false)
-      categorical_loglikelihood: true   # Compute categorical log-likelihood (true/false)
-      mse: false                        # Compute MSE (true/false)
-      cosine_similarity: false          # Compute cosine similarity (true/false)
+      selection:
+        levels: ["layer"]                 # Levels: "layer", "compartment" (compartment is lesion-only)
+        targets: ["all_synapses", "excitation", "inhibition", "upstream"]  # Targets: "all_synapses", "excitation", "inhibition", "upstream"
+        metrics: ["accuracy", "auc", "categorical_loglikelihood"]  # Metrics: "accuracy", "auc", "categorical_loglikelihood", "mse", "cosine_similarity", "pred_label_mi_bits"
+
+      methods:
+        ablation_methods: ["lesion", "shuffle", "mean_clamp"]  # Methods: "lesion", "shuffle", "mean_clamp"
+        shuffle_seed: 0                   # Shuffle seed (int)
+        clamp_statistic: "mean"           # mean_clamp statistic: "mean"
 
   synapse_turnover_analysis:
     enabled: true                       # Enable synapse turnover analysis (true/false)
@@ -625,14 +668,31 @@ analysis:
       compute_entropy: true             # Compute entropy per layer (true/false)
       per_class_analysis: false         # Analyze statistics separately for each class (true/false)
       n_samples: 1000                   # Number of samples to analyze (null = all)
-  
+
   compartment_snr_analysis:
     enabled: true
     training: true
     params:
-      global_analysis: true
+      input_analysis: true
       layer_analysis: true
       branch_analysis: true
+      global_aggregation: true
+      layer_aggregation: true
+      branch_aggregation: true
+
+  multiplicative_gain_analysis:
+    enabled: true
+    training: true
+    params:
+      gain_min: 0.0
+      gain_max: 100.0
+      n_steps: 50
+      logspace: true
+      accuracy: true
+      auc: true
+      categorical_loglikelihood: true
+      mse: true
+      cosine_similarity: true
 
 # ============================================================================
 # LOGGING

@@ -5,6 +5,7 @@ This module contains functions for loading and preprocessing standard datasets
 like MNIST, CIFAR-10, and ImageNet, as well as synthetic datasets for theoretical validation.
 """
 
+import importlib
 import os
 from typing import Any, Optional, Union
 
@@ -259,24 +260,41 @@ class PoissonGeneratorDataset(Dataset):
         self,
         base_inputs: torch.Tensor,
         base_labels: torch.Tensor,
-        stimulus_duration: float = 1.0,
+        multiplicative_gain: bool = True,
+        fixed_gain_factor: Optional[float] = None,
         max_gain_factor: Optional[float] = None,
+        uniform_gain: bool = True,
+        poisson_sampling: bool = True,
+        stimulus_duration: float = 1.0,
         max_gain_tau_ratio: Optional[float] = None,
-        uniform_gain: bool = True
     ):
         stimulus_duration = float(stimulus_duration)
 
-        if max_gain_factor:
+        if fixed_gain_factor:
+            fixed_gain_factor = float(fixed_gain_factor)
+        elif max_gain_factor:
             max_gain_factor = float(max_gain_factor)
         elif max_gain_tau_ratio:
             max_gain_factor = float(max_gain_tau_ratio) * stimulus_duration
 
         self.base_inputs = base_inputs
         self.base_labels = base_labels
-        self.stimulus_duration = stimulus_duration
-        self.tau = stimulus_duration
+        self.multiplicative_gain = multiplicative_gain
+        self.fixed_gain_factor = fixed_gain_factor
         self.max_gain_factor = max_gain_factor
         self.uniform_gain = uniform_gain
+        self.poisson_sampling = poisson_sampling
+        self.stimulus_duration = stimulus_duration
+        self.tau = stimulus_duration
+
+        self._fixed_gf = None
+        self._max_gf = None
+
+    def _set_gain_factor(self, gain_factor: float | torch.Tensor):
+        self._fixed_gf = gain_factor
+
+    def _set_max_gain_factor(self, max_gain_factor: float | torch.Tensor):
+        self._max_gf = max_gain_factor
 
     def __len__(self):
         return len(self.base_inputs)
@@ -285,26 +303,62 @@ class PoissonGeneratorDataset(Dataset):
         input = self.base_inputs[idx]
         label = self.base_labels[idx]
 
-        if self.uniform_gain:
-            gain_factor = torch.rand(input.shape[0]) * self.max_gain_factor
-            while gain_factor.ndim < input.ndim:
-                gain_factor = gain_factor[..., None]
-        else:
-            gain_factor = torch.rand_like(input) * self.max_gain_factor
-                
-        scaled_input = gain_factor * self.tau * input
-        noisy_scaled_input = torch.poisson(scaled_input)
-        noisy_input = noisy_scaled_input / self.tau
+        if self._fixed_gf is not None:
+            input = input * self._fixed_gf
+            self._fixed_gf = None
 
-        return noisy_input, label
+        elif self._max_gf is not None:
+            input = input * ((torch.rand_like(input) * (self._max_gf - 1)) + 1)
+            # input = input * torch.exp(
+            #     ((torch.rand_like(input) * 2) - 1
+            #     ) * math.log(self.mgf)
+            # )
+            self._max_gf = None
+
+        elif self.multiplicative_gain:
+            if self.fixed_gain_factor is not None:
+                gain_factor = self.fixed_gain_factor
+
+            elif self.uniform_gain:
+                gain_factor = (
+                    torch.rand(input.shape[0]) * (self.max_gain_factor - 1)
+                ) + 1
+                while gain_factor.ndim < input.ndim:
+                    gain_factor = gain_factor[..., None]
+
+            else:
+                # gain_factor = torch.exp(
+                #     ((torch.rand(input.shape[0]) * 2) - 1
+                #     ) * math.log(self.max_gain_factor)
+                # )
+                # gain_factor = torch.exp(
+                #     torch.rand(input.shape[0]) * math.log(self.max_gain_factor)
+                # )
+                gain_factor = (torch.rand_like(input) * (self.max_gain_factor - 1)) + 1
+                # gain_factor = torch.exp(
+                #     ((torch.rand_like(input) * 2) - 1
+                #     ) * math.log(self.max_gain_factor)
+                # )
+
+            input = gain_factor * input
+
+        if self.poisson_sampling:
+            noisy_input = torch.poisson(self.tau * input)
+            noisy_input = noisy_input / self.tau
+            return noisy_input, label
+        else:
+            return input, label
 
 
 def load_poisson_generator_datasets(
     base_dataset: str,
-    stimulus_duration: float = 1.0,
+    multiplicative_gain: bool = True,
+    fixed_gain_factor: Optional[float] = None,
     max_gain_factor: Optional[float] = None,
-    max_gain_tau_ratio: Optional[float] = None,
     uniform_gain: bool = True,
+    poisson_sampling: bool = True,
+    stimulus_duration: float = 1.0,
+    max_gain_tau_ratio: Optional[float] = None,
     train_valid_split: float = 0.8,
     flatten: bool = False,
     task_data_path: Optional[str] = None,
@@ -315,6 +369,7 @@ def load_poisson_generator_datasets(
     Args:
         base_dataset (str): The base dataset to sample from
         stimulus_duration (float): The stimulus duration for the Poisson distribution
+        fixed_gain_factor (float): The fixed gain factor for the Poisson distribution
         max_gain_factor (float): The maximum gain factor for the Poisson distribution
         max_gain_tau_ratio (float): The maximum gain tau ratio for the Poisson distribution
         uniform_gain (bool): Whether to use uniform gain for the Poisson distribution
@@ -344,25 +399,34 @@ def load_poisson_generator_datasets(
         raise ValueError(f"Unknown base dataset: {base_dataset}")
 
     train_ds = PoissonGeneratorDataset(
-        *train_ds[:], 
-        stimulus_duration=stimulus_duration, 
-        max_gain_factor=max_gain_factor, 
+        *train_ds[:],
+        multiplicative_gain=multiplicative_gain,
+        fixed_gain_factor=fixed_gain_factor,
+        max_gain_factor=max_gain_factor,
+        uniform_gain=uniform_gain,
+        poisson_sampling=poisson_sampling,
+        stimulus_duration=stimulus_duration,
         max_gain_tau_ratio=max_gain_tau_ratio,
-        uniform_gain=uniform_gain
     )
     valid_ds = PoissonGeneratorDataset(
-        *valid_ds[:], 
-        stimulus_duration=stimulus_duration, 
-        max_gain_factor=max_gain_factor, 
+        *valid_ds[:],
+        multiplicative_gain=multiplicative_gain,
+        fixed_gain_factor=fixed_gain_factor,
+        max_gain_factor=max_gain_factor,
+        uniform_gain=uniform_gain,
+        poisson_sampling=poisson_sampling,
+        stimulus_duration=stimulus_duration,
         max_gain_tau_ratio=max_gain_tau_ratio,
-        uniform_gain=uniform_gain
     )
     test_ds = PoissonGeneratorDataset(
-        *test_ds[:], 
-        stimulus_duration=stimulus_duration, 
-        max_gain_factor=max_gain_factor, 
+        *test_ds[:],
+        multiplicative_gain=multiplicative_gain,
+        fixed_gain_factor=fixed_gain_factor,
+        max_gain_factor=max_gain_factor,
+        uniform_gain=uniform_gain,
+        poisson_sampling=poisson_sampling,
+        stimulus_duration=stimulus_duration,
         max_gain_tau_ratio=max_gain_tau_ratio,
-        uniform_gain=uniform_gain
     )
 
     return train_ds, valid_ds, test_ds
@@ -507,7 +571,10 @@ def get_unified_datasets(task_cfg):
     flatten = p.get("flatten", True)
     normalize = p.get("normalize", False)
     base_dataset = p.get("base_dataset", "mnist")
+    poisson_sampling = p.get("poisson_sampling", True)
     stimulus_duration = p.get("stimulus_duration", 1.0)
+    multiplicative_gain = p.get("multiplicative_gain", True)
+    fixed_gain_factor = p.get("fixed_gain_factor", None)
     max_gain_factor = p.get("max_gain_factor", None)
     max_gain_tau_ratio = p.get("max_gain_tau_ratio", None)
     uniform_gain = p.get("uniform_gain", True)
@@ -531,13 +598,16 @@ def get_unified_datasets(task_cfg):
     elif dataset_name == "poisson_generator":
         return load_poisson_generator_datasets(
             base_dataset=base_dataset,
-            stimulus_duration=stimulus_duration,
+            multiplicative_gain=multiplicative_gain,
+            fixed_gain_factor=fixed_gain_factor,
             max_gain_factor=max_gain_factor,
-            max_gain_tau_ratio=max_gain_tau_ratio,
             uniform_gain=uniform_gain,
+            poisson_sampling=poisson_sampling,
+            stimulus_duration=stimulus_duration,
+            max_gain_tau_ratio=max_gain_tau_ratio,
             train_valid_split=train_valid_split,
             flatten=flatten,
-            task_data_path=task_data_path
+            task_data_path=task_data_path,
         )
     elif dataset_name == "imagenet":
         return load_imagenet_as_datasets(
@@ -573,28 +643,44 @@ def get_unified_datasets(task_cfg):
         dataset_config["type"] = dataset_name
         return get_synthetic_datasets(dataset_config)
     else:
-        # For synthetic/experimental datasets, delegate to the experiments folder
-        try:
-            # Add experiments directory to path
-            experiments_path = os.path.join(
-                os.path.dirname(
-                    os.path.dirname(
-                        os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-                    )
-                ),
-                "experiments",
-            )
-            import sys
+        # For synthetic/experimental datasets, delegate to experiments synthetic datasets.
+        # Keep this robust to both layouts:
+        #   <repo>/experiments/experiments/data_generation/synthetic_datasets.py
+        #   <repo>/experiments/data_generation/synthetic_datasets.py
+        repo_root = os.path.dirname(
+            os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        )
+        experiments_root = os.path.join(repo_root, "experiments")
 
-            if experiments_path not in sys.path:
-                sys.path.insert(0, experiments_path)
+        import sys
 
-            from data_generation.synthetic_datasets import (
-                get_unified_datasets as get_experimental_datasets,
-            )
+        # Try canonical package imports first.
+        import_candidates = [
+            "experiments.data_generation.synthetic_datasets",
+            "data_generation.synthetic_datasets",
+        ]
+        # Ensure both candidate roots are importable regardless launch cwd/PYTHONPATH.
+        path_candidates = [
+            experiments_root,
+            os.path.join(experiments_root, "experiments"),
+        ]
+        for candidate_path in path_candidates:
+            if os.path.isdir(candidate_path) and candidate_path not in sys.path:
+                sys.path.insert(0, candidate_path)
 
-            return get_experimental_datasets(task_cfg)
-        except ImportError as e:
+        last_error: Exception | None = None
+        get_experimental_datasets = None
+        for module_name in import_candidates:
+            try:
+                module = importlib.import_module(module_name)
+                get_experimental_datasets = module.get_unified_datasets
+                break
+            except Exception as e:  # pragma: no cover - fallback path
+                last_error = e
+
+        if get_experimental_datasets is None:
             raise ValueError(
-                f"Unknown dataset name: {dataset_name}. Synthetic datasets not available: {e}"
+                f"Unknown dataset name: {dataset_name}. Synthetic datasets not available: {last_error}"
             )
+
+        return get_experimental_datasets(task_cfg, task_cfg)

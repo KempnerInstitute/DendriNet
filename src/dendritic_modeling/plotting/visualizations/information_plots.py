@@ -135,9 +135,21 @@ class PairwiseMIPlotter(BasePlotter):
         if ax is None:
             _, ax = self.create_subplot()
 
-        variables = ["E", "I", "Vout"]
+        # Start with base variables and add optional ones if present
+        variables = ["E", "I"]
+        if any("Vb" in key for key in pairwise_mi.keys()):
+            variables.append("Vb")
+        variables.append("Vout")
         if any("Vinf" in key for key in pairwise_mi.keys()):
             variables.append("Vinf")
+
+        # Add LDA versions if present
+        if any("E_lin" in key for key in pairwise_mi.keys()):
+            variables.append("E_lin")
+        if any("I_lin" in key for key in pairwise_mi.keys()):
+            variables.append("I_lin")
+        if any("Vb_lin" in key for key in pairwise_mi.keys()):
+            variables.append("Vb_lin")
 
         n_vars = len(variables)
         mi_matrix = np.zeros((n_vars, n_vars))
@@ -167,16 +179,54 @@ class PerLayerPlotter(BasePlotter):
     def plot_basic_mi_layers(
         self, layer_results: dict, layer_names: list, ax: plt.Axes
     ):
-        metrics_to_plot = ["I(E;C)_mean", "I(I;C)_mean", "I(Vout;C)_mean"]
-        metric_labels = ["I(E;C)", "I(I;C)", "I(Vout;C)"]
-        colors = [
-            self.get_color("excitatory"),
-            self.get_color("inhibitory"),
-            self.get_color("combined"),
+        # Base metrics - check what's available in the data
+        possible_metrics = [
+            "I(E;C)_mean",
+            "I(I;C)_mean",
+            "I(Vb;C)_mean",
+            "I(Vout;C)_mean",
+            "I(E_lin;C)_mean",
+            "I(I_lin;C)_mean",
+            "I(Vb_lin;C)_mean",
+        ]
+        possible_labels = [
+            "I(E;C)",
+            "I(I;C)",
+            "I(Vb;C)",
+            "I(Vout;C)",
+            "I(E_lin;C)",
+            "I(I_lin;C)",
+            "I(Vb_lin;C)",
         ]
 
+        # Filter to only metrics present in data
+        metrics_to_plot = []
+        metric_labels = []
+        for metric, label in zip(possible_metrics, possible_labels):
+            # Check if any layer has this metric
+            if any(metric in layer_results.get(ln, {}) for ln in layer_names):
+                metrics_to_plot.append(metric)
+                metric_labels.append(label)
+
+        # Fallback to original if none found
+        if not metrics_to_plot:
+            metrics_to_plot = ["I(E;C)_mean", "I(I;C)_mean", "I(Vout;C)_mean"]
+            metric_labels = ["I(E;C)", "I(I;C)", "I(Vout;C)"]
+
+        # Define colors matching the number of metrics
+        color_map = {
+            "I(E;C)": self.get_color("excitatory"),
+            "I(I;C)": self.get_color("inhibitory"),
+            "I(Vb;C)": "#FFB347",  # Orange for branch input
+            "I(Vout;C)": self.get_color("combined"),
+            "I(E_lin;C)": "#90EE90",  # Light green for E LDA
+            "I(I_lin;C)": "#FFB6C1",  # Light pink for I LDA
+            "I(Vb_lin;C)": "#FFD700",  # Gold for Vb LDA
+        }
+        colors = [color_map.get(label, "#808080") for label in metric_labels]
+
         x = np.arange(len(layer_names))
-        width = 0.25
+        width = 0.8 / len(metrics_to_plot)  # Dynamic width based on number of metrics
 
         for i, (metric, label, color) in enumerate(
             zip(metrics_to_plot, metric_labels, colors)
@@ -432,7 +482,8 @@ class InformationAnalysisPlotter(BasePlotter):
 
         if "basic_mi" in results:
             basic_mi = results["basic_mi"]
-            for key in ["I(E;C)", "I(I;C)", "I(Vout;C)", "I(E,I;C)"]:
+            # Include all available basic MI metrics (E, I, Vb, Vout, and combinations)
+            for key in ["I(E;C)", "I(I;C)", "I(Vb;C)", "I(Vout;C)", "I(E,I;C)"]:
                 if key in basic_mi:
                     summary_lines.append(f"{key}: {basic_mi[key]:.4f} bits")
 
@@ -455,8 +506,39 @@ class InformationAnalysisPlotter(BasePlotter):
 
     def _plot_layer_heatmap(self, ax: plt.Axes, layer_results: dict, layer_names: list):
         """Plot layer information as heatmap."""
-        metrics = ["I(E;C)_mean", "I(I;C)_mean", "I(Vout;C)_mean", "I(E;I)_mean"]
-        metric_labels = ["I(E;C)", "I(I;C)", "I(Vout;C)", "I(E;I)"]
+        # Check which metrics are available
+        possible_metrics = [
+            "I(E;C)_mean",
+            "I(I;C)_mean",
+            "I(Vb;C)_mean",
+            "I(Vout;C)_mean",
+            "I(E;I)_mean",
+            "I(E_lin;C)_mean",
+            "I(I_lin;C)_mean",
+            "I(Vb_lin;C)_mean",
+        ]
+        possible_labels = [
+            "I(E;C)",
+            "I(I;C)",
+            "I(Vb;C)",
+            "I(Vout;C)",
+            "I(E;I)",
+            "I(E_lin;C)",
+            "I(I_lin;C)",
+            "I(Vb_lin;C)",
+        ]
+
+        metrics = []
+        metric_labels = []
+        for metric, label in zip(possible_metrics, possible_labels):
+            if any(metric in layer_results.get(ln, {}) for ln in layer_names):
+                metrics.append(metric)
+                metric_labels.append(label)
+
+        # Fallback if none found
+        if not metrics:
+            metrics = ["I(E;C)_mean", "I(I;C)_mean", "I(Vout;C)_mean", "I(E;I)_mean"]
+            metric_labels = ["I(E;C)", "I(I;C)", "I(Vout;C)", "I(E;I)"]
 
         data_matrix = []
         for metric in metrics:
@@ -478,15 +560,42 @@ class InformationAnalysisPlotter(BasePlotter):
     ) -> plt.Figure:
         """Plot information metrics vs layer depth with mean and variance."""
         try:
-            fig, axes = self.create_subplots(2, 2, figsize=(15, 10))
-
             # Define metric patterns for each type
             if metric_type == "basic_mi":
-                metric_patterns = ["I(E;C)", "I(I;C)", "I(Vout;C)", "I(E,I;C)"]
+                metric_patterns = [
+                    "I(E;C)",
+                    "I(I;C)",
+                    "I(Vb;C)",
+                    "I(Vout;C)",
+                    "I(E,I;C)",
+                    "I(E_lin;C)",
+                    "I(I_lin;C)",
+                    "I(Vb_lin;C)",
+                ]
             elif metric_type == "pairwise_mi":
-                metric_patterns = ["I(E;I)", "I(E;Vout)", "I(I;Vout)"]
+                metric_patterns = [
+                    "I(E;I)",
+                    "I(E;Vout)",
+                    "I(I;Vout)",
+                    "I(E;Vb)",
+                    "I(I;Vb)",
+                    "I(Vb;Vout)",
+                    "I(E_lin;I_lin)",
+                    "I(E_lin;Vb_lin)",
+                    "I(I_lin;Vb_lin)",
+                ]
             elif metric_type == "conditional_mi":
-                metric_patterns = ["I(E;I|C)", "I(E;Vout|C)", "I(I;Vout|C)"]
+                metric_patterns = [
+                    "I(E;I|C)",
+                    "I(E;Vout|C)",
+                    "I(I;Vout|C)",
+                    "I(E;Vb|C)",
+                    "I(I;Vb|C)",
+                    "I(Vb;Vout|C)",
+                    "I(E_lin;I_lin|C)",
+                    "I(E_lin;Vb_lin|C)",
+                    "I(I_lin;Vb_lin|C)",
+                ]
             else:
                 metric_patterns = []
 
@@ -504,8 +613,26 @@ class InformationAnalysisPlotter(BasePlotter):
             metrics = sorted(metrics)
             logger.info(f"Found {metric_type} metrics: {metrics}")
 
+            # Determine grid size based on number of metrics
+            n_metrics = len(metrics)
+            if n_metrics == 0:
+                logger.warning(f"No {metric_type} metrics found")
+                return None
+
+            # Create appropriate grid: 2x2 for 3-4 metrics, 2x3 for 5-6, 3x3 for 7-9, etc.
+            ncols = min(3, (n_metrics + 1) // 2 + (n_metrics % 2))
+            nrows = (n_metrics + ncols - 1) // ncols
+
+            fig, axes = self.create_subplots(
+                nrows, ncols, figsize=(7 * ncols, 5 * nrows)
+            )
+            if nrows == 1 and ncols == 1:
+                axes = [axes]
+            else:
+                axes = axes.flatten()
+
             # Plot each metric
-            for idx, metric in enumerate(metrics[:4]):  # Limit to 4 subplots
+            for idx, metric in enumerate(metrics):  # Plot all metrics, not just first 4
                 ax = axes.flat[idx]
 
                 means = []
@@ -562,6 +689,10 @@ class InformationAnalysisPlotter(BasePlotter):
                         va="center",
                         transform=ax.transAxes,
                     )
+
+            # Hide unused subplots
+            for idx in range(len(metrics), len(axes)):
+                axes[idx].axis("off")
 
             plt.suptitle(title, fontsize=16)
             plt.tight_layout()
@@ -756,22 +887,70 @@ def _generate_layer_comparison_plots(
 
     # Information metrics to plot
     metric_types = [
-        ("basic_mi", ["I(E;C)", "I(I;C)", "I(Vout;C)", "I(E,I;C)"]),
-        ("pairwise_mi", ["I(E;I)", "I(E;Vout)", "I(I;Vout)"]),
-        ("conditional_mi", ["I(E;I|C)", "I(E;Vout|C)", "I(I;Vout|C)"]),
+        (
+            "basic_mi",
+            [
+                "I(E;C)",
+                "I(I;C)",
+                "I(Vb;C)",
+                "I(Vout;C)",
+                "I(E,I;C)",
+                "I(E_lin;C)",
+                "I(I_lin;C)",
+                "I(Vb_lin;C)",
+            ],
+        ),
+        (
+            "pairwise_mi",
+            [
+                "I(E;I)",
+                "I(E;Vout)",
+                "I(I;Vout)",
+                "I(E;Vb)",
+                "I(I;Vb)",
+                "I(Vb;Vout)",
+                "I(E_lin;I_lin)",
+                "I(E_lin;Vb_lin)",
+                "I(I_lin;Vb_lin)",
+            ],
+        ),
+        (
+            "conditional_mi",
+            [
+                "I(E;I|C)",
+                "I(E;Vout|C)",
+                "I(I;Vout|C)",
+                "I(E;Vb|C)",
+                "I(I;Vb|C)",
+                "I(Vb;Vout|C)",
+                "I(E_lin;I_lin|C)",
+                "I(E_lin;Vb_lin|C)",
+                "I(I_lin;Vb_lin|C)",
+            ],
+        ),
     ]
 
     for network_type, layer_data in network_comparison_data.items():
         logger.info(f"Generating comparison plots for {network_type} networks")
 
         for metric_category, metrics in metric_types:
-            # Create figure with subplots for each metric
-            # n_metrics = len(metrics)  # Unused variable
-            fig, axes = plt.subplots(2, 2, figsize=(15, 10))
-            axes = axes.flatten()
+            # Create figure with subplots for each metric - dynamic sizing
+            n_metrics = len(metrics)
+            n_cols = 3  # Use 3 columns
+            n_rows = (n_metrics + n_cols - 1) // n_cols  # Ceiling division
+
+            fig, axes = plt.subplots(n_rows, n_cols, figsize=(5 * n_cols, 4 * n_rows))
+            if n_rows == 1 and n_cols == 1:
+                axes = np.array([axes])
+            elif n_rows == 1 or n_cols == 1:
+                axes = axes.flatten()
+            else:
+                axes = axes.flatten()
 
             for idx, metric in enumerate(metrics):
-                ax = axes[idx] if idx < len(axes) else axes[-1]
+                if idx >= len(axes):
+                    break
+                ax = axes[idx]
 
                 # First, determine all available depths from all layers
                 all_available_depths = set()
@@ -783,6 +962,12 @@ def _generate_layer_comparison_plots(
                 def depth_sort_key(depth_name):
                     if depth_name == "Soma":
                         return 0
+                    # Backward-compatible: some plots use "Layer N" labels
+                    elif depth_name.startswith("Layer"):
+                        try:
+                            return int(depth_name.split()[-1])
+                        except ValueError:
+                            return 99
                     elif depth_name.startswith("Distal Layer"):
                         try:
                             return int(depth_name.split()[-1])
@@ -799,22 +984,22 @@ def _generate_layer_comparison_plots(
                         continue
 
                     # Extract dendritic depths and metric values
-                    depths = []
+                    x_positions = []
                     values = []
                     errors = []
 
                     # Use the sorted depths that were determined for all layers
-                    for depth_label in sorted_depths:
+                    for depth_idx, depth_label in enumerate(sorted_depths):
                         if depth_label in depth_data:
                             depth_stats = depth_data[depth_label]
                             if f"{metric}_mean" in depth_stats:
-                                depths.append(depth_label)
+                                x_positions.append(depth_idx)
                                 values.append(depth_stats[f"{metric}_mean"])
                                 # Use std/5 for smaller error bars
                                 errors.append(depth_stats.get(f"{metric}_std", 0) / 5.0)
 
-                    if depths and values:
-                        x_pos = np.arange(len(depths))
+                    if x_positions and values:
+                        x_pos = np.asarray(x_positions)
                         color = layer_colors.get(layer_name, "#808080")
 
                         # Plot line with error bars
@@ -891,9 +1076,64 @@ def plot_layer_wise_aggregated_analysis(
         logger = logging.getLogger(__name__)
 
     logger.info("Generating layer-wise aggregated plots...")
-    # Implementation similar to _plot_structured_ei_network_analysis but aggregating E/I
-    # This would be called when per_layer=True, per_einet=False
-    # Placeholder for now
+    # Goal: keep EI layers separate, but aggregate E/I networks within each layer.
+    # We implement this by generating a fully-aggregated dendritic-depth plot *per EI layer*.
+    import os
+
+    # Collect EI layer indices present in layer_statistics
+    layer_indices: set[int] = set()
+    for layer_name in layer_statistics.keys():
+        parts = str(layer_name).split(".")
+        if "layers" in parts:
+            try:
+                idx = parts.index("layers")
+                layer_indices.add(int(parts[idx + 1]))
+            except (ValueError, IndexError):
+                continue
+
+    if not layer_indices:
+        logger.warning(
+            "No EI layers found in layer_statistics; skipping layer-wise plots."
+        )
+        return
+
+    out_root = os.path.join(save_path, "layer_wise_aggregated")
+    os.makedirs(out_root, exist_ok=True)
+
+    for layer_idx in sorted(layer_indices):
+        subset: dict[str, Any] = {}
+        for layer_name, stats in layer_statistics.items():
+            if layer_name == "synthetic_soma":
+                # Include synthetic soma in all subsets (safe no-op if absent).
+                subset[layer_name] = stats
+                continue
+
+            parts = str(layer_name).split(".")
+            if "layers" not in parts:
+                continue
+            try:
+                idx = parts.index("layers")
+                ei_layer_idx = int(parts[idx + 1])
+            except (ValueError, IndexError):
+                continue
+            if ei_layer_idx == layer_idx:
+                subset[layer_name] = stats
+
+        if not subset:
+            continue
+
+        layer_dir = os.path.join(out_root, f"ei_layer_{layer_idx}")
+        os.makedirs(layer_dir, exist_ok=True)
+
+        # Re-use the robust aggregation/plotting logic.
+        plot_fully_aggregated_analysis(
+            subset,
+            save_path=layer_dir,
+            logger=logger,
+            somatic_synapses=somatic_synapses,
+        )
+
+    logger.info(f"Saved layer-wise aggregated plots under: {out_root}")
 
 
 def plot_network_wise_aggregated_analysis(
@@ -910,9 +1150,42 @@ def plot_network_wise_aggregated_analysis(
         logger = logging.getLogger(__name__)
 
     logger.info("Generating network-wise aggregated plots...")
-    # Implementation would aggregate across layers but keep E/I separate
-    # This would be called when per_layer=False, per_einet=True
-    # Placeholder for now
+    # Goal: aggregate across EI layers, but keep E/I networks separate.
+    # We implement this by generating a fully-aggregated dendritic-depth plot *per network type*.
+    import os
+
+    # Partition layer_statistics by cell type (excitatory_cells vs inhibitory_cells)
+    groups: dict[str, dict[str, Any]] = {"excitatory_cells": {}, "inhibitory_cells": {}}
+    for layer_name, stats in layer_statistics.items():
+        if layer_name == "synthetic_soma":
+            # Include synthetic soma in both networks (safe no-op if absent).
+            groups["excitatory_cells"][layer_name] = stats
+            groups["inhibitory_cells"][layer_name] = stats
+            continue
+
+        lname = str(layer_name)
+        if "excitatory_cells" in lname:
+            groups["excitatory_cells"][layer_name] = stats
+        elif "inhibitory_cells" in lname:
+            groups["inhibitory_cells"][layer_name] = stats
+
+    out_root = os.path.join(save_path, "network_wise_aggregated")
+    os.makedirs(out_root, exist_ok=True)
+
+    for cell_type, subset in groups.items():
+        if not subset:
+            continue
+        net_dir = os.path.join(out_root, cell_type.replace("_cells", ""))
+        os.makedirs(net_dir, exist_ok=True)
+
+        plot_fully_aggregated_analysis(
+            subset,
+            save_path=net_dir,
+            logger=logger,
+            somatic_synapses=somatic_synapses,
+        )
+
+    logger.info(f"Saved network-wise aggregated plots under: {out_root}")
 
 
 def plot_info_vs_ei_depth_per_dendritic_layer(
@@ -1018,9 +1291,50 @@ def plot_info_vs_ei_depth_per_dendritic_layer(
 
         # Create plots for each metric type (basic, pairwise, conditional)
         metric_types = [
-            ("basic_mi", ["I(E;C)", "I(I;C)", "I(Vout;C)", "I(E,I;C)"]),
-            ("pairwise_mi", ["I(E;I)", "I(E;Vout)", "I(I;Vout)"]),
-            ("conditional_mi", ["I(E;I|C)", "I(E;Vout|C)", "I(I;Vout|C)"]),
+            (
+                "basic_mi",
+                [
+                    "I(E;C)",
+                    "I(I;C)",
+                    "I(Vb;C)",
+                    "I(Vout;C)",
+                    "I(E,I;C)",
+                    "I(E_lin;C)",
+                    "I(I_lin;C)",
+                    "I(Vb_lin;C)",
+                    "I(E_lin,I_lin;C)",
+                ],
+            ),
+            (
+                "pairwise_mi",
+                [
+                    "I(E;I)",
+                    "I(E;Vout)",
+                    "I(I;Vout)",
+                    "I(E;Vb)",
+                    "I(I;Vb)",
+                    "I(Vb;Vout)",
+                    "I(E_lin;I_lin)",
+                    "I(E_lin;Vout)",
+                    "I(I_lin;Vout)",
+                    "I(E_lin;Vb_lin)",
+                    "I(I_lin;Vb_lin)",
+                ],
+            ),
+            (
+                "conditional_mi",
+                [
+                    "I(E;I|C)",
+                    "I(E;Vout|C)",
+                    "I(I;Vout|C)",
+                    "I(E;Vb|C)",
+                    "I(I;Vb|C)",
+                    "I(Vb;Vout|C)",
+                    "I(E_lin;I_lin|C)",
+                    "I(E_lin;Vout|C)",
+                    "I(I_lin;Vout|C)",
+                ],
+            ),
         ]
 
         # Define colors for different branch layers
@@ -1039,14 +1353,26 @@ def plot_info_vs_ei_depth_per_dendritic_layer(
         for metric_category, metric_names in metric_types:
             # Create separate plots for excitatory and inhibitory
             for cell_type in ["excitatory_cells", "inhibitory_cells"]:
-                fig, axes = plt.subplots(2, 2, figsize=(15, 10))
-                axes = axes.flatten()
+                # Dynamically size grid based on number of metrics
+                n_metrics = len(metric_names)
+                n_cols = 3
+                n_rows = (n_metrics + n_cols - 1) // n_cols
+
+                fig, axes = plt.subplots(
+                    n_rows, n_cols, figsize=(5 * n_cols, 4 * n_rows)
+                )
+                if n_rows == 1 and n_cols == 1:
+                    axes = np.array([axes])
+                elif n_rows == 1 or n_cols == 1:
+                    axes = axes.flatten()
+                else:
+                    axes = axes.flatten()
 
                 # Track if any plots were created
                 plots_created = []
 
-                # Plot up to 4 metrics
-                for i, metric_name in enumerate(metric_names[:4]):
+                # Plot all metrics
+                for i, metric_name in enumerate(metric_names):
                     if i >= len(axes):
                         break
 
@@ -1093,28 +1419,27 @@ def plot_info_vs_ei_depth_per_dendritic_layer(
                         # Only plot if we have non-zero values
                         if any(v != 0 for v in values):
                             color = branch_colors.get(branch_idx, "#808080")
-                            # Fix branch labeling - higher branch_idx means more distal
-                            # Map branch_idx to correct distal depth dynamically
-                            # Highest branch_idx is closest to soma (Distal Layer 1)
-                            if max_branch_idx >= 0:
-                                distal_number = (max_branch_idx - branch_idx) + 1
-                                if (
-                                    not somatic_synapses
-                                    and branch_idx == max_branch_idx
-                                    and "synthetic_soma" in layer_statistics
-                                ):
-                                    # When somatic_synapses=False, we explicitly include a synthetic Soma elsewhere
-                                    branch_label = f"Distal Layer {distal_number}"
+                            # Determine branch label using has_synapses flag
+                            # Get has_synapses from any layer for this branch_idx
+                            has_synapses = True
+                            for lname, ldata in layer_statistics.items():
+                                if f"branch_layers.{branch_idx}" in lname:
+                                    has_synapses = ldata.get("has_synapses", True)
+                                    break
+
+                            if not has_synapses:
+                                # This is the soma layer
+                                branch_label = "Soma"
+                            elif max_branch_idx >= 0:
+                                # Map branch index to distal depth
+                                distal_number = max_branch_idx - branch_idx
+                                if distal_number == 0:
+                                    branch_label = "Distal Layer 1"
                                 else:
-                                    branch_label = (
-                                        "Soma"
-                                        if distal_number == 0
-                                        else f"Distal Layer {distal_number}"
-                                    )
-                                # distal_number never 0 here; Soma is provided via synthetic_soma
+                                    branch_label = f"Distal Layer {distal_number}"
                             else:
                                 # Fallback
-                                branch_label = f"Distal Layer {branch_idx}"
+                                branch_label = f"Distal Layer {branch_idx + 1}"
 
                             # Plot line with error bars
                             ax.errorbar(
@@ -1174,8 +1499,8 @@ def plot_info_vs_ei_depth_per_dendritic_layer(
                 # Remove empty subplots and finalize the figure
                 if plots_created:
                     # Remove unused subplots
-                    for i in range(len(metric_names), 4):
-                        fig.delaxes(axes[i])
+                    for j in range(len(metric_names), len(axes)):
+                        fig.delaxes(axes[j])
 
                     cell_type_name = cell_type.replace("_cells", "").title()
                     fig.suptitle(
@@ -1271,6 +1596,63 @@ def plot_fully_aggregated_analysis(
             aggregated_data[depth_label][metric_name]["values"].append(float(value))
             aggregated_data[depth_label][metric_name]["stds"].append(float(std_val))
 
+        def derive_proxy_std(metric_name: str, layer_data: dict) -> float:
+            """Best-effort std for proxy aggregations.
+
+            Older runs stored proxy metrics like `<base>_sum` / `<base>_union` with
+            std=0. To keep proxy plots informative, derive an approximate std from
+            the base metric's per-branch std and branch count when available.
+            """
+            if not isinstance(metric_name, str) or not metric_name.startswith("I("):
+                return 0.0
+
+            base_metric = None
+            scale = 1.0
+
+            if metric_name.endswith("_sum_clipped"):
+                base_metric = metric_name[: -len("_sum_clipped")]
+            elif metric_name.endswith("_sum"):
+                # Handle _topK_sum separately below
+                if "_top" not in metric_name:
+                    base_metric = metric_name[: -len("_sum")]
+            elif metric_name.endswith("_union"):
+                base_metric = metric_name[: -len("_union")]
+                scale = 1.0
+            elif metric_name.endswith("_max"):
+                base_metric = metric_name[: -len("_max")]
+                scale = 1.0
+
+            # _topK_sum pattern: "<base>_top{K}_sum"
+            if (
+                base_metric is None
+                and "_top" in metric_name
+                and metric_name.endswith("_sum")
+            ):
+                prefix, rest = metric_name.rsplit("_top", 1)
+                if rest.endswith("_sum"):
+                    k_str = rest[: -len("_sum")]
+                    if k_str.isdigit():
+                        base_metric = prefix
+                        k = int(k_str)
+                        scale = float(max(1, k))
+
+            if base_metric is None:
+                return 0.0
+
+            base_std = float(layer_data.get(f"{base_metric}_std", 0.0))
+            if base_std <= 0:
+                return 0.0
+
+            base_n = float(layer_data.get(f"{base_metric}_n", 0.0))
+            if base_n > 0 and metric_name.endswith(("_sum", "_sum_clipped")):
+                return float(np.sqrt(base_n) * base_std)
+            if base_n > 0 and "_top" in metric_name and metric_name.endswith("_sum"):
+                eff_k = min(scale, base_n)
+                return float(np.sqrt(eff_k) * base_std)
+
+            # Fallback for union/max: use base metric spread.
+            return base_std
+
         # Case 1: synthetic soma (added when somatic_synapses=False)
         if layer_name == "synthetic_soma":
             if plot_variance:
@@ -1289,6 +1671,8 @@ def plot_fully_aggregated_analysis(
                         metric_name = depth_key.replace("_mean", "")
                         mean_val = layer_data.get(f"{metric_name}_mean", 0)
                         std_val = layer_data.get(f"{metric_name}_std", 0)
+                        if not std_val:
+                            std_val = derive_proxy_std(metric_name, layer_data)
                         register_metric("Soma", metric_name, mean_val, std_val)
             continue
 
@@ -1299,15 +1683,25 @@ def plot_fully_aggregated_analysis(
             except (IndexError, ValueError):
                 continue
 
-            # Map branch index to distal depth dynamically.
-            # Highest branch index is closest to soma (depth 1), lowest is most distal.
-            # Distal Layer numbering starts at 1.
-            if max_branch_idx >= 0:
-                distal_number = (max_branch_idx - branch_idx) + 1
-                depth_label = f"Distal Layer {distal_number}"
+            # Check if this layer is the soma (no synapses)
+            # When somatic_synapses=False, the highest branch_idx layer has has_synapses=False
+            has_synapses = layer_data.get("has_synapses", True)
+            if not has_synapses:
+                # This is the soma layer
+                depth_label = "Soma"
+            elif max_branch_idx >= 0:
+                # Map branch index to distal depth dynamically.
+                # For layers with synapses, compute distal number relative to non-soma layers
+                # Distal Layer numbering starts at 1 (closest to soma)
+                distal_number = max_branch_idx - branch_idx
+                if distal_number == 0:
+                    # This would be the soma, but has_synapses=True, so label as Distal Layer 1
+                    depth_label = "Distal Layer 1"
+                else:
+                    depth_label = f"Distal Layer {distal_number}"
             else:
                 # Fallback if we couldn't determine max index
-                depth_label = f"Distal Layer {branch_idx}"
+                depth_label = f"Distal Layer {branch_idx + 1}"
 
             if plot_variance:
                 # For variance plots, look for _variance keys
@@ -1325,6 +1719,8 @@ def plot_fully_aggregated_analysis(
                         metric_name = depth_key.replace("_mean", "")
                         mean_val = layer_data.get(f"{metric_name}_mean", 0)
                         std_val = layer_data.get(f"{metric_name}_std", 0)
+                        if not std_val:
+                            std_val = derive_proxy_std(metric_name, layer_data)
                         register_metric(depth_label, metric_name, mean_val, std_val)
 
     # Compute final aggregated statistics
@@ -1361,101 +1757,1201 @@ def plot_fully_aggregated_analysis(
 
     sorted_depths = sorted(all_depths, key=depth_sort_key)
 
-    # Define metric categories
-    metric_types = [
-        ("basic_mi", ["I(E;C)", "I(I;C)", "I(Vout;C)", "I(E,I;C)"]),
-        ("pairwise_mi", ["I(E;I)", "I(E;Vout)", "I(I;Vout)"]),
-        ("conditional_mi", ["I(E;I|C)", "I(E;Vout|C)", "I(I;Vout|C)"]),
+    # Define metric categories with paired comparisons.
+    # IMPORTANT: Titles should not hard-code LDA metric names, because LDA metrics may
+    # be absent when compute_lda_weights=False. Metric names belong in the legend.
+    metric_pairs = [
+        (
+            "basic_mi",
+            [
+                (
+                    "I(E;C)",
+                    [
+                        ("I(E;C)", "#1f77b4", "DendriNet"),
+                        ("I(E_lin;C)", "#ff7f0e", r"LDA$_{+}$"),
+                        ("I(E_sh;C)", "#7f7f7f", "Random"),  # Gray for random baseline
+                        ("I(E;C)_null", "#000000", "Label-shuffle"),
+                    ],
+                ),
+                (
+                    "I(I;C)",
+                    [
+                        ("I(I;C)", "#1f77b4", "DendriNet"),
+                        ("I(I_lin;C)", "#ff7f0e", r"LDA$_{+}$"),
+                        ("I(I_sh;C)", "#7f7f7f", "Random"),
+                        ("I(I;C)_null", "#000000", "Label-shuffle"),
+                    ],
+                ),
+                (
+                    "I(Vb;C)",
+                    [
+                        ("I(Vb;C)", "#1f77b4", "DendriNet"),
+                        ("I(Vb_lin;C)", "#ff7f0e", r"LDA$_{+}$"),
+                        ("I(Vb_sh;C)", "#7f7f7f", "Random"),
+                        ("I(Vb;C)_null", "#000000", "Label-shuffle"),
+                    ],
+                ),
+                (
+                    "I(Vout;C)",
+                    [
+                        ("I(Vout;C)", "#1f77b4", "DendriNet"),
+                        ("I(Vout_lin;C)", "#ff7f0e", r"LDA$_{+}$"),
+                        ("I(Vout_sh;C)", "#7f7f7f", "Random"),
+                        ("I(Vout;C)_null", "#000000", "Label-shuffle"),
+                    ],
+                ),
+                (
+                    "I(E,I;C)",
+                    [
+                        ("I(E,I;C)", "#1f77b4", "DendriNet"),
+                        ("I(E_lin,I_lin;C)", "#ff7f0e", r"LDA$_{+}$"),
+                        ("I(E_sh,I_sh;C)", "#7f7f7f", "Random"),
+                        ("I(E,I;C)_null", "#000000", "Label-shuffle"),
+                    ],
+                ),
+            ],
+        ),
+        (
+            "pairwise_mi",
+            [
+                (
+                    "I(E;I)",
+                    [
+                        ("I(E;I)", "#1f77b4", "DendriNet"),
+                        ("I(E_lin;I_lin)", "#ff7f0e", r"LDA$_{+}$"),
+                        ("I(E_sh;I_sh)", "#7f7f7f", "Random"),
+                        ("I(E;I)_null", "#000000", "Shuffle-null"),
+                    ],
+                ),
+                (
+                    "I(E;Vout)",
+                    [
+                        ("I(E;Vout)", "#1f77b4", "DendriNet"),
+                        ("I(E_lin;Vout_lin)", "#ff7f0e", r"LDA$_{+}$"),
+                        ("I(E_sh;Vout_sh)", "#7f7f7f", "Random"),
+                        ("I(E;Vout)_null", "#000000", "Shuffle-null"),
+                    ],
+                ),
+                (
+                    "I(I;Vout)",
+                    [
+                        ("I(I;Vout)", "#1f77b4", "DendriNet"),
+                        ("I(I_lin;Vout_lin)", "#ff7f0e", r"LDA$_{+}$"),
+                        ("I(I_sh;Vout_sh)", "#7f7f7f", "Random"),
+                        ("I(I;Vout)_null", "#000000", "Shuffle-null"),
+                    ],
+                ),
+                (
+                    "I(E;Vb)",
+                    [
+                        ("I(E;Vb)", "#1f77b4", "DendriNet"),
+                        ("I(E_lin;Vb_lin)", "#ff7f0e", r"LDA$_{+}$"),
+                        ("I(E_sh;Vb_sh)", "#7f7f7f", "Random"),
+                        ("I(E;Vb)_null", "#000000", "Shuffle-null"),
+                    ],
+                ),
+                (
+                    "I(I;Vb)",
+                    [
+                        ("I(I;Vb)", "#1f77b4", "DendriNet"),
+                        ("I(I_lin;Vb_lin)", "#ff7f0e", r"LDA$_{+}$"),
+                        ("I(I_sh;Vb_sh)", "#7f7f7f", "Random"),
+                        ("I(I;Vb)_null", "#000000", "Shuffle-null"),
+                    ],
+                ),
+                (
+                    "I(Vb;Vout)",
+                    [
+                        ("I(Vb;Vout)", "#1f77b4", "DendriNet"),
+                        ("I(Vb_lin;Vout_lin)", "#ff7f0e", r"LDA$_{+}$"),
+                        ("I(Vb_sh;Vout_sh)", "#7f7f7f", "Random"),
+                        ("I(Vb;Vout)_null", "#000000", "Shuffle-null"),
+                    ],
+                ),
+            ],
+        ),
+        (
+            "conditional_mi",
+            [
+                (
+                    "I(E;I|C)",
+                    [
+                        ("I(E;I|C)", "#1f77b4", "DendriNet"),
+                        ("I(E_lin;I_lin|C)", "#ff7f0e", r"LDA$_{+}$"),
+                        ("I(E_sh;I_sh|C)", "#7f7f7f", "Random"),
+                        ("I(E;I|C)_null", "#000000", "Shuffle-null"),
+                    ],
+                ),
+                (
+                    "I(E;Vout|C)",
+                    [
+                        ("I(E;Vout|C)", "#1f77b4", "DendriNet"),
+                        ("I(E_lin;Vout_lin|C)", "#ff7f0e", r"LDA$_{+}$"),
+                        ("I(E_sh;Vout_sh|C)", "#7f7f7f", "Random"),
+                        ("I(E;Vout|C)_null", "#000000", "Shuffle-null"),
+                    ],
+                ),
+                (
+                    "I(I;Vout|C)",
+                    [
+                        ("I(I;Vout|C)", "#1f77b4", "DendriNet"),
+                        ("I(I_lin;Vout_lin|C)", "#ff7f0e", r"LDA$_{+}$"),
+                        ("I(I_sh;Vout_sh|C)", "#7f7f7f", "Random"),
+                        ("I(I;Vout|C)_null", "#000000", "Shuffle-null"),
+                    ],
+                ),
+                (
+                    "I(E;Vb|C)",
+                    [
+                        ("I(E;Vb|C)", "#1f77b4", "DendriNet"),
+                        ("I(E_lin;Vb_lin|C)", "#ff7f0e", r"LDA$_{+}$"),
+                        ("I(E_sh;Vb_sh|C)", "#7f7f7f", "Random"),
+                        ("I(E;Vb|C)_null", "#000000", "Shuffle-null"),
+                    ],
+                ),
+                (
+                    "I(I;Vb|C)",
+                    [
+                        ("I(I;Vb|C)", "#1f77b4", "DendriNet"),
+                        ("I(I_lin;Vb_lin|C)", "#ff7f0e", r"LDA$_{+}$"),
+                        ("I(I_sh;Vb_sh|C)", "#7f7f7f", "Random"),
+                        ("I(I;Vb|C)_null", "#000000", "Shuffle-null"),
+                    ],
+                ),
+                (
+                    "I(Vb;Vout|C)",
+                    [
+                        ("I(Vb;Vout|C)", "#1f77b4", "DendriNet"),
+                        ("I(Vb_lin;Vout_lin|C)", "#ff7f0e", r"LDA$_{+}$"),
+                        ("I(Vb_sh;Vout_sh|C)", "#7f7f7f", "Random"),
+                        ("I(Vb;Vout|C)_null", "#000000", "Shuffle-null"),
+                    ],
+                ),
+                (
+                    "I(Vout;C|Vb)",
+                    [
+                        ("I(Vout;C|Vb)", "#1f77b4", "DendriNet"),
+                        ("I(Vout_lin;C|Vb_lin)", "#ff7f0e", r"LDA$_{+}$"),
+                        ("I(Vout_sh;C|Vb_sh)", "#7f7f7f", "Random"),
+                        ("I(Vout;C|Vb)_null", "#000000", "Shuffle-null"),
+                    ],
+                ),
+                (
+                    "I(Vb;C|Vout)",
+                    [
+                        ("I(Vb;C|Vout)", "#1f77b4", "DendriNet"),
+                        ("I(Vb_lin;C|Vout_lin)", "#ff7f0e", r"LDA$_{+}$"),
+                        ("I(Vb_sh;C|Vout_sh)", "#7f7f7f", "Random"),
+                        ("I(Vb;C|Vout)_null", "#000000", "Shuffle-null"),
+                    ],
+                ),
+                (
+                    "I(Vout;C|E,I)",
+                    [
+                        ("I(Vout;C|E,I)", "#1f77b4", "DendriNet"),
+                        ("I(Vout_lin;C|E_lin,I_lin)", "#ff7f0e", r"LDA$_{+}$"),
+                        ("I(Vout_sh;C|E_sh,I_sh)", "#7f7f7f", "Random"),
+                        ("I(Vout;C|E,I)_null", "#000000", "Shuffle-null"),
+                    ],
+                ),
+                (
+                    "I(E;C|Vb)",
+                    [
+                        ("I(E;C|Vb)", "#1f77b4", "DendriNet"),
+                        ("I(E_lin;C|Vb_lin)", "#ff7f0e", r"LDA$_{+}$"),
+                        ("I(E_sh;C|Vb_sh)", "#7f7f7f", "Random"),
+                        ("I(E;C|Vb)_null", "#000000", "Shuffle-null"),
+                    ],
+                ),
+                (
+                    "I(I;C|Vb)",
+                    [
+                        ("I(I;C|Vb)", "#1f77b4", "DendriNet"),
+                        ("I(I_lin;C|Vb_lin)", "#ff7f0e", r"LDA$_{+}$"),
+                        ("I(I_sh;C|Vb_sh)", "#7f7f7f", "Random"),
+                        ("I(I;C|Vb)_null", "#000000", "Shuffle-null"),
+                    ],
+                ),
+                (
+                    "I(E,I;C|Vb)",
+                    [
+                        ("I(E,I;C|Vb)", "#1f77b4", "DendriNet"),
+                        ("I(E_lin,I_lin;C|Vb_lin)", "#ff7f0e", r"LDA$_{+}$"),
+                        ("I(E_sh,I_sh;C|Vb_sh)", "#7f7f7f", "Random"),
+                        ("I(E,I;C|Vb)_null", "#000000", "Shuffle-null"),
+                    ],
+                ),
+                (
+                    "I(E;C|I,Vb)",
+                    [
+                        ("I(E;C|I,Vb)", "#1f77b4", "DendriNet"),
+                        ("I(E_lin;C|I_lin,Vb_lin)", "#ff7f0e", r"LDA$_{+}$"),
+                        ("I(E_sh;C|I_sh,Vb_sh)", "#7f7f7f", "Random"),
+                        ("I(E;C|I,Vb)_null", "#000000", "Shuffle-null"),
+                    ],
+                ),
+                (
+                    "I(I;C|E,Vb)",
+                    [
+                        ("I(I;C|E,Vb)", "#1f77b4", "DendriNet"),
+                        ("I(I_lin;C|E_lin,Vb_lin)", "#ff7f0e", r"LDA$_{+}$"),
+                        ("I(I_sh;C|E_sh,Vb_sh)", "#7f7f7f", "Random"),
+                        ("I(I;C|E,Vb)_null", "#000000", "Shuffle-null"),
+                    ],
+                ),
+            ],
+        ),
+        (
+            "dendritic_processing",
+            [
+                (
+                    "I(E;Vout|I,Vb)",
+                    [
+                        (
+                            ("I(E;Vout|I,Vb)", "I(E;Vout|I)"),
+                            "#1f77b4",
+                            "DendriNet",
+                        ),
+                        (
+                            (
+                                "I(E_lin;Vout_lin|I_lin,Vb_lin)",
+                                "I(E_lin;Vout_lin|I_lin)",
+                            ),
+                            "#ff7f0e",
+                            r"LDA$_{+}$",
+                        ),
+                        (
+                            (
+                                "I(E_sh;Vout_sh|I_sh,Vb_sh)",
+                                "I(E_sh;Vout_sh|I_sh)",
+                            ),
+                            "#7f7f7f",
+                            "Random",
+                        ),
+                    ],
+                ),
+                (
+                    "I(I;Vout|E,Vb)",
+                    [
+                        (
+                            ("I(I;Vout|E,Vb)", "I(I;Vout|E)"),
+                            "#1f77b4",
+                            "DendriNet",
+                        ),
+                        (
+                            (
+                                "I(I_lin;Vout_lin|E_lin,Vb_lin)",
+                                "I(I_lin;Vout_lin|E_lin)",
+                            ),
+                            "#ff7f0e",
+                            r"LDA$_{+}$",
+                        ),
+                        (
+                            (
+                                "I(I_sh;Vout_sh|E_sh,Vb_sh)",
+                                "I(I_sh;Vout_sh|E_sh)",
+                            ),
+                            "#7f7f7f",
+                            "Random",
+                        ),
+                    ],
+                ),
+                (
+                    "I(Vb;Vout|E,I)",
+                    [
+                        ("I(Vb;Vout|E,I)", "#1f77b4", "DendriNet"),
+                        ("I(Vb_lin;Vout_lin|E_lin,I_lin)", "#ff7f0e", r"LDA$_{+}$"),
+                        ("I(Vb_sh;Vout_sh|E_sh,I_sh)", "#7f7f7f", "Random"),
+                    ],
+                ),
+            ],
+        ),
+        (
+            "ablation_proxy_branch_mean",
+            [
+                (
+                    "I(E;C|I,Vb)",
+                    [
+                        (("I(E;C|I,Vb)", "I(E;C|I)"), "#1f77b4", "DendriNet"),
+                        (
+                            (
+                                "I(E_lin;C|I_lin,Vb_lin)",
+                                "I(E_lin;C|I_lin)",
+                                # Backward-compat: older runs didn't rename I/Vb in conditioning
+                                "I(E_lin;C|I,Vb)",
+                                "I(E_lin;C|I)",
+                            ),
+                            "#ff7f0e",
+                            r"LDA$_{+}$",
+                        ),
+                        (
+                            ("I(E_sh;C|I_sh,Vb_sh)", "I(E_sh;C|I_sh)"),
+                            "#7f7f7f",
+                            "Random",
+                        ),
+                    ],
+                ),
+                (
+                    "I(I;C|E,Vb)",
+                    [
+                        (("I(I;C|E,Vb)", "I(I;C|E)"), "#1f77b4", "DendriNet"),
+                        (
+                            (
+                                "I(I_lin;C|E_lin,Vb_lin)",
+                                "I(I_lin;C|E_lin)",
+                                # Backward-compat: older runs didn't rename E/Vb in conditioning
+                                "I(I_lin;C|E,Vb)",
+                                "I(I_lin;C|E)",
+                            ),
+                            "#ff7f0e",
+                            r"LDA$_{+}$",
+                        ),
+                        (
+                            ("I(I_sh;C|E_sh,Vb_sh)", "I(I_sh;C|E_sh)"),
+                            "#7f7f7f",
+                            "Random",
+                        ),
+                    ],
+                ),
+                (
+                    "I(E,I;C|Vb)",
+                    [
+                        (("I(E,I;C|Vb)", "I(E,I;C)"), "#1f77b4", "DendriNet"),
+                        (
+                            (
+                                "I(E_lin,I_lin;C|Vb_lin)",
+                                "I(E_lin,I_lin;C)",
+                                # Backward-compat: older runs didn't rename Vb in conditioning
+                                "I(E_lin,I_lin;C|Vb)",
+                            ),
+                            "#ff7f0e",
+                            r"LDA$_{+}$",
+                        ),
+                        (
+                            ("I(E_sh,I_sh;C|Vb_sh)", "I(E_sh,I_sh;C)"),
+                            "#7f7f7f",
+                            "Random",
+                        ),
+                    ],
+                ),
+                (
+                    "I(Vb;C)",
+                    [
+                        ("I(Vb;C)", "#1f77b4", "DendriNet"),
+                        ("I(Vb_lin;C)", "#ff7f0e", r"LDA$_{+}$"),
+                        ("I(Vb_sh;C)", "#7f7f7f", "Random"),
+                    ],
+                ),
+                (
+                    "I(Vb;C|Vout)",
+                    [
+                        ("I(Vb;C|Vout)", "#1f77b4", "DendriNet"),
+                        ("I(Vb_lin;C|Vout_lin)", "#ff7f0e", r"LDA$_{+}$"),
+                        ("I(Vb_sh;C|Vout_sh)", "#7f7f7f", "Random"),
+                    ],
+                ),
+                (
+                    "I(Vout;C|Vb)",
+                    [
+                        (("I(Vout;C|Vb)", "I(Vout;C)"), "#1f77b4", "DendriNet"),
+                        (
+                            (
+                                "I(Vout_lin;C|Vb_lin)",
+                                "I(Vout_lin;C)",
+                                # Backward-compat: older runs didn't rename Vb in conditioning
+                                "I(Vout_lin;C|Vb)",
+                            ),
+                            "#ff7f0e",
+                            r"LDA$_{+}$",
+                        ),
+                        (
+                            ("I(Vout_sh;C|Vb_sh)", "I(Vout_sh;C)"),
+                            "#7f7f7f",
+                            "Random",
+                        ),
+                    ],
+                ),
+                (
+                    "I(Vout;C|E,I)",
+                    [
+                        ("I(Vout;C|E,I)", "#1f77b4", "DendriNet"),
+                        ("I(Vout_lin;C|E_lin,I_lin)", "#ff7f0e", r"LDA$_{+}$"),
+                        ("I(Vout_sh;C|E_sh,I_sh)", "#7f7f7f", "Random"),
+                    ],
+                ),
+            ],
+        ),
+        # ------------------------------------------------------------------
+        # Layer-total (branch-aggregated) proxies for ablation effects.
+        #
+        # These are computed from single-branch MI by aggregating across branches
+        # within each layer (e.g. sum/union). They are not "true" multivariate MI,
+        # but they often track whole-layer ablation trends better than per-branch means.
+        # ------------------------------------------------------------------
+        (
+            "ablation_proxy_sum",
+            [
+                (
+                    "I(E;C|I,Vb)_sum",
+                    [
+                        (("I(E;C|I,Vb)_sum", "I(E;C|I)_sum"), "#1f77b4", "DendriNet"),
+                        (
+                            (
+                                "I(E_lin;C|I_lin,Vb_lin)_sum",
+                                "I(E_lin;C|I_lin)_sum",
+                                # Backward-compat: older runs didn't rename I/Vb in conditioning
+                                "I(E_lin;C|I,Vb)_sum",
+                                "I(E_lin;C|I)_sum",
+                            ),
+                            "#ff7f0e",
+                            r"LDA$_{+}$",
+                        ),
+                        (
+                            ("I(E_sh;C|I_sh,Vb_sh)_sum", "I(E_sh;C|I_sh)_sum"),
+                            "#7f7f7f",
+                            "Random",
+                        ),
+                    ],
+                ),
+                (
+                    "I(I;C|E,Vb)_sum",
+                    [
+                        (("I(I;C|E,Vb)_sum", "I(I;C|E)_sum"), "#1f77b4", "DendriNet"),
+                        (
+                            (
+                                "I(I_lin;C|E_lin,Vb_lin)_sum",
+                                "I(I_lin;C|E_lin)_sum",
+                                # Backward-compat: older runs didn't rename E/Vb in conditioning
+                                "I(I_lin;C|E,Vb)_sum",
+                                "I(I_lin;C|E)_sum",
+                            ),
+                            "#ff7f0e",
+                            r"LDA$_{+}$",
+                        ),
+                        (
+                            ("I(I_sh;C|E_sh,Vb_sh)_sum", "I(I_sh;C|E_sh)_sum"),
+                            "#7f7f7f",
+                            "Random",
+                        ),
+                    ],
+                ),
+                (
+                    "I(E,I;C|Vb)_sum",
+                    [
+                        (("I(E,I;C|Vb)_sum", "I(E,I;C)_sum"), "#1f77b4", "DendriNet"),
+                        (
+                            (
+                                "I(E_lin,I_lin;C|Vb_lin)_sum",
+                                "I(E_lin,I_lin;C)_sum",
+                                # Backward-compat: older runs didn't rename Vb in conditioning
+                                "I(E_lin,I_lin;C|Vb)_sum",
+                            ),
+                            "#ff7f0e",
+                            r"LDA$_{+}$",
+                        ),
+                        (
+                            ("I(E_sh,I_sh;C|Vb_sh)_sum", "I(E_sh,I_sh;C)_sum"),
+                            "#7f7f7f",
+                            "Random",
+                        ),
+                    ],
+                ),
+                (
+                    "I(Vb;C)_sum",
+                    [
+                        ("I(Vb;C)_sum", "#1f77b4", "DendriNet"),
+                        ("I(Vb_lin;C)_sum", "#ff7f0e", r"LDA$_{+}$"),
+                        ("I(Vb_sh;C)_sum", "#7f7f7f", "Random"),
+                    ],
+                ),
+                (
+                    "I(Vb;C|Vout)_sum",
+                    [
+                        ("I(Vb;C|Vout)_sum", "#1f77b4", "DendriNet"),
+                        ("I(Vb_lin;C|Vout_lin)_sum", "#ff7f0e", r"LDA$_{+}$"),
+                        ("I(Vb_sh;C|Vout_sh)_sum", "#7f7f7f", "Random"),
+                    ],
+                ),
+                (
+                    "I(Vout;C|Vb)_sum",
+                    [
+                        (
+                            ("I(Vout;C|Vb)_sum", "I(Vout;C)_sum"),
+                            "#1f77b4",
+                            "DendriNet",
+                        ),
+                        (
+                            (
+                                "I(Vout_lin;C|Vb_lin)_sum",
+                                "I(Vout_lin;C)_sum",
+                                # Backward-compat: older runs didn't rename Vb in conditioning
+                                "I(Vout_lin;C|Vb)_sum",
+                            ),
+                            "#ff7f0e",
+                            r"LDA$_{+}$",
+                        ),
+                        (
+                            ("I(Vout_sh;C|Vb_sh)_sum", "I(Vout_sh;C)_sum"),
+                            "#7f7f7f",
+                            "Random",
+                        ),
+                    ],
+                ),
+                (
+                    "I(Vout;C|E,I)_sum",
+                    [
+                        ("I(Vout;C|E,I)_sum", "#1f77b4", "DendriNet"),
+                        (
+                            "I(Vout_lin;C|E_lin,I_lin)_sum",
+                            "#ff7f0e",
+                            r"LDA$_{+}$",
+                        ),
+                        ("I(Vout_sh;C|E_sh,I_sh)_sum", "#7f7f7f", "Random"),
+                    ],
+                ),
+            ],
+        ),
+        (
+            "ablation_proxy_union",
+            [
+                (
+                    "I(E;C|I,Vb)_union",
+                    [
+                        (
+                            ("I(E;C|I,Vb)_union", "I(E;C|I)_union"),
+                            "#1f77b4",
+                            "DendriNet",
+                        ),
+                        (
+                            (
+                                "I(E_lin;C|I_lin,Vb_lin)_union",
+                                "I(E_lin;C|I_lin)_union",
+                                # Backward-compat
+                                "I(E_lin;C|I,Vb)_union",
+                                "I(E_lin;C|I)_union",
+                            ),
+                            "#ff7f0e",
+                            r"LDA$_{+}$",
+                        ),
+                        (
+                            ("I(E_sh;C|I_sh,Vb_sh)_union", "I(E_sh;C|I_sh)_union"),
+                            "#7f7f7f",
+                            "Random",
+                        ),
+                    ],
+                ),
+                (
+                    "I(I;C|E,Vb)_union",
+                    [
+                        (
+                            ("I(I;C|E,Vb)_union", "I(I;C|E)_union"),
+                            "#1f77b4",
+                            "DendriNet",
+                        ),
+                        (
+                            (
+                                "I(I_lin;C|E_lin,Vb_lin)_union",
+                                "I(I_lin;C|E_lin)_union",
+                                # Backward-compat
+                                "I(I_lin;C|E,Vb)_union",
+                                "I(I_lin;C|E)_union",
+                            ),
+                            "#ff7f0e",
+                            r"LDA$_{+}$",
+                        ),
+                        (
+                            ("I(I_sh;C|E_sh,Vb_sh)_union", "I(I_sh;C|E_sh)_union"),
+                            "#7f7f7f",
+                            "Random",
+                        ),
+                    ],
+                ),
+                (
+                    "I(E,I;C|Vb)_union",
+                    [
+                        (
+                            ("I(E,I;C|Vb)_union", "I(E,I;C)_union"),
+                            "#1f77b4",
+                            "DendriNet",
+                        ),
+                        (
+                            (
+                                "I(E_lin,I_lin;C|Vb_lin)_union",
+                                "I(E_lin,I_lin;C)_union",
+                                # Backward-compat
+                                "I(E_lin,I_lin;C|Vb)_union",
+                            ),
+                            "#ff7f0e",
+                            r"LDA$_{+}$",
+                        ),
+                        (
+                            ("I(E_sh,I_sh;C|Vb_sh)_union", "I(E_sh,I_sh;C)_union"),
+                            "#7f7f7f",
+                            "Random",
+                        ),
+                    ],
+                ),
+                (
+                    "I(Vb;C)_union",
+                    [
+                        ("I(Vb;C)_union", "#1f77b4", "DendriNet"),
+                        ("I(Vb_lin;C)_union", "#ff7f0e", r"LDA$_{+}$"),
+                        ("I(Vb_sh;C)_union", "#7f7f7f", "Random"),
+                    ],
+                ),
+                (
+                    "I(Vout;C|Vb)_union",
+                    [
+                        (
+                            ("I(Vout;C|Vb)_union", "I(Vout;C)_union"),
+                            "#1f77b4",
+                            "DendriNet",
+                        ),
+                        (
+                            (
+                                "I(Vout_lin;C|Vb_lin)_union",
+                                "I(Vout_lin;C)_union",
+                                # Backward-compat
+                                "I(Vout_lin;C|Vb)_union",
+                            ),
+                            "#ff7f0e",
+                            r"LDA$_{+}$",
+                        ),
+                        (
+                            ("I(Vout_sh;C|Vb_sh)_union", "I(Vout_sh;C)_union"),
+                            "#7f7f7f",
+                            "Random",
+                        ),
+                    ],
+                ),
+                (
+                    "I(Vout;C|E,I)_union",
+                    [
+                        ("I(Vout;C|E,I)_union", "#1f77b4", "DendriNet"),
+                        (
+                            "I(Vout_lin;C|E_lin,I_lin)_union",
+                            "#ff7f0e",
+                            r"LDA$_{+}$",
+                        ),
+                        ("I(Vout_sh;C|E_sh,I_sh)_union", "#7f7f7f", "Random"),
+                    ],
+                ),
+            ],
+        ),
     ]
 
-    # Generate plots for each metric category
-    for metric_category, metrics in metric_types:
-        fig, axes = plt.subplots(2, 2, figsize=(15, 10))
-        axes = axes.flatten()
+    # Optionally plot upstream-unique class info when it was computed.
+    # This avoids empty panels when compute_upstream_unique_cmi=false (default).
+    def _has_metric(metric_name: str) -> bool:
+        return any(
+            depth_label in final_aggregated
+            and f"{metric_name}_mean" in final_aggregated[depth_label]
+            for depth_label in sorted_depths
+        )
 
-        for idx, metric in enumerate(metrics):
-            ax = axes[idx] if idx < len(axes) else axes[-1]
+    def _append_group(category: str, group: tuple[str, list]) -> None:
+        for _i, (cat, groups) in enumerate(metric_pairs):
+            if cat == category:
+                groups.append(group)
+                break
 
-            # Extract values for this metric across depths
-            depths = []
-            values = []
-            errors = []
+    if _has_metric("I(Vb;C|E,I)"):
+        _append_group(
+            "ablation_proxy_branch_mean",
+            (
+                "I(Vb;C|E,I)",
+                [
+                    ("I(Vb;C|E,I)", "#1f77b4", "DendriNet"),
+                    ("I(Vb_lin;C|E_lin,I_lin)", "#ff7f0e", r"LDA$_{+}$"),
+                    ("I(Vb_sh;C|E_sh,I_sh)", "#7f7f7f", "Random"),
+                ],
+            ),
+        )
+        _append_group(
+            "ablation_proxy_sum",
+            (
+                "I(Vb;C|E,I)_sum",
+                [
+                    ("I(Vb;C|E,I)_sum", "#1f77b4", "DendriNet"),
+                    ("I(Vb_lin;C|E_lin,I_lin)_sum", "#ff7f0e", r"LDA$_{+}$"),
+                    ("I(Vb_sh;C|E_sh,I_sh)_sum", "#7f7f7f", "Random"),
+                ],
+            ),
+        )
+        _append_group(
+            "ablation_proxy_union",
+            (
+                "I(Vb;C|E,I)_union",
+                [
+                    ("I(Vb;C|E,I)_union", "#1f77b4", "DendriNet"),
+                    ("I(Vb_lin;C|E_lin,I_lin)_union", "#ff7f0e", r"LDA$_{+}$"),
+                    ("I(Vb_sh;C|E_sh,I_sh)_union", "#7f7f7f", "Random"),
+                ],
+            ),
+        )
 
-            for depth_label in sorted_depths:
-                if depth_label in final_aggregated:
-                    depth_stats = final_aggregated[depth_label]
-                    if f"{metric}_mean" in depth_stats:
-                        depths.append(depth_label)
-                        values.append(depth_stats[f"{metric}_mean"])
-                        errors.append(
-                            depth_stats.get(f"{metric}_std", 0) / 5.0
-                        )  # Smaller error bars
+    # If layer_total_topk proxies were computed, also plot the *_topK_sum variants.
+    topk_k = None
+    topk_values = set()
+    for depth_stats in final_aggregated.values():
+        for key in depth_stats.keys():
+            if not key.endswith("_mean"):
+                continue
+            idx = key.find("_top")
+            if idx == -1:
+                continue
+            idx += len("_top")
+            j = key.find("_sum_mean", idx)
+            if j == -1:
+                continue
+            num = key[idx:j]
+            if num.isdigit():
+                topk_values.add(int(num))
 
-            if depths and values:
-                x_pos = np.arange(len(depths))
+    if topk_values:
+        topk_k = max(topk_values)
+        suffix_topk = f"_top{topk_k}_sum"
 
-                # Plot single line representing aggregated network
-                ax.errorbar(
-                    x_pos,
-                    values,
-                    yerr=errors,
-                    marker="o",
-                    linewidth=2,
-                    markersize=6,
-                    label="All Networks",
-                    color="#1f77b4",
-                    capsize=3,
+        def _suffix_metrics(metrics, suffix):
+            return tuple(f"{m}{suffix}" for m in metrics)
+
+        metric_pairs.append(
+            (
+                "ablation_proxy_topk_sum",
+                [
+                    (
+                        f"I(E;C|I,Vb){suffix_topk}",
+                        [
+                            (
+                                _suffix_metrics(
+                                    ("I(E;C|I,Vb)", "I(E;C|I)"), suffix_topk
+                                ),
+                                "#1f77b4",
+                                "DendriNet",
+                            ),
+                            (
+                                _suffix_metrics(
+                                    (
+                                        "I(E_lin;C|I_lin,Vb_lin)",
+                                        "I(E_lin;C|I_lin)",
+                                        # Backward-compat
+                                        "I(E_lin;C|I,Vb)",
+                                        "I(E_lin;C|I)",
+                                    ),
+                                    suffix_topk,
+                                ),
+                                "#ff7f0e",
+                                r"LDA$_{+}$",
+                            ),
+                            (
+                                _suffix_metrics(
+                                    ("I(E_sh;C|I_sh,Vb_sh)", "I(E_sh;C|I_sh)"),
+                                    suffix_topk,
+                                ),
+                                "#7f7f7f",
+                                "Random",
+                            ),
+                        ],
+                    ),
+                    (
+                        f"I(I;C|E,Vb){suffix_topk}",
+                        [
+                            (
+                                _suffix_metrics(
+                                    ("I(I;C|E,Vb)", "I(I;C|E)"), suffix_topk
+                                ),
+                                "#1f77b4",
+                                "DendriNet",
+                            ),
+                            (
+                                _suffix_metrics(
+                                    (
+                                        "I(I_lin;C|E_lin,Vb_lin)",
+                                        "I(I_lin;C|E_lin)",
+                                        # Backward-compat
+                                        "I(I_lin;C|E,Vb)",
+                                        "I(I_lin;C|E)",
+                                    ),
+                                    suffix_topk,
+                                ),
+                                "#ff7f0e",
+                                r"LDA$_{+}$",
+                            ),
+                            (
+                                _suffix_metrics(
+                                    ("I(I_sh;C|E_sh,Vb_sh)", "I(I_sh;C|E_sh)"),
+                                    suffix_topk,
+                                ),
+                                "#7f7f7f",
+                                "Random",
+                            ),
+                        ],
+                    ),
+                    (
+                        f"I(E,I;C|Vb){suffix_topk}",
+                        [
+                            (
+                                _suffix_metrics(
+                                    ("I(E,I;C|Vb)", "I(E,I;C)"), suffix_topk
+                                ),
+                                "#1f77b4",
+                                "DendriNet",
+                            ),
+                            (
+                                _suffix_metrics(
+                                    (
+                                        "I(E_lin,I_lin;C|Vb_lin)",
+                                        "I(E_lin,I_lin;C)",
+                                        # Backward-compat
+                                        "I(E_lin,I_lin;C|Vb)",
+                                    ),
+                                    suffix_topk,
+                                ),
+                                "#ff7f0e",
+                                r"LDA$_{+}$",
+                            ),
+                            (
+                                _suffix_metrics(
+                                    ("I(E_sh,I_sh;C|Vb_sh)", "I(E_sh,I_sh;C)"),
+                                    suffix_topk,
+                                ),
+                                "#7f7f7f",
+                                "Random",
+                            ),
+                        ],
+                    ),
+                    (
+                        f"I(Vb;C){suffix_topk}",
+                        [
+                            (f"I(Vb;C){suffix_topk}", "#1f77b4", "DendriNet"),
+                            (f"I(Vb_lin;C){suffix_topk}", "#ff7f0e", r"LDA$_{+}$"),
+                            (f"I(Vb_sh;C){suffix_topk}", "#7f7f7f", "Random"),
+                        ],
+                    ),
+                    (
+                        f"I(Vb;C|Vout){suffix_topk}",
+                        [
+                            (f"I(Vb;C|Vout){suffix_topk}", "#1f77b4", "DendriNet"),
+                            (
+                                f"I(Vb_lin;C|Vout_lin){suffix_topk}",
+                                "#ff7f0e",
+                                r"LDA$_{+}$",
+                            ),
+                            (
+                                f"I(Vb_sh;C|Vout_sh){suffix_topk}",
+                                "#7f7f7f",
+                                "Random",
+                            ),
+                        ],
+                    ),
+                    (
+                        f"I(Vout;C|Vb){suffix_topk}",
+                        [
+                            (
+                                _suffix_metrics(
+                                    ("I(Vout;C|Vb)", "I(Vout;C)"), suffix_topk
+                                ),
+                                "#1f77b4",
+                                "DendriNet",
+                            ),
+                            (
+                                _suffix_metrics(
+                                    (
+                                        "I(Vout_lin;C|Vb_lin)",
+                                        "I(Vout_lin;C)",
+                                        # Backward-compat
+                                        "I(Vout_lin;C|Vb)",
+                                    ),
+                                    suffix_topk,
+                                ),
+                                "#ff7f0e",
+                                r"LDA$_{+}$",
+                            ),
+                            (
+                                _suffix_metrics(
+                                    ("I(Vout_sh;C|Vb_sh)", "I(Vout_sh;C)"),
+                                    suffix_topk,
+                                ),
+                                "#7f7f7f",
+                                "Random",
+                            ),
+                        ],
+                    ),
+                    (
+                        f"I(Vout;C|E,I){suffix_topk}",
+                        [
+                            (f"I(Vout;C|E,I){suffix_topk}", "#1f77b4", "DendriNet"),
+                            (
+                                f"I(Vout_lin;C|E_lin,I_lin){suffix_topk}",
+                                "#ff7f0e",
+                                r"LDA$_{+}$",
+                            ),
+                            (
+                                f"I(Vout_sh;C|E_sh,I_sh){suffix_topk}",
+                                "#7f7f7f",
+                                "Random",
+                            ),
+                        ],
+                    ),
+                ],
+            )
+        )
+
+        # If upstream-unique CMI was computed, also plot its top-K sum proxy.
+        if _has_metric(f"I(Vb;C|E,I){suffix_topk}"):
+            metric_pairs[-1][1].append(
+                (
+                    f"I(Vb;C|E,I){suffix_topk}",
+                    [
+                        (f"I(Vb;C|E,I){suffix_topk}", "#1f77b4", "DendriNet"),
+                        (
+                            f"I(Vb_lin;C|E_lin,I_lin){suffix_topk}",
+                            "#ff7f0e",
+                            r"LDA$_{+}$",
+                        ),
+                        (
+                            f"I(Vb_sh;C|E_sh,I_sh){suffix_topk}",
+                            "#7f7f7f",
+                            "Random",
+                        ),
+                    ],
                 )
+            )
 
-                # Fill between for variance
-                ax.fill_between(
-                    x_pos,
-                    [v - e for v, e in zip(values, errors)],
-                    [v + e for v, e in zip(values, errors)],
-                    alpha=0.2,
-                    color="#1f77b4",
-                )
+    has_any_lda = any(
+        depth_label in final_aggregated
+        and any("lin" in k for k in final_aggregated[depth_label].keys())
+        for depth_label in sorted_depths
+    )
 
+    def _metric_candidates(metric_spec):
+        if isinstance(metric_spec, (list, tuple)):
+            return list(metric_spec)
+        return [metric_spec]
+
+    def _render_and_save_metric_groups(
+        metric_category: str,
+        metric_groups: list,
+        *,
+        part_idx: Optional[int] = None,
+        n_parts: Optional[int] = None,
+    ) -> None:
+        n_plots = len(metric_groups)
+        n_cols = 3  # Use 3 columns for better layout
+        n_rows = (n_plots + n_cols - 1) // n_cols
+
+        fig, axes = plt.subplots(n_rows, n_cols, figsize=(5 * n_cols, 4 * n_rows))
+        if n_rows == 1 and n_cols == 1:
+            axes = np.array([axes])
+        else:
+            axes = axes.flatten()
+
+        # Proxy plots should show larger (unscaled) error bars for readability.
+        std_divisor = (
+            1.0
+            if metric_category
+            in {
+                "ablation_proxy_sum",
+                "ablation_proxy_union",
+                "ablation_proxy_topk_sum",
+                "ablation_proxy_branch_mean",
+            }
+            else 5.0
+        )
+
+        for idx, (plot_title, metrics_list) in enumerate(metric_groups):
+            if idx >= len(axes):
+                break
+            ax = axes[idx]
+            has_data = False
+
+            # Plot each metric in this comparison group
+            for metric, color, label in metrics_list:
+                metric_list = _metric_candidates(metric)
+
+                # Only show lines for metrics that exist in the aggregated data.
+                # This prevents LDA labels from appearing when compute_lda_weights=False.
+                if not any(
+                    (
+                        depth_label in final_aggregated
+                        and any(
+                            f"{m}_mean" in final_aggregated[depth_label]
+                            for m in metric_list
+                        )
+                    )
+                    for depth_label in sorted_depths
+                ):
+                    continue
+
+                values = []
+                errors = []
+                x_positions = []
+
+                for depth_idx, depth_label in enumerate(sorted_depths):
+                    if depth_label in final_aggregated:
+                        depth_stats = final_aggregated[depth_label]
+                        chosen = next(
+                            (m for m in metric_list if f"{m}_mean" in depth_stats),
+                            None,
+                        )
+                        if chosen is not None:
+                            x_positions.append(depth_idx)
+                            values.append(depth_stats[f"{chosen}_mean"])
+                            errors.append(
+                                depth_stats.get(f"{chosen}_std", 0) / std_divisor
+                            )
+
+                if x_positions and values:
+                    has_data = True
+                    x_pos = np.asarray(x_positions)
+
+                    ax.errorbar(
+                        x_pos,
+                        values,
+                        yerr=errors,
+                        marker="o",
+                        linewidth=2,
+                        markersize=6,
+                        label=label,
+                        color=color,
+                        capsize=3,
+                    )
+
+                    ax.fill_between(
+                        x_pos,
+                        [v - e for v, e in zip(values, errors)],
+                        [v + e for v, e in zip(values, errors)],
+                        alpha=0.15,
+                        color=color,
+                    )
+
+            if has_data:
                 ax.set_xlabel("Dendritic Depth")
                 if plot_variance:
-                    ax.set_ylabel(f"{metric} variance (bits²)")
-                    ax.set_title(f"{metric} variance")
+                    ax.set_ylabel("MI variance (bits^2)")
+                    ax.set_title(f"{plot_title} (variance)")
                 else:
-                    ax.set_ylabel(f"{metric} (bits)")
-                    ax.set_title(f"{metric}")
-                ax.set_xticks(range(len(depths)))
-                ax.set_xticklabels(depths, rotation=0)
+                    ax.set_ylabel("MI (bits)")
+                    ax.set_title(plot_title)
+
+                # Add placeholder markers for depths where *no* plotted series has data.
+                available_metrics = []
+                for m, _c, _l in metrics_list:
+                    candidates = _metric_candidates(m)
+                    if any(
+                        (
+                            depth_label in final_aggregated
+                            and any(
+                                f"{cand}_mean" in final_aggregated[depth_label]
+                                for cand in candidates
+                            )
+                        )
+                        for depth_label in sorted_depths
+                    ):
+                        available_metrics.append(candidates)
+                if available_metrics:
+                    missing_x = []
+                    for depth_idx, depth_label in enumerate(sorted_depths):
+                        if depth_label not in final_aggregated:
+                            missing_x.append(depth_idx)
+                            continue
+                        depth_stats = final_aggregated[depth_label]
+                        if not any(
+                            f"{cand}_mean" in depth_stats
+                            for cand_list in available_metrics
+                            for cand in cand_list
+                        ):
+                            missing_x.append(depth_idx)
+
+                    if missing_x:
+                        from matplotlib.transforms import blended_transform_factory
+
+                        trans = blended_transform_factory(ax.transData, ax.transAxes)
+                        ax.scatter(
+                            missing_x,
+                            [0.05] * len(missing_x),
+                            marker="x",
+                            s=35,
+                            color="#666666",
+                            alpha=0.6,
+                            transform=trans,
+                            clip_on=False,
+                            label="_nolegend_",
+                        )
+                ax.set_xticks(range(len(sorted_depths)))
+                ax.set_xticklabels(sorted_depths, rotation=0)
                 ax.grid(True, alpha=0.3)
-                ax.legend()
+                ax.legend(loc="best")
             else:
                 data_type = "variance" if plot_variance else "data"
                 ax.text(
                     0.5,
                     0.5,
-                    f"No {data_type} for {metric}",
+                    f"No {data_type} for {plot_title}",
                     ha="center",
                     va="center",
                     transform=ax.transAxes,
                 )
 
         # Remove empty subplots
-        for idx in range(len(metrics), len(axes)):
+        for idx in range(n_plots, len(axes)):
             fig.delaxes(axes[idx])
 
         plot_type = "Variance" if plot_variance else "Analysis"
-        fig.suptitle(
-            f"Information {plot_type}: {metric_category.replace('_', ' ').title()} vs Dendritic Depth",
-            fontsize=16,
-        )
-        plt.tight_layout()
+        comparison_text = r"DendriNet vs LDA$_{+}$" if has_any_lda else "DendriNet"
+
+        title = f"Information {plot_type}: {metric_category.replace('_', ' ').title()} ({comparison_text})"
+        if part_idx is not None and n_parts is not None:
+            title += f" [part {part_idx}/{n_parts}]"
+
+        # Add a short note describing proxy aggregation in the title.
+        if metric_category == "ablation_proxy_sum":
+            title += "\n(proxy sum: sum over branches)"
+        elif metric_category == "ablation_proxy_branch_mean":
+            title += "\n(per-branch mean: average across branches; compare to *_sum for branch-count scaling)"
+        elif metric_category == "ablation_proxy_union":
+            title += "\n(proxy union: H(C) * (1 - prod_b(1 - I_b/H(C))))"
+        elif metric_category == "ablation_proxy_topk_sum":
+            if topk_k is not None:
+                title += f"\n(proxy top-{topk_k} sum: sum of top-{topk_k} branches)"
+            else:
+                title += "\n(proxy top-K sum: sum of top-K branches)"
+        if metric_category in {
+            "ablation_proxy_sum",
+            "ablation_proxy_branch_mean",
+            "ablation_proxy_union",
+            "ablation_proxy_topk_sum",
+        }:
+            title += "\n(note: most distal has no Vb; '|Vb' metrics fall back to no-Vb)"
+
+        fig.suptitle(title, fontsize=16)
+        plt.tight_layout(rect=[0, 0, 1, 0.94])
 
         suffix = "_variance" if plot_variance else ""
-        filename = f"aggregated_{metric_category}{suffix}_depth.png"
+        part_suffix = f"_part{part_idx}" if part_idx is not None else ""
+        filename = (
+            f"aggregated_{metric_category}_comparison{suffix}_depth{part_suffix}.png"
+        )
         filepath = os.path.join(save_path, filename)
         plt.savefig(filepath, dpi=300, bbox_inches="tight")
         plt.close()
 
-        logger.info(f"Saved aggregated plot: {filename}")
+        logger.info(f"Saved aggregated comparison plot: {filename}")
+
+    # Generate plots for each metric category
+    for metric_category, metric_groups in metric_pairs:
+        # Conditional MI panels are dense; save as two 6-panel figures (top 6 + second 6).
+        if metric_category == "conditional_mi" and len(metric_groups) > 6:
+            chunks = [metric_groups[i : i + 6] for i in range(0, len(metric_groups), 6)]
+            for part_idx, chunk in enumerate(chunks, start=1):
+                _render_and_save_metric_groups(
+                    metric_category,
+                    chunk,
+                    part_idx=part_idx,
+                    n_parts=len(chunks),
+                )
+        else:
+            _render_and_save_metric_groups(metric_category, metric_groups)
 
 
 def plot_information_variance_analysis(
@@ -1485,3 +2981,84 @@ def plot_information_variance_analysis(
         somatic_synapses=somatic_synapses,
         plot_variance=True,
     )
+
+
+def plot_lda_vs_trained_performance(
+    comparison_results: dict,
+    save_path: str,
+    logger: Optional[logging.Logger] = None,
+) -> None:
+    """Plot comparison of network performance with trained weights vs LDA-optimal weights.
+
+    Args:
+        comparison_results: Dictionary from InformationAnalyzer.compare_lda_vs_trained_performance
+            containing 'trained_accuracy', 'lda_accuracy', 'accuracy_difference'
+        save_path: Directory path where the plot will be saved
+        logger: Optional logger for output messages
+    """
+    if logger is None:
+        logger = logging.getLogger(__name__)
+
+    trained_acc = comparison_results.get("trained_accuracy", 0.0)
+    lda_acc = comparison_results.get("lda_accuracy", 0.0)
+    diff = comparison_results.get("accuracy_difference", 0.0)
+
+    if lda_acc is None:
+        logger.warning(
+            "LDA accuracy not available, skipping performance comparison plot"
+        )
+        return
+
+    fig, ax = plt.subplots(figsize=(6, 5))
+
+    # Bar chart comparing accuracies
+    x_pos = [0, 1]
+    accuracies = [trained_acc * 100, lda_acc * 100]
+    colors = ["#1f77b4", "#ff7f0e"]
+    labels = ["Trained Weights", r"LDA$_{+}$ Weights"]
+
+    bars = ax.bar(x_pos, accuracies, color=colors, width=0.6, edgecolor="black")
+
+    # Add value labels on bars
+    for bar, acc in zip(bars, accuracies):
+        height = bar.get_height()
+        ax.annotate(
+            f"{acc:.2f}%",
+            xy=(bar.get_x() + bar.get_width() / 2, height),
+            xytext=(0, 3),
+            textcoords="offset points",
+            ha="center",
+            va="bottom",
+            fontsize=12,
+            fontweight="bold",
+        )
+
+    ax.set_xticks(x_pos)
+    ax.set_xticklabels(labels, fontsize=12)
+    ax.set_ylabel("Classification Accuracy (%)", fontsize=12)
+    ax.set_title(r"DendriNet Performance: Trained vs LDA$_{+}$ Weights", fontsize=14)
+
+    # Add difference annotation
+    ax.annotate(
+        f"Δ = {diff * 100:+.2f}%",
+        xy=(0.5, max(accuracies) + 3),
+        xytext=(0.5, max(accuracies) + 5),
+        ha="center",
+        fontsize=11,
+        color="green" if diff >= 0 else "red",
+    )
+
+    # Set y-axis limits
+    ax.set_ylim(0, max(accuracies) + 10)
+    ax.grid(axis="y", alpha=0.3)
+
+    plt.tight_layout()
+
+    # Save plot
+    os.makedirs(save_path, exist_ok=True)
+    filepath = os.path.join(save_path, "lda_vs_trained_performance.png")
+    plt.savefig(filepath, dpi=300, bbox_inches="tight")
+    plt.close()
+
+    logger.info(f"Saved LDA vs trained performance plot: {filepath}")
+    logger.info(f"Trained accuracy: {trained_acc:.4f}, LDA accuracy: {lda_acc:.4f}")

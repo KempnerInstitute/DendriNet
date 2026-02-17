@@ -10,6 +10,7 @@ import torch.nn as nn
 
 from dendritic_modeling.config.training import (
     OptimizerConfig,
+    ParamGroupsConfig,
     PruningConfig,
     RegularizationConfig,
     ReportingConfig,
@@ -127,6 +128,31 @@ class TestExtractEnhancedConfigs:
 
         assert result == {}
         assert trainer_config["some_other_param"] == "value"
+
+    def test_extract_param_groups_config_normalized_dict(self):
+        """Test extracting and normalizing param groups from dict config."""
+        trainer_config = {
+            "param_groups": {"lr": 0.02, "split_params": False, "unknown_key": 123}
+        }
+
+        result = _extract_enhanced_configs(trainer_config)
+
+        assert "param_groups_config" in result
+        assert isinstance(result["param_groups_config"], ParamGroupsConfig)
+        assert result["param_groups_config"].lr == 0.02
+        assert result["param_groups_config"].split_params is False
+        assert not hasattr(result["param_groups_config"], "unknown_key")
+        assert "param_groups" not in trainer_config
+
+    def test_extract_param_groups_config_passthrough_typed(self):
+        """Test preserving typed param groups config objects."""
+        typed_config = ParamGroupsConfig(lr=0.03, split_params=False)
+        trainer_config = {"param_groups": typed_config}
+
+        result = _extract_enhanced_configs(trainer_config)
+
+        assert result["param_groups_config"] is typed_config
+        assert "param_groups" not in trainer_config
 
     def test_extract_non_dict_configs(self):
         """Test that non-dict configs are handled properly."""

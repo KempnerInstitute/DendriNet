@@ -7,10 +7,10 @@ import pandas as pd
 
 from ..plotters import (
     AblationPlotter,
-    SNRPlotter,
     InformationPlotter,
     NoisePlotter,
     PerformancePlotter,
+    SNRPlotter,
     WeightPlotter,
 )
 from .base_analyzer import BaseSweepAnalyzer
@@ -76,7 +76,7 @@ class EISweepAnalyzer(BaseSweepAnalyzer):
             "ei_ratio",
             "use_shunting",
             "network_category",
-            "nparams"
+            "nparams",
         ]
 
     def get_plot_types(self) -> list[str]:
@@ -161,9 +161,19 @@ class EISweepAnalyzer(BaseSweepAnalyzer):
         comparison_dir = output_dir / "shunting_comparison"
         comparison_dir.mkdir(parents=True, exist_ok=True)
 
-        # Check we have both categories
-        categories = data["network_category"].unique()
-        if "shunting" not in categories or "no_shunting" not in categories:
+        # Check we have the baseline pair we want to compare.
+        categories = set(data["network_category"].unique())
+        shunt_cat = (
+            "dendritic_shunting"
+            if "dendritic_shunting" in categories
+            else ("shunting" if "shunting" in categories else None)
+        )
+        add_cat = (
+            "dendritic_additive"
+            if "dendritic_additive" in categories
+            else ("no_shunting" if "no_shunting" in categories else None)
+        )
+        if shunt_cat is None or add_cat is None:
             logger.info(
                 "Not all network categories present, skipping shunting comparison"
             )
@@ -207,13 +217,13 @@ class EISweepAnalyzer(BaseSweepAnalyzer):
                     continue
 
                 # Plot both categories
-                for category in ["shunting", "no_shunting"]:
+                for category in [shunt_cat, add_cat]:
                     cat_data = data[data["network_category"] == category].sort_values(
                         "ei_ratio"
                     )
                     if not cat_data.empty:
                         color = self.performance_plotter.category_colors.get(category)
-                        linestyle = "-" if category == "shunting" else "--"
+                        linestyle = "-" if category == shunt_cat else "--"
                         axes[idx].plot(
                             cat_data["ei_ratio"],
                             cat_data[mean_col],

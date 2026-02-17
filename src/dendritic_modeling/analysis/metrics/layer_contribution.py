@@ -115,13 +115,8 @@ class SingleLayerContributionAnalyzer:
         self.logger.info("Starting single layer contribution analysis...")
 
         try:
-            assert isinstance(model.core_network, ExcitationInhibitionNetwork), (
-                "Model must be an instance of ExcitationInhibitionNetwork"
-                + "but got "
-                + str(type(model.core_network))
-            )
-        except AssertionError as e:
-            self.logger.error(e)
+            assert isinstance(model.core_network, ExcitationInhibitionNetwork)
+        except AssertionError:
             return
 
         # Ensure model is on the correct device

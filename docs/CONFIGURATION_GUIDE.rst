@@ -160,10 +160,104 @@ Enable analysis during training:
        enabled: true
      information_analysis:
        enabled: true
-       method: kraskov
+       params:
+         method: "kraskov"
      ablation_analysis:
        enabled: true
-       layer_ablation: true
+       params:
+         ablation_methods: ["lesion", "shuffle", "mean_clamp"]
+         shuffle_seed: 0
+         clamp_statistic: "mean"
+         levels: ["layer"]
+         targets: ["excitation", "inhibition", "upstream", "all_synapses"]
+         metrics: ["accuracy", "pred_label_mi_bits"]
+
+Information analysis: Gaussian/Fisher proxy + PID
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Method-specific computations are enabled via ``analysis.information_analysis.params.selection.components``:
+
+- ``gaussian_fisher``: a fast Fisher-criterion / Gaussian MI-proxy computed from
+  class-conditional means/variances (inspired by the theory draft). Configuration
+  lives under ``params.compute.gaussian_fisher``.
+- ``pid``: optional PID-style synergy/redundancy diagnostics. Configuration lives
+  under ``params.pid`` (PID is currently disabled in the analyzer).
+
+.. code-block:: yaml
+
+   analysis:
+     information_analysis:
+       enabled: true
+       training: false
+       params:
+         selection:
+           components: ["basic", "pairwise", "conditional", "gaussian_fisher"]
+           scopes: []
+           signal_variants: ["network"]
+
+         compute:
+           max_samples: 1000
+           computation_level: "single_branch"
+           branch_aggregation: "mean"
+
+           gaussian_fisher:
+             aggregation: "sum"        # "sum" | "mean" | "max"
+             mi_transform: "half_log1p" # "half_log1p" | "log1p" | "none"
+             eps: 1.0e-8               # (alias: ridge) denominator stabilizer
+
+         pid:
+           binarize: true
+           binarize_method: "median"
+           binarize_threshold: 0.5
+
+         estimator:
+           method: "kraskov"
+           kraskov:
+             n_neighbors: 10
+
+Ablation / Intervention Analysis
+--------------------------------
+
+Our ablation analysis supports both **structural lesions** (removing connections) and
+**signal-level interventions** (removing label-aligned information while preserving the
+operating point / baseline distribution).
+
+``lesion``:
+   Structural ablation by disabling the relevant connection weights. This can change the
+   layer's gain/baseline and may cause saturation/vanishing.
+
+``shuffle``:
+   Signal intervention that permutes the targeted signal across samples in a batch. This
+   preserves the marginal distribution of that signal but destroys sample/label alignment.
+
+``mean_clamp``:
+   Signal intervention that replaces the targeted signal with its batch mean. This preserves
+   a stable operating point but removes trial-to-trial variability.
+
+For an information-theoretic complement aligned to these interventions, include
+``ablation_aligned`` (and optionally ``layer_proxies``) in
+``analysis.information_analysis.params.selection.components``. This adds conditional-MI terms such as
+``I(E;C|I,Vb)``, ``I(I;C|E,Vb)``, and synapse-vs-upstream decompositions like
+``I(Vout;C|Vb)`` (class information added by synapses beyond upstream input) and
+``I(Vb;C|Vout)`` (upstream class information not reflected in the layer output).
+
+.. code-block:: yaml
+
+   analysis:
+     ablation_analysis:
+       enabled: true
+       training: false
+       params:
+         ablation_methods: ["lesion", "shuffle", "mean_clamp"]
+         shuffle_seed: 0
+         clamp_statistic: "mean"
+         levels: ["layer"]
+         targets: ["excitation", "inhibition", "upstream", "all_synapses"]
+         metrics:
+           - "accuracy"
+           - "auc"
+           - "categorical_loglikelihood"
+           - "pred_label_mi_bits"  # Adds I(C; Ĉ) in bits, where Ĉ=argmax predicted class
 
 WandB Integration
 -----------------
@@ -241,17 +335,17 @@ Computation Levels
    analysis:
      information_analysis:
        params:
-         computation_level: "branch"  # Options: "branch", "layer", "network"
-         branch_aggregation: "mean"   # Options: "mean", "multivariate", "sample"
+         computation_level: "single_branch"  # Options: "single_branch", "layer_branch", "all_branch"
+         branch_aggregation: "mean"          # Options: "mean", "multivariate", "sample"
 
-- ``branch``: Compute information for individual branches (most granular)
-- ``layer``: Aggregate branches within each layer then compute information
-- ``network``: Aggregate all branches across the network then compute information
+- ``single_branch``: Compute information for individual branches (most granular)
+- ``layer_branch``: Aggregate branches within each layer then compute information
+- ``all_branch``: Aggregate all branches across the network then compute information
 
 Branch Aggregation
 ~~~~~~~~~~~~~~~~~~
 
-When using ``layer`` or ``network`` computation levels:
+When using ``layer_branch`` or ``all_branch`` computation levels:
 
 - ``mean``: Average branch activations to create scalar values
 - ``multivariate``: Use raw multi-dimensional branch data for joint information computation
@@ -267,10 +361,9 @@ The framework provides enhanced analysis specifically designed for excitation-in
    analysis:
      information_analysis:
        params:
-         # Enhanced analysis modes
-         per_neuron_analysis: false       # Compute MI for each neuron individually
-         per_einet_analysis: false        # Analyze E and I networks separately
-         per_layer_analysis: false        # Compute enhanced analysis per layer
+         # Enhanced analysis modes (preferred list-based selection)
+         # scopes: ["neuron", "einet", "layer"]
+         scopes: []
 
 Per-Neuron Analysis:
 
@@ -280,12 +373,158 @@ Per-EI-Network Analysis:
 
 When enabled, performs three separate analyses:
 - Excitatory network only (inhibitory inputs set to zero)
-- Inhibitory network only (excitatory inputs set to zero)  
+- Inhibitory network only (excitatory inputs set to zero)
 - Combined E+I network (standard analysis)
 
 Per-Layer Analysis:
 
 When enabled, computes enhanced analysis (per-neuron and per-EI-network) for each layer separately in multilayer networks, providing layer-specific insights into information processing.
+
+Branch Input Analysis
+~~~~~~~~~~~~~~~~~~~~~
+
+The framework supports analysis of upstream dendritic inputs (branch inputs) in hierarchical dendritic networks.
+
+Branch-input (Vb) metrics are computed automatically when branch inputs exist (no configuration flag needed). This adds the following metrics:
+
+Basic MI:
+   ``I(Vb;C)`` - Mutual information between branch input and class labels
+
+Pairwise MI:
+   - ``I(E;Vb)`` - Mutual information between excitation and branch input
+   - ``I(I;Vb)`` - Mutual information between inhibition and branch input
+   - ``I(Vb;Vout)`` - Mutual information between branch input and output
+
+Conditional MI:
+   - ``I(E;Vb|C)`` - Conditional mutual information between E and Vb given class
+   - ``I(I;Vb|C)`` - Conditional mutual information between I and Vb given class
+   - ``I(Vb;Vout|C)`` - Conditional mutual information between Vb and Vout given class
+
+Note: For single-layer networks without hierarchical dendritic structure, branch input is zero and these metrics provide baseline comparisons.
+
+Linear Discriminant Analysis Weights
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The framework can compute alternative aggregation weights using Linear Discriminant Analysis (LDA) instead of network-learned weights.
+
+.. code-block:: yaml
+
+   analysis:
+     information_analysis:
+       params:
+         # Preferred list-based selection of signal variants
+         # signal_variants: ["network", "lda", "random"]
+         signal_variants: ["network"]
+
+When enabled, the system fits separate LDA models on raw synaptic inputs to find optimal linear combinations that maximize class separation. This provides three LDA-weighted signals:
+
+E_lin:
+   Optimal linear combination of excitatory synaptic inputs using discriminant weights
+
+I_lin:
+   Optimal linear combination of inhibitory synaptic inputs using discriminant weights
+
+Vb_lin:
+   Optimal linear combination of upstream branch inputs using discriminant weights
+
+The analysis then computes mutual information for both network-learned aggregations and LDA-optimized aggregations:
+
+Network weights (w_opt):
+   - ``I(E;C)``, ``I(I;C)``, ``I(Vb;C)``
+   - Standard pairwise and conditional MI
+
+LDA weights (w_lda):
+   - ``I(E_lin;C)``, ``I(I_lin;C)``, ``I(Vb_lin;C)``
+   - Pairwise: ``I(E_lin;I_lin)``, ``I(E_lin;Vb_lin)``, etc.
+   - Conditional: ``I(E_lin;I_lin|C)``, etc.
+
+This comparison reveals whether the network has learned synaptic weights that approach the discriminant-optimal configuration or whether additional structure beyond class discrimination is encoded.
+
+Complete Information Analysis Configuration
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. code-block:: yaml
+
+   analysis:
+     information_analysis:
+       enabled: true
+       training: false
+       params:
+         # Estimation method
+         method: "kraskov"              # Options: "kraskov", "sklearn", "copula"
+         max_samples: 1000               # Limit samples for computational efficiency
+         n_neighbors: 10                 # K-NN parameter for Kraskov estimator
+
+         # What to compute (preferred list-based selection)
+         components:
+           - "basic"             # I(X;C)
+           - "pairwise"          # I(X;Y)
+           - "conditional"       # I(X;Y|C)
+           - "ablation_aligned"  # ablation-aligned CMIs (E/I/Vb/Vout/C)
+           - "layer_proxies"     # *_sum/_union/_topK_sum proxies from per-branch MI
+
+         # Computation granularity
+         computation_level: "single_branch"  # Options: "single_branch", "layer_branch", "all_branch"
+         branch_aggregation: "mean"          # Options: "mean", "multivariate", "sample"
+
+         # Optional "scopes" (preferred list-based selection)
+         # scopes: ["layer", "einet", "neuron"]
+         scopes: []
+
+         # Signal variants (preferred list-based selection)
+         # - Always includes "network" (DendriNet).
+         # - Add "lda" to compute *_lin variants.
+         # - Add "random" to compute *_sh baselines (requires lda_n_shuffles > 0).
+         signal_variants: ["network"]
+         lda_n_shuffles: 0              # Random-weight baseline shuffles (0 = disabled)
+
+         layer_total_topk: 10                # K used for *_topK_sum metrics
+
+         # Optional (expensive): unique upstream class info beyond the full synapse set.
+         # Either add "upstream_unique_cmi" to components, or set:
+         compute_upstream_unique_cmi: false
+
+         # Plotting note: figures include both *_sum proxies and a per-branch mean view
+         # ("ablation_proxy_branch_mean") so you can see branch-count scaling effects.
+
+         # Additional options
+         include_vinf: true              # Include soma activation
+         normalize_mi: false             # Normalize by entropy
+
+Correlation Analysis
+--------------------
+
+Correlation analysis computes Pearson correlations between excitatory inputs (E),
+inhibitory inputs (I), and layer outputs (Vout) at different granularities.
+
+.. code-block:: yaml
+
+   analysis:
+     correlation_analysis:
+       enabled: true
+       training: false
+       params:
+         computation_level: "layer_branch"  # "synaptic", "single_branch", "layer_branch", "all_branch"
+         components: ["total", "noise", "signal", "tuning"]
+         pairs: ["EE", "II", "EI", "E_output", "I_output", "output_output"]
+         scopes: ["layer", "einet"]
+         max_samples: 2000
+
+List-based selectors:
+
+- ``components``:
+  - ``total``: correlations across all samples
+  - ``noise``: within-class correlations (stimulus-independent)
+  - ``signal``: between-class difference (binary-only currently)
+  - ``tuning``: tuning/selectivity summary across classes
+- ``pairs``:
+  - ``EE``, ``II``, ``EI``: E-E, I-I, and E-I correlations
+  - ``E_output``, ``I_output``: input-to-output correlations vs Vout
+  - ``output_output``: Vout-Vout correlations
+- ``scopes``:
+  - ``layer``: per-layer breakdown
+  - ``einet``: separate excitatory vs inhibitory pathway summaries
+  - ``neuron``: per-neuron breakdown (expensive)
 
 Training Optimization
 ---------------------

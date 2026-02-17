@@ -14,8 +14,8 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.top
     TOPK_INIT_METHODS,
 )
 from dendritic_modeling.networks.utils.weight_transforms import (
+    WeightTransformType,
     apply_weight_transform,
-    WeightTransformType
 )
 
 

@@ -1,9 +1,12 @@
 """Utilities for configuration handling and transformation."""
 
 import logging
-from typing import Any, Union
+from dataclasses import asdict as dataclass_asdict, is_dataclass
+from typing import Any, Optional, Union
 
 from omegaconf import DictConfig, OmegaConf
+
+from dendritic_modeling.config.training import ParamGroupsConfig
 
 logger = logging.getLogger(__name__)
 
@@ -29,8 +32,54 @@ def get_config_value(config: Union[dict, object], key: str, default: Any = None)
         return getattr(config, key, default)
 
 
+def normalize_param_groups_config(
+    param_groups: Union[dict, DictConfig, ParamGroupsConfig, object, None],
+) -> ParamGroupsConfig:
+    """
+    Normalize parameter-group configuration to ParamGroupsConfig.
+
+    The training script can receive param_groups as either a typed config object
+    or a plain dict (e.g., sweep-generated configs). BaseModel.get_param_groups
+    expects attribute access, so dict inputs must be converted.
+
+    Args:
+        param_groups: Param-groups configuration in any supported representation
+
+    Returns:
+        ParamGroupsConfig with defaults filled for unspecified fields
+    """
+    if param_groups is None:
+        return ParamGroupsConfig()
+
+    if isinstance(param_groups, ParamGroupsConfig):
+        return param_groups
+
+    if isinstance(param_groups, DictConfig):
+        param_groups = OmegaConf.to_container(param_groups, resolve=True)
+
+    if is_dataclass(param_groups):
+        param_groups = dataclass_asdict(param_groups)
+
+    if hasattr(param_groups, "asdict") and callable(param_groups.asdict):
+        param_groups = param_groups.asdict()
+
+    if not isinstance(param_groups, dict):
+        if hasattr(param_groups, "__dict__"):
+            param_groups = {
+                key: value
+                for key, value in vars(param_groups).items()
+                if not key.startswith("_")
+            }
+        else:
+            return ParamGroupsConfig()
+
+    allowed_fields = set(ParamGroupsConfig.__dataclass_fields__.keys())
+    sanitized = {k: v for k, v in param_groups.items() if k in allowed_fields}
+    return ParamGroupsConfig(**sanitized)
+
+
 def prepare_ei_network_params(
-    config: Union[dict, DictConfig], input_dim: int
+    config: Union[dict, DictConfig], input_dim: int, use_shunting: Optional[bool] = None
 ) -> dict[str, Any]:
     """
     Prepare parameters for ExcitationInhibitionNetwork from structured config.
@@ -87,6 +136,9 @@ def prepare_ei_network_params(
         **morphology_dict,
         **implementation_dict,
     }
+
+    if use_shunting is not None:
+        params["use_shunting"] = use_shunting
 
     # Add sparsity parameters with proper naming
     for key, value in sparsity_dict.items():
@@ -149,13 +201,18 @@ def prepare_trainer_config(
 
     # Helper function to convert config to dict
     def to_dict(config):
+        if config is None:
+            return {}
         if isinstance(config, dict):
             return config
-        return (
-            OmegaConf.to_container(config, resolve=True)
-            if hasattr(config, "_metadata")
-            else dict(config)
-        )
+        if isinstance(config, DictConfig) or hasattr(config, "_metadata"):
+            return OmegaConf.to_container(config, resolve=True)
+        # Many config objects are dataclasses/BaseConfig
+        if hasattr(config, "asdict") and callable(config.asdict):
+            return config.asdict()
+        if is_dataclass(config):
+            return dataclass_asdict(config)
+        return dict(config)
 
     # Start with common training parameters
     common_config = (

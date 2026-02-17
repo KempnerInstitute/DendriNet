@@ -38,108 +38,14 @@ class AblationPlotter(BasePlotter):
             logger.info("No ablation data found, skipping ablation plots")
             return plot_paths
 
-        # Generate layer contribution plots
-        # plot_paths.extend(self._plot_layer_contributions(data, ablation_dir))
         # Generate ablation analysis plots
         plot_paths.extend(self._generate_ablation_plots(data, ablation_dir))
 
         return plot_paths
 
-    def _plot_layer_contributions(
-        self, data: pd.DataFrame, output_dir: Path
-    ) -> list[Path]:
-        """Plot contribution of each layer when ablated."""
-        plot_paths = []
-
-        # Find layer ablation columns
-        layer_cols = [
-            col
-            for col in data.columns
-            if "ablation_" in col and "_depth" in col and col.endswith("_mean")
-        ]
-
-        if not layer_cols:
-            return plot_paths
-
-        # Extract ablation types and depths
-        ablation_types = set()
-        depths = set()
-
-        for col in layer_cols:
-            try:
-                parts = col.split("_")
-                # Get ablation type (e.g., "all", "excitation", "inhibition")
-                if len(parts) > 1:
-                    ablation_types.add(parts[1])
-
-                # Get depth
-                if "depth" in col:
-                    depth_part = next((p for p in parts if p.startswith("depth")), None)
-                    if depth_part:
-                        depth = int(depth_part.replace("depth", ""))
-                    depths.add(depth)
-            except (ValueError, IndexError):
-                pass
-
-        depths = sorted(depths)
-
-        if not depths or not ablation_types:
-            return plot_paths
-
-        # Plot accuracy drop per layer for each ablation type
-        try:
-            fig, ax = plt.subplots(figsize=self.default_figsize)
-
-            for ablation_type in sorted(ablation_types):
-                layer_accuracies = []
-
-                for depth in depths:
-                    matching_cols = [
-                        col
-                        for col in layer_cols
-                        if f"ablation_{ablation_type}_" in col
-                        and f"depth{depth}" in col
-                        and "accuracy" in col
-                    ]
-
-                    if matching_cols:
-                        acc = data[matching_cols[0]].mean()
-                        layer_accuracies.append(acc)
-                    else:
-                        layer_accuracies.append(None)
-
-                if any(acc is not None for acc in layer_accuracies):
-                    ax.plot(
-                        depths,
-                        layer_accuracies,
-                        marker="o",
-                        label=ablation_type.replace("_", " ").title(),
-                        linewidth=2,
-                        markersize=6,
-                    )
-
-            self.setup_axes_style(
-                ax=ax,
-                xlabel="Layer Index",
-                ylabel="Accuracy After Ablation",
-                title="Layer Contribution (Ablation Impact)",
-                grid=True,
-            )
-            ax.legend(fontsize=10)
-
-            fig.tight_layout()
-            plot_path = output_dir / "layer_contribution.png"
-            plot_paths.append(self.save_figure(fig, plot_path))
-
-        except Exception as e:
-            logger.error(f"Error generating layer contribution plot: {e}")
-
-        logger.info(f"Generated {len(plot_paths)} ablation plots")
-        return plot_paths
-
     def _generate_ablation_plots(
-        self, valid_data: pd.DataFrame, plots_dir: Path
-    ) -> list[Path]:
+        self, valid_data: pd.DataFrame, plots_dir: str
+    ) -> list[str]:
         """Generate ablation analysis plots matching old analysis format"""
         plot_paths = []
 
@@ -155,7 +61,7 @@ class AblationPlotter(BasePlotter):
         ]
 
         if not ablation_cols:
-            logger.info("No ablation columns found")
+            print("No ablation columns found")
             return plot_paths
 
         # Extract ablation types and metrics from column structure
@@ -189,8 +95,12 @@ class AblationPlotter(BasePlotter):
 
         depths.sort()
 
-        if not valid_data["network_category"].isin(["shunting", "no_shunting"]).any():
-            logger.info("No shunting/no_shunting data for ablation analysis")
+        if (
+            not valid_data["network_category"]
+            .isin(["dendritic_shunting", "dendritic_additive"])
+            .any()
+        ):
+            print("No shunting/no_shunting data for ablation analysis")
             return plot_paths
 
         sweep_types = self.detect_sweep_types(valid_data)
@@ -200,17 +110,100 @@ class AblationPlotter(BasePlotter):
             if "ei" in sweep_types:
                 try:
                     plot_paths.extend(
-                        self._create_ablation_ei_plots(
-                            valid_data,
-                            plots_dir,
-                            ablation_type,
-                            metric,
-                            depths,
+                        self._create_ablation_plots_1d_sweep(
+                            valid_data=valid_data,
+                            sweep_var="ei_ratio",
+                            var_name="E/I Ratio",
+                            logscale=True,
+                            output_dir=plots_dir,
+                            ablation_type=ablation_type,
+                            metric=metric,
+                            depths=depths,
                         )
                     )
                 except Exception as e:
-                    logger.error(
+                    print(
                         f"Error generating E/I ablation plot for {ablation_type}_{metric}: {e}"
+                    )
+                    traceback.print_exc()
+
+            if "stim_duration" in sweep_types:
+                try:
+                    plot_paths.extend(
+                        self._create_ablation_plots_1d_sweep(
+                            valid_data=valid_data,
+                            sweep_var="stimulus_duration",
+                            var_name="Stimulus Duration",
+                            logscale=True,
+                            output_dir=plots_dir,
+                            ablation_type=ablation_type,
+                            metric=metric,
+                            depths=depths,
+                        )
+                    )
+                except Exception as e:
+                    print(
+                        f"Error generating stimulus duration ablation plot for {ablation_type}_{metric}: {e}"
+                    )
+                    traceback.print_exc()
+
+            if "max_gf" in sweep_types:
+                try:
+                    plot_paths.extend(
+                        self._create_ablation_plots_1d_sweep(
+                            valid_data=valid_data,
+                            sweep_var="max_gain_factor",
+                            var_name="Max Gain Factor",
+                            logscale=True,
+                            output_dir=plots_dir,
+                            ablation_type=ablation_type,
+                            metric=metric,
+                            depths=depths,
+                        )
+                    )
+                except Exception as e:
+                    print(
+                        f"Error generating max gain factor ablation plot for {ablation_type}_{metric}: {e}"
+                    )
+                    traceback.print_exc()
+
+            if "fixed_gf" in sweep_types:
+                try:
+                    plot_paths.extend(
+                        self._create_ablation_plots_1d_sweep(
+                            valid_data=valid_data,
+                            sweep_var="fixed_gain_factor",
+                            var_name="Fixed Gain Factor",
+                            logscale=True,
+                            output_dir=plots_dir,
+                            ablation_type=ablation_type,
+                            metric=metric,
+                            depths=depths,
+                        )
+                    )
+                except Exception as e:
+                    print(
+                        f"Error generating fixed gain factor ablation plot for {ablation_type}_{metric}: {e}"
+                    )
+                    traceback.print_exc()
+
+            if "nparams" in sweep_types:
+                try:
+                    plot_paths.extend(
+                        self._create_ablation_plots_1d_sweep(
+                            valid_data=valid_data,
+                            sweep_var="nparams",
+                            var_name="Number of Parameters",
+                            logscale=True,
+                            output_dir=plots_dir,
+                            ablation_type=ablation_type,
+                            metric=metric,
+                            depths=depths,
+                        )
+                    )
+                except Exception as e:
+                    print(
+                        f"Error generating stimulus duration ablation plot for {ablation_type}_{metric}: {e}"
                     )
                     traceback.print_exc()
 
@@ -228,7 +221,7 @@ class AblationPlotter(BasePlotter):
                         )
                     )
                 except Exception as e:
-                    logger.error(
+                    print(
                         f"Error generating stochastic ablation plot for {ablation_type}_{metric}: {e}"
                     )
                     traceback.print_exc()
@@ -247,23 +240,26 @@ class AblationPlotter(BasePlotter):
                         )
                     )
                 except Exception as e:
-                    logger.error(
+                    print(
                         f"Error generating stochastic ablation plot for {ablation_type}_{metric}: {e}"
                     )
                     traceback.print_exc()
 
-        logger.info(f"Created {len(plot_paths)} ablation analysis plots")
+        print(f"Created {len(plot_paths)} ablation analysis plots")
         return plot_paths
 
-    def _create_ablation_ei_plots(
+    def _create_ablation_plots_1d_sweep(
         self,
         valid_data: pd.DataFrame,
-        output_dir: Path,
+        sweep_var: str,
+        var_name: str,
+        logscale: bool,
+        output_dir: str,
         ablation_type: str,
         metric: str,
         depths: list[int],
-    ) -> list[Path]:
-        """Create ablation vs E/I ratio plots by depth"""
+    ) -> list[str]:
+        """Create ablation vs sweep_var plots by depth"""
         plot_paths = []
 
         # Find columns for this ablation type and metric
@@ -277,11 +273,11 @@ class AblationPlotter(BasePlotter):
             return plot_paths
 
         # Create separate plots for each network category
-        categories = ["shunting", "no_shunting"]
+        categories = ["dendritic_shunting", "dendritic_additive"]
 
         fig, axes = plt.subplots(1, 2, figsize=(15, 6))
         fig.suptitle(
-            f"{ablation_type.title()} Ablation: {metric.title()} vs E/I Ratio by Depth",
+            f"{ablation_type.title()} Ablation: {metric.title()} vs {var_name} by Depth",
             fontsize=16,
         )
 
@@ -308,10 +304,10 @@ class AblationPlotter(BasePlotter):
                     continue
 
                 # Sort by E/I ratio for proper line plotting
-                sorted_data = category_data.sort_values("ei_ratio")
+                sorted_data = category_data.sort_values(sweep_var)
 
                 # Filter out non-numeric or missing values
-                plot_data = sorted_data[[depth_col, "ei_ratio"]].dropna()
+                plot_data = sorted_data[[depth_col, sweep_var]].dropna()
                 if plot_data.empty:
                     continue
 
@@ -320,7 +316,7 @@ class AblationPlotter(BasePlotter):
                     y_vals = pd.to_numeric(
                         plot_data[depth_col], errors="coerce"
                     ).dropna()
-                    x_vals = plot_data.loc[y_vals.index, "ei_ratio"]
+                    x_vals = plot_data.loc[y_vals.index, sweep_var]
 
                     if len(y_vals) > 0:
                         ax.plot(
@@ -332,15 +328,15 @@ class AblationPlotter(BasePlotter):
                             linewidth=2,
                         )
                 except Exception as e:
-                    logger.warning(f"Could not plot depth {depth} for {category}: {e}")
+                    print(f"Warning: Could not plot depth {depth} for {category}: {e}")
                     continue
 
             self.setup_axes_style(
                 ax=ax,
-                xlabel="E/I Ratio",
+                xlabel=var_name,
                 ylabel=f"{metric.title()}",
                 title=f"{category.title()}",
-                use_log_x=True,
+                use_log_x=logscale,
                 grid=True,
             )
             ax.legend()
@@ -355,13 +351,13 @@ class AblationPlotter(BasePlotter):
     def _create_ablation_heatmaps(
         self,
         valid_data: pd.DataFrame,
-        output_dir: Path,
+        output_dir: str,
         ablation_type: str,
         metric: str,
         depths: list[int],
         colx: str,
         coly: str,
-    ) -> list[Path]:
+    ) -> list[str]:
         """Create ablation heatmaps
 
         Args:

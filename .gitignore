@@ -215,4 +215,7 @@ docs_notebooks_backup/
 scripts_backup/
 # Ignore experiments folder completely (managed as separate repo)
 /experiments/
-drafts/*
+
+# Local scratch + external dependencies (kept untracked in this repo).
+drafts/
+external/

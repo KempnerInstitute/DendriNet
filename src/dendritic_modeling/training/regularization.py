@@ -52,10 +52,14 @@ class RegularizationManager:
         # Check parameter group regularization
         if self.split_params and self.param_group_weights:
             for group_weights in self.param_group_weights.values():
-                if (
-                    getattr(group_weights, "l1_weight", 0) > 0
-                    or getattr(group_weights, "l2_weight", 0) > 0
-                ):
+                if isinstance(group_weights, dict):
+                    l1_weight = group_weights.get("l1_weight", 0)
+                    l2_weight = group_weights.get("l2_weight", 0)
+                else:
+                    l1_weight = getattr(group_weights, "l1_weight", 0)
+                    l2_weight = getattr(group_weights, "l2_weight", 0)
+
+                if l1_weight > 0 or l2_weight > 0:
                     return True
 
         # Check E/I ratio regularization

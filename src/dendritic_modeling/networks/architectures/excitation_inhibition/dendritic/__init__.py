@@ -31,16 +31,14 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.v
 )
 
 __all__ = [
-    # Core dendritic components
-    "BlockLinear"
-    "build_neuron_from_yaml"
-    "create_center_surround_unit"
-    "create_end_stopped_unit"
-    # Vision neuron factories
-    "create_gabor_unit"
-    "create_motion_unit"
-    "DendriNet"
-    "DendriticBranchLayer"
-    "GradientScaler"
-    "initialize_dendritic_branch_layer"
+    "BlockLinear",
+    "DendriNet",
+    "DendriticBranchLayer",
+    "GradientScaler",
+    "analytical_expectation_dbl_init",
+    "build_neuron_from_yaml",
+    "create_center_surround_unit",
+    "create_end_stopped_unit",
+    "create_gabor_unit",
+    "create_motion_unit",
 ]

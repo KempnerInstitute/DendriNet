@@ -40,15 +40,25 @@ def compute_mi_cc(x: np.ndarray, y: np.ndarray, n_neighbors: int) -> float:
     assert y.ndim == 2, "y must be a 2D array"
 
     n_samples = x.shape[0]
+    k = int(n_neighbors)
+    if n_samples <= 1 or k < 1:
+        return 0.0
+    # Cap k to exclude the query point itself.
+    k = min(k, n_samples - 1)
+    if k < 1:
+        return 0.0
 
     xy = np.hstack((x, y))
 
     # Here we rely on NearestNeighbors to select the fastest algorithm.
-    nn = NearestNeighbors(metric="chebyshev", n_neighbors=n_neighbors)
+    # NOTE: when querying the training set itself, sklearn includes each point as its
+    # own nearest neighbor at distance 0. Use k+1 neighbors and take the k-th
+    # entry to get the k-th neighbor *excluding* self (KSG convention).
+    nn = NearestNeighbors(metric="chebyshev", n_neighbors=k + 1)
 
     nn.fit(xy)
-    radius = nn.kneighbors()[0]
-    radius = np.nextafter(radius[:, -1], 0)
+    distances = nn.kneighbors(return_distance=True)[0]
+    radius = np.nextafter(distances[:, k], 0)
 
     # KDTree is explicitly fit to allow for the querying of number of
     # neighbors within a specified radius
@@ -62,12 +72,74 @@ def compute_mi_cc(x: np.ndarray, y: np.ndarray, n_neighbors: int) -> float:
 
     mi = (
         digamma(n_samples)
-        + digamma(n_neighbors)
+        + digamma(k)
         - np.mean(digamma(nx + 1))
         - np.mean(digamma(ny + 1))
     )
 
-    return max(0, mi)
+    return float(max(0.0, mi))
+
+
+def compute_cmi_ccc(
+    x: np.ndarray, y: np.ndarray, z: np.ndarray, n_neighbors: int
+) -> float:
+    """Compute conditional mutual information I(X;Y|Z) for continuous variables.
+
+    This implements the kNN estimator described by:
+      Frenzel, S. & Pompe, B. (2007). Partial Mutual Information for Coupling Analysis.
+
+    Notes
+    -----
+    - Uses the Chebyshev (max) norm, consistent with the KSG-style MI estimator.
+    - Returns nats. Negative estimates are clipped to 0.
+    """
+    x = np.asarray(x)
+    y = np.asarray(y)
+    z = np.asarray(z)
+    assert x.shape[0] == y.shape[0] == z.shape[0], "x, y, z must share n_samples"
+    assert x.ndim == 2 and y.ndim == 2 and z.ndim == 2, "x, y, z must be 2D arrays"
+    n_samples = x.shape[0]
+    if n_samples <= 1:
+        return 0.0
+
+    k = int(n_neighbors)
+    if k < 1:
+        return 0.0
+    # If k is too large, cap it to n_samples-1 (excluding self).
+    k = min(k, n_samples - 1)
+    if k < 1:
+        return 0.0
+
+    xyz = np.hstack((x, y, z))
+    # See note in compute_mi_cc: include self as neighbor 0.
+    nn = NearestNeighbors(metric="chebyshev", n_neighbors=k + 1)
+    nn.fit(xyz)
+    distances = nn.kneighbors(return_distance=True)[0]
+    # Radius to the k-th neighbor in joint space, made strictly smaller.
+    eps = np.nextafter(distances[:, k], 0)
+
+    xz = np.hstack((x, z))
+    yz = np.hstack((y, z))
+
+    kd_xz = KDTree(xz, metric="chebyshev")
+    kd_yz = KDTree(yz, metric="chebyshev")
+    kd_z = KDTree(z, metric="chebyshev")
+
+    nxz = kd_xz.query_radius(xz, eps, count_only=True, return_distance=False)
+    nyz = kd_yz.query_radius(yz, eps, count_only=True, return_distance=False)
+    nz = kd_z.query_radius(z, eps, count_only=True, return_distance=False)
+
+    nxz = np.asarray(nxz, dtype=float) - 1.0
+    nyz = np.asarray(nyz, dtype=float) - 1.0
+    nz = np.asarray(nz, dtype=float) - 1.0
+
+    # Frenzel-Pompe (2007) kNN conditional MI estimator:
+    #   I(X;Y|Z) = ψ(k) - ⟨ ψ(n_xz+1) + ψ(n_yz+1) - ψ(n_z+1) ⟩
+    # where counts are the number of neighbors within the joint-space radius.
+    #
+    # NOTE: Unlike the KSG MI estimator, this expression does NOT include ψ(N).
+    cmi = digamma(k) - np.mean(digamma(nxz + 1) + digamma(nyz + 1) - digamma(nz + 1))
+    return float(max(0.0, cmi))
 
 
 def compute_mi_cd(c: np.ndarray, d: np.ndarray, n_neighbors: int) -> float:
@@ -116,16 +188,22 @@ def compute_mi_cd(c: np.ndarray, d: np.ndarray, n_neighbors: int) -> float:
     label_counts = np.empty(n_samples)
     k_all = np.empty(n_samples)
 
-    nn = NearestNeighbors()
+    # Use Chebyshev (max) norm for consistency with KSG estimator.
+    k_global = int(n_neighbors)
+    if k_global < 1:
+        return 0.0
+
+    nn = NearestNeighbors(metric="chebyshev")
     for label in np.unique(d):
         mask = d == label
         count = np.sum(mask)
         if count > 1:
-            k = min(n_neighbors, count - 1)
-            nn.set_params(n_neighbors=k)
+            k = min(k_global, count - 1)
+            # Include self as neighbor 0 when querying training points.
+            nn.set_params(n_neighbors=k + 1)
             nn.fit(c[mask])
-            r = nn.kneighbors()[0]
-            radius[mask] = np.nextafter(r[:, -1], 0)
+            r = nn.kneighbors(return_distance=True)[0]
+            radius[mask] = np.nextafter(r[:, k], 0)
             k_all[mask] = k
         label_counts[mask] = count
 
@@ -137,7 +215,7 @@ def compute_mi_cd(c: np.ndarray, d: np.ndarray, n_neighbors: int) -> float:
     c = c[mask]
     radius = radius[mask]
 
-    kd = KDTree(c)
+    kd = KDTree(c, metric="chebyshev")
     m_all = kd.query_radius(c, radius, count_only=True, return_distance=False)
     m_all = np.array(m_all)
 
@@ -148,7 +226,7 @@ def compute_mi_cd(c: np.ndarray, d: np.ndarray, n_neighbors: int) -> float:
         - np.mean(digamma(m_all))
     )
 
-    return max(0, mi)
+    return float(max(0.0, mi))
 
 
 def compute_ei_mi(

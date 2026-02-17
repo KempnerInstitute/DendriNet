@@ -133,9 +133,9 @@ def dendritic_activations_todict(
                     activation_list.append(chunk)
 
                 plot_dict[f"soma{n}"][level][f"branch{b}"] = {}
-                plot_dict[f"soma{n}"][level][f"branch{b}"][
-                    "activation list"
-                ] = activation_list
+                plot_dict[f"soma{n}"][level][f"branch{b}"]["activation list"] = (
+                    activation_list
+                )
 
     return plot_dict
 

@@ -21,9 +21,10 @@ from pathlib import Path
 import numpy as np
 from omegaconf import DictConfig, OmegaConf
 
-# Setup module path
-project_root = Path(__file__).parent.parent.parent.parent.parent
-sys.path.insert(0, str(project_root / "src"))
+# Setup module path (so `import dendritic_modeling` works when run as a script)
+# File is: <repo>/src/dendritic_modeling/scripts/sweeps/unified/sweep_types/unified_sweep.py
+repo_root = Path(__file__).resolve().parents[6]
+sys.path.insert(0, str(repo_root / "src"))
 
 # Import after path setup
 from dendritic_modeling.scripts.sweeps.unified.base_sweep import (  # noqa: E402
@@ -512,9 +513,18 @@ class UnifiedSweepGenerator(BaseSweepGenerator):
                             if "architecture" not in new_config.model.core:
                                 new_config.model.core["architecture"] = {}
                             # Map to the new structure's branch factors
-                            new_config.model.core.architecture.excitatory_branch_factors = val[
-                                "dendrite_branches_per_layer"
-                            ]
+                            branches = val.get("dendrite_branches_per_layer")
+                            depth = val.get("dendrite_tree_depth")
+                            # Allow either a scalar (uniform branches) or an explicit per-layer list
+                            if isinstance(branches, (int, np.integer)):
+                                if depth is None:
+                                    branches_list = [int(branches)]
+                                else:
+                                    branches_list = [int(branches)] * int(depth)
+                            else:
+                                branches_list = branches
+
+                            new_config.model.core.architecture.excitatory_branch_factors = branches_list
                         else:
                             # Old structure fallback
                             if "core_network" not in new_config.model:
