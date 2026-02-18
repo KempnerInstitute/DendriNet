@@ -1200,7 +1200,11 @@ class LocalCreditAssignment(Trainer):
         if kernel_type == "linear":
             # Linear kernel gradients (original implementation)
             if grad_type == "self":
-                return (2.0 / float(batch_size)) * z * weight
+                # NOTE: `hsic.weight` is a global scale intended to gate the entire HSIC auxiliary.
+                # Keep behavior consistent across self/target terms.
+                return (
+                    (2.0 / float(batch_size)) * z * self.local_cfg.hsic.weight * weight
+                )
             else:  # target
                 cov_zy = (z.t() @ y) / float(batch_size)
                 grad_z = -2.0 * (cov_zy @ y.t()).t() / float(batch_size)
@@ -1220,7 +1224,7 @@ class LocalCreditAssignment(Trainer):
                 z_diff = z_expanded - z.unsqueeze(0)  # [B, B, d]
                 K_expanded = K_zz.unsqueeze(-1)  # [B, B, 1]
                 grad_z = -2.0 * gamma * (K_expanded * z_diff).sum(dim=1)  # [B, d]
-                return grad_z * weight / float(batch_size)
+                return grad_z * self.local_cfg.hsic.weight * weight / float(batch_size)
             else:  # target
                 # Use Z-Z kernel and Y-Y kernel; weight Z pairwise diffs by centered Y kernel
                 K_zz = self._compute_kernel_matrix(z, z)  # [B, B]
@@ -1248,7 +1252,7 @@ class LocalCreditAssignment(Trainer):
                 poly_base = coef0 + dot_zz  # [B, B]
                 poly_grad_coef = degree * (poly_base ** (degree - 1))  # [B, B]
                 grad_z = (poly_grad_coef @ z) * 2.0  # [B, d] (factor 2 for symmetry)
-                return grad_z * weight / float(batch_size)
+                return grad_z * self.local_cfg.hsic.weight * weight / float(batch_size)
             else:  # target
                 # Use Z-Z polynomial kernel and Y-Y polynomial kernel; weight by centered Y kernel
                 dot_zz = z @ z.t()  # [B, B]
@@ -1270,7 +1274,9 @@ class LocalCreditAssignment(Trainer):
         else:
             # Fallback to linear
             if grad_type == "self":
-                return (2.0 / float(batch_size)) * z * weight
+                return (
+                    (2.0 / float(batch_size)) * z * self.local_cfg.hsic.weight * weight
+                )
             else:
                 cov_zy = (z.t() @ y) / float(batch_size)
                 grad_z = -2.0 * (cov_zy @ y.t()).t() / float(batch_size)
