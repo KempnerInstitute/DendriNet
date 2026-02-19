@@ -351,6 +351,11 @@ class DeepstNet(nn.Module):
 
     def _apply_global_rewiring_by_type(self, layers, synapse_type):
         """Apply global rewiring only within the same synapse type."""
+        # Skip layers with frozen connectivity
+        layers = [l for l in layers if not getattr(l, "freeze_connectivity", False)]
+        if not layers:
+            return
+
         # Collect pruned and potential masks for this synapse type only
         all_pruned_masks = []
         all_potential_masks = []
@@ -616,7 +621,11 @@ class DeepstNet(nn.Module):
 
     def _apply_local_rewiring_by_type(self, layers, synapse_type):
         """Apply local rewiring using vectorized operations step by step."""
-        
+        # Skip layers with frozen connectivity
+        layers = [l for l in layers if not getattr(l, "freeze_connectivity", False)]
+        if not layers:
+            return
+
         # Step 1: Generate pruned weight masks for each layer
         pruned_masks = []
         potential_masks = []
