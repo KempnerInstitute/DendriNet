@@ -191,6 +191,74 @@ def load_mnist_as_datasets(
     return train_ds, valid_ds, test_ds
 
 
+def load_fashion_mnist_as_datasets(
+    train_valid_split=0.8,
+    flatten=False,
+    normalize=False,
+    task_data_path=None,
+):
+    """
+    Load the Fashion-MNIST dataset and split into train, validation, and test sets.
+
+    Args:
+        train_valid_split (float): Proportion of training data to use for training (vs validation)
+        flatten (bool): Whether to flatten the images
+        normalize (bool): Whether to normalize the images
+        task_data_path (str, optional): Path from task.data_path config
+
+    Returns:
+        tuple: (train_dataset, valid_dataset, test_dataset)
+    """
+    fmnist_dir = get_data_directory("fashion_mnist", task_data_path)
+
+    tf_list = [transforms.ToTensor()]
+    if normalize:
+        tf_list.append(transforms.Normalize((0.2860,), (0.3530,)))
+    transform = transforms.Compose(tf_list)
+
+    train_dataset = datasets.FashionMNIST(
+        root=fmnist_dir, train=True, download=True, transform=transform
+    )
+    test_dataset = datasets.FashionMNIST(
+        root=fmnist_dir, train=False, download=True, transform=transform
+    )
+
+    train_size = int(len(train_dataset) * train_valid_split)
+    valid_size = len(train_dataset) - train_size
+
+    train_dataset, valid_dataset = torch.utils.data.random_split(
+        train_dataset, [train_size, valid_size]
+    )
+
+    x_train = torch.stack([img for img, _ in train_dataset])
+    y_train = torch.tensor([label for _, label in train_dataset])
+
+    if len(valid_dataset) > 0:
+        x_valid = torch.stack([img for img, _ in valid_dataset])
+        y_valid = torch.tensor([label for _, label in valid_dataset])
+    else:
+        sample_img, _ = train_dataset[0]
+        x_valid = torch.empty(0, *sample_img.shape)
+        y_valid = torch.empty(0, dtype=torch.long)
+
+    x_test = torch.stack([img for img, _ in test_dataset])
+    y_test = torch.tensor([label for _, label in test_dataset])
+
+    if flatten:
+        x_train = x_train.view(x_train.shape[0], -1)
+        if len(x_valid) > 0:
+            x_valid = x_valid.view(x_valid.shape[0], -1)
+        else:
+            x_valid = torch.empty(0, x_train.shape[1])
+        x_test = x_test.view(x_test.shape[0], -1)
+
+    train_ds = torch.utils.data.TensorDataset(x_train, y_train)
+    valid_ds = torch.utils.data.TensorDataset(x_valid, y_valid)
+    test_ds = torch.utils.data.TensorDataset(x_test, y_test)
+
+    return train_ds, valid_ds, test_ds
+
+
 def load_mnist_modulo10(
     shuffle_iterations=2,
     train_valid_split=1,
@@ -660,6 +728,13 @@ def get_unified_datasets(task_cfg):
             task_data_path=task_data_path,
         )
         return train_ds, valid_ds, test_ds
+    elif dataset_name == "fashion_mnist":
+        return load_fashion_mnist_as_datasets(
+            train_valid_split=train_valid_split,
+            flatten=flatten,
+            normalize=normalize,
+            task_data_path=task_data_path,
+        )
     elif dataset_name == "cifar10":
         return load_cifar10_as_datasets(
             train_valid_split=train_valid_split,

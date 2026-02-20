@@ -3,7 +3,9 @@
 import pytest
 import torch
 import torch.nn.functional as functional
+from torch import nn
 
+from dendritic_modeling.networks.convert.cnn_to_dendrite import conv2d_to_dendrite
 from dendritic_modeling.networks.layers.dendritic_conv2d import (
     DendriteAttention,
     DendriteConv2d,
@@ -128,6 +130,63 @@ class TestDendriteConv2d:
         assert "3" in s  # in_channels
         assert "8" in s  # out_channels
         assert "epsilon" in s
+
+    def test_morphology_synapse_counts(self):
+        layer = self._make_layer(
+            n_e_dendrites=3,
+            n_i_dendrites=2,
+            e_synapses_per_dendrite=5,
+            i_synapses_per_dendrite=7,
+            morphology_seed=123,
+        )
+        assert layer.weight_E_raw.shape[:2] == (8, 3)
+        assert layer.weight_I_raw.shape[:2] == (8, 2)
+
+        e_counts = layer.weight_E_mask.view(8, 3, -1).sum(dim=-1)
+        i_counts = layer.weight_I_mask.view(8, 2, -1).sum(dim=-1)
+        assert torch.all(e_counts == 5)
+        assert torch.all(i_counts == 7)
+
+    @pytest.mark.parametrize("aggregation", ["sum", "mean", "max"])
+    def test_forward_branch_aggregation_modes(self, aggregation):
+        layer = self._make_layer(
+            n_e_dendrites=3,
+            n_i_dendrites=3,
+            e_synapses_per_dendrite=7,
+            i_synapses_per_dendrite=7,
+            branch_aggregation=aggregation,
+        )
+        x = torch.randn(2, 3, 16, 16)
+        out = layer(x)
+        assert out.shape == (2, 8, 16, 16)
+
+    def test_invalid_synapse_count_raises(self):
+        # For 3x3 kernels with 3 input channels, max synapses per dendrite is 27.
+        with pytest.raises(ValueError):
+            self._make_layer(e_synapses_per_dendrite=28)
+
+
+class TestConv2dToDendrite:
+    def test_generalized_conversion_shape_and_masks(self):
+        conv = nn.Conv2d(3, 8, kernel_size=3, stride=2, padding=1, bias=True)
+        layer = conv2d_to_dendrite(
+            conv,
+            copy_bias=True,
+            n_e_dendrites=2,
+            n_i_dendrites=4,
+            e_synapses_per_dendrite=6,
+            i_synapses_per_dendrite=9,
+            branch_aggregation="sum",
+            morphology_seed=0,
+        )
+        x = torch.randn(2, 3, 16, 16)
+        out = layer(x)
+        assert out.shape == (2, 8, 8, 8)
+
+        e_counts = layer.weight_E_mask.view(8, 2, -1).sum(dim=-1)
+        i_counts = layer.weight_I_mask.view(8, 4, -1).sum(dim=-1)
+        assert torch.all(e_counts == 6)
+        assert torch.all(i_counts == 9)
 
 
 # ---------------------------------------------------------------------------
