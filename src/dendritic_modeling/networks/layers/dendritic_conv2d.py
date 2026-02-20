@@ -21,6 +21,8 @@ class DendriteConv2d(nn.Module):
         v_out = E / (E + I + ε)
 
     where E and I are excitatory and inhibitory convolutions respectively.
+    Each output channel can aggregate multiple excitatory and inhibitory
+    dendrites (branches), with optional fixed synapse-count masks.
 
     Parameters
     ----------
@@ -44,6 +46,20 @@ class DendriteConv2d(nn.Module):
         Small constant for numerical stability (default: 1e-4)
     init_method : str, optional
         Weight initialization method (default: 'softplus_normal')
+    n_e_dendrites : int, optional
+        Number of excitatory dendrites per output neuron/channel.
+    n_i_dendrites : int, optional
+        Number of inhibitory dendrites per output neuron/channel.
+    e_synapses_per_dendrite : int, optional
+        Number of active excitatory synapses per dendrite. If None, uses full
+        receptive field.
+    i_synapses_per_dendrite : int, optional
+        Number of active inhibitory synapses per dendrite. If None, uses full
+        receptive field.
+    branch_aggregation : str, optional
+        Branch aggregation mode: "sum", "mean", or "max".
+    morphology_seed : int, optional
+        Seed for deterministic synapse-mask construction.
     """
 
     def __init__(
@@ -59,8 +75,23 @@ class DendriteConv2d(nn.Module):
         epsilon: float = 1e-4,
         init_method: str = "softplus_normal",
         v_in_channels: Optional[int] = None,
+        n_e_dendrites: int = 1,
+        n_i_dendrites: int = 1,
+        e_synapses_per_dendrite: Optional[int] = None,
+        i_synapses_per_dendrite: Optional[int] = None,
+        branch_aggregation: str = "sum",
+        morphology_seed: Optional[int] = None,
     ):
         super().__init__()
+
+        if groups <= 0:
+            raise ValueError("groups must be positive")
+        if in_channels % groups != 0:
+            raise ValueError("in_channels must be divisible by groups")
+        if n_e_dendrites < 1 or n_i_dendrites < 1:
+            raise ValueError("n_e_dendrites and n_i_dendrites must be >= 1")
+        if branch_aggregation not in {"sum", "mean", "max"}:
+            raise ValueError("branch_aggregation must be one of: sum, mean, max")
 
         self.in_channels = in_channels
         self.out_channels = out_channels
@@ -69,6 +100,8 @@ class DendriteConv2d(nn.Module):
             if isinstance(kernel_size, tuple)
             else (kernel_size, kernel_size)
         )
+        if len(self.kernel_size) != 2:
+            raise ValueError("kernel_size must be an int or a tuple of length 2")
         self.stride = stride if isinstance(stride, tuple) else (stride, stride)
         self.padding = padding if isinstance(padding, tuple) else (padding, padding)
         self.dilation = (
@@ -77,18 +110,47 @@ class DendriteConv2d(nn.Module):
         self.groups = groups
         self.epsilon = epsilon
         self.init_method = init_method
+        self.branch_aggregation = branch_aggregation
+        self.n_e_dendrites = n_e_dendrites
+        self.n_i_dendrites = n_i_dendrites
+        self.morphology_seed = morphology_seed
+        self.in_channels_per_group = in_channels // groups
+
+        total_synapses_per_dendrite = (
+            self.in_channels_per_group * self.kernel_size[0] * self.kernel_size[1]
+        )
+        self.e_synapses_per_dendrite = self._validate_synapse_count(
+            e_synapses_per_dendrite,
+            total_synapses_per_dendrite,
+            "e_synapses_per_dendrite",
+        )
+        self.i_synapses_per_dendrite = self._validate_synapse_count(
+            i_synapses_per_dendrite,
+            total_synapses_per_dendrite,
+            "i_synapses_per_dendrite",
+        )
 
         # V_in channels (for apical/contextual input)
         self.v_in_channels = v_in_channels or out_channels
 
-        # Excitatory weights (positive only)
+        # Excitatory branch kernels (positive via softplus, then masked)
         self.weight_E_raw = nn.Parameter(
-            torch.empty(out_channels, in_channels // groups, *self.kernel_size)
+            torch.empty(
+                out_channels,
+                n_e_dendrites,
+                self.in_channels_per_group,
+                *self.kernel_size,
+            )
         )
 
-        # Inhibitory weights (positive only)
+        # Inhibitory branch kernels (positive via softplus, then masked)
         self.weight_I_raw = nn.Parameter(
-            torch.empty(out_channels, in_channels // groups, *self.kernel_size)
+            torch.empty(
+                out_channels,
+                n_i_dendrites,
+                self.in_channels_per_group,
+                *self.kernel_size,
+            )
         )
 
         # Optional bias terms
@@ -103,20 +165,102 @@ class DendriteConv2d(nn.Module):
         self.apical_E = nn.Parameter(torch.empty(out_channels, self.v_in_channels))
         self.apical_I = nn.Parameter(torch.empty(out_channels, self.v_in_channels))
 
+        # Fixed morphology masks controlling active synapses per dendrite.
+        self.register_buffer(
+            "weight_E_mask",
+            self._make_synapse_mask(
+                out_channels=out_channels,
+                n_dendrites=n_e_dendrites,
+                synapses_per_dendrite=self.e_synapses_per_dendrite,
+                base_seed=morphology_seed,
+            ),
+        )
+        self.register_buffer(
+            "weight_I_mask",
+            self._make_synapse_mask(
+                out_channels=out_channels,
+                n_dendrites=n_i_dendrites,
+                synapses_per_dendrite=self.i_synapses_per_dendrite,
+                base_seed=None if morphology_seed is None else morphology_seed + 1,
+            ),
+        )
+
         self.reset_parameters()
+
+    def _validate_synapse_count(
+        self,
+        synapses_per_dendrite: Optional[int],
+        max_synapses: int,
+        field_name: str,
+    ) -> int:
+        if synapses_per_dendrite is None:
+            return max_synapses
+        if synapses_per_dendrite < 1:
+            raise ValueError(f"{field_name} must be >= 1 when provided")
+        if synapses_per_dendrite > max_synapses:
+            raise ValueError(
+                f"{field_name} ({synapses_per_dendrite}) cannot exceed receptive-field "
+                f"synapse count ({max_synapses})"
+            )
+        return int(synapses_per_dendrite)
+
+    def _make_synapse_mask(
+        self,
+        out_channels: int,
+        n_dendrites: int,
+        synapses_per_dendrite: int,
+        base_seed: Optional[int],
+    ) -> torch.Tensor:
+        """
+        Build a fixed binary mask with exactly `synapses_per_dendrite` active
+        synapses per (output_channel, dendrite).
+        """
+        rf_synapses = (
+            self.in_channels_per_group * self.kernel_size[0] * self.kernel_size[1]
+        )
+        if synapses_per_dendrite >= rf_synapses:
+            return torch.ones(
+                out_channels,
+                n_dendrites,
+                self.in_channels_per_group,
+                self.kernel_size[0],
+                self.kernel_size[1],
+            )
+
+        mask_flat = torch.zeros(out_channels, n_dendrites, rf_synapses)
+        generator = torch.Generator(device="cpu")
+        if base_seed is not None:
+            generator.manual_seed(base_seed)
+
+        for out_idx in range(out_channels):
+            for dend_idx in range(n_dendrites):
+                active_idx = torch.randperm(rf_synapses, generator=generator)[
+                    :synapses_per_dendrite
+                ]
+                mask_flat[out_idx, dend_idx, active_idx] = 1.0
+
+        return mask_flat.view(
+            out_channels,
+            n_dendrites,
+            self.in_channels_per_group,
+            self.kernel_size[0],
+            self.kernel_size[1],
+        )
 
     def reset_parameters(self):
         """Initialize parameters."""
         if self.init_method == "softplus_normal":
             # Initialize in pre-softplus space
-            fan_in = self.in_channels * np.prod(self.kernel_size)
-            std = 0.01 / np.sqrt(fan_in)
+            fan_in_e = max(1, self.e_synapses_per_dendrite)
+            fan_in_i = max(1, self.i_synapses_per_dendrite)
+            std_e = 0.01 / np.sqrt(fan_in_e)
+            std_i = 0.01 / np.sqrt(fan_in_i)
 
             # Softplus inverse: log(exp(x) - 1)
             mean_pre = np.log(np.exp(0.1) - 1)  # Small positive mean
 
-            nn.init.normal_(self.weight_E_raw, mean=mean_pre, std=std)
-            nn.init.normal_(self.weight_I_raw, mean=mean_pre, std=std)
+            nn.init.normal_(self.weight_E_raw, mean=mean_pre, std=std_e)
+            nn.init.normal_(self.weight_I_raw, mean=mean_pre, std=std_i)
 
             # Apical weights
             nn.init.normal_(self.apical_E, mean=0, std=0.01)
@@ -138,13 +282,74 @@ class DendriteConv2d(nn.Module):
 
     @property
     def weight_e(self):
-        """Excitatory weights (constrained positive)."""
-        return functional.softplus(self.weight_E_raw)
+        """Effective excitatory kernel after branch aggregation."""
+        return self._aggregate_kernel_bank(self.weight_e_branches)
 
     @property
     def weight_i(self):
-        """Inhibitory weights (constrained positive)."""
-        return functional.softplus(self.weight_I_raw)
+        """Effective inhibitory kernel after branch aggregation."""
+        return self._aggregate_kernel_bank(self.weight_i_branches)
+
+    @property
+    def weight_e_branches(self):
+        """Excitatory branch kernels with positivity + morphology mask applied."""
+        return functional.softplus(self.weight_E_raw) * self.weight_E_mask
+
+    @property
+    def weight_i_branches(self):
+        """Inhibitory branch kernels with positivity + morphology mask applied."""
+        return functional.softplus(self.weight_I_raw) * self.weight_I_mask
+
+    def _aggregate_kernel_bank(self, weights: torch.Tensor) -> torch.Tensor:
+        if self.branch_aggregation == "sum":
+            return weights.sum(dim=1)
+        elif self.branch_aggregation == "mean":
+            return weights.mean(dim=1)
+        elif self.branch_aggregation == "max":
+            return weights.max(dim=1).values
+        raise ValueError(f"Unknown branch_aggregation: {self.branch_aggregation}")
+
+    def _aggregate_branch_responses(
+        self, branch_response: torch.Tensor
+    ) -> torch.Tensor:
+        # branch_response shape: (batch, out_channels, n_dendrites, h, w)
+        if self.branch_aggregation == "sum":
+            return branch_response.sum(dim=2)
+        elif self.branch_aggregation == "mean":
+            return branch_response.mean(dim=2)
+        elif self.branch_aggregation == "max":
+            return branch_response.max(dim=2).values
+        raise ValueError(f"Unknown branch_aggregation: {self.branch_aggregation}")
+
+    def _branch_conv2d(
+        self, x: torch.Tensor, branch_weights: torch.Tensor, n_dendrites: int
+    ) -> torch.Tensor:
+        """
+        Compute per-branch conv responses then aggregate across branch dimension.
+        """
+        weight = branch_weights.reshape(
+            self.out_channels * n_dendrites,
+            self.in_channels_per_group,
+            self.kernel_size[0],
+            self.kernel_size[1],
+        )
+        response = functional.conv2d(
+            x,
+            weight,
+            bias=None,
+            stride=self.stride,
+            padding=self.padding,
+            dilation=self.dilation,
+            groups=self.groups,
+        )
+        response = response.view(
+            x.shape[0],
+            self.out_channels,
+            n_dendrites,
+            response.shape[2],
+            response.shape[3],
+        )
+        return self._aggregate_branch_responses(response)
 
     def forward(
         self, x: torch.Tensor, v_in: Optional[torch.Tensor] = None
@@ -165,27 +370,13 @@ class DendriteConv2d(nn.Module):
         v_out : torch.Tensor
             Output tensor of shape (batch, out_channels, height_out, width_out)
         """
-        # Excitatory convolution
-        E = functional.conv2d(
-            x,
-            self.weight_e,
-            self.bias_E,
-            stride=self.stride,
-            padding=self.padding,
-            dilation=self.dilation,
-            groups=self.groups,
-        )
+        # Excitatory and inhibitory branch computations.
+        E = self._branch_conv2d(x, self.weight_e_branches, self.n_e_dendrites)
+        I_var = self._branch_conv2d(x, self.weight_i_branches, self.n_i_dendrites)
 
-        # Inhibitory convolution
-        I_var = functional.conv2d(
-            x,
-            self.weight_i,
-            self.bias_I,
-            stride=self.stride,
-            padding=self.padding,
-            dilation=self.dilation,
-            groups=self.groups,
-        )
+        if self.bias_E is not None:
+            E = E + self.bias_E[None, :, None, None]
+            I_var = I_var + self.bias_I[None, :, None, None]
 
         # Apply apical modulation if v_in is provided
         if v_in is not None:
@@ -193,6 +384,13 @@ class DendriteConv2d(nn.Module):
             if v_in.dim() == 2:
                 v_in = v_in.unsqueeze(-1).unsqueeze(-1)
                 v_in = v_in.expand(-1, -1, E.shape[2], E.shape[3])
+            elif v_in.dim() != 4:
+                raise ValueError("v_in must be shape (B, C) or (B, C, H, W)")
+
+            if v_in.shape[1] != self.v_in_channels:
+                raise ValueError(
+                    f"v_in channels ({v_in.shape[1]}) must match v_in_channels ({self.v_in_channels})"
+                )
 
             # Modulate E and I with apical input
             # Shape: (batch, out_channels, H, W) = (batch, v_in_channels, H, W) @ (v_in_channels, out_channels)
@@ -231,6 +429,10 @@ class DendriteConv2d(nn.Module):
         s = (
             "{in_channels}, {out_channels}, kernel_size={kernel_size}"
             ", stride={stride}"
+            ", n_e_dendrites={n_e_dendrites}, n_i_dendrites={n_i_dendrites}"
+            ", e_synapses_per_dendrite={e_synapses_per_dendrite}"
+            ", i_synapses_per_dendrite={i_synapses_per_dendrite}"
+            ", branch_aggregation={branch_aggregation}"
         )
         if self.padding != (0,) * len(self.padding):
             s += ", padding={padding}"

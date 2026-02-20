@@ -18,6 +18,7 @@ from dendritic_modeling.config.training import (
     ReportingConfig,
 )
 from dendritic_modeling.training.strategies import (
+    FeedbackAlignmentTrainer,
     HomeostaticControlTrainer,
     LayerWiseTrainer,
     LocalCreditAssignment,
@@ -155,6 +156,12 @@ def _extract_enhanced_configs(trainer_config_dict: dict[str, Any]) -> dict[str, 
         if isinstance(fb_cfg, dict):
             enhanced_configs.update(fb_cfg)
 
+    # Feedback alignment
+    if "fa_config" in trainer_config_dict:
+        fa_cfg = trainer_config_dict.pop("fa_config")
+        if isinstance(fa_cfg, dict):
+            enhanced_configs.update(fa_cfg)
+
     # Freeze branch with KL
     if "freeze_branch_kl_config" in trainer_config_dict:
         fbkl_cfg = trainer_config_dict.pop("freeze_branch_kl_config")
@@ -206,6 +213,16 @@ def get_trainer(
         enhanced_configs = _extract_enhanced_configs(trainer_config_dict)
         trainer_config_dict.update(enhanced_configs)
         return TwoStepTrainer(**trainer_config_dict)
+    elif strategy == "fa":
+        enhanced_configs = _extract_enhanced_configs(trainer_config_dict)
+        trainer_config_dict.update(enhanced_configs)
+        trainer_config_dict["mode"] = "fa"
+        return FeedbackAlignmentTrainer(**trainer_config_dict)
+    elif strategy == "dfa":
+        enhanced_configs = _extract_enhanced_configs(trainer_config_dict)
+        trainer_config_dict.update(enhanced_configs)
+        trainer_config_dict["mode"] = "dfa"
+        return FeedbackAlignmentTrainer(**trainer_config_dict)
     elif strategy == "local_ca":
         enhanced_configs = _extract_enhanced_configs(trainer_config_dict)
         trainer_config_dict.update(enhanced_configs)
