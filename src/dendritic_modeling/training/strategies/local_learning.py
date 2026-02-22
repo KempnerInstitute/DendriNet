@@ -733,6 +733,11 @@ class LocalCreditAssignment(Trainer):
                 # Scalar broadcast
                 e_n = delta_scalar.expand(-1, out_features)  # [B, out]
 
+            # Additive Gaussian noise on broadcast error (for robustness testing)
+            noise_sigma = getattr(self.local_cfg, "error_noise_sigma", 0.0)
+            if noise_sigma > 0.0 and self.training:
+                e_n = e_n + noise_sigma * torch.randn_like(e_n)
+
             # Conductance scaling: R_tot = 1 / g_tot
             if self.local_cfg.three_factor.use_conductance_scaling:
                 g_tot = torch.ones_like(v_n)

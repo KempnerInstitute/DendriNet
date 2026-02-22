@@ -465,6 +465,9 @@ class LocalRuleConfig(BaseConfig):
     # ========== ERROR SIGNAL ==========
     error_mode: str = "auto"  # "auto", "mse", "ce", "bce"
     error_broadcast_mode: str = "scalar"  # "scalar", "per_soma", "local_mismatch"
+    error_noise_sigma: float = (
+        0.0  # Additive Gaussian noise on broadcast error (0 = off)
+    )
 
     # ========== RULE-SPECIFIC PARAMETERS ==========
     # 3-factor rule parameters
