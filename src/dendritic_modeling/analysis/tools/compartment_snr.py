@@ -1727,19 +1727,19 @@ def plot_layer_analysis_layer_agg_vs_training(
         # Extract data at this epoch index
         epoch_snapshot = {}
         for _layer_key, layer_stats in layer_data.items():
-            epoch_snapshot[layer_key] = {"depth": layer_stats.get("depth")}
+            epoch_snapshot[_layer_key] = {"depth": layer_stats.get("depth")}
             for key, value in layer_stats.items():
                 if key != "depth":
                     if isinstance(value, list):
                         if frame < len(value):
-                            epoch_snapshot[layer_key][key] = value[frame]
+                            epoch_snapshot[_layer_key][key] = value[frame]
                         else:
                             # Use last available value if frame exceeds list length
-                            epoch_snapshot[layer_key][key] = (
+                            epoch_snapshot[_layer_key][key] = (
                                 value[-1] if value else None
                             )
                     else:
-                        epoch_snapshot[layer_key][key] = value
+                        epoch_snapshot[_layer_key][key] = value
 
         # Create depth_to_layer mapping for this epoch
         depth_to_layer = {}
