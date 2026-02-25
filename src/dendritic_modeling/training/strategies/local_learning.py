@@ -101,6 +101,7 @@ class LocalCreditAssignment(Trainer):
 
         legacy_group_fields = {
             "three_factor": [
+                "dynamics_mode",
                 "use_conductance_scaling",
                 "use_driving_force",
                 "theta",
@@ -515,6 +516,47 @@ class LocalCreditAssignment(Trainer):
         return delta_scalar
 
     @staticmethod
+    def _compute_local_mismatch_broadcast(
+        delta_scalar: torch.Tensor,
+        v_n: torch.Tensor,
+        parent: Optional[torch.Tensor],
+        residual_fraction: float = 0.2,
+        clip_value: float = 3.0,
+        eps: float = 1e-6,
+    ) -> torch.Tensor:
+        """Compute a stabilized local-mismatch broadcast signal.
+
+        The raw local mismatch signal can collapse when parent and soma voltages are
+        close or poorly scaled. We stabilize it by:
+        1) centering mismatch across batch,
+        2) normalizing mismatch per sample by RMS magnitude,
+        3) clipping outliers,
+        4) blending with a residual scalar broadcast path.
+        """
+        base = delta_scalar.expand(-1, v_n.size(1))
+        if parent is None:
+            return base
+
+        p = parent
+        if p.size() != v_n.size():
+            try:
+                p = p.view_as(v_n)
+            except Exception:
+                return base
+
+        mismatch = p - v_n
+        mismatch = mismatch - mismatch.mean(dim=0, keepdim=True)
+        rms = mismatch.pow(2).mean(dim=1, keepdim=True).sqrt().clamp_min(eps)
+        mismatch_norm = mismatch / rms
+
+        if clip_value > 0.0:
+            mismatch_norm = torch.clamp(mismatch_norm, -clip_value, clip_value)
+
+        modulated = base * mismatch_norm
+        blend = float(max(0.0, min(1.0, residual_fraction)))
+        return (1.0 - blend) * modulated + blend * base
+
+    @staticmethod
     def _weight_transform_derivative(
         raw_param: torch.Tensor, transform_type: str
     ) -> torch.Tensor:
@@ -532,6 +574,29 @@ class LocalCreditAssignment(Trainer):
             f"Unknown weight transform '{transform_type}', falling back to exp derivative."
         )
         return raw_param.exp()
+
+    def _resolve_layer_dynamics_mode(self, rec: dict[str, Any]) -> str:
+        """Resolve local update dynamics for the current layer.
+
+        Returns:
+            "conductance" for shunting-style updates or "additive" for
+            additive-consistent updates.
+        """
+        cfg_mode = str(
+            getattr(self.local_cfg.three_factor, "dynamics_mode", "auto")
+        ).lower()
+        if cfg_mode in {"conductance", "legacy"}:
+            return "conductance"
+        if cfg_mode == "additive":
+            return "additive"
+        if cfg_mode != "auto":
+            logger.warning(
+                f"Unknown three_factor.dynamics_mode='{cfg_mode}', falling back to auto."
+            )
+
+        layer = rec.get("layer")
+        uses_shunting = bool(getattr(layer, "use_shunting", True))
+        return "conductance" if uses_shunting else "additive"
 
     @staticmethod
     def _error_by_mode(y_hat: torch.Tensor, y: torch.Tensor, mode: str) -> torch.Tensor:
@@ -710,51 +775,46 @@ class LocalCreditAssignment(Trainer):
                     parent = rec.get("exc_out")
                 if parent is None:
                     parent = rec.get("inh_out")
-                if parent is None:
-                    # Fallback to scalar broadcast if no parent signal is available
-                    e_n = delta_scalar.expand(-1, out_features)
-                else:
-                    # Centered mismatch as a simple local error proxy
-                    p = parent
-                    if p.size() != v_n.size():
-                        # Try to align shapes; if mismatch persists, fallback to scalar
-                        try:
-                            p = p.view_as(v_n)
-                        except Exception:
-                            p = None
-                    if p is None:
-                        e_n = delta_scalar.expand(-1, out_features)
-                    else:
-                        mismatch = p - v_n  # [B, out]
-                        # Optionally center mismatch per-batch to avoid bias
-                        mismatch = mismatch - mismatch.mean(dim=0, keepdim=True)
-                        e_n = delta_scalar.expand(-1, out_features) * mismatch
+                e_n = self._compute_local_mismatch_broadcast(
+                    delta_scalar=delta_scalar,
+                    v_n=v_n,
+                    parent=parent,
+                )
             else:
                 # Scalar broadcast
                 e_n = delta_scalar.expand(-1, out_features)  # [B, out]
 
             # Additive Gaussian noise on broadcast error (for robustness testing)
             noise_sigma = getattr(self.local_cfg, "error_noise_sigma", 0.0)
-            if noise_sigma > 0.0 and self.training:
+            if noise_sigma > 0.0:
                 e_n = e_n + noise_sigma * torch.randn_like(e_n)
 
-            # Conductance scaling: R_tot = 1 / g_tot
-            if self.local_cfg.three_factor.use_conductance_scaling:
-                g_tot = torch.ones_like(v_n)
-                exc_out = rec.get("exc_out")
-                if exc_out is not None:
-                    g_tot = g_tot + functional.relu(exc_out)
-                inh_out = rec.get("inh_out")
-                if inh_out is not None:
-                    g_tot = g_tot + functional.relu(inh_out)
-                blk_module = rec.get("blk_module")
-                if blk_module is not None and hasattr(blk_module, "sum_conductances"):
-                    g_blk = (
-                        blk_module.sum_conductances().detach()[None, :].expand_as(v_n)
-                    )
-                    g_tot = g_tot + functional.relu(g_blk)
-                R_tot = 1.0 / (g_tot + 1e-8)
+            layer_dynamics_mode = self._resolve_layer_dynamics_mode(rec)
+            if layer_dynamics_mode == "conductance":
+                # Conductance scaling: R_tot = 1 / g_tot
+                if self.local_cfg.three_factor.use_conductance_scaling:
+                    g_tot = torch.ones_like(v_n)
+                    exc_out = rec.get("exc_out")
+                    if exc_out is not None:
+                        g_tot = g_tot + functional.relu(exc_out)
+                    inh_out = rec.get("inh_out")
+                    if inh_out is not None:
+                        g_tot = g_tot + functional.relu(inh_out)
+                    blk_module = rec.get("blk_module")
+                    if blk_module is not None and hasattr(
+                        blk_module, "sum_conductances"
+                    ):
+                        g_blk = (
+                            blk_module.sum_conductances()
+                            .detach()[None, :]
+                            .expand_as(v_n)
+                        )
+                        g_tot = g_tot + functional.relu(g_blk)
+                    R_tot = 1.0 / (g_tot + 1e-8)
+                else:
+                    R_tot = 1.0
             else:
+                # Additive dendritic integration does not include divisive input resistance.
                 R_tot = 1.0
 
             # === PATH PROPAGATION FACTOR ===
@@ -815,13 +875,16 @@ class LocalCreditAssignment(Trainer):
             ):
                 branch_scale = self._get_branch_type_scale(rec)
 
-            # Post-synaptic modulation per-sample, per-neuron
-            if self.local_cfg.three_factor.use_driving_force:
-                post_mod = self.local_cfg.three_factor.e_rev_exc - v_n  # [B, out]
+            # Post-synaptic modulation per-sample, per-neuron.
+            if layer_dynamics_mode == "conductance":
+                if self.local_cfg.three_factor.use_driving_force:
+                    post_mod = self.local_cfg.three_factor.e_rev_exc - v_n  # [B, out]
+                else:
+                    post_mod = v_n - self.local_cfg.three_factor.theta
+                post_factor = e_n * R_tot * post_mod  # [B, out]
             else:
-                post_mod = v_n - self.local_cfg.three_factor.theta
-
-            post_factor = e_n * R_tot * post_mod  # [B, out]
+                # Additive rule: dV/dg_exc = x (no driving-force or R_tot factor).
+                post_factor = e_n
 
             # Apply morphology/information factors
             if isinstance(rho, torch.Tensor):
@@ -867,11 +930,15 @@ class LocalCreditAssignment(Trainer):
             inh_layer: Optional[TopKLinear] = rec.get("inh_module")
             if inh_layer is not None and rec.get("x_inh") is not None:
                 x_inh: torch.Tensor = rec["x_inh"]  # [B, in]
-                if self.local_cfg.three_factor.use_driving_force:
-                    inh_post = self.local_cfg.three_factor.e_rev_inh - v_n
+                if layer_dynamics_mode == "conductance":
+                    if self.local_cfg.three_factor.use_driving_force:
+                        inh_post = self.local_cfg.three_factor.e_rev_inh - v_n
+                    else:
+                        inh_post = self.local_cfg.three_factor.theta - v_n
+                    inh_factor = e_n * R_tot * inh_post  # [B, out]
                 else:
-                    inh_post = self.local_cfg.three_factor.theta - v_n
-                inh_factor = e_n * R_tot * inh_post  # [B, out]
+                    # Additive rule: V = exc + den - inh, so dV/dg_inh = -x.
+                    inh_factor = -e_n
 
                 # Apply morphology/information factors (same as excitatory)
                 if isinstance(rho, torch.Tensor):
@@ -925,15 +992,18 @@ class LocalCreditAssignment(Trainer):
                 x_blk = x_blk_raw.view(
                     x_blk_raw.size(0), blk_layer.out_features, block_size
                 )
-                # dL/dg_den ≈ E_batch[ e_n * R_tot * (V_j - V_n) * rho * phi * branch_scale ]
-                diff = x_blk - v_n.unsqueeze(-1)  # [B, out, block]
-                # Ensure R_tot is a tensor for broadcasting
-                if isinstance(R_tot, torch.Tensor):
-                    R_exp = R_tot.unsqueeze(-1)
+                if layer_dynamics_mode == "conductance":
+                    # dL/dg_den ≈ E_batch[ e_n * R_tot * (V_j - V_n) * ... ]
+                    diff = x_blk - v_n.unsqueeze(-1)  # [B, out, block]
+                    # Ensure R_tot is a tensor for broadcasting
+                    if isinstance(R_tot, torch.Tensor):
+                        R_exp = R_tot.unsqueeze(-1)
+                    else:
+                        R_exp = torch.ones_like(v_n).unsqueeze(-1) * float(R_tot)
+                    den_factor = e_n.unsqueeze(-1) * R_exp * diff
                 else:
-                    R_exp = torch.ones_like(v_n).unsqueeze(-1) * float(R_tot)
-                # Apply morphology and information factors
-                den_factor = e_n.unsqueeze(-1) * R_exp * diff
+                    # Additive rule: V = ... + sum_j g_j * V_j, so dV/dg_j = V_j.
+                    den_factor = e_n.unsqueeze(-1) * x_blk
 
                 # Apply rho (may be tensor if using depth modulation)
                 if self.local_cfg.rule_variant in {"4f", "5f"}:

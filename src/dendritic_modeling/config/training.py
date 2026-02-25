@@ -108,6 +108,7 @@ class LocalCAStrategyConfig(BaseConfig):
     ema_alpha: float = 0.1
     use_conductance_scaling: bool = True
     use_driving_force: bool = True
+    dynamics_mode: str = "auto"  # "auto", "conductance", "additive"
     theta: float = 0.0
     e_rev_exc: float = 1.0
     e_rev_inh: float = 0.0
@@ -360,6 +361,11 @@ class ThreeFactorConfig(BaseConfig):
     """
 
     # Compartmental dynamics
+    # "auto": conductance-aware updates for shunting layers, additive-consistent
+    # updates for additive layers.
+    # "conductance": force conductance-aware updates (legacy behavior).
+    # "additive": force additive-consistent updates.
+    dynamics_mode: str = "auto"  # "auto", "conductance", "additive"
     use_conductance_scaling: bool = True  # Scale by R_tot = 1/g_tot
     use_driving_force: bool = True  # Use (E_rev - V_n) driving force
     theta: float = 0.0  # Leak reversal potential

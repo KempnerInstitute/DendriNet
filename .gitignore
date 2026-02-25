@@ -219,3 +219,6 @@ scripts_backup/
 # Local scratch + external dependencies (kept untracked in this repo).
 drafts/
 external/
+scripts/
+scratch/
+figures/

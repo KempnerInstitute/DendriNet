@@ -223,6 +223,7 @@ def _map_analysis_config(analysis_data: dict) -> dict:
         "single_layer_contribution": "single_layer_contribution",
         "synaptic_activation": "synaptic_activation_analysis",
         "branch_activation": "branch_activation_analysis",
+        "routing": "routing_analysis",
     }
 
     for new_name, old_name in field_mapping.items():

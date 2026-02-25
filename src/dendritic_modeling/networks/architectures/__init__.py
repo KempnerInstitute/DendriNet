@@ -11,8 +11,8 @@ from dendritic_modeling.networks.architectures.classical import (
     CNNDownsample,
     CNNUpsample,
     Identity,
-    MatchedTotalParamMLP,
     MatchedActiveParamMLP,
+    MatchedTotalParamMLP,
     SparseStructuredMLP,
 )
 from dendritic_modeling.networks.architectures.excitation_inhibition import (
@@ -32,7 +32,17 @@ from dendritic_modeling.networks.architectures.excitation_inhibition import (
     analytical_expectation_dbl_init,
 )
 
+try:
+    from dendritic_modeling.networks.architectures.recurrent import (
+        DendriticRNNCell,
+        DendriticRNNNetwork,
+        RecurrentState,
+    )
+except (ImportError, ModuleNotFoundError):
+    pass
+
 __all__ = [
+    "MLP",
     "AlexNet",
     "BlockLinear",
     "CNNDownsample",
@@ -40,19 +50,21 @@ __all__ = [
     "DeepstLinear",
     "DendriNet",
     "DendriticBranchLayer",
+    "DendriticRNNCell",
+    "DendriticRNNNetwork",
     "ExcitationInhibitionLayer",
     "ExcitationInhibitionNetwork",
     "GradientScaler",
     "Identity",
     "IdentityInputTransform",
     "IndexInputTransform",
-    "analytical_expectation_dbl_init",
-    "MatchedTotalParamMLP",
     "MatchedActiveParamMLP",
-    "MLP",
+    "MatchedTotalParamMLP",
+    "RecurrentState",
+    "SparseStructuredMLP",
     "StochasticTopKLinear",
     "TopKLinear",
     "TransferLayer",
     "VarianceTopKLinear",
-    "SparseStructuredMLP",
+    "analytical_expectation_dbl_init",
 ]

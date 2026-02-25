@@ -290,7 +290,9 @@ class DendriNet(nn.Module):
             layer: DendriticBranchLayer = self.branch_layers[i]
 
             if layer.input_inhibitory and layer.input_excitatory:
-                exc, inh = layer.get_pruned_weights() if pruned else layer.get_weights()
+                weights = layer.get_pruned_weights() if pruned else layer.get_weights()
+                exc = weights["exc"]
+                inh = weights["inh"]
                 exc_chunk = exc.chunk(self.n_soma, dim=0)
                 inh_chunk = inh.chunk(self.n_soma, dim=0)
 
@@ -302,7 +304,8 @@ class DendriNet(nn.Module):
                 )
 
             elif layer.input_excitatory:
-                exc = layer.get_pruned_weights() if pruned else layer.get_weights()
+                weights = layer.get_pruned_weights() if pruned else layer.get_weights()
+                exc = weights["exc"]
                 exc_chunk = exc.chunk(self.n_soma, dim=0)
                 exc_total = exc_total + torch.stack(
                     [chunk.sum(0) for chunk in exc_chunk], dim=0

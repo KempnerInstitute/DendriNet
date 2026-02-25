@@ -6,7 +6,6 @@ for all model wrappers including parameter grouping and weight decay.
 """
 
 from itertools import chain
-from typing import Union
 
 import torch
 import torch.nn as nn
@@ -14,11 +13,17 @@ import torch.nn as nn
 from dendritic_modeling.config import ParamGroupsConfig
 from dendritic_modeling.networks import (
     BaseNetwork,
-    TopKLinear,
     BlockLinear,
+    ExcitationInhibitionLayer,
+    Identity,
     ParametricActivation,
-    ExcitationInhibitionLayer
+    TopKLinear,
 )
+
+try:
+    from dendritic_modeling.networks.architectures.recurrent import DendriticRNNNetwork
+except (ImportError, ModuleNotFoundError):
+    DendriticRNNNetwork = None
 
 
 class BaseModel(nn.Module):
@@ -33,10 +38,27 @@ class BaseModel(nn.Module):
         self.encoder_network = encoder_network
         self.core_network = core_network
         self.decoder_network = decoder_network
+        # Cache once: non-recurrent models avoid per-forward isinstance checks.
+        self._is_recurrent_core = DendriticRNNNetwork is not None and isinstance(
+            self.core_network, DendriticRNNNetwork
+        )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.encoder_network(x)
-        x = self.core_network(x)
+        # Recurrent cores expect [batch, seq_len, feature_dim]
+        # Encoder may need per-timestep application
+        if self._is_recurrent_core:
+            if not isinstance(self.encoder_network, Identity) and x.dim() == 3:
+                # Apply encoder per timestep: [B, T, D] -> [B, T, D']
+                B, T, D = x.shape
+                x = x.reshape(B * T, D)
+                x = self.encoder_network(x)
+                x = x.reshape(B, T, -1)
+            else:
+                x = self.encoder_network(x)
+            x = self.core_network(x)
+        else:
+            x = self.encoder_network(x)
+            x = self.core_network(x)
         x = self.decoder_network(x)
         return x
 
@@ -60,6 +82,10 @@ class BaseModel(nn.Module):
     def get_param_groups(self, param_groups_config: ParamGroupsConfig) -> list[dict]:
         """
         Get parameter groups for optimizer.
+
+        Materializes chain() iterators to lists (one-shot iterators can't be
+        reused by the optimizer). Adds a catch-all group for any parameters not
+        matched by specific categories (e.g. recurrent nn.Linear, tau params).
         """
         split_params = getattr(param_groups_config, "split_params", True)
 
@@ -87,39 +113,36 @@ class BaseModel(nn.Module):
                 decoder_params.append([self.log_output_scale])
 
             param_groups = []
-            if topk_params:
+            categorized_ids: set[int] = set()
+
+            for params_list, lr_key, default_lr in [
+                (topk_params, "topk_lr", 0.001),
+                (blocklinear_params, "blocklinear_lr", 0.001),
+                (reactivation_params, "reactivation_lr", 0.001),
+                (mlp_inh_net_params, "lr", 0.001),
+                (decoder_params, "decoder_lr", 0.001),
+            ]:
+                if params_list:
+                    materialized = list(chain(*params_list))
+                    categorized_ids.update(id(p) for p in materialized)
+                    param_groups.append(
+                        {
+                            "params": materialized,
+                            "lr": getattr(param_groups_config, lr_key, default_lr),
+                        }
+                    )
+
+            # Catch-all: any params not in the above groups
+            uncategorized = [
+                p
+                for p in self.parameters()
+                if p.requires_grad and id(p) not in categorized_ids
+            ]
+            if uncategorized:
                 param_groups.append(
                     {
-                        "params": chain(*topk_params),
-                        "lr": getattr(param_groups_config, "topk_lr", 0.001),
-                    }
-                )
-            if blocklinear_params:
-                param_groups.append(
-                    {
-                        "params": chain(*blocklinear_params),
-                        "lr": getattr(param_groups_config, "blocklinear_lr", 0.001),
-                    }
-                )
-            if reactivation_params:
-                param_groups.append(
-                    {
-                        "params": chain(*reactivation_params),
-                        "lr": getattr(param_groups_config, "reactivation_lr", 0.001),
-                    }
-                )
-            if mlp_inh_net_params:
-                param_groups.append(
-                    {
-                        "params": chain(*mlp_inh_net_params),
+                        "params": uncategorized,
                         "lr": getattr(param_groups_config, "lr", 0.001),
-                    }
-                )
-            if decoder_params:
-                param_groups.append(
-                    {
-                        "params": chain(*decoder_params),
-                        "lr": getattr(param_groups_config, "decoder_lr", 0.001),
                     }
                 )
 

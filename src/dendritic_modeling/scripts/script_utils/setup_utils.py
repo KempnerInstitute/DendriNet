@@ -16,7 +16,7 @@ from omegaconf import OmegaConf
 
 from dendritic_modeling.config import DataConfig, ModelConfig, TrainingConfig
 from dendritic_modeling.datasets import get_unified_datasets
-from dendritic_modeling.models import Classifier, Regressor
+from dendritic_modeling.models import Classifier, RecurrentClassifier, Regressor
 from dendritic_modeling.networks import Identity
 from dendritic_modeling.networks.architectures.factory import get_architecture
 from dendritic_modeling.utils import set_seed
@@ -80,8 +80,22 @@ def initialize_model(model_config: ModelConfig):
     # Create decoder
     decoder_network = get_architecture(decoder_config.type, decoder_params)
 
+    # Detect recurrent mode
+    is_recurrent = (
+        hasattr(core_config, "recurrent")
+        and hasattr(core_config.recurrent, "enabled")
+        and core_config.recurrent.enabled
+    )
+
     # Create model based on task
-    if model_config.task == "classification":
+    if is_recurrent:
+        if model_config.task == "classification":
+            model = RecurrentClassifier(encoder, core_network, decoder_network)
+        elif model_config.task == "regression":
+            model = Regressor(encoder, core_network, decoder_network)
+        else:
+            raise ValueError(f"Invalid task: {model_config.task}")
+    elif model_config.task == "classification":
         model = Classifier(encoder, core_network, decoder_network)
     elif model_config.task == "regression":
         model = Regressor(encoder, core_network, decoder_network)
@@ -199,17 +213,33 @@ def setup_environment(
 
     # Update encoder input dimension (only if params exists)
     input_sample: torch.Tensor = train_ds[0][0]
+
+    # Detect if this is sequence data (recurrent mode)
+    is_recurrent = (
+        hasattr(model_config.core, "recurrent")
+        and hasattr(model_config.core.recurrent, "enabled")
+        and model_config.core.recurrent.enabled
+    )
+
+    if is_recurrent:
+        # Sequence data: [seq_len, input_dim] — use last dim as feature dim
+        input_dim = input_sample.shape[-1]
+    else:
+        # Image/vector data — use total elements
+        input_dim = input_sample.numel()
+    input_shape = list(input_sample.shape)
+
     if (
         hasattr(model_config.encoder, "params")
         and model_config.encoder.params is not None
     ):
-        model_config.encoder.params.input_dim = input_sample.numel()
-        model_config.encoder.params.input_shape = list(input_sample.shape)
+        model_config.encoder.params.input_dim = input_dim
+        model_config.encoder.params.input_shape = input_shape
     else:
         # Create params if it doesn't exist (e.g., for identity encoder)
         model_config.encoder.params = {
-            "input_dim": input_sample.numel(),
-            "input_shape": list(input_sample.shape),
+            "input_dim": input_dim,
+            "input_shape": input_shape,
         }
 
     # Initialize model

@@ -57,6 +57,8 @@ ignore = [
     "B904",   # Within an `except` clause, raise exceptions with `raise ... from err`
     "N803",   # Argument name should be lowercase (for mathematical variables)
     "N806",   # Variable in function should be lowercase (for mathematical variables)
+    "N812",   # Lowercase imported as non-lowercase (e.g., torch.nn.functional as F)
+    "N815",   # Variable in class scope should not be mixedCase (domain: E/I/V traces)
     "I001",   # Import block is un-sorted or un-formatted (handled by isort)
 ]
 

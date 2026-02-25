@@ -26,6 +26,7 @@ from dendritic_modeling.config.analysis import (
     PerformanceAnalysisParams,
     ReceptiveFieldAnalysisConfig,
     ReceptiveFieldAnalysisParams,
+    RoutingAnalysisConfig,
     SingleLayerContributionAnalysisConfig,
     SingleLayerContributionAnalysisParams,
     SynapseTurnoverAnalysisConfig,
@@ -62,6 +63,7 @@ from dendritic_modeling.config.model import (
     SparsityConfig,
     TransferFunctionConfig,
 )
+from dendritic_modeling.config.recurrent import BranchConfig, RecurrentConfig
 from dendritic_modeling.config.regularization import (
     PruningConfig,
     RegularizationConfig,
@@ -94,6 +96,7 @@ __all__ = [
     "BlockLinearConfig",
     "BranchActivationAnalysisConfig",
     "BranchActivationAnalysisParams",
+    "BranchConfig",
     "CommonTrainerConfig",
     "CompartmentSNRAnalysisConfig",
     "CompartmentSNRAnalysisParams",
@@ -140,7 +143,9 @@ __all__ = [
     "ReactivationConfig",
     "ReceptiveFieldAnalysisConfig",
     "ReceptiveFieldAnalysisParams",
+    "RecurrentConfig",
     "RegularizationConfig",
+    "RoutingAnalysisConfig",
     "SelectiveConfig",
     "SingleLayerContributionAnalysisConfig",
     "SingleLayerContributionAnalysisParams",

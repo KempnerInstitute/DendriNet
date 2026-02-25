@@ -103,6 +103,7 @@ Documentation
    :maxdepth: 2
 
    CONFIGURATION_GUIDE
+   NETWORK_TYPES_AND_RNN
    sweeps
    FSDP_TROUBLESHOOTING
 

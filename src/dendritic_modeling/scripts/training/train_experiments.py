@@ -202,6 +202,9 @@ def main(config_path: str, args=None):
         if args.run_name:
             config.outputs.run_name = args.run_name
             logger.info(f"Override run name: {args.run_name}")
+        if getattr(args, "seed", None) is not None:
+            config.experiment.seed = args.seed
+            logger.info(f"Override seed: {args.seed}")
 
     # Extract config sections
     experiment_config = config.experiment
@@ -225,23 +228,45 @@ def main(config_path: str, args=None):
 
     logger.info("Network architecture summary before training:")
     try:
-        sample_input: torch.Tensor = train_ds[0][0]
-        summary = torchinfo.summary(
-            model,
-            input_size=(100, *sample_input.shape),
-            col_names=["input_size", "output_size", "num_params"],
-            col_width=25,
-            row_settings=["depth"],
-            depth=7,
-        )
-        logger.info("Model summary generated (see console output)")
-        if wandb.run:
-            wandb.log(
-                {
-                    "total_params": summary.total_params,
-                    "trainable_params": summary.trainable_params,
-                }
+        core_type = str(getattr(model_config.core, "type", "")).lower()
+        is_recurrent_core = core_type in {"dendritic_rnn", "dendrnn", "vanilla_rnn"}
+
+        if is_recurrent_core:
+            # torchinfo unrolls recurrent timesteps and can produce extremely large
+            # summaries (and OOM) for sequence models. Use lightweight param counts.
+            total_params = sum(p.numel() for p in model.parameters())
+            trainable_params = sum(
+                p.numel() for p in model.parameters() if p.requires_grad
             )
+            logger.info(
+                "Skipping torchinfo summary for recurrent model. "
+                f"total_params={total_params}, trainable_params={trainable_params}"
+            )
+            if wandb.run:
+                wandb.log(
+                    {
+                        "total_params": total_params,
+                        "trainable_params": trainable_params,
+                    }
+                )
+        else:
+            sample_input: torch.Tensor = train_ds[0][0]
+            summary = torchinfo.summary(
+                model,
+                input_size=(100, *sample_input.shape),
+                col_names=["input_size", "output_size", "num_params"],
+                col_width=25,
+                row_settings=["depth"],
+                depth=7,
+            )
+            logger.info("Model summary generated (see console output)")
+            if wandb.run:
+                wandb.log(
+                    {
+                        "total_params": summary.total_params,
+                        "trainable_params": summary.trainable_params,
+                    }
+                )
     except Exception as e:
         logger.error(f"Failed to generate model summary before training: {e}")
 
@@ -331,6 +356,9 @@ def main(config_path: str, args=None):
             )
         logger.info("Using multi-stage training strategy")
 
+    # Inject task from model config for recurrent trainer
+    main_trainer_config_dict["task"] = model_config.task
+
     main_trainer = get_trainer(
         strategy=strategy,
         optimizer=optimizer,
@@ -374,6 +402,8 @@ def main(config_path: str, args=None):
             analysis_config.branch_activation_analysis.enabled,
             hasattr(analysis_config, "correlation_analysis")
             and analysis_config.correlation_analysis.enabled,
+            hasattr(analysis_config, "routing_analysis")
+            and analysis_config.routing_analysis.enabled,
         ]
     )
 
@@ -478,6 +508,12 @@ if __name__ == "__main__":
             "voltage_stabilization",
         ],
         help="Override learning strategy specified in config.",
+    )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=None,
+        help="Override experiment seed (for running multiple seeds per config).",
     )
 
     args = parser.parse_args()

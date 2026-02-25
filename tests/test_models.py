@@ -211,3 +211,20 @@ def test_regressor_predict():
     x = torch.randn(2, 10)
     preds = model.predict(x)
     assert preds.shape == (2, 3)
+
+
+def test_base_model_non_recurrent_path_unchanged():
+    """Non-recurrent forward should be identical to encoder->core->decoder composition."""
+    encoder = Identity(10)
+    core = get_architecture(
+        "MLP", {"input_dim": 10, "hidden_dims": [20], "output_dim": 5}
+    )
+    decoder = Identity(5)
+    model = BaseModel(encoder, core, decoder)
+    assert model._is_recurrent_core is False
+
+    x = torch.randn(4, 10)
+    with torch.no_grad():
+        expected = decoder(core(encoder(x)))
+        actual = model(x)
+    assert torch.allclose(actual, expected)

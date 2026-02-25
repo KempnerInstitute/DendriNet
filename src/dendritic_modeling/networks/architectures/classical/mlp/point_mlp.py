@@ -89,9 +89,7 @@ class PointMatchedParamMLP(nn.Module):
         # Param count for 2-layer MLP:
         # (input_dim*H + H) + (H*output_dim + output_dim)
         denom = int(input_dim) + int(output_dim) + 1
-        hidden_width = max(
-            1, int(math.ceil(max(0, target_params - output_dim) / denom))
-        )
+        hidden_width = max(1, math.ceil(max(0, target_params - output_dim) / denom))
 
         activation_factory = ActivationFactory()
 

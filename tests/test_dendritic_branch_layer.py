@@ -98,10 +98,16 @@ class TestDendriticBranchLayer(unittest.TestCase):
             self.inhibitory_synapses_per_branch,
         )
         weights = layer.get_weights()
-        # Contains both excitatory and inhibitory weights
-        self.assertEqual(len(weights), 2)
-        self.assertEqual(weights[0].shape, (self.output_dim, self.excitatory_input_dim))
-        self.assertEqual(weights[1].shape, (self.output_dim, self.inhibitory_input_dim))
+        # Returns dict with excitatory and inhibitory weights
+        self.assertIsInstance(weights, dict)
+        self.assertIn("exc", weights)
+        self.assertIn("inh", weights)
+        self.assertEqual(
+            weights["exc"].shape, (self.output_dim, self.excitatory_input_dim)
+        )
+        self.assertEqual(
+            weights["inh"].shape, (self.output_dim, self.inhibitory_input_dim)
+        )
 
     def test_get_mask(self):
         # Check weight mask retrieval
@@ -113,10 +119,16 @@ class TestDendriticBranchLayer(unittest.TestCase):
             self.inhibitory_synapses_per_branch,
         )
         masks = layer.get_mask()
-        # Contains both excitatory and inhibitory masks
-        self.assertEqual(len(masks), 2)
-        self.assertEqual(masks[0].shape, (self.output_dim, self.excitatory_input_dim))
-        self.assertEqual(masks[1].shape, (self.output_dim, self.inhibitory_input_dim))
+        # Returns dict with excitatory and inhibitory masks
+        self.assertIsInstance(masks, dict)
+        self.assertIn("exc", masks)
+        self.assertIn("inh", masks)
+        self.assertEqual(
+            masks["exc"].shape, (self.output_dim, self.excitatory_input_dim)
+        )
+        self.assertEqual(
+            masks["inh"].shape, (self.output_dim, self.inhibitory_input_dim)
+        )
 
     def test_get_pruned_weights(self):
         # Check pruned weights retrieval
@@ -128,13 +140,15 @@ class TestDendriticBranchLayer(unittest.TestCase):
             self.inhibitory_synapses_per_branch,
         )
         pruned_weights = layer.get_pruned_weights()
-        # Contains both excitatory and inhibitory pruned weights
-        self.assertEqual(len(pruned_weights), 2)
+        # Returns dict with excitatory and inhibitory pruned weights
+        self.assertIsInstance(pruned_weights, dict)
+        self.assertIn("exc", pruned_weights)
+        self.assertIn("inh", pruned_weights)
         self.assertEqual(
-            pruned_weights[0].shape, (self.output_dim, self.excitatory_input_dim)
+            pruned_weights["exc"].shape, (self.output_dim, self.excitatory_input_dim)
         )
         self.assertEqual(
-            pruned_weights[1].shape, (self.output_dim, self.inhibitory_input_dim)
+            pruned_weights["inh"].shape, (self.output_dim, self.inhibitory_input_dim)
         )
 
 
@@ -186,29 +200,30 @@ class TestDendriticBranchLayerAdditional:
     def test_get_mask_no_threshold(self, sample_branch_layer):
         """Test get_mask method (no threshold parameter)."""
         mask = sample_branch_layer.get_mask()
-        # For excitatory-only layer, should return a single tensor
-        assert isinstance(mask, torch.Tensor)
-        assert torch.all((mask == 0) | (mask == 1))
+        # For excitatory-only layer, returns dict with "exc" key
+        assert isinstance(mask, dict)
+        assert "exc" in mask
+        assert torch.all((mask["exc"] == 0) | (mask["exc"] == 1))
 
     def test_get_pruned_weights_basic(self, sample_branch_layer):
         """Test get_pruned_weights method."""
         pruned_weights = sample_branch_layer.get_pruned_weights()
-        # For excitatory-only layer, should return a single tensor
-        assert isinstance(pruned_weights, torch.Tensor)
-        assert pruned_weights.dtype == torch.float32
+        # For excitatory-only layer, returns dict with "exc" key
+        assert isinstance(pruned_weights, dict)
+        assert pruned_weights["exc"].dtype == torch.float32
 
     def test_get_weights_basic(self, sample_branch_layer):
         """Test get_weights returns correct type."""
         weights = sample_branch_layer.get_weights()
-        # For excitatory-only layer, should return a single tensor
-        assert isinstance(weights, torch.Tensor)
-        assert weights.dtype == torch.float32
+        # For excitatory-only layer, returns dict with "exc" key
+        assert isinstance(weights, dict)
+        assert weights["exc"].dtype == torch.float32
 
     def test_get_log_weights(self, sample_branch_layer):
         """Test get_log_weights method."""
         log_weights = sample_branch_layer.get_log_weights()
-        assert isinstance(log_weights, torch.Tensor)
-        assert log_weights.dtype == torch.float32
+        assert isinstance(log_weights, dict)
+        assert log_weights["exc"].dtype == torch.float32
 
     def test_layer_with_both_excitatory_and_inhibitory(self):
         """Test layer with both excitatory and inhibitory inputs."""
@@ -227,10 +242,10 @@ class TestDendriticBranchLayerAdditional:
         output = layer(x_exc, x_inh)
         assert output.shape == (batch_size, 3)
 
-        # Test get_weights returns tuple for both exc and inh
+        # Test get_weights returns dict for both exc and inh
         weights = layer.get_weights()
-        assert isinstance(weights, tuple)
-        assert len(weights) == 2
+        assert isinstance(weights, dict)
+        assert "exc" in weights and "inh" in weights
 
     def test_parameter_count(self, sample_branch_layer):
         """Test the number of trainable parameters."""
