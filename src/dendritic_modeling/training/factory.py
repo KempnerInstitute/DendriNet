@@ -22,6 +22,7 @@ from dendritic_modeling.training.strategies import (
     HomeostaticControlTrainer,
     LayerWiseTrainer,
     LocalCreditAssignment,
+    RecurrentTrainer,
     Trainer,
     TwoStepTrainer,
     TwoStepTrainerWithKL,
@@ -239,6 +240,14 @@ def get_trainer(
         enhanced_configs = _extract_enhanced_configs(trainer_config_dict)
         trainer_config_dict.update(enhanced_configs)
         return HomeostaticControlTrainer(**trainer_config_dict)
+    elif strategy == "recurrent":
+        task = trainer_config_dict.pop("task", "classification")
+        grad_clip = trainer_config_dict.pop(
+            "grad_clip", trainer_config_dict.pop("grad_clip_value", 1.0)
+        )
+        enhanced_configs = _extract_enhanced_configs(trainer_config_dict)
+        trainer_config_dict.update(enhanced_configs)
+        return RecurrentTrainer(task=task, grad_clip=grad_clip, **trainer_config_dict)
     elif strategy == "fsdp" or strategy == "fsdp_standard":
         # FSDP requires additional setup (distributed init, special config)
         from dendritic_modeling.training.fsdp_utils import get_fsdp_config

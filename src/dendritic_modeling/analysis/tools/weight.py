@@ -218,7 +218,7 @@ class WeightAnalyzer(AbstractAnalyzer):
                     and self.analyze_branch_output
                     and hasattr(module, "branches_to_output")
                 ):
-                    branch_w = module.branches_to_output.weight().cpu()
+                    branch_w = module.branches_to_output.weight().cpu().flatten()
                     branch_weights.append(branch_w)
 
         global_stats = {}

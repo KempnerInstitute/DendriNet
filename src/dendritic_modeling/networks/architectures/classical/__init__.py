@@ -5,19 +5,19 @@ from dendritic_modeling.networks.architectures.classical.cnn import (
 )
 from dendritic_modeling.networks.architectures.classical.identity import Identity
 from dendritic_modeling.networks.architectures.classical.mlp import (
-    MLP, 
-    MatchedTotalParamMLP, 
+    MLP,
     MatchedActiveParamMLP,
+    MatchedTotalParamMLP,
     SparseStructuredMLP,
 )
 
 __all__ = [
+    "MLP",
     "AlexNet",
     "CNNDownsample",
     "CNNUpsample",
     "Identity",
-    "MatchedTotalParamMLP",
     "MatchedActiveParamMLP",
-    "MLP",
+    "MatchedTotalParamMLP",
     "SparseStructuredMLP",
 ]

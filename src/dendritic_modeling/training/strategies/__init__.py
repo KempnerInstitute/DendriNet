@@ -10,6 +10,7 @@ from dendritic_modeling.training.strategies.feedback_alignment import (
 )
 from dendritic_modeling.training.strategies.layerwise import LayerWiseTrainer
 from dendritic_modeling.training.strategies.local_learning import LocalCreditAssignment
+from dendritic_modeling.training.strategies.recurrent_trainer import RecurrentTrainer
 from dendritic_modeling.training.strategies.specialized import (
     HomeostaticControlTrainer,
     TrainOnlyMReactivation,
@@ -26,6 +27,7 @@ __all__ = [
     "HomeostaticControlTrainer",
     "LayerWiseTrainer",
     "LocalCreditAssignment",
+    "RecurrentTrainer",
     "TrainOnlyMReactivation",
     "Trainer",
     "TwoStepTrainer",

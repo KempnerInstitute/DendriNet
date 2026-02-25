@@ -30,14 +30,23 @@ from dendritic_modeling.networks.architectures import (
     Identity,
     IdentityInputTransform,
     IndexInputTransform,
-    MatchedTotalParamMLP,
     MatchedActiveParamMLP,
+    MatchedTotalParamMLP,
     StochasticTopKLinear,
     TopKLinear,
     TransferLayer,
     VarianceTopKLinear,
     analytical_expectation_dbl_init,
 )
+
+try:
+    from dendritic_modeling.networks.architectures import (
+        DendriticRNNCell,
+        DendriticRNNNetwork,
+        RecurrentState,
+    )
+except ImportError:
+    pass
 from dendritic_modeling.networks.architectures.classical.autoencoder.base import (
     BaseAutoencoder,
     CNNAutoencoder,
@@ -51,6 +60,7 @@ from dendritic_modeling.networks.base import BaseNetwork
 from dendritic_modeling.networks.input import InputNetTransform, SigmoidOutputNetwork
 
 __all__ = [
+    "MLP",
     "ActivationFactory",
     "AlexNet",
     "BaseAutoencoder",
@@ -63,28 +73,30 @@ __all__ = [
     "DeepstLinear",
     "DendriNet",
     "DendriticBranchLayer",
+    "DendriticRNNCell",
+    "DendriticRNNNetwork",
     "ExcitationInhibitionLayer",
     "ExcitationInhibitionNetwork",
     "GradientScaler",
     "Identity",
     "IdentityInputTransform",
     "IndexInputTransform",
-    "analytical_expectation_dbl_init",
     "InputNetTransform",
-    "MatchedTotalParamMLP",
-    "MatchedActiveParamMLP",
-    "MLP",
     "MLPAutoencoder",
     "MLPVariationalAutoencoder",
+    "MatchedActiveParamMLP",
+    "MatchedTotalParamMLP",
     "ParametricActivation",
     "ParametricLinearSigmoid",
     "ParametricLinearTanh",
     "ParametricLinearTanhTransition",
     "ParametricTanh",
     "ParametricTanhOnlyM",
+    "RecurrentState",
     "SigmoidOutputNetwork",
     "StochasticTopKLinear",
     "TopKLinear",
     "TransferLayer",
     "VarianceTopKLinear",
+    "analytical_expectation_dbl_init",
 ]

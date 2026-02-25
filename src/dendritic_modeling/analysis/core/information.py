@@ -3620,7 +3620,7 @@ class InformationAnalyzer(AbstractAnalyzer):
                                 has_inh_synapses=has_inh_synapses,
                                 has_branch_input=has_branch_input
                                 and (Vb_layer is not None),
-                                seed_offset=int(len(all_results)),
+                                seed_offset=len(all_results),
                             )
                         except Exception as e:
                             self.logger.warning(

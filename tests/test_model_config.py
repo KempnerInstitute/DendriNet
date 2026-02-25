@@ -139,6 +139,7 @@ def test_core_config_asdict_keys():
         "reactivation",
         "blocklinear",
         "implementation",
+        "recurrent",
     }
     assert expected_keys == set(d.keys())
 

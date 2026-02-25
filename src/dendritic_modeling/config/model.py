@@ -2,6 +2,7 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 from dendritic_modeling.config.base import BaseConfig
+from dendritic_modeling.config.recurrent import RecurrentConfig
 
 
 @dataclass
@@ -147,6 +148,7 @@ class CoreConfig(BaseConfig):
     reactivation: ReactivationConfig = field(default_factory=ReactivationConfig)
     blocklinear: BlockLinearConfig = field(default_factory=BlockLinearConfig)
     implementation: ImplementationConfig = field(default_factory=ImplementationConfig)
+    recurrent: RecurrentConfig = field(default_factory=RecurrentConfig)
 
 
 @dataclass

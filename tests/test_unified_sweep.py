@@ -9,6 +9,7 @@ branch combination generation, and config generation.
 import pytest
 from omegaconf import DictConfig, OmegaConf
 
+from dendritic_modeling.scripts.sweeps.unified.sweep_types import unified_sweep
 from dendritic_modeling.scripts.sweeps.unified.sweep_types.unified_sweep import (
     UnifiedSweepGenerator,
     expand_ranges,
@@ -467,6 +468,103 @@ class TestUnifiedSweepGenerator:
                 print(f"Generated epochs: {epochs}")
                 assert isinstance(epochs, int)
                 assert epochs > 0
+
+    def test_warns_when_param_group_lr_axis_is_likely_noop(
+        self, generator, monkeypatch
+    ):
+        """Warn when only param_groups.lr is swept under split-param optimization."""
+        sweep_definition = OmegaConf.create(
+            {
+                "sweep_config": {
+                    "training.main.common.param_groups.lr": [0.0008, 0.003]
+                },
+                "filter_config": {},
+                "experiment_settings": {"seeds_per_condition": 1, "base_seed": 42},
+            }
+        )
+        base_training_config = OmegaConf.create(
+            {
+                "experiment": {"seed": 42},
+                "training": {
+                    "main": {
+                        "common": {
+                            "param_groups": {
+                                "split_params": True,
+                                "lr": 0.0015,
+                                "topk_lr": 0.0015,
+                                "blocklinear_lr": 0.0007,
+                                "reactivation_lr": 0.0005,
+                                "decoder_lr": 0.0015,
+                            }
+                        }
+                    }
+                },
+                "model": {},
+                "data": {},
+                "wandb": {},
+                "analysis": {},
+                "outputs": {},
+            }
+        )
+
+        warning_calls: list[str] = []
+
+        def _capture_warning(msg, *args, **kwargs):
+            warning_calls.append(str(msg) % args if args else str(msg))
+
+        monkeypatch.setattr(unified_sweep.logger, "warning", _capture_warning)
+
+        request_config = _build_sweep_request(sweep_definition, base_training_config)
+        _ = generator.generate_configs(request_config)
+        assert any("may be mostly a no-op" in msg for msg in warning_calls)
+
+    def test_no_warning_when_group_specific_lrs_are_swept(self, generator, monkeypatch):
+        """Do not warn when the effective group LRs are explicitly swept."""
+        sweep_definition = OmegaConf.create(
+            {
+                "sweep_config": {
+                    "training.main.common.param_groups.lr": [0.0008, 0.003],
+                    "training.main.common.param_groups.topk_lr": [0.001, 0.002],
+                },
+                "filter_config": {},
+                "experiment_settings": {"seeds_per_condition": 1, "base_seed": 42},
+            }
+        )
+        base_training_config = OmegaConf.create(
+            {
+                "experiment": {"seed": 42},
+                "training": {
+                    "main": {
+                        "common": {
+                            "param_groups": {
+                                "split_params": True,
+                                "lr": 0.0015,
+                                "topk_lr": 0.0015,
+                                "blocklinear_lr": 0.0007,
+                                "reactivation_lr": 0.0005,
+                                "decoder_lr": 0.0015,
+                            }
+                        }
+                    }
+                },
+                "model": {},
+                "data": {},
+                "wandb": {},
+                "analysis": {},
+                "outputs": {},
+            }
+        )
+
+        warning_calls: list[str] = []
+
+        def _capture_warning(msg, *args, **kwargs):
+            warning_calls.append(str(msg) % args if args else str(msg))
+
+        monkeypatch.setattr(unified_sweep.logger, "warning", _capture_warning)
+
+        request_config = _build_sweep_request(sweep_definition, base_training_config)
+        _ = generator.generate_configs(request_config)
+        assert not any("may be mostly a no-op" in msg for msg in warning_calls)
 
 
 class TestUnifiedSweepIntegration:

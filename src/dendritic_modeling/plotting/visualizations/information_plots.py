@@ -3009,7 +3009,7 @@ def plot_lda_vs_trained_performance(
         )
         return
 
-    fig, ax = plt.subplots(figsize=(6, 5))
+    _fig, ax = plt.subplots(figsize=(6, 5))
 
     # Bar chart comparing accuracies
     x_pos = [0, 1]

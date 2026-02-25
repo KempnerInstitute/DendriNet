@@ -30,6 +30,7 @@ from dendritic_modeling.analysis.tools.multiplicative_gain import (
     MultiplicativeGainAnalyzer,
 )
 from dendritic_modeling.analysis.tools.receptive_fields import ReceptiveFieldAnalyzer
+from dendritic_modeling.analysis.tools.routing_analysis import RoutingAnalyzer
 from dendritic_modeling.analysis.tools.synaptic_activation import (
     SynapticActivationAnalyzer,
 )
@@ -151,6 +152,13 @@ class AnalysisManager:
             )
         else:
             self.correlation_analysis_enabled = False
+
+        # Initialize Routing Analysis (recurrent models only)
+        if (
+            hasattr(self.config, "routing_analysis")
+            and self.config.routing_analysis.enabled
+        ):
+            self.routing_analyzer = RoutingAnalyzer()
 
     def set_pruning_results(self, pruning_results: dict):
         """Set pruning results for inclusion in performance plots."""
@@ -361,3 +369,27 @@ class AnalysisManager:
                 filename=filename,
             )
             self.logger.info("Correlation analysis completed successfully")
+
+        # Routing Analysis (recurrent models)
+        if (
+            hasattr(self.config, "routing_analysis")
+            and self.config.routing_analysis.enabled
+            and hasattr(self, "routing_analyzer")
+            and (
+                (
+                    hasattr(self.config.routing_analysis, "training")
+                    and self.config.routing_analysis.training
+                    and training
+                )
+                or not training
+            )
+        ):
+            self.logger.info("Starting routing analysis...")
+            self.routing_analyzer.analyze(
+                model=self.model,
+                data=self.data["test"],
+                device=self.device,
+                save_path=os.path.join(self.save_root, "routing_analysis"),
+                filename=filename,
+            )
+            self.logger.info("Routing analysis completed successfully")

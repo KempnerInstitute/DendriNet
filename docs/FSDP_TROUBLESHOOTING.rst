@@ -1,5 +1,5 @@
 FSDP Training Guide
-==================
+===================
 
 Quick Start
 -----------
@@ -57,7 +57,7 @@ Solutions:
 - Use smaller model variants
 
 Job Submission Failed
-~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~
 
 Symptoms: SLURM submission errors
 

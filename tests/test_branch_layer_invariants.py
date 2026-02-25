@@ -291,56 +291,64 @@ class TestBranchLayerAccessors:
     def test_get_weights_excitation_only(self):
         layer = _make_layer()
         w = layer.get_weights()
-        assert isinstance(w, torch.Tensor)
-        assert w.shape == (8, 20)
+        assert isinstance(w, dict)
+        assert "exc" in w
+        assert w["exc"].shape == (8, 20)
 
     def test_get_weights_both(self):
         layer = _make_layer(inhibitory_input_dim=10, inhibitory_synapses_per_branch=3)
         w = layer.get_weights()
-        assert isinstance(w, tuple)
-        assert len(w) == 2
+        assert isinstance(w, dict)
+        assert "exc" in w and "inh" in w
 
     def test_get_log_weights_excitation_only(self):
         layer = _make_layer()
         lw = layer.get_log_weights()
-        assert isinstance(lw, torch.Tensor)
+        assert isinstance(lw, dict)
+        assert "exc" in lw
 
     def test_get_log_weights_both(self):
         layer = _make_layer(inhibitory_input_dim=10, inhibitory_synapses_per_branch=3)
         lw = layer.get_log_weights()
-        assert isinstance(lw, tuple)
+        assert isinstance(lw, dict)
+        assert "exc" in lw and "inh" in lw
 
     def test_get_mask_excitation_only(self):
         layer = _make_layer()
         m = layer.get_mask()
-        assert isinstance(m, torch.Tensor)
-        assert (m.sum(dim=1) == 5).all()  # K=5
+        assert isinstance(m, dict)
+        assert "exc" in m
+        assert (m["exc"].sum(dim=1) == 5).all()  # K=5
 
     def test_get_mask_both(self):
         layer = _make_layer(inhibitory_input_dim=10, inhibitory_synapses_per_branch=3)
         m = layer.get_mask()
-        assert isinstance(m, tuple)
-        assert len(m) == 2
+        assert isinstance(m, dict)
+        assert "exc" in m and "inh" in m
 
     def test_get_pruned_weights_excitation_only(self):
         layer = _make_layer()
         pw = layer.get_pruned_weights()
-        assert isinstance(pw, torch.Tensor)
+        assert isinstance(pw, dict)
+        assert "exc" in pw
 
     def test_get_pruned_weights_both(self):
         layer = _make_layer(inhibitory_input_dim=10, inhibitory_synapses_per_branch=3)
         pw = layer.get_pruned_weights()
-        assert isinstance(pw, tuple)
+        assert isinstance(pw, dict)
+        assert "exc" in pw and "inh" in pw
 
     def test_get_log_pruned_weights(self):
         layer = _make_layer()
         lpw = layer.get_log_pruned_weights()
-        assert isinstance(lpw, torch.Tensor)
+        assert isinstance(lpw, dict)
+        assert "exc" in lpw
 
     def test_get_log_pruned_weights_both(self):
         layer = _make_layer(inhibitory_input_dim=10, inhibitory_synapses_per_branch=3)
         lpw = layer.get_log_pruned_weights()
-        assert isinstance(lpw, tuple)
+        assert isinstance(lpw, dict)
+        assert "exc" in lpw and "inh" in lpw
 
 
 # ---------------------------------------------------------------------------

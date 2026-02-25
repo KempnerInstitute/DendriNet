@@ -345,13 +345,14 @@ def load_cifar10_as_datasets(
     transform = transforms.Compose(tf_list)
 
     cifar_dir = get_data_directory("cifar", task_data_path)
+    need_download = not os.path.isdir(os.path.join(cifar_dir, "cifar-10-batches-py"))
 
     train_dataset = datasets.CIFAR10(
-        root=cifar_dir, train=True, download=True, transform=transform
+        root=cifar_dir, train=True, download=need_download, transform=transform
     )
 
     test_dataset = datasets.CIFAR10(
-        root=cifar_dir, train=False, download=True, transform=transform
+        root=cifar_dir, train=False, download=need_download, transform=transform
     )
 
     def convert_to_tensor(dataset):
@@ -789,6 +790,22 @@ def get_unified_datasets(task_cfg):
         dataset_config = p.copy()
         dataset_config["type"] = dataset_name
         return get_synthetic_datasets(dataset_config)
+    elif dataset_name in (
+        "sequential_mnist",
+        "copy_task",
+        "adding_problem",
+        "variable_delay_dms",
+        "multi_frequency",
+        "lorenz",
+    ):
+        from dendritic_modeling.datasets.sequence_datasets import get_sequence_datasets
+
+        return get_sequence_datasets(
+            dataset_name=dataset_name,
+            data_path=task_data_path,
+            train_valid_split=train_valid_split,
+            **p,
+        )
     else:
         # For synthetic/experimental datasets, delegate to experiments synthetic datasets.
         # Keep this robust to both layouts:

@@ -68,6 +68,50 @@ def get_architecture(
     type = _EINET_ALIASES.get(type, type)
 
     # ------------------------------------------------------------------
+    # Recurrent architectures
+    # ------------------------------------------------------------------
+    if type in ("dendritic_rnn", "dendrnn", "vanilla_rnn"):
+        from dendritic_modeling.config.recurrent import RecurrentConfig
+        from dendritic_modeling.networks.architectures.recurrent import (
+            DendriticRNNNetwork,
+        )
+
+        # Extract recurrent config from structured parameters
+        if isinstance(parameters, DictConfig):
+            from omegaconf import OmegaConf
+
+            rec_cfg = OmegaConf.to_container(
+                parameters.get("recurrent", {}), resolve=True
+            )
+        elif hasattr(parameters, "recurrent"):
+            rec_cfg = parameters.recurrent
+        elif isinstance(parameters, dict) and "recurrent" in parameters:
+            rec_cfg = parameters["recurrent"]
+        else:
+            rec_cfg = {}
+
+        # Build RecurrentConfig
+        if isinstance(rec_cfg, RecurrentConfig):
+            recurrent_config = rec_cfg
+        elif isinstance(rec_cfg, dict):
+            recurrent_config = RecurrentConfig(**rec_cfg)
+        else:
+            recurrent_config = rec_cfg
+
+        if not recurrent_config.enabled:
+            raise ValueError(
+                f"type='{type}' requires recurrent.enabled=true. "
+                f"For feedforward models, use type='dendritic_shunting' or similar."
+            )
+
+        if input_dim is None:
+            raise ValueError(
+                f"input_dim required when creating recurrent architecture (type='{type}')"
+            )
+
+        return DendriticRNNNetwork(recurrent_config, input_dim)
+
+    # ------------------------------------------------------------------
     # EINet variants (require structured config)
     # ------------------------------------------------------------------
     if type in _EINET_TYPES:

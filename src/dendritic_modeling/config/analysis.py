@@ -354,7 +354,7 @@ class InformationAnalysisParams(BaseConfig):
 
     # Decoder (method="decoder") hyperparameters
     decoder_cv_folds: int = 5
-    decoder_C: float = 1.0  # noqa: N815 (match sklearn LogisticRegression hyperparameter name)
+    decoder_C: float = 1.0
     decoder_standardize: bool = True
     decoder_seed: int = 0
     decoder_continuous_strategy: str = "none"  # "none", "binned", "gaussian"
@@ -1038,11 +1038,11 @@ class CorrelationAnalysisParams(BaseConfig):
     )
 
     # Which correlation pairs to analyze
-    analyze_EE: bool = True  # Excitatory-Excitatory correlations  # noqa: N815
-    analyze_II: bool = True  # Inhibitory-Inhibitory correlations  # noqa: N815
-    analyze_EI: bool = True  # Excitatory-Inhibitory cross-correlations  # noqa: N815
-    analyze_E_output: bool = True  # Excitatory-Output (Vout) correlations  # noqa: N815
-    analyze_I_output: bool = True  # Inhibitory-Output (Vout) correlations  # noqa: N815
+    analyze_EE: bool = True  # Excitatory-Excitatory correlations
+    analyze_II: bool = True  # Inhibitory-Inhibitory correlations
+    analyze_EI: bool = True  # Excitatory-Inhibitory cross-correlations
+    analyze_E_output: bool = True  # Excitatory-Output (Vout) correlations
+    analyze_I_output: bool = True  # Inhibitory-Output (Vout) correlations
     analyze_output_output: bool = True  # Output-Output (Vout-Vout) correlations
 
     # Hierarchical analysis options (similar to information analysis)
@@ -1072,6 +1072,17 @@ class CorrelationAnalysisConfig(BaseConfig):
     enabled: bool = False
     training: bool = False
     params: CorrelationAnalysisParams = field(default_factory=CorrelationAnalysisParams)
+
+
+@dataclass
+class RoutingAnalysisConfig(BaseConfig):
+    """Configuration for branch routing (alpha) analysis in recurrent models.
+
+    Only applicable to DendriticRNNNetwork cores with store_routing=True.
+    """
+
+    enabled: bool = False
+    training: bool = False
 
 
 @dataclass
@@ -1122,4 +1133,7 @@ class AnalysisConfig(BaseConfig):
     )
     correlation_analysis: CorrelationAnalysisConfig = field(
         default_factory=CorrelationAnalysisConfig
+    )
+    routing_analysis: RoutingAnalysisConfig = field(
+        default_factory=RoutingAnalysisConfig
     )

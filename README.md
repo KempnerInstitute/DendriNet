@@ -118,6 +118,23 @@ See [`src/dendritic_modeling/scripts/sweeps/README.md`](src/dendritic_modeling/s
 
 For detailed usage, configuration options, and advanced features, see the [full documentation](docs/index.html).
 
+### Network Type Configuration
+
+The framework supports both feedforward and recurrent cores through `model.core.type`:
+
+- Feedforward: `dendritic_shunting`, `dendritic_additive`, `flat_shunting`, `flat_additive`, `dendritic_mlp`, `mlp`
+- Recurrent: `dendritic_rnn` (aliases: `dendrnn`, `vanilla_rnn`)
+
+Detailed config recipes (DendRNN, vanilla RNN collapse, GRU/LSTM baselines, routing analysis, sequence datasets) are documented in:
+
+- [`docs/NETWORK_TYPES_AND_RNN.rst`](docs/NETWORK_TYPES_AND_RNN.rst)
+
+For recurrent cores, branch compartments include `topk`, `dendritic_branch`,
+`dendrinet`, and `linear`; the guide also documents `rec_i_synapses` and
+compatibility guarantees for legacy non-RNN configs.
+
+Non-RNN runs are preserved and do not incur recurrent unrolling cost. If you keep a feedforward `core.type`, the recurrent path is never instantiated.
+
 ## Team Workflow & Quality Gates
 
 Use shared guardrails so multi-developer changes stay stable.

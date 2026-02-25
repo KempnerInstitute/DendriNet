@@ -14,6 +14,7 @@ This replaces ei_sweep.py, noise_sweep.py, branch_sweep.py, etc.
 """
 
 import itertools
+import logging
 import sys
 from copy import deepcopy
 from pathlib import Path
@@ -30,6 +31,8 @@ sys.path.insert(0, str(repo_root / "src"))
 from dendritic_modeling.scripts.sweeps.unified.base_sweep import (  # noqa: E402
     BaseSweepGenerator,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def expand_ranges(param_value):
@@ -93,6 +96,50 @@ class UnifiedSweepGenerator(BaseSweepGenerator):
 
     def __init__(self):
         super().__init__("unified")
+
+    def _warn_if_param_group_lr_axis_is_effectively_noop(
+        self, sweep_params: DictConfig, base_train_config: DictConfig
+    ) -> None:
+        """Warn if sweeping param_groups.lr likely has little effect.
+
+        When `split_params=true` and group-specific learning rates are fixed
+        (`topk_lr`, `blocklinear_lr`, `reactivation_lr`, `decoder_lr`), sweeping
+        only `param_groups.lr` mostly affects uncategorized params.
+        """
+        lr_key = "training.main.common.param_groups.lr"
+        group_lr_keys = [
+            "training.main.common.param_groups.topk_lr",
+            "training.main.common.param_groups.blocklinear_lr",
+            "training.main.common.param_groups.reactivation_lr",
+            "training.main.common.param_groups.decoder_lr",
+        ]
+
+        if lr_key not in sweep_params:
+            return
+        if any(key in sweep_params for key in group_lr_keys):
+            return
+
+        split_params = OmegaConf.select(
+            base_train_config, "training.main.common.param_groups.split_params"
+        )
+        if split_params is not True:
+            return
+
+        fixed_group_lrs = {}
+        for key in group_lr_keys:
+            value = OmegaConf.select(base_train_config, key)
+            if value is not None:
+                fixed_group_lrs[key.split(".")[-1]] = value
+
+        if not fixed_group_lrs:
+            return
+
+        logger.warning(
+            "Sweep parameter '%s' may be mostly a no-op with split_params=true; "
+            "group-specific LRs are fixed and not swept: %s",
+            lr_key,
+            fixed_group_lrs,
+        )
 
     def validate_config(self, config: DictConfig) -> bool:
         """Validate unified sweep configuration."""
@@ -418,6 +465,10 @@ class UnifiedSweepGenerator(BaseSweepGenerator):
 
         # Expand sweep parameters (handle ranges like [start, end, step])
         param_values = {}
+        self._warn_if_param_group_lr_axis_is_effectively_noop(
+            sweep_params=sweep_params,
+            base_train_config=base_train_config,
+        )
         if sweep_params:  # Only iterate if sweep_params is not None/empty
             for key, value in sweep_params.items():
                 expanded = expand_ranges(value)

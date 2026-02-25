@@ -269,7 +269,7 @@ class FeedbackAlignmentTrainer(Trainer):
         n = len(self._layer_info)
 
         for idx in range(n - 1, -1, -1):
-            mod, pname, out_dim, in_dim = self._layer_info[idx]
+            mod, pname, out_dim, _in_dim = self._layer_info[idx]
             h_in = activations.get(idx)
             if h_in is None or e.size(-1) != out_dim:
                 if idx > 0:

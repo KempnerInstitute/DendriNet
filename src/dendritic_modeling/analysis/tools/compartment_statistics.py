@@ -644,7 +644,7 @@ class CompartmentStatisticsAnalyzer(AbstractAnalyzer):
             colors = get_color_scheme()
 
             # Create 2-panel plot for enhanced statistics
-            fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+            _fig, axes = plt.subplots(1, 2, figsize=(12, 5))
 
             # Collect data
             depths = []
@@ -737,7 +737,7 @@ class CompartmentStatisticsAnalyzer(AbstractAnalyzer):
         """Generate global weight distribution plots."""
         try:
             # Create histogram plots for global distributions
-            fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+            _fig, axes = plt.subplots(1, 3, figsize=(15, 5))
 
             weight_types = [
                 "excitatory_weights",

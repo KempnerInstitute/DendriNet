@@ -17,6 +17,30 @@ from dendritic_modeling.utils.general import save_dict
 from dendritic_modeling.utils.math.auc import roc_auc_score
 
 
+def _reduce_temporal(output: torch.Tensor) -> torch.Tensor:
+    """Reduce [B, T, C] -> [B, C] using last timestep for evaluation metrics.
+
+    No-op when output is already 2D. This ensures evaluation metrics (AUC,
+    log-likelihood, MSE, cosine similarity) work with both feedforward and
+    recurrent models.
+    """
+    if output.dim() == 3:
+        return output[:, -1, :]
+    return output
+
+
+def _reduce_temporal_labels(labels: torch.Tensor, expected_dims: int) -> torch.Tensor:
+    """Reduce temporal labels to match reduced outputs.
+
+    For classification (expected_dims=1): [B, T] -> [B] (last timestep)
+    For regression (expected_dims=2): [B, T, C] -> [B, C] (last timestep)
+    No-op when labels already have the expected number of dimensions.
+    """
+    if labels.dim() > expected_dims:
+        return labels[:, -1] if labels.dim() == 2 else labels[:, -1, :]
+    return labels
+
+
 def _compute_metric_score(
     computation_func: Callable,
     model: Union[Classifier, Regressor],
@@ -162,6 +186,10 @@ def _compute_accuracy(
     yhat = yhat.long()
     # Compute accuracy with proper dtype handling
     correct = (yhat == labels).float()
+    # For many-to-many outputs (e.g., [B, T]), return a scalar accuracy
+    # averaged across all dimensions to keep reporting shape-consistent.
+    if correct.dim() > 1:
+        return correct.mean()
     return torch.mean(correct, dim=reduce_dim)
 
 
@@ -252,8 +280,8 @@ def _compute_auc(
     reduce_dim: int = 0,
 ) -> torch.Tensor:
     # Ensure labels are Long dtype for AUC computation
-    labels = labels.long()
-    logits = classifier(inputs)
+    labels = _reduce_temporal_labels(labels.long(), expected_dims=1)
+    logits = _reduce_temporal(classifier(inputs))
     return roc_auc_score(labels, logits, dim=reduce_dim)
 
 
@@ -344,8 +372,8 @@ def _compute_loglikelihood(
     reduce_dim: int = 0,
 ) -> torch.Tensor:
     # Ensure labels are Long dtype for categorical distribution
-    labels = labels.long()
-    logits = classifier(inputs)
+    labels = _reduce_temporal_labels(labels.long(), expected_dims=1)
+    logits = _reduce_temporal(classifier(inputs))
     log_probs = Categorical(logits=logits).log_prob(labels)
     return torch.mean(log_probs, dim=reduce_dim)
 
@@ -439,7 +467,9 @@ def _compute_mse(
     # Early exit for Classifier models (safety check)
     if hasattr(regressor, "__class__") and "Classifier" in str(type(regressor)):
         return torch.tensor(float("nan"))
-    return torch.mean((regressor.predict(inputs) - labels) ** 2, dim=reduce_dim)
+    predictions = _reduce_temporal(regressor.predict(inputs))
+    labels = _reduce_temporal_labels(labels, expected_dims=2)
+    return torch.mean((predictions - labels) ** 2, dim=reduce_dim)
 
 
 def mse_score(
@@ -531,8 +561,10 @@ def _compute_cosine_similarity(
     # Early exit for Classifier models (safety check)
     if hasattr(regressor, "__class__") and "Classifier" in str(type(regressor)):
         return torch.tensor(float("nan"))
+    predictions = _reduce_temporal(regressor.predict(inputs))
+    labels = _reduce_temporal_labels(labels, expected_dims=2)
     return torch.mean(
-        functional.cosine_similarity(regressor.predict(inputs), labels, dim=-1),
+        functional.cosine_similarity(predictions, labels, dim=-1),
         dim=reduce_dim,
     )
 
