@@ -57,6 +57,7 @@ class ExcitationInhibitionLayer(nn.Module):
         freeze_excitatory_connectivity=False,
         freeze_inhibitory_connectivity=False,
         freeze_ei_connectivity=False,
+        freeze_ie_connectivity=False,
         freeze_all_connectivity=False,
         init_method="xavier_normal",
         weight_threshold=1e-6,
@@ -108,8 +109,7 @@ class ExcitationInhibitionLayer(nn.Module):
                     rewiring_mode=rewiring_mode,
                     rewire_frequency=rewire_frequency,
                     synapses_per_branch=synapses_per_branch,
-                    freeze_excitatory_connectivity=freeze_excitatory_connectivity,
-                    freeze_ei_connectivity=freeze_ei_connectivity,
+                    freeze_excitatory_connectivity=freeze_ei_connectivity,  # E->I in inhibitory net
                     freeze_inhibitory_connectivity=freeze_inhibitory_connectivity,
                     freeze_all_connectivity=freeze_all_connectivity,
                     init_method=init_method,
@@ -173,7 +173,7 @@ class ExcitationInhibitionLayer(nn.Module):
             rewire_frequency=rewire_frequency,
             synapses_per_branch=synapses_per_branch,
             freeze_excitatory_connectivity=freeze_excitatory_connectivity,
-            freeze_inhibitory_connectivity=freeze_inhibitory_connectivity,
+            freeze_inhibitory_connectivity=freeze_ie_connectivity,  # I->E in excitatory net
             freeze_all_connectivity=freeze_all_connectivity,
             init_method=init_method,
             weight_threshold=weight_threshold,
