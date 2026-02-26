@@ -575,6 +575,49 @@ class LocalCreditAssignment(Trainer):
         )
         return raw_param.exp()
 
+    def _apply_broadcast_bandwidth(
+        self, e_n: torch.Tensor, bandwidth: str
+    ) -> torch.Tensor:
+        """Apply bandwidth reduction to the broadcast error signal.
+
+        Simulates biologically plausible low-bandwidth feedback channels.
+
+        Args:
+            e_n: Error signal tensor [B, out_features].
+            bandwidth: One of "sign_only", "quantized", "sparse_topk".
+
+        Returns:
+            Bandwidth-reduced error signal (same shape as input).
+        """
+        if bandwidth == "sign_only":
+            # Only transmit the sign of the error (1-bit)
+            magnitude = e_n.abs().mean()
+            return torch.sign(e_n) * magnitude
+
+        elif bandwidth == "quantized":
+            # Uniform quantization to N bits
+            bits = getattr(self.local_cfg, "broadcast_bits", 8)
+            n_levels = 2**bits
+            e_min = e_n.min()
+            e_max = e_n.max()
+            e_range = e_max - e_min + 1e-8
+            # Quantize to [0, n_levels-1] then rescale back
+            quantized = torch.round((e_n - e_min) / e_range * (n_levels - 1))
+            return quantized / (n_levels - 1) * e_range + e_min
+
+        elif bandwidth == "sparse_topk":
+            # Only broadcast top-k% of neurons (by magnitude), zero the rest
+            frac = getattr(self.local_cfg, "broadcast_topk_fraction", 0.3)
+            k = max(1, int(e_n.shape[-1] * frac))
+            # Per-sample top-k
+            _, topk_idx = torch.topk(e_n.abs(), k, dim=-1)
+            mask = torch.zeros_like(e_n)
+            mask.scatter_(-1, topk_idx, 1.0)
+            return e_n * mask
+
+        else:
+            return e_n
+
     def _resolve_layer_dynamics_mode(self, rec: dict[str, Any]) -> str:
         """Resolve local update dynamics for the current layer.
 
@@ -788,6 +831,11 @@ class LocalCreditAssignment(Trainer):
             noise_sigma = getattr(self.local_cfg, "error_noise_sigma", 0.0)
             if noise_sigma > 0.0:
                 e_n = e_n + noise_sigma * torch.randn_like(e_n)
+
+            # Low-bandwidth broadcast compression
+            bandwidth = getattr(self.local_cfg, "broadcast_bandwidth", "full")
+            if bandwidth != "full":
+                e_n = self._apply_broadcast_bandwidth(e_n, bandwidth)
 
             layer_dynamics_mode = self._resolve_layer_dynamics_mode(rec)
             if layer_dynamics_mode == "conductance":

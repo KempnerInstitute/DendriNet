@@ -124,6 +124,9 @@ class DendriticBranchLayer(nn.Module):
         self.blocklinear_strategy = blocklinear_strategy
         self.efficient_blocklinear = efficient_blocklinear
         self.use_shunting = use_shunting
+        self.use_additive_normalization = kwargs.pop(
+            "use_additive_normalization", False
+        )
         self.dbl_init_method = dbl_init_method
         self.epsilon = epsilon  # Store epsilon for numerical stability
         self.topk_type = topk_type  # Store the strategy
@@ -479,6 +482,13 @@ class DendriticBranchLayer(nn.Module):
 
             voltage = numerator / (denominator + self.epsilon)
 
+            # Store for diagnostic access (no-op during normal training)
+            if getattr(self, "_store_diagnostics", False):
+                self._diag_g_tot = denominator.detach()
+                self._diag_numerator = (
+                    numerator.detach() if torch.is_tensor(numerator) else None
+                )
+
         else:
             voltage = 0
 
@@ -508,6 +518,14 @@ class DendriticBranchLayer(nn.Module):
                 and rec_inhibitory_input is not None
             ):
                 voltage = voltage - self.branch_rec_inhibition(rec_inhibitory_input)
+
+            # Optional voltage normalization for additive mode
+            # (control experiment: tests whether normalization alone recovers
+            # the gradient fidelity benefits of shunting inhibition)
+            if self.use_additive_normalization and torch.is_tensor(voltage):
+                voltage = (voltage - voltage.mean(dim=-1, keepdim=True)) / (
+                    voltage.std(dim=-1, keepdim=True) + self.epsilon
+                )
 
         if self.training and "conductance_dynamic" in [
             self.topk_strategy,
