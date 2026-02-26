@@ -457,5 +457,18 @@ class DendriticRNNCell(nn.Module):
         info: dict = {}
         if self.store_routing:
             info["alpha"] = torch.stack(alpha, dim=-1)
+            # Store per-branch trace values for dendritic_branch analysis
+            traces = {}
+            for b, cfg in enumerate(self.branch_configs):
+                if cfg.compartment == "dendritic_branch":
+                    traces[f"branch_{b}"] = {
+                        "trace_E": state.branch_E[b].detach(),
+                        "trace_E_rec": state.branch_E_rec[b].detach(),
+                        "trace_I": state.branch_I[b].detach(),
+                        "trace_I_rec": state.branch_I_rec[b].detach(),
+                        "V": state.branch_V[b].detach(),
+                    }
+            if traces:
+                info["traces"] = traces
 
         return s, state, info

@@ -475,6 +475,16 @@ class LocalRuleConfig(BaseConfig):
         0.0  # Additive Gaussian noise on broadcast error (0 = off)
     )
 
+    # ========== BROADCAST BANDWIDTH CONTROL ==========
+    # Reduce broadcast precision to test low-bandwidth biological plausibility
+    broadcast_bandwidth: str = "full"  # "full", "sign_only", "quantized", "sparse_topk"
+    broadcast_bits: int = (
+        8  # Quantization bits (2, 4, 8); only used when bandwidth="quantized"
+    )
+    broadcast_topk_fraction: float = (
+        0.3  # Fraction of neurons to keep; only for "sparse_topk"
+    )
+
     # ========== RULE-SPECIFIC PARAMETERS ==========
     # 3-factor rule parameters
     three_factor: ThreeFactorConfig = field(default_factory=ThreeFactorConfig)

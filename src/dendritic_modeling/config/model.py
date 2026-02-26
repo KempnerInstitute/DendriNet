@@ -48,6 +48,7 @@ class MorphologyConfig(BaseConfig):
 
     somatic_synapses: bool = False
     use_shunting: bool = True
+    use_additive_normalization: bool = False  # Normalize voltage in additive mode
     weight_transform: str = "softplus"
     dbl_init_method: str = "analytical_expectation"
 
