@@ -21,9 +21,9 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.var
 )
 
 __all__ = [
-    "DeepstLinear"
-    "StochasticTopKLinear"
-    "TOPK_INIT_METHODS"
-    "TopKLinear"
-    "VarianceTopKLinear"
+    "TOPK_INIT_METHODS",
+    "DeepstLinear",
+    "StochasticTopKLinear",
+    "TopKLinear",
+    "VarianceTopKLinear",
 ]

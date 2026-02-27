@@ -200,7 +200,8 @@ training:
     strategy: "standard"
 
     common:
-      lr: 0.001                         # Learning rate (any positive float)
+      param_groups:
+        lr: 0.001                       # Base learning rate (any positive float)
       loss_function: "log_mse"          # Loss function: "mse", "log_mse", "ce", "bce"
       epochs: 500                       # Number of training epochs
       early_stopping: true              # Enable early stopping (true/false)
@@ -527,8 +528,6 @@ analysis:
           n_shuffles: 0                   # Null (label-shuffle) baseline shuffles (int >= 0; produces *_null metrics)
           seed: 0                         # Null baseline seed (int)
           components: ["basic"]           # Null components: "basic", "conditional", "ablation_aligned", "upstream_unique_cmi", "all"
-          conditional_shuffle: "auto"     # Conditional null shuffle: "auto", "global", "bins"
-          conditional_bins: 10            # If using bins: number of Z-bins (int >= 2)
 
   correlation_analysis:
     enabled: false                      # Enable correlation analysis (true/false)

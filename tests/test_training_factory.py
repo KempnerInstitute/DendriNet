@@ -293,17 +293,25 @@ class TestGetTrainer:
                 # Should not call get_fsdp_config since config already provided
                 mock_fsdp_config.assert_not_called()
 
-    def test_get_unknown_trainer_defaults_to_standard(
-        self, mock_optimizer, basic_trainer_config
-    ):
-        """Test that unknown strategy defaults to standard with info log."""
-        with patch("dendritic_modeling.training.factory.Trainer") as MockTrainer:
-            with patch("dendritic_modeling.training.factory.logger") as mock_logger:
-                get_trainer("unknown_strategy", mock_optimizer, basic_trainer_config)
+    def test_get_multi_stage_trainer(self, mock_optimizer, basic_trainer_config):
+        """Test creating multi-stage trainer."""
+        trainer_config = dict(basic_trainer_config)
+        trainer_config["multi_stage_config"] = {
+            "stages": [{"learning_strategy": "standard", "epochs": 1}]
+        }
 
-                mock_logger.info.assert_called_once()
-                assert "Unrecognized strategy" in mock_logger.info.call_args[0][0]
-                MockTrainer.assert_called_once()
+        with patch(
+            "dendritic_modeling.training.factory.MultiStageTrainer"
+        ) as mock_trainer:
+            get_trainer("multi_stage", mock_optimizer, trainer_config)
+            mock_trainer.assert_called_once()
+            call_args = mock_trainer.call_args[1]
+            assert call_args["base_optimizer"] == mock_optimizer
+
+    def test_get_unknown_trainer_raises(self, mock_optimizer, basic_trainer_config):
+        """Test that unknown strategy raises a ValueError."""
+        with pytest.raises(ValueError, match="Unknown training strategy"):
+            get_trainer("unknown_strategy", mock_optimizer, basic_trainer_config)
 
     def test_case_insensitive_strategy(self, mock_optimizer, basic_trainer_config):
         """Test that strategy names are case insensitive."""
@@ -627,6 +635,6 @@ class TestTrainingFactoryEdgeCases:
                 get_trainer("enhanced", mock_optimizer, trainer_config)
                 mock_logger.warning.assert_not_called()
 
-                # Test info for unknown strategy
-                get_trainer("unknown", mock_optimizer, trainer_config)
-                mock_logger.info.assert_called_once()
+                # Unknown strategies should raise instead of silently falling back.
+                with pytest.raises(ValueError, match="Unknown training strategy"):
+                    get_trainer("unknown", mock_optimizer, trainer_config)

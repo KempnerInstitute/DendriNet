@@ -80,7 +80,7 @@ class BaselineRNN(BaseNetwork):
     ) -> torch.Tensor:
         if self._output_mode == "last":
             if seq_lengths is not None:
-                B, T, H = outputs.shape
+                B, T, _ = outputs.shape
                 idx = (seq_lengths - 1).long().clamp(0, T - 1)
                 return outputs[torch.arange(B, device=outputs.device), idx]
             return outputs[:, -1, :]
@@ -110,7 +110,6 @@ class BaselineRNN(BaseNetwork):
         Returns:
             output: Reduced output based on output_mode.
         """
-        batch_size, seq_len, _ = x.shape
         # Apply per-timestep projection
         if not isinstance(self.input_projection, nn.Identity):
             B, T, D = x.shape

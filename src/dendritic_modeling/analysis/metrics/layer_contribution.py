@@ -62,7 +62,7 @@ class SingleLayerContributionAnalyzer:
         results_dict[contribution_type][module_name] = {}
         results_dict[contribution_type][module_name]["depth"] = module.layer_idx
 
-        for mod, name in model.named_modules():
+        for name, mod in model.named_modules():
             if isinstance(mod, DendriticBranchLayer):
                 if (
                     name != module_name
