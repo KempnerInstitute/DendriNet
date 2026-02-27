@@ -1,210 +1,101 @@
 Network Types and RNN Configuration
 ===================================
 
-This page documents how to configure all supported core network families:
+This page documents the current core-network options and recurrent configuration
+used by ``dendritic_modeling``.
 
-- Feedforward dendritic EI models (existing path)
-- Feedforward MLP baselines (existing path)
-- Recurrent dendritic models (new path)
-- Recurrent baselines (vanilla/GRU/LSTM)
-
-Non-RNN Preservation and Overhead
----------------------------------
-
-Non-recurrent behavior is preserved:
-
-- If ``model.core.type`` is a feedforward type (for example ``dendritic_shunting``), the recurrent factory path is never used.
-- ``RecurrentConfig.enabled`` defaults to ``false`` and is inert unless a recurrent core type is selected.
-- ``BaseModel`` caches whether the core is recurrent at initialization, so non-RNN forwards stay on the original
-  ``encoder -> core -> decoder`` path without recurrent-specific tensor reshaping logic.
-
-In short: feedforward models keep the same functional path and no recurrent unrolling cost.
-
-Core Type Matrix
-----------------
-
-Use ``model.core.type`` to select the core architecture:
-
-- ``dendritic_shunting``: feedforward EI network with shunting integration
-- ``dendritic_additive``: feedforward EI network with additive integration
-- ``flat_shunting``: flattened dendrites with shunting
-- ``flat_additive``: flattened dendrites with additive integration
-- ``dendritic_mlp``: signed-weight EI MLP variant
-- ``mlp`` (or ``point_mlp``): point-neuron baseline
-- ``dendritic_rnn`` (aliases: ``dendrnn``, ``vanilla_rnn``): recurrent family
-
-Recurrent Core Configuration
-----------------------------
-
-Recurrent models use:
-
-.. code-block:: yaml
-
-   model:
-     core:
-       type: "dendritic_rnn"
-       recurrent:
-         enabled: true
-         cell_type: "dendritic"   # "dendritic" | "gru" | "lstm"
-         n_excitatory: 64
-         n_inhibitory: 16
-         num_layers: 1
-         branches:
-           - tau: 10.0
-             ff_synapses: 12
-             rec_synapses: 0
-             ie_synapses: 6
-             compartment: "topk"  # "topk" | "dendritic_branch" | "dendrinet" | "linear"
-             activation: "relu"
-           - tau: 50.0
-             ff_synapses: 6
-             rec_synapses: 6
-             ie_synapses: 4
-             compartment: "topk"
-           - tau: 200.0
-             ff_synapses: 0
-             rec_synapses: 10
-             ie_synapses: 4
-             compartment: "topk"
-         soma_mode: "shunting"     # "shunting" | "additive" | "sum"
-         output_mode: "last"       # "last" | "all" | "mean"
-         dt: 1.0
-         g_leak: 1.0
-         input_projection_layers: [64]
-         dropout: 0.0
-         learn_taus: false
-         store_routing: false
-
-Training strategy:
-
-.. code-block:: yaml
-
-   training:
-     main:
-       strategy: "recurrent"
-
-Feedforward EI Example (Unchanged Path)
----------------------------------------
-
-.. code-block:: yaml
-
-   model:
-     core:
-       type: "dendritic_shunting"
-       # existing architecture/connectivity/morphology sections unchanged
-
-   training:
-     main:
-       strategy: "standard"
-
-Vanilla RNN Emulation
----------------------
-
-Single branch + linear compartment + no inhibitory population:
-
-.. code-block:: yaml
-
-   model:
-     core:
-       type: "dendritic_rnn"
-       recurrent:
-         enabled: true
-         cell_type: "dendritic"
-         n_excitatory: 80
-         n_inhibitory: 0
-         branches:
-           - tau: 50.0
-             ff_synapses: 80
-             rec_synapses: 80
-             ie_synapses: 0
-             compartment: "linear"
-             activation: "tanh"
-         soma_mode: "sum"
-         output_mode: "last"
-
-GRU / LSTM Baselines
+Supported Core Types
 --------------------
 
-.. code-block:: yaml
+Set ``model.core.type`` to one of:
 
-   model:
-     core:
-       type: "dendritic_rnn"
-       recurrent:
-         enabled: true
-         cell_type: "gru"   # or "lstm"
-         n_excitatory: 128
+- Feedforward E/I: ``dendritic_shunting``, ``dendritic_additive``, ``flat_shunting``, ``flat_additive``, ``dendritic_mlp``
+- Feedforward baseline: ``mlp`` (or ``point_mlp``)
+- Unified E/I recurrent-capable core: ``ei_unified`` (aliases: ``unified_ei``, ``ei_net``, ``unified_einet``)
+- Baseline recurrent cores: ``gru``, ``lstm``, ``vanilla_rnn`` (alias: ``rnn``)
 
-When ``cell_type`` is ``gru`` or ``lstm``, the branch system is bypassed.
+Feedforward Preservation
+------------------------
 
-DendriNet Compartment in Recurrent Branches
+Feedforward behavior is unchanged:
+
+- If ``model.core.type`` is feedforward, recurrent modules are not instantiated.
+- Data and forward passes stay on the standard non-recurrent path.
+
+Unified E/I Core (Feedforward or Recurrent)
 -------------------------------------------
 
-You can reuse existing ``DendriNet`` modules inside recurrent branches:
+Use ``ei_unified`` with ``model.core.unified_ei``:
 
 .. code-block:: yaml
 
    model:
+     task: classification
      core:
-       type: "dendritic_rnn"
-       recurrent:
-         enabled: true
-         branches:
-           - tau: 20.0
-             ff_synapses: 8
-             rec_synapses: 8
-             compartment: "dendrinet"
-             dendrinet_branch_factors: [2, 2]
-
-DendriticBranch Compartment (Per-Branch Shunting)
--------------------------------------------------
-
-``compartment: "dendritic_branch"`` reuses ``DendriticBranchLayer`` inside each
-recurrent branch, so branch-level shunting stays consistent with feedforward
-dendritic computation.
-
-.. code-block:: yaml
-
-   model:
-     core:
-       type: "dendritic_rnn"
-       recurrent:
-         enabled: true
-         n_excitatory: 64
-         n_inhibitory: 16
-         branches:
-           - tau: 50.0
-             compartment: "dendritic_branch"
-             ff_synapses: 8
-             rec_synapses: 8
-             ie_synapses: 4
-             rec_i_synapses: 2         # recurrent inhibitory synapses
-             use_shunting: true
-             reactivate: false
-             reactivation_type: "param_tanh"
+       type: ei_unified
+       unified_ei:
+         output_mode: last        # last | all | mean
+         store_routing: false
+         layers:
+           - recurrent: true
+             dt: 1.0
+             excitatory:
+               n_neurons: 64
+               branch_factors: [3, 3]
+               ff_excitatory_synapses: 12
+               ff_inhibitory_synapses: 6
+               rec_excitatory_synapses: 8
+               rec_inhibitory_synapses: 4
+               tau_base: 50.0
+               tau_ratio: 3.0
+             inhibitory:
+               n_neurons: 16
+               branch_factors: [1]
+               ff_excitatory_synapses: 8
+               ff_inhibitory_synapses: 4
+               rec_excitatory_synapses: 4
+               rec_inhibitory_synapses: 4
 
 Notes:
 
-- ``rec_i_synapses`` is only valid for ``compartment: "dendritic_branch"``.
-- If ``n_inhibitory: 0``, both ``ie_synapses`` and ``rec_i_synapses`` are forced to 0 at runtime.
-- Feedforward models are unaffected because these fields are only read by recurrent cores.
+- Set ``recurrent: false`` per layer for feedforward unified E/I layers.
+- If ``level_taus`` is empty, per-level time constants are generated from
+  ``tau_base`` and ``tau_ratio``.
 
-Compatibility Guarantees
-------------------------
+Baseline RNN Cores
+------------------
 
-Old feedforward configs and non-RNN runs remain valid and unchanged:
+Baseline recurrent cores use the same ``core.type`` switch with optional
+``baseline_rnn`` parameters:
 
-- Feedforward cores (for example ``dendritic_shunting``) do not instantiate
-  recurrent modules.
-- Recurrent-only config fields are ignored unless ``model.core.type`` is
-  ``dendritic_rnn``/``dendrnn``/``vanilla_rnn`` with ``recurrent.enabled: true``.
-- ``DendriticBranchLayer`` adds no recurrent synapse layers unless recurrent
-  dimensions/synapse counts are explicitly provided.
+.. code-block:: yaml
+
+   model:
+     task: classification
+     core:
+       type: gru                  # or lstm / vanilla_rnn
+       baseline_rnn:
+         hidden_dim: 128
+         num_layers: 1
+         dropout: 0.0
+         bidirectional: false
+         output_mode: last        # last | all | mean
+
+Recurrent Training Strategy
+---------------------------
+
+For recurrent runs, set:
+
+.. code-block:: yaml
+
+   training:
+     main:
+       strategy: recurrent
 
 Sequence Datasets
 -----------------
 
-The unified dataset loader supports sequence names:
+The unified dataset loader supports sequence datasets:
 
 - ``sequential_mnist``
 - ``copy_task``
@@ -212,54 +103,34 @@ The unified dataset loader supports sequence names:
 - ``variable_delay_dms``
 - ``multi_frequency``
 - ``lorenz``
+- ``stringer_v1``
 
-``output_mode`` and target shape expectations:
+Output-Mode Conventions
+-----------------------
 
-- ``output_mode: "last"`` -> model output ``[B, C]`` (many-to-one)
-- ``output_mode: "all"`` -> model output ``[B, T, C]`` (many-to-many targets)
-- ``output_mode: "mean"`` -> temporal mean reduced to ``[B, C]``
+- ``output_mode: last`` -> output shape ``[B, C]``
+- ``output_mode: mean`` -> output shape ``[B, C]`` (temporal average)
+- ``output_mode: all`` -> output shape ``[B, T, C]``
 
-Routing Analysis (alpha)
-------------------------
+For ``output_mode: all``, targets must include the temporal axis.
 
-Enable routing analysis for recurrent runs:
+Routing Analysis
+----------------
+
+Routing analysis can be enabled through analysis configuration:
 
 .. code-block:: yaml
 
    analysis:
-     routing:
+     routing_analysis:
        enabled: true
        training: false
 
-At analysis time, routing storage is enabled temporarily and restored afterward.
-
-Training and Analysis Tools
----------------------------
-
-Train a recurrent model from a YAML config:
+Run Training
+------------
 
 .. code-block:: bash
 
    PYTHONPATH=src:$PYTHONPATH \
    python -m dendritic_modeling.scripts.training.train_experiments \
      path/to/config.yaml --seed 0 --output_dir results/my_run
-
-Post-hoc analysis tools for trained models:
-
-.. code-block:: bash
-
-   # Branch routing analysis (alpha conditioned on task variable)
-   python -m dendritic_modeling.scripts.analysis.analyze_routing_by_condition \
-     --model_path <model.pt> --config_path <config.yaml> --output_dir <out>
-
-   # Branch lesion analysis (causal role of branches)
-   python -m dendritic_modeling.scripts.analysis.lesion_analysis \
-     --model_path <model.pt> --config_path <config.yaml> --output_dir <out>
-
-   # Out-of-distribution delay evaluation
-   python -m dendritic_modeling.scripts.analysis.evaluate_ood_delay \
-     --model_path <model.pt> --config_path <config.yaml> --output_dir <out>
-
-   # Jacobian eigenvalue and gradient stability analysis
-   python -m dendritic_modeling.scripts.analysis.stability_analysis \
-     --results_dir <results_dir> --output_dir <out>

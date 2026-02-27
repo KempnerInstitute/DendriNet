@@ -8,10 +8,10 @@ All experiments use YAML configuration files. Start with these templates:
 
 - ``configs/config_exp.yaml`` - Standard training
 - ``configs/config_exp_fsdp.yaml`` - FSDP training
-- ``configs/unified_all_sweeps_example.yaml`` - Parameter sweeps
+- ``configs/EI_sweeps_example.yaml`` - Parameter sweeps
 
-For feedforward vs recurrent core selection (including full ``dendritic_rnn``
-settings and examples), see :doc:`NETWORK_TYPES_AND_RNN`.
+For feedforward vs recurrent core selection (``ei_unified`` and baseline RNN
+types), see :doc:`NETWORK_TYPES_AND_RNN`.
 
 Basic Structure
 ---------------
