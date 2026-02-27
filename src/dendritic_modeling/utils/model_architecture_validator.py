@@ -59,6 +59,16 @@ class ModelArchitectureValidator:
                 else:
                     self.network_config.update(conn_config)
 
+            # Add transfer parameters (source of input_mode/independent_pathways).
+            if hasattr(core_config, "transfer"):
+                transfer_config = core_config.transfer
+                if hasattr(transfer_config, "__dict__"):
+                    self.network_config["transfer_params"] = dict(
+                        transfer_config.__dict__
+                    )
+                else:
+                    self.network_config["transfer_params"] = dict(transfer_config)
+
             # Add morphology parameters
             if hasattr(core_config, "morphology"):
                 morph_config = core_config.morphology
@@ -111,6 +121,9 @@ class ModelArchitectureValidator:
         data_config = self._get_config_value("data", {})
         dataset_name = _get_config_value(data_config, "dataset_name", "")
 
+        task_config = self._get_config_value("task", {})
+        task_params = _get_config_value(task_config, "parameters", {})
+
         if dataset_name == "cifar10":
             self.input_dim = 3072  # 32x32x3
         elif dataset_name == "imagenet":
@@ -120,12 +133,10 @@ class ModelArchitectureValidator:
         elif dataset_name == "multixor":
             # MultiXOR typically has small input dimensions (2-8 bits per input)
             # Default to a reasonable size for XOR-like problems
-            task_params = self.config.get("task", {}).get("parameters", {})
             n_bits = task_params.get("n_bits", 4)  # Default 4-bit XOR
             self.input_dim = n_bits * 2  # Two inputs of n_bits each
         else:
             # Try to get input_dim from various sources
-            task_params = self.config.get("task", {}).get("parameters", {})
             self.input_dim = (
                 self.network_config.get("input_dim")
                 or task_params.get("input_dim")

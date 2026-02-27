@@ -102,7 +102,7 @@ class EINetwork(BaseNetwork):
     ) -> torch.Tensor:
         if self.output_mode == "last":
             if seq_lengths is not None:
-                B, T, H = outputs.shape
+                B, T, _ = outputs.shape
                 idx = (seq_lengths - 1).long().clamp(0, T - 1)
                 return outputs[torch.arange(B, device=outputs.device), idx]
             return outputs[:, -1, :]

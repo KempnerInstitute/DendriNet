@@ -166,6 +166,7 @@ def setup_environment(
 
     # Setup output directory
     output_dir = outputs_config.results_dir
+    run_name = getattr(outputs_config, "run_name", "run")
     if not os.path.exists(output_dir):
         os.makedirs(output_dir, exist_ok=True)
         logger.info(f"Created output directory: {output_dir}")
@@ -182,7 +183,6 @@ def setup_environment(
         logger.info(f"Sweep mode detected - using directory: {run_save_path}")
     else:
         # Standalone run - create timestamped directory
-        run_name = outputs_config.run_name
         run_id = f"{run_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         run_save_path = os.path.join(output_dir, run_id)
         os.makedirs(run_save_path, exist_ok=True)

@@ -10,6 +10,10 @@ from typing import Any, Optional
 
 import torch
 
+from dendritic_modeling.config.multi_stage_training import (
+    MultiStageTrainingConfig,
+    TrainingStageConfig,
+)
 from dendritic_modeling.config.training import (
     OptimizerConfig,
     ParamGroupsConfig,
@@ -22,6 +26,7 @@ from dendritic_modeling.training.strategies import (
     HomeostaticControlTrainer,
     LayerWiseTrainer,
     LocalCreditAssignment,
+    MultiStageTrainer,
     RecurrentTrainer,
     ShuntingFeedbackAlignmentTrainer,
     Trainer,
@@ -31,6 +36,58 @@ from dendritic_modeling.training.strategies import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _build_multi_stage_config(raw_config: Any) -> MultiStageTrainingConfig:
+    """Normalize multi-stage config into a typed MultiStageTrainingConfig."""
+    if isinstance(raw_config, MultiStageTrainingConfig):
+        return raw_config
+
+    if raw_config is None:
+        raise ValueError(
+            "strategy='multi_stage' requires 'multi_stage_config' in trainer config."
+        )
+
+    if hasattr(raw_config, "asdict") and callable(raw_config.asdict):
+        raw_config = raw_config.asdict()
+    elif hasattr(raw_config, "__dict__") and not isinstance(raw_config, dict):
+        raw_config = {
+            key: value
+            for key, value in vars(raw_config).items()
+            if not key.startswith("_")
+        }
+
+    if not isinstance(raw_config, dict):
+        raise ValueError(
+            "multi_stage_config must be a dict or MultiStageTrainingConfig."
+        )
+
+    config_dict = dict(raw_config)
+    stages_raw = config_dict.get("stages", [])
+    if not stages_raw:
+        raise ValueError("multi_stage_config must contain at least one stage.")
+
+    stage_configs: list[TrainingStageConfig] = []
+    for idx, stage in enumerate(stages_raw):
+        if isinstance(stage, TrainingStageConfig):
+            stage_configs.append(stage)
+            continue
+        if hasattr(stage, "asdict") and callable(stage.asdict):
+            stage = stage.asdict()
+        elif hasattr(stage, "__dict__") and not isinstance(stage, dict):
+            stage = {
+                key: value
+                for key, value in vars(stage).items()
+                if not key.startswith("_")
+            }
+        if not isinstance(stage, dict):
+            raise ValueError(
+                f"Stage {idx} in multi_stage_config must be a dict or TrainingStageConfig."
+            )
+        stage_configs.append(TrainingStageConfig(**stage))
+
+    config_dict["stages"] = stage_configs
+    return MultiStageTrainingConfig(**config_dict)
 
 
 def _extract_enhanced_configs(trainer_config_dict: dict[str, Any]) -> dict[str, Any]:
@@ -61,7 +118,7 @@ def _extract_enhanced_configs(trainer_config_dict: dict[str, Any]) -> dict[str, 
         if isinstance(reg_config, dict):
             # Handle nested SelectiveConfig properly
             if "selective" in reg_config and isinstance(reg_config["selective"], dict):
-                from dendritic_modeling.config.training import SelectiveConfig
+                from dendritic_modeling.config.regularization import SelectiveConfig
 
                 reg_config["selective"] = SelectiveConfig(**reg_config["selective"])
             enhanced_configs["regularization_config"] = RegularizationConfig(
@@ -99,7 +156,7 @@ def _extract_enhanced_configs(trainer_config_dict: dict[str, Any]) -> dict[str, 
             if "selective" in prune_config and isinstance(
                 prune_config["selective"], dict
             ):
-                from dendritic_modeling.config.training import SelectiveConfig
+                from dendritic_modeling.config.regularization import SelectiveConfig
 
                 prune_config["selective"] = SelectiveConfig(**prune_config["selective"])
             enhanced_configs["pruning_config"] = PruningConfig(**prune_config)
@@ -261,6 +318,20 @@ def get_trainer(
         enhanced_configs = _extract_enhanced_configs(trainer_config_dict)
         trainer_config_dict.update(enhanced_configs)
         return RecurrentTrainer(task=task, grad_clip=grad_clip, **trainer_config_dict)
+    elif strategy == "multi_stage":
+        raw_multi_stage_config = trainer_config_dict.pop("multi_stage_config", None)
+        multi_stage_config = _build_multi_stage_config(raw_multi_stage_config)
+
+        enhanced_configs = _extract_enhanced_configs(trainer_config_dict)
+        trainer_config_dict.update(enhanced_configs)
+
+        base_trainer_config = dict(trainer_config_dict)
+        return MultiStageTrainer(
+            multi_stage_config=multi_stage_config,
+            base_optimizer=optimizer,
+            base_trainer_config=base_trainer_config,
+            analysis_manager=analysis_manager,
+        )
     elif strategy == "fsdp" or strategy == "fsdp_standard":
         # FSDP requires additional setup (distributed init, special config)
         from dendritic_modeling.training.fsdp_utils import get_fsdp_config
@@ -272,10 +343,27 @@ def get_trainer(
             logger.info("Generated default FSDP config for trainer")
         return FSDPTrainer(**trainer_config_dict)
     else:
-        logger.info(f"Unrecognized strategy '{strategy}', defaulting to 'standard'.")
-        enhanced_configs = _extract_enhanced_configs(trainer_config_dict)
-        trainer_config_dict.update(enhanced_configs)
-        return Trainer(**trainer_config_dict)
+        supported = [
+            "standard",
+            "enhanced",
+            "freeze_layers",
+            "freeze_branches",
+            "fa",
+            "dfa",
+            "shunting_fa",
+            "shunting_dfa",
+            "local_ca",
+            "freeze_branch_kl",
+            "voltage_stabilization",
+            "homeostatic_control",
+            "recurrent",
+            "multi_stage",
+            "fsdp",
+            "fsdp_standard",
+        ]
+        raise ValueError(
+            f"Unknown training strategy '{strategy}'. Supported strategies: {supported}"
+        )
 
 
 def transfer_mlp_weights_to_input_net(mlp_net, input_net, head_type="excitatory"):

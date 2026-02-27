@@ -4,4 +4,4 @@ from dendritic_modeling.networks.architectures.classical.cnn.cnn import (
     CNNUpsample,
 )
 
-__all__ = ["AlexNet" "CNNDownsample" "CNNUpsample"]
+__all__ = ["AlexNet", "CNNDownsample", "CNNUpsample"]

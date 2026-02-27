@@ -8,6 +8,7 @@ of weight pruning on synaptic connectivity.
 """
 
 import logging
+from types import SimpleNamespace
 from typing import Any, Optional
 
 import numpy as np
@@ -44,7 +45,13 @@ class SynapticPruningAnalyzer(SynapticTurnoverAnalyzer):
             model: The model to analyze (must have ExcitationInhibitionNetwork)
             snapshot_interval: Collect snapshots every N epochs
         """
-        super().__init__(model, snapshot_interval)
+        snapshot_interval = max(1, int(snapshot_interval))
+        params = SimpleNamespace(
+            snapshot_interval=snapshot_interval,
+            synaptic_analysis=True,
+            save_synaptic_report=True,
+        )
+        super().__init__(model, params)
 
         # Track pruning events
         self.pruning_events = []

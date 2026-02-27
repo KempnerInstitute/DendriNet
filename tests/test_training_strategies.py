@@ -65,11 +65,8 @@ class TestTrainerFactory(unittest.TestCase):
     def test_get_trainer_voltage_stabilization(self):
         """Test getting voltage stabilization trainer."""
         trainer_config = {"loss_function": "cross_entropy", "epochs": 10}
-        trainer = get_trainer(
-            "voltage_stablization", self.optimizer, trainer_config
-        )  # Note: typo in factory is 'stablization'
-        # Current factory falls back to standard trainer for unknown strategy names.
-        self.assertIsInstance(trainer, Trainer)
+        with self.assertRaises(ValueError):
+            get_trainer("voltage_stablization", self.optimizer, trainer_config)
 
     def test_get_trainer_freeze_branches(self):
         """Test getting local credit assignment trainer."""
@@ -79,10 +76,9 @@ class TestTrainerFactory(unittest.TestCase):
 
     def test_get_trainer_invalid_strategy(self):
         """Test handling of invalid training strategy."""
-        # Should fall back to standard trainer and log warning
         trainer_config = {"loss_function": "cross_entropy", "epochs": 10}
-        trainer = get_trainer("invalid_strategy", self.optimizer, trainer_config)
-        self.assertIsInstance(trainer, Trainer)
+        with self.assertRaises(ValueError):
+            get_trainer("invalid_strategy", self.optimizer, trainer_config)
 
     def test_get_trainer_with_options(self):
         """Test getting trainer with additional options."""

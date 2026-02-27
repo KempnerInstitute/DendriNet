@@ -33,16 +33,13 @@ class Classifier(BaseModel):
                 torch.zeros((self.core_network.output_dim,)), requires_grad=True
             )
 
-        self.final = nn.LogSoftmax(dim=-1)
-
     def forward(self, x: torch.Tensor, **kwargs) -> torch.Tensor:
         x = super().forward(x, **kwargs)
 
         if hasattr(self, "log_output_scale"):
             x = self.log_output_scale.exp() * x
 
-        logits = self.final(x)
-        return logits
+        return x
 
     def predict(self, x: torch.Tensor, **kwargs) -> torch.Tensor:
         with torch.no_grad():

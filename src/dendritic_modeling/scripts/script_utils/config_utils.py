@@ -328,6 +328,7 @@ def prepare_trainer_config(
                 "freeze_layers",
                 "freeze_branches",
                 "freeze_branch_kl",
+                "multi_stage",
             ]:
                 if strategy_name in strategies_dict:
                     trainer_config[f"{strategy_name}_config"] = strategies_dict[
