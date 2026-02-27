@@ -3,12 +3,6 @@ RecurrentTrainer: training strategy for recurrent dendritic networks.
 
 Overrides both _epoch_train() and _epoch_valid() from the standard Trainer
 to handle sequence data with proper temporal loss computation.
-
-Phase 2 intentionally bypasses AMP and RegularizationManager paths.
-AMP with recurrent unrolling needs careful handling (autocast context per
-timestep vs. entire sequence). RegularizationManager's loss functions
-(VoltageStabilization, EIBalance) are EI-specific and don't apply to
-recurrent cores. Both can be added in Phase 3 after basic training is validated.
 """
 
 import logging

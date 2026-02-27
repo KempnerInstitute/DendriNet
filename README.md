@@ -123,55 +123,14 @@ For detailed usage, configuration options, and advanced features, see the [full 
 The framework supports both feedforward and recurrent cores through `model.core.type`:
 
 - Feedforward: `dendritic_shunting`, `dendritic_additive`, `flat_shunting`, `flat_additive`, `dendritic_mlp`, `mlp`
-- Recurrent: `dendritic_rnn` (aliases: `dendrnn`, `vanilla_rnn`)
+- Unified E-I recurrent-capable core: `ei_unified` (aliases: `unified_ei`, `ei_net`, `unified_einet`)
+- Baseline recurrent cores: `gru`, `lstm`, `vanilla_rnn` (alias: `rnn`)
 
-Detailed config recipes (DendRNN, vanilla RNN collapse, GRU/LSTM baselines, routing analysis, sequence datasets) are documented in:
+Detailed recurrent config recipes (unified E-I, GRU/LSTM/vanilla baselines, routing analysis, sequence datasets) are documented in:
 
 - [`docs/NETWORK_TYPES_AND_RNN.rst`](docs/NETWORK_TYPES_AND_RNN.rst)
 
-For recurrent cores, branch compartments include `topk`, `dendritic_branch`,
-`dendrinet`, and `linear`; the guide also documents `rec_i_synapses` and
-compatibility guarantees for legacy non-RNN configs.
-
-Non-RNN runs are preserved and do not incur recurrent unrolling cost. If you keep a feedforward `core.type`, the recurrent path is never instantiated.
-
-## Team Workflow & Quality Gates
-
-Use shared guardrails so multi-developer changes stay stable.
-
-### Local guardrail (runs on commit)
-
-```bash
-pip install pre-commit
-pre-commit install
-pre-commit run --all-files
-```
-
-The pre-commit setup now includes a fast validator test gate:
-
-- `tests/test_training_stability_validator.py`
-- `tests/test_config_validation_utils.py`
-- `tests/test_model_architecture_validator_utils.py`
-
-### Repository guardrail (required before merge)
-
-For strict team enforcement, set branch protection rules on `main` (and `develop`) in GitHub:
-
-1. Require pull requests before merging.
-2. Require status checks to pass before merging (at minimum CI test and lint jobs).
-3. Require branches to be up to date before merging.
-4. Restrict direct pushes to protected branches.
-
-Note: local hooks improve feedback speed but can be bypassed with `--no-verify`; branch protection is the authoritative enforcement.
-
-### Coverage Gate (Ratchet-Friendly)
-
-Current minimum coverage gate is set to `30%`.
-
-- Local/default pytest gate: `pytest.ini` (`--cov-fail-under=30`)
-- CI gate: `COV_FAIL_UNDER` in `.github/workflows/ci.yml` and `.github/workflows/ci-simplified.yml`
-
-To ratchet coverage upward later, increase these values together (for example, `30 -> 35 -> 40`) once CI is consistently green.
+For recurrent training, set `training.main.strategy: recurrent`. Feedforward runs remain on the standard path and do not instantiate recurrent unrolling logic.
 
 ## Core Components
 
