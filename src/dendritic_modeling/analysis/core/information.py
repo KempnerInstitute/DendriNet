@@ -3060,7 +3060,8 @@ class InformationAnalyzer(AbstractAnalyzer):
 
             self.logger.info("Loading test dataset...")
             try:
-                inputs, labels = test_dataset[:]
+                items = test_dataset[:]
+                inputs, labels = items[0], items[1]
             except Exception:
                 self.logger.warning(
                     "Dataset does not support full slicing; materializing via DataLoader."
@@ -3070,9 +3071,8 @@ class InformationAnalyzer(AbstractAnalyzer):
                 max_samples = self.max_samples if self.max_samples else None
                 total = 0
 
-                for x_batch, y_batch in DataLoader(
-                    test_dataset, batch_size=1024, shuffle=False
-                ):
+                for batch in DataLoader(test_dataset, batch_size=1024, shuffle=False):
+                    x_batch, y_batch = batch[0], batch[1]
                     if max_samples is not None and total >= max_samples:
                         break
 

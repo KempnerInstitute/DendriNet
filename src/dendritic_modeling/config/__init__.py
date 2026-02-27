@@ -7,6 +7,8 @@ This module contains configuration dataclasses and utilities.
 from dendritic_modeling.config.analysis import (
     AblationAnalysisConfig,
     AblationAnalysisParams,
+    AdversarialRobustnessAnalysisConfig,
+    AdversarialRobustnessAnalysisParams,
     AnalysisConfig,
     BranchActivationAnalysisConfig,
     BranchActivationAnalysisParams,
@@ -90,6 +92,8 @@ from dendritic_modeling.config.training import (
 __all__ = [
     "AblationAnalysisConfig",
     "AblationAnalysisParams",
+    "AdversarialRobustnessAnalysisConfig",
+    "AdversarialRobustnessAnalysisParams",
     "AnalysisConfig",
     "ArchitectureConfig",
     "BaseConfig",

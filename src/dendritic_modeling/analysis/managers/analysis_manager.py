@@ -14,6 +14,9 @@ import torch
 from dendritic_modeling.analysis.core.ablation import AblationAnalyzer
 from dendritic_modeling.analysis.core.branch_activation import BranchActivationAnalyzer
 from dendritic_modeling.analysis.core.information import InformationAnalyzer
+from dendritic_modeling.analysis.metrics.adversarial_robustness import (
+    AdversarialRobustnessAnalyzer,
+)
 from dendritic_modeling.analysis.metrics.layer_contribution import (
     SingleLayerContributionAnalyzer,
 )
@@ -159,6 +162,15 @@ class AnalysisManager:
             and self.config.routing_analysis.enabled
         ):
             self.routing_analyzer = RoutingAnalyzer()
+
+        # Initialize Adversarial Robustness Analysis
+        if (
+            hasattr(self.config, "adversarial_robustness_analysis")
+            and self.config.adversarial_robustness_analysis.enabled
+        ):
+            self.adversarial_robustness_analyzer = AdversarialRobustnessAnalyzer(
+                self.config.adversarial_robustness_analysis.params
+            )
 
     def set_pruning_results(self, pruning_results: dict):
         """Set pruning results for inclusion in performance plots."""
@@ -393,3 +405,29 @@ class AnalysisManager:
                 filename=filename,
             )
             self.logger.info("Routing analysis completed successfully")
+
+        # Adversarial Robustness Analysis
+        if (
+            hasattr(self.config, "adversarial_robustness_analysis")
+            and self.config.adversarial_robustness_analysis.enabled
+            and hasattr(self, "adversarial_robustness_analyzer")
+            and (
+                (
+                    hasattr(self.config.adversarial_robustness_analysis, "training")
+                    and self.config.adversarial_robustness_analysis.training
+                    and training
+                )
+                or not training
+            )
+        ):
+            self.logger.info("Starting adversarial robustness analysis...")
+            self.adversarial_robustness_analyzer.analyze(
+                model=self.model,
+                test_dataset=self.data["test"],
+                device=self.device,
+                save_path=os.path.join(
+                    self.save_root, "adversarial_robustness_analysis"
+                ),
+                filename=filename,
+            )
+            self.logger.info("Adversarial robustness analysis completed successfully")

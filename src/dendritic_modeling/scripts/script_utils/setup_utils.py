@@ -26,6 +26,52 @@ logger = logging.getLogger(__name__)
 logger_manager = LoggerManager()
 
 
+def _is_recurrent_core_config(core_cfg) -> bool:
+    """Detect whether a core config describes a recurrent model."""
+
+    def _get_type(cfg) -> str:
+        if isinstance(cfg, dict):
+            return str(cfg.get("type", "")).lower()
+        return str(getattr(cfg, "type", "")).lower()
+
+    def _get_recurrent_enabled(cfg) -> bool:
+        rec = (
+            cfg.get("recurrent", {})
+            if isinstance(cfg, dict)
+            else getattr(cfg, "recurrent", None)
+        )
+        if isinstance(rec, dict):
+            return bool(rec.get("enabled", False))
+        return bool(getattr(rec, "enabled", False))
+
+    def _has_unified_recurrent_layers(cfg) -> bool:
+        unified = (
+            cfg.get("unified_ei", cfg.get("ei_unified", {}))
+            if isinstance(cfg, dict)
+            else getattr(cfg, "unified_ei", {})
+        )
+        if not unified:
+            return False
+        layers = (
+            unified.get("layers", [])
+            if isinstance(unified, dict)
+            else getattr(unified, "layers", [])
+        )
+        for layer in layers:
+            if isinstance(layer, dict) and layer.get("recurrent", False):
+                return True
+            if getattr(layer, "recurrent", False):
+                return True
+        return False
+
+    core_type = _get_type(core_cfg)
+    if core_type in {"gru", "lstm", "vanilla_rnn", "rnn"}:
+        return True
+    if core_type in {"ei_unified", "unified_ei", "ei_net", "unified_einet"}:
+        return _has_unified_recurrent_layers(core_cfg)
+    return _get_recurrent_enabled(core_cfg)
+
+
 def initialize_model(model_config: ModelConfig):
     """Initialize the model based on configuration."""
     encoder_config = model_config.encoder
@@ -80,12 +126,8 @@ def initialize_model(model_config: ModelConfig):
     # Create decoder
     decoder_network = get_architecture(decoder_config.type, decoder_params)
 
-    # Detect recurrent mode
-    is_recurrent = (
-        hasattr(core_config, "recurrent")
-        and hasattr(core_config.recurrent, "enabled")
-        and core_config.recurrent.enabled
-    )
+    # Detect recurrent mode (supports dendritic_rnn and ei_unified paths).
+    is_recurrent = _is_recurrent_core_config(core_config)
 
     # Create model based on task
     if is_recurrent:
@@ -198,6 +240,7 @@ def setup_environment(
             "parameters": {
                 **data_config.processing.__dict__,
                 **dataset_specific_params,
+                "label_noise_seed": experiment_config.seed,
             },
         },
     )()
@@ -215,11 +258,7 @@ def setup_environment(
     input_sample: torch.Tensor = train_ds[0][0]
 
     # Detect if this is sequence data (recurrent mode)
-    is_recurrent = (
-        hasattr(model_config.core, "recurrent")
-        and hasattr(model_config.core.recurrent, "enabled")
-        and model_config.core.recurrent.enabled
-    )
+    is_recurrent = _is_recurrent_core_config(model_config.core)
 
     if is_recurrent:
         # Sequence data: [seq_len, input_dim] — use last dim as feature dim

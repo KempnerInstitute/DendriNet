@@ -228,8 +228,9 @@ def main(config_path: str, args=None):
 
     logger.info("Network architecture summary before training:")
     try:
-        core_type = str(getattr(model_config.core, "type", "")).lower()
-        is_recurrent_core = core_type in {"dendritic_rnn", "dendrnn", "vanilla_rnn"}
+        is_recurrent_core = getattr(model.core_network, "is_recurrent", False)
+        if callable(is_recurrent_core):
+            is_recurrent_core = is_recurrent_core()
 
         if is_recurrent_core:
             # torchinfo unrolls recurrent timesteps and can produce extremely large

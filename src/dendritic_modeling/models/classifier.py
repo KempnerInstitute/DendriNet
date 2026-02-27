@@ -35,8 +35,8 @@ class Classifier(BaseModel):
 
         self.final = nn.LogSoftmax(dim=-1)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = super().forward(x)
+    def forward(self, x: torch.Tensor, **kwargs) -> torch.Tensor:
+        x = super().forward(x, **kwargs)
 
         if hasattr(self, "log_output_scale"):
             x = self.log_output_scale.exp() * x
@@ -44,9 +44,9 @@ class Classifier(BaseModel):
         logits = self.final(x)
         return logits
 
-    def predict(self, x: torch.Tensor) -> torch.Tensor:
+    def predict(self, x: torch.Tensor, **kwargs) -> torch.Tensor:
         with torch.no_grad():
-            logits = self.forward(x)
+            logits = self.forward(x, **kwargs)
             return logits.argmax(dim=-1)
 
 

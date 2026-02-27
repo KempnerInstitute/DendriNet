@@ -437,12 +437,12 @@ class FSDPTrainer(Trainer):
         total_correct = 0
         total_examples = 0
 
-        for _batch_idx, (x_batch, y_batch) in enumerate(train_loader):
+        for _batch_idx, batch in enumerate(train_loader):
             # Clear GPU cache before each forward pass
             torch.cuda.empty_cache()
 
-            x_batch = x_batch.to(self.device)
-            y_batch = y_batch.to(self.device)
+            x_batch = batch[0].to(self.device)
+            y_batch = batch[1].to(self.device)
 
             if self.use_amp:
                 # Mixed precision forward pass
@@ -508,9 +508,9 @@ class FSDPTrainer(Trainer):
         total_examples = 0
 
         with torch.no_grad():
-            for x_batch, y_batch in valid_loader:
-                x_batch = x_batch.to(self.device)
-                y_batch = y_batch.to(self.device)
+            for batch in valid_loader:
+                x_batch = batch[0].to(self.device)
+                y_batch = batch[1].to(self.device)
 
                 outputs = model(x_batch)
                 loss = self.loss_fn(outputs, y_batch)

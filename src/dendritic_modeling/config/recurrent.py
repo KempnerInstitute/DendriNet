@@ -1,8 +1,13 @@
 """
-Recurrent network configuration for dendritic modeling.
+DEPRECATED: Legacy recurrent network configuration.
 
-Defines BranchConfig (per-branch settings) and RecurrentConfig (master recurrent config).
-When RecurrentConfig.enabled is False (the default), the entire recurrent system is inert.
+These configs (BranchConfig, RecurrentConfig) were used by the old DendriticRNNCell/
+DendriticRNNNetwork implementation which has been removed. Kept for backward
+compatibility with existing config files.
+
+For new code, use the unified EI config classes:
+  - PopulationConfig, EILayerConfig, EINetworkConfig
+  from dendritic_modeling.networks.architectures.recurrent.ei_config
 """
 
 from dataclasses import dataclass, field

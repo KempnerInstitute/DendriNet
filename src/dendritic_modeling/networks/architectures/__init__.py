@@ -31,15 +31,16 @@ from dendritic_modeling.networks.architectures.excitation_inhibition import (
     VarianceTopKLinear,
     analytical_expectation_dbl_init,
 )
-
-try:
-    from dendritic_modeling.networks.architectures.recurrent import (
-        DendriticRNNCell,
-        DendriticRNNNetwork,
-        RecurrentState,
-    )
-except (ImportError, ModuleNotFoundError):
-    pass
+from dendritic_modeling.networks.architectures.recurrent import (
+    DendriNetState,
+    EILayer,
+    EILayerConfig,
+    EINetwork,
+    EINetworkConfig,
+    EIState,
+    PopulationConfig,
+    StatefulDendriNet,
+)
 
 __all__ = [
     "MLP",
@@ -49,9 +50,13 @@ __all__ = [
     "CNNUpsample",
     "DeepstLinear",
     "DendriNet",
+    "DendriNetState",
     "DendriticBranchLayer",
-    "DendriticRNNCell",
-    "DendriticRNNNetwork",
+    "EILayer",
+    "EILayerConfig",
+    "EINetwork",
+    "EINetworkConfig",
+    "EIState",
     "ExcitationInhibitionLayer",
     "ExcitationInhibitionNetwork",
     "GradientScaler",
@@ -60,8 +65,9 @@ __all__ = [
     "IndexInputTransform",
     "MatchedActiveParamMLP",
     "MatchedTotalParamMLP",
-    "RecurrentState",
+    "PopulationConfig",
     "SparseStructuredMLP",
+    "StatefulDendriNet",
     "StochasticTopKLinear",
     "TopKLinear",
     "TransferLayer",

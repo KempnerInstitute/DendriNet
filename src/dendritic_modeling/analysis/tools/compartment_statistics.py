@@ -496,9 +496,9 @@ class CompartmentStatisticsAnalyzer(AbstractAnalyzer):
         start_time = time.time()
 
         model.to(device)
-        x, y = test_dataset[:]
-        x: torch.Tensor = x.to(device)
-        y: torch.Tensor = y.to(device) if self.per_class_analysis else None
+        items = test_dataset[:]
+        x: torch.Tensor = items[0].to(device)
+        y: torch.Tensor = items[1].to(device) if self.per_class_analysis else None
 
         self.collect_raw_data(model, x, y)
         branch_statistics = self._compute_branch_statistics()

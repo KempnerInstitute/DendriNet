@@ -6,6 +6,7 @@ like MNIST, CIFAR-10, and ImageNet, as well as synthetic datasets for theoretica
 """
 
 import importlib
+import logging
 import os
 from collections.abc import Sequence
 from typing import Any, Optional, Union
@@ -16,6 +17,62 @@ from torch.utils.data import Dataset, TensorDataset
 from torchvision import datasets, transforms
 
 from .synthetic_datasets import get_synthetic_datasets
+
+_ds_logger = logging.getLogger(__name__)
+
+
+def _apply_label_noise(
+    dataset: TensorDataset,
+    noise_rate: float,
+    num_classes: int,
+    seed: int = 0,
+) -> TensorDataset:
+    """Randomly flip a fraction of training labels to random classes.
+
+    Args:
+        dataset: TensorDataset with (inputs, labels).
+        noise_rate: Fraction of labels to randomize (0 = clean, 1 = fully random).
+        num_classes: Number of classes for random label replacement.
+        seed: Random seed for reproducibility.
+
+    Returns:
+        New TensorDataset with corrupted labels.
+    """
+    if noise_rate <= 0.0:
+        return dataset
+    x, y = dataset.tensors
+    n = len(y)
+    n_noisy = int(n * noise_rate)
+    rng = torch.Generator().manual_seed(seed)
+    indices = torch.randperm(n, generator=rng)[:n_noisy]
+    noisy_labels = torch.randint(
+        0, num_classes, (n_noisy,), generator=rng, dtype=y.dtype
+    )
+    y_noisy = y.clone()
+    y_noisy[indices] = noisy_labels
+    actual_flipped = int((y_noisy[indices] != y[indices]).sum().item())
+    _ds_logger.info(
+        f"Label noise: flipped {actual_flipped}/{n} labels "
+        f"(requested rate={noise_rate:.1%}, effective={actual_flipped / n:.1%})"
+    )
+    return TensorDataset(x, y_noisy)
+
+
+def _infer_num_classes(dataset: TensorDataset) -> int:
+    """Infer number of classes from dataset labels.
+
+    Returns 0 for empty datasets. Raises ValueError if labels are
+    not integer-typed (float labels are ambiguous for classification).
+    """
+    _, y = dataset.tensors
+    if y.numel() == 0:
+        return 0
+    if y.is_floating_point():
+        raise ValueError(
+            f"Cannot infer num_classes from float labels (dtype={y.dtype}). "
+            "Label noise requires integer classification labels."
+        )
+    return int(y.max().item()) + 1
 
 
 def _get_config_value(
@@ -720,6 +777,19 @@ def get_unified_datasets(task_cfg):
     max_gain_tau_ratio = p.get("max_gain_tau_ratio", None)
     uniform_gain = p.get("uniform_gain", True)
 
+    label_noise_rate = p.get("label_noise_rate", 0.0)
+    label_noise_seed = p.get("label_noise_seed", 0)
+
+    def _maybe_inject_label_noise(train_ds, valid_ds, test_ds):
+        """Apply label noise to training set only if configured."""
+        if label_noise_rate > 0.0 and isinstance(train_ds, TensorDataset):
+            num_classes = _infer_num_classes(train_ds)
+            if num_classes > 0:
+                train_ds = _apply_label_noise(
+                    train_ds, label_noise_rate, num_classes, seed=label_noise_seed
+                )
+        return train_ds, valid_ds, test_ds
+
     # Handle standard datasets directly
     if dataset_name == "mnist":
         train_ds, valid_ds, test_ds = load_mnist_as_datasets(
@@ -728,21 +798,23 @@ def get_unified_datasets(task_cfg):
             normalize=normalize,
             task_data_path=task_data_path,
         )
-        return train_ds, valid_ds, test_ds
+        return _maybe_inject_label_noise(train_ds, valid_ds, test_ds)
     elif dataset_name == "fashion_mnist":
-        return load_fashion_mnist_as_datasets(
+        train_ds, valid_ds, test_ds = load_fashion_mnist_as_datasets(
             train_valid_split=train_valid_split,
             flatten=flatten,
             normalize=normalize,
             task_data_path=task_data_path,
         )
+        return _maybe_inject_label_noise(train_ds, valid_ds, test_ds)
     elif dataset_name == "cifar10":
-        return load_cifar10_as_datasets(
+        train_ds, valid_ds, test_ds = load_cifar10_as_datasets(
             train_valid_split=train_valid_split,
             flatten=flatten,
             normalize=normalize,
             task_data_path=task_data_path,
         )
+        return _maybe_inject_label_noise(train_ds, valid_ds, test_ds)
     elif dataset_name == "poisson_generator":
         return load_poisson_generator_datasets(
             base_dataset=base_dataset,
@@ -797,6 +869,7 @@ def get_unified_datasets(task_cfg):
         "variable_delay_dms",
         "multi_frequency",
         "lorenz",
+        "stringer_v1",
     ):
         from dendritic_modeling.datasets.sequence_datasets import get_sequence_datasets
 

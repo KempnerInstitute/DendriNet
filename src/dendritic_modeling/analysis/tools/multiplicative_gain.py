@@ -61,11 +61,11 @@ class MultiplicativeGainAnalyzer(AbstractAnalyzer):
             else:
                 dataset._set_max_gain_factor(gain_factor)
 
-            inputs, _ = dataset[:]
+            inputs = dataset[:][0]
             return inputs
 
         else:
-            inputs, _ = dataset[:]
+            inputs = dataset[:][0]
 
             if not self.uniform_gain:
                 gain_factor = (torch.rand_like(inputs) * (gain_factor - 1)) + 1
@@ -126,8 +126,7 @@ class MultiplicativeGainAnalyzer(AbstractAnalyzer):
         model = model.to(device)
         model.eval()
 
-        _, test_labels = test_dataset[:]
-        test_labels: torch.Tensor = test_labels.to(device)
+        test_labels: torch.Tensor = test_dataset[:][1].to(device)
 
         def _evaluate_metric(
             metric_func: Callable, metric_key: str, dataset: torch.utils.data.Dataset

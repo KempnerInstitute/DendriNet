@@ -42,6 +42,15 @@ class CustomWeightDecayOptimizer:
         """Expose the underlying optimizer's param_groups."""
         return self.optimizer.param_groups
 
+    @property
+    def defaults(self):
+        """Expose the underlying optimizer's defaults."""
+        return self.optimizer.defaults
+
+    def add_param_group(self, param_group: dict):
+        """Delegate add_param_group to the underlying optimizer."""
+        self.optimizer.add_param_group(param_group)
+
     def zero_grad(self):
         """Zero gradients of the underlying optimizer."""
         self.optimizer.zero_grad()

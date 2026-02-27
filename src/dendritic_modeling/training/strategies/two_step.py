@@ -146,11 +146,9 @@ class TwoStepTrainer(Trainer):
                     param.requires_grad = True
 
                 # Train on batches
-                for x_batch, y_batch in train_loader:
-                    x_batch: torch.Tensor
-                    y_batch: torch.Tensor
-                    x_batch = x_batch.to(self.device)
-                    y_batch = y_batch.to(self.device)
+                for batch in train_loader:
+                    x_batch: torch.Tensor = batch[0].to(self.device)
+                    y_batch: torch.Tensor = batch[1].to(self.device)
 
                     # Forward pass through layers up to current layer
                     h_batch = x_batch
@@ -179,11 +177,9 @@ class TwoStepTrainer(Trainer):
             # Validation
             with torch.no_grad():
                 valid_loss = 0
-                for x_batch, y_batch in valid_loader:
-                    x_batch: torch.Tensor
-                    y_batch: torch.Tensor
-                    x_batch = x_batch.to(self.device)
-                    y_batch = y_batch.to(self.device)
+                for batch in valid_loader:
+                    x_batch: torch.Tensor = batch[0].to(self.device)
+                    y_batch: torch.Tensor = batch[1].to(self.device)
                     loss = self.loss_function(model, x_batch, y_batch)
                     valid_loss += loss.item()
 
@@ -313,11 +309,9 @@ class TwoStepTrainerWithKL(Trainer):
                     param.requires_grad = True
 
                 # Train on batches
-                for x_batch, y_batch in train_loader:
-                    x_batch: torch.Tensor
-                    y_batch: torch.Tensor
-                    x_batch = x_batch.to(self.device)
-                    y_batch = y_batch.to(self.device)
+                for batch in train_loader:
+                    x_batch: torch.Tensor = batch[0].to(self.device)
+                    y_batch: torch.Tensor = batch[1].to(self.device)
 
                     # Forward pass through layers up to current layer
                     h_batch = x_batch
@@ -358,11 +352,9 @@ class TwoStepTrainerWithKL(Trainer):
             # Validation
             with torch.no_grad():
                 valid_loss = 0
-                for x_batch, y_batch in valid_loader:
-                    x_batch: torch.Tensor
-                    y_batch: torch.Tensor
-                    x_batch = x_batch.to(self.device)
-                    y_batch = y_batch.to(self.device)
+                for batch in valid_loader:
+                    x_batch: torch.Tensor = batch[0].to(self.device)
+                    y_batch: torch.Tensor = batch[1].to(self.device)
                     loss: torch.Tensor = self.loss_function(model, x_batch, y_batch)
                     valid_loss += loss.item()
 

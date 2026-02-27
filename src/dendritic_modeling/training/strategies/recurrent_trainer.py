@@ -56,7 +56,11 @@ class RecurrentTrainer(Trainer):
         logger.info(f"RecurrentTrainer initialized: task={task}, grad_clip={grad_clip}")
 
     def _compute_sequence_loss(
-        self, model: BaseModel, x_batch: torch.Tensor, y_batch: torch.Tensor
+        self,
+        model: BaseModel,
+        x_batch: torch.Tensor,
+        y_batch: torch.Tensor,
+        seq_lengths: torch.Tensor | None = None,
     ) -> torch.Tensor:
         """Shared sequence-aware loss for both train and valid.
 
@@ -65,7 +69,7 @@ class RecurrentTrainer(Trainer):
         - "all": model returns [B, T, *] -> flatten both output and target,
           then loss. Target MUST have temporal dim when output_mode="all".
         """
-        output = model(x_batch)
+        output = model(x_batch, seq_lengths=seq_lengths)
 
         if output.dim() <= 2:
             # output_mode="last" or "mean" — already reduced, standard loss
@@ -105,12 +109,18 @@ class RecurrentTrainer(Trainer):
         total_loss = 0.0
         n_batches = 0
 
-        for x_batch, y_batch in train_loader:
+        for batch in train_loader:
+            if len(batch) == 3:
+                x_batch, y_batch, seq_lengths = batch
+                seq_lengths = seq_lengths.to(self.device)
+            else:
+                x_batch, y_batch = batch
+                seq_lengths = None
             x_batch = x_batch.to(self.device)
             y_batch = y_batch.to(self.device)
 
             self.optimizer.zero_grad()
-            loss = self._compute_sequence_loss(model, x_batch, y_batch)
+            loss = self._compute_sequence_loss(model, x_batch, y_batch, seq_lengths)
             loss.backward()
 
             if self.grad_clip > 0:
@@ -130,10 +140,16 @@ class RecurrentTrainer(Trainer):
         n_batches = 0
 
         with torch.no_grad():
-            for x_batch, y_batch in valid_loader:
+            for batch in valid_loader:
+                if len(batch) == 3:
+                    x_batch, y_batch, seq_lengths = batch
+                    seq_lengths = seq_lengths.to(self.device)
+                else:
+                    x_batch, y_batch = batch
+                    seq_lengths = None
                 x_batch = x_batch.to(self.device)
                 y_batch = y_batch.to(self.device)
-                loss = self._compute_sequence_loss(model, x_batch, y_batch)
+                loss = self._compute_sequence_loss(model, x_batch, y_batch, seq_lengths)
                 total_loss += loss.item()
                 n_batches += 1
 

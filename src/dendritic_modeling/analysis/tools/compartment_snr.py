@@ -442,9 +442,9 @@ class CompartmentSNRAnalyzer(AbstractAnalyzer):
         start_time = time.time()
 
         model.to(device)
-        x, labels = test_dataset[:]
-        x: torch.Tensor = x.to(device)
-        labels: torch.Tensor = labels.cpu()
+        items = test_dataset[:]
+        x: torch.Tensor = items[0].to(device)
+        labels: torch.Tensor = items[1].cpu()
 
         self.collect_raw_data(model, x)
 

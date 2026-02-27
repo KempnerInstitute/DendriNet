@@ -140,6 +140,7 @@ def test_core_config_asdict_keys():
         "blocklinear",
         "implementation",
         "recurrent",
+        "unified_ei",
     }
     assert expected_keys == set(d.keys())
 

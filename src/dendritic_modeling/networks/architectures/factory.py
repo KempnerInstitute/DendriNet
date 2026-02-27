@@ -1,3 +1,4 @@
+from dataclasses import asdict, is_dataclass
 from typing import Any, Optional, Union
 
 import torch.nn as nn
@@ -45,6 +46,41 @@ _EINET_TYPES: set[str] = {
     "flat_additive",
 }
 
+_UNIFIED_EI_TYPES: set[str] = {
+    "ei_unified",
+    "unified_ei",
+    "ei_net",
+    "unified_einet",
+}
+
+_BASELINE_RNN_TYPES: dict[str, str] = {
+    "gru": "gru",
+    "lstm": "lstm",
+    "vanilla_rnn": "vanilla",
+    "rnn": "vanilla",
+}
+
+
+def _to_plain_mapping(obj: Any) -> dict[str, Any]:
+    """Best-effort conversion of config-like objects into a plain mapping."""
+    if obj is None:
+        return {}
+    if isinstance(obj, dict):
+        return dict(obj)
+    if isinstance(obj, DictConfig):
+        from omegaconf import OmegaConf
+
+        converted = OmegaConf.to_container(obj, resolve=True)
+        return converted if isinstance(converted, dict) else {}
+    if is_dataclass(obj):
+        converted = asdict(obj)
+        return converted if isinstance(converted, dict) else {}
+    # Fallback for custom config objects exposing attrs.
+    try:
+        return dict(obj)
+    except Exception:
+        return {}
+
 
 def get_architecture(
     type: str,
@@ -68,48 +104,94 @@ def get_architecture(
     type = _EINET_ALIASES.get(type, type)
 
     # ------------------------------------------------------------------
-    # Recurrent architectures
+    # Unified E-I architecture (opt-in, isolated from legacy code paths)
     # ------------------------------------------------------------------
-    if type in ("dendritic_rnn", "dendrnn", "vanilla_rnn"):
-        from dendritic_modeling.config.recurrent import RecurrentConfig
+    if type in _UNIFIED_EI_TYPES:
         from dendritic_modeling.networks.architectures.recurrent import (
-            DendriticRNNNetwork,
+            EILayerConfig,
+            EINetwork,
+            EINetworkConfig,
+            PopulationConfig,
         )
-
-        # Extract recurrent config from structured parameters
-        if isinstance(parameters, DictConfig):
-            from omegaconf import OmegaConf
-
-            rec_cfg = OmegaConf.to_container(
-                parameters.get("recurrent", {}), resolve=True
-            )
-        elif hasattr(parameters, "recurrent"):
-            rec_cfg = parameters.recurrent
-        elif isinstance(parameters, dict) and "recurrent" in parameters:
-            rec_cfg = parameters["recurrent"]
-        else:
-            rec_cfg = {}
-
-        # Build RecurrentConfig
-        if isinstance(rec_cfg, RecurrentConfig):
-            recurrent_config = rec_cfg
-        elif isinstance(rec_cfg, dict):
-            recurrent_config = RecurrentConfig(**rec_cfg)
-        else:
-            recurrent_config = rec_cfg
-
-        if not recurrent_config.enabled:
-            raise ValueError(
-                f"type='{type}' requires recurrent.enabled=true. "
-                f"For feedforward models, use type='dendritic_shunting' or similar."
-            )
 
         if input_dim is None:
             raise ValueError(
-                f"input_dim required when creating recurrent architecture (type='{type}')"
+                f"input_dim required when creating unified E-I architecture (type='{type}')"
             )
 
-        return DendriticRNNNetwork(recurrent_config, input_dim)
+        raw_params = _to_plain_mapping(parameters)
+        unified_cfg = raw_params.get("unified_ei", raw_params.get("ei_unified", {}))
+        if not unified_cfg and "layers" in raw_params:
+            # Allow passing EINetworkConfig-shaped dict directly.
+            unified_cfg = raw_params
+
+        if not isinstance(unified_cfg, dict):
+            raise ValueError(
+                "Unified E-I config must be a mapping, got "
+                f"{unified_cfg.__class__.__name__}"
+            )
+
+        unified_cfg = dict(unified_cfg)
+        unified_cfg["input_dim"] = input_dim
+
+        layers_cfg = []
+        for layer in unified_cfg.get("layers", []):
+            if isinstance(layer, EILayerConfig):
+                layers_cfg.append(layer)
+                continue
+            if not isinstance(layer, dict):
+                raise ValueError(
+                    "Each unified E-I layer config must be a dict or EILayerConfig"
+                )
+            layer = dict(layer)
+            exc = layer.get("excitatory")
+            inh = layer.get("inhibitory")
+            if isinstance(exc, dict):
+                layer["excitatory"] = PopulationConfig(**exc)
+            if isinstance(inh, dict):
+                layer["inhibitory"] = PopulationConfig(**inh)
+            layers_cfg.append(EILayerConfig(**layer))
+
+        if not layers_cfg:
+            raise ValueError(
+                "Unified E-I architecture requires at least one layer in unified_ei.layers"
+            )
+
+        unified_cfg["layers"] = layers_cfg
+        return EINetwork(EINetworkConfig(**unified_cfg))
+
+    # ------------------------------------------------------------------
+    # Baseline RNN models (GRU, LSTM, Vanilla RNN)
+    # ------------------------------------------------------------------
+    if type in _BASELINE_RNN_TYPES:
+        from dendritic_modeling.networks.architectures.recurrent import (
+            BaselineRNN,
+            BaselineRNNConfig,
+        )
+
+        if input_dim is None:
+            raise ValueError(
+                f"input_dim required when creating baseline RNN (type='{type}')"
+            )
+
+        raw_params = _to_plain_mapping(parameters)
+        baseline_cfg = raw_params.get("baseline_rnn", raw_params)
+        if not isinstance(baseline_cfg, dict):
+            baseline_cfg = {}
+        baseline_cfg = dict(baseline_cfg)
+        baseline_cfg["cell_type"] = _BASELINE_RNN_TYPES[type]
+        baseline_cfg["input_dim"] = input_dim
+        return BaselineRNN(BaselineRNNConfig(**baseline_cfg))
+
+    # ------------------------------------------------------------------
+    # Legacy recurrent type aliases (removed — use unified E-I instead)
+    # ------------------------------------------------------------------
+    if type in ("dendritic_rnn", "dendrnn"):
+        raise ValueError(
+            f"Architecture type '{type}' has been removed. "
+            f"Use 'ei_unified' (or 'unified_ei', 'ei_net') with the new "
+            f"EINetworkConfig format instead."
+        )
 
     # ------------------------------------------------------------------
     # EINet variants (require structured config)

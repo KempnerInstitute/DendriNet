@@ -538,6 +538,27 @@ class NoisePerturbationAnalysisConfig(BaseConfig):
 
 
 @dataclass
+class AdversarialRobustnessAnalysisParams(BaseConfig):
+    """Parameters for adversarial robustness (FGSM) evaluation."""
+
+    epsilons: list[float] = field(
+        default_factory=lambda: [0.0, 0.05, 0.1, 0.15, 0.2, 0.3]
+    )
+    batch_size: int = 256
+
+
+@dataclass
+class AdversarialRobustnessAnalysisConfig(BaseConfig):
+    """Enable/disable adversarial robustness analysis."""
+
+    enabled: bool = False
+    training: bool = False
+    params: AdversarialRobustnessAnalysisParams = field(
+        default_factory=AdversarialRobustnessAnalysisParams
+    )
+
+
+@dataclass
 class AblationSelectionParams(BaseConfig):
     """Preferred (grouped) selectors for ablation analysis."""
 
@@ -1078,7 +1099,7 @@ class CorrelationAnalysisConfig(BaseConfig):
 class RoutingAnalysisConfig(BaseConfig):
     """Configuration for branch routing (alpha) analysis in recurrent models.
 
-    Only applicable to DendriticRNNNetwork cores with store_routing=True.
+    Only applicable to recurrent EINetwork cores with store_routing=True.
     """
 
     enabled: bool = False
@@ -1136,4 +1157,7 @@ class AnalysisConfig(BaseConfig):
     )
     routing_analysis: RoutingAnalysisConfig = field(
         default_factory=RoutingAnalysisConfig
+    )
+    adversarial_robustness_analysis: AdversarialRobustnessAnalysisConfig = field(
+        default_factory=AdversarialRobustnessAnalysisConfig
     )

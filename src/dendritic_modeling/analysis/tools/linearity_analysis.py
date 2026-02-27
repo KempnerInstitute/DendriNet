@@ -63,9 +63,10 @@ class LinearityAnalyzer(AbstractAnalyzer):
         all_labels = []
 
         with torch.no_grad():
-            for x_batch, y_batch in data_loader:
+            for batch in data_loader:
+                x_batch = batch[0]
                 all_inputs.append(x_batch)
-                all_labels.append(y_batch)
+                all_labels.append(batch[1])
 
                 if len(all_inputs) * x_batch.shape[0] >= self.n_samples:
                     break

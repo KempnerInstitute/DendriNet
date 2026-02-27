@@ -372,6 +372,15 @@ class ThreeFactorConfig(BaseConfig):
     e_rev_exc: float = 1.0  # Excitatory reversal potential
     e_rev_inh: float = 0.0  # Inhibitory reversal (shunting)
 
+    # Additive gain control mode (only used when dynamics_mode is "additive").
+    # "none"            : post_factor = e_n  (current default, no local modulation)
+    # "input_dependent" : post_factor = e_n * pseudo_R * pseudo_drive
+    #                     pseudo_R = 1/(1 + |activations|), pseudo_drive = (v_mean - v_n + 1)
+    # "running_stats"   : post_factor = e_n * (1 / running_std_n)
+    # "learned_gain"    : post_factor = e_n * sigmoid(learnable_param_n)
+    additive_gain_mode: str = "none"
+    additive_stats_ema_alpha: float = 0.01  # EMA rate for running_stats mode
+
 
 @dataclass
 class FourFactorConfig(BaseConfig):
