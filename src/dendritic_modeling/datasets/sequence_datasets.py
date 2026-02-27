@@ -1,16 +1,24 @@
 """
-Sequence datasets for recurrent dendritic network training.
+Sequence and specialized datasets for dendritic network training.
 
-All datasets return (input_seq, target) where input_seq: [seq_len, input_dim].
+Sequence datasets return (input_seq, target) where input_seq: [seq_len, input_dim].
 For many-to-one tasks, target is a scalar or vector.
 For many-to-many tasks, target is [seq_len, ...].
+
+Also includes real neural data datasets (e.g. StringerV1Dataset) that return
+(response_vector, label) for feedforward classification.
 """
 
+import logging
 import math
+import os
 from typing import Optional
 
+import numpy as np
 import torch
 from torch.utils.data import Dataset, random_split
+
+logger = logging.getLogger(__name__)
 
 
 class SequentialMNISTDataset(Dataset):
@@ -234,7 +242,14 @@ class VariableDelayDMSDataset(Dataset):
         return self.n_samples
 
     def __getitem__(self, idx):
-        return self.inputs[idx], self.targets[idx]
+        delays = self.delays[idx]
+        if delays.dim() == 0:
+            # Single index: return scalar seq_len
+            seq_len = self.stimulus_duration + delays.item() + self.probe_duration
+        else:
+            # Slice/list index: return tensor of seq_lengths
+            seq_len = self.stimulus_duration + delays + self.probe_duration
+        return self.inputs[idx], self.targets[idx], seq_len
 
 
 class MultiFrequencyDataset(Dataset):
@@ -352,6 +367,140 @@ class LorenzSequenceDataset(Dataset):
         return self.inputs[idx], self.targets[idx]
 
 
+class StringerV1Dataset(Dataset):
+    """Stringer et al. (2019) V1 population responses to drifting gratings.
+
+    Loads real calcium imaging data from mouse V1 (11,311 neurons, 4,442 trials).
+    Selects top neurons by response variance and bins orientations into discrete
+    classes for feedforward classification.
+
+    Returns (response_vector, label) where response_vector: [n_neurons] and
+    label: int in [0, n_classes).
+
+    Running speed metadata is stored for post-hoc cross-context analysis
+    (e.g., comparing representations during locomotion vs. stillness).
+
+    Data source: Stringer et al., "Spontaneous behaviors drive multidimensional,
+    brainwide activity", Science 364, 2019. CC0 license on Figshare.
+
+    Args:
+        data_dir: Directory containing gratings_drifting_GT3_2019_04_05_1.npy
+                  and all_running.npy.
+        n_neurons: Number of neurons to select by response variance.
+        n_classes: Number of orientation bins (orientations span [0, 2*pi)).
+        split: "train" or "test".
+        train_fraction: Fraction of trials for training (rest = test).
+        normalize: Z-score normalize each neuron's responses.
+        seed: Random seed for reproducible train/test split.
+        session_idx: Index into all_running.npy for this session (default 20 = GT3).
+    """
+
+    _GRATING_FILE = "gratings_drifting_GT3_2019_04_05_1.npy"
+    _RUNNING_FILE = "all_running.npy"
+
+    def __init__(
+        self,
+        data_dir: str,
+        n_neurons: int = 500,
+        n_classes: int = 8,
+        split: str = "train",
+        train_fraction: float = 0.9,
+        normalize: bool = True,
+        seed: int = 42,
+        session_idx: int = 20,
+    ):
+        super().__init__()
+        if split not in ("train", "test"):
+            raise ValueError(f"split must be 'train' or 'test', got '{split}'")
+
+        # --- Load raw data ---
+        grating_path = os.path.join(data_dir, self._GRATING_FILE)
+        running_path = os.path.join(data_dir, self._RUNNING_FILE)
+
+        if not os.path.exists(grating_path):
+            raise FileNotFoundError(
+                f"Stringer V1 data not found at {grating_path}. "
+                f"Download from https://figshare.com/articles/dataset/9598406"
+            )
+
+        gdata = np.load(grating_path, allow_pickle=True).item()
+        sresp = gdata["sresp"]  # (n_neurons_total, n_trials)
+        istim = gdata["istim"]  # (n_trials,) orientations in radians [0, 2*pi)
+
+        n_neurons_total, n_trials = sresp.shape
+        logger.info(f"Loaded Stringer V1: {n_neurons_total} neurons, {n_trials} trials")
+
+        # --- Load running speed ---
+        if os.path.exists(running_path):
+            all_running = np.load(running_path, allow_pickle=True)
+            running = all_running[session_idx]  # (n_trials,)
+            self._running_speed = running.astype(np.float32)
+        else:
+            logger.warning(
+                f"Running speed file not found at {running_path}, "
+                f"setting all running speeds to 0"
+            )
+            self._running_speed = np.zeros(n_trials, dtype=np.float32)
+
+        # --- Select top neurons by variance ---
+        neuron_var = sresp.var(axis=1)  # variance across trials per neuron
+        n_select = min(n_neurons, n_neurons_total)
+        top_idx = np.argsort(neuron_var)[-n_select:][::-1]  # descending
+        self._neuron_indices = top_idx
+        responses = sresp[top_idx, :].T  # (n_trials, n_select)
+
+        # --- Normalize ---
+        if normalize:
+            mu = responses.mean(axis=0, keepdims=True)
+            std = responses.std(axis=0, keepdims=True) + 1e-8
+            responses = (responses - mu) / std
+
+        # --- Bin orientations into classes ---
+        # istim is in [0, 2*pi), bin into n_classes equal bins
+        bin_edges = np.linspace(0, 2 * np.pi, n_classes + 1)
+        labels = np.digitize(istim, bin_edges) - 1
+        labels = np.clip(labels, 0, n_classes - 1)  # handle edge case at 2*pi
+
+        # --- Train/test split ---
+        rng = np.random.RandomState(seed)
+        perm = rng.permutation(n_trials)
+        n_train = int(n_trials * train_fraction)
+
+        if split == "train":
+            idx = perm[:n_train]
+        else:
+            idx = perm[n_train:]
+
+        self.responses = torch.tensor(responses[idx], dtype=torch.float32)
+        self.labels = torch.tensor(labels[idx], dtype=torch.long)
+        self._running_mask = torch.tensor(
+            self._running_speed[idx] > np.median(self._running_speed),
+            dtype=torch.bool,
+        )
+        self._split_indices = idx
+
+        logger.info(
+            f"StringerV1Dataset({split}): {len(self)} trials, "
+            f"{n_select} neurons, {n_classes} classes"
+        )
+
+    def __len__(self):
+        return len(self.labels)
+
+    def __getitem__(self, idx):
+        return self.responses[idx], self.labels[idx]
+
+    @property
+    def running_mask(self):
+        """Boolean mask: True for high-running trials (above median speed)."""
+        return self._running_mask
+
+    @property
+    def neuron_indices(self):
+        """Indices of selected neurons in original sresp array."""
+        return self._neuron_indices
+
+
 def get_sequence_datasets(
     dataset_name: str,
     data_path: Optional[str] = None,
@@ -447,6 +596,38 @@ def get_sequence_datasets(
             n_samples=max(n_train // 5, 1000),
             seq_len=kwargs.get("seq_len", 50),
             dt=kwargs.get("dt", 0.01),
+        )
+    elif dataset_name == "stringer_v1":
+        data_dir = kwargs.get("data_dir", data_path)
+        if data_dir is None:
+            raise ValueError(
+                "stringer_v1 requires data_dir (path to directory with "
+                "gratings_drifting_GT3_2019_04_05_1.npy)"
+            )
+        n_neurons = kwargs.get("n_neurons", 500)
+        n_classes = kwargs.get("n_classes", 8)
+        normalize = kwargs.get("normalize", True)
+        seed = kwargs.get("label_noise_seed", 42)
+        # Fixed 90/10 train/test split; train_valid_split handled by factory below
+        test_fraction = 0.1
+
+        train_full = StringerV1Dataset(
+            data_dir=data_dir,
+            n_neurons=n_neurons,
+            n_classes=n_classes,
+            split="train",
+            train_fraction=1.0 - test_fraction,
+            normalize=normalize,
+            seed=seed,
+        )
+        test_ds = StringerV1Dataset(
+            data_dir=data_dir,
+            n_neurons=n_neurons,
+            n_classes=n_classes,
+            split="test",
+            train_fraction=1.0 - test_fraction,
+            normalize=normalize,
+            seed=seed,
         )
     else:
         raise ValueError(f"Unknown sequence dataset: {dataset_name}")

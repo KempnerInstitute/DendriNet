@@ -152,9 +152,9 @@ class FeedbackAlignmentTrainer(Trainer):
         total_loss = 0.0
         total_base = 0.0
 
-        for x_batch, y_batch in train_loader:
-            x_batch = x_batch.to(self.device)
-            y_batch = y_batch.to(self.device)
+        for batch in train_loader:
+            x_batch = batch[0].to(self.device)
+            y_batch = batch[1].to(self.device)
 
             # --- forward with activation caching ---
             activations: dict[int, torch.Tensor] = {}
@@ -264,7 +264,13 @@ class FeedbackAlignmentTrainer(Trainer):
         e_output: torch.Tensor,
         activations: dict[int, torch.Tensor],
     ) -> None:
-        """Layer-by-layer backward propagation through random B."""
+        """Layer-by-layer backward propagation through random B.
+
+        NOTE: FA requires a sequential chain of layers where the output dimension
+        of layer l matches the input dimension of layer l+1. Dendritic architectures
+        have a tree structure (excitation, inhibition, branch-to-output) that breaks
+        this assumption. Use DFA (mode='dfa') for dendritic models.
+        """
         e = e_output.detach()
         n = len(self._layer_info)
 
@@ -321,6 +327,259 @@ class FeedbackAlignmentTrainer(Trainer):
             if e_local.size(-1) != out_dim:
                 continue
 
+            grad_dense = e_local.t() @ h_in
+            self._assign_grad(mod, pname, grad_dense)
+
+            if isinstance(mod, nn.Linear) and mod.bias is not None:
+                gb = e_local.sum(0)
+                mod.bias.grad = (
+                    gb.to(mod.bias.dtype)
+                    if mod.bias.grad is None
+                    else mod.bias.grad + gb.to(mod.bias.dtype)
+                )
+
+
+class ShuntingFeedbackAlignmentTrainer(FeedbackAlignmentTrainer):
+    """FA/DFA with shunting (conductance-based) modulation of feedback signals.
+
+    Instead of using raw projected error ``e_local``, modulates it by the local
+    shunting signals ``R_tot * (E_rev - V)`` available at each dendritic layer.
+    This gives the random feedback biologically plausible gain control and
+    directional information from the conductance-based membrane equation.
+
+    Note: shunting modulation is only applied to sub-modules of shunting
+    ``DendriticBranchLayer`` instances that store diagnostics (``_diag_g_tot``,
+    ``_diag_numerator``). Additive layers gracefully fall back to unmodulated
+    DFA/FA behaviour.
+    """
+
+    def __init__(self, *args, e_rev_exc: float = 1.0, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.e_rev_exc = e_rev_exc
+        self._layer_voltages: dict[int, torch.Tensor] = {}
+        self._layer_g_tot: dict[int, torch.Tensor] = {}
+        # Mapping from _layer_info index -> branch-layer index (built lazily)
+        self._layer_to_bl: dict[int, int] = {}
+        self._warned_additive = False
+
+    # ------------------------------------------------------------------
+    # Hooks for capturing voltage and conductance from DendriticBranchLayer
+    # ------------------------------------------------------------------
+    @staticmethod
+    def _make_voltage_hook(voltage_store: dict, g_tot_store: dict, key: int):
+        """Hook to capture post-shunting voltage and total conductance."""
+
+        def hook_fn(module, _inp, output):
+            if hasattr(module, "_diag_g_tot") and module._diag_g_tot is not None:
+                g_tot_store[key] = module._diag_g_tot.detach()
+            if (
+                hasattr(module, "_diag_numerator")
+                and module._diag_numerator is not None
+            ):
+                g_tot = g_tot_store.get(key)
+                if g_tot is not None:
+                    voltage_store[key] = (
+                        module._diag_numerator / (g_tot + 1e-8)
+                    ).detach()
+
+        return hook_fn
+
+    def _build_layer_to_bl_map(self, branch_layers: list[DendriticBranchLayer]) -> None:
+        """Build mapping from ``_layer_info`` index to ``branch_layers`` index.
+
+        ``_layer_info`` contains sub-modules (excitation, blocklinear, inhibition,
+        decoder), while ``branch_layers`` contains the parent DendriticBranchLayer
+        modules. This mapping lets us look up the correct voltage/g_tot data when
+        modulating error at a given sub-module.
+        """
+        self._layer_to_bl.clear()
+        for idx, (mod, *_rest) in enumerate(self._layer_info):
+            for bl_idx, bl in enumerate(branch_layers):
+                if (
+                    mod is getattr(bl, "branch_excitation", None)
+                    or mod is getattr(bl, "branches_to_output", None)
+                    or mod is getattr(bl, "branch_inhibition", None)
+                ):
+                    self._layer_to_bl[idx] = bl_idx
+                    break
+
+    def _epoch_train(self, model, train_loader):
+        model.train()
+        self._initialize_feedback(model)
+
+        # Discover DendriticBranchLayers and build index mapping
+        branch_layers = [
+            m for m in model.modules() if isinstance(m, DendriticBranchLayer)
+        ]
+        self._build_layer_to_bl_map(branch_layers)
+
+        # Warn once if any branch layers are additive (no shunting diagnostics)
+        if not self._warned_additive:
+            additive_bls = [bl for bl in branch_layers if not bl.use_shunting]
+            if additive_bls:
+                logger.warning(
+                    "ShuntingFeedbackAlignmentTrainer: %d branch layer(s) use "
+                    "additive mode. Shunting modulation will be skipped for those "
+                    "layers (falling back to standard %s).",
+                    len(additive_bls),
+                    self.mode.upper(),
+                )
+                self._warned_additive = True
+
+        # Enable diagnostic storage on DendriticBranchLayer modules
+        for bl in branch_layers:
+            bl._store_diagnostics = True
+
+        total_loss = 0.0
+        total_base = 0.0
+
+        try:
+            for batch in train_loader:
+                x_batch = batch[0].to(self.device)
+                y_batch = batch[1].to(self.device)
+
+                # --- forward with activation + voltage caching ---
+                activations: dict[int, torch.Tensor] = {}
+                self._layer_voltages.clear()
+                self._layer_g_tot.clear()
+                handles = []
+
+                # Activation hooks (input caching for gradient computation)
+                for idx, (mod, *_rest) in enumerate(self._layer_info):
+                    handles.append(
+                        mod.register_forward_hook(self._make_hook(activations, idx))
+                    )
+
+                # Voltage hooks on DendriticBranchLayer modules
+                for bl_idx, bl in enumerate(branch_layers):
+                    handles.append(
+                        bl.register_forward_hook(
+                            self._make_voltage_hook(
+                                self._layer_voltages, self._layer_g_tot, bl_idx
+                            )
+                        )
+                    )
+
+                try:
+                    y_hat = model(x_batch)
+                finally:
+                    for h in handles:
+                        h.remove()
+
+                # --- loss (for logging only) ---
+                loss = self.loss_function(model, x_batch, y_batch)
+                total_loss += loss.item()
+                total_base += loss.item()
+
+                # --- output error ---
+                e_output = self._output_error(y_hat, y_batch)
+
+                # --- assign FA/DFA gradients with shunting modulation ---
+                self.optimizer.zero_grad()
+                if self.mode == "fa":
+                    self._grad_fa_shunting(e_output, activations)
+                else:
+                    self._grad_dfa_shunting(e_output, activations)
+
+                if self.grad_clip_value:
+                    torch.nn.utils.clip_grad_value_(
+                        model.parameters(), self.grad_clip_value
+                    )
+                self.optimizer.step()
+        finally:
+            # Always disable diagnostic storage, even on exception
+            for bl in branch_layers:
+                bl._store_diagnostics = False
+
+        n = len(train_loader)
+        return total_loss / n, total_base / n, 0.0
+
+    def _modulate_error_with_shunting(
+        self, e_local: torch.Tensor, layer_idx: int
+    ) -> torch.Tensor:
+        """Modulate projected error by R_tot * (E_rev - V) if available.
+
+        Uses the ``_layer_to_bl`` mapping to translate from ``_layer_info``
+        indices to ``branch_layers`` indices where voltage data is stored.
+        Falls back to unmodulated error if no shunting data is available.
+        """
+        bl_idx = self._layer_to_bl.get(layer_idx)
+        if (
+            bl_idx is not None
+            and bl_idx in self._layer_voltages
+            and bl_idx in self._layer_g_tot
+        ):
+            v_n = self._layer_voltages[bl_idx]
+            g_tot = self._layer_g_tot[bl_idx]
+            R_tot = 1.0 / (g_tot + 1e-8)
+            driving = self.e_rev_exc - v_n
+            # Average over spatial dims if needed, keep [B, out] shape
+            if R_tot.dim() > e_local.dim():
+                R_tot = R_tot.mean(dim=-1)
+                driving = driving.mean(dim=-1)
+            # Match dimensions (sub-module output may differ from branch output)
+            if R_tot.size(-1) == e_local.size(-1):
+                e_local = e_local * R_tot * driving
+        return e_local
+
+    def _grad_fa_shunting(
+        self,
+        e_output: torch.Tensor,
+        activations: dict[int, torch.Tensor],
+    ) -> None:
+        """FA with shunting modulation at each layer."""
+        e = e_output.detach()
+        n = len(self._layer_info)
+
+        for idx in range(n - 1, -1, -1):
+            mod, pname, out_dim, _in_dim = self._layer_info[idx]
+            h_in = activations.get(idx)
+            if h_in is None or e.size(-1) != out_dim:
+                if idx > 0:
+                    e = e @ self._B_fa[idx].t()
+                continue
+
+            # Modulate with shunting signals before computing gradient
+            e_mod = self._modulate_error_with_shunting(e, idx)
+            grad_dense = e_mod.t() @ h_in
+            self._assign_grad(mod, pname, grad_dense)
+
+            if isinstance(mod, nn.Linear) and mod.bias is not None:
+                gb = e_mod.sum(0)
+                mod.bias.grad = (
+                    gb.to(mod.bias.dtype)
+                    if mod.bias.grad is None
+                    else mod.bias.grad + gb.to(mod.bias.dtype)
+                )
+
+            if idx > 0:
+                e = e @ self._B_fa[idx].t()
+
+    def _grad_dfa_shunting(
+        self,
+        e_output: torch.Tensor,
+        activations: dict[int, torch.Tensor],
+    ) -> None:
+        """DFA with shunting modulation at each layer."""
+        e_out = e_output.detach()
+        n = len(self._layer_info)
+
+        for idx in range(n):
+            mod, pname, out_dim, _in_dim = self._layer_info[idx]
+            h_in = activations.get(idx)
+            if h_in is None:
+                continue
+
+            if idx == n - 1:
+                e_local = e_out
+            else:
+                e_local = e_out @ self._B_dfa[idx].t()
+
+            if e_local.size(-1) != out_dim:
+                continue
+
+            # Modulate with shunting signals
+            e_local = self._modulate_error_with_shunting(e_local, idx)
             grad_dense = e_local.t() @ h_in
             self._assign_grad(mod, pname, grad_dense)
 

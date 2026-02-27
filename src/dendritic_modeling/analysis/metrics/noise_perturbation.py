@@ -80,9 +80,9 @@ class NoisePerturbationAnalyzer:
             Dictionary containing noise robustness results if save_path is None, otherwise None
         """
         model = model.to(device)
-        x, y = test_dataset[:]
-        x: torch.Tensor = x.to(device)
-        y: torch.Tensor = y.to(device)
+        items = test_dataset[:]
+        x: torch.Tensor = items[0].to(device)
+        y: torch.Tensor = items[1].to(device)
         y = y[None, ...].expand(self.n_samples, *y.shape)
 
         noise_results = {}

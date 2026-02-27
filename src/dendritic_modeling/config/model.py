@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Any, Optional
 
 from dendritic_modeling.config.base import BaseConfig
 from dendritic_modeling.config.recurrent import RecurrentConfig
@@ -150,6 +150,9 @@ class CoreConfig(BaseConfig):
     blocklinear: BlockLinearConfig = field(default_factory=BlockLinearConfig)
     implementation: ImplementationConfig = field(default_factory=ImplementationConfig)
     recurrent: RecurrentConfig = field(default_factory=RecurrentConfig)
+    # Optional config payload for the new unified E-I architecture.
+    # Kept as a plain dict to avoid coupling config package to architecture modules.
+    unified_ei: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass

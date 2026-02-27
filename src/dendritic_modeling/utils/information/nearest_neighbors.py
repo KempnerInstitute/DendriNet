@@ -43,8 +43,8 @@ def compute_mi_cc(x: np.ndarray, y: np.ndarray, n_neighbors: int) -> float:
     k = int(n_neighbors)
     if n_samples <= 1 or k < 1:
         return 0.0
-    # Cap k to exclude the query point itself.
-    k = min(k, n_samples - 1)
+    # Cap k so that k+1 (including self) < n_samples, as required by sklearn.
+    k = min(k, n_samples - 2)
     if k < 1:
         return 0.0
 
@@ -197,8 +197,8 @@ def compute_mi_cd(c: np.ndarray, d: np.ndarray, n_neighbors: int) -> float:
     for label in np.unique(d):
         mask = d == label
         count = np.sum(mask)
-        if count > 1:
-            k = min(k_global, count - 1)
+        if count > 2:
+            k = min(k_global, count - 2)
             # Include self as neighbor 0 when querying training points.
             nn.set_params(n_neighbors=k + 1)
             nn.fit(c[mask])
@@ -207,8 +207,8 @@ def compute_mi_cd(c: np.ndarray, d: np.ndarray, n_neighbors: int) -> float:
             k_all[mask] = k
         label_counts[mask] = count
 
-    # Ignore points with unique labels.
-    mask = label_counts > 1
+    # Ignore points from labels with too few samples for kNN (need >= 3).
+    mask = label_counts > 2
     n_samples = np.sum(mask)
     label_counts = label_counts[mask]
     k_all = k_all[mask]

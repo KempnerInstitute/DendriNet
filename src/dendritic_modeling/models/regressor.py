@@ -26,12 +26,12 @@ class Regressor(BaseModel):
     ):
         super().__init__(encoder_network, core_network, decoder_network)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return super().forward(x)
+    def forward(self, x: torch.Tensor, **kwargs) -> torch.Tensor:
+        return super().forward(x, **kwargs)
 
-    def predict(self, x: torch.Tensor) -> torch.Tensor:
+    def predict(self, x: torch.Tensor, **kwargs) -> torch.Tensor:
         with torch.no_grad():
-            return self.forward(x)
+            return self.forward(x, **kwargs)
 
 
 __all__ = ["Regressor"]

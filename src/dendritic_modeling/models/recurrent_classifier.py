@@ -18,15 +18,15 @@ class RecurrentClassifier(BaseModel):
     - [B, T, C] -> [B, T]  (many-to-many, output_mode="all")
     """
 
-    def predict(self, x: torch.Tensor) -> torch.Tensor:
+    def predict(self, x: torch.Tensor, **kwargs) -> torch.Tensor:
         """Returns class indices. [B] for many-to-one, [B, T] for many-to-many."""
         with torch.no_grad():
-            return self.forward(x).argmax(dim=-1)
+            return self.forward(x, **kwargs).argmax(dim=-1)
 
-    def eval_logits(self, x: torch.Tensor) -> torch.Tensor:
+    def eval_logits(self, x: torch.Tensor, **kwargs) -> torch.Tensor:
         """Returns [B, C] logits for analysis code. Reduces 3D via last timestep."""
         with torch.no_grad():
-            out = self.forward(x)
+            out = self.forward(x, **kwargs)
             if out.dim() == 3:
                 out = out[:, -1, :]
             return out

@@ -122,9 +122,9 @@ class SingleLayerContributionAnalyzer:
         # Ensure model is on the correct device
         model = model.to(device)
         model.eval()
-        inputs, labels = test_dataset[:]
-        inputs: torch.Tensor = inputs.to(device)
-        labels: torch.Tensor = labels.to(device)
+        items = test_dataset[:]
+        inputs: torch.Tensor = items[0].to(device)
+        labels: torch.Tensor = items[1].to(device)
         test_dataset = TensorDataset(inputs, labels)
 
         state_dict = deepcopy(model.state_dict())

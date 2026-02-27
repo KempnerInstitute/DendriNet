@@ -67,6 +67,8 @@ class LocalCreditAssignment(Trainer):
         self.local_cfg = self._build_local_rule_config(config_dict)
         self._layer_stats: dict[int, _LayerStats] = {}
         self._decoder_cache: dict[str, Any] = {}
+        self._additive_gain_cache: dict[str, Any] = {}
+        self._additive_running_var: dict[int, torch.Tensor] = {}
         self._warned_decoder_soma_fallback = False
         self.filename_prefix = "local_learning_"
         self.logger_info_prefix = "[Local] "
@@ -107,6 +109,8 @@ class LocalCreditAssignment(Trainer):
                 "theta",
                 "e_rev_exc",
                 "e_rev_inh",
+                "additive_gain_mode",
+                "additive_stats_ema_alpha",
             ],
             "four_factor": [
                 "rho_mode",
@@ -231,7 +235,8 @@ class LocalCreditAssignment(Trainer):
             # Defer to base implementation
             return super()._epoch_train(model, train_loader)
 
-        for x_batch, y_batch in train_loader:
+        for batch in train_loader:
+            x_batch, y_batch = batch[0], batch[1]
             # Resolve per-epoch schedule for reactivation/decoder behavior
             update_reactivation = self.local_cfg.update_reactivation
             decoder_update_mode = self.local_cfg.decoder_update_mode
@@ -931,8 +936,30 @@ class LocalCreditAssignment(Trainer):
                     post_mod = v_n - self.local_cfg.three_factor.theta
                 post_factor = e_n * R_tot * post_mod  # [B, out]
             else:
-                # Additive rule: dV/dg_exc = x (no driving-force or R_tot factor).
-                post_factor = e_n
+                # Additive rule — with optional gain control modes.
+                additive_mode = getattr(
+                    self.local_cfg.three_factor, "additive_gain_mode", "none"
+                )
+                if additive_mode == "learned_gain":
+                    gain_params = self._ensure_additive_gain_params(
+                        v_n.size(1), v_n.device
+                    )
+                    gain_n = torch.sigmoid(gain_params)  # [out]
+                    post_factor = e_n * gain_n.unsqueeze(0)  # [B, out]
+                elif additive_mode == "input_dependent":
+                    pseudo_R, pseudo_drive = self._compute_additive_pseudo_signals(
+                        rec, v_n
+                    )
+                    post_factor = e_n * pseudo_R * pseudo_drive  # [B, out]
+                elif additive_mode == "running_stats":
+                    inv_std = self._get_additive_running_inv_std(layer_idx, v_n)
+                    post_factor = e_n * inv_std  # [B, out]
+                else:
+                    post_factor = e_n  # Original behavior
+
+            # Save raw post_factor before morphology scaling so inhibitory/dendritic
+            # sections can reuse it without double-applying rho/phi/branch_scale.
+            post_factor_raw = post_factor
 
             # Apply morphology/information factors
             if isinstance(rho, torch.Tensor):
@@ -985,8 +1012,20 @@ class LocalCreditAssignment(Trainer):
                         inh_post = self.local_cfg.three_factor.theta - v_n
                     inh_factor = e_n * R_tot * inh_post  # [B, out]
                 else:
-                    # Additive rule: V = exc + den - inh, so dV/dg_inh = -x.
-                    inh_factor = -e_n
+                    # Additive inhibitory rule — with optional gain control.
+                    additive_mode = getattr(
+                        self.local_cfg.three_factor, "additive_gain_mode", "none"
+                    )
+                    if additive_mode == "input_dependent":
+                        pseudo_R, _ = self._compute_additive_pseudo_signals(rec, v_n)
+                        inh_post = self.local_cfg.three_factor.theta - v_n
+                        inh_factor = e_n * pseudo_R * inh_post  # [B, out]
+                    elif additive_mode in ("learned_gain", "running_stats"):
+                        # Reuse raw (pre-morphology) post_factor, negate for inhibitory.
+                        # Morphology factors (rho, phi, branch_scale) are applied below.
+                        inh_factor = -post_factor_raw
+                    else:
+                        inh_factor = -e_n  # Original behavior
 
                 # Apply morphology/information factors (same as excitatory)
                 if isinstance(rho, torch.Tensor):
@@ -1050,8 +1089,22 @@ class LocalCreditAssignment(Trainer):
                         R_exp = torch.ones_like(v_n).unsqueeze(-1) * float(R_tot)
                     den_factor = e_n.unsqueeze(-1) * R_exp * diff
                 else:
-                    # Additive rule: V = ... + sum_j g_j * V_j, so dV/dg_j = V_j.
-                    den_factor = e_n.unsqueeze(-1) * x_blk
+                    # Additive dendritic rule — with optional gain control.
+                    additive_mode = getattr(
+                        self.local_cfg.three_factor, "additive_gain_mode", "none"
+                    )
+                    if additive_mode == "input_dependent":
+                        pseudo_R, pseudo_drive = self._compute_additive_pseudo_signals(
+                            rec, v_n
+                        )
+                        diff = x_blk - v_n.unsqueeze(-1)
+                        den_factor = e_n.unsqueeze(-1) * pseudo_R.unsqueeze(-1) * diff
+                    elif additive_mode in ("learned_gain", "running_stats"):
+                        # Use raw (pre-morphology) post_factor; rho/phi/branch_scale
+                        # are applied below to avoid double-counting.
+                        den_factor = post_factor_raw.unsqueeze(-1) * x_blk
+                    else:
+                        den_factor = e_n.unsqueeze(-1) * x_blk
 
                 # Apply rho (may be tensor if using depth modulation)
                 if self.local_cfg.rule_variant in {"4f", "5f"}:
@@ -1404,6 +1457,64 @@ class LocalCreditAssignment(Trainer):
                 cov_zy = (z.t() @ y) / float(batch_size)
                 grad_z = -2.0 * (cov_zy @ y.t()).t() / float(batch_size)
                 return grad_z * self.local_cfg.hsic.weight * weight
+
+    # ----------------------- Helper: additive gain modes --------------------
+
+    def _ensure_additive_gain_params(
+        self, out_features: int, device: torch.device
+    ) -> torch.Tensor:
+        """Get or create per-neuron learnable gain params for additive mode.
+
+        Uses ``_additive_gain_cache`` (persists across steps) rather than
+        ``_decoder_cache`` (cleared every forward pass).
+        """
+        key = f"additive_gain_{out_features}"
+        if key not in self._additive_gain_cache:
+            # Initialize so sigmoid(param) ≈ 0.5
+            param = torch.nn.Parameter(torch.zeros(out_features, device=device))
+            self.optimizer.add_param_group(
+                {"params": [param], "lr": self.optimizer.param_groups[0]["lr"]}
+            )
+            self._additive_gain_cache[key] = param
+        return self._additive_gain_cache[key]
+
+    def _compute_additive_pseudo_signals(
+        self, rec: dict[str, Any], v_n: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """Compute pseudo-R_tot and pseudo-driving-force for additive networks.
+
+        pseudo_R: analogous to 1/g_tot; normalizes by total activation magnitude
+        pseudo_drive: analogous to (E_rev - V); uses voltage deviation from mean
+        """
+        # Compute pseudo input resistance from absolute activations
+        total_activation = torch.ones_like(v_n)
+        exc_out = rec.get("exc_out")
+        if exc_out is not None:
+            total_activation = total_activation + exc_out.abs()
+        inh_out = rec.get("inh_out")
+        if inh_out is not None:
+            total_activation = total_activation + inh_out.abs()
+        pseudo_R = 1.0 / (total_activation + 1e-8)  # [B, out]
+
+        # Compute pseudo driving force from voltage deviation
+        v_mean = v_n.mean(dim=0, keepdim=True)  # [1, out]
+        pseudo_drive = v_mean - v_n + 1.0  # Shift to ensure non-zero baseline
+        return pseudo_R, pseudo_drive
+
+    def _get_additive_running_inv_std(
+        self, layer_idx: int, v_n: torch.Tensor
+    ) -> torch.Tensor:
+        """Return inverse running std for additive normalization scaling."""
+        stats = self._layer_stats.setdefault(layer_idx, _LayerStats())
+        alpha = getattr(self.local_cfg.three_factor, "additive_stats_ema_alpha", 0.01)
+        with torch.no_grad():
+            batch_var = v_n.var(dim=0)  # [out]
+            if stats.var_ema is None:
+                stats.var_ema = batch_var.detach()
+            else:
+                stats.var_ema = (1 - alpha) * stats.var_ema + alpha * batch_var.detach()
+        inv_std = 1.0 / (stats.var_ema.sqrt() + 1e-6)  # [out]
+        return inv_std.unsqueeze(0)  # [1, out]
 
     # ----------------------- Helper: rho and phi factors --------------------
     def _compute_layer_rho(self, rec: dict[str, Any], v0: torch.Tensor) -> float:

@@ -54,6 +54,9 @@ class DataProcessingConfig(BaseConfig):
 
     flatten: bool = True
     normalize: bool = False
+    label_noise_rate: float = (
+        0.0  # Fraction of training labels to randomize (0 = clean)
+    )
 
 
 @dataclass
@@ -224,6 +227,7 @@ def _map_analysis_config(analysis_data: dict) -> dict:
         "synaptic_activation": "synaptic_activation_analysis",
         "branch_activation": "branch_activation_analysis",
         "routing": "routing_analysis",
+        "adversarial_robustness": "adversarial_robustness_analysis",
     }
 
     for new_name, old_name in field_mapping.items():

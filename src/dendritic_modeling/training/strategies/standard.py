@@ -360,8 +360,8 @@ class Trainer:
         # Check once if regularization is enabled to avoid repeated checks
         has_regularization = self.regularization_manager.has_regularization()
 
-        for x_batch, y_batch in train_loader:
-            x_batch, y_batch = x_batch.to(self.device), y_batch.to(self.device)
+        for batch in train_loader:
+            x_batch, y_batch = batch[0].to(self.device), batch[1].to(self.device)
 
             if self.enable_amp:
                 # Mixed precision forward pass
@@ -448,11 +448,9 @@ class Trainer:
         model.eval()
         valid_loss = 0
         with torch.no_grad():
-            for x_batch, y_batch in valid_loader:
-                x_batch: torch.Tensor
-                y_batch: torch.Tensor
-                x_batch = x_batch.to(self.device)
-                y_batch = y_batch.to(self.device)
+            for batch in valid_loader:
+                x_batch: torch.Tensor = batch[0].to(self.device)
+                y_batch: torch.Tensor = batch[1].to(self.device)
                 loss: torch.Tensor = self.loss_function(model, x_batch, y_batch)
                 valid_loss += loss.item()
 

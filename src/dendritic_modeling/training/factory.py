@@ -23,6 +23,7 @@ from dendritic_modeling.training.strategies import (
     LayerWiseTrainer,
     LocalCreditAssignment,
     RecurrentTrainer,
+    ShuntingFeedbackAlignmentTrainer,
     Trainer,
     TwoStepTrainer,
     TwoStepTrainerWithKL,
@@ -224,6 +225,18 @@ def get_trainer(
         trainer_config_dict.update(enhanced_configs)
         trainer_config_dict["mode"] = "dfa"
         return FeedbackAlignmentTrainer(**trainer_config_dict)
+    elif strategy == "shunting_fa":
+        enhanced_configs = _extract_enhanced_configs(trainer_config_dict)
+        trainer_config_dict.update(enhanced_configs)
+        trainer_config_dict["mode"] = "fa"
+        e_rev = trainer_config_dict.pop("e_rev_exc", 1.0)
+        return ShuntingFeedbackAlignmentTrainer(**trainer_config_dict, e_rev_exc=e_rev)
+    elif strategy == "shunting_dfa":
+        enhanced_configs = _extract_enhanced_configs(trainer_config_dict)
+        trainer_config_dict.update(enhanced_configs)
+        trainer_config_dict["mode"] = "dfa"
+        e_rev = trainer_config_dict.pop("e_rev_exc", 1.0)
+        return ShuntingFeedbackAlignmentTrainer(**trainer_config_dict, e_rev_exc=e_rev)
     elif strategy == "local_ca":
         enhanced_configs = _extract_enhanced_configs(trainer_config_dict)
         trainer_config_dict.update(enhanced_configs)

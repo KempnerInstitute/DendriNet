@@ -864,9 +864,9 @@ class CorrelationAnalyzer(AbstractAnalyzer):
             model = model.to(device)
             model.eval()
 
-            inputs, labels = test_dataset[:]
-            inputs = inputs.to(device)
-            labels_np = labels.numpy()
+            items = test_dataset[:]
+            inputs = items[0].to(device)
+            labels_np = items[1].numpy()
 
             # Sample data if needed
             if self.max_samples and len(inputs) > self.max_samples:

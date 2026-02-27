@@ -5,6 +5,7 @@
 #   - grad_clip_value in common
 #   - Added: sparsity, blocklinear, implementation, regularization, pruning sections
 #   - Lower group LRs: blocklinear=0.0001, reactivation=0.0001, decoder=0.01
+# V2 fix: batch_size=32 (from 128) to avoid OOM with 243-terminal tree
 # Conditions: {shunting, additive} x {lr: 0.001, 0.003, 0.005} x 3 seeds = 18 jobs
 output_dir: /n/holylfs06/LABS/kempner_project_b/Lab/dendritic/HS/LOCAL_LEARNING/sweep_runs
 slurm_config:
@@ -15,7 +16,7 @@ slurm_config:
   ntasks_per_node: 1
   gpus_per_node: 1
   cpus_per_task: 8
-  mem: 64GB
+  mem: 96GB
   max_concurrent_jobs: 10
   modules_to_load: []
   conda_env_path: ''
@@ -116,7 +117,7 @@ base_config:
       strategy: standard
       common:
         epochs: 500
-        batch_size: 128
+        batch_size: 32
         shuffle: true
         grad_clip_value: 5.0
         loss_function: cat_nll
@@ -322,8 +323,8 @@ base_config:
         per_class_analysis: false
         n_samples: 1000
     compartment_snr_analysis:
-      enabled: true
-      training: true
+      enabled: false
+      training: false
       params:
         global_analysis: true
         layer_analysis: true

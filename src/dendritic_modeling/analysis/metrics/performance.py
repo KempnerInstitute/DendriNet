@@ -76,16 +76,17 @@ class PerformanceAnalyzer:
         ):
             if dataset is not None:
                 try:
-                    inputs, labels = dataset[:]
+                    items = dataset[:]
+                    inputs, labels = items[0], items[1]
                 except Exception:
                     # Some dataset wrappers (e.g., Subset over custom datasets) do not
                     # support slice/list indexing. Materialize via DataLoader instead.
                     xs = []
                     ys = []
                     loader = DataLoader(dataset, batch_size=1024, shuffle=False)
-                    for x_batch, y_batch in loader:
-                        xs.append(x_batch)
-                        ys.append(y_batch)
+                    for batch in loader:
+                        xs.append(batch[0])
+                        ys.append(batch[1])
                     inputs = torch.cat(xs, dim=0)
                     labels = torch.cat(ys, dim=0)
                 inputs: torch.Tensor = inputs.to(device)

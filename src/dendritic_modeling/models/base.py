@@ -20,11 +20,6 @@ from dendritic_modeling.networks import (
     TopKLinear,
 )
 
-try:
-    from dendritic_modeling.networks.architectures.recurrent import DendriticRNNNetwork
-except (ImportError, ModuleNotFoundError):
-    DendriticRNNNetwork = None
-
 
 class BaseModel(nn.Module):
     def __init__(
@@ -38,12 +33,16 @@ class BaseModel(nn.Module):
         self.encoder_network = encoder_network
         self.core_network = core_network
         self.decoder_network = decoder_network
-        # Cache once: non-recurrent models avoid per-forward isinstance checks.
-        self._is_recurrent_core = DendriticRNNNetwork is not None and isinstance(
-            self.core_network, DendriticRNNNetwork
-        )
+        # Cache once: non-recurrent models avoid per-forward branching checks.
+        # EINetwork.is_recurrent property handles this.
+        recurrent_flag = getattr(self.core_network, "is_recurrent", False)
+        if callable(recurrent_flag):
+            recurrent_flag = recurrent_flag()
+        self._is_recurrent_core = bool(recurrent_flag)
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self, x: torch.Tensor, seq_lengths: torch.Tensor | None = None
+    ) -> torch.Tensor:
         # Recurrent cores expect [batch, seq_len, feature_dim]
         # Encoder may need per-timestep application
         if self._is_recurrent_core:
@@ -55,7 +54,7 @@ class BaseModel(nn.Module):
                 x = x.reshape(B, T, -1)
             else:
                 x = self.encoder_network(x)
-            x = self.core_network(x)
+            x = self.core_network(x, seq_lengths=seq_lengths)
         else:
             x = self.encoder_network(x)
             x = self.core_network(x)

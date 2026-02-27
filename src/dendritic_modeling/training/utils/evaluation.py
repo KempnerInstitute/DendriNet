@@ -136,9 +136,11 @@ def _evaluate_metric_generic(
 
     for dataset in datasets:
         if dataset is not None:
+            items = dataset[:]
             result: torch.Tensor = metric_func(
                 model,
-                *dataset[:],
+                items[0],
+                items[1],
                 reduce_dim=reduce_dim,
                 move_device=move_device,
                 device=device,
