@@ -222,3 +222,6 @@ external/
 scripts/
 scratch/
 figures/
+outputs_smoke/
+outputs_sweep_smoke/
+tmp/
