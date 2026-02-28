@@ -41,6 +41,59 @@ def _reduce_temporal_labels(labels: torch.Tensor, expected_dims: int) -> torch.T
     return labels
 
 
+def _flatten_labels_for_grouped_logits(
+    labels: torch.Tensor, logits: torch.Tensor
+) -> torch.Tensor:
+    """Match labels to non-temporal grouped logits and flatten to [N_total]."""
+    if labels.dim() == logits.dim() - 1 and labels.shape == logits.shape[:-1]:
+        return labels.reshape(-1)
+
+    # Support logits [G, B, C] with labels [B] by repeating labels over G.
+    if logits.dim() >= 3 and labels.dim() == 1 and labels.shape[0] == logits.shape[-2]:
+        expanded = labels
+        for _ in range(logits.dim() - 2):
+            expanded = expanded.unsqueeze(0)
+        expanded = expanded.expand(*logits.shape[:-2], labels.shape[0])
+        return expanded.reshape(-1)
+
+    # Fallback: reduce extra axes in labels and flatten.
+    if labels.dim() > 1:
+        labels = _reduce_temporal_labels(labels, expected_dims=1)
+    return labels.reshape(-1)
+
+
+def _prepare_classification_logits_and_labels(
+    classifier: Classifier, inputs: torch.Tensor, labels: torch.Tensor
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Normalize classifier outputs/labels for metric computation.
+
+    - Recurrent [B, T, C] outputs are reduced to the last timestep.
+    - Grouped non-temporal outputs (e.g. [G, B, C]) are flattened to [N_total, C].
+    """
+    logits = classifier(inputs)
+    labels = labels.long()
+
+    if logits.dim() == 1:
+        logits = logits.unsqueeze(0)
+
+    is_recurrent_core = bool(getattr(classifier, "_is_recurrent_core", False))
+    if logits.dim() == 3 and is_recurrent_core:
+        logits = _reduce_temporal(logits)
+        labels = _reduce_temporal_labels(labels, expected_dims=1)
+        return logits, labels.reshape(-1)
+
+    if logits.dim() >= 3:
+        labels_flat = _flatten_labels_for_grouped_logits(labels, logits)
+        logits_flat = logits.reshape(-1, logits.shape[-1])
+        return logits_flat, labels_flat
+
+    if labels.dim() > 1:
+        labels = _reduce_temporal_labels(labels, expected_dims=1)
+    if labels.dim() == 0:
+        labels = labels.unsqueeze(0)
+    return logits, labels
+
+
 def _compute_metric_score(
     computation_func: Callable,
     model: Union[Classifier, Regressor],
@@ -180,19 +233,14 @@ def _compute_accuracy(
     labels: torch.Tensor,
     reduce_dim: int = 0,
 ) -> torch.Tensor:
-    yhat = classifier.predict(inputs)
-    # Ensure both yhat and labels are on the same device and have compatible dtypes
-    yhat = yhat.to(labels.device)
-    # Convert labels to Long if they aren't already (for proper comparison)
-    labels = labels.long()
-    yhat = yhat.long()
-    # Compute accuracy with proper dtype handling
-    correct = (yhat == labels).float()
-    # For many-to-many outputs (e.g., [B, T]), return a scalar accuracy
-    # averaged across all dimensions to keep reporting shape-consistent.
-    if correct.dim() > 1:
-        return correct.mean()
-    return torch.mean(correct, dim=reduce_dim)
+    logits, labels = _prepare_classification_logits_and_labels(
+        classifier, inputs, labels
+    )
+    yhat = logits.argmax(dim=-1).long().to(labels.device)
+    correct = (yhat == labels.long()).float()
+    if correct.numel() == 0:
+        return torch.tensor(float("nan"), device=logits.device)
+    return correct.mean()
 
 
 def accuracy_score(
@@ -281,10 +329,31 @@ def _compute_auc(
     labels: torch.Tensor,
     reduce_dim: int = 0,
 ) -> torch.Tensor:
-    # Ensure labels are Long dtype for AUC computation
-    labels = _reduce_temporal_labels(labels.long(), expected_dims=1)
-    logits = _reduce_temporal(classifier(inputs))
-    return roc_auc_score(labels, logits, dim=reduce_dim)
+    _ = reduce_dim  # AUC is always computed over flattened sample axis.
+    logits, labels = _prepare_classification_logits_and_labels(
+        classifier, inputs, labels
+    )
+    labels = labels.long()
+    unique_labels = torch.unique(labels)
+
+    # AUC is undefined for a single-class target set.
+    if unique_labels.numel() < 2:
+        return torch.tensor(0.5, device=logits.device, dtype=torch.float32)
+
+    # Allow datasets where only a subset of classes is present in labels.
+    if logits.dim() == 2 and logits.shape[-1] != unique_labels.numel():
+        class_indices = unique_labels.long()
+        if class_indices.numel() <= logits.shape[-1]:
+            logits = logits.index_select(-1, class_indices)
+            label_map = {
+                int(old_label.item()): new_idx
+                for new_idx, old_label in enumerate(class_indices)
+            }
+            labels = labels.clone()
+            for old_label, new_idx in label_map.items():
+                labels[labels == old_label] = new_idx
+
+    return roc_auc_score(labels, logits, dim=0)
 
 
 def auc_score(
@@ -373,11 +442,17 @@ def _compute_loglikelihood(
     labels: torch.Tensor,
     reduce_dim: int = 0,
 ) -> torch.Tensor:
-    # Ensure labels are Long dtype for categorical distribution
-    labels = _reduce_temporal_labels(labels.long(), expected_dims=1)
-    logits = _reduce_temporal(classifier(inputs))
-    log_probs = Categorical(logits=logits).log_prob(labels)
-    return torch.mean(log_probs, dim=reduce_dim)
+    logits, labels = _prepare_classification_logits_and_labels(
+        classifier, inputs, labels
+    )
+    log_probs = Categorical(logits=logits).log_prob(labels.long())
+    if log_probs.numel() == 0:
+        return torch.tensor(float("nan"), device=logits.device)
+    if log_probs.dim() == 0:
+        return log_probs
+    if -log_probs.dim() <= reduce_dim < log_probs.dim():
+        return torch.mean(log_probs, dim=reduce_dim)
+    return torch.mean(log_probs)
 
 
 def categorical_loglikelihood_score(

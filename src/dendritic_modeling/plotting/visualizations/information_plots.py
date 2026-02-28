@@ -2736,6 +2736,37 @@ def plot_fully_aggregated_analysis(
         part_idx: Optional[int] = None,
         n_parts: Optional[int] = None,
     ) -> None:
+        def _group_has_available_data(metrics_list: list) -> bool:
+            for metric, _color, _label in metrics_list:
+                metric_list = _metric_candidates(metric)
+                if any(
+                    (
+                        depth_label in final_aggregated
+                        and any(
+                            f"{m}_mean" in final_aggregated[depth_label]
+                            for m in metric_list
+                        )
+                    )
+                    for depth_label in sorted_depths
+                ):
+                    return True
+            return False
+
+        metric_groups = [
+            (plot_title, metrics_list)
+            for plot_title, metrics_list in metric_groups
+            if _group_has_available_data(metrics_list)
+        ]
+        if not metric_groups:
+            logger.info(
+                "Skipping %s%s: no available metrics in aggregated results",
+                metric_category,
+                f" part {part_idx}/{n_parts}"
+                if part_idx is not None and n_parts is not None
+                else "",
+            )
+            return
+
         n_plots = len(metric_groups)
         n_cols = 3  # Use 3 columns for better layout
         n_rows = (n_plots + n_cols - 1) // n_cols
@@ -2802,8 +2833,18 @@ def plot_fully_aggregated_analysis(
                             )
 
                 if x_positions and values:
+                    valid_points = [
+                        (x, v, e)
+                        for x, v, e in zip(x_positions, values, errors)
+                        if np.isfinite(v) and np.isfinite(e)
+                    ]
+                    if not valid_points:
+                        continue
+
                     has_data = True
-                    x_pos = np.asarray(x_positions)
+                    x_pos = np.asarray([x for x, _, _ in valid_points], dtype=float)
+                    values = np.asarray([v for _, v, _ in valid_points], dtype=float)
+                    errors = np.asarray([e for _, _, e in valid_points], dtype=float)
 
                     ax.errorbar(
                         x_pos,
@@ -2819,8 +2860,8 @@ def plot_fully_aggregated_analysis(
 
                     ax.fill_between(
                         x_pos,
-                        [v - e for v, e in zip(values, errors)],
-                        [v + e for v, e in zip(values, errors)],
+                        values - errors,
+                        values + errors,
                         alpha=0.15,
                         color=color,
                     )

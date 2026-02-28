@@ -390,14 +390,25 @@ def plot_performance_vs_gain_training(
     video_filename = f"{metric}_vs_gain_training"
     os.makedirs(save_path, exist_ok=True)
 
-    try:
-        writer = animation.FFMpegWriter(fps=10, bitrate=1800)
-        video_path = os.path.join(save_path, f"{video_filename}.mp4")
-        anim.save(video_path, writer=writer)
-        logger.info(f"Video saved to {video_path}")
-    except Exception as e:
-        logger.warning(f"Error saving MP4 video: {e}")
-        logger.info("Falling back to GIF format...")
+    ffmpeg_available = animation.writers.is_available("ffmpeg")
+    if ffmpeg_available:
+        try:
+            writer = animation.FFMpegWriter(fps=10, bitrate=1800)
+            video_path = os.path.join(save_path, f"{video_filename}.mp4")
+            anim.save(video_path, writer=writer)
+            logger.info(f"Video saved to {video_path}")
+        except Exception as e:
+            logger.warning(f"Error saving MP4 video: {e}")
+            logger.info("Falling back to GIF format...")
+            try:
+                writer = animation.PillowWriter(fps=10)
+                video_path = os.path.join(save_path, f"{video_filename}.gif")
+                anim.save(video_path, writer=writer)
+                logger.info(f"GIF saved to {video_path}")
+            except Exception as e2:
+                logger.error(f"Error saving GIF video: {e2}")
+    else:
+        logger.info("ffmpeg writer not available; saving GIF format...")
         try:
             writer = animation.PillowWriter(fps=10)
             video_path = os.path.join(save_path, f"{video_filename}.gif")
