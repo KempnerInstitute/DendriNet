@@ -107,8 +107,6 @@ analysis:
           n_shuffles: 0                   # Null (label-shuffle) baseline shuffles (int >= 0; produces *_null metrics)
           seed: 0                         # Null baseline seed (int)
           components: ["basic"]           # Null components: "basic", "conditional", "ablation_aligned", "upstream_unique_cmi", "all"
-          conditional_shuffle: "auto"     # Conditional null shuffle: "auto", "global", "bins"
-          conditional_bins: 10            # If using bins: number of Z-bins (int >= 2)
     training: false
   noise_perturbation_analysis:
     enabled: false
@@ -359,10 +357,6 @@ wandb:
   enabled: true
   entity: null
   group: large-scale-ei
-  log_activations: false
-  log_freq: 100
-  log_gradients: false
-  log_parameters: false
   project: dendritic-fsdp-experiments
   tags:
   - fsdp

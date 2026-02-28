@@ -590,8 +590,6 @@ base_config:
             n_shuffles: 0                   # Null (label-shuffle) baseline shuffles (int >= 0; produces *_null metrics)
             seed: 0                         # Null baseline seed (int)
             components: ["basic"]           # Null components: "basic", "conditional", "ablation_aligned", "upstream_unique_cmi", "all"
-            conditional_shuffle: "auto"     # Conditional null shuffle: "auto", "global", "bins"
-            conditional_bins: 10            # If using bins: number of Z-bins (int >= 2)
 
     correlation_analysis:
       enabled: false                      # Enable correlation analysis (true/false)
@@ -767,10 +765,6 @@ base_config:
     group: "unified_sweep"                # W&B group name (string)
     tags: ["debug"]                       # W&B tags (list of strings)
     enabled: true                         # Enable W&B features (true/false)
-    log_freq: 100                         # Logging frequency in steps
-    log_gradients: false                  # Log gradients (true/false)
-    log_parameters: false                 # Log parameters (true/false)
-    log_activations: false                # Log activations (true/false)
 
   # ============================================================================
   # OUTPUTS
