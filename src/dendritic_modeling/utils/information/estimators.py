@@ -265,12 +265,29 @@ class KraskovEstimator(BaseInformationEstimator):
             for val in np.unique(z_labels):
                 mask = z_labels == val
                 n = int(np.sum(mask))
-                if n <= 1:
+                # kNN MI/CMI estimators query the training set itself, so they require
+                # n_neighbors < n_samples_fit. For a subgroup of size n, this implies
+                # k+1 < n => k <= n-2.
+                if n <= 2:
                     continue
-                k_sub = min(k, n - 1)
+                k_sub = min(k, n - 2)
                 if k_sub < 1:
                     continue
-                mi_sub = self._mutual_information_with_k(x[mask], y[mask], k_sub)
+                try:
+                    mi_sub = self._mutual_information_with_k(x[mask], y[mask], k_sub)
+                except ValueError as exc:
+                    # Be tolerant to rare degenerate subgroups where sklearn rejects
+                    # neighbor queries (e.g., effectively tiny fit sets).
+                    if "n_neighbors" in str(exc) and "n_samples_fit" in str(exc):
+                        if self.config.verbose:
+                            self.logger.debug(
+                                "Skipping tiny/degenerate CMI subgroup for z=%s (n=%d): %s",
+                                str(val),
+                                n,
+                                str(exc),
+                            )
+                        continue
+                    raise
                 cmi += (n / n_total) * mi_sub
             return float(max(0.0, cmi))
 
