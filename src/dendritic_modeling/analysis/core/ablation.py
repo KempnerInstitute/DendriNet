@@ -1179,14 +1179,21 @@ def create_video_layer_ablation_vs_training(
     video_filename = f"layer_ablation_{method_tag}_{metric}_evolution"
     print(f"Creating {num_epochs}-frame video at {fps:.2f} fps (20 seconds total)")
     if video_format == "mp4":
-        try:
-            writer = animation.FFMpegWriter(fps=fps, bitrate=1800)
-            video_path = os.path.join(save_path, f"{video_filename}.mp4")
-            ani.save(video_path, writer=writer)
-            print(f"Video saved to {video_path}")
-        except Exception as e:
-            print(f"Error saving MP4 video: {e}")
-            print("Falling back to GIF format...")
+        if animation.writers.is_available("ffmpeg"):
+            try:
+                writer = animation.FFMpegWriter(fps=fps, bitrate=1800)
+                video_path = os.path.join(save_path, f"{video_filename}.mp4")
+                ani.save(video_path, writer=writer)
+                print(f"Video saved to {video_path}")
+            except Exception as e:
+                print(f"Error saving MP4 video: {e}")
+                print("Falling back to GIF format...")
+                writer = animation.PillowWriter(fps=fps)
+                video_path = os.path.join(save_path, f"{video_filename}.gif")
+                ani.save(video_path, writer=writer)
+                print(f"GIF saved to {video_path}")
+        else:
+            print("ffmpeg writer not available; saving GIF format...")
             writer = animation.PillowWriter(fps=fps)
             video_path = os.path.join(save_path, f"{video_filename}.gif")
             ani.save(video_path, writer=writer)

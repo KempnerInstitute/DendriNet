@@ -604,7 +604,9 @@ class CompartmentStatisticsAnalyzer(AbstractAnalyzer):
                 )
                 self.logger.info("Enhanced plots completed")
             else:
-                self.logger.warning("No enhanced_layer_statistics found in results")
+                self.logger.info(
+                    "enhanced_layer_statistics not present; skipping optional enhanced plots"
+                )
 
             # Generate global distribution plots
             if "global_statistics" in results:

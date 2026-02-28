@@ -1849,14 +1849,24 @@ def plot_layer_analysis_layer_agg_vs_training(
 
     os.makedirs(save_path, exist_ok=True)
 
-    try:
-        writer = animation.FFMpegWriter(fps=fps, bitrate=1800)
-        video_path = os.path.join(save_path, f"{video_filename}.mp4")
-        ani.save(video_path, writer=writer)
-        logger.info(f"Video saved to {video_path}")
-    except Exception as e:
-        logger.warning(f"Error saving MP4 video: {e}")
-        logger.info("Falling back to GIF format...")
+    if animation.writers.is_available("ffmpeg"):
+        try:
+            writer = animation.FFMpegWriter(fps=fps, bitrate=1800)
+            video_path = os.path.join(save_path, f"{video_filename}.mp4")
+            ani.save(video_path, writer=writer)
+            logger.info(f"Video saved to {video_path}")
+        except Exception as e:
+            logger.warning(f"Error saving MP4 video: {e}")
+            logger.info("Falling back to GIF format...")
+            try:
+                writer = animation.PillowWriter(fps=fps)
+                video_path = os.path.join(save_path, f"{video_filename}.gif")
+                ani.save(video_path, writer=writer)
+                logger.info(f"GIF saved to {video_path}")
+            except Exception as e2:
+                logger.error(f"Error saving GIF video: {e2}")
+    else:
+        logger.info("ffmpeg writer not available; saving GIF format...")
         try:
             writer = animation.PillowWriter(fps=fps)
             video_path = os.path.join(save_path, f"{video_filename}.gif")
@@ -2267,14 +2277,24 @@ def plot_layer_analysis_layer_agg_vs_training_both_metrics(
 
     os.makedirs(save_path, exist_ok=True)
 
-    try:
-        writer = animation.FFMpegWriter(fps=fps, bitrate=1800)
-        video_path = os.path.join(save_path, f"{video_filename}.mp4")
-        ani.save(video_path, writer=writer)
-        logger.info(f"Video saved to {video_path}")
-    except Exception as e:
-        logger.warning(f"Error saving MP4 video: {e}")
-        logger.info("Falling back to GIF format...")
+    if animation.writers.is_available("ffmpeg"):
+        try:
+            writer = animation.FFMpegWriter(fps=fps, bitrate=1800)
+            video_path = os.path.join(save_path, f"{video_filename}.mp4")
+            ani.save(video_path, writer=writer)
+            logger.info(f"Video saved to {video_path}")
+        except Exception as e:
+            logger.warning(f"Error saving MP4 video: {e}")
+            logger.info("Falling back to GIF format...")
+            try:
+                writer = animation.PillowWriter(fps=fps)
+                video_path = os.path.join(save_path, f"{video_filename}.gif")
+                ani.save(video_path, writer=writer)
+                logger.info(f"GIF saved to {video_path}")
+            except Exception as e2:
+                logger.error(f"Error saving GIF video: {e2}")
+    else:
+        logger.info("ffmpeg writer not available; saving GIF format...")
         try:
             writer = animation.PillowWriter(fps=fps)
             video_path = os.path.join(save_path, f"{video_filename}.gif")
