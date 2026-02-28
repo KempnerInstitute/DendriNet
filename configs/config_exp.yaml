@@ -703,10 +703,6 @@ wandb:
   group: "unified_sweep"                # W&B group name (string)
   tags: ["debug"]                       # W&B tags (list of strings)
   enabled: true                         # Enable W&B features (true/false)
-  log_freq: 100                         # Logging frequency in steps
-  log_gradients: false                  # Log gradients (true/false)
-  log_parameters: false                 # Log parameters (true/false)
-  log_activations: false                # Log activations (true/false)
 
 # ============================================================================
 # OUTPUTS

@@ -262,8 +262,6 @@ analysis:
           n_shuffles: 0
           seed: 0
           components: [basic]
-          conditional_shuffle: auto
-          conditional_bins: 10
   correlation_analysis:
     enabled: false
     training: false
@@ -430,10 +428,6 @@ wandb:
   group: "unified_sweep"
   tags: ["debug"]
   enabled: true
-  log_freq: 100
-  log_gradients: false
-  log_parameters: false
-  log_activations: false
 
 outputs:
   run_name: exp_run
