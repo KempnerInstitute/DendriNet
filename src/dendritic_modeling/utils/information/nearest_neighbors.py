@@ -105,8 +105,9 @@ def compute_cmi_ccc(
     k = int(n_neighbors)
     if k < 1:
         return 0.0
-    # If k is too large, cap it to n_samples-1 (excluding self).
-    k = min(k, n_samples - 1)
+    # Querying the training set itself includes each point as neighbor 0.
+    # Therefore we need k+1 < n_samples -> k <= n_samples-2.
+    k = min(k, n_samples - 2)
     if k < 1:
         return 0.0
 
