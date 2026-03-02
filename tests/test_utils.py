@@ -50,11 +50,13 @@ class TestShaper(unittest.TestCase):
 
 class TestAccuracyScore(unittest.TestCase):
     def setUp(self):
-        # Create a dummy classifier with a predict method for testing
+        # Create a dummy classifier that always predicts class 1
         class DummyClassifier(nn.Module):
-            def predict(self, inputs):
-                # Always predicts '1'
-                return torch.ones(inputs.shape[0], dtype=torch.long)
+            def forward(self, inputs):
+                batch_size = inputs.shape[0]
+                logits = torch.zeros(batch_size, 2)
+                logits[:, 1] = 10.0  # High logit for class 1
+                return logits
 
         self.classifier = DummyClassifier()
 

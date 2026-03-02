@@ -149,6 +149,7 @@ class CoreConfig(BaseConfig):
     reactivation: ReactivationConfig = field(default_factory=ReactivationConfig)
     blocklinear: BlockLinearConfig = field(default_factory=BlockLinearConfig)
     implementation: ImplementationConfig = field(default_factory=ImplementationConfig)
+    # DEPRECATED: Legacy recurrent config. Use unified EI config classes instead.
     recurrent: RecurrentConfig = field(default_factory=RecurrentConfig)
     # Optional config payload for the new unified E-I architecture.
     # Kept as a plain dict to avoid coupling config package to architecture modules.

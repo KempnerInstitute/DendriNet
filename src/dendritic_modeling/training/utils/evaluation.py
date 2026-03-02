@@ -6,6 +6,7 @@ This module contains utility functions for evaluating model performance
 using various metrics including accuracy, log-likelihood, and MSE.
 """
 
+import inspect
 from typing import Callable, Optional, Union
 
 import torch
@@ -63,14 +64,20 @@ def _flatten_labels_for_grouped_logits(
 
 
 def _prepare_classification_logits_and_labels(
-    classifier: Classifier, inputs: torch.Tensor, labels: torch.Tensor
+    classifier: Classifier,
+    inputs: torch.Tensor,
+    labels: torch.Tensor,
+    seq_lengths: Optional[torch.Tensor] = None,
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """Normalize classifier outputs/labels for metric computation.
 
     - Recurrent [B, T, C] outputs are reduced to the last timestep.
     - Grouped non-temporal outputs (e.g. [G, B, C]) are flattened to [N_total, C].
     """
-    logits = classifier(inputs)
+    kwargs = {}
+    if seq_lengths is not None:
+        kwargs["seq_lengths"] = seq_lengths
+    logits = classifier(inputs, **kwargs)
     labels = labels.long()
 
     if logits.dim() == 1:
@@ -102,6 +109,7 @@ def _compute_metric_score(
     reduce_dim: int = 0,
     move_device: bool = True,
     device: str = "cuda" if torch.cuda.is_available() else "cpu",
+    seq_lengths: Optional[torch.Tensor] = None,
 ) -> torch.Tensor:
     """
     Generic function to compute any metric score with common boilerplate.
@@ -114,6 +122,7 @@ def _compute_metric_score(
         reduce_dim: Dimension along which to compute mean
         move_device: Whether to move tensors to device
         device: Device to use for computation
+        seq_lengths: Optional per-sample sequence lengths for variable-length sequences
 
     Returns:
         Computed metric tensor
@@ -130,8 +139,16 @@ def _compute_metric_score(
         model = model.to(device)
         inputs = inputs.to(device)
         labels = labels.to(device)
+        if seq_lengths is not None:
+            seq_lengths = seq_lengths.to(device)
     try:
         with torch.no_grad():
+            # Pass seq_lengths to classification metrics that support it
+            sig = inspect.signature(computation_func)
+            if "seq_lengths" in sig.parameters:
+                return computation_func(
+                    model, inputs, labels, reduce_dim, seq_lengths=seq_lengths
+                )
             return computation_func(model, inputs, labels, reduce_dim)
     except Exception as e:
         print(f"Error computing metric in {computation_func.__name__}: {e}")
@@ -190,6 +207,7 @@ def _evaluate_metric_generic(
     for dataset in datasets:
         if dataset is not None:
             items = dataset[:]
+            seq_lengths = items[2] if len(items) > 2 else None
             result: torch.Tensor = metric_func(
                 model,
                 items[0],
@@ -197,6 +215,7 @@ def _evaluate_metric_generic(
                 reduce_dim=reduce_dim,
                 move_device=move_device,
                 device=device,
+                seq_lengths=seq_lengths,
                 **metric_kwargs,
             )
             # Convert single-element tensors to scalars
@@ -232,9 +251,10 @@ def _compute_accuracy(
     inputs: torch.Tensor,
     labels: torch.Tensor,
     reduce_dim: int = 0,
+    seq_lengths: Optional[torch.Tensor] = None,
 ) -> torch.Tensor:
     logits, labels = _prepare_classification_logits_and_labels(
-        classifier, inputs, labels
+        classifier, inputs, labels, seq_lengths=seq_lengths
     )
     yhat = logits.argmax(dim=-1).long().to(labels.device)
     correct = (yhat == labels.long()).float()
@@ -250,6 +270,7 @@ def accuracy_score(
     reduce_dim: int = 0,
     move_device: bool = True,
     device: str = "cuda" if torch.cuda.is_available() else "cpu",
+    seq_lengths: Optional[torch.Tensor] = None,
 ) -> torch.Tensor:
     """
     Compute accuracy score for a classifier.
@@ -261,6 +282,7 @@ def accuracy_score(
         reduce_dim: Dimension along which to compute mean
         move_device: Whether to move tensors to device
         device: Device to use for computation
+        seq_lengths: Optional per-sample sequence lengths
 
     Returns:
         Accuracy tensor
@@ -273,6 +295,7 @@ def accuracy_score(
         reduce_dim=reduce_dim,
         move_device=move_device,
         device=device,
+        seq_lengths=seq_lengths,
     )
 
 
@@ -328,10 +351,11 @@ def _compute_auc(
     inputs: torch.Tensor,
     labels: torch.Tensor,
     reduce_dim: int = 0,
+    seq_lengths: Optional[torch.Tensor] = None,
 ) -> torch.Tensor:
     _ = reduce_dim  # AUC is always computed over flattened sample axis.
     logits, labels = _prepare_classification_logits_and_labels(
-        classifier, inputs, labels
+        classifier, inputs, labels, seq_lengths=seq_lengths
     )
     labels = labels.long()
     unique_labels = torch.unique(labels)
@@ -363,6 +387,7 @@ def auc_score(
     reduce_dim: int = 0,
     move_device: bool = True,
     device: str = "cuda" if torch.cuda.is_available() else "cpu",
+    seq_lengths: Optional[torch.Tensor] = None,
 ) -> torch.Tensor:
     """
     Compute AUC score for a classifier.
@@ -374,6 +399,7 @@ def auc_score(
         reduce_dim: Dimension along which to compute mean
         move_device: Whether to move tensors to device
         device: Device to use for computation
+        seq_lengths: Optional per-sample sequence lengths
 
     Returns:
         AUC tensor
@@ -386,6 +412,7 @@ def auc_score(
         reduce_dim=reduce_dim,
         move_device=move_device,
         device=device,
+        seq_lengths=seq_lengths,
     )
 
 
@@ -441,9 +468,10 @@ def _compute_loglikelihood(
     inputs: torch.Tensor,
     labels: torch.Tensor,
     reduce_dim: int = 0,
+    seq_lengths: Optional[torch.Tensor] = None,
 ) -> torch.Tensor:
     logits, labels = _prepare_classification_logits_and_labels(
-        classifier, inputs, labels
+        classifier, inputs, labels, seq_lengths=seq_lengths
     )
     log_probs = Categorical(logits=logits).log_prob(labels.long())
     if log_probs.numel() == 0:
@@ -462,6 +490,7 @@ def categorical_loglikelihood_score(
     reduce_dim: int = 0,
     move_device: bool = True,
     device: str = "cuda" if torch.cuda.is_available() else "cpu",
+    seq_lengths: Optional[torch.Tensor] = None,
 ) -> torch.Tensor:
     """
     Compute categorical log-likelihood score for a classifier.
@@ -473,6 +502,7 @@ def categorical_loglikelihood_score(
         reduce_dim: Dimension along which to compute mean
         move_device: Whether to move tensors to device
         device: Device to use for computation
+        seq_lengths: Optional per-sample sequence lengths
 
     Returns:
         Log-likelihood tensor
@@ -485,6 +515,7 @@ def categorical_loglikelihood_score(
         reduce_dim=reduce_dim,
         move_device=move_device,
         device=device,
+        seq_lengths=seq_lengths,
     )
 
 

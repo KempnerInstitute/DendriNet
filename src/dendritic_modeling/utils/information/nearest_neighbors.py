@@ -210,7 +210,9 @@ def compute_mi_cd(c: np.ndarray, d: np.ndarray, n_neighbors: int) -> float:
 
     # Ignore points from labels with too few samples for kNN (need >= 3).
     mask = label_counts > 2
-    n_samples = np.sum(mask)
+    n_samples = int(np.sum(mask))
+    if n_samples < 1:
+        return 0.0
     label_counts = label_counts[mask]
     k_all = k_all[mask]
     c = c[mask]

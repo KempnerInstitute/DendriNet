@@ -121,10 +121,6 @@ class WandbConfig(BaseConfig):
     group: str = "unified_sweep"
     tags: list[str] = field(default_factory=lambda: ["debug"])
     enabled: bool = True
-    log_freq: int = 100
-    log_gradients: bool = False
-    log_parameters: bool = False
-    log_activations: bool = False
 
 
 @dataclass

@@ -78,19 +78,24 @@ class PerformanceAnalyzer:
                 try:
                     items = dataset[:]
                     inputs, labels = items[0], items[1]
+                    seq_lengths = items[2] if len(items) > 2 else None
                 except Exception:
                     # Some dataset wrappers (e.g., Subset over custom datasets) do not
                     # support slice/list indexing. Materialize via DataLoader instead.
-                    xs = []
-                    ys = []
+                    xs, ys, sls = [], [], []
                     loader = DataLoader(dataset, batch_size=1024, shuffle=False)
                     for batch in loader:
                         xs.append(batch[0])
                         ys.append(batch[1])
+                        if len(batch) > 2:
+                            sls.append(batch[2])
                     inputs = torch.cat(xs, dim=0)
                     labels = torch.cat(ys, dim=0)
+                    seq_lengths = torch.cat(sls, dim=0) if sls else None
                 inputs: torch.Tensor = inputs.to(device)
                 labels: torch.Tensor = labels.to(device)
+                if seq_lengths is not None:
+                    return TensorDataset(inputs, labels, seq_lengths)
                 return TensorDataset(inputs, labels)
             return None
 

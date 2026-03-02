@@ -2973,7 +2973,7 @@ class InformationAnalyzer(AbstractAnalyzer):
                     )
 
                 # Generate inhibitory network summary
-                if "inhibitory_results" in ei_analysis:
+                if ei_analysis.get("inhibitory_results") is not None:
                     inh_summary = self.get_summary(ei_analysis["inhibitory_results"])
                     inh_summary_path = os.path.join(
                         per_layer_path,
@@ -2992,7 +2992,7 @@ class InformationAnalyzer(AbstractAnalyzer):
                     )
 
                 # Generate combined network summary
-                if "combined_results" in ei_analysis:
+                if ei_analysis.get("combined_results") is not None:
                     combined_summary = self.get_summary(ei_analysis["combined_results"])
                     combined_summary_path = os.path.join(
                         per_layer_path,
@@ -4204,13 +4204,16 @@ class InformationAnalyzer(AbstractAnalyzer):
                     f.write(summary)
 
                 # Generate individual summaries for each layer's E and I networks
-                if "per_layer_analysis" in results:
-                    self._save_per_layer_ei_summaries(
-                        results["per_layer_analysis"], save_path, filename
+                try:
+                    if "per_layer_analysis" in results:
+                        self._save_per_layer_ei_summaries(
+                            results["per_layer_analysis"], save_path, filename
+                        )
+                    self._generate_information_plots(
+                        results, save_path, somatic_synapses
                     )
-
-                # Generate plots for information analysis
-                self._generate_information_plots(results, save_path, somatic_synapses)
+                except Exception as plot_err:
+                    self.logger.warning(f"Post-save visualization failed: {plot_err}")
 
                 self.logger.info("Results saved successfully!")
 
