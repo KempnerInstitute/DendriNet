@@ -222,16 +222,17 @@ class InformationPlotter(BasePlotter):
             )
         )
 
-        # Generate legacy information plots
-        plot_paths.extend(
-            self._generate_information_plots_1d_sweep(
-                valid_data=data,
-                sweep_var=sweep_var,
-                var_name=var_name,
-                logscale=logscale,
-                plots_dir=output_dir,
+        # Legacy information plots (disabled by default; set include_legacy_plots=True to enable)
+        if getattr(self, "include_legacy_plots", False):
+            plot_paths.extend(
+                self._generate_information_plots_1d_sweep(
+                    valid_data=data,
+                    sweep_var=sweep_var,
+                    var_name=var_name,
+                    logscale=logscale,
+                    plots_dir=output_dir,
+                )
             )
-        )
 
         return plot_paths
 

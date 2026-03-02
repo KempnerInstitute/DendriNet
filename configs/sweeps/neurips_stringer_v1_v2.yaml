@@ -1,0 +1,179 @@
+# Stringer V1 Real Neural Data — Dendritic Network Training (v2 - capacity sweep)
+# Train dendritic E/I networks on real V1 population responses (Stringer et al. 2019).
+# Conditions: {dendritic_shunting, dendritic_additive, point_mlp} x {8, 16, 32} neurons x 5 seeds = 45 jobs
+# Dataset: 11,311 V1 neurons (top 500 selected), 4,442 trials, 16 orientation classes
+# Goal: Reveal dendritic advantages under capacity constraints; cross-context gain invariance
+output_dir: /n/holylfs06/LABS/kempner_project_b/Lab/dendritic/HS/LOCAL_LEARNING/sweep_runs
+slurm_config:
+  account: kempner_dev
+  partition: kempner_h100_priority3
+  time: '01:00:00'
+  nodes: 1
+  ntasks_per_node: 1
+  gpus_per_node: 1
+  cpus_per_task: 4
+  mem: 32GB
+  max_concurrent_jobs: 45
+  modules_to_load: []
+  conda_env_path: ''
+  training_script: src/dendritic_modeling/scripts/training/train_experiments.py
+  run_name: sweep_neurips_stringer_v1_v2
+experiment_settings:
+  seeds_per_condition: 5
+  base_seed: 42
+sweep_config:
+  model.core.type:
+  - dendritic_shunting
+  - dendritic_additive
+  - point_mlp
+  model.core.architecture.excitatory_layer_sizes:
+  - - 8
+  - - 16
+  - - 32
+base_config:
+  experiment:
+    seed: 42
+    train_valid_split: 0.9
+    enable_amp: false
+    enable_profiling: false
+    enable_hooks: true
+  data:
+    dataset_name: stringer_v1
+    base_dir: ''
+    processing:
+      flatten: true
+      normalize: false
+    dataset_params:
+      stringer_v1:
+        data_dir: /n/holylabs/LABS/kempner_dev/Users/hsafaai/Code/dendritic-modeling/drafts/dendritic-information-processing/dendritic_processing/dendritic_theory/data/stringer2019
+        n_neurons: 500
+        n_classes: 16
+        normalize: true
+  model:
+    task: classification
+    encoder:
+      type: identity
+      params:
+        input_dim: null
+    core:
+      type: dendritic_shunting
+      architecture:
+        excitatory_layer_sizes:
+        - 64
+        inhibitory_layer_sizes: []
+        excitatory_branch_factors:
+        - 3
+        - 3
+        inhibitory_branch_factors:
+        - 1
+      connectivity:
+        ee_synapses_per_branch_per_layer:
+        - 40
+        ei_synapses_per_branch_per_layer:
+        - 0
+        ie_synapses_per_branch_per_layer:
+        - 10
+        ii_synapses_per_branch_per_layer:
+        - 0
+      transfer:
+        input_mode: 1
+        independent_pathways: false
+        output_activation: null
+      morphology:
+        somatic_synapses: false
+        use_shunting: false
+        use_additive_normalization: false
+        weight_transform: softplus
+      reactivation:
+        enabled: true
+        type: param_tanh
+        init_m: 1.5
+        init_b: 0.5
+    decoder:
+      type: MLP
+      params:
+        hidden_dims: []
+        activation: relu
+        output_dim: 16
+  training:
+    main:
+      strategy: standard
+      common:
+        epochs: 300
+        batch_size: 128
+        shuffle: true
+        loss_function: cat_nll
+        early_stopping: false
+        load_best_state_dict: false
+        plot_losses: false
+        suppress_prints: false
+        print_every: 10
+        use_amp: false
+        enable_nan_checking: false
+        enable_adaptive_clipping: false
+        weight_decay_rate: 0.0
+        weight_boosting: false
+        checkpointing: true
+        checkpoint_interval: 50
+        param_groups:
+          lr: 0.002
+          split_params: true
+          topk_lr: 0.002
+          blocklinear_lr: 0.001
+          reactivation_lr: 0.001
+          decoder_lr: 0.002
+  analysis:
+    performance_analysis:
+      enabled: true
+      training: true
+      params:
+        accuracy: true
+        auc: false
+        categorical_loglikelihood: true
+        mse: false
+        cosine_similarity: false
+    information_analysis:
+      enabled: false
+    correlation_analysis:
+      enabled: true
+      training: false
+      params:
+        compute_noise_correlations: true
+        compute_signal_correlations: true
+        compute_total_correlations: true
+        compute_tuning_curves: true
+    compartment_snr_analysis:
+      enabled: true
+      training: false
+      params:
+        input_analysis: true
+        global_analysis: true
+        layer_analysis: true
+        branch_analysis: true
+    branch_activation_analysis:
+      enabled: true
+      training: false
+      params:
+        synapse_activations: true
+        branch_activations: true
+        network_summary: true
+        layer_summary: true
+        branch_summary: true
+    multiplicative_gain_analysis:
+      enabled: true
+      training: true
+      params:
+        gain_min: 0.0
+        gain_max: 100.0
+        n_steps: 50
+        logspace: true
+        accuracy: true
+        auc: true
+        categorical_loglikelihood: true
+        mse: true
+        cosine_similarity: true
+  wandb:
+    use_wandb: false
+  outputs:
+    run_name: sweep_neurips_stringer_v1_v2
+    results_dir: outputs

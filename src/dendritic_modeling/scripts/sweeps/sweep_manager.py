@@ -76,6 +76,8 @@ class SweepManager:
         exclude_nodes: Optional[list[str]] = None,
         slurm_account: Optional[str] = None,
         slurm_partition: Optional[str] = None,
+        generate_only: bool = False,
+        dry_run: bool = False,
     ) -> dict:
         """
         Generate sweep configurations and job scripts.
@@ -97,21 +99,29 @@ class SweepManager:
         if "slurm_config" not in config or config.slurm_config is None:
             config.slurm_config = OmegaConf.create({})
 
+        skip_slurm_validation = generate_only or dry_run
+
         if slurm_account is not None:
             config.slurm_config.account = slurm_account
         elif not config.slurm_config.get("account"):
-            raise ValueError(
-                "SLURM account not set. Provide 'account' in slurm_config "
-                "or pass --slurm-account on the command line."
-            )
+            if skip_slurm_validation:
+                config.slurm_config.account = "PLACEHOLDER"
+            else:
+                raise ValueError(
+                    "SLURM account not set. Provide 'account' in slurm_config "
+                    "or pass --slurm-account on the command line."
+                )
 
         if slurm_partition is not None:
             config.slurm_config.partition = slurm_partition
         elif not config.slurm_config.get("partition"):
-            raise ValueError(
-                "SLURM partition not set. Provide 'partition' in slurm_config "
-                "or pass --slurm-partition on the command line."
-            )
+            if skip_slurm_validation:
+                config.slurm_config.partition = "PLACEHOLDER"
+            else:
+                raise ValueError(
+                    "SLURM partition not set. Provide 'partition' in slurm_config "
+                    "or pass --slurm-partition on the command line."
+                )
 
         # Validate configuration
         if not self.generator.validate_config(config):
@@ -307,6 +317,7 @@ class SweepManager:
             exclude_nodes=exclude_nodes,
             slurm_account=slurm_account,
             slurm_partition=slurm_partition,
+            dry_run=dry_run,
         )
 
         # Submit jobs
@@ -431,6 +442,7 @@ def main():
                     exclude_nodes=args.exclude_nodes,
                     slurm_account=args.slurm_account,
                     slurm_partition=args.slurm_partition,
+                    generate_only=True,
                 )
 
                 print("\nTo submit jobs, run:")

@@ -10,6 +10,7 @@ For new code, use the unified EI config classes:
   from dendritic_modeling.networks.architectures.recurrent.ei_config
 """
 
+import warnings
 from dataclasses import dataclass, field
 
 from dendritic_modeling.config.base import BaseConfig
@@ -75,7 +76,7 @@ class RecurrentConfig(BaseConfig):
     and has zero impact on the feedforward pipeline.
     """
 
-    enabled: bool = False
+    enabled: bool = False  # DEPRECATED: use unified EI config classes instead
     cell_type: str = "dendritic"  # "dendritic" | "gru" | "lstm"
     n_excitatory: int = 64
     n_inhibitory: int = 16
@@ -98,3 +99,13 @@ class RecurrentConfig(BaseConfig):
     dropout: float = 0.0
     grad_clip: float = 1.0
     store_routing: bool = False
+
+    def __post_init__(self):
+        if self.enabled:
+            warnings.warn(
+                "RecurrentConfig is deprecated. Use the unified EI config classes: "
+                "PopulationConfig, EILayerConfig, EINetworkConfig from "
+                "dendritic_modeling.networks.architectures.recurrent.ei_config",
+                DeprecationWarning,
+                stacklevel=2,
+            )

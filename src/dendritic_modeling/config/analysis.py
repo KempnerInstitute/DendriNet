@@ -338,7 +338,21 @@ class InformationAnalysisParams(BaseConfig):
     pid: InformationPIDParams = field(default_factory=InformationPIDParams)
 
     # ------------------------------------------------------------------
-    # Legacy flat keys (deprecated; still supported for backward compatibility)
+    # Legacy flat keys (DEPRECATED; still supported for backward compatibility).
+    #
+    # MIGRATION GUIDE — use the grouped sub-dataclasses above instead:
+    #   method, n_neighbors, n_bins, copula_type, decoder_*, binning_*
+    #       → estimator.method, estimator.kraskov.n_neighbors, etc.
+    #   max_samples, include_vinf, normalize_mi, verbose, computation_level,
+    #   branch_aggregation, per_neuron_analysis, per_einet_analysis,
+    #   per_layer_analysis, compute_lda_weights
+    #       → compute.<field>
+    #   components, scopes, views, signal_variants
+    #       → selection.<field>
+    #   pid_binarize, pid_binarize_method, pid_binarize_threshold
+    #       → pid.<field>
+    #   mi_null_shuffles, mi_null_seed, lda_n_shuffles
+    #       → baselines.<field>
     # ------------------------------------------------------------------
 
     # Estimation method: "kraskov", "decoder", "binned", "sklearn", "copula", "auto"
