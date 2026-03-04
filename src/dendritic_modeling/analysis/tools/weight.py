@@ -747,7 +747,7 @@ class WeightAnalyzer(AbstractAnalyzer):
                 setup_basic_plot(
                     ax1,
                     "Min/Max Weights per Layer",
-                    "Layer (Soma → Distal)",
+                    "Layer (Soma to Distal)",
                     "Weight Value",
                     grid=True,
                 )
@@ -768,7 +768,7 @@ class WeightAnalyzer(AbstractAnalyzer):
                 setup_basic_plot(
                     ax2,
                     "Total Dendritic Strength per Layer",
-                    "Layer (Soma → Distal)",
+                    "Layer (Soma to Distal)",
                     "Total Weight Sum",
                     grid=True,
                 )

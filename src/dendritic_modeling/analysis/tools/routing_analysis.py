@@ -89,7 +89,7 @@ class RoutingAnalyzer(AbstractAnalyzer):
         model.eval()
         model.to(device)
 
-        # Accumulators: per (layer, population) → list of per-timestep tensors
+        # Accumulators: per (layer, population) -> list of per-timestep tensors
         # level_contributions[key] = list of [batch, n_levels] tensors
         # ff_rec_ratios[key] = list of [batch, n_levels] tensors
         level_contribs: dict[str, list[torch.Tensor]] = {}

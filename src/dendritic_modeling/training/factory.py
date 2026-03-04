@@ -315,9 +315,21 @@ def get_trainer(
         grad_clip = trainer_config_dict.pop(
             "grad_clip", trainer_config_dict.pop("grad_clip_value", 1.0)
         )
+        enable_amp = trainer_config_dict.pop(
+            "enable_amp", trainer_config_dict.pop("use_amp", False)
+        )
+        lr_schedule = trainer_config_dict.pop("lr_schedule", "none")
+        lr_warmup_epochs = trainer_config_dict.pop("lr_warmup_epochs", 0)
         enhanced_configs = _extract_enhanced_configs(trainer_config_dict)
         trainer_config_dict.update(enhanced_configs)
-        return RecurrentTrainer(task=task, grad_clip=grad_clip, **trainer_config_dict)
+        return RecurrentTrainer(
+            task=task,
+            grad_clip=grad_clip,
+            enable_amp=enable_amp,
+            lr_schedule=lr_schedule,
+            lr_warmup_epochs=lr_warmup_epochs,
+            **trainer_config_dict,
+        )
     elif strategy == "multi_stage":
         raw_multi_stage_config = trainer_config_dict.pop("multi_stage_config", None)
         multi_stage_config = _build_multi_stage_config(raw_multi_stage_config)

@@ -1,4 +1,4 @@
-# Stringer V1 Real Neural Data — Dendritic Network Training
+# Stringer V1 Real Neural Data -- Dendritic Network Training
 # Train dendritic E/I networks on real V1 population responses (Stringer et al. 2019).
 # Conditions: {dendritic_shunting, dendritic_additive, point_mlp} x 5 seeds = 15 jobs
 # Dataset: 11,311 V1 neurons (top 500 selected), 4,442 trials, 8 orientation classes

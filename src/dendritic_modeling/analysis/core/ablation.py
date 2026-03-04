@@ -1084,7 +1084,7 @@ def create_video_layer_ablation_vs_training(
     # Set up plot elements that won't change
     ax.set_xticks(depths)
     ax.set_xticklabels(depth_labels, rotation=45)
-    ax.set_xlabel("Branch Depth (Soma → Distal)")
+    ax.set_xlabel("Branch Depth (Soma to Distal)")
     ax.set_ylabel(f"{metric_mapping[metric]} Drop Decrease")
     # ax.legend()
     ax.grid(True, axis="y", alpha=0.3)
@@ -1101,7 +1101,7 @@ def create_video_layer_ablation_vs_training(
         # Reload axes setup
         ax.set_xticks(depths)
         ax.set_xticklabels(depth_labels, rotation=45)
-        ax.set_xlabel("Branch Depth (Soma → Distal)")
+        ax.set_xlabel("Branch Depth (Soma to Distal)")
         ax.set_ylabel(f"{metric_mapping[metric]} Drop Decrease")
         ax.set_ylim(y_min, y_max)
         ax.set_yticks(y_ticks)

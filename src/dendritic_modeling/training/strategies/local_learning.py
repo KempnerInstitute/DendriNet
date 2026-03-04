@@ -936,7 +936,7 @@ class LocalCreditAssignment(Trainer):
                     post_mod = v_n - self.local_cfg.three_factor.theta
                 post_factor = e_n * R_tot * post_mod  # [B, out]
             else:
-                # Additive rule — with optional gain control modes.
+                # Additive rule -- with optional gain control modes.
                 additive_mode = getattr(
                     self.local_cfg.three_factor, "additive_gain_mode", "none"
                 )
@@ -1012,7 +1012,7 @@ class LocalCreditAssignment(Trainer):
                         inh_post = self.local_cfg.three_factor.theta - v_n
                     inh_factor = e_n * R_tot * inh_post  # [B, out]
                 else:
-                    # Additive inhibitory rule — with optional gain control.
+                    # Additive inhibitory rule -- with optional gain control.
                     additive_mode = getattr(
                         self.local_cfg.three_factor, "additive_gain_mode", "none"
                     )
@@ -1089,7 +1089,7 @@ class LocalCreditAssignment(Trainer):
                         R_exp = torch.ones_like(v_n).unsqueeze(-1) * float(R_tot)
                     den_factor = e_n.unsqueeze(-1) * R_exp * diff
                 else:
-                    # Additive dendritic rule — with optional gain control.
+                    # Additive dendritic rule -- with optional gain control.
                     additive_mode = getattr(
                         self.local_cfg.three_factor, "additive_gain_mode", "none"
                     )

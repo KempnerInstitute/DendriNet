@@ -282,7 +282,7 @@ class FeedbackAlignmentTrainer(Trainer):
                     e = e @ self._B_fa[idx].t()
                 continue
 
-            # grad_W = e^T h_in   — shape (out_dim, in_dim)
+            # grad_W = e^T h_in   -- shape (out_dim, in_dim)
             grad_dense = e.t() @ h_in
             self._assign_grad(mod, pname, grad_dense)
 
@@ -321,7 +321,7 @@ class FeedbackAlignmentTrainer(Trainer):
                 # Output layer: use error directly
                 e_local = e_out
             else:
-                # Hidden layer: project output error → this layer's out_dim
+                # Hidden layer: project output error to this layer's out_dim
                 e_local = e_out @ self._B_dfa[idx].t()  # [batch, out_dim]
 
             if e_local.size(-1) != out_dim:

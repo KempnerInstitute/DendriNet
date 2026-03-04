@@ -340,19 +340,19 @@ class InformationAnalysisParams(BaseConfig):
     # ------------------------------------------------------------------
     # Legacy flat keys (DEPRECATED; still supported for backward compatibility).
     #
-    # MIGRATION GUIDE — use the grouped sub-dataclasses above instead:
+    # MIGRATION GUIDE -- use the grouped sub-dataclasses above instead:
     #   method, n_neighbors, n_bins, copula_type, decoder_*, binning_*
-    #       → estimator.method, estimator.kraskov.n_neighbors, etc.
+    #       -> estimator.method, estimator.kraskov.n_neighbors, etc.
     #   max_samples, include_vinf, normalize_mi, verbose, computation_level,
     #   branch_aggregation, per_neuron_analysis, per_einet_analysis,
     #   per_layer_analysis, compute_lda_weights
-    #       → compute.<field>
+    #       -> compute.<field>
     #   components, scopes, views, signal_variants
-    #       → selection.<field>
+    #       -> selection.<field>
     #   pid_binarize, pid_binarize_method, pid_binarize_threshold
-    #       → pid.<field>
+    #       -> pid.<field>
     #   mi_null_shuffles, mi_null_seed, lda_n_shuffles
-    #       → baselines.<field>
+    #       -> baselines.<field>
     # ------------------------------------------------------------------
 
     # Estimation method: "kraskov", "decoder", "binned", "sklearn", "copula", "auto"
@@ -708,7 +708,7 @@ class WeightAnalysisParams(BaseConfig):
     branch_aggregation: str = "mean"  # Options: "mean", "multivariate", "sample"
 
     # Enhanced analysis modes
-    per_layer_analysis: bool = True  # Analyze each layer separately (soma→distal)
+    per_layer_analysis: bool = True  # Analyze each layer separately (soma to distal)
     per_einet_analysis: bool = (
         True  # Separate excitatory and inhibitory network analysis
     )

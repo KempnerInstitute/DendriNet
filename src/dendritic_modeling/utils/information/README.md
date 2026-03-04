@@ -58,17 +58,17 @@ All pairwise metrics conditioned on C:
 - `I(Vb;Vout|C)` - Conditional MI between branch input and Vout given C
 
 ### 4. Partial Information Decomposition (PID)
-For variable pairs (X,Y) → Z:
+For variable pairs (X,Y) -> Z:
 - Synergy - Information only available from X and Y together
 - Redundancy - Information available from both X and Y
 - Unique(X) - Information only from X
 - Unique(Y) - Information only from Y
 
 Computed for:
-- `PID(E,I→C)` - How E and I contribute to class information
-- `PID(E,Vout→C)` - How E and output contribute to class information
-- `PID(I,Vout→C)` - How I and output contribute to class information
-- `PID(E,I→Vout)` - How E and I contribute to output
+- `PID(E,I->C)` - How E and I contribute to class information
+- `PID(E,Vout->C)` - How E and output contribute to class information
+- `PID(I,Vout->C)` - How I and output contribute to class information
+- `PID(E,I->Vout)` - How E and I contribute to output
 
 ## Estimation Methods
 

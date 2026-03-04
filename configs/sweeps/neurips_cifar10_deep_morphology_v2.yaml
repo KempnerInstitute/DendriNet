@@ -1,4 +1,4 @@
-# CIFAR-10 Deep Morphology Sweep v2 — [3,3,3,3,3] tree
+# CIFAR-10 Deep Morphology Sweep v2 -- [3,3,3,3,3] tree
 # Fixed training settings from reference config_exp.yaml:
 #   - split_params: false (LR sweep actually works now)
 #   - load_best_state_dict: true

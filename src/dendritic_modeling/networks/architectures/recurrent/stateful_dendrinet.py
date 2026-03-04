@@ -18,7 +18,7 @@ from dendritic_modeling.networks.architectures.recurrent.ei_state import DendriN
 
 
 def _compute_level_sizes(n_soma: int, branch_factors: list[int]) -> list[int]:
-    """Compute output dimensions per level (distal → soma order).
+    """Compute output dimensions per level (distal to soma order).
 
     For n_soma=10, branch_factors=[3,2]:
       soma=10, level_1=10*2=20, level_0=20*3=60
@@ -100,7 +100,7 @@ class StatefulDendriNet(nn.Module):
             ),
         )
 
-        # Build branch layers (distal → soma)
+        # Build branch layers (distal to soma)
         self.branch_layers = nn.ModuleList()
         input_branch_factors = _compute_input_branch_factors(pop_config.branch_factors)
 
@@ -209,7 +209,7 @@ class StatefulDendriNet(nn.Module):
         x: torch.Tensor,
         inhibitory_input: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
-        """Feedforward pass — identical to DendriNet.forward()."""
+        """Feedforward pass -- identical to DendriNet.forward()."""
         branch_output = None
         for layer in self.branch_layers:
             branch_output = layer(

@@ -267,7 +267,7 @@ def plot_layer_contribution(
 
         ax.set_xticks(depths)
         ax.set_xticklabels(depth_labels, rotation=45)
-        ax.set_xlabel("Branch Depth (Soma → Distal)")
+        ax.set_xlabel("Branch Depth (Soma to Distal)")
         ax.set_ylabel(f"{metric_mapping[metric]}")
         ax.set_title(f"{metric_mapping[metric]} vs. Branch Depth")
         ax.legend()

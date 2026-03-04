@@ -1,587 +1,203 @@
 Configuration Guide
 ===================
 
+The primary configuration reference is ``configs/config_exp.yaml``.  That file
+lists **every parameter** accepted by the framework together with its default
+value and valid options.  This page summarises the structure and highlights
+the most important settings; for the full parameter list, consult the YAML
+file directly or the :doc:`config_reference` page.
+
 Quick Start
 -----------
 
-All experiments use YAML configuration files. Start with these templates:
+.. code-block:: bash
 
-- ``configs/config_exp.yaml`` - Standard training
-- ``configs/config_exp_fsdp.yaml`` - FSDP training
-- ``configs/EI_sweeps_example.yaml`` - Parameter sweeps
+   # Standard training
+   python src/dendritic_modeling/scripts/training/train_experiments.py configs/config_exp.yaml
 
-For feedforward vs recurrent core selection (``ei_unified`` and baseline RNN
-types), see :doc:`NETWORK_TYPES_AND_RNN`.
+   # With overrides
+   python ... configs/config_exp.yaml --output_dir results/my_run --run_name test1
 
-Basic Structure
----------------
+Templates:
 
-.. code-block:: yaml
+- ``configs/config_exp.yaml`` -- single-GPU training (complete reference)
+- ``configs/config_exp_fsdp.yaml`` -- FSDP multi-GPU training
+- ``configs/EI_sweeps_example.yaml`` -- parameter sweeps
 
-   model:
-     task: classification
-     encoder_network:
-       type: Identity
-     core_network:
-       type: EINet
-     decoder_network:
-       type: Identity
-
-   train:
-     main:
-       epochs: 100
-       batch_size: 64
-       learning_rate: 0.001
-
-   task:
-     name: mnist
-     data_dir: data/
-
-Core Networks
--------------
-
-EINet (Excitation-Inhibition Network)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Biologically-inspired network with separate excitatory and inhibitory pathways.
+Top-Level Structure
+-------------------
 
 .. code-block:: yaml
 
-   core_network:
-     type: EINet
-     parameters:
-       layer_sizes: [128, 64, 32]
-       ee_synapses_per_branch_per_layer: [[2], [2], [2]]
-       ie_synapses_per_branch_per_layer: [[1], [1], [1]]
-       use_shunting: true
+   experiment:   # seed, AMP, profiling, checkpointing
+   data:         # dataset, processing, dataset-specific params
+   model:        # encoder, core network, decoder
+   training:     # encoder + main training, strategies, regularization, pruning
+   analysis:     # 16 analysis modules
+   wandb:        # Weights & Biases logging
+   outputs:      # run_name, results_dir
+   fsdp:         # distributed training
 
-Key parameters:
-- ``layer_sizes``: Neurons per layer
-- ``ee_synapses_per_branch_per_layer``: Excitatory connections
-- ``ie_synapses_per_branch_per_layer``: Inhibitory connections
-- ``use_shunting``: Enable shunting inhibition
+Core Network Types
+------------------
 
-DendriNet
-~~~~~~~~~
+Set ``model.core.type`` to one of:
 
-Pure dendritic network with hierarchical branching.
++---------------------------+-----------------------------------------------+
+| Type string               | Description                                   |
++===========================+===============================================+
+| ``dendritic_shunting``    | Shunting (divisive) inhibition                |
++---------------------------+-----------------------------------------------+
+| ``dendritic_additive``    | Additive inhibition                           |
++---------------------------+-----------------------------------------------+
+| ``dendritic_mlp``         | Dendritic morphology, no E/I sign constraint  |
++---------------------------+-----------------------------------------------+
+| ``point_mlp``             | Point-neuron MLP baseline (matched params)    |
++---------------------------+-----------------------------------------------+
+| ``EINet``                 | Legacy; uses ``morphology.use_shunting``       |
++---------------------------+-----------------------------------------------+
+| ``flat_shunting``         | Single-branch shunting variant                |
++---------------------------+-----------------------------------------------+
+| ``flat_additive``         | Single-branch additive variant                |
++---------------------------+-----------------------------------------------+
+| ``ei_unified``            | Recurrent E-I network                         |
++---------------------------+-----------------------------------------------+
+| ``gru``, ``lstm``         | Baseline RNNs                                 |
++---------------------------+-----------------------------------------------+
+| ``mlp``, ``sparse_mlp``   | Standard / sparse MLP                         |
++---------------------------+-----------------------------------------------+
 
-.. code-block:: yaml
+See :doc:`network_architectures` for architecture details.
 
-   core_network:
-     type: DendriNet
-     parameters:
-       layer_sizes: [128, 64, 32]
-       branch_factors: [[2, 2], [2, 2], [2, 2]]
-       topk_type: standard
+Training Strategies
+-------------------
 
-MLP
-~~~
+Set ``training.main.strategy`` to one of:
 
-Standard multi-layer perceptron.
+``standard``, ``fa``, ``dfa``, ``shunting_fa``, ``shunting_dfa``,
+``local_ca``, ``freeze_layers``, ``freeze_branches``, ``freeze_branch_kl``,
+``voltage_stabilization``, ``homeostatic_control``,
+``multi_stage``, ``recurrent``, ``fsdp``, ``fsdp_standard``, ``enhanced``
 
-.. code-block:: yaml
+Each strategy has its own sub-configuration under
+``training.main.strategies.<name>``.  See :doc:`training_strategies` for details.
 
-   core_network:
-     type: MLP
-     parameters:
-       hidden_sizes: [128, 64, 32]
-       activation: ReLU
+Loss Functions
+--------------
 
-Training Options
-----------------
+Set ``training.main.common.loss_function`` (or ``training.encoder.common.loss_function``) to:
 
-Standard Training
-~~~~~~~~~~~~~~~~~
-
-.. code-block:: yaml
-
-   train:
-     main:
-       epochs: 100
-       batch_size: 64
-       learning_rate: 0.001
-       optimizer: Adam
-
-FSDP Training
-~~~~~~~~~~~~~
-
-.. code-block:: yaml
-
-   train:
-     main:
-       epochs: 100
-       batch_size: 32  # Smaller for FSDP
-       learning_rate: 0.001
-
-   fsdp:
-     enabled: true
-     sharding_strategy: FULL_SHARD
-
-Learning Strategies
-~~~~~~~~~~~~~~~~~~~
-
-Available strategies:
-- ``standard`` - Regular backpropagation
-- ``freeze_layers`` - Freeze specific layers
-- ``freeze_branches`` - Freeze dendritic branches
-- ``two_step`` - Two-phase training
-- ``voltage_stabilization`` - Stabilize dendritic voltages
-- ``local_ca`` - Local credit assignment
-
-.. code-block:: yaml
-
-   train:
-     main:
-       learning_strategy: standard
+``mse``, ``log_mse``, ``ce``, ``bce``, ``cat_nll``,
+``vae_elbo``, ``neg_cos_sim``, ``log_adj_neg_cos_sim``
 
 Datasets
 --------
 
-Supported datasets:
-- ``mnist`` - MNIST handwritten digits
-- ``cifar10`` - CIFAR-10 images
-- ``imagenet`` - ImageNet (requires download)
-- ``mnist_modulo10`` - MNIST with modulo arithmetic
+Set ``data.dataset_name`` to one of:
 
-.. code-block:: yaml
+- **Standard**: ``mnist``, ``fashion_mnist``, ``cifar10``, ``imagenet``,
+  ``mnist_modulo10``, ``random_flip_mnist``
+- **Synthetic**: ``correlated_gaussian``, ``nonlinear_interaction``,
+  ``linear_separable``, ``nonlinear_separable``, ``block_correlated``,
+  ``balanced_information``, ``poisson_generator``, ``multixor``,
+  ``orientation_bars``, ``orthonet``
+- **Sequence**: ``sequential_mnist``, ``copy_task``, ``adding_problem``,
+  ``variable_delay_dms``, ``multi_frequency``, ``hierarchical_temporal``,
+  ``lorenz``, ``stringer_v1``
 
-   task:
-     name: mnist
-     data_dir: data/
-     batch_size: 64
+Dataset-specific parameters go under ``data.dataset_params.<name>``.
+See :doc:`datasets` for details.
 
-Analysis Options
+Analysis Modules
 ----------------
 
-Enable analysis during training:
+Each module lives under ``analysis.<module_name>`` with ``enabled`` and
+``training`` flags:
 
 .. code-block:: yaml
 
    analysis:
      performance_analysis:
        enabled: true
+       training: true    # run every epoch
      information_analysis:
        enabled: true
-       params:
-         method: "kraskov"
-     ablation_analysis:
-       enabled: true
-       params:
-         ablation_methods: ["lesion", "shuffle", "mean_clamp"]
-         shuffle_seed: 0
-         clamp_statistic: "mean"
-         levels: ["layer"]
-         targets: ["excitation", "inhibition", "upstream", "all_synapses"]
-         metrics: ["accuracy", "pred_label_mi_bits"]
+       training: false   # run after training only
 
-Information analysis: Gaussian/Fisher proxy + PID
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Available modules: ``performance_analysis``, ``information_analysis``,
+``correlation_analysis``, ``ablation_analysis``, ``synapse_turnover_analysis``,
+``noise_perturbation_analysis``, ``weight_analysis``,
+``single_layer_contribution``, ``synaptic_activation_analysis``,
+``branch_activation_analysis``, ``compartment_statistics_analysis``,
+``compartment_snr_analysis``, ``multiplicative_gain_analysis``,
+``receptive_field_analysis``, ``adversarial_robustness_analysis``,
+``routing_analysis``.
 
-Method-specific computations are enabled via ``analysis.information_analysis.params.selection.components``:
+See :doc:`analysis` for per-module parameter details.
 
-- ``gaussian_fisher``: a fast Fisher-criterion / Gaussian MI-proxy computed from
-  class-conditional means/variances (inspired by the theory draft). Configuration
-  lives under ``params.compute.gaussian_fisher``.
-- ``pid``: optional PID-style synergy/redundancy diagnostics. Configuration lives
-  under ``params.pid`` (PID is currently disabled in the analyzer).
+Recurrent Networks
+------------------
 
-.. code-block:: yaml
-
-   analysis:
-     information_analysis:
-       enabled: true
-       training: false
-       params:
-         selection:
-           components: ["basic", "pairwise", "conditional", "gaussian_fisher"]
-           scopes: []
-           signal_variants: ["network"]
-
-         compute:
-           max_samples: 1000
-           computation_level: "single_branch"
-           branch_aggregation: "mean"
-
-           gaussian_fisher:
-             aggregation: "sum"        # "sum" | "mean" | "max"
-             mi_transform: "half_log1p" # "half_log1p" | "log1p" | "none"
-             eps: 1.0e-8               # (alias: ridge) denominator stabilizer
-
-         pid:
-           binarize: true
-           binarize_method: "median"
-           binarize_threshold: 0.5
-
-         estimator:
-           method: "kraskov"
-           kraskov:
-             n_neighbors: 10
-
-Ablation / Intervention Analysis
---------------------------------
-
-Our ablation analysis supports both **structural lesions** (removing connections) and
-**signal-level interventions** (removing label-aligned information while preserving the
-operating point / baseline distribution).
-
-``lesion``:
-   Structural ablation by disabling the relevant connection weights. This can change the
-   layer's gain/baseline and may cause saturation/vanishing.
-
-``shuffle``:
-   Signal intervention that permutes the targeted signal across samples in a batch. This
-   preserves the marginal distribution of that signal but destroys sample/label alignment.
-
-``mean_clamp``:
-   Signal intervention that replaces the targeted signal with its batch mean. This preserves
-   a stable operating point but removes trial-to-trial variability.
-
-For an information-theoretic complement aligned to these interventions, include
-``ablation_aligned`` (and optionally ``layer_proxies``) in
-``analysis.information_analysis.params.selection.components``. This adds conditional-MI terms such as
-``I(E;C|I,Vb)``, ``I(I;C|E,Vb)``, and synapse-vs-upstream decompositions like
-``I(Vout;C|Vb)`` (class information added by synapses beyond upstream input) and
-``I(Vb;C|Vout)`` (upstream class information not reflected in the layer output).
-
-.. code-block:: yaml
-
-   analysis:
-     ablation_analysis:
-       enabled: true
-       training: false
-       params:
-         ablation_methods: ["lesion", "shuffle", "mean_clamp"]
-         shuffle_seed: 0
-         clamp_statistic: "mean"
-         levels: ["layer"]
-         targets: ["excitation", "inhibition", "upstream", "all_synapses"]
-         metrics:
-           - "accuracy"
-           - "auc"
-           - "categorical_loglikelihood"
-           - "pred_label_mi_bits"  # Adds I(C; Ĉ) in bits, where Ĉ=argmax predicted class
-
-WandB Integration
------------------
-
-Track experiments with Weights & Biases:
-
-.. code-block:: yaml
-
-   wandb:
-     enabled: true
-     project: dendritic-modeling
-     name: my_experiment
-
-Common Configurations
----------------------
-
-Small Model (Development)
-~~~~~~~~~~~~~~~~~~~~~~~~~
+For recurrent E-I networks use ``model.core.type: ei_unified`` with the
+``unified_ei`` dict:
 
 .. code-block:: yaml
 
    model:
-     core_network:
-       type: EINet
-       parameters:
-         layer_sizes: [64, 32, 10]
+     core:
+       type: ei_unified
+       unified_ei:
+         output_mode: last          # last, all, mean
+         layers:
+           - recurrent: true
+             dt: 1.0
+             excitatory:
+               n_neurons: 64
+               branch_factors: [3, 3]
+               ff_excitatory_synapses: 12
+               ff_inhibitory_synapses: 6
+               rec_excitatory_synapses: 8
+               tau_base: 50.0
+             inhibitory:
+               n_neurons: 16
+               branch_factors: [1]
 
-   train:
+   training:
      main:
-       epochs: 50
-       batch_size: 128
+       strategy: recurrent
 
-Large Model (Production)
-~~~~~~~~~~~~~~~~~~~~~~~~
+For baseline RNNs use ``model.core.type: gru`` (or ``lstm``, ``vanilla_rnn``).
+See :doc:`network_architectures` for full details.
 
-.. code-block:: yaml
-
-   model:
-     core_network:
-       type: EINet
-       parameters:
-         layer_sizes: [512, 256, 128, 64]
-
-   train:
-     main:
-       epochs: 200
-       batch_size: 32
-
-   fsdp:
-     enabled: true
-
-Parameter Sweep
-~~~~~~~~~~~~~~~
-
-.. code-block:: yaml
-
-   sweep_config:
-     model.core_network.parameters.layer_sizes: [[64,32,10], [128,64,32,10]]
-     train.main.learning_rate: [0.001, 0.01, 0.1]
-
-   filter_config:
-     mode: "ei-sum"
-     value: 4
-
-Information Analysis
+Multi-Stage Training
 --------------------
 
-The framework provides flexible information-theoretic analysis with configurable computation levels.
-
-Computation Levels
-~~~~~~~~~~~~~~~~~~
-
 .. code-block:: yaml
 
-   analysis:
-     information_analysis:
-       params:
-         computation_level: "single_branch"  # Options: "single_branch", "layer_branch", "all_branch"
-         branch_aggregation: "mean"          # Options: "mean", "multivariate", "sample"
-
-- ``single_branch``: Compute information for individual branches (most granular)
-- ``layer_branch``: Aggregate branches within each layer then compute information
-- ``all_branch``: Aggregate all branches across the network then compute information
-
-Branch Aggregation
-~~~~~~~~~~~~~~~~~~
-
-When using ``layer_branch`` or ``all_branch`` computation levels:
-
-- ``mean``: Average branch activations to create scalar values
-- ``multivariate``: Use raw multi-dimensional branch data for joint information computation
-- ``sample``: Treat each branch as a separate observation by flattening branch dimension into sample dimension
-
-Enhanced EI Network Analysis
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-The framework provides enhanced analysis specifically designed for excitation-inhibition networks.
-
-.. code-block:: yaml
-
-   analysis:
-     information_analysis:
-       params:
-         # Enhanced analysis modes (preferred list-based selection)
-         # scopes: ["neuron", "einet", "layer"]
-         scopes: []
-
-Per-Neuron Analysis:
-
-When enabled, computes mutual information for each individual neuron separately, providing detailed per-neuron MI statistics and averaged results across all neurons.
-
-Per-EI-Network Analysis:
-
-When enabled, performs three separate analyses:
-- Excitatory network only (inhibitory inputs set to zero)
-- Inhibitory network only (excitatory inputs set to zero)
-- Combined E+I network (standard analysis)
-
-Per-Layer Analysis:
-
-When enabled, computes enhanced analysis (per-neuron and per-EI-network) for each layer separately in multilayer networks, providing layer-specific insights into information processing.
-
-Branch Input Analysis
-~~~~~~~~~~~~~~~~~~~~~
-
-The framework supports analysis of upstream dendritic inputs (branch inputs) in hierarchical dendritic networks.
-
-Branch-input (Vb) metrics are computed automatically when branch inputs exist (no configuration flag needed). This adds the following metrics:
-
-Basic MI:
-   ``I(Vb;C)`` - Mutual information between branch input and class labels
-
-Pairwise MI:
-   - ``I(E;Vb)`` - Mutual information between excitation and branch input
-   - ``I(I;Vb)`` - Mutual information between inhibition and branch input
-   - ``I(Vb;Vout)`` - Mutual information between branch input and output
-
-Conditional MI:
-   - ``I(E;Vb|C)`` - Conditional mutual information between E and Vb given class
-   - ``I(I;Vb|C)`` - Conditional mutual information between I and Vb given class
-   - ``I(Vb;Vout|C)`` - Conditional mutual information between Vb and Vout given class
-
-Note: For single-layer networks without hierarchical dendritic structure, branch input is zero and these metrics provide baseline comparisons.
-
-Linear Discriminant Analysis Weights
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-The framework can compute alternative aggregation weights using Linear Discriminant Analysis (LDA) instead of network-learned weights.
-
-.. code-block:: yaml
-
-   analysis:
-     information_analysis:
-       params:
-         # Preferred list-based selection of signal variants
-         # signal_variants: ["network", "lda", "random"]
-         signal_variants: ["network"]
-
-When enabled, the system fits separate LDA models on raw synaptic inputs to find optimal linear combinations that maximize class separation. This provides three LDA-weighted signals:
-
-E_lin:
-   Optimal linear combination of excitatory synaptic inputs using discriminant weights
-
-I_lin:
-   Optimal linear combination of inhibitory synaptic inputs using discriminant weights
-
-Vb_lin:
-   Optimal linear combination of upstream branch inputs using discriminant weights
-
-The analysis then computes mutual information for both network-learned aggregations and LDA-optimized aggregations:
-
-Network weights (w_opt):
-   - ``I(E;C)``, ``I(I;C)``, ``I(Vb;C)``
-   - Standard pairwise and conditional MI
-
-LDA weights (w_lda):
-   - ``I(E_lin;C)``, ``I(I_lin;C)``, ``I(Vb_lin;C)``
-   - Pairwise: ``I(E_lin;I_lin)``, ``I(E_lin;Vb_lin)``, etc.
-   - Conditional: ``I(E_lin;I_lin|C)``, etc.
-
-This comparison reveals whether the network has learned synaptic weights that approach the discriminant-optimal configuration or whether additional structure beyond class discrimination is encoded.
-
-Complete Information Analysis Configuration
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. code-block:: yaml
-
-   analysis:
-     information_analysis:
-       enabled: true
-       training: false
-       params:
-         # Estimation method
-         method: "kraskov"              # Options: "kraskov", "sklearn", "copula"
-         max_samples: 1000               # Limit samples for computational efficiency
-         n_neighbors: 10                 # K-NN parameter for Kraskov estimator
-
-         # What to compute (preferred list-based selection)
-         components:
-           - "basic"             # I(X;C)
-           - "pairwise"          # I(X;Y)
-           - "conditional"       # I(X;Y|C)
-           - "ablation_aligned"  # ablation-aligned CMIs (E/I/Vb/Vout/C)
-           - "layer_proxies"     # *_sum/_union/_topK_sum proxies from per-branch MI
-
-         # Computation granularity
-         computation_level: "single_branch"  # Options: "single_branch", "layer_branch", "all_branch"
-         branch_aggregation: "mean"          # Options: "mean", "multivariate", "sample"
-
-         # Optional "scopes" (preferred list-based selection)
-         # scopes: ["layer", "einet", "neuron"]
-         scopes: []
-
-         # Signal variants (preferred list-based selection)
-         # - Always includes "network" (DendriNet).
-         # - Add "lda" to compute *_lin variants.
-         # - Add "random" to compute *_sh baselines (requires lda_n_shuffles > 0).
-         signal_variants: ["network"]
-         lda_n_shuffles: 0              # Random-weight baseline shuffles (0 = disabled)
-
-         layer_total_topk: 10                # K used for *_topK_sum metrics
-
-         # Optional (expensive): unique upstream class info beyond the full synapse set.
-         # Either add "upstream_unique_cmi" to components, or set:
-         compute_upstream_unique_cmi: false
-
-         # Plotting note: figures include both *_sum proxies and a per-branch mean view
-         # ("ablation_proxy_branch_mean") so you can see branch-count scaling effects.
-
-         # Additional options
-         include_vinf: true              # Include soma activation
-         normalize_mi: false             # Normalize by entropy
-
-Correlation Analysis
---------------------
-
-Correlation analysis computes Pearson correlations between excitatory inputs (E),
-inhibitory inputs (I), and layer outputs (Vout) at different granularities.
-
-.. code-block:: yaml
-
-   analysis:
-     correlation_analysis:
-       enabled: true
-       training: false
-       params:
-         computation_level: "layer_branch"  # "synaptic", "single_branch", "layer_branch", "all_branch"
-         components: ["total", "noise", "signal", "tuning"]
-         pairs: ["EE", "II", "EI", "E_output", "I_output", "output_output"]
-         scopes: ["layer", "einet"]
-         max_samples: 2000
-
-List-based selectors:
-
-- ``components``:
-  - ``total``: correlations across all samples
-  - ``noise``: within-class correlations (stimulus-independent)
-  - ``signal``: between-class difference (binary-only currently)
-  - ``tuning``: tuning/selectivity summary across classes
-- ``pairs``:
-  - ``EE``, ``II``, ``EI``: E-E, I-I, and E-I correlations
-  - ``E_output``, ``I_output``: input-to-output correlations vs Vout
-  - ``output_output``: Vout-Vout correlations
-- ``scopes``:
-  - ``layer``: per-layer breakdown
-  - ``einet``: separate excitatory vs inhibitory pathway summaries
-  - ``neuron``: per-neuron breakdown (expensive)
-
-Training Optimization
----------------------
-
-Configure performance and debugging options for training.
-
-Trainer Structure
-~~~~~~~~~~~~~~~~~
-
-.. code-block:: yaml
-
-   train:
-     encoder_net_trainer:
-       loss_function: mse
-       epochs: 50
-       batch_size: 128
-     main_trainer:
-       loss_function: ce
-       epochs: 100
-       batch_size: 64
-       enable_nan_checking: false
-       enable_adaptive_clipping: false
-
-Performance Options
-~~~~~~~~~~~~~~~~~~~
-
-.. code-block:: yaml
-
-   train:
-     main_trainer:
-       enable_nan_checking: false      # Enable NaN detection (expensive)
-       enable_adaptive_clipping: false # Enable adaptive gradient clipping (expensive)
-       use_amp: false                  # Enable automatic mixed precision
-
-Encoder Network Caching
-~~~~~~~~~~~~~~~~~~~~~~~~
-
-Hash-based caching automatically reuses trained encoder networks with identical configurations.
-
-.. code-block:: yaml
-
-   train:
-     encoder:
-       load_save_root: ./.trained_encoder_networks/
-
-Models are saved to ``{load_save_root}/{config_hash}/best_model.pt`` and automatically loaded when configurations match.
-
-Troubleshooting
----------------
-
-Common Issues:
-- Model too large: Use FSDP or reduce layer sizes
-- Training slow: Increase batch size or use multiple GPUs
-- Low accuracy: Adjust learning rate or model architecture
-- Memory errors: Reduce batch size or enable gradient checkpointing
-
-For detailed troubleshooting, see ``FSDP_TROUBLESHOOTING.rst``.
+   training:
+     main:
+       strategy: multi_stage
+       strategies:
+         multi_stage:
+           analyze_between_stages: true
+           stages:
+             - learning_strategy: standard
+               epochs: 50
+               trainer_config:
+                 loss_function: ce
+             - learning_strategy: local_ca
+               epochs: 50
+
+See :doc:`training_strategies` for per-stage options.
+
+FSDP / Distributed
+-------------------
+
+See :doc:`FSDP_TROUBLESHOOTING` for distributed training setup.
+
+Full Parameter Reference
+------------------------
+
+The complete annotated configuration with every parameter and its valid
+options is in ``configs/config_exp.yaml`` and reproduced in
+:doc:`config_reference`.

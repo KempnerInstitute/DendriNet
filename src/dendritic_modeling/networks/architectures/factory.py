@@ -184,7 +184,7 @@ def get_architecture(
         return BaselineRNN(BaselineRNNConfig(**baseline_cfg))
 
     # ------------------------------------------------------------------
-    # Legacy recurrent type aliases (removed — use unified E-I instead)
+    # Legacy recurrent type aliases (removed -- use unified E-I instead)
     # ------------------------------------------------------------------
     if type in ("dendritic_rnn", "dendrnn"):
         raise ValueError(

@@ -934,7 +934,7 @@ def plot_branch_analysis_layer_agg_final(
 
     ax.set_xticks(plot_depths)
     ax.set_xticklabels(depth_labels, rotation=45)
-    ax.set_xlabel("Branch Depth (Soma → Distal)")
+    ax.set_xlabel("Branch Depth (Soma to Distal)")
     ax.set_ylabel(r"d'$^2$")
     ax.set_title(r"d'$^2$ vs. Branch Depth")
     ax.legend()
@@ -1249,7 +1249,7 @@ def plot_layer_analysis_layer_agg_final(
 
     ax.set_xticks(plot_depths)
     ax.set_xticklabels(depth_labels, rotation=45)
-    ax.set_xlabel("Branch Depth (Soma → Distal)")
+    ax.set_xlabel("Branch Depth (Soma to Distal)")
 
     ylabel = METRIC_MAPPING[metric]
     ax.set_ylabel(ylabel)
@@ -1533,7 +1533,7 @@ def plot_layer_analysis_layer_agg_final_both_metrics(
     left_x_positions = [depth_to_x_left[depth] for depth in plot_depths]
     ax_left.set_xticks(left_x_positions)
     ax_left.set_xticklabels(depth_labels, rotation=45)
-    ax_left.set_xlabel("Branch Depth (Soma → Distal)")
+    ax_left.set_xlabel("Branch Depth (Soma to Distal)")
     ax_left.set_ylabel(r"d'$^2$/D")
     ax_left.set_ylim(left_y_min, left_y_max)
     ax_left.set_title(r"d'$^2$/D vs. Branch Depth")
@@ -1544,7 +1544,7 @@ def plot_layer_analysis_layer_agg_final_both_metrics(
     right_x_positions = [depth_to_x_right[depth] for depth in plot_depths]
     ax_right.set_xticks(right_x_positions)
     ax_right.set_xticklabels(depth_labels, rotation=45)
-    ax_right.set_xlabel("Branch Depth (Soma → Distal)")
+    ax_right.set_xlabel("Branch Depth (Soma to Distal)")
     ax_right.set_ylabel(r"d'$^2$")
     ax_right.set_ylim(right_y_min, right_y_max)
     ax_right.set_title(r"d'$^2$ vs. Branch Depth")
@@ -1814,7 +1814,7 @@ def plot_layer_analysis_layer_agg_vs_training(
 
         ax.set_xticks(plot_depths)
         ax.set_xticklabels(depth_labels, rotation=45)
-        ax.set_xlabel("Branch Depth (Soma → Distal)")
+        ax.set_xlabel("Branch Depth (Soma to Distal)")
 
         ylabel = METRIC_MAPPING[metric]
         ax.set_ylabel(ylabel)
@@ -2240,7 +2240,7 @@ def plot_layer_analysis_layer_agg_vs_training_both_metrics(
         left_x_positions = [depth_to_x_left[depth] for depth in plot_depths]
         ax_left.set_xticks(left_x_positions)
         ax_left.set_xticklabels(depth_labels, rotation=45)
-        ax_left.set_xlabel("Branch Depth (Soma → Distal)")
+        ax_left.set_xlabel("Branch Depth (Soma to Distal)")
         ax_left.set_ylabel(r"d'$^2$/D")
         ax_left.set_ylim(left_y_min, left_y_max)
         ax_left.set_yticks(left_y_ticks)
@@ -2251,7 +2251,7 @@ def plot_layer_analysis_layer_agg_vs_training_both_metrics(
         right_x_positions = [depth_to_x_right[depth] for depth in plot_depths]
         ax_right.set_xticks(right_x_positions)
         ax_right.set_xticklabels(depth_labels, rotation=45)
-        ax_right.set_xlabel("Branch Depth (Soma → Distal)")
+        ax_right.set_xlabel("Branch Depth (Soma to Distal)")
         ax_right.set_ylabel(r"d'$^2$")
         ax_right.set_ylim(right_y_min, right_y_max)
         ax_right.set_yticks(right_y_ticks)

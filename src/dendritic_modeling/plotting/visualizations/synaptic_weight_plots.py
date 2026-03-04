@@ -32,7 +32,7 @@ def plot_synaptic_weight_analysis(
     Plot synaptic weight expectation analysis results.
 
     Creates plots showing mean and variance of excitatory and inhibitory
-    synaptic weights across dendritic layers (soma → distal).
+    synaptic weights across dendritic layers (soma to distal).
 
     Args:
         layer_statistics: Dictionary with layer-wise weight statistics
@@ -46,7 +46,7 @@ def plot_synaptic_weight_analysis(
     logger.info("Generating synaptic weight expectation plots...")
 
     try:
-        # Convert layer names to uniform format (soma → distal)
+        # Convert layer names to uniform format (soma to distal)
         converted_results = convert_layer_names(
             layer_statistics, somatic_synapses=somatic_synapses
         )
@@ -159,7 +159,7 @@ def _plot_total_synaptic_strength(
         setup_basic_plot(
             ax,
             "Total Synaptic Strength (Active Count x Expected Weight)",
-            "Layer (Soma → Distal)",
+            "Layer (Soma to Distal)",
             "Total Strength",
             grid=True,
         )
@@ -231,7 +231,7 @@ def _plot_weight_comparisons(
         setup_basic_plot(
             ax1,
             "Mean Synaptic Weights",
-            "Layer (Soma → Distal)",
+            "Layer (Soma to Distal)",
             "Mean Weight",
             grid=True,
         )
@@ -261,7 +261,7 @@ def _plot_weight_comparisons(
         setup_basic_plot(
             ax2,
             "Synaptic Weight Variance",
-            "Layer (Soma → Distal)",
+            "Layer (Soma to Distal)",
             "Weight Variance",
             grid=True,
         )
@@ -326,7 +326,7 @@ def _plot_active_synapse_counts(
         setup_basic_plot(
             ax,
             "Active Synapse Counts by Layer",
-            "Layer (Soma → Distal)",
+            "Layer (Soma to Distal)",
             "Number of Active Synapses",
             grid=True,
         )
@@ -405,7 +405,7 @@ def plot_detailed_weight_distributions(
         _plot_combined_weights(axes[1, 2], converted_results, layer_names)
 
         plt.suptitle(
-            "Comprehensive Synaptic Weight Analysis (Soma → Distal)", fontsize=16
+            "Comprehensive Synaptic Weight Analysis (Soma to Distal)", fontsize=16
         )
         plt.tight_layout()
 

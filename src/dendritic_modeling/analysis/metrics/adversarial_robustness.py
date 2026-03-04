@@ -80,7 +80,7 @@ class AdversarialRobustnessAnalyzer:
             y_batch = batch[1].to(device)
 
             if epsilon > 0:
-                # Model stays in eval mode — FGSM only needs input gradients,
+                # Model stays in eval mode. FGSM only needs input gradients,
                 # not train-mode behaviour (BatchNorm/Dropout should remain off).
                 x_adv = self.fgsm_attack(model, x_batch, y_batch, epsilon)
             else:

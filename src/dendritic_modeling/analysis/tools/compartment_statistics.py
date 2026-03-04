@@ -693,7 +693,7 @@ class CompartmentStatisticsAnalyzer(AbstractAnalyzer):
                 setup_basic_plot(
                     ax1,
                     "Min/Max Weights per Layer",
-                    "Layer (Soma → Distal)",
+                    "Layer (Soma to Distal)",
                     "Weight Value",
                     grid=True,
                 )
@@ -714,7 +714,7 @@ class CompartmentStatisticsAnalyzer(AbstractAnalyzer):
                 setup_basic_plot(
                     ax2,
                     "Total Dendritic Strength per Layer",
-                    "Layer (Soma → Distal)",
+                    "Layer (Soma to Distal)",
                     "Total Weight Sum",
                     grid=True,
                 )
@@ -802,7 +802,7 @@ def plot_compartment_weight_analysis(
     logger.info("Generating compartment weight analysis plots...")
 
     try:
-        # Convert layer names to uniform format (soma → distal)
+        # Convert layer names to uniform format (soma to distal)
         converted_results = convert_layer_names(
             layer_statistics, somatic_synapses=somatic_synapses
         )
@@ -841,7 +841,7 @@ def plot_compartment_input_analysis(
     logger.info("Generating compartment input analysis plots...")
 
     try:
-        # Convert layer names to uniform format (soma → distal)
+        # Convert layer names to uniform format (soma to distal)
         converted_results = convert_layer_names(
             layer_statistics, somatic_synapses=somatic_synapses
         )
@@ -880,7 +880,7 @@ def plot_compartment_activation_analysis(
     logger.info("Generating compartment activation analysis plots...")
 
     try:
-        # Convert layer names to uniform format (soma → distal)
+        # Convert layer names to uniform format (soma to distal)
         converted_results = convert_layer_names(
             layer_statistics, somatic_synapses=somatic_synapses
         )
@@ -923,7 +923,7 @@ def plot_compartment_entropy_analysis(
     logger.info("Generating compartment entropy analysis plots...")
 
     try:
-        # Convert layer names to uniform format (soma → distal)
+        # Convert layer names to uniform format (soma to distal)
         converted_results = convert_layer_names(
             layer_statistics, somatic_synapses=somatic_synapses
         )
@@ -959,7 +959,7 @@ def plot_compartment_ei_comparisons(
     logger.info("Generating compartment E/I comparison plots...")
 
     try:
-        # Convert layer names to uniform format (soma → distal)
+        # Convert layer names to uniform format (soma to distal)
         converted_results = convert_layer_names(
             layer_statistics, somatic_synapses=somatic_synapses
         )
@@ -1046,7 +1046,7 @@ def _plot_compartment_weight_strength(
         setup_basic_plot(
             ax,
             "Compartment Weight Strength (Mean Weight Values)",
-            "Layer (Soma → Distal)",
+            "Layer (Soma to Distal)",
             "Weight Strength",
             grid=True,
         )
@@ -1186,7 +1186,7 @@ def _plot_compartment_input_strength(
         setup_basic_plot(
             ax,
             "Compartment Input Strength (Mean Input Values)",
-            "Layer (Soma → Distal)",
+            "Layer (Soma to Distal)",
             "Input Strength",
             grid=True,
         )
@@ -1326,7 +1326,7 @@ def _plot_compartment_activation_strength(
         setup_basic_plot(
             ax,
             "Compartment Activation Strength (Mean Activation Values)",
-            "Layer (Soma → Distal)",
+            "Layer (Soma to Distal)",
             "Activation Strength",
             grid=True,
         )
@@ -1493,7 +1493,7 @@ def _plot_compartment_entropy_comparisons(
         setup_basic_plot(
             ax,
             "Compartment Entropy Analysis (Information Content)",
-            "Layer (Soma → Distal)",
+            "Layer (Soma to Distal)",
             "Entropy",
             grid=True,
         )
@@ -1592,7 +1592,7 @@ def _plot_compartment_ei_ratios(
         setup_basic_plot(
             ax,
             "Compartment E/I Balance Analysis",
-            "Layer (Soma → Distal)",
+            "Layer (Soma to Distal)",
             "E/I Ratio",
             grid=True,
         )
