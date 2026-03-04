@@ -1,0 +1,363 @@
+# ============================================================================
+# ALEXNET K=1: replace fc7 with ExcitationInhibitionLayer
+# ============================================================================
+# Condition K=1: fc7 is replaced by an EI layer.
+#   - Encoder: pretrained AlexNet features + fc6 (frozen) -> 4096-dim
+#   - Core: EI layer with 4096 excitatory + 820 inhibitory neurons (~20%)
+#           fc6 feeds BOTH excitatory and inhibitory (input_mode=0)
+#           inhibitory shunts excitatory (use_shunting=true)
+#   - Decoder: pretrained fc8 weights, trainable (free to update)
+#
+# 4 weight matrices trained:
+#   1. fc6 -> inhibitory branches   (ei_synapses_per_branch)
+#   2. fc6 -> excitatory branches   (ee_synapses_per_branch)
+#   3. inhibitory -> excitatory     (ie_synapses_per_branch, shunting)
+#   4. excitatory -> fc8            (decoder, pretrained init, trainable)
+#
+# Starting hyperparams: branch_factors=[2,2], 20% inhibitory neurons.
+# Synapses per branch kept at codebase defaults (sweep later).
+#
+# Run:
+#   conda activate demod_env
+#   cd /n/home13/adithyavm/dendritic-modeling
+#   PYTHONPATH=src python src/dendritic_modeling/scripts/training/train_experiments.py \
+#       configs/vision/alexnet_k1_einet.yaml
+# ============================================================================
+
+experiment:
+  seed: 42
+  train_valid_split: 0.8
+  enable_amp: false
+  enable_profiling: false
+  profiling_output_dir: "results/profiling/"
+  enable_hooks: true
+
+  checkpointing:
+    enabled: true
+    save_every_n_epochs: 25
+    checkpoint_dir: "results/checkpoints/"
+
+data:
+  dataset_name: "imagenet"
+  base_dir: "/n/home13/adithyavm/imagenet_links"
+  processing:
+    flatten: false
+    normalize: true
+  dataset_params: {}
+
+model:
+  task: "classification"
+
+  encoder:
+    type: "identity"
+    load_save_root: "./.trained_encoder_networks/"
+    params:
+      input_dim: null                # auto-set from data (raw image numel)
+
+  core:
+    type: "alexnet_einet_core"       # frozen AlexNet + trainable EI, runs per-batch
+
+    architecture:
+      num_fc_layers: 1               # features + fc6 -> 4096-dim (K=1: fc7 replaced by EI)
+      excitatory_layer_sizes: [4096]        # Y excitatory neurons (matches fc8 input)
+      inhibitory_layer_sizes: [820]         # X inhibitory neurons (~20% of excitatory)
+      excitatory_branch_factors: [2, 2]     # Dendritic branching (2x2 as per Bernardo)
+      inhibitory_branch_factors: [2, 2]
+      inhibitory_network_type: "dendritic"
+      mlp_inhibitory_network_params:
+        hidden_dims: []
+        activation: "relu"
+
+    connectivity:
+      ee_synapses_per_branch_per_layer: [40]   # fc6 -> each excitatory branch
+      ei_synapses_per_branch_per_layer: [10]   # fc6 -> each inhibitory branch
+      ie_synapses_per_branch_per_layer: [10]   # inhibitory -> each excitatory branch (shunting, ~20%)
+      ii_synapses_per_branch_per_layer: [0]    # no inh->inh
+
+    transfer:
+      input_mode: 0                    # CRITICAL: same 4096-dim input to both E and I cells
+      independent_pathways: false
+      excitatory_dim: null
+      inhibitory_dim: null
+      output_activation: null
+
+    morphology:
+      somatic_synapses: false          # Matches config_exp.yaml default
+      use_shunting: true               # I->E divisive normalization (lateral inhibition)
+      weight_transform: "softplus"
+      dbl_init_method: "analytical_expectation"
+
+    sparsity:
+      init_method: "xavier_normal"
+      noise_level: 0.0
+      type: "standard"
+      weight_norm_order: null
+      gamma: 1.0
+      temperature: 0.0
+      gradient_scaling: "none"
+      deepst:
+        excitatory_target_density: 0.1
+        inhibitory_target_density: 0.1
+        use_noise: true
+        sigma: 0.05
+        rewiring_mode: "global"
+        rewire_frequency: 1
+        synapses_per_branch: null
+        freeze_excitatory_connectivity: false
+        freeze_inhibitory_connectivity: false
+        init_method: "xavier_normal"
+        weight_threshold: 1.0e-6
+
+    reactivation:
+      enabled: true
+      type: "param_tanh"
+      init_m: 1.5
+      init_b: 0.5
+      gradient_scaling: "none"
+
+    blocklinear:
+      gradient_scaling: "none"
+      efficient: false
+
+    implementation:
+      adaptive_initialization: false   # Matches config_exp.yaml default
+      print_hooks: false
+
+  decoder:
+    type: "alexnet_fc8_decoder"        # Pretrained fc8 weights, trainable
+    params: {}
+
+training:
+  encoder:
+    strategy: "standard"
+    common:
+      lr: 0.0
+      loss_function: "log_mse"
+      epochs: 0                        # Pre-encode only; encoder is frozen pretrained
+      early_stopping: false
+      patience: 100
+      batch_size: 128
+      shuffle: false
+      grad_clip_value: 5.0
+      load_best_state_dict: false
+      plot_losses: false
+      suppress_prints: false
+      print_every: 1
+      use_amp: false
+      enable_nan_checking: false
+      enable_adaptive_clipping: false
+
+  main:
+    strategy: "standard"
+    common:
+      epochs: 200
+      batch_size: 128
+      shuffle: true
+      grad_clip_value: 5.0
+      loss_function: "cat_nll"
+      early_stopping: true
+      patience: 50
+      load_best_state_dict: true
+      save_path: null
+      plot_losses: true
+      suppress_prints: false
+      print_every: 10
+      use_amp: false
+      enable_nan_checking: false
+      enable_adaptive_clipping: false
+      weight_decay_rate: 0.0
+      weight_boosting: false
+      param_groups:
+        lr: 0.001
+        split_params: false           # core is AlexNetEINetCore, not ExcitationInhibitionNetwork
+        topk_lr: 0.001
+        blocklinear_lr: 0.0001
+        reactivation_lr: 0.0001
+        decoder_lr: 0.01              # fc8 decoder is trainable
+
+    regularization:
+      l1_weight: 0.0
+      l2_weight: 0.0
+      selective:
+        layers: []
+        branches: []
+        weight_types: ["all"]
+      split_params: false
+      param_group_weights:
+        topk: { l1_weight: 0.0, l2_weight: 0.0 }
+        blocklinear: { l1_weight: 0.0, l2_weight: 0.0 }
+        reactivation: { l1_weight: 0.0, l2_weight: 0.0 }
+        decoder: { l1_weight: 0.0, l2_weight: 0.0 }
+      enforce_ei_weight_ratio: false
+      target_ei_weight_ratio: 0.5
+      ei_ratio_loss_weight: 0.5
+      ei_ratio_scope: "per_branch"
+      ei_ratio_metric: "mean"
+
+    pruning:
+      enabled: false
+      threshold: 2
+      selective:
+        layers: []
+        branches: []
+        weight_types: ["excitatory", "inhibitory"]
+      re_evaluate_after: false
+      dynamic_pruning: false
+      pruning_frequency: 10
+      report_non_pruned: true
+      save_pruning_stats: false
+      detailed_branch_report: true
+      redo_analysis_after_pruning: false
+
+    strategies:
+      standard: {}
+
+analysis:
+  performance_analysis:
+    enabled: true
+    training: true                     # Track accuracy each epoch
+    params:
+      accuracy: true
+      auc: true
+      categorical_loglikelihood: true
+      mse: false
+      cosine_similarity: false
+
+  information_analysis:
+    enabled: false
+    training: false
+    params: {}
+
+  correlation_analysis:
+    enabled: false
+    training: false
+    params: {}
+
+  ablation_analysis:
+    enabled: true
+    training: false
+    params:
+      layer_ablation: true
+      compartment_ablation: false
+      ablate_all_synapses: true
+      ablate_excitation: true
+      ablate_inhibition: true
+      ablate_upstream: true
+      accuracy: true
+      auc: true
+      categorical_loglikelihood: true
+      mse: false
+      cosine_similarity: false
+
+  synapse_turnover_analysis:
+    enabled: false
+    training: false
+    params: {}
+
+  noise_perturbation_analysis:
+    enabled: true
+    training: false
+    params:
+      uniform_noise: true
+      uniform_magnitudes: [0.1, 0.2, 0.3, 0.4, 0.5]
+      gaussian_noise: true
+      gaussian_sdevs: [0.1, 0.2, 0.3, 0.4, 0.5]
+      n_samples: 10
+      accuracy: true
+      auc: true
+      categorical_loglikelihood: true
+      mse: false
+      cosine_similarity: false
+
+  weight_analysis:
+    enabled: true
+    training: false
+    params:
+      synapse_weights: true
+      branch_weights: true
+      computation_level: "single_branch"
+      branch_aggregation: "mean"
+      per_layer_analysis: true
+      per_einet_analysis: true
+      per_neuron_analysis: false
+      analyze_excitatory: true
+      analyze_inhibitory: true
+      analyze_branch_output: false
+      compute_mean: true
+      compute_variance: true
+      compute_percentiles: false
+      compute_min_max: true
+      compute_dendritic_strength: true
+      weight_threshold: 1.0e-6
+
+  single_layer_contribution:
+    enabled: false
+    training: false
+    params: {}
+
+  synaptic_activation_analysis:
+    enabled: false
+    training: false
+    params: {}
+
+  branch_activation_analysis:
+    enabled: false
+    training: false
+    params: {}
+
+  compartment_statistics_analysis:
+    enabled: true
+    training: false
+    params:
+      synapse_weights: true
+      branch_weights: true
+      inputs: true
+      activations: true
+      global_analysis: true
+      layer_analysis: true
+      branch_analysis: true
+      compute_mean: true
+      compute_variance: true
+      compute_percentiles: true
+      compute_min_max: true
+      compute_entropy: true
+      per_class_analysis: false
+      n_samples: 1000
+
+  compartment_snr_analysis:
+    enabled: true
+    training: true
+    params:
+      global_analysis: true
+      layer_analysis: true
+      branch_analysis: true
+
+wandb:
+  use_wandb: false
+  entity: ""
+  project: "dendritic-sweeps"
+  group: "alexnet_fc_replacement"
+  tags: ["alexnet", "k1", "einet", "imagenet"]
+  enabled: true
+  log_freq: 10
+  log_gradients: false
+  log_parameters: false
+  log_activations: false
+
+outputs:
+  run_name: "alexnet_k1_einet"
+  results_dir: "outputs"
+
+fsdp:
+  use_fsdp: false
+  sharding_strategy: "FULL_SHARD"
+  mixed_precision: true
+  cpu_offload: false
+  min_num_params: 1000000
+  reduce_communication_overhead: true
+  limit_all_gathers: true
+  forward_prefetch: true
+  sync_module_states: true
+  use_orig_params: true
+  backward_prefetch: "BACKWARD_PRE"
+  gradient_checkpointing: false

@@ -63,6 +63,14 @@ def get_architecture(
             )
         return ConfigurableEINetwork(parameters, input_dim)
 
+    if type == "alexnet_einet_core":
+        from dendritic_modeling.Adi.alexnet_einet_core import AlexNetEINetCore
+        if not isinstance(parameters, DictConfig):
+            raise ValueError("alexnet_einet_core requires structured DictConfig")
+        if input_dim is None:
+            raise ValueError("input_dim required for alexnet_einet_core")
+        return AlexNetEINetCore(parameters, input_dim)
+
     # All other architectures expect flat parameters
     if isinstance(parameters, DictConfig):
         raise ValueError(
@@ -97,5 +105,11 @@ def get_architecture(
     elif type == "alexnet_cifar10_adi":
         from dendritic_modeling.Adi.vision_encoder import get_hybrid_encoder
         return get_hybrid_encoder(parameters)
+    elif type == "alexnet_fc":
+        from dendritic_modeling.Adi.alexnet_fc_encoder import AlexNetFCEncoder
+        return AlexNetFCEncoder(**parameters)
+    elif type == "alexnet_fc8_decoder":
+        from dendritic_modeling.Adi.alexnet_output_head import AlexNetFC8Decoder
+        return AlexNetFC8Decoder(**parameters)
     else:
         raise ValueError(f"Invalid architecture type: {type}")
