@@ -1,4 +1,4 @@
-# Depth Scaling v2 — CORRECTED
+# Depth Scaling v2 -- CORRECTED
 # Fixes: per_soma broadcast (was scalar), 200 epochs (was 50), 5 seeds (was 3)
 # Conditions: {shunting, additive} x {local_ca, standard} x {[9],[3,3],[3,3,3],[3,3,3,3]} x 5 seeds = 80 jobs
 # Dataset: MNIST, 200 epochs, EE=40, IE=10, layer_sizes=[20]

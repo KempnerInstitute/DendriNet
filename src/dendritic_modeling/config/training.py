@@ -365,7 +365,7 @@ class FiveFactorConfig(BaseConfig):
 class MorphologyAwareConfig(BaseConfig):
     """Parameters for morphology-aware extensions.
 
-    These extensions explicitly leverage dendritic tree topology.
+    These extensions use dendritic tree topology explicitly.
     """
 
     # Path-integrated propagation: approximate ∏ R_k g_k attenuation

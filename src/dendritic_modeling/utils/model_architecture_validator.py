@@ -454,7 +454,7 @@ class ModelArchitectureValidator:
                 self.errors.append(
                     "ei_synapses_per_branch_per_layer cannot be empty when inhibitory neurons exist"
                 )
-            # If no inhibitory neurons, empty ei_synapses is valid (no E→I connections needed)
+            # If no inhibitory neurons, empty ei_synapses is valid (no E-to-I connections needed)
 
         # IE synapses: check based on input_mode and layer configuration
         if not self.ie_synapses:
@@ -476,7 +476,7 @@ class ModelArchitectureValidator:
                 self.errors.append(
                     "ii_synapses_per_branch_per_layer cannot be empty when inhibitory neurons exist"
                 )
-            # If no inhibitory neurons, empty ii_synapses is valid (no I→I connections needed)
+            # If no inhibitory neurons, empty ii_synapses is valid (no I-to-I connections needed)
 
     def check_transfer_dimensions(self):
         """Check transfer function dimension settings"""

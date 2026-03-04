@@ -1,7 +1,7 @@
 """Integrated information analyzer for dendritic networks.
 
 This module provides a unified interface for computing various information-theoretic
-metrics using the multivariate methods from information.py. It integrates seamlessly
+metrics using the multivariate methods from information.py. It works directly
 with the main configuration system.
 """
 

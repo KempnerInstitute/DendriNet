@@ -314,7 +314,7 @@ def plot_layer_ablation(
 
             ax.set_xticks(depths)
             ax.set_xticklabels(depth_labels, rotation=45)
-            ax.set_xlabel("Branch Depth (Soma → Distal)")
+            ax.set_xlabel("Branch Depth (Soma to Distal)")
             ax.set_ylabel(f"{metric_mapping[metric]} Drop")
 
             title = f"{metric_mapping[metric]} Drop vs. Branch Depth"
@@ -454,7 +454,7 @@ def plot_per_layer_ablation(layer_results: dict[str, dict[str, dict]], **kwargs)
                             )
 
                 # Customize plot
-                ax.set_xlabel("Layer (Soma → Distal)", fontsize=12)
+                ax.set_xlabel("Layer (Soma to Distal)", fontsize=12)
                 ax.set_ylabel(f'{metric_type.replace("_", " ").title()}', fontsize=12)
                 ax.set_title(
                     f'Ablation Effects: {metric_type.replace("_", " ").title()} by Layer',

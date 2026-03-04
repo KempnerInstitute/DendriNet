@@ -45,7 +45,7 @@ jobs:
         import dendritic_modeling.datasets
         import dendritic_modeling.models
         import dendritic_modeling.training
-        print('✅ All core imports successful')
+        print('All core imports successful')
         "
 
     - name: Fast smoke tests

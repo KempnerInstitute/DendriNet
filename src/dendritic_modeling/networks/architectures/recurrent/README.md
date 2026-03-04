@@ -5,11 +5,11 @@ feedforward and recurrent modes via the same class hierarchy.
 
 ## Components
 
-- `PopulationConfig` / `EILayerConfig` / `EINetworkConfig` — dataclass configs
-- `StatefulDendriNet` — single-population dendritic module (FF `forward()` + recurrent `step()`)
-- `EILayer` — one E-I layer with optional I population and optional recurrence
-- `EINetwork` — multi-layer stack with time-unrolling and output mode selection
-- `DendriNetState` / `EIState` — per-level trace containers for recurrent mode
+- `PopulationConfig` / `EILayerConfig` / `EINetworkConfig` -- dataclass configs
+- `StatefulDendriNet` -- single-population dendritic module (FF `forward()` + recurrent `step()`)
+- `EILayer` -- one E-I layer with optional I population and optional recurrence
+- `EINetwork` -- multi-layer stack with time-unrolling and output mode selection
+- `DendriNetState` / `EIState` -- per-level trace containers for recurrent mode
 
 ## Usage
 

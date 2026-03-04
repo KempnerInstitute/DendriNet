@@ -199,11 +199,13 @@ def plot_network_summary(network_results: dict[str, Any], save_path: str) -> Non
             fontsize=12,
             fontweight="bold",
         )
-        fig.text(0.02, 0.92, "• EI Layers: Network depth (0→1→2)", fontsize=10)
+        fig.text(0.02, 0.92, "• EI Layers: Network depth (0 to 1 to 2)", fontsize=10)
         fig.text(
             0.02, 0.90, "• E/I Networks: Excitatory vs Inhibitory pathways", fontsize=10
         )
-        fig.text(0.02, 0.88, "• Dendritic Layers: Branch depth (0→1→2)", fontsize=10)
+        fig.text(
+            0.02, 0.88, "• Dendritic Layers: Branch depth (0 to 1 to 2)", fontsize=10
+        )
 
         plt.suptitle(
             "Comprehensive Correlation Analysis\nComparisons: EI Layers | E/I Networks | Dendritic Branch Layers",

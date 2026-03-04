@@ -1,4 +1,4 @@
-# CIFAR-10 Deep Morphology Sweep — [3,3,3,3,3] tree
+# CIFAR-10 Deep Morphology Sweep -- [3,3,3,3,3] tree
 # Push CIFAR-10 upper bound with 5-level dendritic tree
 # Conditions: {shunting, additive} x {lr: 0.001, 0.003, 0.005} x 3 seeds = 18 jobs
 # Architecture: 256 neurons, branch_factors=[3,3,3,3,3] (243 terminals), 40E+5I per branch

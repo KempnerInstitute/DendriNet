@@ -868,6 +868,7 @@ def get_unified_datasets(task_cfg):
         "adding_problem",
         "variable_delay_dms",
         "multi_frequency",
+        "hierarchical_temporal",
         "lorenz",
         "stringer_v1",
     ):

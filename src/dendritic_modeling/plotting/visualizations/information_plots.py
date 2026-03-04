@@ -264,7 +264,7 @@ class PerLayerPlotter(BasePlotter):
         setup_basic_plot(
             ax,
             "Basic MI Across Layers (Mean ± Std)",
-            "Layer (Soma → Distal)",
+            "Layer (Soma to Distal)",
             "MI (bits)",
             self.config.fontsize,
         )
@@ -319,7 +319,7 @@ class PerLayerPlotter(BasePlotter):
         setup_basic_plot(
             ax,
             "Information Flow Across Layers",
-            "Layer Position (Soma → Distal)",
+            "Layer Position (Soma to Distal)",
             "I(Vout;C) (bits)",
             self.config.fontsize,
         )
@@ -446,7 +446,7 @@ class InformationAnalysisPlotter(BasePlotter):
                 converted_results, layer_names, axes[1, 0]
             )
             self._plot_layer_heatmap(axes[1, 1], converted_results, layer_names)
-            plt.suptitle("Per-Layer Information Analysis (Soma → Distal)", fontsize=16)
+            plt.suptitle("Per-Layer Information Analysis (Soma to Distal)", fontsize=16)
             plt.tight_layout()
             plots.append(fig5)
 
@@ -673,7 +673,7 @@ class InformationAnalysisPlotter(BasePlotter):
                         alpha=0.3,
                     )
 
-                    ax.set_xlabel("Layer (Soma → Distal)")
+                    ax.set_xlabel("Layer (Soma to Distal)")
                     ax.set_ylabel(f"{metric} (bits)")
                     ax.set_title(f"{metric}")
                     ax.set_xticks(x_pos)
@@ -754,7 +754,7 @@ class InformationAnalysisPlotter(BasePlotter):
                             fontsize=8,
                         )
 
-                    ax.set_xlabel("Layer (Soma → Distal)")
+                    ax.set_xlabel("Layer (Soma to Distal)")
                     ax.set_ylabel("Standard Deviation (bits)")
                     ax.set_title(f'Branch Variance: {std_metric.replace("_std", "")}')
                     ax.set_xticks(x_pos)

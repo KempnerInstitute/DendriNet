@@ -1,4 +1,4 @@
-# Noise Robustness v2 — CORRECTED
+# Noise Robustness v2 -- CORRECTED
 # Fixes: per_soma broadcast (was scalar), 200 epochs (was 50), 5 seeds (was 3)
 # Conditions: {shunting, additive} x {0.0, 0.01, 0.05, 0.1, 0.5, 1.0} x 5 seeds = 60 jobs
 # All local_ca only. Branch factors [3,3] (depth 2). MNIST, EE=40, IE=10, layer_sizes=[20]

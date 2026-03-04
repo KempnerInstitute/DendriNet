@@ -137,7 +137,7 @@ class CopyTaskDataset(Dataset):
 class AddingProblemDataset(Dataset):
     """Adding problem: sum two marked entries in a long sequence.
 
-    Input: [seq_len, 2] — first channel is random uniform, second is mask.
+    Input: [seq_len, 2] -- first channel is random uniform, second is mask.
     Target: scalar (sum of the two marked entries).
 
     Args:
@@ -501,6 +501,152 @@ class StringerV1Dataset(Dataset):
         return self._neuron_indices
 
 
+class HierarchicalTemporalDataset(Dataset):
+    """Context-gated multi-timescale classification task.
+
+    Tests whether a model can jointly perform:
+    1. **Slow memory** -- maintain a context cue over the full sequence (τ~125)
+    2. **Medium integration** -- identify block-level patterns (τ~25)
+    3. **Fast filtering** -- denoise individual timesteps (τ~5)
+    4. **Multiplicative gating** -- context determines which blocks matter
+
+    Structure per sample:
+    - *Context phase* (``context_duration`` steps): present one of ``n_contexts``
+      context cues as a one-hot vector.
+    - *Integration phase* (``n_blocks x block_duration`` steps): sequence of
+      blocks.  Each block has a type drawn uniformly from ``n_block_types``.
+      The per-timestep input is the block's prototype vector + Gaussian noise.
+    - Classification: each context ``c`` maps to a target block type ``t_c``.
+      Class is determined by whether the target type count exceeds the
+      expected count (``n_blocks / n_block_types``).
+
+    Samples are generated with balanced classes (50/50) by first choosing
+    the target class then constructing a block sequence consistent with it.
+
+    The task is designed so that DendriNet's geometric tau spacing
+    (125, 25, 5) aligns with the three timescales of the task.
+
+    Args:
+        n_samples: Number of samples.
+        n_contexts: Number of context cues.
+        n_block_types: Number of distinct block types.
+        n_blocks: Number of blocks in the integration phase.
+        context_duration: Steps for which the context cue is shown.
+        block_duration: Steps per block.
+        signal_dim: Dimensionality of the input signal.
+        noise_std: Standard deviation of fast Gaussian noise.
+    """
+
+    def __init__(
+        self,
+        n_samples: int = 20000,
+        n_contexts: int = 2,
+        n_block_types: int = 4,
+        n_blocks: int = 8,
+        context_duration: int = 20,
+        block_duration: int = 25,
+        signal_dim: int = 16,
+        noise_std: float = 0.5,
+    ):
+        self.n_samples = n_samples
+        self.n_contexts = n_contexts
+        self.n_block_types = n_block_types
+        self.n_blocks = n_blocks
+        self.context_duration = context_duration
+        self.block_duration = block_duration
+        self.signal_dim = signal_dim
+        self.noise_std = noise_std
+        self.total_len = context_duration + n_blocks * block_duration
+        self.input_dim = signal_dim
+
+        # Build fixed block prototypes: [n_block_types, signal_dim]
+        rng = np.random.RandomState(0)
+        prototypes = rng.randn(n_block_types, signal_dim).astype(np.float32)
+        prototypes /= np.linalg.norm(prototypes, axis=1, keepdims=True)
+        self.prototypes = torch.from_numpy(prototypes)
+
+        # Build context cue vectors: [n_contexts, signal_dim]
+        ctx_vecs = rng.randn(n_contexts, signal_dim).astype(np.float32)
+        ctx_vecs /= np.linalg.norm(ctx_vecs, axis=1, keepdims=True)
+        self.context_vectors = torch.from_numpy(ctx_vecs)
+
+        # Map each context to a target block type
+        self.context_to_target = torch.arange(n_contexts) % n_block_types
+        # Threshold: target type must appear more than expected by chance
+        self.threshold = n_blocks // n_block_types + 1
+
+        # Generate all samples with balanced classes
+        self.inputs = torch.zeros(n_samples, self.total_len, signal_dim)
+        self.targets = torch.zeros(n_samples, dtype=torch.long)
+        self.contexts = torch.zeros(n_samples, dtype=torch.long)
+        self.block_types = torch.zeros(n_samples, n_blocks, dtype=torch.long)
+
+        for i in range(n_samples):
+            ctx = torch.randint(0, n_contexts, (1,)).item()
+            self.contexts[i] = ctx
+            target_type = self.context_to_target[ctx].item()
+
+            # Decide class first (balanced 50/50)
+            label = i % 2
+            self.targets[i] = label
+
+            # Build block sequence consistent with the label
+            block_seq = self._sample_block_seq(
+                target_type, label, n_blocks, n_block_types, self.threshold
+            )
+            self.block_types[i] = block_seq
+
+            # Context phase
+            for t in range(context_duration):
+                self.inputs[i, t] = self.context_vectors[ctx]
+
+            # Integration phase
+            for b in range(n_blocks):
+                bt = block_seq[b].item()
+                t_start = context_duration + b * block_duration
+                for t in range(t_start, t_start + block_duration):
+                    self.inputs[i, t] = self.prototypes[bt]
+
+            # Add fast noise to entire sequence
+            self.inputs[i] += torch.randn(self.total_len, signal_dim) * noise_std
+
+    @staticmethod
+    def _sample_block_seq(
+        target_type: int,
+        label: int,
+        n_blocks: int,
+        n_block_types: int,
+        threshold: int,
+    ) -> torch.Tensor:
+        """Sample a block sequence with the correct number of target blocks."""
+        non_target_types = [t for t in range(n_block_types) if t != target_type]
+        for _ in range(1000):
+            if label == 1:
+                # Target type must appear >= threshold times
+                n_target = torch.randint(threshold, n_blocks + 1, (1,)).item()
+            else:
+                # Target type must appear < threshold times
+                n_target = torch.randint(0, threshold, (1,)).item()
+            seq = torch.full((n_blocks,), target_type, dtype=torch.long)
+            # Fill remaining positions with non-target types
+            other_indices = torch.randperm(n_blocks)[n_target:]
+            for idx in other_indices:
+                seq[idx] = non_target_types[
+                    torch.randint(0, len(non_target_types), (1,)).item()
+                ]
+            # Shuffle
+            seq = seq[torch.randperm(n_blocks)]
+            return seq
+        # Fallback
+        return torch.randint(0, n_block_types, (n_blocks,))
+
+    def __len__(self):
+        return self.n_samples
+
+    def __getitem__(self, idx):
+        return self.inputs[idx], self.targets[idx]
+
+
 def get_sequence_datasets(
     dataset_name: str,
     data_path: Optional[str] = None,
@@ -584,6 +730,21 @@ def get_sequence_datasets(
             n_frequencies=kwargs.get("n_frequencies", 5),
             base_freq=kwargs.get("base_freq", 0.01),
             noise_std=kwargs.get("noise_std", 0.1),
+        )
+    elif dataset_name == "hierarchical_temporal":
+        n_train = kwargs.get("n_samples", 20000)
+        common = {
+            "n_contexts": kwargs.get("n_contexts", 2),
+            "n_block_types": kwargs.get("n_block_types", 4),
+            "n_blocks": kwargs.get("n_blocks", 8),
+            "context_duration": kwargs.get("context_duration", 20),
+            "block_duration": kwargs.get("block_duration", 25),
+            "signal_dim": kwargs.get("signal_dim", 16),
+            "noise_std": kwargs.get("noise_std", 0.5),
+        }
+        train_full = HierarchicalTemporalDataset(n_samples=n_train, **common)
+        test_ds = HierarchicalTemporalDataset(
+            n_samples=max(n_train // 5, 2000), **common
         )
     elif dataset_name == "lorenz":
         n_train = kwargs.get("n_samples", 10000)
