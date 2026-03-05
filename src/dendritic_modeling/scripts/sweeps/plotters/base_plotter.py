@@ -190,7 +190,27 @@ class BasePlotter:
         """
         categories: list[str] = data[category_col].unique()
 
-        for category in categories:
+        possible_categories = [
+            # Canonical EINet categories
+            "dendritic_shunting",
+            "flat_shunting",
+            "dendritic_additive",
+            "flat_additive",
+            "dendritic_mlp",
+            "flat_mlp",
+            # MLP baselines
+            "point_mlp",
+            "ss_mlp",
+            "ss_mlp_flat",
+            "total_param_mlp",
+            "active_param_mlp",
+            # Fallback
+            "unknown",
+            "default",
+        ]
+        sorted_categories = sorted(categories, key=lambda x: possible_categories.index(x))
+
+        for category in sorted_categories:
             cat_data = data[data[category_col] == category].sort_values(x_col)
 
             if cat_data.empty:

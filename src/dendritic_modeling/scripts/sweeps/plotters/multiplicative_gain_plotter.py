@@ -27,6 +27,8 @@ CATEGORY_MAP = {
     "dendritic_additive": "No Shunting",
     "flat_shunting": "Shunting Flat",
     "flat_additive": "No Shunting Flat",
+    "dendritic_mlp": "Dendritic MLP",
+    "flat_mlp": "Flat MLP",
     "ss_mlp": "Sparse Structured MLP",
     "ss_mlp_flat": "Sparse Structured MLP Flat",
     "active_param_mlp": "Matched Active Param MLP",
@@ -261,9 +263,12 @@ class MultiplicativeGainPlotter(BasePlotter):
 
         possible_categories = [
             "dendritic_shunting",
-            "dendritic_additive",
             "flat_shunting",
+            "dendritic_additive",
             "flat_additive",
+            "dendritic_mlp",
+            "flat_mlp",
+            "point_mlp",
             "ss_mlp",
             "ss_mlp_flat",
             "active_param_mlp",
@@ -434,9 +439,11 @@ class MultiplicativeGainPlotter(BasePlotter):
 
         possible_categories = [
             "dendritic_shunting",
-            "dendritic_additive",
             "flat_shunting",
+            "dendritic_additive",
             "flat_additive",
+            "dendritic_mlp",
+            "flat_mlp",
             "ss_mlp",
             "ss_mlp_flat",
             "active_param_mlp",

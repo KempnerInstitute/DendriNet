@@ -52,12 +52,11 @@ class AblationPlotter(BasePlotter):
         # ablation_plot_dir = plots_dir / "ablation_analysis_plots"
 
         # Find ablation columns (look for both column name patterns)
-        ablation_cols = [
+        ablation_cols: list[str] = [
             col
             for col in valid_data.columns
             if col.startswith("ablation_")
             or "ablation" in col.lower()
-            or "contribution" in col.lower()
         ]
 
         if not ablation_cols:
@@ -65,35 +64,33 @@ class AblationPlotter(BasePlotter):
             return plot_paths
 
         # Extract ablation types and metrics from column structure
-        ablation_types = []
+        methods = []
+        targets = []
         metrics = []
         depths = []
-        layer_cols = []
 
         for col in ablation_cols:
-            if "_depth" in col and "_mean" in col:
-                # Pattern: ablation_type_metric_depthX_mean
-                parts = col.replace("_mean", "").split("_")
+            if "_depth" in col and col.endswith("_mean"):
+                # Pattern: ablation_{method}_{target}_{metric}_depth{depth}_mean
+                parts = col.split("_")
                 if len(parts) >= 4:
-                    ablation_type = parts[1]
-                    metric = parts[2]
-                    depth_part = parts[3]
+                    method = parts[1]
+                    target = parts[2]
+                    metric = parts[3]
+                    depth_part = parts[4]
                     if depth_part.startswith("depth"):
                         try:
                             depth = int(depth_part.replace("depth", ""))
-                            if ablation_type not in ablation_types:
-                                ablation_types.append(ablation_type)
+                            if method not in methods:
+                                methods.append(method)
+                            if target not in targets:
+                                targets.append(target)
                             if metric not in metrics:
                                 metrics.append(metric)
                             if depth not in depths:
                                 depths.append(depth)
                         except ValueError:
                             continue
-            elif "_mean" in col:
-                # Check if this could be a layer-agnostic ablation column
-                layer_cols.append(col)
-
-        depths.sort()
 
         if (
             not valid_data["network_category"]
@@ -106,7 +103,7 @@ class AblationPlotter(BasePlotter):
         sweep_types = self.detect_sweep_types(valid_data)
 
         # Generate E/I ratio plots by depth (current approach)
-        for ablation_type, metric in itertools.product(ablation_types, metrics):
+        for method, target, metric in itertools.product(methods, targets, metrics):
             if "ei" in sweep_types:
                 try:
                     plot_paths.extend(
@@ -116,14 +113,15 @@ class AblationPlotter(BasePlotter):
                             var_name="E/I Ratio",
                             logscale=True,
                             output_dir=plots_dir,
-                            ablation_type=ablation_type,
+                            method=method,
+                            target=target,
                             metric=metric,
                             depths=depths,
                         )
                     )
                 except Exception as e:
                     print(
-                        f"Error generating E/I ablation plot for {ablation_type}_{metric}: {e}"
+                        f"Error generating E/I ablation plot for {method}_{target}_{metric}: {e}"
                     )
                     traceback.print_exc()
 
@@ -136,14 +134,15 @@ class AblationPlotter(BasePlotter):
                             var_name="Stimulus Duration",
                             logscale=True,
                             output_dir=plots_dir,
-                            ablation_type=ablation_type,
+                            method=method,
+                            target=target,
                             metric=metric,
                             depths=depths,
                         )
                     )
                 except Exception as e:
                     print(
-                        f"Error generating stimulus duration ablation plot for {ablation_type}_{metric}: {e}"
+                        f"Error generating stimulus duration ablation plot for {method}_{target}_{metric}: {e}"
                     )
                     traceback.print_exc()
 
@@ -156,14 +155,15 @@ class AblationPlotter(BasePlotter):
                             var_name="Max Gain Factor",
                             logscale=True,
                             output_dir=plots_dir,
-                            ablation_type=ablation_type,
+                            method=method,
+                            target=target,
                             metric=metric,
                             depths=depths,
                         )
                     )
                 except Exception as e:
                     print(
-                        f"Error generating max gain factor ablation plot for {ablation_type}_{metric}: {e}"
+                        f"Error generating max gain factor ablation plot for {method}_{target}_{metric}: {e}"
                     )
                     traceback.print_exc()
 
@@ -176,14 +176,15 @@ class AblationPlotter(BasePlotter):
                             var_name="Fixed Gain Factor",
                             logscale=True,
                             output_dir=plots_dir,
-                            ablation_type=ablation_type,
+                            method=method,
+                            target=target,
                             metric=metric,
                             depths=depths,
                         )
                     )
                 except Exception as e:
                     print(
-                        f"Error generating fixed gain factor ablation plot for {ablation_type}_{metric}: {e}"
+                        f"Error generating fixed gain factor ablation plot for {method}_{target}_{metric}: {e}"
                     )
                     traceback.print_exc()
 
@@ -196,14 +197,15 @@ class AblationPlotter(BasePlotter):
                             var_name="Number of Parameters",
                             logscale=True,
                             output_dir=plots_dir,
-                            ablation_type=ablation_type,
+                            method=method,
+                            target=target,
                             metric=metric,
                             depths=depths,
                         )
                     )
                 except Exception as e:
                     print(
-                        f"Error generating stimulus duration ablation plot for {ablation_type}_{metric}: {e}"
+                        f"Error generating stimulus duration ablation plot for {method}_{target}_{metric}: {e}"
                     )
                     traceback.print_exc()
 
@@ -213,7 +215,8 @@ class AblationPlotter(BasePlotter):
                         self._create_ablation_heatmaps(
                             valid_data,
                             plots_dir,
-                            ablation_type,
+                            method,
+                            target,
                             metric,
                             depths,
                             "stimulus_duration",
@@ -222,7 +225,7 @@ class AblationPlotter(BasePlotter):
                     )
                 except Exception as e:
                     print(
-                        f"Error generating stochastic ablation plot for {ablation_type}_{metric}: {e}"
+                        f"Error generating stochastic ablation plot for {method}_{target}_{metric}: {e}"
                     )
                     traceback.print_exc()
 
@@ -232,7 +235,8 @@ class AblationPlotter(BasePlotter):
                         self._create_ablation_heatmaps(
                             valid_data,
                             plots_dir,
-                            ablation_type,
+                            method,
+                            target,
                             metric,
                             depths,
                             "stimulus_duration",
@@ -241,7 +245,7 @@ class AblationPlotter(BasePlotter):
                     )
                 except Exception as e:
                     print(
-                        f"Error generating stochastic ablation plot for {ablation_type}_{metric}: {e}"
+                        f"Error generating stochastic ablation plot for {method}_{target}_{metric}: {e}"
                     )
                     traceback.print_exc()
 
@@ -255,7 +259,8 @@ class AblationPlotter(BasePlotter):
         var_name: str,
         logscale: bool,
         output_dir: str,
-        ablation_type: str,
+        method: str,
+        target: str,
         metric: str,
         depths: list[int],
     ) -> list[str]:
@@ -266,7 +271,7 @@ class AblationPlotter(BasePlotter):
         ablation_cols_filtered = [
             col
             for col in valid_data.columns
-            if f"ablation_{ablation_type}_{metric}_" in col and "_mean" in col
+            if f"ablation_{method}_{target}_{metric}_" in col and "_mean" in col
         ]
 
         if not ablation_cols_filtered:
@@ -277,7 +282,7 @@ class AblationPlotter(BasePlotter):
 
         fig, axes = plt.subplots(1, 2, figsize=(15, 6))
         fig.suptitle(
-            f"{ablation_type.title()} Ablation: {metric.title()} vs {var_name} by Depth",
+            f"{method.title()} {target.title()} Ablation: {metric.title()} vs {var_name} by Depth",
             fontsize=16,
         )
 
@@ -299,7 +304,7 @@ class AblationPlotter(BasePlotter):
 
             # Plot lines for each depth
             for depth in depths:
-                depth_col = f"ablation_{ablation_type}_{metric}_depth{depth}_mean"
+                depth_col = f"ablation_{method}_{target}_{metric}_depth{depth}_mean"
                 if depth_col not in category_data.columns:
                     continue
 
@@ -343,7 +348,7 @@ class AblationPlotter(BasePlotter):
 
         fig.tight_layout()
 
-        plot_path = output_dir / f"{ablation_type}_{metric}_ablation.png"
+        plot_path = output_dir / method / f"{method}_{target}_{metric}_ablation.png"
         plot_paths.append(self.save_figure(fig, plot_path))
 
         return plot_paths
@@ -352,7 +357,8 @@ class AblationPlotter(BasePlotter):
         self,
         valid_data: pd.DataFrame,
         output_dir: str,
-        ablation_type: str,
+        method: str,
+        target: str,
         metric: str,
         depths: list[int],
         colx: str,
@@ -363,7 +369,8 @@ class AblationPlotter(BasePlotter):
         Args:
             valid_data: DataFrame with ablation data
             output_dir: Output directory for plots
-            ablation_type: Type of ablation (e.g., 'layer', 'synapse')
+            method: Method of ablation (e.g., 'layer', 'synapse')
+            target: Target of ablation (e.g., 'excitation', 'inhibition')
             metric: Metric to plot (e.g., 'contribution', 'accuracy')
             depths: List of depths to create heatmaps for
             colx: Column name for x-axis of heatmap
@@ -375,7 +382,7 @@ class AblationPlotter(BasePlotter):
         ablation_cols_filtered = [
             col
             for col in valid_data.columns
-            if (f"ablation_{ablation_type}_{metric}_" in col and "_mean" in col)
+            if (f"ablation_{method}_{target}_{metric}_" in col and "_mean" in col)
         ]
 
         if not ablation_cols_filtered:
@@ -395,7 +402,7 @@ class AblationPlotter(BasePlotter):
         # Filter depths to only those with actual data
         valid_depths = []
         for depth in depths:
-            depth_col = f"ablation_{ablation_type}_{metric}_depth{depth}_mean"
+            depth_col = f"ablation_{method}_{target}_{metric}_depth{depth}_mean"
             if depth_col in valid_data.columns:
                 # Check if there's actual valid data (not just NaN/empty)
                 for category in categories:
@@ -414,7 +421,7 @@ class AblationPlotter(BasePlotter):
                                 break
 
         if not valid_depths:
-            logger.warning(f"No valid depth data found for {ablation_type}_{metric}")
+            logger.warning(f"No valid depth data found for {method}_{target}_{metric}")
             return plot_paths
 
         # Create subplot layout: len(valid_depths) rows x 2 columns
@@ -422,7 +429,7 @@ class AblationPlotter(BasePlotter):
             len(valid_depths), 2, figsize=(15, 5 + 6 * len(valid_depths))
         )
         fig.suptitle(
-            f"{ablation_type.title()} Ablation: {metric.title()} Heatmap ({colx} vs {coly})",
+            f"{method.title()} {target.title()} Ablation: {metric.title()} Heatmap ({colx} vs {coly})",
             fontsize=16,
         )
 
@@ -433,7 +440,7 @@ class AblationPlotter(BasePlotter):
         # Collect all values for consistent color scaling
         all_values = []
         for depth in valid_depths:
-            depth_col = f"ablation_{ablation_type}_{metric}_depth{depth}_mean"
+            depth_col = f"ablation_{method}_{target}_{metric}_depth{depth}_mean"
             for category in categories:
                 category_data = valid_data[valid_data["network_category"] == category]
                 if not category_data.empty:
@@ -449,7 +456,7 @@ class AblationPlotter(BasePlotter):
             vmin, vmax = 0, 1
 
         for depth_idx, depth in enumerate(valid_depths):
-            depth_col = f"ablation_{ablation_type}_{metric}_depth{depth}_mean"
+            depth_col = f"ablation_{method}_{target}_{metric}_depth{depth}_mean"
 
             for cat_idx, category in enumerate(categories):
                 ax = axes[depth_idx, cat_idx]
@@ -556,7 +563,7 @@ class AblationPlotter(BasePlotter):
         fig.tight_layout()
 
         plot_path = (
-            output_dir / f"{ablation_type}_{metric}_heatmap_{colx}_vs_{coly}.png"
+            output_dir / method / f"{method}_{target}_{metric}_heatmap_{colx}_vs_{coly}.png"
         )
         plot_paths.append(self.save_figure(fig, plot_path))
 
