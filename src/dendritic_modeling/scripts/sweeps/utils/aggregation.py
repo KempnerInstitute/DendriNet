@@ -145,6 +145,7 @@ def extract_network_category(data: pd.DataFrame) -> pd.DataFrame:
     flat_shunting        - EINet shunting, flattened dendritic tree
     flat_additive        - EINet additive, flattened dendritic tree
     dendritic_mlp        - EINet with synapse_mode="mlp", signed weights
+    flat_mlp             - EINet with synapse_mode="mlp", flattened dendritic tree
     point_mlp            - Shallow parameter-matched point-neuron MLP
     ss_mlp               - Sparse structured MLP (structural match)
     ss_mlp_flat          - Sparse structured MLP, flattened
@@ -164,17 +165,6 @@ def extract_network_category(data: pd.DataFrame) -> pd.DataFrame:
     result = data.copy()
     result["network_category"] = "unknown"
 
-    if "network_type" not in result.columns:
-        # Fallback: legacy boolean only
-        if "use_shunting" in result.columns:
-            result.loc[result["use_shunting"].eq(True), "network_category"] = (
-                "dendritic_shunting"
-            )
-            result.loc[result["use_shunting"].eq(False), "network_category"] = (
-                "dendritic_additive"
-            )
-        return result
-
     nt = result["network_type"].astype(str).str.lower()
 
     # ---- Normalize common typos / historical aliases ----
@@ -182,12 +172,15 @@ def extract_network_category(data: pd.DataFrame) -> pd.DataFrame:
         {
             "dendriti_additive": "dendritic_additive",
             "dendritic_shuntng": "dendritic_shunting",
+            "dendritic_mlp": "dendritic_mlp",
+            "flat_shunting": "flat_shunting",
+            "flat_additive": "flat_additive",
+            "flat_mlp": "flat_mlp",
             "mlp": "point_mlp",
-            # MR aliases → canonical names
-            "einet_sh": "dendritic_shunting",
-            "einet_ns": "dendritic_additive",
-            "einet_sh_flat": "flat_shunting",
-            "einet_ns_flat": "flat_additive",
+            "ss_mlp": "ss_mlp",
+            "ss_mlp_flat": "ss_mlp_flat",
+            "total_param_mlp": "total_param_mlp",
+            "active_param_mlp": "active_param_mlp",
         }
     )
 
@@ -195,9 +188,10 @@ def extract_network_category(data: pd.DataFrame) -> pd.DataFrame:
     for name in [
         "dendritic_shunting",
         "dendritic_additive",
+        "dendritic_mlp",
         "flat_shunting",
         "flat_additive",
-        "dendritic_mlp",
+        "flat_mlp",
         "point_mlp",
         "ss_mlp",
         "ss_mlp_flat",
@@ -205,30 +199,5 @@ def extract_network_category(data: pd.DataFrame) -> pd.DataFrame:
         "active_param_mlp",
     ]:
         result.loc[nt.eq(name), "network_category"] = name
-
-    # ---- MR-style network_type values that differ from category names ----
-    result.loc[nt.eq("matchedtotalparammlp"), "network_category"] = "total_param_mlp"
-    result.loc[nt.eq("matchedactiveparammlp"), "network_category"] = "active_param_mlp"
-
-    # ---- Legacy: network_type == "einet"/"einetwork", decide by use_shunting ----
-    einet_mask = nt.isin(["einet", "einetwork"])
-    if "use_shunting" in result.columns:
-        result.loc[einet_mask & result["use_shunting"].eq(True), "network_category"] = (
-            "dendritic_shunting"
-        )
-        result.loc[
-            einet_mask & result["use_shunting"].eq(False), "network_category"
-        ] = "dendritic_additive"
-
-    # ---- Ultimate fallback: use_shunting boolean only ----
-    if (
-        result["network_category"] == "unknown"
-    ).all() and "use_shunting" in result.columns:
-        result.loc[result["use_shunting"].eq(True), "network_category"] = (
-            "dendritic_shunting"
-        )
-        result.loc[result["use_shunting"].eq(False), "network_category"] = (
-            "dendritic_additive"
-        )
 
     return result
