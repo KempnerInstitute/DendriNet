@@ -335,47 +335,162 @@ Post-voltage nonlinearities applied at each branch layer. Set via
 Recurrent E-I Network
 ---------------------
 
-The ``ei_unified`` type supports both feedforward and recurrent operation
-through the same architecture. Each layer is an EILayer containing excitatory
-and (optionally) inhibitory StatefulDendriNet populations.
+Any EINet architecture (``dendritic_shunting``, ``dendritic_additive``,
+``EINet``) becomes recurrent when ``connectivity.rec_*`` synapse counts are
+nonzero.  Recurrence is controlled **solely** by these synapse counts —
+any layer with at least one nonzero ``rec_*`` value becomes recurrent.
+The existing ``architecture``, ``connectivity``, ``morphology``,
+``sparsity``, ``reactivation``, and ``blocklinear`` sections are reused;
+a small ``recurrent_ei`` block provides only the temporal parameters.
+The factory translates this to an ``EINetwork`` internally.
 
-PopulationConfig
-~~~~~~~~~~~~~~~~
+Alternatively, use ``core.type: ei_unified`` with the ``unified_ei`` config
+for full per-layer, per-population control.
 
-Per-population parameters:
+Making an EINet recurrent
+~~~~~~~~~~~~~~~~~~~~~~~~~
 
-``n_neurons``
-   Number of neurons (default: 64).
+.. code-block:: yaml
 
-``branch_factors``
-   Dendritic tree structure (default: ``[1]``).
+   model:
+     core:
+       type: dendritic_shunting          # same type as feedforward
+       architecture:
+         excitatory_layer_sizes: [64]
+         excitatory_branch_factors: [3, 3]
+       connectivity:
+         ee_synapses_per_branch_per_layer: [12]
+         ie_synapses_per_branch_per_layer: [6]
+         # Nonzero rec counts trigger recurrent mode
+         rec_ee_synapses_per_branch: [8]   # E->E recurrent
+         rec_ie_synapses_per_branch: [4]   # I->E recurrent
+         rec_ei_synapses_per_branch: [8]   # E->I recurrent
+         rec_ii_synapses_per_branch: [4]   # I->I recurrent
+       transfer:
+         input_mode: 1
+         inhibitory_mode: "first"        # none, first, all
+       # morphology, sparsity, reactivation, blocklinear as usual...
 
-``ff_excitatory_synapses``, ``ff_inhibitory_synapses``
-   Feedforward synapse counts per branch.
+       recurrent_ei:                     # temporal params only
+         output_mode: last               # "last", "all", "mean"
+         use_transfer: true              # default true (set false to bypass TransferLayer)
+         dt: 1.0                         # timestep (scalar or per-layer list)
+         tau_base: 50.0                  # base time constant (scalar or per-layer list)
+         tau_ratio: 3.0                  # geometric ratio between levels (scalar or per-layer list)
 
-``rec_excitatory_synapses``, ``rec_inhibitory_synapses``
-   Recurrent synapse counts per branch (set to 0 for feedforward-only layers).
+   training:
+     main:
+       strategy: recurrent
 
-``tau_base``
-   Base time constant (default: 50.0).
+For recurrent EINet, ``use_transfer`` defaults to ``true`` (legacy EINet parity),
+so a TransferLayer is built for both ``input_mode=1`` and ``input_mode=0``.
+Set ``recurrent_ei.use_transfer: false`` to disable it explicitly.
 
-``tau_ratio``
-   Geometric ratio between dendritic levels (default: 3.0). Distal levels
-   receive longer time constants; soma receives the shortest.
+Recurrent connectivity parameters
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-``level_taus``
-   Explicit per-level time constants. If empty, auto-generated from
-   ``tau_base`` and ``tau_ratio`` as:
+These go in the ``connectivity:`` section alongside the feedforward synapse
+counts, as per-layer lists (repeat-last semantics):
+
+``rec_ee_synapses_per_branch``
+   E->E recurrent synapses per branch (applied to E population).
+
+``rec_ie_synapses_per_branch``
+   I->E recurrent synapses per branch (applied to E population).
+
+``rec_ei_synapses_per_branch``
+   E->I recurrent synapses per branch (applied to I population, defaults to ``rec_ee``).
+
+``rec_ii_synapses_per_branch``
+   I->I recurrent synapses per branch (applied to I population, defaults to ``rec_ie``).
+
+A layer is recurrent if any of its rec synapse counts are > 0.
+
+Temporal parameters (``recurrent_ei``)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``output_mode``
+   ``"last"``, ``"mean"``, ``"all"`` (default: ``"last"``).
+
+``use_transfer``
+   Whether to build a TransferLayer before recurrent E-I layers.
+   Default: ``true`` for recurrent EINet path (set ``false`` to bypass).
+
+``dt``
+   Integration timestep. Scalar or per-layer list (default: 1.0).
+
+``tau_base``, ``tau_ratio``
+   Base time constant and geometric ratio between dendritic levels.
+   Scalar or per-layer list. Distal levels get longer time constants:
    ``tau[i] = tau_base * tau_ratio^(n_levels - 1 - i)``.
 
-EILayerConfig
-~~~~~~~~~~~~~
+``level_taus``
+   Explicit per-level time constants. If set, overrides ``tau_base``/``tau_ratio``.
+
+Other parameters
+~~~~~~~~~~~~~~~~
+
+``transfer.inhibitory_mode``
+   Controls which layers receive the transfer layer's inhibitory stream
+   when ``input_mode=1``.  ``"none"`` — no layer receives it.
+   ``"first"`` (default) — only the first layer.  ``"all"`` — every layer.
+   This is strictly enforced: layers not selected receive ``None`` as
+   inhibitory input.
+
+``architecture.input_projection_dims``
+   Optional MLP dims before the E-I layers.
+
+``implementation.store_routing``
+   Record per-level routing info for analysis.
+
+Using ``ei_unified`` directly
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+For full per-layer, per-population control, use ``core.type: ei_unified``
+with the ``unified_ei`` config. Each layer is an ``EILayerConfig`` containing
+``excitatory`` and ``inhibitory`` ``PopulationConfig`` objects.
+
+PopulationConfig fields
+^^^^^^^^^^^^^^^^^^^^^^^
+
+Synapse counts:
+   ``ff_excitatory_synapses``, ``ff_inhibitory_synapses`` (feedforward),
+   ``rec_excitatory_synapses``, ``rec_inhibitory_synapses`` (recurrent, 0 for FF).
+
+Dendritic structure:
+   ``n_neurons``, ``branch_factors``.
+
+TopK sparsity:
+   ``topk_init_method``, ``topk_noise_level``, ``topk_type``
+   (``"standard"``, ``"stochastic"``, ``"variance"``, ``"deepst"``),
+   ``topk_weight_norm_order``, ``topk_gamma``, ``topk_temperature``,
+   ``topk_ultrafast``, ``topk_strategy`` (``"none"``, ``"conductance_dynamic"``).
+
+Dendritic computation:
+   ``weight_transform`` (``"exp"``, ``"relu"``, ``"softplus"``, ``"identity"``),
+   ``use_shunting``, ``use_additive_normalization``,
+   ``somatic_synapses``, ``dbl_init_method``, ``efficient_blocklinear``,
+   ``blocklinear_strategy``.
+
+Reactivation:
+   ``reactivate``, ``reactivation_type`` (``"param_tanh"``, ``"tanh"``,
+   ``"sigmoid"``), ``reactivation_init_m``, ``reactivation_init_b``,
+   ``reactivation_strategy``.
+
+Temporal:
+   ``tau_base``, ``tau_ratio``, ``level_taus``, ``epsilon``.
+
+Implementation:
+   ``print_hooks``, ``adaptive_initialization``.
+
+EILayerConfig fields
+^^^^^^^^^^^^^^^^^^^^
 
 ``excitatory``
    PopulationConfig for the excitatory population.
 
 ``inhibitory``
-   PopulationConfig for the inhibitory population (set to ``null`` to omit).
+   PopulationConfig for the inhibitory population (``null`` to omit).
 
 ``recurrent``
    ``True`` to enable recurrent dynamics; ``False`` for feedforward.
@@ -383,29 +498,40 @@ EILayerConfig
 ``dt``
    Integration timestep (default: 1.0).
 
-EINetworkConfig
-~~~~~~~~~~~~~~~
+``direct_ff_inhibitory_to_excitatory``
+   If ``True``, excitatory population receives external inhibitory input
+   directly (e.g., from transfer layer) even without a local inhibitory
+   population.
+
+EINetworkConfig fields
+^^^^^^^^^^^^^^^^^^^^^^
 
 ``layers``
-   List of EILayerConfig instances (one per network layer).
+   List of EILayerConfig instances.
 
-``input_dim``
-   Input dimension.
+``use_transfer``
+   Use TransferLayer for input routing (default: ``False``).
+
+``transfer_params``
+   TransferLayer parameters (``input_mode``, ``independent_pathways``, etc.).
+
+``input_projection_dims``
+   Optional MLP dims before the E-I stack.
 
 ``output_mode``
-   ``"last"`` -- output at final timestep, shape ``[B, C]``.
-   ``"mean"`` -- temporal average, shape ``[B, C]``.
-   ``"all"`` -- output at every timestep, shape ``[B, T, C]``.
+   ``"last"`` -- final timestep ``[B, C]``.
+   ``"mean"`` -- temporal average ``[B, C]``.
+   ``"all"`` -- all timesteps ``[B, T, C]``.
 
 ``store_routing``
-   If ``True``, record which branches are active per input (for routing
-   analysis).
+   Record routing info for analysis.
 
 **Recurrent dynamics**: at each timestep, raw synaptic currents are computed
 per dendritic level, then integrated with leaky dynamics:
 ``trace' = decay * trace + (1 - decay) * raw``, where
 ``decay = exp(-dt / tau)``. The shunting (or additive) computation is applied
-to the integrated traces.
+to the integrated traces. Five trace types are maintained per level:
+feedforward E, feedforward I, recurrent E, recurrent I, and branch aggregation.
 
 .. code-block:: yaml
 
@@ -414,6 +540,7 @@ to the integrated traces.
        type: ei_unified
        unified_ei:
          output_mode: last
+         use_transfer: false
          layers:
            - recurrent: true
              dt: 1.0
@@ -447,7 +574,6 @@ Standard recurrent architectures for comparison: ``gru``, ``lstm``,
          hidden_dim: 128
          num_layers: 1
          dropout: 0.0
-         bidirectional: false
          output_mode: last
          input_projection_dims: []
 
@@ -501,6 +627,10 @@ ArchitectureConfig
      - str
      - ``"dendritic"``
      - ``"dendritic"`` or ``"mlp"``
+   * - ``input_projection_dims``
+     - list[int]
+     - ``[]``
+     - MLP dims before first E-I layer (empty = none)
 
 ConnectivityConfig
 ~~~~~~~~~~~~~~~~~~
@@ -529,6 +659,22 @@ ConnectivityConfig
      - list[int]
      - ``[0]``
      - Inhibitory-to-inhibitory synapses per branch
+   * - ``rec_ee_synapses_per_branch``
+     - list[int]
+     - ``[0]``
+     - E->E recurrent synapses per branch (nonzero = recurrent)
+   * - ``rec_ie_synapses_per_branch``
+     - list[int]
+     - ``[0]``
+     - I->E recurrent synapses per branch
+   * - ``rec_ei_synapses_per_branch``
+     - list[int]
+     - ``[0]``
+     - E->I recurrent synapses (defaults to ``rec_ee``)
+   * - ``rec_ii_synapses_per_branch``
+     - list[int]
+     - ``[0]``
+     - I->I recurrent synapses (defaults to ``rec_ie``)
 
 MorphologyConfig
 ~~~~~~~~~~~~~~~~
@@ -657,3 +803,31 @@ TransferFunctionConfig
      - str/None
      - ``None``
      - Post-split activation
+   * - ``inhibitory_mode``
+     - str
+     - ``"first"``
+     - Recurrent I routing: ``"none"``, ``"first"``, ``"all"``
+
+ImplementationConfig
+~~~~~~~~~~~~~~~~~~~~
+
+.. list-table::
+   :header-rows: 1
+   :widths: 35 15 15 35
+
+   * - Parameter
+     - Type
+     - Default
+     - Description
+   * - ``adaptive_initialization``
+     - bool
+     - ``False``
+     - Network-aware weight scaling
+   * - ``print_hooks``
+     - bool
+     - ``False``
+     - Print gradient statistics
+   * - ``store_routing``
+     - bool
+     - ``False``
+     - Store per-timestep routing info for analysis

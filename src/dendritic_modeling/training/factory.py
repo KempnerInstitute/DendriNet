@@ -311,6 +311,20 @@ def get_trainer(
         trainer_config_dict.update(enhanced_configs)
         return HomeostaticControlTrainer(**trainer_config_dict)
     elif strategy == "recurrent":
+        # Strategy-specific recurrent config takes precedence over generic fields.
+        recurrent_cfg = trainer_config_dict.pop("recurrent_config", None)
+        if recurrent_cfg is not None and not isinstance(recurrent_cfg, dict):
+            if hasattr(recurrent_cfg, "asdict") and callable(recurrent_cfg.asdict):
+                recurrent_cfg = recurrent_cfg.asdict()
+            elif hasattr(recurrent_cfg, "__dict__"):
+                recurrent_cfg = {
+                    key: value
+                    for key, value in vars(recurrent_cfg).items()
+                    if not key.startswith("_")
+                }
+        if isinstance(recurrent_cfg, dict):
+            trainer_config_dict.update(recurrent_cfg)
+
         task = trainer_config_dict.pop("task", "classification")
         grad_clip = trainer_config_dict.pop(
             "grad_clip", trainer_config_dict.pop("grad_clip_value", 1.0)

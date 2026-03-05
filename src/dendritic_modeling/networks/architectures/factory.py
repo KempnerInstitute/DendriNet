@@ -82,6 +82,353 @@ def _to_plain_mapping(obj: Any) -> dict[str, Any]:
         return {}
 
 
+def _layer_value(
+    value: Any, layer_idx: int, default: Any = 0, *, allow_empty_list: bool = False
+) -> Any:
+    """Read scalar/list per-layer values with repeat-last semantics."""
+    if isinstance(value, list):
+        if not value:
+            return [] if allow_empty_list else default
+        if layer_idx < len(value):
+            return value[layer_idx]
+        return value[-1]
+    if value is None:
+        return default
+    return value
+
+
+def _build_recurrent_einet_from_structured_config(
+    *,
+    type: str,
+    raw_params: dict[str, Any],
+    input_dim: int,
+):
+    """Translate structured EINet config + recurrent synapse counts to recurrent EINetwork.
+
+    Recurrence is triggered when any ``connectivity.rec_*`` synapse count is > 0,
+    or (for backward compatibility) when ``recurrent_ei.enabled`` is True.
+    """
+    from dendritic_modeling.networks.architectures.recurrent import (
+        EILayerConfig,
+        EINetwork,
+        EINetworkConfig,
+        PopulationConfig,
+    )
+
+    recurrent_cfg = _to_plain_mapping(raw_params.get("recurrent_ei", {}))
+    architecture = _to_plain_mapping(raw_params.get("architecture", {}))
+    connectivity = _to_plain_mapping(raw_params.get("connectivity", {}))
+    transfer = _to_plain_mapping(raw_params.get("transfer", {}))
+    morphology = _to_plain_mapping(raw_params.get("morphology", {}))
+    sparsity = _to_plain_mapping(raw_params.get("sparsity", {}))
+    reactivation = _to_plain_mapping(raw_params.get("reactivation", {}))
+    blocklinear = _to_plain_mapping(raw_params.get("blocklinear", {}))
+    implementation = _to_plain_mapping(raw_params.get("implementation", {}))
+    deepst = _to_plain_mapping(sparsity.get("deepst", {}))
+
+    # --- Resolve recurrent synapse counts (new location first, old fallback) ---
+    def _rec_syn(new_key, *old_keys, fallback=0):
+        if new_key in connectivity:
+            return connectivity[new_key]
+        for k in old_keys:
+            if k in recurrent_cfg:
+                return recurrent_cfg[k]
+        return fallback
+
+    rec_ee = _rec_syn(
+        "rec_ee_synapses_per_branch",
+        "rec_excitatory_synapses_per_layer",
+        "rec_excitatory_synapses",
+    )
+    rec_ie = _rec_syn(
+        "rec_ie_synapses_per_branch",
+        "rec_inhibitory_synapses_per_layer",
+        "rec_inhibitory_synapses",
+    )
+    rec_ei = _rec_syn(
+        "rec_ei_synapses_per_branch",
+        "inh_rec_excitatory_synapses_per_layer",
+        "inh_rec_excitatory_synapses",
+        fallback=rec_ee,
+    )
+    rec_ii = _rec_syn(
+        "rec_ii_synapses_per_branch",
+        "inh_rec_inhibitory_synapses_per_layer",
+        "inh_rec_inhibitory_synapses",
+        fallback=rec_ie,
+    )
+
+    # --- Determine whether recurrence is active ---
+    def _any_positive(val):
+        if isinstance(val, list):
+            return any(v > 0 for v in val)
+        return val is not None and val > 0
+
+    has_rec_synapses = any(_any_positive(v) for v in [rec_ee, rec_ie, rec_ei, rec_ii])
+    # Backward compat: old configs use recurrent_ei.enabled: true to activate
+    # recurrence.  New configs rely solely on connectivity.rec_* > 0.
+    explicit_enabled = recurrent_cfg.get("enabled", None)
+    if not has_rec_synapses and not explicit_enabled:
+        return None
+
+    if type in {"dendritic_mlp", "flat_shunting", "flat_additive"}:
+        raise ValueError(
+            f"Recurrent mode is not supported for architecture type '{type}'. "
+            "Use 'EINet', 'dendritic_shunting', or 'dendritic_additive'."
+        )
+
+    excitatory_sizes = list(architecture.get("excitatory_layer_sizes", []))
+    if not excitatory_sizes:
+        raise ValueError(
+            "Recurrent mode requires non-empty architecture.excitatory_layer_sizes"
+        )
+
+    inhibitory_sizes = list(architecture.get("inhibitory_layer_sizes", []))
+    input_mode = int(transfer.get("input_mode", 0))
+
+    # use_transfer: keep legacy EINet behavior by default (TransferLayer always on),
+    # with backward-compatible explicit override via recurrent_ei.use_transfer.
+    if "use_transfer" in recurrent_cfg:
+        use_transfer = bool(recurrent_cfg["use_transfer"])
+    else:
+        use_transfer = True
+
+    # Preserve legacy EINet type aliases for shunting/additive behavior.
+    use_shunting = bool(morphology.get("use_shunting", True))
+    if type == "dendritic_shunting":
+        use_shunting = True
+    elif type == "dendritic_additive":
+        use_shunting = False
+
+    # Per-layer recurrence: infer from synapse counts, backward compat with explicit flag
+    explicit_recurrent_layers = recurrent_cfg.get(
+        "recurrent_layers", recurrent_cfg.get("recurrent_per_layer", None)
+    )
+
+    dt_value = recurrent_cfg.get("dt", 1.0)
+
+    # transfer_inhibitory_mode: new location first, old fallback
+    transfer_inhibitory_mode = str(
+        transfer.get(
+            "inhibitory_mode",
+            recurrent_cfg.get("transfer_inhibitory_mode", "first"),
+        )
+    ).lower()
+    if transfer_inhibitory_mode not in {"none", "first", "all"}:
+        raise ValueError(
+            "transfer.inhibitory_mode must be one of ('none', 'first', 'all')"
+        )
+
+    layers: list[EILayerConfig] = []
+    for layer_idx, n_exc in enumerate(excitatory_sizes):
+        n_inh = int(_layer_value(inhibitory_sizes, layer_idx, default=0))
+        build_inhibitory_population = n_inh > 0 and input_mode != 1
+
+        # Per-layer recurrence
+        if explicit_recurrent_layers is not None:
+            rec_enabled = bool(
+                _layer_value(explicit_recurrent_layers, layer_idx, default=True)
+            )
+        else:
+            layer_rec_total = sum(
+                int(_layer_value(v, layer_idx, default=0))
+                for v in [rec_ee, rec_ie, rec_ei, rec_ii]
+            )
+            rec_enabled = layer_rec_total > 0
+
+        dt = float(_layer_value(dt_value, layer_idx, default=1.0))
+
+        # Per-layer tau_base / tau_ratio
+        tau_base = float(
+            _layer_value(recurrent_cfg.get("tau_base", 50.0), layer_idx, default=50.0)
+        )
+        tau_ratio = float(
+            _layer_value(recurrent_cfg.get("tau_ratio", 3.0), layer_idx, default=3.0)
+        )
+
+        exc_cfg = PopulationConfig(
+            n_neurons=int(n_exc),
+            branch_factors=list(
+                architecture.get("excitatory_branch_factors", [1]) or [1]
+            ),
+            ff_excitatory_synapses=int(
+                _layer_value(
+                    connectivity.get("ee_synapses_per_branch_per_layer", []),
+                    layer_idx,
+                    default=0,
+                )
+            ),
+            ff_inhibitory_synapses=int(
+                _layer_value(
+                    connectivity.get("ie_synapses_per_branch_per_layer", []),
+                    layer_idx,
+                    default=0,
+                )
+            ),
+            rec_excitatory_synapses=int(_layer_value(rec_ee, layer_idx, default=0)),
+            rec_inhibitory_synapses=int(_layer_value(rec_ie, layer_idx, default=0)),
+            topk_init_method=str(sparsity.get("init_method", "xavier_normal")),
+            topk_noise_level=float(sparsity.get("noise_level", 0.0)),
+            topk_type=str(sparsity.get("type", "standard")),
+            topk_weight_norm_order=sparsity.get("weight_norm_order"),
+            topk_gamma=float(sparsity.get("gamma", 1.0)),
+            topk_temperature=float(sparsity.get("temperature", 0.0)),
+            topk_ultrafast=bool(sparsity.get("ultrafast", False)),
+            topk_strategy=str(sparsity.get("gradient_scaling", "none")),
+            weight_transform=str(morphology.get("weight_transform", "softplus")),
+            use_shunting=use_shunting,
+            use_additive_normalization=bool(
+                morphology.get("use_additive_normalization", False)
+            ),
+            reactivate=bool(reactivation.get("enabled", True)),
+            reactivation_type=str(reactivation.get("type", "param_tanh")),
+            reactivation_init_m=float(reactivation.get("init_m", 1.5)),
+            reactivation_init_b=float(reactivation.get("init_b", 0.5)),
+            reactivation_strategy=str(reactivation.get("gradient_scaling", "none")),
+            blocklinear_strategy=str(blocklinear.get("gradient_scaling", "none")),
+            level_taus=list(recurrent_cfg.get("level_taus", [])),
+            tau_base=tau_base,
+            tau_ratio=tau_ratio,
+            learnable_tau=bool(recurrent_cfg.get("learnable_tau", False)),
+            epsilon=float(recurrent_cfg.get("epsilon", 1e-8)),
+            somatic_synapses=bool(morphology.get("somatic_synapses", False)),
+            dbl_init_method=str(
+                morphology.get("dbl_init_method", "analytical_expectation")
+            ),
+            efficient_blocklinear=bool(blocklinear.get("efficient", False)),
+            print_hooks=bool(implementation.get("print_hooks", False)),
+            excitatory_target_density=float(
+                deepst.get("excitatory_target_density", 0.1)
+            ),
+            inhibitory_target_density=float(
+                deepst.get("inhibitory_target_density", 0.1)
+            ),
+            use_noise=bool(deepst.get("use_noise", True)),
+            sigma=float(deepst.get("sigma", 0.05)),
+            rewiring_mode=str(deepst.get("rewiring_mode", "global")),
+            rewire_frequency=int(deepst.get("rewire_frequency", 1)),
+            synapses_per_branch=deepst.get("synapses_per_branch"),
+            freeze_excitatory_connectivity=bool(
+                deepst.get("freeze_excitatory_connectivity", False)
+            ),
+            freeze_inhibitory_connectivity=bool(
+                deepst.get("freeze_inhibitory_connectivity", False)
+            ),
+            init_method=str(deepst.get("init_method", "xavier_normal")),
+            weight_threshold=float(deepst.get("weight_threshold", 1e-6)),
+            adaptive_initialization=bool(
+                implementation.get("adaptive_initialization", False)
+            ),
+        )
+
+        inh_cfg = None
+        if build_inhibitory_population:
+            inh_cfg = PopulationConfig(
+                n_neurons=n_inh,
+                branch_factors=list(
+                    architecture.get("inhibitory_branch_factors", [1]) or [1]
+                ),
+                ff_excitatory_synapses=int(
+                    _layer_value(
+                        connectivity.get("ei_synapses_per_branch_per_layer", []),
+                        layer_idx,
+                        default=0,
+                    )
+                ),
+                ff_inhibitory_synapses=int(
+                    _layer_value(
+                        connectivity.get("ii_synapses_per_branch_per_layer", []),
+                        layer_idx,
+                        default=0,
+                    )
+                ),
+                rec_excitatory_synapses=int(_layer_value(rec_ei, layer_idx, default=0)),
+                rec_inhibitory_synapses=int(_layer_value(rec_ii, layer_idx, default=0)),
+                topk_init_method=exc_cfg.topk_init_method,
+                topk_noise_level=exc_cfg.topk_noise_level,
+                topk_type=exc_cfg.topk_type,
+                topk_weight_norm_order=exc_cfg.topk_weight_norm_order,
+                topk_gamma=exc_cfg.topk_gamma,
+                topk_temperature=exc_cfg.topk_temperature,
+                topk_ultrafast=exc_cfg.topk_ultrafast,
+                topk_strategy=exc_cfg.topk_strategy,
+                weight_transform=exc_cfg.weight_transform,
+                use_shunting=exc_cfg.use_shunting,
+                use_additive_normalization=exc_cfg.use_additive_normalization,
+                reactivate=exc_cfg.reactivate,
+                reactivation_type=exc_cfg.reactivation_type,
+                reactivation_init_m=exc_cfg.reactivation_init_m,
+                reactivation_init_b=exc_cfg.reactivation_init_b,
+                reactivation_strategy=exc_cfg.reactivation_strategy,
+                blocklinear_strategy=exc_cfg.blocklinear_strategy,
+                level_taus=exc_cfg.level_taus,
+                tau_base=exc_cfg.tau_base,
+                tau_ratio=exc_cfg.tau_ratio,
+                learnable_tau=exc_cfg.learnable_tau,
+                epsilon=exc_cfg.epsilon,
+                somatic_synapses=exc_cfg.somatic_synapses,
+                dbl_init_method=exc_cfg.dbl_init_method,
+                efficient_blocklinear=exc_cfg.efficient_blocklinear,
+                print_hooks=exc_cfg.print_hooks,
+                excitatory_target_density=exc_cfg.excitatory_target_density,
+                inhibitory_target_density=exc_cfg.inhibitory_target_density,
+                use_noise=exc_cfg.use_noise,
+                sigma=exc_cfg.sigma,
+                rewiring_mode=exc_cfg.rewiring_mode,
+                rewire_frequency=exc_cfg.rewire_frequency,
+                synapses_per_branch=exc_cfg.synapses_per_branch,
+                freeze_excitatory_connectivity=exc_cfg.freeze_excitatory_connectivity,
+                freeze_inhibitory_connectivity=exc_cfg.freeze_inhibitory_connectivity,
+                init_method=exc_cfg.init_method,
+                weight_threshold=exc_cfg.weight_threshold,
+                adaptive_initialization=exc_cfg.adaptive_initialization,
+            )
+
+        direct_ff_inh = False
+        if input_mode == 1:
+            if transfer_inhibitory_mode == "all":
+                direct_ff_inh = True
+            elif transfer_inhibitory_mode == "first":
+                direct_ff_inh = layer_idx == 0
+
+        layers.append(
+            EILayerConfig(
+                excitatory=exc_cfg,
+                inhibitory=inh_cfg,
+                recurrent=rec_enabled,
+                dt=dt,
+                direct_ff_inhibitory_to_excitatory=direct_ff_inh,
+            )
+        )
+
+    transfer_params = dict(transfer)
+    transfer_params.update(_to_plain_mapping(recurrent_cfg.get("transfer", {})))
+    transfer_params.update(_to_plain_mapping(recurrent_cfg.get("transfer_params", {})))
+
+    # input_projection_dims: new location first, old fallback
+    raw_ipd = architecture.get(
+        "input_projection_dims",
+        recurrent_cfg.get("input_projection_dims", []),
+    )
+    ipd = list(raw_ipd) if isinstance(raw_ipd, list) else []
+
+    # store_routing: new location first, old fallback
+    store_routing = bool(
+        implementation.get("store_routing", recurrent_cfg.get("store_routing", False))
+    )
+
+    cfg = EINetworkConfig(
+        layers=layers,
+        input_dim=input_dim,
+        use_transfer=use_transfer,
+        transfer_params=transfer_params,
+        input_projection_dims=ipd,
+        output_mode=str(recurrent_cfg.get("output_mode", "last")),
+        store_routing=store_routing,
+    )
+    return EINetwork(cfg)
+
+
 def get_architecture(
     type: str,
     parameters: Union[dict[str, Any], DictConfig],
@@ -213,6 +560,13 @@ def get_architecture(
             raise ValueError(
                 "input_dim required when passing structured config to EINet"
             )
+
+        raw_params = _to_plain_mapping(parameters)
+        recurrent_einet = _build_recurrent_einet_from_structured_config(
+            type=type, raw_params=raw_params, input_dim=input_dim
+        )
+        if recurrent_einet is not None:
+            return recurrent_einet
 
         # dendritic_mlp: signed weights via ExcitationInhibitionNetwork directly
         if type == "dendritic_mlp":

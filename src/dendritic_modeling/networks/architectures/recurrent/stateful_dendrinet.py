@@ -93,12 +93,22 @@ class StatefulDendriNet(nn.Module):
                 pop_config.tau_base * (ratio ** (self.n_levels - 1 - i))
                 for i in range(self.n_levels)
             ]
-        self.register_buffer(
-            "decays",
-            torch.tensor(
-                [math.exp(-dt / tau) for tau in level_taus], dtype=torch.float32
-            ),
-        )
+
+        self.learnable_tau = bool(pop_config.learnable_tau)
+        if self.learnable_tau:
+            # Store log(tau) as learnable parameter; tau = exp(log_tau) > 0.
+            # decay = exp(-dt / tau) is computed dynamically in step().
+            self.log_tau = nn.Parameter(
+                torch.tensor([math.log(tau) for tau in level_taus], dtype=torch.float32)
+            )
+        else:
+            self.log_tau = None
+            self.register_buffer(
+                "decays",
+                torch.tensor(
+                    [math.exp(-dt / tau) for tau in level_taus], dtype=torch.float32
+                ),
+            )
 
         # Build branch layers (distal to soma)
         self.branch_layers = nn.ModuleList()
@@ -107,15 +117,38 @@ class StatefulDendriNet(nn.Module):
         # Common DendriticBranchLayer kwargs from PopulationConfig
         common_kwargs = {
             "topk_init_method": pop_config.topk_init_method,
+            "topk_noise_level": pop_config.topk_noise_level,
+            "topk_type": pop_config.topk_type,
+            "topk_weight_norm_order": pop_config.topk_weight_norm_order,
+            "topk_gamma": pop_config.topk_gamma,
+            "topk_temperature": pop_config.topk_temperature,
+            "topk_ultrafast": pop_config.topk_ultrafast,
+            "topk_strategy": pop_config.topk_strategy,
             "use_shunting": pop_config.use_shunting,
+            "use_additive_normalization": pop_config.use_additive_normalization,
             "reactivate": pop_config.reactivate,
             "reactivation_type": pop_config.reactivation_type,
             "reactivation_init_m": pop_config.reactivation_init_m,
             "reactivation_init_b": pop_config.reactivation_init_b,
+            "reactivation_strategy": pop_config.reactivation_strategy,
+            "blocklinear_strategy": pop_config.blocklinear_strategy,
             "weight_transform": pop_config.weight_transform,
             "epsilon": pop_config.epsilon,
             "dbl_init_method": pop_config.dbl_init_method,
             "efficient_blocklinear": pop_config.efficient_blocklinear,
+            "print_hooks": pop_config.print_hooks,
+            "excitatory_target_density": pop_config.excitatory_target_density,
+            "inhibitory_target_density": pop_config.inhibitory_target_density,
+            "use_noise": pop_config.use_noise,
+            "sigma": pop_config.sigma,
+            "rewiring_mode": pop_config.rewiring_mode,
+            "rewire_frequency": pop_config.rewire_frequency,
+            "synapses_per_branch": pop_config.synapses_per_branch,
+            "freeze_excitatory_connectivity": pop_config.freeze_excitatory_connectivity,
+            "freeze_inhibitory_connectivity": pop_config.freeze_inhibitory_connectivity,
+            "init_method": pop_config.init_method,
+            "weight_threshold": pop_config.weight_threshold,
+            "adaptive_initialization": pop_config.adaptive_initialization,
             "branch_factors": pop_config.branch_factors,
         }
 
@@ -191,6 +224,20 @@ class StatefulDendriNet(nn.Module):
     def level_dims(self) -> list[int]:
         return self._level_dims
 
+    def get_decays(self) -> torch.Tensor:
+        """Return per-level decay factors, computing from log_tau if learnable."""
+        if self.learnable_tau:
+            tau = self.log_tau.exp()
+            return torch.exp(-self.dt / tau)
+        return self.decays
+
+    @property
+    def current_taus(self) -> torch.Tensor:
+        """Current tau values (useful for inspection/logging)."""
+        if self.learnable_tau:
+            return self.log_tau.exp().detach()
+        return -self.dt / self.decays.clamp(min=1e-8).log()
+
     def init_state(
         self,
         batch_size: int,
@@ -264,6 +311,9 @@ class StatefulDendriNet(nn.Module):
         if state is None:
             state = self.init_state(batch_size=batch_size, device=device, dtype=dtype)
 
+        # Precompute all decay factors (differentiable when learnable_tau=True)
+        all_decays = self.get_decays()
+
         # Build new trace lists in-place (avoids allocating zeros that are overwritten)
         new_trace_E = []
         new_trace_E_rec = []
@@ -300,7 +350,7 @@ class StatefulDendriNet(nn.Module):
                 )
 
             # 3. Leaky-integrate all 5 trace types
-            decay = self.decays[level_idx].to(device=device, dtype=dtype)
+            decay = all_decays[level_idx].to(device=device, dtype=dtype)
             one_minus_decay = 1 - decay
 
             new_trace_E.append(

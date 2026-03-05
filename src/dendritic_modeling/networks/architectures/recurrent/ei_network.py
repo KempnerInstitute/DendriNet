@@ -8,6 +8,9 @@ from typing import Optional, Union
 import torch
 import torch.nn as nn
 
+from dendritic_modeling.networks.architectures.excitation_inhibition.input_transform.transfer import (
+    TransferLayer,
+)
 from dendritic_modeling.networks.architectures.recurrent.ei_config import (
     EILayerConfig,
     EINetworkConfig,
@@ -32,9 +35,20 @@ class EINetwork(BaseNetwork):
         self.output_mode = config.output_mode
         self._store_routing = config.store_routing
         self._routing_info: list[dict] = []
+        self._use_transfer = bool(config.use_transfer)
+        self.transfer_fn: TransferLayer | None = None
+
+        transfer_exc_dim = config.input_dim
+        transfer_inh_dim: int | None = None
+        if self._use_transfer:
+            self.transfer_fn = TransferLayer(
+                input_dim=config.input_dim, transfer_params=config.transfer_params
+            )
+            transfer_exc_dim = self.transfer_fn.excitatory_dim
+            transfer_inh_dim = self.transfer_fn.inhibitory_dim
 
         proj_layers = []
-        prev_dim = config.input_dim
+        prev_dim = transfer_exc_dim
         for hidden_dim in config.input_projection_dims:
             proj_layers.append(nn.Linear(prev_dim, hidden_dim))
             proj_layers.append(nn.ReLU())
@@ -46,12 +60,15 @@ class EINetwork(BaseNetwork):
 
         self.layers = nn.ModuleList()
         prev_exc_dim = self.proj_output_dim
-        prev_inh_dim = None
+        prev_inh_dim = transfer_inh_dim if self._use_transfer else None
         self._is_recurrent = False
         for base_cfg in config.layers:
             layer_cfg: EILayerConfig = copy.deepcopy(base_cfg)
             layer_cfg.excitatory_input_dim = prev_exc_dim
-            layer_cfg.inhibitory_input_dim = prev_inh_dim
+            if self._use_transfer and layer_cfg.direct_ff_inhibitory_to_excitatory:
+                layer_cfg.inhibitory_input_dim = transfer_inh_dim
+            else:
+                layer_cfg.inhibitory_input_dim = prev_inh_dim
             layer = EILayer(layer_cfg)
             self.layers.append(layer)
 
@@ -112,6 +129,33 @@ class EINetwork(BaseNetwork):
             return outputs
         raise ValueError(f"Unknown output_mode: {self.output_mode}")
 
+    def _select_layer_inhibitory_input(
+        self,
+        layer: EILayer,
+        ff_inhibitory: Optional[torch.Tensor],
+        transfer_inhibitory: Optional[torch.Tensor],
+    ) -> Optional[torch.Tensor]:
+        """Select inhibitory input for one layer.
+
+        Priority:
+        1) ``direct_ff_inhibitory_to_excitatory`` forces transfer inhibitory
+           (used by ``input_mode=1`` with ``inhibitory_mode`` "first"/"all").
+        2) Propagated inhibitory from the previous layer (``ff_inhibitory``).
+        3) If no upstream inhibitory and the layer has an I population,
+           fall back to transfer inhibitory (``input_mode=0`` first-layer case).
+        """
+        if (
+            layer.config.direct_ff_inhibitory_to_excitatory
+            and transfer_inhibitory is not None
+        ):
+            return transfer_inhibitory
+        if ff_inhibitory is not None:
+            return ff_inhibitory
+        # First layer with I population but no upstream: use transfer stream
+        if layer.i_population is not None and transfer_inhibitory is not None:
+            return transfer_inhibitory
+        return None
+
     def forward(
         self,
         x: torch.Tensor,
@@ -147,10 +191,21 @@ class EINetwork(BaseNetwork):
         return out
 
     def _forward_feedforward(self, x: torch.Tensor) -> torch.Tensor:
-        h = self.input_projection(x)
+        transfer_inhibitory: torch.Tensor | None = None
+        if self.transfer_fn is not None:
+            h, transfer_inhibitory = self.transfer_fn(x)
+            h = self.input_projection(h)
+        else:
+            h = self.input_projection(x)
+
         ff_I: Optional[torch.Tensor] = None
         for layer in self.layers:
-            h, ff_I, _ = layer(h, ff_I)
+            layer_inhibitory = self._select_layer_inhibitory_input(
+                layer=layer,
+                ff_inhibitory=ff_I,
+                transfer_inhibitory=transfer_inhibitory,
+            )
+            h, ff_I, _ = layer(h, layer_inhibitory)
         return h
 
     def _forward_recurrent(
@@ -168,10 +223,22 @@ class EINetwork(BaseNetwork):
         outputs = []
         self._routing_info = []
         for t in range(seq_len):
-            h = self.input_projection(x[:, t, :])
+            transfer_inhibitory: torch.Tensor | None = None
+            if self.transfer_fn is not None:
+                h, transfer_inhibitory = self.transfer_fn(x[:, t, :])
+                h = self.input_projection(h)
+            else:
+                h = self.input_projection(x[:, t, :])
             ff_I = None
             for layer_idx, layer in enumerate(self.layers):
-                h, ff_I, hidden[layer_idx] = layer(h, ff_I, hidden[layer_idx])
+                layer_inhibitory = self._select_layer_inhibitory_input(
+                    layer=layer,
+                    ff_inhibitory=ff_I,
+                    transfer_inhibitory=transfer_inhibitory,
+                )
+                h, ff_I, hidden[layer_idx] = layer(
+                    h, layer_inhibitory, hidden[layer_idx]
+                )
             outputs.append(h)
 
             if self._store_routing:

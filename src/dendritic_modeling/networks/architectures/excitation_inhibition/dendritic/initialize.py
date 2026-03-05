@@ -64,6 +64,11 @@ def _truncated_normal_moments(
         mean_c: E[X | X > alpha]
         var_c: Var[X | X > alpha]
     """
+    # Determine threshold alpha such that P(X > alpha) = upper_quantile.
+    # Clamp to open interval (0, 1) to avoid +/-inf from norm.ppf at the edges
+    # (e.g., K == in_features -> upper_quantile == 1.0).
+    upper_quantile = min(max(float(upper_quantile), 1e-12), 1 - 1e-12)
+
     # Determine threshold alpha such that P(X > alpha) = upper_quantile
     # gamma = (alpha - mean) / std
     gamma = norm.ppf(1 - upper_quantile)

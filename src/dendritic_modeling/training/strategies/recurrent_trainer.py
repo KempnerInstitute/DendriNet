@@ -180,16 +180,18 @@ class RecurrentTrainer(Trainer):
             self.optimizer.zero_grad()
 
             if self.recurrent_amp:
-                torch_opt = self._get_torch_optimizer()
+                amp_opt = self.optimizer
                 with autocast():
                     loss = self._compute_sequence_loss(
                         model, x_batch, y_batch, seq_lengths
                     )
                 self.recurrent_scaler.scale(loss).backward()
                 if self.grad_clip > 0:
-                    self.recurrent_scaler.unscale_(torch_opt)
+                    self.recurrent_scaler.unscale_(amp_opt)
                     torch.nn.utils.clip_grad_norm_(model.parameters(), self.grad_clip)
-                self.recurrent_scaler.step(torch_opt)
+                # Step through the configured optimizer object directly so AMP
+                # skip semantics apply to wrapper logic (e.g., custom decay/rewiring).
+                self.recurrent_scaler.step(amp_opt)
                 self.recurrent_scaler.update()
             else:
                 loss = self._compute_sequence_loss(model, x_batch, y_batch, seq_lengths)

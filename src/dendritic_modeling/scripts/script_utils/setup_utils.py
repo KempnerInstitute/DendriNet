@@ -64,11 +64,89 @@ def _is_recurrent_core_config(core_cfg) -> bool:
                 return True
         return False
 
+    def _has_recurrent_einet_layers(cfg) -> bool:
+        def _any_positive_in(mapping, keys):
+            for key in keys:
+                val = (
+                    mapping.get(key, 0)
+                    if isinstance(mapping, dict)
+                    else getattr(mapping, key, 0)
+                )
+                if isinstance(val, list):
+                    if any(v > 0 for v in val):
+                        return True
+                elif val is not None and val > 0:
+                    return True
+            return False
+
+        # New path: check connectivity.rec_* fields
+        conn = (
+            cfg.get("connectivity", {})
+            if isinstance(cfg, dict)
+            else getattr(cfg, "connectivity", {})
+        )
+        if conn and _any_positive_in(
+            conn,
+            (
+                "rec_ee_synapses_per_branch",
+                "rec_ie_synapses_per_branch",
+                "rec_ei_synapses_per_branch",
+                "rec_ii_synapses_per_branch",
+            ),
+        ):
+            return True
+
+        # Old path (backward compat): check recurrent_ei block
+        recurrent_ei = (
+            cfg.get("recurrent_ei", {})
+            if isinstance(cfg, dict)
+            else getattr(cfg, "recurrent_ei", {})
+        )
+        if not recurrent_ei:
+            return False
+
+        enabled = (
+            recurrent_ei.get("enabled", False)
+            if isinstance(recurrent_ei, dict)
+            else getattr(recurrent_ei, "enabled", False)
+        )
+        if enabled:
+            per_layer = (
+                recurrent_ei.get("recurrent_layers", None)
+                if isinstance(recurrent_ei, dict)
+                else getattr(recurrent_ei, "recurrent_layers", None)
+            )
+            if per_layer is None:
+                return True
+            if isinstance(per_layer, list):
+                return any(bool(v) for v in per_layer)
+            return bool(per_layer)
+
+        # Also check old-style synapse fields in recurrent_ei
+        return _any_positive_in(
+            recurrent_ei,
+            (
+                "rec_excitatory_synapses",
+                "rec_inhibitory_synapses",
+                "rec_excitatory_synapses_per_layer",
+                "rec_inhibitory_synapses_per_layer",
+            ),
+        )
+
     core_type = _get_type(core_cfg)
     if core_type in {"gru", "lstm", "vanilla_rnn", "rnn"}:
         return True
     if core_type in {"ei_unified", "unified_ei", "ei_net", "unified_einet"}:
         return _has_unified_recurrent_layers(core_cfg)
+    if core_type in {
+        "einet",
+        "dendritic_shunting",
+        "dendritic_additive",
+        "flat_shunting",
+        "flat_additive",
+        "dendritic_mlp",
+    }:
+        return _has_recurrent_einet_layers(core_cfg) or _get_recurrent_enabled(core_cfg)
     return _get_recurrent_enabled(core_cfg)
 
 

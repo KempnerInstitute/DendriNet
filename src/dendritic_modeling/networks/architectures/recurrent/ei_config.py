@@ -3,7 +3,7 @@ Configuration dataclasses for unified E-I layers/networks with optional recurren
 """
 
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Any, Optional
 
 from dendritic_modeling.config.base import BaseConfig
 
@@ -21,23 +21,49 @@ class PopulationConfig(BaseConfig):
     rec_inhibitory_synapses: int = 0
 
     topk_init_method: str = "xavier_normal"
+    topk_noise_level: float = 0.0
+    topk_type: str = "standard"
+    topk_weight_norm_order: Optional[int] = None
+    topk_gamma: float = 1.0
+    topk_temperature: float = 0.0
+    topk_ultrafast: bool = False
+    topk_strategy: str = "none"
     weight_transform: str = "exp"
     use_shunting: bool = True
+    use_additive_normalization: bool = False
     reactivate: bool = True
     reactivation_type: str = "param_tanh"
     reactivation_init_m: float = 1.0
     reactivation_init_b: float = 0.5
+    reactivation_strategy: str = "none"
+    blocklinear_strategy: str = "none"
 
     # Per-level taus. Empty list -> auto-generated (distal slower, proximal faster).
     level_taus: list[float] = field(default_factory=list)
     tau_base: float = 50.0
     tau_ratio: float = 3.0  # Geometric ratio between adjacent dendritic levels
+    learnable_tau: bool = False  # If True, tau values are learned during training
     epsilon: float = 1e-8
 
     # Additional DendriticBranchLayer parameters
     somatic_synapses: bool = True  # Whether soma level gets direct synaptic input
     dbl_init_method: str = "analytical_expectation"
     efficient_blocklinear: bool = False
+    print_hooks: bool = False
+
+    # DeepST / implementation options
+    excitatory_target_density: float = 0.1
+    inhibitory_target_density: float = 0.1
+    use_noise: bool = True
+    sigma: float = 0.05
+    rewiring_mode: str = "global"
+    rewire_frequency: int = 1
+    synapses_per_branch: Optional[int] = None
+    freeze_excitatory_connectivity: bool = False
+    freeze_inhibitory_connectivity: bool = False
+    init_method: str = "xavier_normal"
+    weight_threshold: float = 1e-6
+    adaptive_initialization: bool = True
 
     def __post_init__(self):
         if self.n_neurons <= 0:
@@ -83,6 +109,9 @@ class EILayerConfig(BaseConfig):
     # Set/overwritten by network at build time.
     excitatory_input_dim: int = 64
     inhibitory_input_dim: Optional[int] = None
+    # If True, excitatory population can consume external inhibitory FF input
+    # directly even when no inhibitory population is built in this layer.
+    direct_ff_inhibitory_to_excitatory: bool = False
 
     recurrent: bool = False
     dt: float = 1.0
@@ -106,6 +135,8 @@ class EINetworkConfig(BaseConfig):
 
     layers: list[EILayerConfig] = field(default_factory=lambda: [EILayerConfig()])
     input_dim: int = 64
+    use_transfer: bool = False
+    transfer_params: dict[str, Any] = field(default_factory=dict)
     input_projection_dims: list[int] = field(default_factory=list)
     output_mode: str = "last"  # recurrent only: "last" | "all" | "mean"
     store_routing: bool = False

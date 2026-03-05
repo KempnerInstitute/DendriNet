@@ -14,7 +14,23 @@ from omegaconf import OmegaConf
 
 from dendritic_modeling.config.analysis import AnalysisConfig
 from dendritic_modeling.config.base import BaseConfig
-from dendritic_modeling.config.model import ModelConfig
+from dendritic_modeling.config.model import (
+    ArchitectureConfig,
+    BlockLinearConfig,
+    ConnectivityConfig,
+    CoreConfig,
+    DecoderConfig,
+    DecoderParamsConfig,
+    EncoderConfig,
+    EncoderParamsConfig,
+    ImplementationConfig,
+    ModelConfig,
+    MorphologyConfig,
+    ReactivationConfig,
+    SparsityConfig,
+    TransferFunctionConfig,
+)
+from dendritic_modeling.config.recurrent import RecurrentConfig
 from dendritic_modeling.config.training import (
     EncoderTrainingConfig,
     FiveFactorConfig,
@@ -163,6 +179,85 @@ class Config:
     fsdp: FSDPConfig = field(default_factory=FSDPConfig)
 
 
+def _to_plain_dict(data: Any) -> dict[str, Any]:
+    """Convert OmegaConf/dict-like objects to a plain Python dict."""
+    if data is None:
+        return {}
+    if isinstance(data, dict):
+        return dict(data)
+    if hasattr(data, "_metadata"):
+        converted = OmegaConf.to_container(data, resolve=True)
+        return converted if isinstance(converted, dict) else {}
+    if hasattr(data, "asdict") and callable(data.asdict):
+        converted = data.asdict()
+        return converted if isinstance(converted, dict) else {}
+    if hasattr(data, "__dict__"):
+        return {
+            key: value for key, value in vars(data).items() if not key.startswith("_")
+        }
+    return {}
+
+
+def _build_core_config(core_data: Any) -> CoreConfig:
+    """Build a typed CoreConfig from possibly nested dict/OmegaConf payload."""
+    core_dict = _to_plain_dict(core_data)
+    unified_ei = core_dict.get("unified_ei", core_dict.get("ei_unified", {}))
+    return CoreConfig(
+        type=str(core_dict.get("type", "EINet")),
+        architecture=ArchitectureConfig(
+            **_to_plain_dict(core_dict.get("architecture", {}))
+        ),
+        connectivity=ConnectivityConfig(
+            **_to_plain_dict(core_dict.get("connectivity", {}))
+        ),
+        transfer=TransferFunctionConfig(
+            **_to_plain_dict(core_dict.get("transfer", {}))
+        ),
+        morphology=MorphologyConfig(**_to_plain_dict(core_dict.get("morphology", {}))),
+        sparsity=SparsityConfig(**_to_plain_dict(core_dict.get("sparsity", {}))),
+        reactivation=ReactivationConfig(
+            **_to_plain_dict(core_dict.get("reactivation", {}))
+        ),
+        blocklinear=BlockLinearConfig(
+            **_to_plain_dict(core_dict.get("blocklinear", {}))
+        ),
+        implementation=ImplementationConfig(
+            **_to_plain_dict(core_dict.get("implementation", {}))
+        ),
+        recurrent=RecurrentConfig(**_to_plain_dict(core_dict.get("recurrent", {}))),
+        unified_ei=_to_plain_dict(unified_ei),
+        recurrent_ei=_to_plain_dict(core_dict.get("recurrent_ei", {})),
+        baseline_rnn=_to_plain_dict(core_dict.get("baseline_rnn", {})),
+    )
+
+
+def _build_model_config(model_data: Any) -> ModelConfig:
+    """Build a typed ModelConfig from possibly nested dict/OmegaConf payload."""
+    model_dict = _to_plain_dict(model_data)
+    encoder_dict = _to_plain_dict(model_dict.get("encoder", {}))
+    decoder_dict = _to_plain_dict(model_dict.get("decoder", {}))
+
+    return ModelConfig(
+        task=str(model_dict.get("task", "classification")),
+        encoder=EncoderConfig(
+            type=str(encoder_dict.get("type", "identity")),
+            load_save_root=str(
+                encoder_dict.get("load_save_root", "./trained_encoder_networks/")
+            ),
+            params=EncoderParamsConfig(
+                **_to_plain_dict(encoder_dict.get("params", {}))
+            ),
+        ),
+        core=_build_core_config(model_dict.get("core", {})),
+        decoder=DecoderConfig(
+            type=str(decoder_dict.get("type", "MLP")),
+            params=DecoderParamsConfig(
+                **_to_plain_dict(decoder_dict.get("params", {}))
+            ),
+        ),
+    )
+
+
 @lru_cache(maxsize=10)
 def load_config(path: Optional[str] = None) -> Config:
     """Load configuration from a file or use defaults."""
@@ -193,7 +288,7 @@ def load_config(path: Optional[str] = None) -> Config:
         return Config(
             experiment=ExperimentConfig(**conf_data.get("experiment", {})),
             data=DataConfig(**conf_data.get("data", {})),
-            model=ModelConfig(**conf_data.get("model", {})),
+            model=_build_model_config(conf_data.get("model", {})),
             training=training_config,
             analysis=AnalysisConfig(**mapped_analysis),
             wandb=WandbConfig(**conf_data.get("wandb", {})),
@@ -275,7 +370,7 @@ def _map_training_config(training_data: dict) -> dict:
         else dict(training_data)
     )
 
-    # Handle nested learning_strategy_config in main config
+    # Handle nested learning_strategy_config and optimizer in main config
     if "main" in mapped and isinstance(mapped["main"], dict):
         main_data = dict(mapped["main"])
 
@@ -288,6 +383,12 @@ def _map_training_config(training_data: dict) -> dict:
                 main_data["learning_strategy_config"] = _build_local_rule_config(
                     main_data["learning_strategy_config"]
                 )
+
+        # Build OptimizerConfig if present as dict
+        if "optimizer" in main_data and isinstance(main_data["optimizer"], dict):
+            from dendritic_modeling.config.training import OptimizerConfig
+
+            main_data["optimizer"] = OptimizerConfig(**main_data["optimizer"])
 
         mapped["main"] = main_data
 
