@@ -27,14 +27,6 @@ from dendritic_modeling.networks.architectures.excitation_inhibition import (
     ConfigurableEINetwork,
 )
 
-# Backward-compatible aliases: MR branch names -> canonical names
-_EINET_ALIASES: dict[str, str] = {
-    "einet_sh": "dendritic_shunting",
-    "einet_ns": "dendritic_additive",
-    "einet_sh_flat": "flat_shunting",
-    "einet_ns_flat": "flat_additive",
-}
-
 # All EINet type strings handled via ConfigurableEINetwork (+ dendritic_mlp special-cased)
 _EINET_TYPES: set[str] = {
     "einet",
@@ -43,6 +35,7 @@ _EINET_TYPES: set[str] = {
     "dendritic_mlp",
     "flat_shunting",
     "flat_additive",
+    "flat_mlp",
 }
 
 
@@ -63,9 +56,6 @@ def get_architecture(
         Initialized network module
     """
     type = (type or "").lower()
-
-    # Normalize MR aliases to canonical names
-    type = _EINET_ALIASES.get(type, type)
 
     # ------------------------------------------------------------------
     # EINet variants (require structured config)
@@ -88,41 +78,29 @@ def get_architecture(
                 "input_dim required when passing structured config to EINet"
             )
 
-        # dendritic_mlp: signed weights via ExcitationInhibitionNetwork directly
-        if type == "dendritic_mlp":
-            from dendritic_modeling.networks.architectures.excitation_inhibition import (
-                ExcitationInhibitionNetwork,
-            )
-            from dendritic_modeling.scripts.script_utils.config_utils import (
-                prepare_ei_network_params,
-            )
+        synapse_mode = None
+        use_shunting = False
+        weight_transform = None
+        flatten_dendrites = False
 
-            params = prepare_ei_network_params(parameters, input_dim)
-            params["synapse_mode"] = "mlp"
-            params["use_shunting"] = False
-            params["weight_transform"] = "identity"
-            return ExcitationInhibitionNetwork(**params)
-
-        # All other EINet variants go through ConfigurableEINetwork
-        use_shunting: Optional[bool] = None
-        flatten_dendrites: bool = False
-
-        if type == "dendritic_shunting":
+        if "shunting" in type:
             use_shunting = True
-        elif type == "dendritic_additive":
-            use_shunting = False
-        elif type == "flat_shunting":
-            use_shunting = True
+        
+        if "flat" in type:
             flatten_dendrites = True
-        elif type == "flat_additive":
-            use_shunting = False
-            flatten_dendrites = True
-        # type == "einet": use_shunting=None reads from config
+        
+        if "mlp" in type:
+            synapse_mode = "mlp"
+            weight_transform = "identity"
+
+        # type == "einet": use arguments from config directly
 
         return ConfigurableEINetwork(
             config=parameters,
             input_dim=input_dim,
+            synapse_mode=synapse_mode,
             use_shunting=use_shunting,
+            weight_transform=weight_transform,
             flatten_dendrites=flatten_dendrites,
         )
 
@@ -147,13 +125,10 @@ def get_architecture(
         params = prepare_ei_network_params(parameters, input_dim)
         return PointMatchedParamMLP(**params)
 
-    # ------------------------------------------------------------------
-    # MR-style structured-config MLP baselines
-    # ------------------------------------------------------------------
-    if type in ["matchedtotalparammlp", "total_param_mlp"]:
+    if type == "total_param_mlp":
         return MatchedTotalParamMLP(parameters, input_dim)
 
-    if type in ["matchedactiveparammlp", "active_param_mlp"]:
+    if type == "active_param_mlp":
         return MatchedActiveParamMLP(parameters, input_dim)
 
     if type == "ss_mlp":
