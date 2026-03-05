@@ -347,23 +347,18 @@ class DataCollector:
 
         # Handle layer ablation format
         if "layer" in data and isinstance(data["layer"], dict):
-            for ablation_type, layer_data in data["layer"].items():
-                if isinstance(layer_data, dict):
-                    for _layer_name, layer_metrics in layer_data.items():
-                        if isinstance(layer_metrics, dict):
-                            depth = layer_metrics.get("depth", 0)
-                            for metric_name, metric_value in layer_metrics.items():
-                                if metric_name not in [
-                                    "depth",
-                                    "layer_name",
-                                ] and isinstance(metric_value, (int, float)):
-                                    safe_ablation = ablation_type.replace(
-                                        " ", "_"
-                                    ).replace("-", "_")
-                                    result[
-                                        f"ablation_{safe_ablation}_{metric_name}_depth{depth}"
-                                    ] = metric_value
-
+            for method, method_data in data["layer"].items():
+                for target, target_data in method_data.items():
+                    for layer_data in target_data.values():
+                        depth = layer_data.get("depth", 0)
+                        for metric, val in layer_data.items():
+                            if metric != "depth":
+                                col_name = "ablation_"
+                                col_name += method.replace("_", " ") + "_"
+                                col_name += target.replace("_", " ") + "_"
+                                col_name += metric.replace("_", " ") + "_"
+                                col_name += f"depth{depth}"
+                                result[col_name] = val
         return result
 
     def _load_snr(self, config_dir: Path) -> dict:
