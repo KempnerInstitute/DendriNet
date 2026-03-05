@@ -79,7 +79,8 @@ def normalize_param_groups_config(
 
 
 def prepare_ei_network_params(
-    config: Union[dict, DictConfig], input_dim: int, use_shunting: Optional[bool] = None
+    config: Union[dict, DictConfig], 
+    input_dim: int,
 ) -> dict[str, Any]:
     """
     Prepare parameters for ExcitationInhibitionNetwork from structured config.
@@ -136,9 +137,6 @@ def prepare_ei_network_params(
         **morphology_dict,
         **implementation_dict,
     }
-
-    if use_shunting is not None:
-        params["use_shunting"] = use_shunting
 
     # Add sparsity parameters with proper naming
     for key, value in sparsity_dict.items():

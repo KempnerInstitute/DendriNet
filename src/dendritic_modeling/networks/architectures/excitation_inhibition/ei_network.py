@@ -537,7 +537,9 @@ class ConfigurableEINetwork(ExcitationInhibitionNetwork):
         self,
         config: Union[dict, DictConfig],
         input_dim: int,
+        synapse_mode: Optional[str] = None,
         use_shunting: Optional[bool] = None,
+        weight_transform: Optional[str] = None,
         flatten_dendrites: bool = False,
     ):
         """
@@ -553,7 +555,14 @@ class ConfigurableEINetwork(ExcitationInhibitionNetwork):
             prepare_ei_network_params,
         )
 
-        params = prepare_ei_network_params(config, input_dim, use_shunting)
+        params = prepare_ei_network_params(config, input_dim)
+
+        if synapse_mode is not None:
+            params["synapse_mode"] = synapse_mode
+        if use_shunting is not None:
+            params["use_shunting"] = use_shunting
+        if weight_transform is not None:
+            params["weight_transform"] = weight_transform
 
         if flatten_dendrites:
             exc_branch_factors = deepcopy(params["excitatory_branch_factors"])
