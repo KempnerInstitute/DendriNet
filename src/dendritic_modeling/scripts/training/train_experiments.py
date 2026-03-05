@@ -48,7 +48,7 @@ from omegaconf import DictConfig, OmegaConf
 
 from dendritic_modeling.analysis import AnalysisManager
 from dendritic_modeling.config import load_config
-from dendritic_modeling.config.training import ParamGroupsConfig
+from dendritic_modeling.config.training import OptimizerConfig, ParamGroupsConfig
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.networks import Identity
 from dendritic_modeling.plotting.visualizations.performance_plots import (
@@ -60,6 +60,7 @@ from dendritic_modeling.scripts.training.train_encoder_network import (
     load_train_encoder_network,
 )
 from dendritic_modeling.training import CustomWeightDecayOptimizer, get_trainer
+from dendritic_modeling.training.optimizers import create_optimizer
 from dendritic_modeling.utils import save_dict
 from dendritic_modeling.utils.training_stability_validator import (
     apply_automatic_safeguards,
@@ -102,6 +103,34 @@ if normalize_param_groups_config is None:
         allowed_fields = set(ParamGroupsConfig.__dataclass_fields__.keys())
         sanitized = {k: v for k, v in param_groups.items() if k in allowed_fields}
         return ParamGroupsConfig(**sanitized)
+
+
+def normalize_optimizer_config(optimizer_cfg) -> OptimizerConfig:
+    """Normalize optimizer config to a typed OptimizerConfig."""
+    if optimizer_cfg is None:
+        return OptimizerConfig()
+
+    if isinstance(optimizer_cfg, OptimizerConfig):
+        return optimizer_cfg
+
+    if isinstance(optimizer_cfg, DictConfig):
+        optimizer_cfg = OmegaConf.to_container(optimizer_cfg, resolve=True)
+
+    if hasattr(optimizer_cfg, "asdict") and callable(optimizer_cfg.asdict):
+        optimizer_cfg = optimizer_cfg.asdict()
+    elif not isinstance(optimizer_cfg, dict) and hasattr(optimizer_cfg, "__dict__"):
+        optimizer_cfg = {
+            key: value
+            for key, value in vars(optimizer_cfg).items()
+            if not key.startswith("_")
+        }
+
+    if not isinstance(optimizer_cfg, dict):
+        return OptimizerConfig()
+
+    allowed_fields = set(OptimizerConfig.__dataclass_fields__.keys())
+    sanitized = {k: v for k, v in optimizer_cfg.items() if k in allowed_fields}
+    return OptimizerConfig(**sanitized)
 
 
 def run_analysis(
@@ -233,6 +262,15 @@ def main(config_path: str, args=None):
             is_recurrent_core = is_recurrent_core()
 
         if is_recurrent_core:
+            strategy = getattr(
+                getattr(config.training, "main", None), "strategy", "standard"
+            )
+            if strategy not in ("recurrent", "multi_stage"):
+                logger.warning(
+                    "Recurrent model detected but training.main.strategy='%s'. "
+                    "Use strategy='recurrent' for correct sequence handling.",
+                    strategy,
+                )
             # torchinfo unrolls recurrent timesteps and can produce extremely large
             # summaries (and OOM) for sequence models. Use lightweight param counts.
             total_params = sum(p.numel() for p in model.parameters())
@@ -321,9 +359,15 @@ def main(config_path: str, args=None):
     if isinstance(main_train_config, dict):
         common_config = main_train_config.get("common", {})
         strategy = main_train_config.get("strategy", "standard")
+        optimizer_config = normalize_optimizer_config(
+            main_train_config.get("optimizer")
+        )
     else:
         common_config = main_train_config.common
         strategy = main_train_config.strategy
+        optimizer_config = normalize_optimizer_config(
+            getattr(main_train_config, "optimizer", None)
+        )
 
     # Extract from common_config (also handle dict vs object)
     if isinstance(common_config, dict):
@@ -338,10 +382,12 @@ def main(config_path: str, args=None):
         common_epochs = common_config.epochs
 
     param_groups = normalize_param_groups_config(param_groups)
+    model_param_groups = model.get_param_groups(param_groups)
+    base_optimizer = create_optimizer(model_param_groups, optimizer_config)
 
     optimizer = CustomWeightDecayOptimizer(
         model=model,
-        optimizer=torch.optim.Adam(model.get_param_groups(param_groups)),
+        optimizer=base_optimizer,
         weight_decay=weight_decay_rate,
         weight_boosting=weight_boosting,
     )

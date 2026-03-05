@@ -14,6 +14,7 @@ class TransferFunctionConfig(BaseConfig):
     excitatory_dim: Optional[int] = None
     inhibitory_dim: Optional[int] = None
     output_activation: Optional[str] = None
+    inhibitory_mode: str = "first"  # "none", "first", "all"
 
 
 @dataclass
@@ -24,6 +25,7 @@ class ArchitectureConfig(BaseConfig):
     inhibitory_layer_sizes: list[int] = field(default_factory=list)
     excitatory_branch_factors: list[int] = field(default_factory=lambda: [3, 3, 3, 3])
     inhibitory_branch_factors: list[int] = field(default_factory=lambda: [1])
+    input_projection_dims: list[int] = field(default_factory=list)
 
     # Inhibitory network type and MLP parameters
     inhibitory_network_type: str = "dendritic"  # Options: "dendritic", "mlp"
@@ -40,6 +42,12 @@ class ConnectivityConfig(BaseConfig):
     ei_synapses_per_branch_per_layer: list[int] = field(default_factory=lambda: [0])
     ie_synapses_per_branch_per_layer: list[int] = field(default_factory=lambda: [10])
     ii_synapses_per_branch_per_layer: list[int] = field(default_factory=lambda: [0])
+
+    # Recurrent synapse counts (per branch, list per layer; 0 = no recurrence)
+    rec_ee_synapses_per_branch: list[int] = field(default_factory=lambda: [0])
+    rec_ie_synapses_per_branch: list[int] = field(default_factory=lambda: [0])
+    rec_ei_synapses_per_branch: list[int] = field(default_factory=lambda: [0])
+    rec_ii_synapses_per_branch: list[int] = field(default_factory=lambda: [0])
 
 
 @dataclass
@@ -107,6 +115,7 @@ class ImplementationConfig(BaseConfig):
 
     adaptive_initialization: bool = False
     print_hooks: bool = False
+    store_routing: bool = False
 
 
 @dataclass
@@ -154,6 +163,11 @@ class CoreConfig(BaseConfig):
     # Optional config payload for the new unified E-I architecture.
     # Kept as a plain dict to avoid coupling config package to architecture modules.
     unified_ei: dict[str, Any] = field(default_factory=dict)
+    # Optional recurrent mode for EINet-family cores.
+    # When enabled, factory can translate EINet structured config into recurrent EINetwork.
+    recurrent_ei: dict[str, Any] = field(default_factory=dict)
+    # Optional config payload for baseline recurrent cores (gru/lstm/vanilla_rnn).
+    baseline_rnn: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass

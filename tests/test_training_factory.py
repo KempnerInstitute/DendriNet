@@ -308,6 +308,33 @@ class TestGetTrainer:
             call_args = mock_trainer.call_args[1]
             assert call_args["base_optimizer"] == mock_optimizer
 
+    def test_get_recurrent_trainer_uses_recurrent_config(self, mock_optimizer):
+        """Recurrent strategy should consume nested recurrent_config fields."""
+        trainer_config = {
+            "task": "classification",
+            "grad_clip_value": 5.0,
+            "enable_amp": False,
+            "recurrent_config": {
+                "grad_clip": 0.25,
+                "enable_amp": True,
+                "lr_schedule": "cosine",
+                "lr_warmup_epochs": 3,
+            },
+        }
+
+        with patch(
+            "dendritic_modeling.training.factory.RecurrentTrainer"
+        ) as mock_trainer:
+            get_trainer("recurrent", mock_optimizer, trainer_config)
+            mock_trainer.assert_called_once()
+            call_args = mock_trainer.call_args[1]
+            assert call_args["optimizer"] == mock_optimizer
+            assert call_args["task"] == "classification"
+            assert call_args["grad_clip"] == 0.25
+            assert call_args["enable_amp"] is True
+            assert call_args["lr_schedule"] == "cosine"
+            assert call_args["lr_warmup_epochs"] == 3
+
     def test_get_unknown_trainer_raises(self, mock_optimizer, basic_trainer_config):
         """Test that unknown strategy raises a ValueError."""
         with pytest.raises(ValueError, match="Unknown training strategy"):

@@ -265,23 +265,6 @@ class EncoderTrainingConfig(BaseConfig):
 
 
 @dataclass
-class MainTrainingConfig(BaseConfig):
-    """Main network training configuration."""
-
-    strategy: str = "standard"
-
-    common: CommonTrainerConfig = field(default_factory=CommonTrainerConfig)
-    regularization: RegularizationConfig = field(default_factory=RegularizationConfig)
-    pruning: PruningConfig = field(default_factory=PruningConfig)
-    strategies: TrainingStrategiesConfig = field(
-        default_factory=TrainingStrategiesConfig
-    )
-    learning_strategy_config: Optional["LocalRuleConfig"] = field(
-        default_factory=lambda: None
-    )
-
-
-@dataclass
 class OptimizerConfig(BaseConfig):
     """Configuration for optimizer selection and parameters."""
 
@@ -291,6 +274,24 @@ class OptimizerConfig(BaseConfig):
     momentum: float = 0.9  # For SGD
     betas: tuple = (0.9, 0.999)  # For Adam/AdamW
     eps: float = 1e-8  # For Adam/AdamW
+
+
+@dataclass
+class MainTrainingConfig(BaseConfig):
+    """Main network training configuration."""
+
+    strategy: str = "standard"
+
+    common: CommonTrainerConfig = field(default_factory=CommonTrainerConfig)
+    optimizer: OptimizerConfig = field(default_factory=OptimizerConfig)
+    regularization: RegularizationConfig = field(default_factory=RegularizationConfig)
+    pruning: PruningConfig = field(default_factory=PruningConfig)
+    strategies: TrainingStrategiesConfig = field(
+        default_factory=TrainingStrategiesConfig
+    )
+    learning_strategy_config: Optional["LocalRuleConfig"] = field(
+        default_factory=lambda: None
+    )
 
 
 @dataclass

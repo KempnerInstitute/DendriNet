@@ -136,16 +136,24 @@ model:
       inhibitory_layer_sizes: []        # Inhibitory neurons per layer (list of ints)
       excitatory_branch_factors: [3, 3] # Branching factors for excitatory dendrites
       inhibitory_branch_factors: [1]    # Branching factors for inhibitory dendrites
+      input_projection_dims: []         # Input MLP dims before first layer (list of ints)
       inhibitory_network_type: "dendritic"  # "dendritic", "mlp"
       mlp_inhibitory_network_params:
         hidden_dims: [200]              # MLP inhibitory hidden dims (when type="mlp")
         activation: "relu"              # MLP inhibitory activation
 
     connectivity:
+      # Feedforward synapse counts (per branch, list per layer)
       ee_synapses_per_branch_per_layer: [40]  # E-to-E synapses per branch
       ei_synapses_per_branch_per_layer: [0]   # E-to-I synapses per branch
       ie_synapses_per_branch_per_layer: [10]  # I-to-E synapses per branch
       ii_synapses_per_branch_per_layer: [0]   # I-to-I synapses per branch
+
+      # Recurrent synapse counts (per branch, list per layer; nonzero = recurrent)
+      rec_ee_synapses_per_branch: [0]         # E->E recurrent (non-negative int)
+      rec_ie_synapses_per_branch: [0]         # I->E recurrent (non-negative int)
+      rec_ei_synapses_per_branch: [0]         # E->I recurrent (defaults to rec_ee)
+      rec_ii_synapses_per_branch: [0]         # I->I recurrent (defaults to rec_ie)
 
     transfer:
       input_mode: 1                     # 0 = combined input, 1 = separate E/I pathways
@@ -153,6 +161,7 @@ model:
       excitatory_dim: null              # Excitatory pathway dimension (for input_mode 1)
       inhibitory_dim: null              # Inhibitory pathway dimension (for input_mode 1)
       output_activation: null           # "sigmoid", "relu", "tanh", "softplus", null
+      inhibitory_mode: "first"          # "none", "first", "all" -- routing of transfer I to layers
 
     morphology:
       somatic_synapses: false           # Direct somatic synapses (true/false)
@@ -197,9 +206,92 @@ model:
     implementation:
       adaptive_initialization: false    # Network-aware weight scaling (true/false)
       print_hooks: false                # Print gradient statistics (true/false)
+      store_routing: false              # Store per-timestep routing info (true/false)
 
-    # Unified E-I recurrent architecture (dict, see docs/network_architectures.rst)
-    unified_ei: {}
+    # ------------------------------------------
+    # Recurrent temporal parameters
+    # ------------------------------------------
+    # Recurrence is controlled solely by connectivity.rec_* synapse counts.
+    # Any layer with at least one nonzero rec_* count becomes recurrent.
+    # This block contains only the temporal integration parameters.
+    recurrent_ei:
+      output_mode: "last"               # "last", "all", "mean"
+      use_transfer: true                # Build TransferLayer by default (set false to bypass)
+      dt: 1.0                           # Integration timestep (positive float, or list per layer)
+      tau_base: 50.0                    # Base time constant (positive float, or list per layer)
+      tau_ratio: 3.0                    # Geometric ratio between levels (positive float, or list per layer)
+      level_taus: []                    # Explicit per-level taus (empty = auto-generate)
+      epsilon: 1e-8                     # Numerical stability (positive float)
+
+    # ------------------------------------------
+    # Unified E-I architecture (direct config)
+    # ------------------------------------------
+    # Used when core.type = "ei_unified" (or aliases: "unified_ei", "ei_net").
+    # Alternative to the flat config + recurrent_ei block above. Gives full
+    # per-layer, per-population control. Supports both feedforward and recurrent.
+    unified_ei:
+      output_mode: "last"               # "last", "all", "mean"
+      use_transfer: false               # Unified path default (set true to match recurrent EINet behavior)
+      transfer_params: {}               # TransferLayer params (input_mode, etc.)
+      input_projection_dims: []         # Input MLP dims (list of ints, empty = none)
+      store_routing: false              # Store routing info (true/false)
+      layers:
+        - recurrent: true               # Enable recurrent dynamics (true/false)
+          dt: 1.0                       # Integration timestep (positive float)
+          direct_ff_inhibitory_to_excitatory: false  # E consumes external I directly (true/false)
+          excitatory:                   # PopulationConfig for E population
+            n_neurons: 64               # Number of neurons (positive int)
+            branch_factors: [3, 3]      # Branching factors per dendritic level
+            ff_excitatory_synapses: 12  # Feedforward E synapses per branch (non-negative int)
+            ff_inhibitory_synapses: 6   # Feedforward I synapses per branch (non-negative int)
+            rec_excitatory_synapses: 8  # Recurrent E synapses (0 for feedforward)
+            rec_inhibitory_synapses: 4  # Recurrent I synapses (0 for feedforward)
+            tau_base: 50.0              # Base time constant (positive float)
+            tau_ratio: 3.0              # Geometric ratio between dendritic levels
+            level_taus: []              # Explicit per-level taus (empty = auto)
+            topk_init_method: "xavier_normal"  # "xavier_normal", "xavier_uniform", "kaiming_normal"
+            topk_noise_level: 0.0       # TopK noise level (non-negative float)
+            topk_type: "standard"       # "standard", "stochastic", "variance", "deepst"
+            topk_weight_norm_order: null # Weight norm order (null = none, int)
+            topk_gamma: 1.0             # TopK gamma (float)
+            topk_temperature: 0.0       # Stochastic temperature (0.0--1.0)
+            topk_ultrafast: false       # Ultrafast TopK (true/false)
+            topk_strategy: "none"       # "none", "conductance_dynamic"
+            weight_transform: "exp"     # "exp", "relu", "softplus", "identity"
+            use_shunting: true          # Shunting inhibition (true/false)
+            use_additive_normalization: false  # Normalize in additive mode (true/false)
+            reactivate: true            # Enable reactivation (true/false)
+            reactivation_type: "param_tanh"  # "param_tanh", "tanh", "sigmoid"
+            reactivation_init_m: 1.0    # Reactivation slope (float)
+            reactivation_init_b: 0.5    # Reactivation bias (float)
+            reactivation_strategy: "none"  # "none", "inverse", "conductance_dynamic"
+            blocklinear_strategy: "none"   # "none", "conductance_dynamic"
+            somatic_synapses: true      # Direct somatic input (true/false)
+            dbl_init_method: "analytical_expectation"  # "analytical_expectation", "default", "ei_equivalence", "naive"
+            efficient_blocklinear: false # Memory-efficient BlockLinear (true/false)
+            print_hooks: false          # Print gradient stats (true/false)
+            adaptive_initialization: true  # Network-aware weight scaling (true/false)
+            epsilon: 1e-8               # Numerical stability (positive float)
+          inhibitory:                   # PopulationConfig for I population (null to omit)
+            n_neurons: 16
+            branch_factors: [1]
+            ff_excitatory_synapses: 8
+            ff_inhibitory_synapses: 4
+            rec_excitatory_synapses: 0
+            rec_inhibitory_synapses: 0
+            tau_base: 50.0
+            tau_ratio: 3.0
+
+    # ------------------------------------------
+    # Baseline RNN configuration
+    # ------------------------------------------
+    # Used when core.type = "gru", "lstm", or "vanilla_rnn".
+    baseline_rnn:
+      hidden_dim: 128                   # Hidden state dimension (positive int)
+      num_layers: 1                     # Number of stacked RNN layers (positive int)
+      dropout: 0.0                      # Dropout between layers (0.0--1.0, only if num_layers > 1)
+      output_mode: "last"               # "last", "mean", "all"
+      input_projection_dims: []         # Input MLP dims before RNN (list of ints, empty = none)
 
   decoder:
     type: "MLP"                         # "MLP", "Identity"
@@ -509,6 +601,14 @@ training:
         epochs_per_branch: 50
         final_tune_epochs: 10
         kl_weight: 0.1                  # KL divergence weight (positive float)
+
+      # ---- Recurrent training ----
+      # Used with strategy: "recurrent" for ei_unified or baseline RNN models.
+      recurrent:
+        grad_clip: 1.0                  # Gradient norm clipping (positive float, 0 = disabled)
+        enable_amp: false               # Automatic mixed precision (true/false)
+        lr_schedule: "none"             # LR schedule: "none", "cosine"
+        lr_warmup_epochs: 0             # Linear warmup epochs (non-negative int)
 
 # ============================================================================
 # ANALYSIS

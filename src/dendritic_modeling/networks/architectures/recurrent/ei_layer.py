@@ -25,6 +25,9 @@ class EILayer(nn.Module):
 
         self.n_exc = config.excitatory.n_neurons
         self.n_inh = config.inhibitory.n_neurons if config.inhibitory is not None else 0
+        self.direct_ff_inhibitory_to_excitatory = bool(
+            config.direct_ff_inhibitory_to_excitatory
+        )
 
         rec_e_dim = self.n_exc if self.recurrent else None
         rec_i_dim = self.n_inh if self.recurrent and self.n_inh > 0 else None
@@ -43,10 +46,19 @@ class EILayer(nn.Module):
             self.i_population = None
 
         # E receives FF inhibitory from same-layer I population (if present).
+        e_ff_inhibitory_dim = (
+            self.n_inh
+            if self.n_inh > 0
+            else (
+                config.inhibitory_input_dim
+                if self.direct_ff_inhibitory_to_excitatory
+                else None
+            )
+        )
         self.e_population = StatefulDendriNet(
             pop_config=config.excitatory,
             excitatory_input_dim=config.excitatory_input_dim,
-            inhibitory_input_dim=self.n_inh if self.n_inh > 0 else None,
+            inhibitory_input_dim=e_ff_inhibitory_dim,
             recurrent_excitatory_input_dim=rec_e_dim,
             recurrent_inhibitory_input_dim=rec_i_dim,
             dt=config.dt,
@@ -112,7 +124,14 @@ class EILayer(nn.Module):
                 if self.i_population is not None
                 else None
             )
-            s_E = self.e_population(x_ff, h_I)
+            e_ff_inhibitory = (
+                h_I
+                if h_I is not None
+                else (
+                    ff_inhibitory if self.direct_ff_inhibitory_to_excitatory else None
+                )
+            )
+            s_E = self.e_population(x_ff, e_ff_inhibitory)
             return s_E, h_I, None
 
         batch_size = x_ff.shape[0]
@@ -138,9 +157,14 @@ class EILayer(nn.Module):
             h_I, i_state = None, None
 
         # E uses current same-layer I as FF inhibitory and previous I for REC inhibitory.
+        e_ff_inhibitory = (
+            h_I
+            if h_I is not None
+            else (ff_inhibitory if self.direct_ff_inhibitory_to_excitatory else None)
+        )
         s_E, e_state = self.e_population.step(
             x=x_ff,
-            inhibitory_input=h_I,
+            inhibitory_input=e_ff_inhibitory,
             recurrent_input=s_E_prev,
             rec_inhibitory_input=h_I_prev,
             state=state.e_state,

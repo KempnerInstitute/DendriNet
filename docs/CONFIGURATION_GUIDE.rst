@@ -43,29 +43,32 @@ Core Network Types
 
 Set ``model.core.type`` to one of:
 
-+---------------------------+-----------------------------------------------+
-| Type string               | Description                                   |
-+===========================+===============================================+
-| ``dendritic_shunting``    | Shunting (divisive) inhibition                |
-+---------------------------+-----------------------------------------------+
-| ``dendritic_additive``    | Additive inhibition                           |
-+---------------------------+-----------------------------------------------+
-| ``dendritic_mlp``         | Dendritic morphology, no E/I sign constraint  |
-+---------------------------+-----------------------------------------------+
-| ``point_mlp``             | Point-neuron MLP baseline (matched params)    |
-+---------------------------+-----------------------------------------------+
-| ``EINet``                 | Legacy; uses ``morphology.use_shunting``       |
-+---------------------------+-----------------------------------------------+
-| ``flat_shunting``         | Single-branch shunting variant                |
-+---------------------------+-----------------------------------------------+
-| ``flat_additive``         | Single-branch additive variant                |
-+---------------------------+-----------------------------------------------+
-| ``ei_unified``            | Recurrent E-I network                         |
-+---------------------------+-----------------------------------------------+
-| ``gru``, ``lstm``         | Baseline RNNs                                 |
-+---------------------------+-----------------------------------------------+
-| ``mlp``, ``sparse_mlp``   | Standard / sparse MLP                         |
-+---------------------------+-----------------------------------------------+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 70
+
+   * - Type string
+     - Description
+   * - ``dendritic_shunting``
+     - Shunting (divisive) inhibition
+   * - ``dendritic_additive``
+     - Additive (subtractive) inhibition
+   * - ``dendritic_mlp``
+     - Dendritic morphology, no E/I sign constraint
+   * - ``point_mlp``
+     - Point-neuron MLP baseline (matched params)
+   * - ``EINet``
+     - Legacy; uses ``morphology.use_shunting``
+   * - ``flat_shunting``
+     - Single-branch shunting variant
+   * - ``flat_additive``
+     - Single-branch additive variant
+   * - ``ei_unified``
+     - Unified E-I, supports feedforward and recurrent
+   * - ``gru``, ``lstm``
+     - Baseline RNNs
+   * - ``mlp``, ``sparse_mlp``
+     - Standard / sparse MLP
 
 See :doc:`network_architectures` for architecture details.
 
@@ -138,35 +141,46 @@ See :doc:`analysis` for per-module parameter details.
 Recurrent Networks
 ------------------
 
-For recurrent E-I networks use ``model.core.type: ei_unified`` with the
-``unified_ei`` dict:
+Any EINet type (``dendritic_shunting``, ``dendritic_additive``, ``EINet``)
+becomes recurrent when ``connectivity.rec_*`` synapse counts are nonzero.
+Recurrence is controlled solely by these counts — no separate ``enabled``
+flag is needed:
 
 .. code-block:: yaml
 
    model:
      core:
-       type: ei_unified
-       unified_ei:
-         output_mode: last          # last, all, mean
-         layers:
-           - recurrent: true
-             dt: 1.0
-             excitatory:
-               n_neurons: 64
-               branch_factors: [3, 3]
-               ff_excitatory_synapses: 12
-               ff_inhibitory_synapses: 6
-               rec_excitatory_synapses: 8
-               tau_base: 50.0
-             inhibitory:
-               n_neurons: 16
-               branch_factors: [1]
+       type: dendritic_shunting       # same type as feedforward
+       architecture:
+         excitatory_layer_sizes: [64]
+         excitatory_branch_factors: [3, 3]
+       connectivity:
+         ee_synapses_per_branch_per_layer: [12]
+         ie_synapses_per_branch_per_layer: [6]
+         # Recurrent synapse counts (nonzero = recurrent)
+         rec_ee_synapses_per_branch: [8]   # E->E recurrent
+         rec_ie_synapses_per_branch: [4]   # I->E recurrent
+         rec_ei_synapses_per_branch: [8]   # E->I recurrent
+         rec_ii_synapses_per_branch: [4]   # I->I recurrent
+       transfer:
+         input_mode: 1
+         inhibitory_mode: "first"     # none, first, all
+       # morphology, sparsity, reactivation as usual...
+
+       recurrent_ei:                  # temporal params only
+         output_mode: last            # last, all, mean
+         use_transfer: true           # default true (set false to bypass TransferLayer)
+         dt: 1.0
+         tau_base: 50.0               # scalar or per-layer list
+         tau_ratio: 3.0               # scalar or per-layer list
 
    training:
      main:
        strategy: recurrent
 
-For baseline RNNs use ``model.core.type: gru`` (or ``lstm``, ``vanilla_rnn``).
+For full per-layer, per-population control use ``core.type: ei_unified``
+with the ``unified_ei`` config instead. For baseline RNNs use
+``model.core.type: gru`` (or ``lstm``, ``vanilla_rnn``).
 See :doc:`network_architectures` for full details.
 
 Multi-Stage Training

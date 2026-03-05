@@ -154,6 +154,7 @@ class TestConfigLoading(unittest.TestCase):
         config = load_config(self.config_file)
 
         self.assertIsInstance(config, Config)
+        self.assertIsInstance(config.model.core, CoreConfig)
         self.assertEqual(config.model.task, "classification")
         self.assertEqual(config.experiment.seed, 42)
         self.assertEqual(config.data.dataset_name, "mnist")
@@ -169,6 +170,7 @@ class TestConfigLoading(unittest.TestCase):
             config.model.core.architecture.excitatory_layer_sizes,
             [64, 32],
         )
+        self.assertTrue(hasattr(config.model.core, "baseline_rnn"))
 
     def test_load_config_invalid_file(self):
         load_config.cache_clear()
