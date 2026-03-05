@@ -165,13 +165,11 @@ class EISweepAnalyzer(BaseSweepAnalyzer):
         categories = set(data["network_category"].unique())
         shunt_cat = (
             "dendritic_shunting"
-            if "dendritic_shunting" in categories
-            else ("shunting" if "shunting" in categories else None)
+            if "dendritic_shunting" in categories else None
         )
         add_cat = (
             "dendritic_additive"
-            if "dendritic_additive" in categories
-            else ("no_shunting" if "no_shunting" in categories else None)
+            if "dendritic_additive" in categories else None
         )
         if shunt_cat is None or add_cat is None:
             logger.info(
