@@ -60,8 +60,10 @@ def get_load_save_path(
     encoder_net_config_dict = OmegaConf.to_container(
         encoder_network_config, resolve=True
     )
-    encoder_train_config_dict = OmegaConf.to_container(
-        encoder_train_config, resolve=True
+    encoder_train_config_dict = (
+        encoder_train_config.asdict()
+        if hasattr(encoder_train_config, "asdict")
+        else OmegaConf.to_container(encoder_train_config, resolve=True)
     )
     task_config_dict = task_config.asdict()
     hash_text = dict_to_hash_text(encoder_net_config_dict)
@@ -84,7 +86,7 @@ def get_load_save_path(
     )
     hash_id = hashlib.md5(hash_text.encode()).hexdigest()
 
-    load_save_path = os.path.join(encoder_train_config.load_save_root, hash_id)
+    load_save_path = os.path.join(encoder_network_config.load_save_root, hash_id)
     logger.info(f"Encoder network hash ID: {hash_id}")
     return load_save_path
 
@@ -167,6 +169,52 @@ def load_train_encoder_network(
     if isinstance(encoder_network, Identity):
         return encoder_network, train_ds, valid_ds, test_ds
     else:
+        # Resolve epochs BEFORE any expensive data loads
+        _common = getattr(encoder_train_config, "common", {})
+        _epochs = _common.get("epochs", 1) if isinstance(_common, dict) else getattr(_common, "epochs", 1)
+
+        if load_save_path is None:
+            load_save_path = get_load_save_path(
+                encoder_network_config=encoder_network_config,
+                encoder_train_config=encoder_train_config,
+                task_config=task_config,
+            )
+
+        if _epochs == 0:
+            # Frozen pretrained encoder: encode datasets batch-by-batch on GPU.
+            # Avoids loading the entire dataset into RAM at once (train_ds[:] would OOM).
+            logger.info("Encoder epochs=0: encoding datasets batch-by-batch with pretrained weights")
+            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+            encoder_network = encoder_network.to(device)
+            encoder_network.eval()
+
+            def _batch_encode(dataset):
+                loader = torch.utils.data.DataLoader(
+                    dataset, batch_size=256, shuffle=False, num_workers=2
+                )
+                features, labels = [], []
+                with torch.no_grad():
+                    for x, y in loader:
+                        features.append(encoder_network.encoder(x.to(device)).cpu())
+                        labels.append(y)
+                return torch.cat(features), torch.cat(labels)
+
+            enc_train, lbl_train = _batch_encode(train_ds)
+            enc_valid, lbl_valid = _batch_encode(valid_ds)
+            enc_test, lbl_test = _batch_encode(test_ds)
+
+            encoder_network = encoder_network.cpu()
+            for param in encoder_network.parameters():
+                param.requires_grad = False
+
+            return (
+                encoder_network,
+                torch.utils.data.TensorDataset(enc_train, lbl_train),
+                torch.utils.data.TensorDataset(enc_valid, lbl_valid),
+                torch.utils.data.TensorDataset(enc_test, lbl_test),
+            )
+
+        # epochs > 0: load all data then optionally train the encoder
         train_input, train_label = train_ds[:]
         valid_input, valid_label = valid_ds[:]
         test_input, test_label = test_ds[:]
@@ -177,13 +225,6 @@ def load_train_encoder_network(
         train_label: torch.Tensor
         valid_label: torch.Tensor
         test_label: torch.Tensor
-
-        if load_save_path is None:
-            load_save_path = get_load_save_path(
-                encoder_network_config=encoder_network_config,
-                encoder_train_config=encoder_train_config,
-                task_config=task_config,
-            )
 
         model_path = os.path.join(load_save_path, "best_model.pt")
         if os.path.exists(model_path):

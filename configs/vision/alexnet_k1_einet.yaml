@@ -49,16 +49,15 @@ model:
   task: "classification"
 
   encoder:
-    type: "identity"
+    type: "alexnet_fc"
     load_save_root: "./.trained_encoder_networks/"
     params:
-      input_dim: null                # auto-set from data (raw image numel)
+      num_fc_layers: 1               # features + fc6 → 4096-dim (K=1 condition)
 
   core:
-    type: "alexnet_einet_core"       # frozen AlexNet + trainable EI, runs per-batch
+    type: "einet"                    # plain EINet — encoder handles frozen AlexNet
 
     architecture:
-      num_fc_layers: 1               # features + fc6 -> 4096-dim (K=1: fc7 replaced by EI)
       excitatory_layer_sizes: [4096]        # Y excitatory neurons (matches fc8 input)
       inhibitory_layer_sizes: [820]         # X inhibitory neurons (~20% of excitatory)
       excitatory_branch_factors: [2, 2]     # Dendritic branching (2x2 as per Bernardo)
@@ -169,7 +168,7 @@ training:
       weight_boosting: false
       param_groups:
         lr: 0.001
-        split_params: false           # core is AlexNetEINetCore, not ExcitationInhibitionNetwork
+        split_params: true            # core IS ExcitationInhibitionNetwork
         topk_lr: 0.001
         blocklinear_lr: 0.0001
         reactivation_lr: 0.0001

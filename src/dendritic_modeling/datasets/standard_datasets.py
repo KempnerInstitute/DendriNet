@@ -387,8 +387,8 @@ def load_imagenet_as_datasets(
         tuple: (train_dataset, valid_dataset, test_dataset)
     """
     # Check if we have a direct path to existing ImageNet data
-    if task_data_path and os.path.exists(os.path.join(task_data_path, "train")):
-        # Use the direct path if train directory exists
+    if task_data_path and os.path.isdir(task_data_path):
+        # Use the direct path if it is a valid directory (task_data_path already includes dataset_name)
         imagenet_dir = task_data_path
     else:
         # Use the standard get_data_directory function
