@@ -34,9 +34,9 @@ def _make_conv_layer(
 ) -> nn.Module:
     if dendritic:
         return DendriteConv2d(
-            in_ch, out_ch, kernel, stride=stride, padding=kernel // 2
+            in_ch, out_ch, kernel, stride=stride, padding=0
         )
-    conv = nn.Conv2d(in_ch, out_ch, kernel, stride=stride, padding=kernel // 2)
+    conv = nn.Conv2d(in_ch, out_ch, kernel, stride=stride, padding=0)
     nn.init.kaiming_normal_(conv.weight)
     if conv.bias is not None:
         nn.init.zeros_(conv.bias)
@@ -100,8 +100,7 @@ class HybridBackbone(nn.Module):
         self.output_dim = FC7_DIM
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        for conv, act in self._conv_layers:
-            x = act(conv(x))
+        x = self.conv_block(x)
         x = self.flatten(x)
         x = self.fc6_act(self.fc6(x))
         x = self.fc7_act(self.fc7(x))

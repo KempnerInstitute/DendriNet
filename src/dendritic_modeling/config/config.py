@@ -188,9 +188,13 @@ def load_config(path: Optional[str] = None) -> Config:
         main_config = MainTrainingConfig(**mapped_training.get("main", {}))
         training_config = TrainingConfig(encoder=encoder_config, main=main_config)
 
+        data_raw = dict(conf_data.get("data", {}))
+        if "processing" in data_raw and not isinstance(data_raw["processing"], DataProcessingConfig):
+            data_raw["processing"] = DataProcessingConfig(**data_raw["processing"])
+
         return Config(
             experiment=ExperimentConfig(**conf_data.get("experiment", {})),
-            data=DataConfig(**conf_data.get("data", {})),
+            data=DataConfig(**data_raw),
             model=ModelConfig(**conf_data.get("model", {})),
             training=training_config,
             analysis=AnalysisConfig(**mapped_analysis),
