@@ -308,10 +308,13 @@ class PerformancePlotter(BasePlotter):
 
                 # Create difference plot (shunting - non_shunting)
                 ax_diff = axes[2]
-                if "shunting" in pivot_tables and "no_shunting" in pivot_tables:
+                if (
+                    "dendritic_shunting" in pivot_tables
+                    and "dendritic_additive" in pivot_tables
+                ):
                     # Align indices and columns for subtraction
-                    shunt_pivot = pivot_tables["shunting"]
-                    no_shunt_pivot = pivot_tables["no_shunting"]
+                    shunt_pivot = pivot_tables["dendritic_shunting"]
+                    no_shunt_pivot = pivot_tables["dendritic_additive"]
 
                     # Reindex to ensure same index and columns
                     common_index = shunt_pivot.index.union(no_shunt_pivot.index)
