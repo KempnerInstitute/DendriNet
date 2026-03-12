@@ -32,16 +32,16 @@ Core Network Types
      - Aliases
    * - ``dendritic_shunting``
      - E-I network with shunting (divisive) inhibition
-     - ``einet_sh``
+     -
    * - ``dendritic_additive``
      - E-I network with additive (subtractive) inhibition
-     - ``einet_ns``
+     -
    * - ``flat_shunting``
      - Flattened dendrites with shunting inhibition
-     - ``einet_sh_flat``
+     -
    * - ``flat_additive``
      - Flattened dendrites with additive inhibition
-     - ``einet_ns_flat``
+     -
    * - ``einet``
      - Generic E-I; reads ``use_shunting`` from morphology config
      -

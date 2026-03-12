@@ -113,71 +113,29 @@ class AblationAnalyzer(AbstractAnalyzer):
         def _norm(x: str) -> str:
             return str(x).strip().lower().replace("-", "_").replace(" ", "_")
 
-        # New (preferred) grouped config blocks (optional; keep backward compatibility)
         selection_cfg = getattr(params, "selection", None)
         methods_cfg = getattr(params, "methods", None)
 
-        # Warn when legacy flat params are used without nested config
-        if selection_cfg is None and any(
-            getattr(params, k, None) is not None
-            for k in ("levels", "targets", "metrics", "layer_ablation")
-        ):
-            import warnings
-
-            warnings.warn(
-                "AblationAnalyzer: legacy flat params detected but no nested "
-                "'selection' config. Values will be read from flat params as "
-                "fallback. Migrate to nested config to suppress this warning.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-
+        # Method settings
         self.ablation_methods = list(
-            getattr(
-                methods_cfg,
-                "ablation_methods",
-                getattr(params, "ablation_methods", ["lesion"]),
-            )
+            getattr(methods_cfg, "ablation_methods", ["lesion"])
         )
         if not self.ablation_methods:
             self.ablation_methods = ["lesion"]
-        self.shuffle_seed = int(
-            getattr(methods_cfg, "shuffle_seed", getattr(params, "shuffle_seed", 0))
-        )
-        self.clamp_statistic = str(
-            getattr(
-                methods_cfg,
-                "clamp_statistic",
-                getattr(params, "clamp_statistic", "mean"),
-            )
-        )
+        self.shuffle_seed = int(getattr(methods_cfg, "shuffle_seed", 0))
+        self.clamp_statistic = str(getattr(methods_cfg, "clamp_statistic", "mean"))
 
-        # ------------------------------------------------------------------
-        # Preferred list-based configuration (levels/targets/metrics).
-        # If lists are provided, they override the legacy boolean flags.
-        # ------------------------------------------------------------------
-        levels_raw = list(
-            getattr(selection_cfg, "levels", getattr(params, "levels", [])) or []
-        )
-        targets_raw = list(
-            getattr(selection_cfg, "targets", getattr(params, "targets", [])) or []
-        )
-        metrics_raw = list(
-            getattr(selection_cfg, "metrics", getattr(params, "metrics", [])) or []
-        )
+        # Selection: levels, targets, metrics
+        levels_raw = list(getattr(selection_cfg, "levels", []) or [])
+        targets_raw = list(getattr(selection_cfg, "targets", []) or [])
+        metrics_raw = list(getattr(selection_cfg, "metrics", []) or [])
 
         levels = {_norm(x) for x in levels_raw if str(x).strip()}
         targets = {_norm(x) for x in targets_raw if str(x).strip()}
         metrics = {_norm(x) for x in metrics_raw if str(x).strip()}
 
-        if levels:
-            self.layer_ablation = "layer" in levels
-            self.compartment_ablation = "compartment" in levels
-        else:
-            self.layer_ablation = bool(getattr(params, "layer_ablation", False))
-            self.compartment_ablation = bool(
-                getattr(params, "compartment_ablation", False)
-            )
+        self.layer_ablation = "layer" in levels if levels else False
+        self.compartment_ablation = "compartment" in levels if levels else False
 
         if targets:
             self.ablate_all_synapses = bool(
@@ -189,12 +147,10 @@ class AblationAnalyzer(AbstractAnalyzer):
                 {"upstream", "vb", "branch_input"}.intersection(targets)
             )
         else:
-            self.ablate_all_synapses = bool(
-                getattr(params, "ablate_all_synapses", False)
-            )
-            self.ablate_excitation = bool(getattr(params, "ablate_excitation", False))
-            self.ablate_inhibition = bool(getattr(params, "ablate_inhibition", False))
-            self.ablate_upstream = bool(getattr(params, "ablate_upstream", False))
+            self.ablate_all_synapses = False
+            self.ablate_excitation = False
+            self.ablate_inhibition = False
+            self.ablate_upstream = False
 
         if metrics:
             self.accuracy = "accuracy" in metrics
@@ -215,16 +171,12 @@ class AblationAnalyzer(AbstractAnalyzer):
                 {"pred_label_mi_bits", "pred_label_mi", "pred_mi"}.intersection(metrics)
             )
         else:
-            self.accuracy = bool(getattr(params, "accuracy", False))
-            self.auc = bool(getattr(params, "auc", False))
-            self.categorical_ll = bool(
-                getattr(params, "categorical_loglikelihood", False)
-            )
-            self.mse = bool(getattr(params, "mse", False))
-            self.cosine_similarity = bool(getattr(params, "cosine_similarity", False))
-            self.compute_pred_label_mi = bool(
-                getattr(params, "compute_pred_label_mi", False)
-            )
+            self.accuracy = False
+            self.auc = False
+            self.categorical_ll = False
+            self.mse = False
+            self.cosine_similarity = False
+            self.compute_pred_label_mi = False
 
     @staticmethod
     def _pred_label_mi_bits(y_true: np.ndarray, y_pred: np.ndarray) -> float:
