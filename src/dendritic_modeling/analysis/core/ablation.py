@@ -32,8 +32,75 @@ from dendritic_modeling.training.utils.evaluation import (
     evaluate_categorical_loglikelihood,
     evaluate_cosine_similarity,
     evaluate_mse,
+    pred_label_mi_bits,
 )
 from dendritic_modeling.utils import save_dict
+
+# ---------------------------------------------------------------------------
+# Ablation schema helpers: 2-level ↔ 3-level conversion
+# ---------------------------------------------------------------------------
+_KNOWN_TARGETS = {"all_synapses", "excitation", "inhibition", "upstream"}
+
+
+def _to_3level(flat_results: dict) -> dict:
+    """Convert 2-level ablation results to 3-level (method → target → modules).
+
+    Input:  ``{"lesion_excitation": {module: metrics, ...}, ...}``
+    Output: ``{"lesion": {"excitation": {module: metrics, ...}, ...}, ...}``
+
+    Keys that cannot be split into a recognised (method, target) pair are kept
+    at the top level unchanged so no data is lost.
+    """
+    nested: dict = {}
+    for key, modules in flat_results.items():
+        key_norm = str(key).replace(" ", "_")
+        matched = False
+        for target in _KNOWN_TARGETS:
+            suffix = f"_{target}"
+            if key_norm.endswith(suffix):
+                method = key_norm[: -len(suffix)]
+                if method:
+                    nested.setdefault(method, {})[target] = modules
+                    matched = True
+                    break
+        if not matched:
+            # Legacy or unrecognised key — keep as-is
+            nested[key] = modules
+    return nested
+
+
+def flatten_3level_ablation(nested_results: dict) -> dict:
+    """Convert 3-level ablation results back to 2-level.
+
+    Input:  ``{"lesion": {"excitation": {module: metrics, ...}, ...}, ...}``
+    Output: ``{"lesion_excitation": {module: metrics, ...}, ...}``
+
+    If the dict is already 2-level (values contain module-level dicts with a
+    ``"depth"`` key), it is returned unchanged.
+    """
+    # Detect whether already 2-level: first non-empty value's first value
+    # should be a module dict with "depth".
+    for _k, v in nested_results.items():
+        if isinstance(v, dict):
+            inner = next(iter(v.values()), None)
+            if isinstance(inner, dict) and "depth" in inner:
+                # Already 2-level
+                return nested_results
+        break
+
+    flat: dict = {}
+    for method, targets in nested_results.items():
+        if not isinstance(targets, dict):
+            flat[method] = targets
+            continue
+        # Check if this is actually a target-level dict (has known target keys)
+        if any(t in _KNOWN_TARGETS for t in targets):
+            for target, modules in targets.items():
+                flat[f"{method}_{target}"] = modules
+        else:
+            # Not a method→target dict, keep as-is
+            flat[method] = targets
+    return flat
 
 
 class AblationAnalyzer(AbstractAnalyzer):
@@ -49,6 +116,21 @@ class AblationAnalyzer(AbstractAnalyzer):
         # New (preferred) grouped config blocks (optional; keep backward compatibility)
         selection_cfg = getattr(params, "selection", None)
         methods_cfg = getattr(params, "methods", None)
+
+        # Warn when legacy flat params are used without nested config
+        if selection_cfg is None and any(
+            getattr(params, k, None) is not None
+            for k in ("levels", "targets", "metrics", "layer_ablation")
+        ):
+            import warnings
+
+            warnings.warn(
+                "AblationAnalyzer: legacy flat params detected but no nested "
+                "'selection' config. Values will be read from flat params as "
+                "fallback. Migrate to nested config to suppress this warning.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
 
         self.ablation_methods = list(
             getattr(
@@ -148,36 +230,9 @@ class AblationAnalyzer(AbstractAnalyzer):
     def _pred_label_mi_bits(y_true: np.ndarray, y_pred: np.ndarray) -> float:
         """Discrete mutual information I(C; Ĉ) in bits for predicted classes.
 
-        Notes
-        -----
-        This uses the empirical joint distribution of (C, Ĉ) and does not require
-        any external dependencies (e.g. scikit-learn).
+        Delegates to the shared ``pred_label_mi_bits`` in evaluation utils.
         """
-        y_true = np.asarray(y_true).ravel()
-        y_pred = np.asarray(y_pred).ravel()
-        if y_true.size == 0 or y_pred.size == 0:
-            return 0.0
-        if y_true.shape[0] != y_pred.shape[0]:
-            return 0.0
-
-        # Map labels to contiguous integer IDs
-        _, t = np.unique(y_true, return_inverse=True)
-        _, p = np.unique(y_pred, return_inverse=True)
-
-        joint = np.zeros((int(t.max()) + 1, int(p.max()) + 1), dtype=np.float64)
-        np.add.at(joint, (t, p), 1.0)
-        n = float(joint.sum())
-        if n <= 0:
-            return 0.0
-
-        joint /= n
-        p_t = joint.sum(axis=1, keepdims=True)
-        p_p = joint.sum(axis=0, keepdims=True)
-        denom = p_t @ p_p
-
-        nz = joint > 0
-        mi = float(np.sum(joint[nz] * np.log2(joint[nz] / denom[nz])))
-        return mi if np.isfinite(mi) else 0.0
+        return pred_label_mi_bits(y_true, y_pred)
 
     @staticmethod
     def _normalize_ablation_target(target: str) -> str:
@@ -877,10 +932,16 @@ class AblationAnalyzer(AbstractAnalyzer):
             if training:
                 save_path = os.path.join(save_path, "epochs")
 
-            save_dict(results, save_path, f"{filename}.json")
+            # Save canonical 3-level schema (method → target → modules)
+            save_results = dict(results)
+            if "layer" in save_results:
+                save_results["layer"] = _to_3level(save_results["layer"])
+            if "compartment" in save_results:
+                save_results["compartment"] = _to_3level(save_results["compartment"])
+            save_dict(save_results, save_path, f"{filename}.json")
 
             if not training:
-                # Generate ablation plots
+                # Plotting uses 2-level keys (method_target) internally
                 self._plot_ablation_results(
                     results, save_path, filename, somatic_synapses_enabled
                 )
@@ -926,12 +987,14 @@ def create_video_layer_ablation_vs_training(
     # Sort by epoch number
     epoch_files.sort(key=lambda x: x[0])
 
-    # Load all epoch data
+    # Load all epoch data (flatten 3-level schema to 2-level for plotting)
     epoch_data_list = []
     for epoch_number, filename in epoch_files:
         file_path = os.path.join(epochs_dir, filename)
         with open(file_path) as f:
             data = json.load(f)
+            if "layer" in data:
+                data["layer"] = flatten_3level_ablation(data["layer"])
             epoch_data_list.append((epoch_number, data))
 
     if not epoch_data_list:

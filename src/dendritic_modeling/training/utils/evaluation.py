@@ -769,3 +769,44 @@ def evaluate_cosine_similarity(
         save_path=save_path,
         filename=filename,
     )
+
+
+def pred_label_mi_bits(y_true, y_pred) -> float:
+    """Discrete mutual information I(C; Ĉ) in bits between true and predicted labels.
+
+    Uses the empirical joint distribution of (C, Ĉ) and does not require any
+    external dependencies (e.g. scikit-learn).
+
+    Args:
+        y_true: Array-like of true class labels.
+        y_pred: Array-like of predicted class labels.
+
+    Returns:
+        Mutual information in bits (non-negative float).
+    """
+    import numpy as np
+
+    y_true = np.asarray(y_true).ravel()
+    y_pred = np.asarray(y_pred).ravel()
+    if y_true.size == 0 or y_pred.size == 0:
+        return 0.0
+    if y_true.shape[0] != y_pred.shape[0]:
+        return 0.0
+
+    _, t = np.unique(y_true, return_inverse=True)
+    _, p = np.unique(y_pred, return_inverse=True)
+
+    joint = np.zeros((int(t.max()) + 1, int(p.max()) + 1), dtype=np.float64)
+    np.add.at(joint, (t, p), 1.0)
+    n = float(joint.sum())
+    if n <= 0:
+        return 0.0
+
+    joint /= n
+    p_t = joint.sum(axis=1, keepdims=True)
+    p_p = joint.sum(axis=0, keepdims=True)
+    denom = p_t @ p_p
+
+    nz = joint > 0
+    mi = float(np.sum(joint[nz] * np.log2(joint[nz] / denom[nz])))
+    return mi if np.isfinite(mi) else 0.0

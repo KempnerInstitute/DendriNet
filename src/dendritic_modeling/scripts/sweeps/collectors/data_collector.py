@@ -345,9 +345,10 @@ class DataCollector:
 
         result = {}
 
-        # Handle layer ablation format
+        # Handle layer ablation format (supports both 3-level and 2-level schemas)
         if "layer" in data and isinstance(data["layer"], dict):
-            for ablation_type, layer_data in data["layer"].items():
+            flat_layer = self._flatten_ablation_layer(data["layer"])
+            for ablation_type, layer_data in flat_layer.items():
                 if isinstance(layer_data, dict):
                     for _layer_name, layer_metrics in layer_data.items():
                         if isinstance(layer_metrics, dict):
@@ -356,6 +357,7 @@ class DataCollector:
                                 if metric_name not in [
                                     "depth",
                                     "layer_name",
+                                    "ablation_method",
                                 ] and isinstance(metric_value, (int, float)):
                                     safe_ablation = ablation_type.replace(
                                         " ", "_"
@@ -365,6 +367,32 @@ class DataCollector:
                                     ] = metric_value
 
         return result
+
+    @staticmethod
+    def _flatten_ablation_layer(layer_dict: dict) -> dict:
+        """Flatten 3-level ablation schema to 2-level if needed.
+
+        3-level: ``{"lesion": {"excitation": {module: metrics}}}``
+        2-level: ``{"lesion_excitation": {module: metrics}}``
+
+        Returns 2-level dict in both cases.
+        """
+        known_targets = {"all_synapses", "excitation", "inhibition", "upstream"}
+        flat: dict = {}
+        for key, value in layer_dict.items():
+            if not isinstance(value, dict):
+                continue
+            # Detect 3-level: value's keys are target names
+            inner_keys = set(value.keys())
+            if inner_keys & known_targets:
+                # 3-level: method → target → modules
+                for target, modules in value.items():
+                    if isinstance(modules, dict):
+                        flat[f"{key}_{target}"] = modules
+            else:
+                # 2-level: already method_target → modules
+                flat[key] = value
+        return flat
 
     def _load_snr(self, config_dir: Path) -> dict:
         """Load compartment SNR analysis metrics."""

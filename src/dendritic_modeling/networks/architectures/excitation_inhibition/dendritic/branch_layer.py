@@ -447,7 +447,7 @@ class DendriticBranchLayer(nn.Module):
             if self.input_excitatory and self.branch_excitation is not None:
                 excitation = self.branch_excitation(x)
                 numerator = numerator + excitation
-                denominator = denominator + torch.nn.functional.relu(excitation)
+                denominator = denominator + excitation
 
             if (
                 self.input_recurrent
@@ -456,13 +456,13 @@ class DendriticBranchLayer(nn.Module):
             ):
                 rec_excitation = self.branch_recurrent(recurrent_input)
                 numerator = numerator + rec_excitation
-                denominator = denominator + torch.nn.functional.relu(rec_excitation)
+                denominator = denominator + rec_excitation
 
             if self.input_branches and branch_input is not None:
                 current = self.branches_to_output(branch_input)
                 numerator = numerator + current
                 conductance = self.branches_to_output.sum_conductances()
-                denominator = denominator + torch.nn.functional.relu(conductance)
+                denominator = denominator + conductance
 
             if (
                 self.input_inhibitory
@@ -470,7 +470,7 @@ class DendriticBranchLayer(nn.Module):
                 and inhibitory_input is not None
             ):
                 inhibition = self.branch_inhibition(inhibitory_input)
-                denominator = denominator + torch.nn.functional.relu(inhibition)
+                denominator = denominator + inhibition
 
             if (
                 self.input_rec_inhibitory
@@ -478,7 +478,7 @@ class DendriticBranchLayer(nn.Module):
                 and rec_inhibitory_input is not None
             ):
                 rec_inhibition = self.branch_rec_inhibition(rec_inhibitory_input)
-                denominator = denominator + torch.nn.functional.relu(rec_inhibition)
+                denominator = denominator + rec_inhibition
 
             voltage = numerator / (denominator + self.epsilon)
 
@@ -595,16 +595,15 @@ class DendriticBranchLayer(nn.Module):
         Returns:
             voltage: Post-shunting, post-reactivation output [batch, output_dim]
         """
-        _relu = torch.nn.functional.relu
         if self.use_shunting:
             numerator = trace_E + trace_E_rec
-            denominator = 1 + _relu(trace_E)
+            denominator = 1 + trace_E
             if isinstance(trace_E_rec, torch.Tensor):
-                denominator = denominator + _relu(trace_E_rec)
+                denominator = denominator + trace_E_rec
             if isinstance(trace_I, torch.Tensor):
-                denominator = denominator + _relu(trace_I)
+                denominator = denominator + trace_I
             if isinstance(trace_I_rec, torch.Tensor):
-                denominator = denominator + _relu(trace_I_rec)
+                denominator = denominator + trace_I_rec
             voltage = numerator / (denominator + self.epsilon)
         else:
             voltage = trace_E + trace_E_rec - trace_I - trace_I_rec
