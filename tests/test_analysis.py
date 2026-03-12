@@ -414,9 +414,16 @@ class TestAnalysisManager(unittest.TestCase):
 
 
 def test_ablation_analyzer():
-    from dendritic_modeling.config.analysis import AblationAnalysisParams
+    from dendritic_modeling.config.analysis import (
+        AblationAnalysisParams,
+        AblationSelectionParams,
+    )
 
-    params = AblationAnalysisParams(layer_ablation=True, compartment_ablation=True)
+    params = AblationAnalysisParams(
+        selection=AblationSelectionParams(
+            levels=["layer", "compartment"],
+        ),
+    )
     analyzer = AblationAnalyzer(params)
     assert analyzer.layer_ablation
     assert analyzer.compartment_ablation

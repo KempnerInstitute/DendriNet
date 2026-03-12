@@ -151,10 +151,6 @@ def extract_network_category(data: pd.DataFrame) -> pd.DataFrame:
     total_param_mlp      - Dense MLP matching total EINet params
     active_param_mlp     - Dense MLP matching active EINet params
 
-    Backward-compatible aliases (from MR branch) are mapped to canonical names:
-    einet_sh -> dendritic_shunting, einet_ns -> dendritic_additive,
-    einet_sh_flat -> flat_shunting, einet_ns_flat -> flat_additive.
-
     Args:
         data: DataFrame with network_type and/or use_shunting columns
 
@@ -177,17 +173,12 @@ def extract_network_category(data: pd.DataFrame) -> pd.DataFrame:
 
     nt = result["network_type"].astype(str).str.lower()
 
-    # ---- Normalize common typos / historical aliases ----
+    # ---- Normalize common typos ----
     nt = nt.replace(
         {
             "dendriti_additive": "dendritic_additive",
             "dendritic_shuntng": "dendritic_shunting",
             "mlp": "point_mlp",
-            # MR aliases → canonical names
-            "einet_sh": "dendritic_shunting",
-            "einet_ns": "dendritic_additive",
-            "einet_sh_flat": "flat_shunting",
-            "einet_ns_flat": "flat_additive",
         }
     )
 

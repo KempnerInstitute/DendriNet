@@ -80,10 +80,6 @@ NETWORK_CATEGORY_COLORS: dict[str, str] = {
     "shunting": "#1f77b4",
     "no_shunting": "#ff0000",
     "mlp": "#9467bd",
-    "einet_sh": "#1f77b4",
-    "einet_ns": "#ff0000",
-    "einet_sh_flat": "#1f77b4",
-    "einet_ns_flat": "#ff0000",
     # Fallback
     "unknown": "#7f7f7f",  # Gray
     "default": "#2ca02c",  # Green
@@ -105,10 +101,6 @@ NETWORK_CATEGORY_MARKERS: dict[str, str] = {
     "shunting": "o",
     "no_shunting": "s",
     "mlp": "D",
-    "einet_sh": "o",
-    "einet_ns": "s",
-    "einet_sh_flat": "^",
-    "einet_ns_flat": "+",
     # Fallback
     "unknown": "x",  # X
     "default": "^",  # Triangle
@@ -126,11 +118,6 @@ NETWORK_CATEGORY_LINESTYLES: dict[str, str] = {
     "ss_mlp_flat": "--",  # Dashed
     "total_param_mlp": ":",  # Dotted
     "active_param_mlp": "-.",  # Dash-dot
-    # Legacy aliases
-    "einet_sh": "-",
-    "einet_ns": "-",
-    "einet_sh_flat": "--",
-    "einet_ns_flat": "--",
     # Fallback
     "unknown": "-",
     "default": "-",

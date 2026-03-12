@@ -537,7 +537,9 @@ class ConfigurableEINetwork(ExcitationInhibitionNetwork):
         self,
         config: Union[dict, DictConfig],
         input_dim: int,
+        synapse_mode: Optional[str] = None,
         use_shunting: Optional[bool] = None,
+        weight_transform: Optional[str] = None,
         flatten_dendrites: bool = False,
     ):
         """
@@ -547,13 +549,22 @@ class ConfigurableEINetwork(ExcitationInhibitionNetwork):
             config: Structured configuration (e.g., core_config from YAML)
                    Must contain 'architecture', 'connectivity', 'transfer', etc. sections
             input_dim: Input dimension from encoder
-            use_shunting: Whether to use shunting inhibition.
+            synapse_mode: Override synapse mode (e.g., "ei", "mlp").
+            use_shunting: Override shunting inhibition flag.
+            weight_transform: Override weight transform (e.g., "exp", "identity").
         """
         from dendritic_modeling.scripts.script_utils.config_utils import (
             prepare_ei_network_params,
         )
 
-        params = prepare_ei_network_params(config, input_dim, use_shunting)
+        params = prepare_ei_network_params(config, input_dim)
+
+        if synapse_mode is not None:
+            params["synapse_mode"] = synapse_mode
+        if use_shunting is not None:
+            params["use_shunting"] = use_shunting
+        if weight_transform is not None:
+            params["weight_transform"] = weight_transform
 
         if flatten_dendrites:
             exc_branch_factors = deepcopy(params["excitatory_branch_factors"])

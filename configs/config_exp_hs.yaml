@@ -42,7 +42,7 @@ model:
       decoder_hidden_dims: [32, 16]
       activation: relu
   core:
-    type: einet_sh
+    type: dendritic_shunting
     architecture:
       excitatory_layer_sizes: [10]
       inhibitory_layer_sizes: [100]
