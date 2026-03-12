@@ -275,30 +275,3 @@ class BasePlotter:
             return data.dropna(subset=required_cols)
 
         return data
-
-    def get_shunting_additive_pair(
-        self, data: pd.DataFrame
-    ) -> tuple[Optional[str], Optional[str]]:
-        """
-        Get the canonical shunting vs additive category names present in `data`.
-
-        Supports both new naming:
-          - dendritic_shunting / dendritic_additive
-        and legacy naming:
-          - shunting / no_shunting
-        """
-        if data is None or data.empty or "network_category" not in data.columns:
-            return None, None
-
-        present = set(data["network_category"].unique())
-        shunt_cat = (
-            "dendritic_shunting"
-            if "dendritic_shunting" in present
-            else ("shunting" if "shunting" in present else None)
-        )
-        add_cat = (
-            "dendritic_additive"
-            if "dendritic_additive" in present
-            else ("no_shunting" if "no_shunting" in present else None)
-        )
-        return shunt_cat, add_cat
