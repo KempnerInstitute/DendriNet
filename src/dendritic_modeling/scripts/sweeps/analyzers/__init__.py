@@ -1,4 +1,4 @@
-"""Sweep analyzers for different experiment types."""
+"""Sweep analyzers for E-I, branch, stochastic dataset, local learning, and general experiments."""
 
 from pathlib import Path
 from typing import Optional

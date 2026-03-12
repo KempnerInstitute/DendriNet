@@ -1,4 +1,4 @@
-"""Plotters for sweep analysis."""
+"""Sweep plotters for ablation, information, noise, performance, SNR, weight, and gain figures."""
 
 from .ablation_plotter import AblationPlotter
 from .base_plotter import BasePlotter

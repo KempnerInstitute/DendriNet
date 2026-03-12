@@ -1,4 +1,4 @@
-"""Analysis metrics modules."""
+"""Performance, noise perturbation, layer contribution, and visual selectivity metrics."""
 
 from .layer_contribution import SingleLayerContributionAnalyzer
 from .noise_perturbation import NoisePerturbationAnalyzer

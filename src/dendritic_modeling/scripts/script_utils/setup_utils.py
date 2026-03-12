@@ -399,10 +399,10 @@ def setup_environment(
     is_recurrent = _is_recurrent_core_config(model_config.core)
 
     if is_recurrent:
-        # Sequence data: [seq_len, input_dim] — use last dim as feature dim
+        # Sequence data: [seq_len, input_dim] -- use last dim as feature dim
         input_dim = input_sample.shape[-1]
     else:
-        # Image/vector data — use total elements
+        # Image/vector data -- use total elements
         input_dim = input_sample.numel()
     input_shape = list(input_sample.shape)
 

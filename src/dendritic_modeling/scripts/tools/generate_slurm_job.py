@@ -449,7 +449,7 @@ else
         if [ $SLURM_PROCID -ne 0 ]; then
             echo "Node $SLURM_PROCID: Testing connectivity to master..."
             if ping -c 1 -W 5 $MASTER_ADDR >/dev/null 2>&1; then
-                echo "✓ Can reach master at $MASTER_ADDR"
+                echo "OK: Can reach master at $MASTER_ADDR"
             else
                 echo "WARNING: Cannot reach master at $MASTER_ADDR - may fail distributed init"
             fi

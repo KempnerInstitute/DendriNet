@@ -37,13 +37,13 @@ from dendritic_modeling.training.utils.evaluation import (
 from dendritic_modeling.utils import save_dict
 
 # ---------------------------------------------------------------------------
-# Ablation schema helpers: 2-level ↔ 3-level conversion
+# Ablation schema helpers: 2-level <-> 3-level conversion
 # ---------------------------------------------------------------------------
 _KNOWN_TARGETS = {"all_synapses", "excitation", "inhibition", "upstream"}
 
 
 def _to_3level(flat_results: dict) -> dict:
-    """Convert 2-level ablation results to 3-level (method → target → modules).
+    """Convert 2-level ablation results to 3-level (method -> target -> modules).
 
     Input:  ``{"lesion_excitation": {module: metrics, ...}, ...}``
     Output: ``{"lesion": {"excitation": {module: metrics, ...}, ...}, ...}``
@@ -64,7 +64,7 @@ def _to_3level(flat_results: dict) -> dict:
                     matched = True
                     break
         if not matched:
-            # Legacy or unrecognised key — keep as-is
+            # Legacy or unrecognised key -- keep as-is
             nested[key] = modules
     return nested
 
@@ -98,7 +98,7 @@ def flatten_3level_ablation(nested_results: dict) -> dict:
             for target, modules in targets.items():
                 flat[f"{method}_{target}"] = modules
         else:
-            # Not a method→target dict, keep as-is
+            # Not a method->target dict, keep as-is
             flat[method] = targets
     return flat
 
@@ -884,7 +884,7 @@ class AblationAnalyzer(AbstractAnalyzer):
             if training:
                 save_path = os.path.join(save_path, "epochs")
 
-            # Save canonical 3-level schema (method → target → modules)
+            # Save canonical 3-level schema (method -> target -> modules)
             save_results = dict(results)
             if "layer" in save_results:
                 save_results["layer"] = _to_3level(save_results["layer"])

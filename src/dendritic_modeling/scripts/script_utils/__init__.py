@@ -1,1 +1,1 @@
-# Utils package for dendritic modeling scripts
+"""Config loading, environment setup, and SLURM job generation helpers for training scripts."""
