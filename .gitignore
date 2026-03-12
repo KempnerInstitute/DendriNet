@@ -219,7 +219,7 @@ scripts_backup/
 # Local scratch + external dependencies (kept untracked in this repo).
 drafts/
 external/
-scripts/
+/scripts/
 scratch/
 figures/
 outputs_smoke/

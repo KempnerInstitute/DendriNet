@@ -410,7 +410,7 @@ class SNRPlotter(BasePlotter):
 
         fig.tight_layout()
 
-        plot_path = output_dir / f"input_{input_metric}_vs_{sweep_var}.png"
+        plot_path = output_dir / "input" / f"input_{input_metric}_vs_{sweep_var}.png"
         plot_paths.append(self.save_figure(fig, plot_path))
 
         return plot_paths
@@ -508,7 +508,11 @@ class SNRPlotter(BasePlotter):
 
         fig.tight_layout()
 
-        plot_path = output_dir / f"{act_prefix}_act_{act_metric}_vs_{sweep_var}.png"
+        plot_path = (
+            output_dir
+            / f"{act_prefix}_act"
+            / f"{act_prefix}_act_{act_metric}_vs_{sweep_var}.png"
+        )
         plot_paths.append(self.save_figure(fig, plot_path))
 
         return plot_paths

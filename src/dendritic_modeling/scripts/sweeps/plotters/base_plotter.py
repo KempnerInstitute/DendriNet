@@ -190,7 +190,32 @@ class BasePlotter:
         """
         categories: list[str] = data[category_col].unique()
 
-        for category in categories:
+        # Deterministic ordering by canonical category order
+        _canonical_order = [
+            "dendritic_shunting",
+            "flat_shunting",
+            "dendritic_additive",
+            "flat_additive",
+            "dendritic_mlp",
+            "point_mlp",
+            "ss_mlp",
+            "ss_mlp_flat",
+            "total_param_mlp",
+            "active_param_mlp",
+            # Legacy aliases
+            "shunting",
+            "no_shunting",
+            "unknown",
+            "default",
+        ]
+        sorted_categories = sorted(
+            categories,
+            key=lambda x: _canonical_order.index(x)
+            if x in _canonical_order
+            else len(_canonical_order),
+        )
+
+        for category in sorted_categories:
             cat_data = data[data[category_col] == category].sort_values(x_col)
 
             if cat_data.empty:
