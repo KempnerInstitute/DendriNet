@@ -9,6 +9,7 @@ by a broadcast soma error and optional morphology/information factors.
 """
 
 import logging
+import math
 from typing import Any, Optional
 
 import torch
@@ -21,6 +22,7 @@ from dendritic_modeling.networks import (
     DendriticBranchLayer,
     ExcitationInhibitionNetwork,
     ParametricActivation,
+    PathwayRouter,
 )
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.topk import (
     TopKLinear,
@@ -49,6 +51,12 @@ class _LayerStats:
         self.branch_types: Optional[torch.Tensor] = (
             None  # Apical (1) vs basal (0) flags
         )
+        self.branch_role_profile: Optional[torch.Tensor] = None  # [out, roles]
+        self.branch_role_selectivity: Optional[torch.Tensor] = None  # [out]
+        self.input_role_profile: Optional[torch.Tensor] = None  # [in, roles]
+        self.block_input_role_profile: Optional[torch.Tensor] = None  # [in, roles]
+        self.branch_block_roles: Optional[torch.Tensor] = None  # [out, block, roles]
+        self.branch_block_selectivity: Optional[torch.Tensor] = None  # [out, block]
 
 
 class LocalCreditAssignment(Trainer):
@@ -69,6 +77,7 @@ class LocalCreditAssignment(Trainer):
         self._decoder_cache: dict[str, Any] = {}
         self._additive_gain_cache: dict[str, Any] = {}
         self._additive_running_var: dict[int, torch.Tensor] = {}
+        self._broadcast_cache: dict[tuple[Any, ...], Any] = {}
         self._warned_decoder_soma_fallback = False
         self.filename_prefix = "local_learning_"
         self.logger_info_prefix = "[Local] "
@@ -129,6 +138,7 @@ class LocalCreditAssignment(Trainer):
             ],
             "morphology_aware": [
                 "use_path_propagation",
+                "path_factor_mode",
                 "morphology_modulator_mode",
                 "morphology_depth_offset",
                 "morphology_centrality_metric",
@@ -137,6 +147,18 @@ class LocalCreditAssignment(Trainer):
                 "apical_branch_scale",
                 "basal_branch_scale",
                 "use_branch_length_modulation",
+                "use_branch_role_rules",
+                "branch_role_source",
+                "specialized_branch_scale",
+                "mixed_branch_scale",
+                "branch_role_power",
+                "branch_role_alignment_weight",
+            ],
+            "inhibitory_homeostasis": [
+                "mode",
+                "weight",
+                "target_r_tot",
+                "target_voltage",
             ],
         }
 
@@ -181,6 +203,7 @@ class LocalCreditAssignment(Trainer):
             FiveFactorConfig,
             FourFactorConfig,
             HSICConfig,
+            InhibitoryHomeostasisConfig,
             MorphologyAwareConfig,
             ThreeFactorConfig,
         )
@@ -208,6 +231,13 @@ class LocalCreditAssignment(Trainer):
 
         if "hsic" in cfg_kwargs and isinstance(cfg_kwargs["hsic"], dict):
             cfg_kwargs["hsic"] = HSICConfig(**cfg_kwargs["hsic"])
+
+        if "inhibitory_homeostasis" in cfg_kwargs and isinstance(
+            cfg_kwargs["inhibitory_homeostasis"], dict
+        ):
+            cfg_kwargs["inhibitory_homeostasis"] = InhibitoryHomeostasisConfig(
+                **cfg_kwargs["inhibitory_homeostasis"]
+            )
 
         return LocalRuleConfig(**cfg_kwargs)
 
@@ -239,8 +269,11 @@ class LocalCreditAssignment(Trainer):
             x_batch, y_batch = batch[0], batch[1]
             # Resolve per-epoch schedule for reactivation/decoder behavior
             update_reactivation = self.local_cfg.update_reactivation
+            encoder_update_mode = self.local_cfg.encoder_update_mode
             decoder_update_mode = self.local_cfg.decoder_update_mode
             # Freeze phases by epoch index
+            if self.epoch_counter <= max(0, int(self.local_cfg.freeze_encoder_epochs)):
+                encoder_update_mode = "none"
             if self.epoch_counter <= max(
                 0, int(self.local_cfg.freeze_reactivation_epochs)
             ):
@@ -258,6 +291,10 @@ class LocalCreditAssignment(Trainer):
                     if s <= self.epoch_counter <= e:
                         if "update_reactivation" in sched:
                             update_reactivation = bool(sched["update_reactivation"])
+                        if "encoder_update_mode" in sched:
+                            encoder_update_mode = str(
+                                sched["encoder_update_mode"]
+                            ).lower()
                         if "decoder_update_mode" in sched:
                             decoder_update_mode = str(
                                 sched["decoder_update_mode"]
@@ -329,50 +366,67 @@ class LocalCreditAssignment(Trainer):
                 update_reactivation=update_reactivation,
             )
 
+            backprop_param_groups: list[list[torch.nn.Parameter]] = []
+            if (
+                encoder_update_mode == "backprop"
+                and hasattr(model, "encoder_network")
+                and model.encoder_network is not None
+            ):
+                enc_params = [
+                    p for p in model.encoder_network.parameters() if p.requires_grad
+                ]
+                if enc_params:
+                    backprop_param_groups.append(enc_params)
+
+            if hasattr(model, "decoder_network") and decoder_update_mode == "backprop":
+                dec_params = [
+                    p for p in model.decoder_network.parameters() if p.requires_grad
+                ]
+                if dec_params:
+                    backprop_param_groups.append(dec_params)
+
+            for group_idx, params in enumerate(backprop_param_groups):
+                grads = torch.autograd.grad(
+                    loss,
+                    params,
+                    retain_graph=group_idx < len(backprop_param_groups) - 1,
+                    allow_unused=True,
+                )
+                for p, g in zip(params, grads):
+                    if g is None:
+                        continue
+                    grad = g.detach()
+                    if p.grad is None:
+                        p.grad = grad.clone()
+                    else:
+                        p.grad = p.grad + grad
+
             # Decoder update mode
-            if hasattr(model, "decoder_network"):
-                if decoder_update_mode == "backprop":
-                    # Backprop only decoder parameters using global loss
-                    dec_params = [
-                        p for p in model.decoder_network.parameters() if p.requires_grad
-                    ]
-                    if dec_params:
-                        grads = torch.autograd.grad(
-                            loss, dec_params, retain_graph=True, allow_unused=True
+            if hasattr(model, "decoder_network") and decoder_update_mode == "local":
+                # Simple local 3-factor on last Linear: grad_W = e_out^T @ h_in; grad_b = sum(e_out)
+                lin_mod = self._decoder_cache.get("module")
+                h_in = self._decoder_cache.get("input")
+                if isinstance(lin_mod, nn.Linear) and isinstance(h_in, torch.Tensor):
+                    e_out = delta_out.detach()  # [B, out]
+                    if self.local_cfg.normalize_by_batch and e_out.size(0) > 0:
+                        scale = 1.0 / float(e_out.size(0))
+                    else:
+                        scale = 1.0
+                    grad_w = scale * (e_out.t() @ h_in.detach())  # [out, in]
+                    if lin_mod.weight.grad is None:
+                        lin_mod.weight.grad = grad_w.to(lin_mod.weight.dtype)
+                    else:
+                        lin_mod.weight.grad = lin_mod.weight.grad + grad_w.to(
+                            lin_mod.weight.dtype
                         )
-                        for p, g in zip(dec_params, grads):
-                            if g is not None:
-                                if p.grad is None:
-                                    p.grad = g.detach().clone()
-                                else:
-                                    p.grad = p.grad + g.detach()
-                elif decoder_update_mode == "local":
-                    # Simple local 3-factor on last Linear: grad_W = e_out^T @ h_in; grad_b = sum(e_out)
-                    lin_mod = self._decoder_cache.get("module")
-                    h_in = self._decoder_cache.get("input")
-                    if isinstance(lin_mod, nn.Linear) and isinstance(
-                        h_in, torch.Tensor
-                    ):
-                        e_out = delta_out.detach()  # [B, out]
-                        if self.local_cfg.normalize_by_batch and e_out.size(0) > 0:
-                            scale = 1.0 / float(e_out.size(0))
+                    if lin_mod.bias is not None:
+                        grad_b = scale * e_out.sum(dim=0)
+                        if lin_mod.bias.grad is None:
+                            lin_mod.bias.grad = grad_b.to(lin_mod.bias.dtype)
                         else:
-                            scale = 1.0
-                        grad_w = scale * (e_out.t() @ h_in.detach())  # [out, in]
-                        if lin_mod.weight.grad is None:
-                            lin_mod.weight.grad = grad_w.to(lin_mod.weight.dtype)
-                        else:
-                            lin_mod.weight.grad = lin_mod.weight.grad + grad_w.to(
-                                lin_mod.weight.dtype
+                            lin_mod.bias.grad = lin_mod.bias.grad + grad_b.to(
+                                lin_mod.bias.dtype
                             )
-                        if lin_mod.bias is not None:
-                            grad_b = scale * e_out.sum(dim=0)
-                            if lin_mod.bias.grad is None:
-                                lin_mod.bias.grad = grad_b.to(lin_mod.bias.dtype)
-                            else:
-                                lin_mod.bias.grad = lin_mod.bias.grad + grad_b.to(
-                                    lin_mod.bias.dtype
-                                )
 
             # Optional gradient clipping (value-wise)
             if self.local_cfg.clip_grad_value and self.local_cfg.clip_grad_value > 0:
@@ -623,6 +677,607 @@ class LocalCreditAssignment(Trainer):
         else:
             return e_n
 
+    @staticmethod
+    def _compute_layer_total_conductance(
+        rec: dict[str, Any], v_n: torch.Tensor
+    ) -> torch.Tensor:
+        """Compute total conductance used by conductance-aware local rules."""
+        g_tot = torch.ones_like(v_n)
+
+        exc_out = rec.get("exc_out")
+        if exc_out is not None:
+            g_tot = g_tot + functional.relu(exc_out)
+
+        inh_out = rec.get("inh_out")
+        if inh_out is not None:
+            g_tot = g_tot + functional.relu(inh_out)
+
+        blk_module = rec.get("blk_module")
+        if blk_module is not None and hasattr(blk_module, "sum_conductances"):
+            g_blk = blk_module.sum_conductances().detach()[None, :].expand_as(v_n)
+            g_tot = g_tot + functional.relu(g_blk)
+
+        return g_tot
+
+    @staticmethod
+    def _expand_parent_signal_to_children(
+        signal: torch.Tensor, block_size: int, child_out_features: int
+    ) -> torch.Tensor:
+        """Broadcast a parent-layer signal to its grouped child branches."""
+        expanded = signal.repeat_interleave(block_size, dim=1)
+        if expanded.size(1) == child_out_features:
+            return expanded
+
+        if expanded.size(1) > child_out_features:
+            return expanded[:, :child_out_features]
+
+        repeats = math.ceil(float(child_out_features) / float(max(1, expanded.size(1))))
+        tiled = expanded.repeat(1, repeats)
+        return tiled[:, :child_out_features]
+
+    @staticmethod
+    def _normalize_role_mass(
+        role_mass: torch.Tensor, eps: float = 1e-8
+    ) -> torch.Tensor:
+        """Normalize non-negative role mass into a role profile."""
+        denom = role_mass.sum(dim=-1, keepdim=True).clamp_min(eps)
+        return role_mass / denom
+
+    @staticmethod
+    def _compute_role_selectivity(
+        role_profile: torch.Tensor, eps: float = 1e-8
+    ) -> torch.Tensor:
+        """Measure pathway selectivity from normalized role profiles."""
+        n_roles = role_profile.size(-1)
+        if n_roles <= 1:
+            return torch.ones(
+                role_profile.size(0),
+                device=role_profile.device,
+                dtype=role_profile.dtype,
+            )
+        probs = role_profile.clamp_min(eps)
+        entropy = -(probs * probs.log()).sum(dim=-1)
+        max_entropy = math.log(float(n_roles))
+        return 1.0 - entropy / max(max_entropy, eps)
+
+    @staticmethod
+    def _resolve_recent_role_profile(
+        input_dim: int,
+        base_input_roles: Optional[torch.Tensor],
+        prior_output_roles: list[torch.Tensor],
+    ) -> Optional[torch.Tensor]:
+        """Resolve the most plausible role basis for a layer input size."""
+        if (
+            isinstance(base_input_roles, torch.Tensor)
+            and base_input_roles.dim() == 2
+            and base_input_roles.size(0) == input_dim
+        ):
+            return base_input_roles
+
+        for role_profile in reversed(prior_output_roles):
+            if role_profile.dim() == 2 and role_profile.size(0) == input_dim:
+                return role_profile
+        return None
+
+    @staticmethod
+    def _effective_topk_weight(
+        layer: TopKLinear, mask: Optional[torch.Tensor]
+    ) -> torch.Tensor:
+        """Return masked effective synaptic weights."""
+        eff_weight = layer.weight().detach()
+        if mask is None:
+            mask = layer.weight_mask().detach()
+        return eff_weight * mask.to(device=eff_weight.device, dtype=eff_weight.dtype)
+
+    @staticmethod
+    def _role_mass_from_weight_matrix(
+        weight_matrix: torch.Tensor,
+        input_roles: Optional[torch.Tensor],
+    ) -> Optional[torch.Tensor]:
+        """Aggregate pathway-role mass through a synaptic weight matrix."""
+        if input_roles is None or input_roles.dim() != 2:
+            return None
+        if weight_matrix.dim() != 2 or weight_matrix.size(1) != input_roles.size(0):
+            return None
+        roles = input_roles.to(device=weight_matrix.device, dtype=weight_matrix.dtype)
+        return weight_matrix.abs() @ roles
+
+    def _resolve_router_output_roles(self, model: BaseModel) -> Optional[torch.Tensor]:
+        """Return pathway ownership for encoder outputs when available."""
+        source = str(
+            getattr(
+                self.local_cfg.morphology_aware, "branch_role_source", "router_pathways"
+            )
+        ).lower()
+        if source != "router_pathways":
+            logger.warning(
+                "Unknown branch_role_source='%s'; disabling pathway-role inference.",
+                source,
+            )
+            return None
+
+        encoder = getattr(model, "encoder_network", None)
+        if not isinstance(encoder, PathwayRouter):
+            return None
+        return encoder.get_output_role_matrix().detach()
+
+    def _compute_pathway_activity(
+        self,
+        rec: dict[str, Any],
+        stats: _LayerStats,
+        v_n: torch.Tensor,
+        eps: float = 1e-8,
+    ) -> Optional[torch.Tensor]:
+        """Compute a sample-wise local pathway activity gate."""
+        candidates: list[torch.Tensor] = []
+
+        x_exc = rec.get("x_exc")
+        if isinstance(x_exc, torch.Tensor) and isinstance(
+            stats.input_role_profile, torch.Tensor
+        ):
+            if x_exc.size(1) == stats.input_role_profile.size(0):
+                act_exc = x_exc.abs() @ stats.input_role_profile.to(
+                    device=x_exc.device, dtype=x_exc.dtype
+                )
+                candidates.append(act_exc)
+
+        x_blk_raw = rec.get("x_blk_raw")
+        if (
+            isinstance(x_blk_raw, torch.Tensor)
+            and isinstance(stats.block_input_role_profile, torch.Tensor)
+            and x_blk_raw.size(1) == stats.block_input_role_profile.size(0)
+        ):
+            act_blk = x_blk_raw.abs() @ stats.block_input_role_profile.to(
+                device=x_blk_raw.device, dtype=x_blk_raw.dtype
+            )
+            candidates.append(act_blk)
+
+        if isinstance(stats.branch_role_profile, torch.Tensor):
+            denom = stats.branch_role_profile.sum(dim=0, keepdim=True).clamp_min(eps)
+            act_v = functional.relu(v_n) @ stats.branch_role_profile.to(
+                device=v_n.device, dtype=v_n.dtype
+            )
+            candidates.append(act_v / denom.to(device=v_n.device, dtype=v_n.dtype))
+
+        if not candidates:
+            return None
+
+        normalized: list[torch.Tensor] = []
+        for candidate in candidates:
+            denom = candidate.mean(dim=1, keepdim=True).clamp_min(eps)
+            normalized.append(candidate / denom)
+        return torch.stack(normalized, dim=0).mean(dim=0)
+
+    def _compute_pathway_vector_broadcast(
+        self,
+        seed_error: Optional[torch.Tensor],
+        delta: torch.Tensor,
+        delta_scalar: torch.Tensor,
+        rec: dict[str, Any],
+        v_n: torch.Tensor,
+    ) -> torch.Tensor:
+        """Project soma error into a pathway-aligned apical feedback vector."""
+        stats = self._layer_stats.get(id(rec.get("layer")))
+        if stats is None or not isinstance(stats.branch_role_profile, torch.Tensor):
+            return delta_scalar.expand(-1, v_n.size(1))
+
+        role_profile = stats.branch_role_profile.to(device=v_n.device, dtype=v_n.dtype)
+        if role_profile.dim() != 2 or role_profile.size(0) != v_n.size(1):
+            return delta_scalar.expand(-1, v_n.size(1))
+
+        role_mass = role_profile.sum(dim=0, keepdim=True).clamp_min(1e-6)
+        seed = seed_error
+        if isinstance(seed, torch.Tensor):
+            if seed.dim() == 1:
+                seed = seed.unsqueeze(-1)
+            elif seed.dim() != 2:
+                seed = seed.view(seed.size(0), -1)
+
+        if isinstance(seed, torch.Tensor) and seed.size(1) == v_n.size(1):
+            seed = seed.to(device=v_n.device, dtype=v_n.dtype)
+            pathway_error = seed @ role_profile
+            pathway_error = pathway_error / role_mass
+            base = seed
+        else:
+            pathway_error = delta_scalar.to(device=v_n.device, dtype=v_n.dtype).expand(
+                -1, role_profile.size(1)
+            )
+            base = delta_scalar.to(device=v_n.device, dtype=v_n.dtype).expand(
+                -1, v_n.size(1)
+            )
+
+        pathway_activity = self._compute_pathway_activity(rec, stats, v_n)
+        gate_strength = float(
+            getattr(self.local_cfg, "pathway_activity_gate_strength", 1.0)
+        )
+        if pathway_activity is not None and gate_strength > 0.0:
+            pathway_activity = pathway_activity.to(device=v_n.device, dtype=v_n.dtype)
+            pathway_gate = 1.0 + gate_strength * (pathway_activity - 1.0)
+            pathway_error = pathway_error * pathway_gate
+
+        projected = pathway_error @ role_profile.t()
+        residual = float(
+            max(
+                0.0,
+                min(1.0, getattr(self.local_cfg, "pathway_broadcast_residual", 0.25)),
+            )
+        )
+        return (1.0 - residual) * projected + residual * base
+
+    def _get_low_rank_broadcast_factors(
+        self,
+        layer_idx: int,
+        in_features: int,
+        out_features: int,
+        device: torch.device,
+        dtype: torch.dtype,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """Return cached low-rank random broadcast factors for a layer."""
+        rank = max(
+            1,
+            min(
+                int(getattr(self.local_cfg, "broadcast_rank", 4)),
+                int(in_features),
+                int(out_features),
+            ),
+        )
+        cache_key = (
+            "low_rank_broadcast",
+            layer_idx,
+            in_features,
+            out_features,
+            rank,
+            str(device),
+            str(dtype),
+        )
+        cached = self._broadcast_cache.get(cache_key)
+        if cached is not None:
+            return cached
+
+        generator = torch.Generator()
+        seed = (
+            15485863
+            + 7919 * int(layer_idx)
+            + 104729 * int(in_features)
+            + 53 * int(out_features)
+        )
+        generator.manual_seed(seed)
+
+        left = torch.randn(in_features, rank, generator=generator, dtype=dtype)
+        right = torch.randn(rank, out_features, generator=generator, dtype=dtype)
+
+        left = left / left.norm(dim=0, keepdim=True).clamp_min(1e-6)
+        right = right / right.norm(dim=1, keepdim=True).clamp_min(1e-6)
+
+        left = left.to(device=device)
+        right = right.to(device=device)
+        self._broadcast_cache[cache_key] = (left, right)
+        return left, right
+
+    def _compute_low_rank_broadcast(
+        self,
+        delta: torch.Tensor,
+        layer_idx: int,
+        out_features: int,
+        device: torch.device,
+        dtype: torch.dtype,
+    ) -> torch.Tensor:
+        """Project soma error into a layer-specific vector broadcast."""
+        if delta.dim() == 1:
+            delta = delta.unsqueeze(-1)
+        elif delta.dim() != 2:
+            delta = delta.view(delta.size(0), -1)
+
+        in_features = delta.size(1)
+        if in_features <= 1:
+            return delta.mean(dim=1, keepdim=True).expand(-1, out_features).to(dtype)
+
+        left, right = self._get_low_rank_broadcast_factors(
+            layer_idx=layer_idx,
+            in_features=in_features,
+            out_features=out_features,
+            device=device,
+            dtype=dtype,
+        )
+        scale = float(getattr(self.local_cfg, "broadcast_init_scale", 1.0)) / (
+            float(left.size(1)) ** 0.5
+        )
+        return (delta.to(dtype=dtype, device=device) @ left @ right) * scale
+
+    def _precompute_path_propagation_factors(
+        self, layer_records: list[dict[str, Any]]
+    ) -> list[torch.Tensor | float]:
+        """Approximate path attenuation from each compartment to the soma.
+
+        DendriNet records layers from distal to proximal. The attenuation for a
+        child layer therefore depends on the *next* (more proximal) layer in the
+        record list, not the previous one.
+        """
+        if not layer_records:
+            return []
+
+        mode = str(
+            getattr(self.local_cfg.morphology_aware, "path_factor_mode", "per_branch")
+        ).lower()
+        path_factors: list[torch.Tensor | float] = [1.0] * len(layer_records)
+
+        soma_v = layer_records[-1].get("v_n")
+        if isinstance(soma_v, torch.Tensor):
+            if mode == "scalar_mean":
+                path_factors[-1] = torch.ones(
+                    soma_v.size(0), 1, device=soma_v.device, dtype=soma_v.dtype
+                )
+            else:
+                path_factors[-1] = torch.ones_like(soma_v)
+
+        for layer_idx in range(len(layer_records) - 2, -1, -1):
+            child_rec = layer_records[layer_idx]
+            parent_rec = layer_records[layer_idx + 1]
+
+            child_v = child_rec.get("v_n")
+            parent_v = parent_rec.get("v_n")
+            blk_module = parent_rec.get("blk_module")
+            if not (
+                isinstance(child_v, torch.Tensor)
+                and isinstance(parent_v, torch.Tensor)
+                and blk_module is not None
+                and hasattr(blk_module, "weight")
+            ):
+                path_factors[layer_idx] = (
+                    torch.ones(
+                        child_v.size(0), 1, device=child_v.device, dtype=child_v.dtype
+                    )
+                    if isinstance(child_v, torch.Tensor) and mode == "scalar_mean"
+                    else (
+                        torch.ones_like(child_v)
+                        if isinstance(child_v, torch.Tensor)
+                        else 1.0
+                    )
+                )
+                continue
+
+            parent_path = path_factors[layer_idx + 1]
+            if not isinstance(parent_path, torch.Tensor):
+                parent_path = torch.ones_like(parent_v)
+            elif parent_path.size(1) == 1 and parent_v.size(1) > 1:
+                parent_path = parent_path.expand(-1, parent_v.size(1))
+
+            parent_g_tot = self._compute_layer_total_conductance(parent_rec, parent_v)
+            parent_r_tot = 1.0 / (parent_g_tot + 1e-8)
+
+            block_size = int(getattr(blk_module, "block_size", 1))
+            edge_weights = (
+                blk_module.weight()
+                .detach()
+                .to(device=child_v.device, dtype=child_v.dtype)
+            )
+            expected_child_out = edge_weights.numel()
+            if child_v.size(1) != expected_child_out:
+                logger.warning(
+                    "Path propagation shape mismatch: child_out=%s, expected=%s. "
+                    "Falling back to scalar averaging.",
+                    child_v.size(1),
+                    expected_child_out,
+                )
+                scalar_factor = (
+                    parent_path.mean(dim=1, keepdim=True)
+                    * parent_r_tot.mean(dim=1, keepdim=True)
+                    * edge_weights.mean()
+                )
+                path_factors[layer_idx] = scalar_factor
+                continue
+
+            expanded_parent_path = self._expand_parent_signal_to_children(
+                parent_path, block_size, child_v.size(1)
+            )
+            expanded_parent_r_tot = self._expand_parent_signal_to_children(
+                parent_r_tot, block_size, child_v.size(1)
+            )
+            edge_gain = edge_weights.reshape(1, -1)
+            branch_factor = expanded_parent_path * expanded_parent_r_tot * edge_gain
+            if mode == "scalar_mean":
+                branch_factor = branch_factor.mean(dim=1, keepdim=True)
+            path_factors[layer_idx] = branch_factor
+
+        return path_factors
+
+    def _precompute_path_transport_errors(
+        self,
+        layer_records: list[dict[str, Any]],
+        delta: torch.Tensor,
+        delta_scalar: torch.Tensor,
+    ) -> list[Optional[torch.Tensor]]:
+        """Recursively transport soma-space errors through the dendritic tree.
+
+        This is the operational form of the tree recursion:
+
+            dL/dV_child = dL/dV_parent * R_parent_tot * g_child->parent
+
+        It preserves vector-valued soma errors where dimensions remain aligned,
+        rather than collapsing transport to a scalar gain.
+        """
+        if not layer_records:
+            return []
+
+        transported: list[Optional[torch.Tensor]] = [None] * len(layer_records)
+        soma_v = layer_records[-1].get("v_n")
+        if isinstance(soma_v, torch.Tensor):
+            if delta.dim() == 1:
+                delta = delta.unsqueeze(-1)
+            elif delta.dim() != 2:
+                delta = delta.view(delta.size(0), -1)
+
+            if delta.size(1) == soma_v.size(1):
+                transported[-1] = delta.to(device=soma_v.device, dtype=soma_v.dtype)
+            else:
+                transported[-1] = delta_scalar.to(
+                    device=soma_v.device, dtype=soma_v.dtype
+                ).expand(-1, soma_v.size(1))
+
+        for layer_idx in range(len(layer_records) - 2, -1, -1):
+            child_rec = layer_records[layer_idx]
+            parent_rec = layer_records[layer_idx + 1]
+            child_v = child_rec.get("v_n")
+            parent_v = parent_rec.get("v_n")
+            parent_error = transported[layer_idx + 1]
+            blk_module = parent_rec.get("blk_module")
+
+            if not (
+                isinstance(child_v, torch.Tensor)
+                and isinstance(parent_v, torch.Tensor)
+                and isinstance(parent_error, torch.Tensor)
+                and blk_module is not None
+                and hasattr(blk_module, "weight")
+            ):
+                if isinstance(child_v, torch.Tensor):
+                    transported[layer_idx] = delta_scalar.to(
+                        device=child_v.device, dtype=child_v.dtype
+                    ).expand(-1, child_v.size(1))
+                continue
+
+            edge_weights = (
+                blk_module.weight()
+                .detach()
+                .to(device=child_v.device, dtype=child_v.dtype)
+            )
+            expected_child_out = edge_weights.numel()
+            if child_v.size(1) != expected_child_out:
+                logger.warning(
+                    "Path transport shape mismatch: child_out=%s, expected=%s. "
+                    "Falling back to scalar averaging.",
+                    child_v.size(1),
+                    expected_child_out,
+                )
+                parent_r_tot = 1.0 / (
+                    self._compute_layer_total_conductance(parent_rec, parent_v) + 1e-8
+                )
+                transported[layer_idx] = (
+                    parent_error.mean(dim=1, keepdim=True)
+                    * parent_r_tot.mean(dim=1, keepdim=True)
+                    * edge_weights.mean()
+                ).expand(-1, child_v.size(1))
+                continue
+
+            block_size = int(getattr(blk_module, "block_size", 1))
+            parent_r_tot = 1.0 / (
+                self._compute_layer_total_conductance(parent_rec, parent_v) + 1e-8
+            )
+            expanded_parent_error = self._expand_parent_signal_to_children(
+                parent_error.to(device=child_v.device, dtype=child_v.dtype),
+                block_size,
+                child_v.size(1),
+            )
+            expanded_parent_r_tot = self._expand_parent_signal_to_children(
+                parent_r_tot.to(device=child_v.device, dtype=child_v.dtype),
+                block_size,
+                child_v.size(1),
+            )
+            transported[layer_idx] = (
+                expanded_parent_error
+                * expanded_parent_r_tot
+                * edge_weights.reshape(1, -1)
+            )
+
+        return transported
+
+    def _precompute_feedback_seeds(
+        self,
+        layer_records: list[dict[str, Any]],
+        delta: torch.Tensor,
+        delta_scalar: torch.Tensor,
+    ) -> list[Optional[torch.Tensor]]:
+        """Precompute hierarchical feedback vectors from proximal to distal layers."""
+        if not layer_records:
+            return []
+
+        feedback: list[Optional[torch.Tensor]] = [None] * len(layer_records)
+
+        soma_v = layer_records[-1].get("v_n")
+        if isinstance(soma_v, torch.Tensor):
+            if delta.dim() == 1:
+                delta = delta.unsqueeze(-1)
+            elif delta.dim() != 2:
+                delta = delta.view(delta.size(0), -1)
+
+            if delta.size(1) == soma_v.size(1):
+                feedback[-1] = delta.to(device=soma_v.device, dtype=soma_v.dtype)
+            else:
+                feedback[-1] = delta_scalar.to(
+                    device=soma_v.device, dtype=soma_v.dtype
+                ).expand(-1, soma_v.size(1))
+
+        for layer_idx in range(len(layer_records) - 2, -1, -1):
+            child_rec = layer_records[layer_idx]
+            parent_rec = layer_records[layer_idx + 1]
+            child_v = child_rec.get("v_n")
+            parent_feedback = feedback[layer_idx + 1]
+            blk_module = parent_rec.get("blk_module")
+            if not (
+                isinstance(child_v, torch.Tensor)
+                and isinstance(parent_feedback, torch.Tensor)
+                and blk_module is not None
+                and hasattr(blk_module, "weight")
+            ):
+                if isinstance(child_v, torch.Tensor):
+                    feedback[layer_idx] = delta_scalar.to(
+                        device=child_v.device, dtype=child_v.dtype
+                    ).expand(-1, child_v.size(1))
+                continue
+
+            edge_weights = (
+                blk_module.weight()
+                .detach()
+                .to(device=child_v.device, dtype=child_v.dtype)
+            )
+            expanded_parent = self._expand_parent_signal_to_children(
+                parent_feedback.to(device=child_v.device, dtype=child_v.dtype),
+                int(getattr(blk_module, "block_size", 1)),
+                child_v.size(1),
+            )
+            feedback[layer_idx] = expanded_parent * edge_weights.reshape(1, -1)
+
+        return feedback
+
+    def _compute_inhibitory_homeostasis_factor(
+        self,
+        rec: dict[str, Any],
+        R_tot: torch.Tensor | float,
+        v_n: torch.Tensor,
+    ) -> Optional[torch.Tensor]:
+        """Compute an auxiliary local inhibitory-homeostasis gradient factor."""
+        cfg = getattr(self.local_cfg, "inhibitory_homeostasis", None)
+        if cfg is None or not getattr(cfg, "enabled", False) or cfg.weight <= 0.0:
+            return None
+
+        layer = rec.get("layer")
+        if layer is not None and not getattr(layer, "use_shunting", True):
+            return None
+
+        mode = str(getattr(cfg, "mode", "r_tot")).lower()
+        weight = float(cfg.weight)
+
+        if mode == "r_tot":
+            if not isinstance(R_tot, torch.Tensor):
+                return None
+            target_r = float(getattr(cfg, "target_r_tot", 0.35))
+            return -weight * (R_tot - target_r) * (R_tot**2)
+
+        if mode == "voltage":
+            r_tensor = (
+                R_tot
+                if isinstance(R_tot, torch.Tensor)
+                else torch.ones_like(v_n) * float(R_tot)
+            )
+            target_v = float(getattr(cfg, "target_voltage", 0.15))
+            e_inh = float(getattr(self.local_cfg.three_factor, "e_rev_inh", 0.0))
+            return weight * (v_n - target_v) * r_tensor * (e_inh - v_n)
+
+        logger.warning(
+            "Unknown inhibitory_homeostasis.mode='%s'; disabling auxiliary term.",
+            mode,
+        )
+        return None
+
     def _resolve_layer_dynamics_mode(self, rec: dict[str, Any]) -> str:
         """Resolve local update dynamics for the current layer.
 
@@ -788,12 +1443,42 @@ class LocalCreditAssignment(Trainer):
 
         # Initialize branch morphology if using morphology-aware features
         if (
-            self.local_cfg.morphology_aware.use_path_propagation
+            (self.local_cfg.error_broadcast_mode or "scalar").lower()
+            == "pathway_vector"
+            or (self.local_cfg.error_broadcast_mode or "scalar").lower()
+            == "path_transport"
+            or self.local_cfg.morphology_aware.use_path_propagation
             or self.local_cfg.morphology_aware.morphology_modulator_mode != "none"
             or self.local_cfg.morphology_aware.use_branch_type_rules
+            or self.local_cfg.morphology_aware.use_branch_role_rules
             or self.local_cfg.morphology_aware.use_branch_length_modulation
         ):
-            self._initialize_branch_morphology(layer_records)
+            self._initialize_branch_morphology(model, layer_records)
+
+        if self.local_cfg.morphology_aware.use_path_propagation:
+            path_factors = self._precompute_path_propagation_factors(layer_records)
+            for rec, path_factor in zip(layer_records, path_factors):
+                rec["path_factor"] = path_factor
+
+        transported_errors: list[Optional[torch.Tensor]] = []
+        if (
+            self.local_cfg.error_broadcast_mode or "scalar"
+        ).lower() == "path_transport":
+            transported_errors = self._precompute_path_transport_errors(
+                layer_records=layer_records,
+                delta=delta,
+                delta_scalar=delta_scalar,
+            )
+
+        feedback_seeds: list[Optional[torch.Tensor]] = []
+        if (
+            self.local_cfg.error_broadcast_mode or "scalar"
+        ).lower() == "pathway_vector":
+            feedback_seeds = self._precompute_feedback_seeds(
+                layer_records=layer_records,
+                delta=delta,
+                delta_scalar=delta_scalar,
+            )
 
         # Iterate in the order records were captured
         for layer_idx, rec in enumerate(layer_records):
@@ -817,6 +1502,34 @@ class LocalCreditAssignment(Trainer):
                 and delta.size(1) == out_features
             ):
                 e_n = delta  # [B, out]
+            elif bmode == "low_rank":
+                e_n = self._compute_low_rank_broadcast(
+                    delta=delta,
+                    layer_idx=layer_idx,
+                    out_features=out_features,
+                    device=v_n.device,
+                    dtype=v_n.dtype,
+                )
+            elif bmode == "pathway_vector":
+                e_n = self._compute_pathway_vector_broadcast(
+                    seed_error=feedback_seeds[layer_idx]
+                    if layer_idx < len(feedback_seeds)
+                    else None,
+                    delta=delta,
+                    delta_scalar=delta_scalar,
+                    rec=rec,
+                    v_n=v_n,
+                )
+            elif bmode == "path_transport":
+                transported = (
+                    transported_errors[layer_idx]
+                    if layer_idx < len(transported_errors)
+                    else None
+                )
+                if isinstance(transported, torch.Tensor):
+                    e_n = transported.to(device=v_n.device, dtype=v_n.dtype)
+                else:
+                    e_n = delta_scalar.expand(-1, out_features)
             elif bmode == "local_mismatch":
                 parent = rec.get("blk_out")
                 if parent is None:
@@ -846,23 +1559,7 @@ class LocalCreditAssignment(Trainer):
             if layer_dynamics_mode == "conductance":
                 # Conductance scaling: R_tot = 1 / g_tot
                 if self.local_cfg.three_factor.use_conductance_scaling:
-                    g_tot = torch.ones_like(v_n)
-                    exc_out = rec.get("exc_out")
-                    if exc_out is not None:
-                        g_tot = g_tot + functional.relu(exc_out)
-                    inh_out = rec.get("inh_out")
-                    if inh_out is not None:
-                        g_tot = g_tot + functional.relu(inh_out)
-                    blk_module = rec.get("blk_module")
-                    if blk_module is not None and hasattr(
-                        blk_module, "sum_conductances"
-                    ):
-                        g_blk = (
-                            blk_module.sum_conductances()
-                            .detach()[None, :]
-                            .expand_as(v_n)
-                        )
-                        g_tot = g_tot + functional.relu(g_blk)
+                    g_tot = self._compute_layer_total_conductance(rec, v_n)
                     R_tot = 1.0 / (g_tot + 1e-8)
                 else:
                     R_tot = 1.0
@@ -872,11 +1569,11 @@ class LocalCreditAssignment(Trainer):
 
             # === PATH PROPAGATION FACTOR ===
             # Apply path-integrated attenuation if enabled
-            if self.local_cfg.morphology_aware.use_path_propagation:
-                path_factor = self._compute_path_propagation_factor(
-                    layer_idx, rec, layer_records
-                )
-                rec["path_factor"] = path_factor
+            if (
+                self.local_cfg.morphology_aware.use_path_propagation
+                and bmode != "path_transport"
+            ):
+                path_factor = rec.get("path_factor", 1.0)
                 # Modulate error by path attenuation
                 if isinstance(path_factor, torch.Tensor):
                     e_n = e_n * path_factor
@@ -921,12 +1618,25 @@ class LocalCreditAssignment(Trainer):
                     )
 
             # === BRANCH TYPE SCALING ===
-            branch_scale = 1.0
-            if (
+            branch_scale: torch.Tensor | float = 1.0
+            dendritic_branch_scale: torch.Tensor | float = 1.0
+            role_synaptic_alignment: Optional[torch.Tensor] = None
+            role_block_alignment: Optional[torch.Tensor] = None
+            using_branch_role_scale = (
+                self.local_cfg.morphology_aware.use_branch_role_rules
+            )
+            if using_branch_role_scale:
+                branch_scale, dendritic_branch_scale = self._get_branch_role_scales(rec)
+                (
+                    role_synaptic_alignment,
+                    role_block_alignment,
+                ) = self._get_branch_role_alignment_factors(rec)
+            if not using_branch_role_scale and (
                 self.local_cfg.morphology_aware.use_branch_type_rules
                 or self.local_cfg.morphology_aware.use_branch_length_modulation
             ):
                 branch_scale = self._get_branch_type_scale(rec)
+                dendritic_branch_scale = branch_scale
 
             # Post-synaptic modulation per-sample, per-neuron.
             if layer_dynamics_mode == "conductance":
@@ -986,6 +1696,13 @@ class LocalCreditAssignment(Trainer):
                 grad_g = post_factor.t() @ x_exc
                 if self.local_cfg.normalize_by_batch:
                     grad_g = grad_g / float(batch_size)
+                if (
+                    isinstance(role_synaptic_alignment, torch.Tensor)
+                    and role_synaptic_alignment.size() == grad_g.size()
+                ):
+                    grad_g = grad_g * role_synaptic_alignment.to(
+                        device=grad_g.device, dtype=grad_g.dtype
+                    )
                 exc_chain = self._weight_transform_derivative(
                     exc_layer.pre_w.detach(),
                     getattr(exc_layer, "weight_transform", "exp"),
@@ -1056,6 +1773,21 @@ class LocalCreditAssignment(Trainer):
                 grad_g_inh = inh_factor.t() @ x_inh
                 if self.local_cfg.normalize_by_batch:
                     grad_g_inh = grad_g_inh / float(batch_size)
+                if (
+                    isinstance(role_synaptic_alignment, torch.Tensor)
+                    and role_synaptic_alignment.size() == grad_g_inh.size()
+                ):
+                    grad_g_inh = grad_g_inh * role_synaptic_alignment.to(
+                        device=grad_g_inh.device, dtype=grad_g_inh.dtype
+                    )
+                homeo_factor = self._compute_inhibitory_homeostasis_factor(
+                    rec=rec, R_tot=R_tot, v_n=v_n
+                )
+                if homeo_factor is not None:
+                    grad_homeo = homeo_factor.t() @ x_inh
+                    if self.local_cfg.normalize_by_batch:
+                        grad_homeo = grad_homeo / float(batch_size)
+                    grad_g_inh = grad_g_inh + grad_homeo
                 inh_chain = self._weight_transform_derivative(
                     inh_layer.pre_w.detach(),
                     getattr(inh_layer, "weight_transform", "exp"),
@@ -1120,16 +1852,26 @@ class LocalCreditAssignment(Trainer):
                     den_factor = den_factor * float(phi)
 
                 # Apply branch type scaling
-                if isinstance(branch_scale, torch.Tensor):
-                    den_factor = den_factor * branch_scale.unsqueeze(0).unsqueeze(
-                        -1
-                    )  # [1, out, 1]
+                if isinstance(dendritic_branch_scale, torch.Tensor):
+                    if dendritic_branch_scale.dim() == 2:
+                        den_factor = den_factor * dendritic_branch_scale.unsqueeze(0)
+                    else:
+                        den_factor = den_factor * dendritic_branch_scale.unsqueeze(
+                            0
+                        ).unsqueeze(-1)  # [1, out, 1]
                 else:
-                    den_factor = den_factor * float(branch_scale)
+                    den_factor = den_factor * float(dendritic_branch_scale)
 
                 grad_g_den = den_factor.mean(dim=0)  # [out, block]
                 if not self.local_cfg.normalize_by_batch:
                     grad_g_den = grad_g_den * float(batch_size)
+                if (
+                    isinstance(role_block_alignment, torch.Tensor)
+                    and role_block_alignment.size() == grad_g_den.size()
+                ):
+                    grad_g_den = grad_g_den * role_block_alignment.to(
+                        device=grad_g_den.device, dtype=grad_g_den.dtype
+                    )
 
                 # Apply dendritic normalization if enabled
                 if self.local_cfg.morphology_aware.use_dendritic_normalization:
@@ -1698,7 +2440,7 @@ class LocalCreditAssignment(Trainer):
         else:
             stats.var_ema = (1 - alpha) * stats.var_ema + alpha * var_batch
         phi = var_batch / (stats.var_ema + 1e-8)
-        phi = max(0.25, min(4.0, phi))
+        phi = self._clamp_phi(phi)
         return float(phi)
 
     def _compute_layer_phi_conditional(self, rec: dict[str, Any]) -> float:
@@ -1755,7 +2497,7 @@ class LocalCreditAssignment(Trainer):
             residual_var = 1e-12
         # Conditional SNR-like factor: higher when residual variance is small
         phi = var_y / residual_var
-        return float(max(0.25, min(4.0, phi)))
+        return float(self._clamp_phi(phi))
 
     def _compute_layer_phi_conditional_ema(
         self, rec: dict[str, Any], v_n: torch.Tensor, parent: torch.Tensor
@@ -1811,87 +2553,31 @@ class LocalCreditAssignment(Trainer):
 
         # Conditional SNR proxy
         phi = stats.ema_var_y / residual_var
-        return float(max(0.25, min(4.0, phi)))
+        return float(self._clamp_phi(phi))
+
+    def _clamp_phi(self, phi: float) -> float:
+        """Clamp the 5F confidence factor using configured stability bounds."""
+        phi_cfg = getattr(self.local_cfg, "five_factor", None)
+        phi_min = float(getattr(phi_cfg, "phi_clamp_min", 0.25))
+        phi_max = float(getattr(phi_cfg, "phi_clamp_max", 4.0))
+        if phi_min > phi_max:
+            phi_min, phi_max = phi_max, phi_min
+        return max(phi_min, min(phi_max, phi))
 
     # -------------------- Morphology-Aware Helper Methods --------------------
     def _compute_path_propagation_factor(
         self, layer_idx: int, rec: dict[str, Any], layer_records: list[dict[str, Any]]
     ) -> torch.Tensor:
-        """Compute path-integrated propagation factor: ∏_{k=1}^n R_k^tot g_k^den.
+        """Backward-compatible wrapper around the precomputed path factors."""
+        path_factors = self._precompute_path_propagation_factors(layer_records)
+        path_factor = path_factors[layer_idx]
+        if isinstance(path_factor, torch.Tensor):
+            return path_factor
 
-        This approximates the full dendritic tree attenuation from soma to layer n.
-
-        Note: For stability and shape consistency across layers with different
-        dimensionalities, we return a per-sample scalar path factor [B, 1]
-        (sample-wise attenuation), which is then broadcast to the layer size.
-
-        Args:
-            layer_idx: Current layer index
-            rec: Current layer record
-            layer_records: All layer records
-
-        Returns:
-            Path factor tensor [B, 1]
-        """
-        if layer_idx == 0:
-            # First layer: no path attenuation
-            v_n = rec.get("v_n")
-            if v_n is None:
-                return 1.0
-            # Per-sample scalar
+        v_n = rec.get("v_n")
+        if isinstance(v_n, torch.Tensor):
             return torch.ones(v_n.size(0), 1, device=v_n.device, dtype=v_n.dtype)
-
-        # Get previous layer's path factor and conductances
-        prev_rec = layer_records[layer_idx - 1]
-        prev_path = prev_rec.get("path_factor", 1.0)
-
-        # Compute R_tot for previous layer
-        v_prev = prev_rec.get("v_n")
-        if v_prev is None:
-            return 1.0
-
-        g_tot_prev = torch.ones_like(v_prev)
-        if prev_rec.get("exc_out") is not None:
-            g_tot_prev = g_tot_prev + functional.relu(prev_rec["exc_out"])
-        if prev_rec.get("inh_out") is not None:
-            g_tot_prev = g_tot_prev + functional.relu(prev_rec["inh_out"])
-
-        blk_module = prev_rec.get("blk_module")
-        if blk_module is not None and hasattr(blk_module, "sum_conductances"):
-            g_blk = blk_module.sum_conductances().detach()[None, :].expand_as(v_prev)
-            g_tot_prev = g_tot_prev + functional.relu(g_blk)
-
-        R_tot_prev = 1.0 / (g_tot_prev + 1e-8)
-
-        # Dendritic conductance (approximate as mean of block conductances)
-        if blk_module is not None and hasattr(blk_module, "sum_conductances"):
-            g_den = blk_module.sum_conductances().detach().mean()
-        else:
-            g_den = 1.0
-
-        # Update path factor: multiply by R_prev * g_den
-        if isinstance(prev_path, torch.Tensor):
-            # prev_path is expected to be [B, 1]
-            if prev_path.dim() == 2 and prev_path.size(1) == 1:
-                # Reduce R_tot_prev over neurons to a per-sample scalar and multiply
-                r_scalar = R_tot_prev.mean(dim=1, keepdim=True)
-                path_factor = prev_path * r_scalar * g_den
-            else:
-                # Fallback: reduce everything to per-sample scalar
-                r_scalar = R_tot_prev.mean(dim=1, keepdim=True)
-                path_factor = r_scalar * g_den
-        else:
-            # No previous path: start with per-sample scalar from previous layer
-            r_scalar = R_tot_prev.mean(dim=1, keepdim=True)
-            path_factor = r_scalar * g_den
-
-        # Ensure [B, 1]
-        if path_factor.dim() == 1:
-            path_factor = path_factor.view(-1, 1)
-        elif path_factor.dim() == 2 and path_factor.size(1) != 1:
-            path_factor = path_factor.mean(dim=1, keepdim=True)
-
-        return path_factor
+        return torch.ones(1, 1)
 
     def _compute_branch_depth_modulator(
         self, rec: dict[str, Any], rho_base: float
@@ -1976,7 +2662,7 @@ class LocalCreditAssignment(Trainer):
 
         return grad_g_den * norm_factor
 
-    def _get_branch_type_scale(self, rec: dict[str, Any]) -> torch.Tensor:
+    def _get_branch_type_scale(self, rec: dict[str, Any]) -> torch.Tensor | float:
         """Get scaling factors for apical vs basal branches.
 
         Args:
@@ -2015,16 +2701,12 @@ class LocalCreditAssignment(Trainer):
         return scale
 
     def _initialize_branch_morphology(
-        self, layer_records: list[dict[str, Any]]
+        self, model: BaseModel, layer_records: list[dict[str, Any]]
     ) -> None:
-        """Initialize branch morphology information (depths, types).
+        """Initialize morphology metadata and infer pathway roles from connectivity."""
+        base_input_roles = self._resolve_router_output_roles(model)
+        prior_output_roles: list[torch.Tensor] = []
 
-        This is a placeholder for future integration with actual dendritic tree structure.
-        Currently assigns heuristic values based on layer topology.
-
-        Args:
-            layer_records: All layer records
-        """
         for layer_idx, rec in enumerate(layer_records):
             layer_id = id(rec.get("layer"))
             stats = self._layer_stats.setdefault(layer_id, _LayerStats())
@@ -2033,6 +2715,12 @@ class LocalCreditAssignment(Trainer):
                 continue
 
             out_features = v_n.size(1)
+            stats.branch_role_profile = None
+            stats.branch_role_selectivity = None
+            stats.input_role_profile = None
+            stats.block_input_role_profile = None
+            stats.branch_block_roles = None
+            stats.branch_block_selectivity = None
 
             # Heuristic depth: based on layer index (deeper layers = higher depth)
             # In future, this should come from actual dendritic tree graph
@@ -2054,6 +2742,185 @@ class LocalCreditAssignment(Trainer):
                 if layer_idx >= len(layer_records) // 2:
                     branch_types[:] = 1.0  # Mark as apical
                 stats.branch_types = branch_types
+
+            role_mass_terms: list[torch.Tensor] = []
+
+            exc_layer: Optional[TopKLinear] = rec.get("exc_module")
+            x_exc = rec.get("x_exc")
+            if exc_layer is not None and isinstance(x_exc, torch.Tensor):
+                exc_input_roles = self._resolve_recent_role_profile(
+                    x_exc.size(1), base_input_roles, prior_output_roles
+                )
+                if exc_input_roles is not None:
+                    stats.input_role_profile = exc_input_roles.to(
+                        device=v_n.device, dtype=v_n.dtype
+                    )
+                    exc_weight = self._effective_topk_weight(
+                        exc_layer, rec.get("exc_mask")
+                    )
+                    exc_role_mass = self._role_mass_from_weight_matrix(
+                        exc_weight, stats.input_role_profile
+                    )
+                    if exc_role_mass is not None:
+                        role_mass_terms.append(
+                            exc_role_mass.to(device=v_n.device, dtype=v_n.dtype)
+                        )
+
+            inh_layer: Optional[TopKLinear] = rec.get("inh_module")
+            x_inh = rec.get("x_inh")
+            if inh_layer is not None and isinstance(x_inh, torch.Tensor):
+                inh_input_roles = self._resolve_recent_role_profile(
+                    x_inh.size(1), base_input_roles, prior_output_roles
+                )
+                if inh_input_roles is not None:
+                    if stats.input_role_profile is None:
+                        stats.input_role_profile = inh_input_roles.to(
+                            device=v_n.device, dtype=v_n.dtype
+                        )
+                    inh_weight = self._effective_topk_weight(
+                        inh_layer, rec.get("inh_mask")
+                    )
+                    inh_role_mass = self._role_mass_from_weight_matrix(
+                        inh_weight, inh_input_roles
+                    )
+                    if inh_role_mass is not None:
+                        role_mass_terms.append(
+                            inh_role_mass.to(device=v_n.device, dtype=v_n.dtype)
+                        )
+
+            blk_layer = rec.get("blk_module")
+            x_blk_raw = rec.get("x_blk_raw")
+            if blk_layer is not None and isinstance(x_blk_raw, torch.Tensor):
+                block_input_roles = self._resolve_recent_role_profile(
+                    x_blk_raw.size(1), base_input_roles, prior_output_roles
+                )
+                if block_input_roles is not None:
+                    stats.block_input_role_profile = block_input_roles.to(
+                        device=v_n.device, dtype=v_n.dtype
+                    )
+                    block_size = int(getattr(blk_layer, "block_size", 1))
+                    n_roles = stats.block_input_role_profile.size(1)
+                    expected_in = out_features * block_size
+                    if stats.block_input_role_profile.size(0) == expected_in:
+                        block_roles = stats.block_input_role_profile.reshape(
+                            out_features, block_size, n_roles
+                        )
+                        stats.branch_block_roles = block_roles
+                        block_selectivity = self._compute_role_selectivity(
+                            block_roles.reshape(-1, n_roles)
+                        )
+                        stats.branch_block_selectivity = block_selectivity.reshape(
+                            out_features, block_size
+                        )
+                        blk_weight = (
+                            blk_layer.weight()
+                            .detach()
+                            .to(device=v_n.device, dtype=v_n.dtype)
+                        )
+                        block_role_mass = (
+                            blk_weight.unsqueeze(-1)
+                            * block_roles.to(device=v_n.device, dtype=v_n.dtype)
+                        ).sum(dim=1)
+                        role_mass_terms.append(block_role_mass)
+
+            if role_mass_terms:
+                total_role_mass = role_mass_terms[0]
+                for extra_mass in role_mass_terms[1:]:
+                    total_role_mass = total_role_mass + extra_mass
+                role_profile = self._normalize_role_mass(total_role_mass)
+                stats.branch_role_profile = role_profile
+                stats.branch_role_selectivity = self._compute_role_selectivity(
+                    role_profile
+                )
+                prior_output_roles.append(role_profile.detach())
+
+    def _get_branch_role_scales(
+        self, rec: dict[str, Any]
+    ) -> tuple[torch.Tensor | float, torch.Tensor | float]:
+        """Get plasticity scales from inferred pathway specialization."""
+        layer_id = id(rec.get("layer"))
+        stats = self._layer_stats.get(layer_id)
+        if (
+            stats is None
+            or not isinstance(stats.branch_role_selectivity, torch.Tensor)
+            or stats.branch_role_selectivity.numel() == 0
+        ):
+            return 1.0, 1.0
+
+        cfg = self.local_cfg.morphology_aware
+        power = max(float(getattr(cfg, "branch_role_power", 1.0)), 1e-6)
+        specialized_scale = float(getattr(cfg, "specialized_branch_scale", 1.0))
+        mixed_scale = float(getattr(cfg, "mixed_branch_scale", 1.0))
+
+        neuron_selectivity = stats.branch_role_selectivity.to(
+            dtype=stats.branch_role_selectivity.dtype
+        )
+        branch_scale = mixed_scale + neuron_selectivity.pow(power) * (
+            specialized_scale - mixed_scale
+        )
+
+        dendritic_scale: torch.Tensor | float = branch_scale
+        if isinstance(stats.branch_block_selectivity, torch.Tensor):
+            block_selectivity = stats.branch_block_selectivity.to(
+                dtype=branch_scale.dtype, device=branch_scale.device
+            )
+            dendritic_scale = mixed_scale + block_selectivity.pow(power) * (
+                specialized_scale - mixed_scale
+            )
+
+        if cfg.use_branch_length_modulation and stats.branch_depths is not None:
+            depth_offset = cfg.morphology_depth_offset
+            length_factor = 1.0 / (stats.branch_depths + depth_offset)
+            length_factor = length_factor / (length_factor.mean() + 1e-8)
+            branch_scale = branch_scale * length_factor
+            if isinstance(dendritic_scale, torch.Tensor):
+                if dendritic_scale.dim() == 2:
+                    dendritic_scale = dendritic_scale * length_factor.unsqueeze(-1)
+                else:
+                    dendritic_scale = dendritic_scale * length_factor
+
+        return branch_scale, dendritic_scale
+
+    def _get_branch_role_alignment_factors(
+        self, rec: dict[str, Any]
+    ) -> tuple[Optional[torch.Tensor], Optional[torch.Tensor]]:
+        """Get synapse- and branch-specific alignment gains from inferred roles."""
+        layer_id = id(rec.get("layer"))
+        stats = self._layer_stats.get(layer_id)
+        if (
+            stats is None
+            or not isinstance(stats.branch_role_profile, torch.Tensor)
+            or stats.branch_role_profile.numel() == 0
+        ):
+            return None, None
+
+        weight = float(
+            getattr(
+                self.local_cfg.morphology_aware, "branch_role_alignment_weight", 0.0
+            )
+        )
+        if weight <= 0.0:
+            return None, None
+
+        role_profile = stats.branch_role_profile
+        syn_factor: Optional[torch.Tensor] = None
+        if isinstance(stats.input_role_profile, torch.Tensor):
+            alignment = role_profile @ stats.input_role_profile.t().to(
+                device=role_profile.device, dtype=role_profile.dtype
+            )
+            alignment = alignment - alignment.mean(dim=1, keepdim=True)
+            syn_factor = torch.clamp(1.0 + weight * alignment, min=0.0)
+
+        block_factor: Optional[torch.Tensor] = None
+        if isinstance(stats.branch_block_roles, torch.Tensor):
+            block_roles = stats.branch_block_roles.to(
+                device=role_profile.device, dtype=role_profile.dtype
+            )
+            alignment = (block_roles * role_profile.unsqueeze(1)).sum(dim=-1)
+            alignment = alignment - alignment.mean(dim=1, keepdim=True)
+            block_factor = torch.clamp(1.0 + weight * alignment, min=0.0)
+
+        return syn_factor, block_factor
 
     def train(
         self,

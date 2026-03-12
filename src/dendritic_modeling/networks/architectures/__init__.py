@@ -13,6 +13,7 @@ from dendritic_modeling.networks.architectures.classical import (
     Identity,
     MatchedActiveParamMLP,
     MatchedTotalParamMLP,
+    PathwayRouter,
     SparseStructuredMLP,
 )
 from dendritic_modeling.networks.architectures.excitation_inhibition import (
@@ -65,6 +66,7 @@ __all__ = [
     "IndexInputTransform",
     "MatchedActiveParamMLP",
     "MatchedTotalParamMLP",
+    "PathwayRouter",
     "PopulationConfig",
     "SparseStructuredMLP",
     "StatefulDendriNet",

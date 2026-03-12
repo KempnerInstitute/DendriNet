@@ -366,7 +366,9 @@ class SweepJobManager:
             )
 
             for config_path in config_paths:
-                rel_config_path = os.path.relpath(config_path, os.getcwd())
+                rel_config_path = os.path.relpath(
+                    os.path.abspath(config_path), start=repo_root
+                )
                 f.write(f"$PYTHON_BIN {training_script} {rel_config_path}\n")
 
         # Make executable
@@ -496,7 +498,9 @@ class SweepJobManager:
             f.write("# Array job: select config based on SLURM_ARRAY_TASK_ID\n")
             f.write("CONFIG_FILES=(\n")
             for config_path in config_paths:
-                rel_config_path = os.path.relpath(config_path, os.getcwd())
+                rel_config_path = os.path.relpath(
+                    os.path.abspath(config_path), start=repo_root
+                )
                 f.write(f'    "{rel_config_path}"\n')
             f.write(")\n\n")
 

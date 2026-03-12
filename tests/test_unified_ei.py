@@ -1275,3 +1275,299 @@ def test_factory_builds_baseline_rnn():
         x = torch.randn(2, 5, 8)
         y = net(x)
         assert y.shape == (2, 16)
+
+
+# ---------------------------------------------------------------------------
+# Learnable tau tests
+# ---------------------------------------------------------------------------
+
+
+def test_learnable_tau_creates_parameter():
+    """learnable_tau=True stores log_tau as nn.Parameter, not buffer."""
+    pop = PopulationConfig(
+        n_neurons=4,
+        branch_factors=[3, 2],
+        ff_excitatory_synapses=4,
+        tau_base=10.0,
+        tau_ratio=3.0,
+        learnable_tau=True,
+    )
+    net = StatefulDendriNet(pop_config=pop, excitatory_input_dim=8, dt=1.0)
+    assert net.learnable_tau is True
+    assert net.log_tau is not None
+    assert isinstance(net.log_tau, torch.nn.Parameter)
+    assert net.log_tau.requires_grad is True
+    assert net.log_tau.shape == (3,)  # 3 levels
+
+
+def test_learnable_tau_initial_values_match_fixed():
+    """Learnable tau initial values should match fixed-mode geometric spacing."""
+    import math
+
+    for learnable in [True, False]:
+        pop = PopulationConfig(
+            n_neurons=4,
+            branch_factors=[3, 2],
+            ff_excitatory_synapses=4,
+            tau_base=10.0,
+            tau_ratio=3.0,
+            learnable_tau=learnable,
+        )
+        net = StatefulDendriNet(pop_config=pop, excitatory_input_dim=8, dt=1.0)
+        decays = net.get_decays()
+        expected = [math.exp(-1.0 / 90), math.exp(-1.0 / 30), math.exp(-1.0 / 10)]
+        for i, exp_val in enumerate(expected):
+            assert (
+                abs(decays[i].item() - exp_val) < 1e-5
+            ), f"Level {i}: learnable={learnable}, expected {exp_val}, got {decays[i].item()}"
+
+
+def test_learnable_tau_gradient_flow():
+    """Gradients must flow through log_tau during backprop."""
+    pop = PopulationConfig(
+        n_neurons=4,
+        branch_factors=[2],
+        ff_excitatory_synapses=4,
+        rec_excitatory_synapses=3,
+        tau_base=5.0,
+        tau_ratio=5.0,
+        learnable_tau=True,
+    )
+    net = StatefulDendriNet(
+        pop_config=pop,
+        excitatory_input_dim=8,
+        recurrent_excitatory_input_dim=4,
+        dt=1.0,
+    )
+    x = torch.randn(2, 8)
+    state = None
+    # Run 5 recurrent steps to accumulate tau-dependent dynamics
+    for _ in range(5):
+        out, state = net.step(x, state=state)
+    loss = out.sum()
+    loss.backward()
+    assert net.log_tau.grad is not None, "log_tau received no gradient"
+    assert (net.log_tau.grad.abs() > 0).any(), "log_tau gradient is all zeros"
+
+
+def test_learnable_tau_current_taus_property():
+    """current_taus property returns correct tau values."""
+    pop = PopulationConfig(
+        n_neurons=4,
+        branch_factors=[2],
+        ff_excitatory_synapses=4,
+        tau_base=10.0,
+        tau_ratio=3.0,
+        learnable_tau=True,
+    )
+    net = StatefulDendriNet(pop_config=pop, excitatory_input_dim=8, dt=1.0)
+    taus = net.current_taus
+    assert taus.shape == (2,)  # 2 levels for branch_factors=[2]
+    # distal = 10*3 = 30, soma = 10
+    assert abs(taus[0].item() - 30.0) < 0.1
+    assert abs(taus[1].item() - 10.0) < 0.1
+
+
+def test_fixed_tau_has_no_log_tau_parameter():
+    """learnable_tau=False should NOT create log_tau parameter."""
+    pop = PopulationConfig(
+        n_neurons=4,
+        branch_factors=[2],
+        ff_excitatory_synapses=4,
+        tau_base=10.0,
+        tau_ratio=3.0,
+        learnable_tau=False,
+    )
+    net = StatefulDendriNet(pop_config=pop, excitatory_input_dim=8, dt=1.0)
+    assert net.log_tau is None
+    # No tau-related parameters should be in the parameter list
+    param_names = [n for n, _ in net.named_parameters()]
+    assert "log_tau" not in param_names
+
+
+# ---------------------------------------------------------------------------
+# Tau stability tests
+# ---------------------------------------------------------------------------
+
+
+def test_tau_stability_extreme_ratios():
+    """Network should handle extreme dt/tau ratios without NaN."""
+    for tau_base, tau_ratio in [(0.1, 100.0), (1000.0, 1.0), (1.0, 0.01)]:
+        pop = PopulationConfig(
+            n_neurons=4,
+            branch_factors=[2],
+            ff_excitatory_synapses=4,
+            rec_excitatory_synapses=3,
+            tau_base=tau_base,
+            tau_ratio=tau_ratio,
+        )
+        net = StatefulDendriNet(
+            pop_config=pop,
+            excitatory_input_dim=8,
+            recurrent_excitatory_input_dim=4,
+            dt=1.0,
+        )
+        x = torch.randn(2, 8)
+        state = None
+        for _ in range(10):
+            out, state = net.step(x, state=state)
+        assert not torch.isnan(
+            out
+        ).any(), f"NaN with tau_base={tau_base}, tau_ratio={tau_ratio}"
+        assert not torch.isinf(
+            out
+        ).any(), f"Inf with tau_base={tau_base}, tau_ratio={tau_ratio}"
+
+
+def test_learnable_tau_stability_after_optimization():
+    """Learnable taus should stay positive after gradient updates."""
+    pop = PopulationConfig(
+        n_neurons=4,
+        branch_factors=[2],
+        ff_excitatory_synapses=4,
+        rec_excitatory_synapses=3,
+        tau_base=5.0,
+        tau_ratio=5.0,
+        learnable_tau=True,
+    )
+    net = StatefulDendriNet(
+        pop_config=pop,
+        excitatory_input_dim=8,
+        recurrent_excitatory_input_dim=4,
+        dt=1.0,
+    )
+    opt = torch.optim.SGD(net.parameters(), lr=0.1)
+    x = torch.randn(2, 8)
+    for _ in range(20):
+        opt.zero_grad()
+        state = None
+        for _ in range(5):
+            out, state = net.step(x, state=state)
+        loss = out.sum()
+        loss.backward()
+        opt.step()
+    # Taus must remain positive (log-space guarantees this)
+    taus = net.current_taus
+    assert (taus > 0).all(), f"Negative taus after optimization: {taus}"
+    assert not torch.isnan(taus).any(), f"NaN taus: {taus}"
+
+
+# ---------------------------------------------------------------------------
+# Equivalence test: recurrent-off path vs feedforward
+# ---------------------------------------------------------------------------
+
+
+def test_recurrent_off_matches_feedforward():
+    """EINetwork with rec_*=0 should produce same output as feedforward path."""
+    pop = PopulationConfig(
+        n_neurons=8,
+        branch_factors=[2],
+        ff_excitatory_synapses=6,
+        ff_inhibitory_synapses=3,
+        rec_excitatory_synapses=0,
+        rec_inhibitory_synapses=0,
+    )
+    cfg = EINetworkConfig(
+        layers=[EILayerConfig(excitatory=pop, recurrent=False)],
+        input_dim=16,
+        use_transfer=False,
+        output_mode="last",
+    )
+    net = EINetwork(cfg)
+    torch.manual_seed(0)
+    x_single = torch.randn(2, 16)  # single step
+    x_seq = x_single.unsqueeze(1)  # [2, 1, 16] — 1-step sequence
+
+    # FF path
+    y_ff = net._forward_feedforward(x_single)
+    # Recurrent path with 1 step returns (output, hidden)
+    y_rec, _ = net._forward_recurrent(x_seq)
+
+    assert torch.allclose(
+        y_ff, y_rec, atol=1e-5
+    ), f"FF and recurrent paths diverge: max diff = {(y_ff - y_rec).abs().max().item()}"
+
+
+# ---------------------------------------------------------------------------
+# LR schedule behavior test
+# ---------------------------------------------------------------------------
+
+
+def test_cosine_lr_schedule_values():
+    """Cosine LR schedule should follow expected warmup + cosine curve."""
+
+    from dendritic_modeling.training.strategies.recurrent_trainer import (
+        RecurrentTrainer,
+    )
+
+    # Create a minimal trainer with cosine schedule
+    # We need a dummy optimizer for the scheduler
+    dummy_model = torch.nn.Linear(4, 2)
+    dummy_opt = torch.optim.Adam(dummy_model.parameters(), lr=0.01)
+
+    trainer = RecurrentTrainer(
+        task="classification",
+        grad_clip=1.0,
+        lr_schedule="cosine",
+        lr_warmup_epochs=5,
+        optimizer=dummy_opt,
+        epochs=20,
+        batch_size=32,
+        device="cpu",
+        learning_rate=0.01,
+    )
+    trainer._build_scheduler(n_epochs=20)
+    assert trainer.scheduler is not None
+
+    # Check warmup phase: LR should increase linearly
+    lrs = []
+    torch_opt = trainer._get_torch_optimizer()
+    for _epoch in range(20):
+        lrs.append(torch_opt.param_groups[0]["lr"])
+        trainer.scheduler.step()
+
+    # Warmup: epochs 0-4, LR ramps from 0.002 to 0.01
+    for i in range(5):
+        expected_mult = (i + 1) / 5
+        assert (
+            abs(lrs[i] / 0.01 - expected_mult) < 0.01
+        ), f"Warmup epoch {i}: expected mult={expected_mult}, got {lrs[i]/0.01}"
+
+    # Post-warmup: cosine decay
+    assert lrs[5] == pytest.approx(0.01, abs=1e-4)  # peak after warmup
+    assert lrs[-1] < lrs[5]  # final LR < peak
+
+
+# ---------------------------------------------------------------------------
+# Factory learnable_tau passthrough test
+# ---------------------------------------------------------------------------
+
+
+def test_factory_passes_learnable_tau():
+    """Factory should pass learnable_tau to PopulationConfig."""
+    params = {
+        "architecture": {
+            "excitatory_layer_sizes": [32],
+            "inhibitory_layer_sizes": [],
+            "excitatory_branch_factors": [2],
+        },
+        "connectivity": {
+            "ee_synapses_per_branch_per_layer": [8],
+            "rec_ee_synapses_per_branch": [4],
+        },
+        "transfer": {"input_mode": 0},
+        "morphology": {"use_shunting": True, "weight_transform": "softplus"},
+        "sparsity": {"init_method": "xavier_normal"},
+        "recurrent_ei": {
+            "tau_base": 5.0,
+            "tau_ratio": 5.0,
+            "learnable_tau": True,
+            "output_mode": "last",
+        },
+    }
+    net = get_architecture("EINet", params, input_dim=16)
+    assert isinstance(net, EINetwork)
+    e_pop = net.layers[0].e_population
+    assert e_pop.learnable_tau is True
+    assert e_pop.log_tau is not None
+    assert e_pop.log_tau.requires_grad is True

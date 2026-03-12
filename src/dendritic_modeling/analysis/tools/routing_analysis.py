@@ -21,6 +21,12 @@ from dendritic_modeling.utils.general import save_dict
 logger = logging.getLogger(__name__)
 
 
+def _extract_seq_lengths(batch) -> Optional[torch.Tensor]:
+    if isinstance(batch, (list, tuple)) and len(batch) >= 3:
+        return batch[2]
+    return None
+
+
 class RoutingAnalyzer(AbstractAnalyzer):
     """Analyzes per-level routing in recurrent dendritic E-I networks.
 
@@ -90,8 +96,8 @@ class RoutingAnalyzer(AbstractAnalyzer):
         model.to(device)
 
         # Accumulators: per (layer, population) -> list of per-timestep tensors
-        # level_contributions[key] = list of [batch, n_levels] tensors
-        # ff_rec_ratios[key] = list of [batch, n_levels] tensors
+        # level_contributions[key] = list of [n_valid, n_levels] tensors
+        # ff_rec_ratios[key] = list of [n_valid, n_levels] tensors
         level_contribs: dict[str, list[torch.Tensor]] = {}
         ff_rec_ratios: dict[str, list[torch.Tensor]] = {}
 
@@ -101,9 +107,17 @@ class RoutingAnalyzer(AbstractAnalyzer):
             with torch.no_grad():
                 for batch in loader:
                     x_batch = batch[0].to(device)
-                    _ = model(x_batch)
+                    seq_lengths = _extract_seq_lengths(batch)
+                    if seq_lengths is not None:
+                        seq_lengths = seq_lengths.to(device)
+                    _ = model(x_batch, seq_lengths=seq_lengths)
 
-                    for timestep_info in core._routing_info:
+                    for timestep_idx, timestep_info in enumerate(core._routing_info):
+                        valid_mask = None
+                        if seq_lengths is not None:
+                            valid_mask = (seq_lengths > timestep_idx).detach().cpu()
+                            if not bool(valid_mask.any()):
+                                continue
                         for layer_key, layer_info in timestep_info.items():
                             for pop_key in ("excitatory", "inhibitory"):
                                 if pop_key not in layer_info:
@@ -112,18 +126,26 @@ class RoutingAnalyzer(AbstractAnalyzer):
                                 full_key = f"{layer_key}/{pop_key}"
 
                                 if "level_contributions" in pop_info:
+                                    values = (
+                                        pop_info["level_contributions"].detach().cpu()
+                                    )
+                                    if valid_mask is not None:
+                                        values = values[valid_mask]
+                                    if values.numel() == 0:
+                                        continue
                                     if full_key not in level_contribs:
                                         level_contribs[full_key] = []
-                                    level_contribs[full_key].append(
-                                        pop_info["level_contributions"].cpu()
-                                    )
+                                    level_contribs[full_key].append(values)
 
                                 if "ff_rec_ratios" in pop_info:
+                                    ratios = pop_info["ff_rec_ratios"].detach().cpu()
+                                    if valid_mask is not None:
+                                        ratios = ratios[valid_mask]
+                                    if ratios.numel() == 0:
+                                        continue
                                     if full_key not in ff_rec_ratios:
                                         ff_rec_ratios[full_key] = []
-                                    ff_rec_ratios[full_key].append(
-                                        pop_info["ff_rec_ratios"].cpu()
-                                    )
+                                    ff_rec_ratios[full_key].append(ratios)
         finally:
             core.store_routing = original_store_routing
             model.train(was_training)

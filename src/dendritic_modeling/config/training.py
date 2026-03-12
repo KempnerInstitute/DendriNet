@@ -146,8 +146,10 @@ class LocalCAStrategyConfig(BaseConfig):
     hsic_apply_last_layer_only: bool = False
 
     rho_mode: str = "dot"
+    encoder_update_mode: str = "none"
     decoder_update_mode: str = "backprop"
     update_reactivation: bool = True
+    freeze_encoder_epochs: int = 0
     freeze_reactivation_epochs: int = 20
     freeze_decoder_epochs: int = 0
     training_schedule: list = field(default_factory=list)
@@ -360,6 +362,9 @@ class FiveFactorConfig(BaseConfig):
     layer_wise_phi_scale: float = 1.0
     # RLS forgetting factor (if using RLS-based estimators)
     rls_forgetting: float = 0.99
+    # Stability clamp for the phi confidence factor
+    phi_clamp_min: float = 0.25
+    phi_clamp_max: float = 4.0
 
 
 @dataclass
@@ -371,6 +376,7 @@ class MorphologyAwareConfig(BaseConfig):
 
     # Path-integrated propagation: approximate ∏ R_k g_k attenuation
     use_path_propagation: bool = False
+    path_factor_mode: str = "per_branch"  # "per_branch", "scalar_mean"
 
     # Branch-specific depth modulation: rho_j = rho_base / (depth_j + alpha)
     morphology_modulator_mode: str = "none"  # "none", "depth", "centrality"
@@ -385,6 +391,14 @@ class MorphologyAwareConfig(BaseConfig):
     apical_branch_scale: float = 1.0  # Scale for apical (feedback) branches
     basal_branch_scale: float = 1.0  # Scale for basal (feedforward) branches
     use_branch_length_modulation: bool = False
+
+    # Router/pathway-derived branch roles (preferred over heuristic branch types)
+    use_branch_role_rules: bool = False
+    branch_role_source: str = "router_pathways"  # "router_pathways"
+    specialized_branch_scale: float = 1.0
+    mixed_branch_scale: float = 1.0
+    branch_role_power: float = 1.0
+    branch_role_alignment_weight: float = 0.0
 
 
 @dataclass
@@ -408,6 +422,21 @@ class HSICConfig(BaseConfig):
 
 
 @dataclass
+class InhibitoryHomeostasisConfig(BaseConfig):
+    """Parameters for local inhibitory homeostasis updates.
+
+    These auxiliary updates are applied only to inhibitory synapses and are
+    designed to steer branches toward stable shunting regimes using local state.
+    """
+
+    enabled: bool = False
+    mode: str = "r_tot"  # "r_tot", "voltage"
+    weight: float = 0.0
+    target_r_tot: float = 0.35
+    target_voltage: float = 0.15
+
+
+@dataclass
 class LocalRuleConfig(BaseConfig):
     """Configuration for local learning rules.
 
@@ -420,10 +449,14 @@ class LocalRuleConfig(BaseConfig):
 
     # ========== ERROR SIGNAL ==========
     error_mode: str = "auto"  # "auto", "mse", "ce", "bce"
-    error_broadcast_mode: str = "scalar"  # "scalar", "per_soma", "local_mismatch"
+    error_broadcast_mode: str = "scalar"  # "scalar", "per_soma", "local_mismatch", "low_rank", "path_transport", "pathway_vector"
     error_noise_sigma: float = (
         0.0  # Additive Gaussian noise on broadcast error (0 = off)
     )
+    broadcast_rank: int = 4  # Rank for low-rank vectorized broadcast
+    broadcast_init_scale: float = 1.0  # Scale for low-rank random broadcast
+    pathway_broadcast_residual: float = 0.25  # Blend with direct local error
+    pathway_activity_gate_strength: float = 1.0  # Modulate by local pathway activity
 
     # ========== BROADCAST BANDWIDTH CONTROL ==========
     # Reduce broadcast precision to test low-bandwidth biological plausibility
@@ -453,12 +486,19 @@ class LocalRuleConfig(BaseConfig):
     # HSIC auxiliary loss
     hsic: HSICConfig = field(default_factory=HSICConfig)
 
+    # Local inhibitory homeostasis
+    inhibitory_homeostasis: InhibitoryHomeostasisConfig = field(
+        default_factory=InhibitoryHomeostasisConfig
+    )
+
     # ========== PARAMETER UPDATE CONTROL ==========
     update_inactive_weights: bool = False
     update_reactivation: bool = True
+    encoder_update_mode: str = "none"  # "backprop", "none"
     decoder_update_mode: str = "backprop"  # "backprop", "local", "none"
 
     # ========== TRAINING SCHEDULE ==========
+    freeze_encoder_epochs: int = 0
     freeze_reactivation_epochs: int = 0
     freeze_decoder_epochs: int = 0
     training_schedule: Optional[list[dict[str, Any]]] = None

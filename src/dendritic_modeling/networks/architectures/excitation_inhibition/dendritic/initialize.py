@@ -368,16 +368,16 @@ def analytical_expectation_dbl_init(dbl, adaptive=True, branch_factors=None):
         if dbl.input_branches:
             if dbl.use_shunting:
                 E_Vinf = E_g_exc / (E_g_exc + E_g_inh + 1)
-
-                if E_Vinf < 0.5:
-                    E_Vinf = max(0.49, 0.5 * E_Vinf + 0.25)
-                else:
-                    E_Vinf = min(0.51, 0.5 * E_Vinf + 0.25)
+                # Branch-to-branch conductances have an effective reversal near 0.5,
+                # so target voltages must stay strictly below 0.5 to imply positive
+                # downstream conductances. The previous mapping could exceed 0.5 and
+                # yield invalid negative conductances during initialization.
+                E_Vinf = min(0.49, max(0.25, 0.25 + 0.25 * E_Vinf))
 
                 sum_g_branch = ((E_g_exc + E_g_inh + 1) * E_Vinf - E_g_exc) / (
                     0.5 - E_Vinf
                 )
-                g_branch = sum_g_branch / dbl.branches_to_output.block_size
+                g_branch = max(sum_g_branch / dbl.branches_to_output.block_size, 1e-6)
                 m = 1.5
             else:
                 # g_branch = E_g_exc + E_g_inh + 1

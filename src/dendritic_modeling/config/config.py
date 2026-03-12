@@ -6,7 +6,7 @@ This module defines the configuration dataclasses for the model, training, task,
 It loads and saves configurations using OmegaConf.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from functools import lru_cache
 from typing import Any, Optional
 
@@ -36,6 +36,7 @@ from dendritic_modeling.config.training import (
     FiveFactorConfig,
     FourFactorConfig,
     HSICConfig,
+    InhibitoryHomeostasisConfig,
     LocalRuleConfig,
     MainTrainingConfig,
     MorphologyAwareConfig,
@@ -51,6 +52,11 @@ class ExperimentConfig(BaseConfig):
     seed: int = 42
     train_valid_split: float = 0.8
     enable_amp: bool = False
+    fast_mode: bool = False
+    deterministic: bool = True
+    cudnn_benchmark: bool = False
+    allow_tf32: bool = False
+    float32_matmul_precision: str = "highest"
     enable_profiling: bool = False
     profiling_output_dir: str = "results/profiling/"
     enable_hooks: bool = True
@@ -258,6 +264,34 @@ def _build_model_config(model_data: Any) -> ModelConfig:
     )
 
 
+def _build_data_config(data_data: Any) -> DataConfig:
+    """Build a typed DataConfig while preserving custom dataset sections."""
+    data_dict = _to_plain_dict(data_data)
+    processing = DataProcessingConfig(**_to_plain_dict(data_dict.get("processing", {})))
+
+    dataset_params = data_dict.get("dataset_params")
+    if dataset_params is None:
+        dataset_params = DatasetParamsConfig()
+    elif hasattr(dataset_params, "_metadata"):
+        dataset_params = OmegaConf.to_container(dataset_params, resolve=True)
+
+    return DataConfig(
+        dataset_name=str(data_dict.get("dataset_name", "cifar10")),
+        base_dir=str(data_dict.get("base_dir", "")),
+        processing=processing,
+        dataset_params=dataset_params,
+    )
+
+
+def _filter_dataclass_kwargs(config_cls: type, raw_data: Any) -> dict[str, Any]:
+    """Drop unknown keys when loading historical configs into dataclasses."""
+    data = raw_data or {}
+    if not isinstance(data, dict):
+        return {}
+    allowed = {f.name for f in fields(config_cls)}
+    return {key: value for key, value in data.items() if key in allowed}
+
+
 @lru_cache(maxsize=10)
 def load_config(path: Optional[str] = None) -> Config:
     """Load configuration from a file or use defaults."""
@@ -287,11 +321,13 @@ def load_config(path: Optional[str] = None) -> Config:
 
         return Config(
             experiment=ExperimentConfig(**conf_data.get("experiment", {})),
-            data=DataConfig(**conf_data.get("data", {})),
+            data=_build_data_config(conf_data.get("data", {})),
             model=_build_model_config(conf_data.get("model", {})),
             training=training_config,
             analysis=AnalysisConfig(**mapped_analysis),
-            wandb=WandbConfig(**conf_data.get("wandb", {})),
+            wandb=WandbConfig(
+                **_filter_dataclass_kwargs(WandbConfig, conf_data.get("wandb", {}))
+            ),
             outputs=OutputsConfig(**conf_data.get("outputs", {})),
             fsdp=FSDPConfig(**conf_data.get("fsdp", {})),
         )
@@ -357,6 +393,14 @@ def _build_local_rule_config(lsc_data: dict) -> LocalRuleConfig:
     # Handle nested hsic config
     if "hsic" in lsc_kwargs and isinstance(lsc_kwargs["hsic"], dict):
         lsc_kwargs["hsic"] = HSICConfig(**lsc_kwargs["hsic"])
+
+    # Handle nested inhibitory homeostasis config
+    if "inhibitory_homeostasis" in lsc_kwargs and isinstance(
+        lsc_kwargs["inhibitory_homeostasis"], dict
+    ):
+        lsc_kwargs["inhibitory_homeostasis"] = InhibitoryHomeostasisConfig(
+            **lsc_kwargs["inhibitory_homeostasis"]
+        )
 
     return LocalRuleConfig(**lsc_kwargs)
 

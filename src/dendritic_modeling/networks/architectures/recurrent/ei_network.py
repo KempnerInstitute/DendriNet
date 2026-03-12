@@ -101,6 +101,18 @@ class EINetwork(BaseNetwork):
         for layer in self.layers:
             layer.store_routing = value
 
+    def set_layer_population_silencing(
+        self,
+        layer_idx: int,
+        population: str,
+        mask: Optional[torch.Tensor],
+    ) -> None:
+        self.layers[layer_idx].set_population_level_silencing(population, mask)
+
+    def clear_all_population_silencing(self) -> None:
+        for layer in self.layers:
+            layer.clear_population_level_silencing()
+
     def init_state(
         self,
         batch_size: int,

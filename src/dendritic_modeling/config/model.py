@@ -131,6 +131,15 @@ class EncoderParamsConfig(BaseConfig):
     latent_shape: Optional[list[int]] = None
     decoder_hidden_dims: list[int] = field(default_factory=lambda: [64, 128])
     activation: str = "relu"
+    router_mode: str = "fixed"
+    pathway_groups: list[list[int]] = field(default_factory=list)
+    shared_indices: list[int] = field(default_factory=list)
+    n_pathways: int = 2
+    pathway_dim: Optional[int] = None
+    pathway_dims: list[int] = field(default_factory=list)
+    router_activation: str = "none"
+    learned_router_temperature: float = 1.0
+    learned_router_init_scale: float = 4.0
 
 
 @dataclass
