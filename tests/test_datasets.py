@@ -38,6 +38,7 @@ try:
     from data_generation.synthetic_datasets import (
         CenterSurroundDataset,
         CompositionalMNIST,
+        CueIntegrationDataset,
         InfoShuntingDataset,
         LineDataset,
         MultiXORDataset,
@@ -78,6 +79,9 @@ except ImportError:
                 self.image_size = kwargs["image_size"]
             if "input_dim" in kwargs:
                 self.input_dim = kwargs["input_dim"]
+            if "cue_dim" in kwargs:
+                self.cue_dim = kwargs["cue_dim"]
+                self.input_dim = 2 + 2 * kwargs["cue_dim"]
             if "n_bits" in kwargs:
                 self.n_bits = kwargs["n_bits"]
             # Additional attributes for specific dataset types
@@ -152,6 +156,7 @@ except ImportError:
             return sample, label
 
     CenterSurroundDataset = DummyDataset
+    CueIntegrationDataset = DummyDataset
     InfoShuntingDataset = DummyDataset
     LineDataset = DummyDataset
     MultiXORDataset = DummyDataset
@@ -235,6 +240,17 @@ class TestSyntheticDatasets(unittest.TestCase):
 
         sample, label = dataset[0]
         self.assertEqual(sample.shape, (8,))
+        self.assertIn(label.item(), [0, 1])
+
+    def test_cue_integration_dataset(self):
+        """Test CueIntegrationDataset creation and properties."""
+        dataset = CueIntegrationDataset(n_samples=120, cue_dim=5)
+
+        self.assertEqual(len(dataset), 120)
+        self.assertEqual(dataset.cue_dim, 5)
+
+        sample, label = dataset[0]
+        self.assertEqual(sample.shape, (12,))  # 2 context dims + 2 * cue_dim
         self.assertIn(label.item(), [0, 1])
 
     def test_noisy_line_dataset(self):

@@ -166,6 +166,10 @@ def load_train_encoder_network(
 ]:
     if isinstance(encoder_network, Identity):
         return encoder_network, train_ds, valid_ds, test_ds
+    if not isinstance(encoder_network, BaseAutoencoder):
+        # Plain encoders (for example pathway_router) should be trained jointly with
+        # the main model rather than pre-encoded into the dataset.
+        return encoder_network, train_ds, valid_ds, test_ds
     else:
         train_input, train_label = train_ds[:]
         valid_input, valid_label = valid_ds[:]

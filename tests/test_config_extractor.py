@@ -21,6 +21,13 @@ class TestConfigExtractor(unittest.TestCase):
         config = OmegaConf.create(
             {
                 "model": {
+                    "encoder": {
+                        "type": "pathway_router",
+                        "params": {
+                            "router_mode": "learned",
+                            "pathway_dim": 10,
+                        },
+                    },
                     "core": {
                         "connectivity": {
                             "ee_synapses_per_branch_per_layer": [40],
@@ -34,7 +41,7 @@ class TestConfigExtractor(unittest.TestCase):
                         "morphology": {
                             "use_shunting": True,
                         },
-                    }
+                    },
                 }
             }
         )
@@ -46,6 +53,9 @@ class TestConfigExtractor(unittest.TestCase):
         self.assertEqual(params["use_shunting"], True)
         self.assertEqual(params["excitatory_layers"], [20])
         self.assertEqual(params["branch_factors"], "3-3-3")
+        self.assertEqual(params["encoder_type"], "pathway_router")
+        self.assertEqual(params["router_mode"], "learned")
+        self.assertEqual(params["pathway_dim"], 10)
 
     def test_extract_training_params(self):
         """Test extraction of training parameters."""
@@ -77,7 +87,11 @@ class TestConfigExtractor(unittest.TestCase):
                     "main": {
                         "learning_strategy_config": {
                             "rule_variant": "5f",
-                            "error_broadcast_mode": "scalar",
+                            "error_broadcast_mode": "pathway_vector",
+                            "broadcast_rank": 3,
+                            "pathway_broadcast_residual": 0.2,
+                            "pathway_activity_gate_strength": 0.8,
+                            "encoder_update_mode": "backprop",
                             "decoder_update_mode": "local",
                             "four_factor": {
                                 "rho_mode": "dot",
@@ -85,6 +99,17 @@ class TestConfigExtractor(unittest.TestCase):
                             },
                             "morphology_aware": {
                                 "use_dendritic_normalization": True,
+                                "path_factor_mode": "per_branch",
+                                "use_branch_role_rules": True,
+                                "specialized_branch_scale": 1.3,
+                                "mixed_branch_scale": 0.8,
+                                "branch_role_power": 1.5,
+                                "branch_role_alignment_weight": 0.4,
+                            },
+                            "inhibitory_homeostasis": {
+                                "enabled": True,
+                                "mode": "r_tot",
+                                "weight": 0.05,
                             },
                         }
                     }
@@ -95,10 +120,23 @@ class TestConfigExtractor(unittest.TestCase):
         params = self.extractor._extract_training_params(config)
 
         self.assertEqual(params["rule_variant"], "5f")
-        self.assertEqual(params["error_broadcast_mode"], "scalar")
+        self.assertEqual(params["error_broadcast_mode"], "pathway_vector")
+        self.assertEqual(params["broadcast_rank"], 3)
+        self.assertEqual(params["pathway_broadcast_residual"], 0.2)
+        self.assertEqual(params["pathway_activity_gate_strength"], 0.8)
+        self.assertEqual(params["encoder_update_mode"], "backprop")
         self.assertEqual(params["decoder_update_mode"], "local")
         self.assertEqual(params["rho_mode"], "dot")
         self.assertEqual(params["use_dendritic_normalization"], True)
+        self.assertEqual(params["path_factor_mode"], "per_branch")
+        self.assertEqual(params["use_branch_role_rules"], True)
+        self.assertEqual(params["specialized_branch_scale"], 1.3)
+        self.assertEqual(params["mixed_branch_scale"], 0.8)
+        self.assertEqual(params["branch_role_power"], 1.5)
+        self.assertEqual(params["branch_role_alignment_weight"], 0.4)
+        self.assertEqual(params["inhibitory_homeostasis_enabled"], True)
+        self.assertEqual(params["inhibitory_homeostasis_mode"], "r_tot")
+        self.assertEqual(params["inhibitory_homeostasis_weight"], 0.05)
 
     def test_extract_local_learning_params_old_structure(self):
         """Test extraction of local learning params from old structure."""

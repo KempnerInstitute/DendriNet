@@ -76,6 +76,33 @@ class EILayer(nn.Module):
         if self.i_population is not None:
             self.i_population.store_routing = value
 
+    def set_population_level_silencing(
+        self,
+        population: str,
+        mask: Optional[torch.Tensor],
+    ) -> None:
+        if population == "excitatory":
+            self.e_population.set_level_silencing(mask)
+            return
+        if population == "inhibitory":
+            if self.i_population is None:
+                raise ValueError(
+                    "Cannot silence inhibitory levels: no inhibitory population"
+                )
+            self.i_population.set_level_silencing(mask)
+            return
+        if population == "both":
+            self.e_population.set_level_silencing(mask)
+            if self.i_population is not None:
+                self.i_population.set_level_silencing(mask)
+            return
+        raise ValueError(f"Unknown population '{population}'")
+
+    def clear_population_level_silencing(self) -> None:
+        self.e_population.clear_level_silencing()
+        if self.i_population is not None:
+            self.i_population.clear_level_silencing()
+
     def init_state(
         self,
         batch_size: int,

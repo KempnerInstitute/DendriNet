@@ -69,6 +69,7 @@ class StatefulDendriNet(nn.Module):
         # Routing analysis flags (set externally or via EINetwork)
         self.store_routing: bool = False
         self._last_routing_info: dict = {}
+        self._active_level_silencing: Optional[torch.Tensor] = None
         self._n_soma = pop_config.n_neurons
         self._level_dims = _compute_level_sizes(
             n_soma=pop_config.n_neurons,
@@ -231,6 +232,42 @@ class StatefulDendriNet(nn.Module):
             return torch.exp(-self.dt / tau)
         return self.decays
 
+    def set_level_silencing(self, mask: Optional[torch.Tensor]) -> None:
+        """Set an optional per-level lesion mask used during recurrent analysis.
+
+        Supported shapes:
+        - [n_levels]: same silencing pattern for every sample in the batch
+        - [batch, n_levels]: sample-specific silencing per level
+        Values are interpreted as 1=silence, 0=keep.
+        """
+        self._active_level_silencing = mask
+
+    def clear_level_silencing(self) -> None:
+        self._active_level_silencing = None
+
+    def _level_keep_mask(
+        self,
+        level_idx: int,
+        batch_size: int,
+        device: torch.device,
+        dtype: torch.dtype,
+    ) -> Optional[torch.Tensor]:
+        if self._active_level_silencing is None:
+            return None
+
+        mask = self._active_level_silencing.to(device=device)
+        if mask.dim() == 1:
+            level_mask = mask[level_idx].expand(batch_size)
+        elif mask.dim() == 2:
+            level_mask = mask[:, level_idx]
+        else:
+            raise ValueError(
+                "Level silencing mask must have shape [n_levels] or [batch, n_levels]"
+            )
+
+        keep = 1.0 - level_mask.to(dtype=dtype).clamp(0.0, 1.0)
+        return keep.unsqueeze(-1)
+
     @property
     def current_taus(self) -> torch.Tensor:
         """Current tau values (useful for inspection/logging)."""
@@ -349,24 +386,43 @@ class StatefulDendriNet(nn.Module):
                     batch_size, self._level_dims[level_idx], device=device, dtype=dtype
                 )
 
+            keep_mask = self._level_keep_mask(
+                level_idx=level_idx,
+                batch_size=batch_size,
+                device=device,
+                dtype=dtype,
+            )
+            prev_trace_E = state.trace_E[level_idx]
+            prev_trace_E_rec = state.trace_E_rec[level_idx]
+            prev_trace_I = state.trace_I[level_idx]
+            prev_trace_I_rec = state.trace_I_rec[level_idx]
+            prev_trace_branch = state.trace_branch[level_idx]
+            if keep_mask is not None:
+                raw_E = raw_E * keep_mask
+                raw_E_rec = raw_E_rec * keep_mask
+                raw_I = raw_I * keep_mask
+                raw_I_rec = raw_I_rec * keep_mask
+                raw_branch = raw_branch * keep_mask
+                prev_trace_E = prev_trace_E * keep_mask
+                prev_trace_E_rec = prev_trace_E_rec * keep_mask
+                prev_trace_I = prev_trace_I * keep_mask
+                prev_trace_I_rec = prev_trace_I_rec * keep_mask
+                prev_trace_branch = prev_trace_branch * keep_mask
+
             # 3. Leaky-integrate all 5 trace types
             decay = all_decays[level_idx].to(device=device, dtype=dtype)
             one_minus_decay = 1 - decay
 
-            new_trace_E.append(
-                decay * state.trace_E[level_idx] + one_minus_decay * raw_E
-            )
+            new_trace_E.append(decay * prev_trace_E + one_minus_decay * raw_E)
             new_trace_E_rec.append(
-                decay * state.trace_E_rec[level_idx] + one_minus_decay * raw_E_rec
+                decay * prev_trace_E_rec + one_minus_decay * raw_E_rec
             )
-            new_trace_I.append(
-                decay * state.trace_I[level_idx] + one_minus_decay * raw_I
-            )
+            new_trace_I.append(decay * prev_trace_I + one_minus_decay * raw_I)
             new_trace_I_rec.append(
-                decay * state.trace_I_rec[level_idx] + one_minus_decay * raw_I_rec
+                decay * prev_trace_I_rec + one_minus_decay * raw_I_rec
             )
             new_trace_branch.append(
-                decay * state.trace_branch[level_idx] + one_minus_decay * raw_branch
+                decay * prev_trace_branch + one_minus_decay * raw_branch
             )
 
             # 4. Shunting from integrated traces
@@ -376,6 +432,8 @@ class StatefulDendriNet(nn.Module):
                 trace_I=new_trace_I[level_idx],
                 trace_I_rec=new_trace_I_rec[level_idx],
             )
+            if keep_mask is not None:
+                branch_voltage = branch_voltage * keep_mask
             level_voltage_cache.append(branch_voltage)
 
         new_state = DendriNetState(

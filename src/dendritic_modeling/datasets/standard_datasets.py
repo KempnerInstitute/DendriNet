@@ -869,6 +869,10 @@ def get_unified_datasets(task_cfg):
         "variable_delay_dms",
         "multi_frequency",
         "hierarchical_temporal",
+        "context_dependent_decision",
+        "context_dependent_decision_hard",
+        "switching_context_decision",
+        "timescale_generalization",
         "lorenz",
         "stringer_v1",
     ):

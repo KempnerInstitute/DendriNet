@@ -10,6 +10,9 @@ from dendritic_modeling.networks.architectures.classical.mlp import (
     MatchedTotalParamMLP,
     SparseStructuredMLP,
 )
+from dendritic_modeling.networks.architectures.classical.pathway_router import (
+    PathwayRouter,
+)
 
 __all__ = [
     "MLP",
@@ -19,5 +22,6 @@ __all__ = [
     "Identity",
     "MatchedActiveParamMLP",
     "MatchedTotalParamMLP",
+    "PathwayRouter",
     "SparseStructuredMLP",
 ]

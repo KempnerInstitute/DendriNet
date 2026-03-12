@@ -26,6 +26,48 @@ logger = logging.getLogger(__name__)
 logger_manager = LoggerManager()
 
 
+def _config_to_plain_dict(cfg) -> dict:
+    """Convert config sections to plain dicts without leaking OmegaConf internals."""
+    if cfg is None:
+        return {}
+    if isinstance(cfg, dict):
+        return dict(cfg)
+    if OmegaConf.is_config(cfg):
+        resolved = OmegaConf.to_container(cfg, resolve=True)
+        return resolved if isinstance(resolved, dict) else {}
+    try:
+        return asdict(cfg)
+    except TypeError:
+        if hasattr(cfg, "__dict__"):
+            return {k: v for k, v in vars(cfg).items() if not k.startswith("_")}
+    return {}
+
+
+def _get_dataset_specific_params(data_config: DataConfig) -> dict:
+    """Extract dataset-specific parameters for the selected dataset."""
+    dataset_name = getattr(data_config, "dataset_name", "")
+    dataset_params = getattr(data_config, "dataset_params", None)
+    if dataset_params is None:
+        return {}
+    if isinstance(dataset_params, dict):
+        return _config_to_plain_dict(dataset_params.get(dataset_name, {}))
+    if OmegaConf.is_config(dataset_params):
+        resolved = OmegaConf.to_container(dataset_params, resolve=True)
+        if isinstance(resolved, dict):
+            return _config_to_plain_dict(resolved.get(dataset_name, {}))
+        return {}
+    if hasattr(dataset_params, dataset_name):
+        return _config_to_plain_dict(getattr(dataset_params, dataset_name))
+    return {}
+
+
+def _get_experiment_value(experiment_config, key: str, default):
+    """Read experiment config values from either dicts or dataclass-like configs."""
+    if isinstance(experiment_config, dict):
+        return experiment_config.get(key, default)
+    return getattr(experiment_config, key, default)
+
+
 def _is_recurrent_core_config(core_cfg) -> bool:
     """Detect whether a core config describes a recurrent model."""
 
@@ -156,49 +198,37 @@ def initialize_model(model_config: ModelConfig):
     core_config = model_config.core
     decoder_config = model_config.decoder
 
-    def _cfg_to_dict(cfg) -> dict:
-        """Convert params configs to a plain dict (supports DictConfig, dataclasses, and dict)."""
-        if cfg is None:
-            return {}
-        if isinstance(cfg, dict):
-            return cfg
-        if OmegaConf.is_config(cfg):
-            return OmegaConf.to_container(cfg, resolve=True)
-        # Many config objects in this repo are dataclasses/BaseConfig
-        try:
-            return asdict(cfg)
-        except TypeError:
-            # Fall back for objects that implement iteration or mapping protocol
-            return dict(cfg)
-
     # Build encoder parameters dict
     encoder_params = {}
     if encoder_config.type.lower() == "identity":
         encoder_params["input_dim"] = encoder_config.params.input_dim or 784
     else:
-        encoder_params = _cfg_to_dict(encoder_config.params)
+        encoder_params = _config_to_plain_dict(encoder_config.params)
 
     # Create encoder
     encoder_network = get_architecture(encoder_config.type, encoder_params)
     if isinstance(encoder_network, Identity):
         encoder = encoder_network
-    else:
+    elif hasattr(encoder_network, "encoder"):
         encoder = encoder_network.encoder
+    else:
+        encoder = encoder_network
 
     # Create core network
+    core_params = _config_to_plain_dict(core_config)
     core_network = get_architecture(
-        core_config.type, core_config, input_dim=encoder.output_dim
+        core_config.type, core_params, input_dim=encoder.output_dim
     )
 
     # Build decoder parameters
-    decoder_params_dict = _cfg_to_dict(decoder_config.params)
+    decoder_params_dict = _config_to_plain_dict(decoder_config.params)
     # Filter out None values to allow auto-setting
     decoder_params_dict = {
         k: v for k, v in decoder_params_dict.items() if v is not None
     }
     decoder_params = {
-        "input_dim": core_network.output_dim,
         **decoder_params_dict,
+        "input_dim": core_network.output_dim,
     }
 
     # Create decoder
@@ -239,8 +269,41 @@ def setup_environment(
 
     # Set seed
     seed = experiment_config.seed
-    set_seed(seed)
+    fast_mode = bool(_get_experiment_value(experiment_config, "fast_mode", False))
+    deterministic = bool(
+        _get_experiment_value(experiment_config, "deterministic", not fast_mode)
+    )
+    cudnn_benchmark = bool(
+        _get_experiment_value(
+            experiment_config, "cudnn_benchmark", fast_mode and not deterministic
+        )
+    )
+    allow_tf32 = bool(_get_experiment_value(experiment_config, "allow_tf32", fast_mode))
+    float32_matmul_precision = str(
+        _get_experiment_value(
+            experiment_config,
+            "float32_matmul_precision",
+            "high" if fast_mode else "highest",
+        )
+    )
+
+    set_seed(
+        seed,
+        deterministic=deterministic,
+        cudnn_benchmark=cudnn_benchmark,
+        allow_tf32=allow_tf32,
+        float32_matmul_precision=float32_matmul_precision,
+    )
     logger.info(f"Set random seed to {seed}")
+    logger.info(
+        "Runtime performance: fast_mode=%s deterministic=%s cudnn_benchmark=%s "
+        "allow_tf32=%s matmul_precision=%s",
+        fast_mode,
+        deterministic,
+        cudnn_benchmark and not deterministic,
+        allow_tf32,
+        float32_matmul_precision,
+    )
 
     # Setup output directory
     output_dir = outputs_config.results_dir
@@ -300,11 +363,8 @@ def setup_environment(
             wandb_config.use_wandb = False
 
     base_dir = data_config.base_dir or output_dir
-    dataset_specific_params = {}
-    if hasattr(data_config.dataset_params, data_config.dataset_name):
-        dataset_specific_params = getattr(
-            data_config.dataset_params, data_config.dataset_name, {}
-        )
+    dataset_specific_params = _get_dataset_specific_params(data_config)
+    processing_params = _config_to_plain_dict(getattr(data_config, "processing", None))
 
     task_cfg = type(
         "TaskConfig",
@@ -316,7 +376,7 @@ def setup_environment(
             else None,
             "train_valid_split": experiment_config.train_valid_split,
             "parameters": {
-                **data_config.processing.__dict__,
+                **processing_params,
                 **dataset_specific_params,
                 "label_noise_seed": experiment_config.seed,
             },

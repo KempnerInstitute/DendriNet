@@ -71,7 +71,9 @@ def _prepare_classification_logits_and_labels(
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """Normalize classifier outputs/labels for metric computation.
 
-    - Recurrent [B, T, C] outputs are reduced to the last timestep.
+    - Recurrent [B, T, C] outputs are flattened over time when labels are
+      provided per timestep as [B, T].
+    - Otherwise recurrent outputs are reduced to the last timestep.
     - Grouped non-temporal outputs (e.g. [G, B, C]) are flattened to [N_total, C].
     """
     kwargs = {}
@@ -85,6 +87,18 @@ def _prepare_classification_logits_and_labels(
 
     is_recurrent_core = bool(getattr(classifier, "_is_recurrent_core", False))
     if logits.dim() == 3 and is_recurrent_core:
+        if labels.dim() == 2 and labels.shape[:2] == logits.shape[:2]:
+            if seq_lengths is not None:
+                time_index = torch.arange(
+                    logits.shape[1], device=logits.device
+                ).unsqueeze(0)
+                valid_mask = time_index < seq_lengths.to(logits.device).unsqueeze(1)
+                logits = logits[valid_mask]
+                labels = labels.to(logits.device)[valid_mask]
+            else:
+                logits = logits.reshape(-1, logits.shape[-1])
+                labels = labels.reshape(-1)
+            return logits, labels.long()
         logits = _reduce_temporal(logits)
         labels = _reduce_temporal_labels(labels, expected_dims=1)
         return logits, labels.reshape(-1)

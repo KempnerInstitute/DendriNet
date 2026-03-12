@@ -339,8 +339,10 @@ def main(config_path: str, args=None):
     # Fix for Identity encoder
     if isinstance(encoder_network, Identity):
         model.encoder_network = encoder_network
-    else:
+    elif hasattr(encoder_network, "encoder"):
         model.encoder_network = Identity(encoder_network.encoder.output_dim)
+    else:
+        model.encoder_network = encoder_network
 
     main_net_save_path = os.path.join(run_save_path, "main_network")
     os.makedirs(main_net_save_path, exist_ok=True)
@@ -519,8 +521,10 @@ def main(config_path: str, args=None):
     # Fix for Identity encoder
     if isinstance(encoder_network, Identity):
         model.encoder_network = encoder_network
-    else:
+    elif hasattr(encoder_network, "encoder"):
         model.encoder_network = encoder_network.encoder
+    else:
+        model.encoder_network = encoder_network
     torch.save(model.state_dict(), os.path.join(run_save_path, "final_model.pt"))
 
     if (

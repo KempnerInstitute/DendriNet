@@ -24,6 +24,9 @@ from dendritic_modeling.networks.architectures.classical.mlp import (
     PointMatchedParamMLP,
     SparseStructuredMLP,
 )
+from dendritic_modeling.networks.architectures.classical.pathway_router import (
+    PathwayRouter,
+)
 from dendritic_modeling.networks.architectures.excitation_inhibition import (
     ConfigurableEINetwork,
 )
@@ -668,6 +671,8 @@ def get_architecture(
         return MLPVariationalAutoencoder(**parameters)
     elif type == "cnnvariationalautoencoder":
         return CNNVariationalAutoencoder(**parameters)
+    elif type in ["pathway_router", "router"]:
+        return PathwayRouter(**parameters)
     elif type in ["identity", "none", None]:
         return Identity(**parameters)
     else:

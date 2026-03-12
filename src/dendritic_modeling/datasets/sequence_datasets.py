@@ -647,6 +647,462 @@ class HierarchicalTemporalDataset(Dataset):
         return self.inputs[idx], self.targets[idx]
 
 
+class ContextDependentDecisionDataset(Dataset):
+    """Context-dependent integration task inspired by Mante et al. (2013).
+
+    Two sensory channels (e.g. "color" and "motion") are presented simultaneously
+    as noisy streams.  A brief context cue at sequence onset indicates which
+    channel is task-relevant.  The model must integrate the relevant channel
+    over a variable delay and report the sign of the integrated evidence.
+
+    This tests:
+    1. **Context gating** -- selectively route one channel through dendritic
+       pathways while ignoring the other.
+    2. **Noisy integration** -- accumulate evidence over time using slow traces.
+    3. **Interference resistance** -- the irrelevant channel provides a strong
+       distractor that must be suppressed.
+
+    Input structure per timestep:
+        [context_cue (2d) | channel_A (signal_dim) | channel_B (signal_dim)]
+    Total input_dim = 2 + 2 * signal_dim
+
+    Target: binary (0/1) -- sign of integrated evidence in the relevant channel.
+    """
+
+    def __init__(
+        self,
+        n_samples: int = 20000,
+        signal_dim: int = 8,
+        context_duration: int = 10,
+        integration_duration: int = 50,
+        coherence_levels: tuple[float, ...] = (0.05, 0.1, 0.2, 0.4),
+        noise_std: float = 1.0,
+        variable_delay: bool = True,
+        min_integration: int = 20,
+        max_integration: int = 80,
+        delay_duration: int = 0,
+        min_delay: Optional[int] = None,
+        max_delay: Optional[int] = None,
+        conflict_fraction: float = 0.0,
+        distractor_burst_prob: float = 0.0,
+        distractor_burst_scale: float = 2.0,
+        distractor_burst_duration: int = 5,
+        cue_dropout_prob: float = 0.0,
+        cue_keep_duration: int = 1,
+        late_context_switch_prob: float = 0.0,
+        context_signal_scale: float = 1.0,
+        return_seq_lengths: bool = False,
+    ):
+        super().__init__()
+        self.n_samples = n_samples
+        self.signal_dim = signal_dim
+        self.input_dim = 2 + 2 * signal_dim
+        self.context_duration = context_duration
+        self.integration_duration = integration_duration
+        self.variable_integration = bool(variable_delay)
+        self.min_integration = min_integration
+        self.max_integration = max_integration
+        self.delay_duration = delay_duration
+        self.min_delay = delay_duration if min_delay is None else min_delay
+        self.max_delay = delay_duration if max_delay is None else max_delay
+        self.return_seq_lengths = bool(
+            return_seq_lengths
+            or self.variable_integration
+            or self.min_delay != self.max_delay
+        )
+
+        max_integration_len = (
+            max_integration if self.variable_integration else integration_duration
+        )
+        max_delay_len = self.max_delay
+        self.seq_len = context_duration + max_integration_len + max_delay_len
+
+        self.inputs = torch.zeros(n_samples, self.seq_len, self.input_dim)
+        self.targets = torch.zeros(n_samples, dtype=torch.long)
+        self.seq_lengths = torch.full((n_samples,), self.seq_len, dtype=torch.long)
+        self.contexts = torch.zeros(n_samples, dtype=torch.long)
+        self.final_contexts = torch.zeros(n_samples, dtype=torch.long)
+        self.integration_lengths = torch.zeros(n_samples, dtype=torch.long)
+        self.delay_lengths = torch.zeros(n_samples, dtype=torch.long)
+        self.switch_steps = torch.full((n_samples,), -1, dtype=torch.long)
+        self.conflict_flags = torch.zeros(n_samples, dtype=torch.bool)
+        self.coherence_a = torch.zeros(n_samples, dtype=torch.float32)
+        self.coherence_b = torch.zeros(n_samples, dtype=torch.float32)
+        self.sign_a = torch.zeros(n_samples, dtype=torch.float32)
+        self.sign_b = torch.zeros(n_samples, dtype=torch.float32)
+        self.relevant_scores = torch.zeros(n_samples, dtype=torch.float32)
+
+        coherence_tensor = torch.tensor(coherence_levels, dtype=torch.float32)
+        cue_keep_duration = max(1, min(cue_keep_duration, context_duration))
+        distractor_burst_duration = max(1, distractor_burst_duration)
+
+        for i in range(n_samples):
+            initial_context = torch.randint(0, 2, (1,)).item()
+            integration_len = (
+                torch.randint(min_integration, max_integration + 1, (1,)).item()
+                if self.variable_integration
+                else integration_duration
+            )
+            delay_len = (
+                torch.randint(self.min_delay, self.max_delay + 1, (1,)).item()
+                if self.max_delay > self.min_delay
+                else self.max_delay
+            )
+            seq_len = context_duration + integration_len + delay_len
+
+            conflict = torch.rand(1).item() < conflict_fraction
+            switch_trial = (
+                integration_len >= 4 and torch.rand(1).item() < late_context_switch_prob
+            )
+            switch_step = -1
+            if switch_trial:
+                switch_low = max(1, integration_len // 3)
+                switch_high = max(switch_low + 1, integration_len - 1)
+                switch_step = torch.randint(switch_low, switch_high, (1,)).item()
+
+            sign_a = 1.0 if torch.rand(1).item() > 0.5 else -1.0
+            if conflict:
+                sign_b = -sign_a
+            else:
+                sign_b = 1.0 if torch.rand(1).item() > 0.5 else -1.0
+            coh_a = coherence_tensor[
+                torch.randint(0, len(coherence_levels), (1,))
+            ].item()
+            coh_b = coherence_tensor[
+                torch.randint(0, len(coherence_levels), (1,))
+            ].item()
+
+            self.contexts[i] = initial_context
+            self.final_contexts[i] = (
+                1 - initial_context if switch_step >= 0 else initial_context
+            )
+            self.integration_lengths[i] = integration_len
+            self.delay_lengths[i] = delay_len
+            self.seq_lengths[i] = seq_len
+            self.switch_steps[i] = switch_step
+            self.conflict_flags[i] = conflict
+            self.coherence_a[i] = coh_a
+            self.coherence_b[i] = coh_b
+            self.sign_a[i] = sign_a
+            self.sign_b[i] = sign_b
+
+            cue = torch.zeros(context_duration, 2)
+            cue[:, initial_context] = context_signal_scale
+            if torch.rand(1).item() < cue_dropout_prob:
+                cue[cue_keep_duration:] = 0.0
+            self.inputs[i, :context_duration, :2] = cue
+
+            burst_start = None
+            if (
+                integration_len >= distractor_burst_duration
+                and torch.rand(1).item() < distractor_burst_prob
+            ):
+                burst_start = torch.randint(
+                    0,
+                    integration_len - distractor_burst_duration + 1,
+                    (1,),
+                ).item()
+
+            relevant_score = 0.0
+            for t in range(integration_len):
+                active_context = initial_context
+                if switch_step >= 0 and t >= switch_step:
+                    active_context = 1 - initial_context
+                    abs_t = context_duration + t
+                    self.inputs[i, abs_t, :2] = 0.0
+                    self.inputs[i, abs_t, active_context] = context_signal_scale
+
+                a_signal = sign_a * coh_a + noise_std * torch.randn(signal_dim)
+                b_signal = sign_b * coh_b + noise_std * torch.randn(signal_dim)
+
+                if (
+                    burst_start is not None
+                    and burst_start <= t < burst_start + distractor_burst_duration
+                ):
+                    burst_sign = -sign_a if active_context == 0 else -sign_b
+                    burst = distractor_burst_scale * max(coh_a, coh_b) * burst_sign
+                    if active_context == 0:
+                        b_signal = b_signal + burst
+                    else:
+                        a_signal = a_signal + burst
+
+                abs_t = context_duration + t
+                self.inputs[i, abs_t, 2 : 2 + signal_dim] = a_signal
+                self.inputs[i, abs_t, 2 + signal_dim :] = b_signal
+
+                if active_context == 0:
+                    relevant_score += sign_a * coh_a
+                else:
+                    relevant_score += sign_b * coh_b
+
+            self.relevant_scores[i] = relevant_score
+            self.targets[i] = int(relevant_score > 0)
+
+    def __len__(self):
+        return self.n_samples
+
+    def __getitem__(self, idx):
+        if self.return_seq_lengths:
+            seq_lengths = self.seq_lengths[idx]
+            if torch.is_tensor(seq_lengths) and seq_lengths.dim() == 0:
+                seq_lengths = int(seq_lengths.item())
+            return self.inputs[idx], self.targets[idx], seq_lengths
+        return self.inputs[idx], self.targets[idx]
+
+
+class SwitchingContextDecisionDataset(Dataset):
+    """Continuous evidence integration under slowly switching context.
+
+    This task is designed to separate models that can simultaneously maintain
+    a slow latent context and perform fast evidence integration. Each sample is
+    a fixed-length sequence partitioned into long context blocks. Within a
+    block, the relevant context stays constant while the local evidence target
+    changes every ``trial_duration`` steps. The model must emit the correct
+    binary decision at every timestep.
+
+    Input structure per timestep:
+        [context_hint (2d) | channel_A (signal_dim) | channel_B (signal_dim)]
+
+    Target per timestep:
+        binary decision (0/1) given by the sign of the context-relevant
+        evidence segment active at that timestep.
+    """
+
+    def __init__(
+        self,
+        n_samples: int = 16000,
+        signal_dim: int = 8,
+        seq_len: int = 360,
+        trial_duration: int = 12,
+        min_context_duration: int = 90,
+        max_context_duration: int = 150,
+        coherence_levels: tuple[float, ...] = (0.03, 0.06, 0.12, 0.24),
+        noise_std: float = 1.1,
+        conflict_fraction: float = 0.75,
+        distractor_burst_prob: float = 0.35,
+        distractor_burst_scale: float = 2.0,
+        distractor_burst_duration: int = 3,
+        context_cue_duration: int = 10,
+        switch_cue_duration: int = 4,
+        context_signal_scale: float = 1.0,
+        switch_signal_scale: float = 0.35,
+        min_blocks: int = 2,
+    ):
+        super().__init__()
+        self.n_samples = n_samples
+        self.signal_dim = signal_dim
+        self.seq_len = seq_len
+        self.trial_duration = max(1, trial_duration)
+        self.min_context_duration = max(self.trial_duration, min_context_duration)
+        self.max_context_duration = max(self.min_context_duration, max_context_duration)
+        self.input_dim = 2 + 2 * signal_dim
+
+        coherence_tensor = torch.tensor(coherence_levels, dtype=torch.float32)
+        context_cue_duration = max(1, context_cue_duration)
+        switch_cue_duration = max(1, switch_cue_duration)
+        distractor_burst_duration = max(1, distractor_burst_duration)
+        min_blocks = max(2, min_blocks)
+
+        self.inputs = torch.zeros(n_samples, seq_len, self.input_dim)
+        self.targets = torch.zeros(n_samples, seq_len, dtype=torch.long)
+        self.contexts = torch.zeros(n_samples, seq_len, dtype=torch.long)
+        self.time_since_switch = torch.zeros(n_samples, seq_len, dtype=torch.long)
+        self.switch_mask = torch.zeros(n_samples, seq_len, dtype=torch.bool)
+        self.cue_mask = torch.zeros(n_samples, seq_len, dtype=torch.bool)
+        self.conflict_mask = torch.zeros(n_samples, seq_len, dtype=torch.bool)
+        self.relevant_signal = torch.zeros(n_samples, seq_len, dtype=torch.float32)
+        self.irrelevant_signal = torch.zeros(n_samples, seq_len, dtype=torch.float32)
+
+        for i in range(n_samples):
+            block_lengths = []
+            remaining = seq_len
+            while remaining > 0:
+                min_block = min(self.min_context_duration, remaining)
+                max_block = min(self.max_context_duration, remaining)
+                if len(block_lengths) + 1 < min_blocks:
+                    # Reserve enough room for the remaining required blocks.
+                    reserve = self.min_context_duration * (
+                        min_blocks - len(block_lengths) - 1
+                    )
+                    max_block = max(min_block, min(max_block, remaining - reserve))
+                block_len = (
+                    torch.randint(min_block, max_block + 1, (1,)).item()
+                    if max_block > min_block
+                    else min_block
+                )
+                block_lengths.append(block_len)
+                remaining -= block_len
+            if len(block_lengths) < min_blocks:
+                # Fallback to equal partitions when clipping produced too few blocks.
+                base = seq_len // min_blocks
+                block_lengths = [base] * min_blocks
+                block_lengths[-1] += seq_len - sum(block_lengths)
+
+            current_context = torch.randint(0, 2, (1,)).item()
+            t_start = 0
+
+            for block_idx, block_len in enumerate(block_lengths):
+                t_end = min(seq_len, t_start + block_len)
+                cue_duration = min(
+                    context_cue_duration if block_idx == 0 else switch_cue_duration,
+                    t_end - t_start,
+                )
+                cue_scale = (
+                    context_signal_scale if block_idx == 0 else switch_signal_scale
+                )
+
+                self.contexts[i, t_start:t_end] = current_context
+                self.time_since_switch[i, t_start:t_end] = torch.arange(
+                    0, t_end - t_start, dtype=torch.long
+                )
+                self.switch_mask[i, t_start] = True
+                self.cue_mask[i, t_start : t_start + cue_duration] = True
+                self.inputs[i, t_start : t_start + cue_duration, current_context] = (
+                    cue_scale
+                )
+
+                trial_t = t_start
+                while trial_t < t_end:
+                    seg_end = min(t_end, trial_t + self.trial_duration)
+                    conflict = torch.rand(1).item() < conflict_fraction
+                    sign_a = 1.0 if torch.rand(1).item() > 0.5 else -1.0
+                    sign_b = (
+                        -sign_a
+                        if conflict
+                        else (1.0 if torch.rand(1).item() > 0.5 else -1.0)
+                    )
+                    coh_a = coherence_tensor[
+                        torch.randint(0, len(coherence_tensor), (1,))
+                    ].item()
+                    coh_b = coherence_tensor[
+                        torch.randint(0, len(coherence_tensor), (1,))
+                    ].item()
+
+                    burst_start = None
+                    seg_len = seg_end - trial_t
+                    if (
+                        seg_len >= distractor_burst_duration
+                        and torch.rand(1).item() < distractor_burst_prob
+                    ):
+                        burst_start = torch.randint(
+                            0, seg_len - distractor_burst_duration + 1, (1,)
+                        ).item()
+
+                    for local_t, abs_t in enumerate(range(trial_t, seg_end)):
+                        a_signal = sign_a * coh_a + noise_std * torch.randn(signal_dim)
+                        b_signal = sign_b * coh_b + noise_std * torch.randn(signal_dim)
+
+                        if (
+                            burst_start is not None
+                            and burst_start
+                            <= local_t
+                            < burst_start + distractor_burst_duration
+                        ):
+                            burst_sign = -sign_a if current_context == 0 else -sign_b
+                            burst = (
+                                distractor_burst_scale * max(coh_a, coh_b) * burst_sign
+                            )
+                            if current_context == 0:
+                                b_signal = b_signal + burst
+                            else:
+                                a_signal = a_signal + burst
+
+                        self.inputs[i, abs_t, 2 : 2 + signal_dim] = a_signal
+                        self.inputs[i, abs_t, 2 + signal_dim :] = b_signal
+                        self.conflict_mask[i, abs_t] = conflict
+
+                        if current_context == 0:
+                            self.targets[i, abs_t] = int(sign_a > 0)
+                            self.relevant_signal[i, abs_t] = sign_a * coh_a
+                            self.irrelevant_signal[i, abs_t] = sign_b * coh_b
+                        else:
+                            self.targets[i, abs_t] = int(sign_b > 0)
+                            self.relevant_signal[i, abs_t] = sign_b * coh_b
+                            self.irrelevant_signal[i, abs_t] = sign_a * coh_a
+
+                    trial_t = seg_end
+
+                t_start = t_end
+                current_context = 1 - current_context
+
+    def __len__(self):
+        return self.n_samples
+
+    def __getitem__(self, idx):
+        return self.inputs[idx], self.targets[idx]
+
+
+class TimescaleGeneralizationDataset(Dataset):
+    """Train on one temporal regime, test on another.
+
+    A simple delayed match-to-sample task where the delay duration is drawn
+    from a specified range.  By creating separate train/test datasets with
+    non-overlapping delay ranges, we test timescale *generalization* rather
+    than interpolation.
+
+    This directly tests whether learnable tau / hierarchical timescales
+    provide compositional temporal generalization.
+
+    Input structure:
+        [stimulus phase | delay (zeros) | probe phase]
+    Target: binary match/non-match.
+    """
+
+    def __init__(
+        self,
+        n_samples: int = 20000,
+        stimulus_dim: int = 16,
+        stimulus_duration: int = 10,
+        min_delay: int = 10,
+        max_delay: int = 100,
+        probe_duration: int = 10,
+    ):
+        super().__init__()
+        self.n_samples = n_samples
+        max_seq_len = stimulus_duration + max_delay + probe_duration
+        self.max_seq_len = max_seq_len
+
+        inputs = torch.zeros(n_samples, max_seq_len, stimulus_dim)
+        targets = torch.zeros(n_samples, dtype=torch.long)
+        seq_lengths = torch.zeros(n_samples, dtype=torch.long)
+
+        delays = torch.randint(min_delay, max_delay + 1, (n_samples,))
+        matches = torch.randint(0, 2, (n_samples,))
+
+        # Generate all templates and probes at once
+        templates = torch.randn(n_samples, stimulus_dim)
+        templates = templates / templates.norm(dim=1, keepdim=True) * 2.0
+        alt_probes = torch.randn(n_samples, stimulus_dim)
+        alt_probes = alt_probes / alt_probes.norm(dim=1, keepdim=True) * 2.0
+        probes = torch.where(matches.unsqueeze(1).bool(), templates, alt_probes)
+
+        # Stimulus noise and probe noise
+        stim_noise = 0.3 * torch.randn(n_samples, stimulus_duration, stimulus_dim)
+        probe_noise = 0.3 * torch.randn(n_samples, probe_duration, stimulus_dim)
+
+        # Fill stimulus phase (same for all samples)
+        inputs[:, :stimulus_duration] = templates.unsqueeze(1) + stim_noise
+
+        # Fill probe phase (varies by delay)
+        for i in range(n_samples):
+            d = delays[i].item()
+            total_len = stimulus_duration + d + probe_duration
+            probe_start = stimulus_duration + d
+            inputs[i, probe_start:total_len] = probes[i].unsqueeze(0) + probe_noise[i]
+            seq_lengths[i] = total_len
+
+        targets = matches
+        self.inputs = inputs
+        self.targets = targets
+        self.seq_lengths = seq_lengths
+
+    def __len__(self):
+        return self.n_samples
+
+    def __getitem__(self, idx):
+        return self.inputs[idx], self.targets[idx], self.seq_lengths[idx]
+
+
 def get_sequence_datasets(
     dataset_name: str,
     data_path: Optional[str] = None,
@@ -745,6 +1201,104 @@ def get_sequence_datasets(
         train_full = HierarchicalTemporalDataset(n_samples=n_train, **common)
         test_ds = HierarchicalTemporalDataset(
             n_samples=max(n_train // 5, 2000), **common
+        )
+    elif dataset_name in {
+        "context_dependent_decision",
+        "context_dependent_decision_hard",
+    }:
+        n_train = kwargs.get("n_samples", 20000)
+        common = {
+            "signal_dim": kwargs.get("signal_dim", 8),
+            "context_duration": kwargs.get("context_duration", 10),
+            "integration_duration": kwargs.get("integration_duration", 50),
+            "coherence_levels": tuple(
+                kwargs.get("coherence_levels", (0.05, 0.1, 0.2, 0.4))
+            ),
+            "noise_std": kwargs.get("noise_std", 1.0),
+            "variable_delay": kwargs.get("variable_delay", True),
+            "min_integration": kwargs.get("min_integration", 20),
+            "max_integration": kwargs.get("max_integration", 80),
+            "delay_duration": kwargs.get("delay_duration", 0),
+            "min_delay": kwargs.get("min_delay", None),
+            "max_delay": kwargs.get("max_delay", None),
+            "conflict_fraction": kwargs.get("conflict_fraction", 0.0),
+            "distractor_burst_prob": kwargs.get("distractor_burst_prob", 0.0),
+            "distractor_burst_scale": kwargs.get("distractor_burst_scale", 2.0),
+            "distractor_burst_duration": kwargs.get("distractor_burst_duration", 5),
+            "cue_dropout_prob": kwargs.get("cue_dropout_prob", 0.0),
+            "cue_keep_duration": kwargs.get("cue_keep_duration", 1),
+            "late_context_switch_prob": kwargs.get("late_context_switch_prob", 0.0),
+            "context_signal_scale": kwargs.get("context_signal_scale", 1.0),
+            "return_seq_lengths": kwargs.get("return_seq_lengths", False),
+        }
+        train_full = ContextDependentDecisionDataset(n_samples=n_train, **common)
+        test_ds = ContextDependentDecisionDataset(
+            n_samples=max(n_train // 5, 2000), **common
+        )
+    elif dataset_name == "switching_context_decision":
+        n_train = kwargs.get("n_samples", 16000)
+        common = {
+            "signal_dim": kwargs.get("signal_dim", 8),
+            "seq_len": kwargs.get("seq_len", 360),
+            "trial_duration": kwargs.get("trial_duration", 12),
+            "min_context_duration": kwargs.get("min_context_duration", 90),
+            "max_context_duration": kwargs.get("max_context_duration", 150),
+            "coherence_levels": tuple(
+                kwargs.get("coherence_levels", (0.03, 0.06, 0.12, 0.24))
+            ),
+            "noise_std": kwargs.get("noise_std", 1.1),
+            "conflict_fraction": kwargs.get("conflict_fraction", 0.75),
+            "distractor_burst_prob": kwargs.get("distractor_burst_prob", 0.35),
+            "distractor_burst_scale": kwargs.get("distractor_burst_scale", 2.0),
+            "distractor_burst_duration": kwargs.get("distractor_burst_duration", 3),
+            "context_cue_duration": kwargs.get("context_cue_duration", 10),
+            "switch_cue_duration": kwargs.get("switch_cue_duration", 4),
+            "context_signal_scale": kwargs.get("context_signal_scale", 1.0),
+            "switch_signal_scale": kwargs.get("switch_signal_scale", 0.35),
+            "min_blocks": kwargs.get("min_blocks", 2),
+        }
+        train_full = SwitchingContextDecisionDataset(n_samples=n_train, **common)
+        test_ds = SwitchingContextDecisionDataset(
+            n_samples=max(n_train // 5, 2000), **common
+        )
+    elif dataset_name == "timescale_generalization":
+        n_train = kwargs.get("n_samples", 20000)
+        common_defaults = {
+            "stimulus_dim": kwargs.get("stimulus_dim", 16),
+            "stimulus_duration": kwargs.get("stimulus_duration", 10),
+            "min_delay": kwargs.get("min_delay", 10),
+            "max_delay": kwargs.get("max_delay", 100),
+            "probe_duration": kwargs.get("probe_duration", 10),
+        }
+        explicit_splits = any(
+            isinstance(kwargs.get(split_name), dict)
+            for split_name in ("train", "valid", "test")
+        )
+        if explicit_splits:
+
+            def _build_split(split_name: str, default_n_samples: int):
+                split_kwargs = dict(kwargs.get(split_name, {}))
+                split_params = {
+                    **common_defaults,
+                    **{
+                        key: value
+                        for key, value in split_kwargs.items()
+                        if key != "n_samples"
+                    },
+                }
+                split_n = split_kwargs.get("n_samples", default_n_samples)
+                return TimescaleGeneralizationDataset(n_samples=split_n, **split_params)
+
+            train_ds = _build_split("train", n_train)
+            valid_ds = _build_split("valid", max(n_train // 5, 2000))
+            test_ds = _build_split("test", max(n_train // 5, 2000))
+            return train_ds, valid_ds, test_ds
+
+        train_full = TimescaleGeneralizationDataset(
+            n_samples=n_train, **common_defaults
+        )
+        test_ds = TimescaleGeneralizationDataset(
+            n_samples=max(n_train // 5, 2000), **common_defaults
         )
     elif dataset_name == "lorenz":
         n_train = kwargs.get("n_samples", 10000)
