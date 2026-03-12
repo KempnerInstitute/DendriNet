@@ -624,52 +624,8 @@ class AblationAnalysisParams(BaseConfig):
     flags below.
     """
 
-    # ------------------------------------------------------------------
-    # New (preferred) grouped structure
-    # ------------------------------------------------------------------
     selection: AblationSelectionParams = field(default_factory=AblationSelectionParams)
     methods: AblationMethodsParams = field(default_factory=AblationMethodsParams)
-
-    # ------------------------------------------------------------------
-    # Legacy flat keys (deprecated; still supported for backward compatibility)
-    # ------------------------------------------------------------------
-
-    # Which ablation/intervention methods to run. Example:
-    # ["lesion", "shuffle", "mean_clamp"]
-    ablation_methods: list[str] = field(default_factory=lambda: ["lesion"])
-
-    # Settings for signal interventions
-    shuffle_seed: int = 0
-    clamp_statistic: str = "mean"  # "mean" (supported), "median" (future)
-
-    # New (preferred): list-based selection of what to run.
-    #
-    # If non-empty, these override the individual boolean flags below.
-    # - levels: ["layer", "compartment"]
-    # - targets: ["excitation", "inhibition", "upstream", "all_synapses"]
-    # - metrics: ["accuracy", "auc", "categorical_loglikelihood", "mse", "cosine_similarity", "pred_label_mi_bits"]
-    levels: list[str] = field(default_factory=list)
-    targets: list[str] = field(default_factory=list)
-    metrics: list[str] = field(default_factory=list)
-
-    layer_ablation: bool = True
-    compartment_ablation: bool = True
-    ablate_all_synapses: bool = True
-    ablate_excitation: bool = True
-    ablate_inhibition: bool = True
-    ablate_upstream: bool = True
-
-    # Optional: compute an information-theoretic score on predictions.
-    # This is I(C; Ĉ) where Ĉ is the argmax predicted class (in bits).
-    # It is NOT I(Vinf;C), but it's a useful "how much label information is in predictions"
-    # measure that can separate baseline/gain effects from label-aligned signal effects.
-    compute_pred_label_mi: bool = False
-
-    accuracy: bool = True
-    auc: bool = True
-    categorical_loglikelihood: bool = True
-    mse: bool = True
-    cosine_similarity: bool = True
 
 
 @dataclass

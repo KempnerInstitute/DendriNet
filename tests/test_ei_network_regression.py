@@ -14,10 +14,7 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.ei_network 
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.topk import (
     TopKLinear,
 )
-from dendritic_modeling.networks.architectures.factory import (
-    _EINET_ALIASES,
-    get_architecture,
-)
+from dendritic_modeling.networks.architectures.factory import get_architecture
 
 # ---------------------------------------------------------------------------
 # Helpers: minimal configs for each network variant
@@ -215,21 +212,9 @@ class TestFactoryDispatch:
         out = net(x)
         assert out.shape[1] == OUTPUT_DIM
 
-    @pytest.mark.parametrize(
-        "alias,canonical",
-        [
-            ("einet_sh", "dendritic_shunting"),
-            ("einet_ns", "dendritic_additive"),
-            ("einet_sh_flat", "flat_shunting"),
-            ("einet_ns_flat", "flat_additive"),
-        ],
-    )
-    def test_aliases(self, alias, canonical):
-        assert _EINET_ALIASES[alias] == canonical
-
-    def test_factory_alias_builds_network(self):
+    def test_factory_canonical_builds_network(self):
         config = _minimal_config()
-        net = get_architecture("einet_sh", config, input_dim=INPUT_DIM)
+        net = get_architecture("dendritic_shunting", config, input_dim=INPUT_DIM)
         assert net is not None
 
     def test_factory_invalid_type_raises(self):
