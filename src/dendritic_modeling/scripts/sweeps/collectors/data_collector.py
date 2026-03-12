@@ -385,12 +385,12 @@ class DataCollector:
             # Detect 3-level: value's keys are target names
             inner_keys = set(value.keys())
             if inner_keys & known_targets:
-                # 3-level: method → target → modules
+                # 3-level: method -> target -> modules
                 for target, modules in value.items():
                     if isinstance(modules, dict):
                         flat[f"{key}_{target}"] = modules
             else:
-                # 2-level: already method_target → modules
+                # 2-level: already method_target -> modules
                 flat[key] = value
         return flat
 

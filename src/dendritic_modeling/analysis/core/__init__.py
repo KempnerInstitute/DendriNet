@@ -1,4 +1,4 @@
-"""Core analysis modules."""
+"""Ablation, branch activation, and information-theoretic analyzers for dendritic networks."""
 
 from .ablation import AblationAnalyzer, flatten_3level_ablation
 from .branch_activation import BranchActivationAnalyzer
