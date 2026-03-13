@@ -8,19 +8,19 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Parameter Sweeps &mdash; Dendritic Modeling Framework v0.1.0</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
-      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
 
   
       <script src="_static/jquery.js?v=5d32c60e"></script>
       <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
       <script src="_static/documentation_options.js?v=01f34227"></script>
-      <script src="_static/doctools.js?v=9bcbadda"></script>
-      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+      <script src="_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-    <link rel="next" title="FSDP Training Guide" href="FSDP_TROUBLESHOOTING.html" />
-    <link rel="prev" title="Configuration Guide" href="CONFIGURATION_GUIDE.html" /> 
+    <link rel="next" title="FSDP Training Guide" href="fsdp_troubleshooting.html" />
+    <link rel="prev" title="Configuration Guide" href="configuration_guide.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -42,8 +42,18 @@
   </form>
 </div>
         </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
-              <ul class="current">
-<li class="toctree-l1"><a class="reference internal" href="CONFIGURATION_GUIDE.html">Configuration Guide</a></li>
+              <p class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="quickstart.html">Quick Start</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">User Guide</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="network_architectures.html">Network Architectures</a></li>
+<li class="toctree-l1"><a class="reference internal" href="training_strategies.html">Training Strategies</a></li>
+<li class="toctree-l1"><a class="reference internal" href="datasets.html">Datasets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="analysis.html">Analysis</a></li>
+<li class="toctree-l1"><a class="reference internal" href="configuration_guide.html">Configuration Guide</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Parameter Sweeps</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#quick-start">Quick Start</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#configuration">Configuration</a></li>
@@ -52,7 +62,13 @@
 <li class="toctree-l2"><a class="reference internal" href="#examples">Examples</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="FSDP_TROUBLESHOOTING.html">FSDP Training Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fsdp_troubleshooting.html">FSDP Training Guide</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="config_reference.html">Complete Configuration Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="available_components.html">Available Components</a></li>
+<li class="toctree-l1"><a class="reference internal" href="contributing.html">Contributing</a></li>
 </ul>
 
         </div>
@@ -81,18 +97,18 @@
              
   <section id="parameter-sweeps">
 <h1>Parameter Sweeps<a class="headerlink" href="#parameter-sweeps" title="Link to this heading"></a></h1>
-<p>Systematic exploration of hyperparameter spaces with automated job submission and analysis.</p>
+<p>Generate sweep configs, submit jobs, and analyze finished sweep results.</p>
 <section id="quick-start">
 <h2>Quick Start<a class="headerlink" href="#quick-start" title="Link to this heading"></a></h2>
 <p>Run a parameter sweep:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Generate and run sweep (default behavior)</span>
-python<span class="w"> </span>src/dendritic_modeling/scripts/sweeps/sweep_manager.py<span class="w"> </span>--config<span class="w"> </span>configs/unified_all_sweeps_example.yaml
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Generate and run a sweep</span>
+python<span class="w"> </span>src/dendritic_modeling/scripts/sweeps/sweep_manager.py<span class="w"> </span>--config<span class="w"> </span>configs/EI_sweeps_example.yaml
 
 <span class="c1"># Generate configs only (no job submission)</span>
-python<span class="w"> </span>src/dendritic_modeling/scripts/sweeps/sweep_manager.py<span class="w"> </span>--config<span class="w"> </span>configs/unified_all_sweeps_example.yaml<span class="w"> </span>--generate-only
+python<span class="w"> </span>src/dendritic_modeling/scripts/sweeps/sweep_manager.py<span class="w"> </span>--config<span class="w"> </span>configs/EI_sweeps_example.yaml<span class="w"> </span>--generate-only
 
-<span class="c1"># Analyze results with auto-detection</span>
-python<span class="w"> </span>src/dendritic_modeling/scripts/sweeps/result_analyzer.py<span class="w"> </span>--results-dir<span class="w"> </span>output/sweep_20240101120000<span class="w"> </span>--auto-detect
+<span class="c1"># Analyze an existing sweep directory</span>
+python<span class="w"> </span>src/dendritic_modeling/scripts/sweeps/result_analyzer.py<span class="w"> </span>/path/to/sweep/results
 </pre></div>
 </div>
 </section>
@@ -100,10 +116,10 @@ python<span class="w"> </span>src/dendritic_modeling/scripts/sweeps/result_analy
 <h2>Configuration<a class="headerlink" href="#configuration" title="Link to this heading"></a></h2>
 <p>Basic sweep configuration:</p>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">sweep_config</span><span class="p">:</span>
-<span class="w">  </span><span class="nt">model.core_network.parameters.ee_synapses_per_branch_per_layer</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[[</span><span class="nv">1</span><span class="p p-Indicator">],</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">2</span><span class="p p-Indicator">],</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">3</span><span class="p p-Indicator">]]</span>
-<span class="w">  </span><span class="nt">model.core_network.parameters.ie_synapses_per_branch_per_layer</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[[</span><span class="nv">1</span><span class="p p-Indicator">],</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">2</span><span class="p p-Indicator">],</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">3</span><span class="p p-Indicator">]]</span>
-<span class="w">  </span><span class="nt">model.core_network.parameters.use_shunting</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">true</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">false</span><span class="p p-Indicator">]</span>
-<span class="w">  </span><span class="nt">train.main.param_groups.lr</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">0.001</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">0.01</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">0.1</span><span class="p p-Indicator">]</span>
+<span class="w">  </span><span class="nt">model.core.connectivity.ee_synapses_per_branch_per_layer</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[[</span><span class="nv">1</span><span class="p p-Indicator">],</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">2</span><span class="p p-Indicator">],</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">3</span><span class="p p-Indicator">]]</span>
+<span class="w">  </span><span class="nt">model.core.connectivity.ie_synapses_per_branch_per_layer</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[[</span><span class="nv">1</span><span class="p p-Indicator">],</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">2</span><span class="p p-Indicator">],</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">3</span><span class="p p-Indicator">]]</span>
+<span class="w">  </span><span class="nt">model.core.morphology.use_shunting</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">true</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">false</span><span class="p p-Indicator">]</span>
+<span class="w">  </span><span class="nt">training.main.common.param_groups.lr</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">0.001</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">0.01</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">0.1</span><span class="p p-Indicator">]</span>
 
 <span class="nt">filter_config</span><span class="p">:</span>
 <span class="w">  </span><span class="nt">mode</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;ei-sum&quot;</span>
@@ -123,35 +139,31 @@ python<span class="w"> </span>src/dendritic_modeling/scripts/sweeps/result_analy
 </section>
 <section id="sweep-types">
 <h2>Sweep Types<a class="headerlink" href="#sweep-types" title="Link to this heading"></a></h2>
-<p>The framework supports unified parameter sweeps with filtering:</p>
+<p>Current analyzers cover:</p>
 <ul class="simple">
 <li><p>EI balance studies (excitatory/inhibitory ratios)</p></li>
-<li><p>Architecture exploration (layer sizes, branch factors)</p></li>
-<li><p>Training parameter optimization (learning rates, batch sizes)</p></li>
-<li><p>Noise robustness analysis</p></li>
+<li><p>Branch and morphology sweeps</p></li>
+<li><p>Local-learning sweeps</p></li>
+<li><p>Stochastic-dataset sweeps</p></li>
+<li><p>General parameter sweeps</p></li>
 </ul>
 </section>
 <section id="analysis-output">
 <h2>Analysis Output<a class="headerlink" href="#analysis-output" title="Link to this heading"></a></h2>
-<p>The result analyzer generates comprehensive plots:</p>
-<ul class="simple">
-<li><p>Performance vs parameter heatmaps</p></li>
-<li><p>Statistical analysis across seeds</p></li>
-<li><p>Architecture comparisons</p></li>
-<li><p>Information theory analysis (when enabled)</p></li>
-</ul>
-<p>Results are saved in timestamped directories:</p>
-<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>output/sweep_20240101120000/
-├── configs/              # Generated configurations
-├── analysis/             # Analysis plots and data
-├── submit_all_jobs.sh   # Job submission script
-└── sweep_summary.json   # Sweep metadata
+<p>The analyzer writes processed CSVs and plot directories under the sweep output tree.</p>
+<p>Typical layout:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>&lt;sweep_dir&gt;/
+|-- configs/
+|-- results/
+|-- plots/
+`-- jobs/
 </pre></div>
 </div>
 </section>
 <section id="examples">
 <h2>Examples<a class="headerlink" href="#examples" title="Link to this heading"></a></h2>
-<p>See example configurations in <code class="docutils literal notranslate"><span class="pre">configs/unified_all_sweeps_example.yaml</span></code> and refer to the sweep manager help:</p>
+<p>See example configurations in <code class="docutils literal notranslate"><span class="pre">configs/EI_sweeps_example.yaml</span></code> and the
+specialized examples under <code class="docutils literal notranslate"><span class="pre">configs/sweeps/</span></code>.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>src/dendritic_modeling/scripts/sweeps/sweep_manager.py<span class="w"> </span>--help
 python<span class="w"> </span>src/dendritic_modeling/scripts/sweeps/result_analyzer.py<span class="w"> </span>--help
 </pre></div>
@@ -163,14 +175,14 @@ python<span class="w"> </span>src/dendritic_modeling/scripts/sweeps/result_analy
            </div>
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
-        <a href="CONFIGURATION_GUIDE.html" class="btn btn-neutral float-left" title="Configuration Guide" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-        <a href="FSDP_TROUBLESHOOTING.html" class="btn btn-neutral float-right" title="FSDP Training Guide" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="configuration_guide.html" class="btn btn-neutral float-left" title="Configuration Guide" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="fsdp_troubleshooting.html" class="btn btn-neutral float-right" title="FSDP Training Guide" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>
 
   <div role="contentinfo">
-    <p>&#169; Copyright 2024, Kempner Institute.</p>
+    <p>&#169; Copyright 2025, Kempner Institute.</p>
   </div>
 
   Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a

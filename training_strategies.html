@@ -1,0 +1,515 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Training Strategies &mdash; Dendritic Modeling Framework v0.1.0</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=01f34227"></script>
+      <script src="_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Datasets" href="datasets.html" />
+    <link rel="prev" title="Network Architectures" href="network_architectures.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            Dendritic Modeling Framework
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="quickstart.html">Quick Start</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">User Guide</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="network_architectures.html">Network Architectures</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Training Strategies</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#available-strategies">Available Strategies</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#standard-training">Standard Training</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#feedback-alignment">Feedback Alignment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#local-credit-assignment">Local Credit Assignment</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#rule-variants">Rule Variants</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#error-broadcast">Error Broadcast</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#hsic-auxiliary-loss">HSIC Auxiliary Loss</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#morphology-aware-extensions">Morphology-Aware Extensions</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#recurrent-training">Recurrent Training</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#multi-stage-training">Multi-Stage Training</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#fsdp-distributed-training">FSDP Distributed Training</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#parameter-groups">Parameter Groups</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#optimizer">Optimizer</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#loss-functions">Loss Functions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#regularization-and-pruning">Regularization and Pruning</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="datasets.html">Datasets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="analysis.html">Analysis</a></li>
+<li class="toctree-l1"><a class="reference internal" href="configuration_guide.html">Configuration Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sweeps.html">Parameter Sweeps</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fsdp_troubleshooting.html">FSDP Training Guide</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="config_reference.html">Complete Configuration Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="available_components.html">Available Components</a></li>
+<li class="toctree-l1"><a class="reference internal" href="contributing.html">Contributing</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">Dendritic Modeling Framework</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Training Strategies</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/training_strategies.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="training-strategies">
+<h1>Training Strategies<a class="headerlink" href="#training-strategies" title="Link to this heading"></a></h1>
+<p>The framework uses an optional encoder trainer followed by the main trainer for
+the core network and decoder. The main trainer strategy is set via
+<code class="docutils literal notranslate"><span class="pre">training.main.strategy</span></code> in the YAML config.</p>
+<nav class="contents local" id="on-this-page">
+<p class="topic-title">On this page</p>
+<ul class="simple">
+<li><p><a class="reference internal" href="#available-strategies" id="id1">Available Strategies</a></p></li>
+<li><p><a class="reference internal" href="#standard-training" id="id2">Standard Training</a></p></li>
+<li><p><a class="reference internal" href="#feedback-alignment" id="id3">Feedback Alignment</a></p></li>
+<li><p><a class="reference internal" href="#local-credit-assignment" id="id4">Local Credit Assignment</a></p>
+<ul>
+<li><p><a class="reference internal" href="#rule-variants" id="id5">Rule Variants</a></p></li>
+<li><p><a class="reference internal" href="#error-broadcast" id="id6">Error Broadcast</a></p></li>
+<li><p><a class="reference internal" href="#hsic-auxiliary-loss" id="id7">HSIC Auxiliary Loss</a></p></li>
+<li><p><a class="reference internal" href="#morphology-aware-extensions" id="id8">Morphology-Aware Extensions</a></p></li>
+</ul>
+</li>
+<li><p><a class="reference internal" href="#recurrent-training" id="id9">Recurrent Training</a></p></li>
+<li><p><a class="reference internal" href="#multi-stage-training" id="id10">Multi-Stage Training</a></p></li>
+<li><p><a class="reference internal" href="#fsdp-distributed-training" id="id11">FSDP Distributed Training</a></p></li>
+<li><p><a class="reference internal" href="#parameter-groups" id="id12">Parameter Groups</a></p></li>
+<li><p><a class="reference internal" href="#optimizer" id="id13">Optimizer</a></p></li>
+<li><p><a class="reference internal" href="#loss-functions" id="id14">Loss Functions</a></p></li>
+<li><p><a class="reference internal" href="#regularization-and-pruning" id="id15">Regularization and Pruning</a></p></li>
+</ul>
+</nav>
+<section id="available-strategies">
+<h2><a class="toc-backref" href="#id1" role="doc-backlink">Available Strategies</a><a class="headerlink" href="#available-strategies" title="Link to this heading"></a></h2>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 20.0%" />
+<col style="width: 80.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Strategy</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">standard</span></code></p></td>
+<td><p>Backpropagation with optional regularization and pruning</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">fa</span></code></p></td>
+<td><p>Feedback Alignment with fixed random feedback matrices</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">dfa</span></code></p></td>
+<td><p>Direct Feedback Alignment; output error projected to each layer</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">shunting_fa</span></code></p></td>
+<td><p>FA with conductance-based modulation</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">shunting_dfa</span></code></p></td>
+<td><p>DFA with conductance-based modulation</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">local_ca</span></code></p></td>
+<td><p>Local credit assignment (3/4/5-factor Hebbian rules)</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">freeze_layers</span></code></p></td>
+<td><p>Progressive layer unfreezing</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">freeze_branches</span></code></p></td>
+<td><p>Progressive branch unfreezing</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">freeze_branch_kl</span></code></p></td>
+<td><p>Branch freezing with KL divergence loss</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">voltage_stabilization</span></code></p></td>
+<td><p>Pretrain to stabilize dendritic voltages</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">homeostatic_control</span></code></p></td>
+<td><p>Homeostatic regulation of soma activity</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">recurrent</span></code></p></td>
+<td><p>Sequence training for RNN architectures</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">multi_stage</span></code></p></td>
+<td><p>Chain multiple strategies in sequence</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">fsdp</span></code></p></td>
+<td><p>Fully Sharded Data Parallel (multi-GPU/node)</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="standard-training">
+<h2><a class="toc-backref" href="#id2" role="doc-backlink">Standard Training</a><a class="headerlink" href="#standard-training" title="Link to this heading"></a></h2>
+<p>Basic backpropagation. Supports gradient clipping, early stopping, mixed
+precision, NaN detection, and adaptive clipping.</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">training</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">main</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">strategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">standard</span>
+<span class="w">    </span><span class="nt">common</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">100</span>
+<span class="w">      </span><span class="nt">batch_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">256</span>
+<span class="w">      </span><span class="nt">loss_function</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ce</span>
+<span class="w">      </span><span class="nt">grad_clip_value</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5.0</span>
+<span class="w">      </span><span class="nt">early_stopping</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">patience</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">20</span>
+</pre></div>
+</div>
+<p>Key <code class="docutils literal notranslate"><span class="pre">common</span></code> parameters:</p>
+<p><code class="docutils literal notranslate"><span class="pre">epochs</span></code> (int, default: 1000), <code class="docutils literal notranslate"><span class="pre">batch_size</span></code> (int, default: 512),
+<code class="docutils literal notranslate"><span class="pre">loss_function</span></code> (str, default: <code class="docutils literal notranslate"><span class="pre">&quot;ce&quot;</span></code>), <code class="docutils literal notranslate"><span class="pre">grad_clip_value</span></code> (float,
+default: 2.0), <code class="docutils literal notranslate"><span class="pre">early_stopping</span></code> (bool, default: True), <code class="docutils literal notranslate"><span class="pre">patience</span></code>
+(int, default: 500), <code class="docutils literal notranslate"><span class="pre">use_amp</span></code> (bool, default: False),
+<code class="docutils literal notranslate"><span class="pre">enable_nan_checking</span></code> (bool, default: False),
+<code class="docutils literal notranslate"><span class="pre">enable_adaptive_clipping</span></code> (bool, default: False).</p>
+</section>
+<section id="feedback-alignment">
+<h2><a class="toc-backref" href="#id3" role="doc-backlink">Feedback Alignment</a><a class="headerlink" href="#feedback-alignment" title="Link to this heading"></a></h2>
+<p>Implements FA (Lillicrap et al., 2016) and DFA (Nokland, 2016). Uses fixed
+random feedback matrices instead of weight transposes for error propagation.</p>
+<ul class="simple">
+<li><p><strong>FA</strong> (<code class="docutils literal notranslate"><span class="pre">fa</span></code>): errors backpropagate layer-by-layer through random B
+matrices.</p></li>
+<li><p><strong>DFA</strong> (<code class="docutils literal notranslate"><span class="pre">dfa</span></code>): each hidden layer receives the output error directly.</p></li>
+</ul>
+<p><code class="docutils literal notranslate"><span class="pre">shunting_fa</span></code> and <code class="docutils literal notranslate"><span class="pre">shunting_dfa</span></code> extend these with conductance-based
+modulation: the error at each layer is modulated by the local total
+conductance and driving force, <code class="docutils literal notranslate"><span class="pre">error</span> <span class="pre">*</span> <span class="pre">g_tot</span> <span class="pre">*</span> <span class="pre">(E_rev</span> <span class="pre">-</span> <span class="pre">V)</span></code>.</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">training</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">main</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">strategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dfa</span>
+</pre></div>
+</div>
+</section>
+<section id="local-credit-assignment">
+<h2><a class="toc-backref" href="#id4" role="doc-backlink">Local Credit Assignment</a><a class="headerlink" href="#local-credit-assignment" title="Link to this heading"></a></h2>
+<p>Biologically-plausible local learning using Hebbian-style updates with
+locally available signals (pre/post-synaptic activity) and a broadcast soma
+error. The current config path is <code class="docutils literal notranslate"><span class="pre">training.main.learning_strategy_config</span></code>.</p>
+<section id="rule-variants">
+<h3><a class="toc-backref" href="#id5" role="doc-backlink">Rule Variants</a><a class="headerlink" href="#rule-variants" title="Link to this heading"></a></h3>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">rule_variant:</span> <span class="pre">&quot;3f&quot;</span></code> – three-factor rule</dt><dd><p><code class="docutils literal notranslate"><span class="pre">pre</span> <span class="pre">*</span> <span class="pre">post</span> <span class="pre">*</span> <span class="pre">error</span></code>. The post-synaptic factor depends on the dynamics
+mode: in conductance mode it uses driving force <code class="docutils literal notranslate"><span class="pre">(E_rev</span> <span class="pre">-</span> <span class="pre">V)</span></code> scaled by
+<code class="docutils literal notranslate"><span class="pre">1/g_tot</span></code>; in additive mode it uses <code class="docutils literal notranslate"><span class="pre">(V</span> <span class="pre">-</span> <span class="pre">theta)</span></code> with optional gain
+control.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">rule_variant:</span> <span class="pre">&quot;4f&quot;</span></code> – four-factor rule</dt><dd><p>Adds a morphology correlation factor <code class="docutils literal notranslate"><span class="pre">rho</span></code> that captures the correlation
+between branch-level and soma-level activity. Estimated via EMA
+(<code class="docutils literal notranslate"><span class="pre">rho_estimator:</span> <span class="pre">&quot;ema&quot;</span></code>) or data augmentation (<code class="docutils literal notranslate"><span class="pre">&quot;augment&quot;</span></code>).</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">rule_variant:</span> <span class="pre">&quot;5f&quot;</span></code> – five-factor rule</dt><dd><p>Adds an information proxy <code class="docutils literal notranslate"><span class="pre">phi</span></code> that estimates class-conditional
+information content. Modes: <code class="docutils literal notranslate"><span class="pre">&quot;conditional&quot;</span></code> (conditional variance proxy)
+or <code class="docutils literal notranslate"><span class="pre">&quot;variance&quot;</span></code> (raw variance).</p>
+</dd>
+</dl>
+</section>
+<section id="error-broadcast">
+<h3><a class="toc-backref" href="#id6" role="doc-backlink">Error Broadcast</a><a class="headerlink" href="#error-broadcast" title="Link to this heading"></a></h3>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">error_broadcast_mode</span></code></dt><dd><p><code class="docutils literal notranslate"><span class="pre">&quot;scalar&quot;</span></code> – single scalar error for the whole network.
+<code class="docutils literal notranslate"><span class="pre">&quot;per_soma&quot;</span></code> – per-neuron error at the soma level.
+<code class="docutils literal notranslate"><span class="pre">&quot;local_mismatch&quot;</span></code> – locally computed mismatch signal.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">broadcast_bandwidth</span></code></dt><dd><p><code class="docutils literal notranslate"><span class="pre">&quot;full&quot;</span></code> – transmit full error values.
+<code class="docutils literal notranslate"><span class="pre">&quot;sign_only&quot;</span></code> – transmit only the sign of the error.
+<code class="docutils literal notranslate"><span class="pre">&quot;quantized&quot;</span></code> – quantize to <code class="docutils literal notranslate"><span class="pre">broadcast_bits</span></code> bits.
+<code class="docutils literal notranslate"><span class="pre">&quot;sparse_topk&quot;</span></code> – keep only top <code class="docutils literal notranslate"><span class="pre">broadcast_topk_fraction</span></code> of values.</p>
+</dd>
+</dl>
+</section>
+<section id="hsic-auxiliary-loss">
+<h3><a class="toc-backref" href="#id7" role="doc-backlink">HSIC Auxiliary Loss</a><a class="headerlink" href="#hsic-auxiliary-loss" title="Link to this heading"></a></h3>
+<p>Optional Hilbert-Schmidt Independence Criterion loss to encourage decorrelated
+representations. Enabled via <code class="docutils literal notranslate"><span class="pre">hsic.enabled:</span> <span class="pre">true</span></code>. Kernel options:
+<code class="docutils literal notranslate"><span class="pre">&quot;linear&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;rbf&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;polynomial&quot;</span></code>.</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">training</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">main</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">strategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">local_ca</span>
+<span class="w">    </span><span class="nt">learning_strategy_config</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">rule_variant</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;4f&quot;</span>
+<span class="w">      </span><span class="nt">error_broadcast_mode</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">per_soma</span>
+<span class="w">      </span><span class="nt">three_factor</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">dynamics_mode</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">auto</span>
+<span class="w">        </span><span class="nt">use_conductance_scaling</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">        </span><span class="nt">use_driving_force</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">four_factor</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">rho_mode</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">pearson</span>
+<span class="w">        </span><span class="nt">rho_estimator</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ema</span>
+<span class="w">        </span><span class="nt">ema_alpha</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.05</span>
+<span class="w">      </span><span class="nt">hsic</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">        </span><span class="nt">weight</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.01</span>
+</pre></div>
+</div>
+</section>
+<section id="morphology-aware-extensions">
+<h3><a class="toc-backref" href="#id8" role="doc-backlink">Morphology-Aware Extensions</a><a class="headerlink" href="#morphology-aware-extensions" title="Link to this heading"></a></h3>
+<p>Extensions that use dendritic tree topology explicitly:</p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">use_path_propagation</span></code></dt><dd><p>Approximate path-integrated attenuation along dendritic branches.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">use_dendritic_normalization</span></code></dt><dd><p>Normalize update by total conductance at each branch.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">use_branch_type_rules</span></code></dt><dd><p>Differentiate apical vs basal branches with separate scaling
+(<code class="docutils literal notranslate"><span class="pre">apical_branch_scale</span></code>, <code class="docutils literal notranslate"><span class="pre">basal_branch_scale</span></code>).</p>
+</dd>
+</dl>
+</section>
+</section>
+<section id="recurrent-training">
+<h2><a class="toc-backref" href="#id9" role="doc-backlink">Recurrent Training</a><a class="headerlink" href="#recurrent-training" title="Link to this heading"></a></h2>
+<p>For sequence data (<code class="docutils literal notranslate"><span class="pre">[B,</span> <span class="pre">T,</span> <span class="pre">D]</span></code> inputs). Handles temporal loss computation
+for both <code class="docutils literal notranslate"><span class="pre">output_mode:</span> <span class="pre">last</span></code> and <code class="docutils literal notranslate"><span class="pre">output_mode:</span> <span class="pre">all</span></code>.</p>
+<p><code class="docutils literal notranslate"><span class="pre">grad_clip</span></code> (float, default: 1.0), <code class="docutils literal notranslate"><span class="pre">lr_schedule</span></code> (<code class="docutils literal notranslate"><span class="pre">&quot;none&quot;</span></code> or
+<code class="docutils literal notranslate"><span class="pre">&quot;cosine&quot;</span></code>), <code class="docutils literal notranslate"><span class="pre">lr_warmup_epochs</span></code> (int, default: 0).</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">training</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">main</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">strategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">recurrent</span>
+<span class="w">    </span><span class="nt">common</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">100</span>
+<span class="w">      </span><span class="nt">batch_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">64</span>
+<span class="w">      </span><span class="nt">loss_function</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ce</span>
+</pre></div>
+</div>
+</section>
+<section id="multi-stage-training">
+<h2><a class="toc-backref" href="#id10" role="doc-backlink">Multi-Stage Training</a><a class="headerlink" href="#multi-stage-training" title="Link to this heading"></a></h2>
+<p>Chains multiple strategies in sequence. Each stage can have its own strategy,
+epoch count, optimizer state, and config overrides.</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">training</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">main</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">strategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">multi_stage</span>
+<span class="w">    </span><span class="nt">multi_stage_config</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">analyze_between_stages</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">use_best_from_each_stage</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">stages</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">learning_strategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">standard</span>
+<span class="w">          </span><span class="nt">epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">50</span>
+<span class="w">          </span><span class="nt">trainer_config</span><span class="p">:</span>
+<span class="w">            </span><span class="nt">loss_function</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ce</span>
+<span class="w">            </span><span class="nt">early_stopping</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">learning_strategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">local_ca</span>
+<span class="w">          </span><span class="nt">epochs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">50</span>
+<span class="w">          </span><span class="nt">local_rule_config</span><span class="p">:</span>
+<span class="w">            </span><span class="nt">rule_variant</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;4f&quot;</span>
+</pre></div>
+</div>
+</section>
+<section id="fsdp-distributed-training">
+<h2><a class="toc-backref" href="#id11" role="doc-backlink">FSDP Distributed Training</a><a class="headerlink" href="#fsdp-distributed-training" title="Link to this heading"></a></h2>
+<p>For large models across multiple GPUs or nodes. See
+<a class="reference internal" href="fsdp_troubleshooting.html"><span class="doc">FSDP Training Guide</span></a> for setup and runtime issues.</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">fsdp</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">  </span><span class="nt">sharding_strategy</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;FULL_SHARD&quot;</span>
+<span class="w">  </span><span class="nt">mixed_precision</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">  </span><span class="nt">cpu_offload</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+<span class="w">  </span><span class="nt">gradient_checkpointing</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+</pre></div>
+</div>
+</section>
+<section id="parameter-groups">
+<h2><a class="toc-backref" href="#id12" role="doc-backlink">Parameter Groups</a><a class="headerlink" href="#parameter-groups" title="Link to this heading"></a></h2>
+<p>Per-component learning rates, set via <code class="docutils literal notranslate"><span class="pre">training.main.common.param_groups</span></code>:</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 30.0%" />
+<col style="width: 15.0%" />
+<col style="width: 55.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Parameter</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">lr</span></code></p></td>
+<td><p>0.01</p></td>
+<td><p>Base learning rate</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">split_params</span></code></p></td>
+<td><p>True</p></td>
+<td><p>Use separate LRs per component type</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">topk_lr</span></code></p></td>
+<td><p>0.001</p></td>
+<td><p>Sparse synaptic layer LR</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">blocklinear_lr</span></code></p></td>
+<td><p>0.0001</p></td>
+<td><p>BlockLinear (branch aggregation) LR</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">reactivation_lr</span></code></p></td>
+<td><p>0.0001</p></td>
+<td><p>Reactivation nonlinearity LR</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">decoder_lr</span></code></p></td>
+<td><p>0.001</p></td>
+<td><p>Decoder network LR</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="optimizer">
+<h2><a class="toc-backref" href="#id13" role="doc-backlink">Optimizer</a><a class="headerlink" href="#optimizer" title="Link to this heading"></a></h2>
+<p>Set via <code class="docutils literal notranslate"><span class="pre">training.main.optimizer</span></code>: <code class="docutils literal notranslate"><span class="pre">&quot;adam&quot;</span></code> (default), <code class="docutils literal notranslate"><span class="pre">&quot;adamw&quot;</span></code>,
+<code class="docutils literal notranslate"><span class="pre">&quot;sgd&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;rmsprop&quot;</span></code>. Standard parameters: <code class="docutils literal notranslate"><span class="pre">lr</span></code>, <code class="docutils literal notranslate"><span class="pre">weight_decay</span></code>,
+<code class="docutils literal notranslate"><span class="pre">momentum</span></code> (SGD), <code class="docutils literal notranslate"><span class="pre">betas</span></code> (Adam).</p>
+</section>
+<section id="loss-functions">
+<h2><a class="toc-backref" href="#id14" role="doc-backlink">Loss Functions</a><a class="headerlink" href="#loss-functions" title="Link to this heading"></a></h2>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 30.0%" />
+<col style="width: 30.0%" />
+<col style="width: 40.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Name</p></th>
+<th class="head"><p>Alias</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">ce</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">cross_entropy</span></code></p></td>
+<td><p>Cross-entropy (classification)</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">mse</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">mean_squared_error</span></code></p></td>
+<td><p>Mean squared error (regression)</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">log_mse</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">log_mean_squared_error</span></code></p></td>
+<td><p>Log of MSE</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">bce</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">binary_cross_entropy</span></code></p></td>
+<td><p>Binary cross-entropy</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">cat_nll</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">categorical_negative_log_likelihood</span></code></p></td>
+<td><p>Categorical NLL</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">vae_elbo</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">variational_autoencoder_elbo</span></code></p></td>
+<td><p>VAE ELBO loss</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">neg_cos_sim</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">negative_cosine_similarity</span></code></p></td>
+<td><p>Negative cosine similarity</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">log_adj_neg_cos_sim</span></code></p></td>
+<td></td>
+<td><p>Log-adjusted negative cosine similarity</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="regularization-and-pruning">
+<h2><a class="toc-backref" href="#id15" role="doc-backlink">Regularization and Pruning</a><a class="headerlink" href="#regularization-and-pruning" title="Link to this heading"></a></h2>
+<p>Regularization (<code class="docutils literal notranslate"><span class="pre">training.main.regularization</span></code>):</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">l1_weight</span></code>, <code class="docutils literal notranslate"><span class="pre">l2_weight</span></code>: L1/L2 penalty weights</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">selective_layers</span></code>, <code class="docutils literal notranslate"><span class="pre">selective_branches</span></code>, <code class="docutils literal notranslate"><span class="pre">selective_weight_types</span></code>:
+restrict to specific components</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">ei_ratio_weight</span></code>: enforce E/I weight ratio constraint</p></li>
+</ul>
+<p>Pruning (<code class="docutils literal notranslate"><span class="pre">training.main.pruning</span></code>):</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">enabled</span></code>: bool</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">threshold</span></code>: magnitude threshold for pruning</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">frequency</span></code>: prune every N epochs</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">selective_layers</span></code>, <code class="docutils literal notranslate"><span class="pre">selective_branches</span></code>: restrict scope</p></li>
+</ul>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="network_architectures.html" class="btn btn-neutral float-left" title="Network Architectures" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="datasets.html" class="btn btn-neutral float-right" title="Datasets" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Kempner Institute.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

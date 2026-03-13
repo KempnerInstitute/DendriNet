@@ -1,5 +1,5 @@
 FSDP Training Guide
-==================
+===================
 
 Quick Start
 -----------
@@ -8,7 +8,7 @@ Use the automated FSDP workflow for large models:
 
 .. code-block:: bash
 
-   # Generate and submit FSDP job (recommended)
+   # Generate and submit an FSDP job
    python src/dendritic_modeling/scripts/tools/submit_fsdp_job.py configs/config_exp_fsdp.yaml
 
    # Generate SLURM script only
@@ -57,7 +57,7 @@ Solutions:
 - Use smaller model variants
 
 Job Submission Failed
-~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~
 
 Symptoms: SLURM submission errors
 
@@ -82,22 +82,8 @@ FSDP settings in ``configs/config_exp_fsdp.yaml``:
 Monitoring
 ----------
 
-Check job status:
-
 .. code-block:: bash
 
    squeue -u $USER
    tail -f slurm-*.out
-
-Monitor GPU usage:
-
-.. code-block:: bash
-
    nvidia-smi
-
-Additional Help
----------------
-
-- Use ``--help`` with any script for full options
-- Check generated SLURM scripts in ``scripts/tools/slurm/``
-- Contact support for persistent issues

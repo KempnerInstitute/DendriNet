@@ -1,0 +1,350 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Analysis &mdash; Dendritic Modeling Framework v0.1.0</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=01f34227"></script>
+      <script src="_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Configuration Guide" href="configuration_guide.html" />
+    <link rel="prev" title="Datasets" href="datasets.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            Dendritic Modeling Framework
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="quickstart.html">Quick Start</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">User Guide</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="network_architectures.html">Network Architectures</a></li>
+<li class="toctree-l1"><a class="reference internal" href="training_strategies.html">Training Strategies</a></li>
+<li class="toctree-l1"><a class="reference internal" href="datasets.html">Datasets</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Analysis</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#performance-analysis">Performance Analysis</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#information-analysis">Information Analysis</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#components">Components</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#signal-variants">Signal Variants</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#computation-levels">Computation Levels</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#branch-aggregation">Branch Aggregation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#scopes">Scopes</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#estimator-methods">Estimator Methods</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#ablation-analysis">Ablation Analysis</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#correlation-analysis">Correlation Analysis</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#other-analysis-modules">Other Analysis Modules</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="configuration_guide.html">Configuration Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sweeps.html">Parameter Sweeps</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fsdp_troubleshooting.html">FSDP Training Guide</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="config_reference.html">Complete Configuration Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="available_components.html">Available Components</a></li>
+<li class="toctree-l1"><a class="reference internal" href="contributing.html">Contributing</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">Dendritic Modeling Framework</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Analysis</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/analysis.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="analysis">
+<h1>Analysis<a class="headerlink" href="#analysis" title="Link to this heading"></a></h1>
+<p>All analyses are configured under the <code class="docutils literal notranslate"><span class="pre">analysis</span></code> key in the YAML config.
+Each module has <code class="docutils literal notranslate"><span class="pre">enabled</span></code> (bool) and <code class="docutils literal notranslate"><span class="pre">training</span></code> (bool, whether to run
+during training vs only post-training) flags, plus module-specific <code class="docutils literal notranslate"><span class="pre">params</span></code>.</p>
+<nav class="contents local" id="on-this-page">
+<p class="topic-title">On this page</p>
+<ul class="simple">
+<li><p><a class="reference internal" href="#performance-analysis" id="id1">Performance Analysis</a></p></li>
+<li><p><a class="reference internal" href="#information-analysis" id="id2">Information Analysis</a></p>
+<ul>
+<li><p><a class="reference internal" href="#components" id="id3">Components</a></p></li>
+<li><p><a class="reference internal" href="#signal-variants" id="id4">Signal Variants</a></p></li>
+<li><p><a class="reference internal" href="#computation-levels" id="id5">Computation Levels</a></p></li>
+<li><p><a class="reference internal" href="#branch-aggregation" id="id6">Branch Aggregation</a></p></li>
+<li><p><a class="reference internal" href="#scopes" id="id7">Scopes</a></p></li>
+<li><p><a class="reference internal" href="#estimator-methods" id="id8">Estimator Methods</a></p></li>
+</ul>
+</li>
+<li><p><a class="reference internal" href="#ablation-analysis" id="id9">Ablation Analysis</a></p></li>
+<li><p><a class="reference internal" href="#correlation-analysis" id="id10">Correlation Analysis</a></p></li>
+<li><p><a class="reference internal" href="#other-analysis-modules" id="id11">Other Analysis Modules</a></p></li>
+</ul>
+</nav>
+<section id="performance-analysis">
+<h2><a class="toc-backref" href="#id1" role="doc-backlink">Performance Analysis</a><a class="headerlink" href="#performance-analysis" title="Link to this heading"></a></h2>
+<p>Computes standard classification/regression metrics: accuracy, AUC,
+categorical log-likelihood, MSE, cosine similarity.</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">analysis</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">performance_analysis</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+</pre></div>
+</div>
+</section>
+<section id="information-analysis">
+<h2><a class="toc-backref" href="#id2" role="doc-backlink">Information Analysis</a><a class="headerlink" href="#information-analysis" title="Link to this heading"></a></h2>
+<p>Information-theoretic analysis of network representations. The most
+configurable analysis module.</p>
+<section id="components">
+<h3><a class="toc-backref" href="#id3" role="doc-backlink">Components</a><a class="headerlink" href="#components" title="Link to this heading"></a></h3>
+<p>Set via <code class="docutils literal notranslate"><span class="pre">params.selection.components</span></code>:</p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">&quot;basic&quot;</span></code></dt><dd><p><code class="docutils literal notranslate"><span class="pre">I(X;</span> <span class="pre">C)</span></code> – mutual information between each signal and class labels.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">&quot;pairwise&quot;</span></code></dt><dd><p><code class="docutils literal notranslate"><span class="pre">I(X;</span> <span class="pre">Y)</span></code> – MI between pairs of signals (E, I, Vb, Vout).</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">&quot;conditional&quot;</span></code></dt><dd><p><code class="docutils literal notranslate"><span class="pre">I(X;</span> <span class="pre">Y</span> <span class="pre">|</span> <span class="pre">C)</span></code> – conditional MI given class.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">&quot;gaussian_fisher&quot;</span></code></dt><dd><p>Fast Gaussian MI proxy from class-conditional means and variances.
+Config under <code class="docutils literal notranslate"><span class="pre">params.compute.gaussian_fisher</span></code>: <code class="docutils literal notranslate"><span class="pre">aggregation</span></code>
+(<code class="docutils literal notranslate"><span class="pre">&quot;sum&quot;</span></code>/<code class="docutils literal notranslate"><span class="pre">&quot;mean&quot;</span></code>/<code class="docutils literal notranslate"><span class="pre">&quot;max&quot;</span></code>), <code class="docutils literal notranslate"><span class="pre">mi_transform</span></code>
+(<code class="docutils literal notranslate"><span class="pre">&quot;half_log1p&quot;</span></code>/<code class="docutils literal notranslate"><span class="pre">&quot;log1p&quot;</span></code>/<code class="docutils literal notranslate"><span class="pre">&quot;none&quot;</span></code>), <code class="docutils literal notranslate"><span class="pre">eps</span></code>.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">&quot;pid&quot;</span></code></dt><dd><p>Synergy/redundancy decomposition (requires external PID library).</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">&quot;ablation_aligned&quot;</span></code></dt><dd><p>Conditional-MI terms aligned to ablation interventions, e.g.,
+<code class="docutils literal notranslate"><span class="pre">I(E;</span> <span class="pre">C</span> <span class="pre">|</span> <span class="pre">I,</span> <span class="pre">Vb)</span></code> and <code class="docutils literal notranslate"><span class="pre">I(Vout;</span> <span class="pre">C</span> <span class="pre">|</span> <span class="pre">Vb)</span></code>.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">&quot;layer_proxies&quot;</span></code></dt><dd><p>Aggregate per-branch MI into layer-level proxies: sum, union, topK_sum.</p>
+</dd>
+</dl>
+</section>
+<section id="signal-variants">
+<h3><a class="toc-backref" href="#id4" role="doc-backlink">Signal Variants</a><a class="headerlink" href="#signal-variants" title="Link to this heading"></a></h3>
+<p>Set via <code class="docutils literal notranslate"><span class="pre">params.selection.signal_variants</span></code>:</p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">&quot;network&quot;</span></code></dt><dd><p>Network-learned weights (always included).</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">&quot;lda&quot;</span></code></dt><dd><p>LDA-optimized weights for <code class="docutils literal notranslate"><span class="pre">E_lin</span></code>, <code class="docutils literal notranslate"><span class="pre">I_lin</span></code>, <code class="docutils literal notranslate"><span class="pre">Vb_lin</span></code> – maximizes
+class separation.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">&quot;random&quot;</span></code></dt><dd><p>Random-weight baseline (requires <code class="docutils literal notranslate"><span class="pre">lda_n_shuffles</span> <span class="pre">&gt;</span> <span class="pre">0</span></code>).</p>
+</dd>
+</dl>
+</section>
+<section id="computation-levels">
+<h3><a class="toc-backref" href="#id5" role="doc-backlink">Computation Levels</a><a class="headerlink" href="#computation-levels" title="Link to this heading"></a></h3>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">&quot;single_branch&quot;</span></code></dt><dd><p>Per individual branch (most granular).</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">&quot;layer_branch&quot;</span></code></dt><dd><p>Aggregate branches within each layer.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">&quot;all_branch&quot;</span></code></dt><dd><p>Aggregate all branches across the network.</p>
+</dd>
+</dl>
+</section>
+<section id="branch-aggregation">
+<h3><a class="toc-backref" href="#id6" role="doc-backlink">Branch Aggregation</a><a class="headerlink" href="#branch-aggregation" title="Link to this heading"></a></h3>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">&quot;mean&quot;</span></code></dt><dd><p>Average branch activations to scalars.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">&quot;multivariate&quot;</span></code></dt><dd><p>Use raw multi-dimensional data for joint MI computation.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">&quot;sample&quot;</span></code></dt><dd><p>Treat each branch as a separate observation.</p>
+</dd>
+</dl>
+</section>
+<section id="scopes">
+<h3><a class="toc-backref" href="#id7" role="doc-backlink">Scopes</a><a class="headerlink" href="#scopes" title="Link to this heading"></a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">&quot;layer&quot;</span></code> – per-layer breakdown. <code class="docutils literal notranslate"><span class="pre">&quot;einet&quot;</span></code> – separate E vs I summaries.
+<code class="docutils literal notranslate"><span class="pre">&quot;neuron&quot;</span></code> – per-neuron (expensive).</p>
+</section>
+<section id="estimator-methods">
+<h3><a class="toc-backref" href="#id8" role="doc-backlink">Estimator Methods</a><a class="headerlink" href="#estimator-methods" title="Link to this heading"></a></h3>
+<p><code class="docutils literal notranslate"><span class="pre">&quot;kraskov&quot;</span></code> (default) – k-NN estimator (<code class="docutils literal notranslate"><span class="pre">n_neighbors</span></code> configurable).
+<code class="docutils literal notranslate"><span class="pre">&quot;decoder&quot;</span></code> – classifier-based MI bound. <code class="docutils literal notranslate"><span class="pre">&quot;binned&quot;</span></code> – binned MI.
+<code class="docutils literal notranslate"><span class="pre">&quot;sklearn&quot;</span></code> – sklearn functions. <code class="docutils literal notranslate"><span class="pre">&quot;copula&quot;</span></code> – copula-based.</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">analysis</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">information_analysis</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">training</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+<span class="w">    </span><span class="nt">params</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">selection</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">components</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;basic&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;pairwise&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;conditional&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;gaussian_fisher&quot;</span><span class="p p-Indicator">]</span>
+<span class="w">        </span><span class="nt">scopes</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;layer&quot;</span><span class="p p-Indicator">]</span>
+<span class="w">        </span><span class="nt">signal_variants</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;network&quot;</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">compute</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">max_samples</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1000</span>
+<span class="w">        </span><span class="nt">computation_level</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;single_branch&quot;</span>
+<span class="w">        </span><span class="nt">branch_aggregation</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;mean&quot;</span>
+<span class="w">      </span><span class="nt">estimator</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">method</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;kraskov&quot;</span>
+<span class="w">        </span><span class="nt">kraskov</span><span class="p">:</span>
+<span class="w">          </span><span class="nt">n_neighbors</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="ablation-analysis">
+<h2><a class="toc-backref" href="#id9" role="doc-backlink">Ablation Analysis</a><a class="headerlink" href="#ablation-analysis" title="Link to this heading"></a></h2>
+<p>Evaluates the contribution of specific network components by disabling or
+disrupting them.</p>
+<p>Methods (<code class="docutils literal notranslate"><span class="pre">params.methods.ablation_methods</span></code>):</p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">&quot;lesion&quot;</span></code></dt><dd><p>Structural ablation – disable connection weights entirely.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">&quot;shuffle&quot;</span></code></dt><dd><p>Permute the signal across samples in a batch. Preserves the marginal
+distribution but destroys sample-label alignment.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">&quot;mean_clamp&quot;</span></code></dt><dd><p>Replace the signal with its batch mean. Preserves operating point but
+removes trial-to-trial variability.</p>
+</dd>
+</dl>
+<p>Selectors live under <code class="docutils literal notranslate"><span class="pre">params.selection</span></code>:</p>
+<p><code class="docutils literal notranslate"><span class="pre">levels</span></code>: <code class="docutils literal notranslate"><span class="pre">&quot;layer&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;compartment&quot;</span></code>.
+<code class="docutils literal notranslate"><span class="pre">targets</span></code>: <code class="docutils literal notranslate"><span class="pre">&quot;all_synapses&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;excitation&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;inhibition&quot;</span></code>,
+<code class="docutils literal notranslate"><span class="pre">&quot;upstream&quot;</span></code>.
+<code class="docutils literal notranslate"><span class="pre">metrics</span></code>: <code class="docutils literal notranslate"><span class="pre">&quot;accuracy&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;auc&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;categorical_loglikelihood&quot;</span></code>,
+<code class="docutils literal notranslate"><span class="pre">&quot;pred_label_mi_bits&quot;</span></code>.</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">analysis</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">ablation_analysis</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">params</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">selection</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">levels</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;layer&quot;</span><span class="p p-Indicator">]</span>
+<span class="w">        </span><span class="nt">targets</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;excitation&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;inhibition&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;upstream&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;all_synapses&quot;</span><span class="p p-Indicator">]</span>
+<span class="w">        </span><span class="nt">metrics</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;accuracy&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;pred_label_mi_bits&quot;</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">methods</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">ablation_methods</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;lesion&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;shuffle&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;mean_clamp&quot;</span><span class="p p-Indicator">]</span>
+</pre></div>
+</div>
+</section>
+<section id="correlation-analysis">
+<h2><a class="toc-backref" href="#id10" role="doc-backlink">Correlation Analysis</a><a class="headerlink" href="#correlation-analysis" title="Link to this heading"></a></h2>
+<p>Pearson correlations between excitatory, inhibitory, and output signals at
+configurable granularity.</p>
+<p><code class="docutils literal notranslate"><span class="pre">components</span></code>: <code class="docutils literal notranslate"><span class="pre">&quot;total&quot;</span></code> (all samples), <code class="docutils literal notranslate"><span class="pre">&quot;noise&quot;</span></code> (within-class),
+<code class="docutils literal notranslate"><span class="pre">&quot;signal&quot;</span></code> (between-class), <code class="docutils literal notranslate"><span class="pre">&quot;tuning&quot;</span></code> (selectivity).</p>
+<p><code class="docutils literal notranslate"><span class="pre">pairs</span></code>: <code class="docutils literal notranslate"><span class="pre">&quot;EE&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;II&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;EI&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;E_output&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;I_output&quot;</span></code>,
+<code class="docutils literal notranslate"><span class="pre">&quot;output_output&quot;</span></code>.</p>
+<p><code class="docutils literal notranslate"><span class="pre">scopes</span></code>: <code class="docutils literal notranslate"><span class="pre">&quot;layer&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;einet&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;neuron&quot;</span></code>.</p>
+<p><code class="docutils literal notranslate"><span class="pre">computation_level</span></code>: <code class="docutils literal notranslate"><span class="pre">&quot;synaptic&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;single_branch&quot;</span></code>,
+<code class="docutils literal notranslate"><span class="pre">&quot;layer_branch&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;all_branch&quot;</span></code>.</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">analysis</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">correlation_analysis</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">params</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">computation_level</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;layer_branch&quot;</span>
+<span class="w">      </span><span class="nt">components</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;total&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;noise&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;signal&quot;</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">pairs</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;EE&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;II&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;EI&quot;</span><span class="p p-Indicator">]</span>
+<span class="w">      </span><span class="nt">scopes</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;layer&quot;</span><span class="p p-Indicator">]</span>
+</pre></div>
+</div>
+</section>
+<section id="other-analysis-modules">
+<h2><a class="toc-backref" href="#id11" role="doc-backlink">Other Analysis Modules</a><a class="headerlink" href="#other-analysis-modules" title="Link to this heading"></a></h2>
+<p>Each module follows the same <code class="docutils literal notranslate"><span class="pre">enabled</span></code>/<code class="docutils literal notranslate"><span class="pre">training</span></code>/<code class="docutils literal notranslate"><span class="pre">params</span></code> pattern.</p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">weight_analysis</span></code></dt><dd><p>Weight distribution statistics and parameter counts.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">synapse_turnover_analysis</span></code></dt><dd><p>Tracks active synapse changes over training. Parameters:
+<code class="docutils literal notranslate"><span class="pre">synaptic_analysis</span></code>, <code class="docutils literal notranslate"><span class="pre">track_active_synapses</span></code>, <code class="docutils literal notranslate"><span class="pre">turnover_frequency</span></code>.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">noise_perturbation_analysis</span></code></dt><dd><p>Evaluates robustness to input noise at configurable noise levels.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">compartment_statistics_analysis</span></code></dt><dd><p>Per-compartment (E, I, branch, soma) activation statistics.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">compartment_snr_analysis</span></code></dt><dd><p>Signal-to-noise ratio per compartment.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">multiplicative_gain_analysis</span></code></dt><dd><p>Measures gain modulation by inhibitory inputs.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">routing_analysis</span></code></dt><dd><p>Records which branches are active per input class.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">receptive_field_analysis</span></code></dt><dd><p>Computes effective receptive fields per neuron.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">adversarial_robustness_analysis</span></code></dt><dd><p>FGSM attack evaluation at configurable epsilon values.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">single_layer_contribution_analysis</span></code></dt><dd><p>Measures each layer’s contribution to the network output.</p>
+</dd>
+</dl>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="datasets.html" class="btn btn-neutral float-left" title="Datasets" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="configuration_guide.html" class="btn btn-neutral float-right" title="Configuration Guide" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Kempner Institute.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

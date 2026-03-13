@@ -1,0 +1,270 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Datasets &mdash; Dendritic Modeling Framework v0.1.0</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=01f34227"></script>
+      <script src="_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Analysis" href="analysis.html" />
+    <link rel="prev" title="Training Strategies" href="training_strategies.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            Dendritic Modeling Framework
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="quickstart.html">Quick Start</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">User Guide</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="network_architectures.html">Network Architectures</a></li>
+<li class="toctree-l1"><a class="reference internal" href="training_strategies.html">Training Strategies</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Datasets</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#standard-datasets">Standard Datasets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#synthetic-datasets">Synthetic Datasets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#sequence-datasets">Sequence Datasets</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#poisson-generator">Poisson Generator</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#data-processing">Data Processing</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="analysis.html">Analysis</a></li>
+<li class="toctree-l1"><a class="reference internal" href="configuration_guide.html">Configuration Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="sweeps.html">Parameter Sweeps</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fsdp_troubleshooting.html">FSDP Training Guide</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="config_reference.html">Complete Configuration Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="available_components.html">Available Components</a></li>
+<li class="toctree-l1"><a class="reference internal" href="contributing.html">Contributing</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">Dendritic Modeling Framework</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Datasets</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/datasets.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="datasets">
+<h1>Datasets<a class="headerlink" href="#datasets" title="Link to this heading"></a></h1>
+<p>All datasets are configured via <code class="docutils literal notranslate"><span class="pre">data.dataset_name</span></code> in the YAML config.
+Processing options live under <code class="docutils literal notranslate"><span class="pre">data.processing</span></code>; dataset-specific parameters
+under <code class="docutils literal notranslate"><span class="pre">data.dataset_params</span></code>.</p>
+<nav class="contents local" id="on-this-page">
+<p class="topic-title">On this page</p>
+<ul class="simple">
+<li><p><a class="reference internal" href="#standard-datasets" id="id1">Standard Datasets</a></p></li>
+<li><p><a class="reference internal" href="#synthetic-datasets" id="id2">Synthetic Datasets</a></p></li>
+<li><p><a class="reference internal" href="#sequence-datasets" id="id3">Sequence Datasets</a></p></li>
+<li><p><a class="reference internal" href="#poisson-generator" id="id4">Poisson Generator</a></p></li>
+<li><p><a class="reference internal" href="#data-processing" id="id5">Data Processing</a></p></li>
+</ul>
+</nav>
+<section id="standard-datasets">
+<h2><a class="toc-backref" href="#id1" role="doc-backlink">Standard Datasets</a><a class="headerlink" href="#standard-datasets" title="Link to this heading"></a></h2>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">mnist</span></code></dt><dd><p>MNIST handwritten digits. 28x28 grayscale, 10 classes.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">fashion_mnist</span></code></dt><dd><p>Fashion MNIST. 28x28 grayscale, 10 classes.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">cifar10</span></code></dt><dd><p>CIFAR-10. 32x32 color, 10 classes.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">mnist_modulo10</span></code></dt><dd><p>Two random MNIST images concatenated; label = <code class="docutils literal notranslate"><span class="pre">(label_a</span> <span class="pre">+</span> <span class="pre">label_b)</span> <span class="pre">%</span> <span class="pre">10</span></code>.
+Parameter: <code class="docutils literal notranslate"><span class="pre">shuffle_iterations</span></code> (default: 2).</p>
+</dd>
+</dl>
+</section>
+<section id="synthetic-datasets">
+<h2><a class="toc-backref" href="#id2" role="doc-backlink">Synthetic Datasets</a><a class="headerlink" href="#synthetic-datasets" title="Link to this heading"></a></h2>
+<dl>
+<dt><code class="docutils literal notranslate"><span class="pre">correlated_gaussian</span></code></dt><dd><p>Gaussian-distributed inputs with controlled correlation structure between
+excitatory and inhibitory dimensions. Classes differ by E vs I activation
+patterns. Inputs are clamped to [0, 1].</p>
+<p>Parameters: <code class="docutils literal notranslate"><span class="pre">n_samples</span></code>, <code class="docutils literal notranslate"><span class="pre">input_dim</span></code>, <code class="docutils literal notranslate"><span class="pre">n_classes</span></code>, <code class="docutils literal notranslate"><span class="pre">rho_ee</span></code>
+(within-E correlation), <code class="docutils literal notranslate"><span class="pre">rho_ii</span></code> (within-I), <code class="docutils literal notranslate"><span class="pre">rho_ei</span></code> (cross E-I),
+<code class="docutils literal notranslate"><span class="pre">ne</span></code>, <code class="docutils literal notranslate"><span class="pre">ni</span></code> (E/I dimension split), <code class="docutils literal notranslate"><span class="pre">class_separation</span></code>, <code class="docutils literal notranslate"><span class="pre">noise_std</span></code>.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">linear_separable</span></code></dt><dd><p>Classes separated by a hyperplane. Same correlation structure as
+<code class="docutils literal notranslate"><span class="pre">correlated_gaussian</span></code>.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">nonlinear_separable</span></code></dt><dd><p>Nonlinear decision boundaries. <code class="docutils literal notranslate"><span class="pre">nonlinearity_type</span></code>: <code class="docutils literal notranslate"><span class="pre">&quot;quadratic&quot;</span></code>,
+<code class="docutils literal notranslate"><span class="pre">&quot;xor&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;multiplicative&quot;</span></code>, or <code class="docutils literal notranslate"><span class="pre">&quot;radial&quot;</span></code>.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">nonlinear_interaction</span></code></dt><dd><p>Simple XOR-like interaction task. Class depends on the product of input
+dimension pairs.</p>
+</dd>
+</dl>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">data</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">dataset_name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">correlated_gaussian</span>
+<span class="w">  </span><span class="nt">dataset_params</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">correlated_gaussian</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">n_samples</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1000</span>
+<span class="w">      </span><span class="nt">input_dim</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">100</span>
+<span class="w">      </span><span class="nt">n_classes</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2</span>
+<span class="w">      </span><span class="nt">rho_ee</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.3</span>
+<span class="w">      </span><span class="nt">rho_ii</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.3</span>
+<span class="w">      </span><span class="nt">rho_ei</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.0</span>
+</pre></div>
+</div>
+</section>
+<section id="sequence-datasets">
+<h2><a class="toc-backref" href="#id3" role="doc-backlink">Sequence Datasets</a><a class="headerlink" href="#sequence-datasets" title="Link to this heading"></a></h2>
+<p>For use with recurrent architectures (<code class="docutils literal notranslate"><span class="pre">ei_unified</span></code>, <code class="docutils literal notranslate"><span class="pre">gru</span></code>, <code class="docutils literal notranslate"><span class="pre">lstm</span></code>,
+<code class="docutils literal notranslate"><span class="pre">vanilla_rnn</span></code>).</p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">sequential_mnist</span></code></dt><dd><p>MNIST presented as a sequence. Mode: <code class="docutils literal notranslate"><span class="pre">&quot;pixel&quot;</span></code> (seq_len=784, dim=1) or
+<code class="docutils literal notranslate"><span class="pre">&quot;row&quot;</span></code> (seq_len=28, dim=28).</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">copy_task</span></code></dt><dd><p>Memorize and reproduce a symbol sequence after a delay. Parameters:
+<code class="docutils literal notranslate"><span class="pre">seq_len</span></code>, <code class="docutils literal notranslate"><span class="pre">delay</span></code>, <code class="docutils literal notranslate"><span class="pre">n_symbols</span></code>.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">adding_problem</span></code></dt><dd><p>Sum two marked entries in a long sequence. Input shape: <code class="docutils literal notranslate"><span class="pre">[seq_len,</span> <span class="pre">2]</span></code>
+(values channel + mask channel). Target: scalar sum.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">variable_delay_dms</span></code></dt><dd><p>Delayed match-to-sample. A stimulus is presented, followed by a variable
+delay, then a probe. Binary classification (match vs non-match). Parameters:
+<code class="docutils literal notranslate"><span class="pre">stimulus_dim</span></code>, <code class="docutils literal notranslate"><span class="pre">stimulus_duration</span></code>, <code class="docutils literal notranslate"><span class="pre">min_delay</span></code>, <code class="docutils literal notranslate"><span class="pre">max_delay</span></code>,
+<code class="docutils literal notranslate"><span class="pre">probe_duration</span></code>.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">multi_frequency</span></code></dt><dd><p>Multi-frequency signal classification. Target: dominant frequency class.
+Parameters: <code class="docutils literal notranslate"><span class="pre">seq_len</span></code>, <code class="docutils literal notranslate"><span class="pre">n_frequencies</span></code>, <code class="docutils literal notranslate"><span class="pre">base_freq</span></code>, <code class="docutils literal notranslate"><span class="pre">noise_std</span></code>.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">context_dependent_decision</span></code></dt><dd><p>Two sensory channels with a context cue indicating which channel is
+task-relevant (Mante et al., 2013 style). Binary classification on
+integrated evidence. Parameters: <code class="docutils literal notranslate"><span class="pre">signal_dim</span></code>, <code class="docutils literal notranslate"><span class="pre">context_duration</span></code>,
+<code class="docutils literal notranslate"><span class="pre">integration_duration</span></code>, <code class="docutils literal notranslate"><span class="pre">coherence_levels</span></code>, <code class="docutils literal notranslate"><span class="pre">noise_std</span></code>,
+<code class="docutils literal notranslate"><span class="pre">variable_delay</span></code>, <code class="docutils literal notranslate"><span class="pre">conflict_fraction</span></code>.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">switching_context_decision</span></code></dt><dd><p>Evidence integration under slowly switching context. Fixed-length
+sequences partitioned into context blocks. Parameters: <code class="docutils literal notranslate"><span class="pre">signal_dim</span></code>,
+<code class="docutils literal notranslate"><span class="pre">n_contexts</span></code>, <code class="docutils literal notranslate"><span class="pre">block_duration</span></code>, <code class="docutils literal notranslate"><span class="pre">n_blocks</span></code>.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">timescale_generalization</span></code></dt><dd><p>Delayed match-to-sample with variable delays. Train on one delay range,
+test on another to evaluate temporal generalization. Parameters:
+<code class="docutils literal notranslate"><span class="pre">stimulus_dim</span></code>, <code class="docutils literal notranslate"><span class="pre">stimulus_duration</span></code>, <code class="docutils literal notranslate"><span class="pre">min_delay</span></code>, <code class="docutils literal notranslate"><span class="pre">max_delay</span></code>,
+<code class="docutils literal notranslate"><span class="pre">probe_duration</span></code>.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">switching_lds</span></code></dt><dd><p>Switching linear dynamical system. Latent dynamics follow mode-dependent
+linear transitions with partial observation. Parameters: <code class="docutils literal notranslate"><span class="pre">latent_dim</span></code>,
+<code class="docutils literal notranslate"><span class="pre">obs_dim</span></code>, <code class="docutils literal notranslate"><span class="pre">n_modes</span></code>, <code class="docutils literal notranslate"><span class="pre">seq_len</span></code>.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">lorenz</span></code></dt><dd><p>Lorenz attractor dynamics prediction (regression). Input: <code class="docutils literal notranslate"><span class="pre">[seq_len,</span> <span class="pre">3]</span></code>.
+Target: next-step state. Parameters: <code class="docutils literal notranslate"><span class="pre">seq_len</span></code>, <code class="docutils literal notranslate"><span class="pre">dt</span></code>, <code class="docutils literal notranslate"><span class="pre">sigma</span></code>,
+<code class="docutils literal notranslate"><span class="pre">rho</span></code>, <code class="docutils literal notranslate"><span class="pre">beta</span></code>.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">stringer_v1</span></code></dt><dd><p>Real V1 calcium imaging data (Stringer et al., 2019). Drifting grating
+responses. Parameters: <code class="docutils literal notranslate"><span class="pre">n_neurons</span></code>, <code class="docutils literal notranslate"><span class="pre">n_classes</span></code> (orientation bins),
+<code class="docutils literal notranslate"><span class="pre">train_fraction</span></code>, <code class="docutils literal notranslate"><span class="pre">normalize</span></code>.</p>
+</dd>
+</dl>
+</section>
+<section id="poisson-generator">
+<h2><a class="toc-backref" href="#id4" role="doc-backlink">Poisson Generator</a><a class="headerlink" href="#poisson-generator" title="Link to this heading"></a></h2>
+<p>Wrapper that adds Poisson noise to any base dataset. Parameters:
+<code class="docutils literal notranslate"><span class="pre">multiplicative_gain</span></code>, <code class="docutils literal notranslate"><span class="pre">fixed_gain_factor</span></code>, <code class="docutils literal notranslate"><span class="pre">max_gain_factor</span></code>,
+<code class="docutils literal notranslate"><span class="pre">poisson_sampling</span></code>, <code class="docutils literal notranslate"><span class="pre">stimulus_duration</span></code>.</p>
+</section>
+<section id="data-processing">
+<h2><a class="toc-backref" href="#id5" role="doc-backlink">Data Processing</a><a class="headerlink" href="#data-processing" title="Link to this heading"></a></h2>
+<p>Set under <code class="docutils literal notranslate"><span class="pre">data.processing</span></code>:</p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">flatten</span></code> (bool, default: True)</dt><dd><p>Flatten images to vectors.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">normalize</span></code> (bool, default: False)</dt><dd><p>Z-score normalize inputs.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">label_noise_rate</span></code> (float, default: 0.0)</dt><dd><p>Fraction of labels to randomize.</p>
+</dd>
+</dl>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">data</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">dataset_name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mnist</span>
+<span class="w">  </span><span class="nt">processing</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">flatten</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">normalize</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+<span class="w">    </span><span class="nt">label_noise_rate</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.0</span>
+</pre></div>
+</div>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="training_strategies.html" class="btn btn-neutral float-left" title="Training Strategies" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="analysis.html" class="btn btn-neutral float-right" title="Analysis" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Kempner Institute.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
