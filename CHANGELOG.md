@@ -1,14 +1,26 @@
- -- November 2024 --> main codebase strcuture including EI layers and dendrinet
- -- February 2025 --> analysis and branch ablation, and information tools
- -- March 2025 --> pre-factor version --> v0.1.0
- -- July 2025  --> first refactor version --> v1.0.0
-    Clean codebase structure
-    added slurm generation for fsdp and distributed training
-    added new sweep workflow
--- August 2025 --> added regularization and prunning
-    enhanced information analysis and training optimization
-    Added computation_level parameter (branch/layer/network)
-    Added multivariate aggregation option for information analysis
-    Added configurable training optimization parameters (NaN detection, adaptive clipping)
-    Added hash-based encoder network caching
-    Added encoder_net_trainer/main_trainer
+# Changelog
+
+## 2024-11
+
+- Initial EI-layer and DendriNet codebase structure.
+
+## 2025-02
+
+- Added analysis, branch ablation, and information tools.
+
+## 2025-03
+
+- Pre-factor version tagged as `v0.1.0`.
+
+## 2025-07
+
+- Refactored codebase structure.
+- Added SLURM generation for FSDP and distributed training.
+- Added the newer sweep workflow.
+
+## 2025-08
+
+- Added regularization and pruning support.
+- Expanded information analysis and training optimization options.
+- Added computation-level controls and multivariate aggregation options.
+- Added encoder-network caching and split encoder/main trainer flow.
