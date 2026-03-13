@@ -195,7 +195,7 @@ When ``use_shunting=True``, the voltage is computed as a normalized ratio:
 .. code-block:: text
 
    numerator   = E + E_rec + V_branch
-   denominator = 1 + ReLU(E) + ReLU(E_rec) + g_branch + ReLU(I) + ReLU(I_rec)
+   denominator = 1 + E + E_rec + g_branch + I + I_rec
 
    V = numerator / (denominator + epsilon)
    output = reactivation(V)
@@ -203,7 +203,8 @@ When ``use_shunting=True``, the voltage is computed as a normalized ratio:
 Where ``E`` is the excitatory synaptic current (TopKLinear), ``I`` is
 inhibitory, ``V_branch`` is aggregated child-branch input (BlockLinear),
 ``g_branch`` is the branch conductance, and ``E_rec``, ``I_rec`` are recurrent
-inputs (used only in recurrent mode). Epsilon defaults to ``1e-8``.
+inputs (used only in recurrent mode). The current implementation uses these raw
+terms directly in the denominator. Epsilon defaults to ``1e-8``.
 
 Additive Mode
 ~~~~~~~~~~~~~
@@ -335,9 +336,9 @@ Post-voltage nonlinearities applied at each branch layer. Set via
 Recurrent E-I Network
 ---------------------
 
-Any EINet architecture (``dendritic_shunting``, ``dendritic_additive``,
-``EINet``) becomes recurrent when ``connectivity.rec_*`` synapse counts are
-nonzero.  Recurrence is controlled **solely** by these synapse counts —
+Any E-I architecture (``dendritic_shunting``, ``dendritic_additive``,
+``einet``) becomes recurrent when ``connectivity.rec_*`` synapse counts are
+nonzero.  Recurrence is controlled **solely** by these synapse counts;
 any layer with at least one nonzero ``rec_*`` value becomes recurrent.
 The existing ``architecture``, ``connectivity``, ``morphology``,
 ``sparsity``, ``reactivation``, and ``blocklinear`` sections are reused;
@@ -347,8 +348,8 @@ The factory translates this to an ``EINetwork`` internally.
 Alternatively, use ``core.type: ei_unified`` with the ``unified_ei`` config
 for full per-layer, per-population control.
 
-Making an EINet recurrent
-~~~~~~~~~~~~~~~~~~~~~~~~~
+Making an E-I core recurrent
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: yaml
 
@@ -382,8 +383,9 @@ Making an EINet recurrent
      main:
        strategy: recurrent
 
-For recurrent EINet, ``use_transfer`` defaults to ``true`` (legacy EINet parity),
-so a TransferLayer is built for both ``input_mode=1`` and ``input_mode=0``.
+For recurrent ``einet``-style configs, ``use_transfer`` defaults to ``true``
+for legacy parity, so a TransferLayer is built for both ``input_mode=1`` and
+``input_mode=0``.
 Set ``recurrent_ei.use_transfer: false`` to disable it explicitly.
 
 Recurrent connectivity parameters
@@ -414,7 +416,7 @@ Temporal parameters (``recurrent_ei``)
 
 ``use_transfer``
    Whether to build a TransferLayer before recurrent E-I layers.
-   Default: ``true`` for recurrent EINet path (set ``false`` to bypass).
+   Default: ``true`` for recurrent ``einet`` path (set ``false`` to bypass).
 
 ``dt``
    Integration timestep. Scalar or per-layer list (default: 1.0).
@@ -432,8 +434,8 @@ Other parameters
 
 ``transfer.inhibitory_mode``
    Controls which layers receive the transfer layer's inhibitory stream
-   when ``input_mode=1``.  ``"none"`` — no layer receives it.
-   ``"first"`` (default) — only the first layer.  ``"all"`` — every layer.
+   when ``input_mode=1``.  ``"none"`` - no layer receives it.
+   ``"first"`` (default) - only the first layer.  ``"all"`` - every layer.
    This is strictly enforced: layers not selected receive ``None`` as
    inhibitory input.
 

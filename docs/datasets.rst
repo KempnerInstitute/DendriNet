@@ -90,7 +90,30 @@ For use with recurrent architectures (``ei_unified``, ``gru``, ``lstm``,
    Multi-frequency signal classification. Target: dominant frequency class.
    Parameters: ``seq_len``, ``n_frequencies``, ``base_freq``, ``noise_std``.
 
-``lorenz_sequence``
+``context_dependent_decision``
+   Two sensory channels with a context cue indicating which channel is
+   task-relevant (Mante et al., 2013 style). Binary classification on
+   integrated evidence. Parameters: ``signal_dim``, ``context_duration``,
+   ``integration_duration``, ``coherence_levels``, ``noise_std``,
+   ``variable_delay``, ``conflict_fraction``.
+
+``switching_context_decision``
+   Evidence integration under slowly switching context. Fixed-length
+   sequences partitioned into context blocks. Parameters: ``signal_dim``,
+   ``n_contexts``, ``block_duration``, ``n_blocks``.
+
+``timescale_generalization``
+   Delayed match-to-sample with variable delays. Train on one delay range,
+   test on another to evaluate temporal generalization. Parameters:
+   ``stimulus_dim``, ``stimulus_duration``, ``min_delay``, ``max_delay``,
+   ``probe_duration``.
+
+``switching_lds``
+   Switching linear dynamical system. Latent dynamics follow mode-dependent
+   linear transitions with partial observation. Parameters: ``latent_dim``,
+   ``obs_dim``, ``n_modes``, ``seq_len``.
+
+``lorenz``
    Lorenz attractor dynamics prediction (regression). Input: ``[seq_len, 3]``.
    Target: next-step state. Parameters: ``seq_len``, ``dt``, ``sigma``,
    ``rho``, ``beta``.

@@ -1,17 +1,18 @@
 Dendritic Modeling Framework
 ============================
 
-A framework for biologically-inspired neural networks with excitation-inhibition
-dynamics and dendritic computation.
+A framework for excitation-inhibition networks, dendritic architectures,
+baseline MLPs, recurrent models, training strategies, and analysis tools.
 
 .. code-block:: bash
 
    pip install -e .
    python src/dendritic_modeling/scripts/training/train_experiments.py configs/config_exp.yaml
 
-The framework uses a three-part model: **encoder** (Identity, MLP, CNN) --
-**core network** (EINet, DendriNet, MLP, RNN) -- **decoder** (Identity, MLP).
-All experiments are configured through YAML files.
+Every model follows the same three-part layout: **encoder** (Identity, MLP,
+CNN), **core network** (E-I core, dendritic MLP, MLP, or recurrent core), and
+**decoder** (Identity or MLP). All experiments are configured through YAML
+files.
 
 .. toctree::
    :maxdepth: 2
@@ -28,9 +29,9 @@ All experiments are configured through YAML files.
    training_strategies
    datasets
    analysis
-   CONFIGURATION_GUIDE
+   configuration_guide
    sweeps
-   FSDP_TROUBLESHOOTING
+   fsdp_troubleshooting
 
 .. toctree::
    :maxdepth: 2

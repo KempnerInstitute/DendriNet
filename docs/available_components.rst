@@ -119,7 +119,9 @@ Set via ``data.dataset_name``:
 ``nonlinear_separable``, ``nonlinear_interaction``.
 
 **Sequence**: ``sequential_mnist``, ``copy_task``, ``adding_problem``,
-``variable_delay_dms``, ``multi_frequency``, ``lorenz_sequence``,
+``variable_delay_dms``, ``multi_frequency``, ``hierarchical_temporal``,
+``context_dependent_decision``, ``switching_context_decision``,
+``timescale_generalization``, ``switching_lds``, ``lorenz``,
 ``stringer_v1``.
 
 Analysis Modules
