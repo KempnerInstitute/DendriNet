@@ -875,6 +875,7 @@ def get_unified_datasets(task_cfg):
         "timescale_generalization",
         "lorenz",
         "lorenz_sequence",
+        "switching_lds",
         "stringer_v1",
     ):
         from dendritic_modeling.datasets.sequence_datasets import get_sequence_datasets
