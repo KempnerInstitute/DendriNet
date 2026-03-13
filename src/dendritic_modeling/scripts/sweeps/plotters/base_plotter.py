@@ -202,7 +202,7 @@ class BasePlotter:
             "ss_mlp_flat",
             "total_param_mlp",
             "active_param_mlp",
-            # Legacy aliases
+            # Old names (for sorting pre-migration data)
             "shunting",
             "no_shunting",
             "unknown",

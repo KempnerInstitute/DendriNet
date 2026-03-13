@@ -620,8 +620,8 @@ class AblationAnalysisParams(BaseConfig):
       - "accuracy", "auc", "categorical_loglikelihood", "mse", "cosine_similarity"
       - "pred_label_mi_bits": I(C; C_hat) in bits for predicted labels C_hat
 
-    If any selector list is non-empty, it overrides the corresponding legacy boolean
-    flags below.
+    All ablation configuration is specified through the nested selection and methods
+    fields below.
     """
 
     selection: AblationSelectionParams = field(default_factory=AblationSelectionParams)
@@ -984,8 +984,8 @@ class CorrelationAnalysisParams(BaseConfig):
     - scopes: which breakdowns to include in outputs
       - "layer", "einet", "neuron"
 
-    If any selector list is non-empty, it overrides the corresponding legacy boolean
-    flags below.
+    All ablation configuration is specified through the nested selection and methods
+    fields below.
     """
 
     # ------------------------------------------------------------------

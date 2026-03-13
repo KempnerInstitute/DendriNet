@@ -306,7 +306,7 @@ class PerformancePlotter(BasePlotter):
                     ax.set_ylabel(coly, fontsize=12)
                     ax.set_title(f"{category.title()}", fontsize=14)
 
-                # Create difference plot (shunting - non_shunting)
+                # Create difference plot (dendritic_shunting - dendritic_additive)
                 ax_diff = axes[2]
                 if (
                     "dendritic_shunting" in pivot_tables
