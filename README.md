@@ -3,6 +3,10 @@
 Code for dendritic excitation-inhibition networks, matched MLP baselines,
 recurrent E-I models, training strategies, and analysis utilities.
 
+<p align="center">
+  <img src="docs/_static/dendritic_diagram.png" alt="Dendritic model diagram" width="600">
+</p>
+
 ## Installation
 
 ```bash
@@ -51,13 +55,14 @@ Start with:
 - [docs/datasets.rst](docs/datasets.rst)
 - [docs/analysis.rst](docs/analysis.rst)
 - [docs/sweeps.rst](docs/sweeps.rst)
-- [docs/FSDP_TROUBLESHOOTING.rst](docs/FSDP_TROUBLESHOOTING.rst)
+- [docs/fsdp_troubleshooting.rst](docs/fsdp_troubleshooting.rst)
 - [docs/config_reference.rst](docs/config_reference.rst)
 
 ## Core Type Strings
 
 Feedforward cores:
 
+- `einet`
 - `dendritic_shunting`
 - `dendritic_additive`
 - `flat_shunting`
