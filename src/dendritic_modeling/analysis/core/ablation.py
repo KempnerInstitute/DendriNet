@@ -15,7 +15,7 @@ import matplotlib.animation as animation
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-from torch.utils.data import DataLoader, TensorDataset
+from torch.utils.data import TensorDataset
 
 from dendritic_modeling.analysis.core.base import AbstractAnalyzer
 from dendritic_modeling.config.analysis import AblationAnalysisParams
@@ -32,7 +32,7 @@ from dendritic_modeling.training.utils.evaluation import (
     evaluate_categorical_loglikelihood,
     evaluate_cosine_similarity,
     evaluate_mse,
-    pred_label_mi_bits,
+    evaluate_pred_label_mi,
 )
 from dendritic_modeling.utils import save_dict
 
@@ -179,43 +179,9 @@ class AblationAnalyzer(AbstractAnalyzer):
             self.compute_pred_label_mi = False
 
     @staticmethod
-    def _pred_label_mi_bits(y_true: np.ndarray, y_pred: np.ndarray) -> float:
-        """Discrete mutual information I(C; Ĉ) in bits for predicted classes.
-
-        Delegates to the shared ``pred_label_mi_bits`` in evaluation utils.
-        """
-        return pred_label_mi_bits(y_true, y_pred)
-
-    @staticmethod
     def _normalize_ablation_target(target: str) -> str:
         """Normalize ablation target names (spaces -> underscores)."""
         return str(target).replace(" ", "_")
-
-    def _predict_classes(
-        self,
-        model: BaseModel,
-        test_dataset: torch.utils.data.Dataset,
-        *,
-        batch_size: int = 1024,
-    ) -> tuple[np.ndarray, np.ndarray]:
-        """Predict argmax classes for a dataset (returns y_true, y_pred as numpy)."""
-        loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
-        preds = []
-        trues = []
-        try:
-            model_device = next(model.parameters()).device
-        except StopIteration:
-            model_device = torch.device("cpu")
-        with torch.no_grad():
-            for xb, yb in loader:
-                if isinstance(xb, torch.Tensor):
-                    xb = xb.to(model_device)
-                logits = model(xb)
-                preds.append(torch.argmax(logits, dim=-1).detach().cpu())
-                trues.append(yb.detach().cpu())
-        y_pred = torch.cat(preds, dim=0).numpy()
-        y_true = torch.cat(trues, dim=0).numpy()
-        return y_true, y_pred
 
     def _make_signal_intervention_pre_hook(
         self,
@@ -405,24 +371,9 @@ class AblationAnalyzer(AbstractAnalyzer):
                     metric_func=evaluate_cosine_similarity,
                     metric_key="cosine_similarity",
                 )
-
-            if self.compute_pred_label_mi and isinstance(model, Classifier):
-                local_hook = None
-                try:
-                    if ablation_method in {"shuffle", "mean_clamp"}:
-                        pre_hook = self._make_signal_intervention_pre_hook(
-                            ablation_type=target_type_norm, method=ablation_method
-                        )
-                        local_hook = module.register_forward_pre_hook(pre_hook)
-
-                    y_true, y_pred = self._predict_classes(model, test_dataset)
-                    mi_bits = self._pred_label_mi_bits(y_true, y_pred)
-                finally:
-                    if local_hook is not None:
-                        local_hook.remove()
-
-                results_dict[ablation_type][module_name]["pred_label_mi_bits drop"] = (
-                    baseline_dict.get("pred_label_mi_bits", 0.0) - mi_bits
+            if self.compute_pred_label_mi:
+                _evaluate_metric(
+                    metric_func=evaluate_pred_label_mi, metric_key="pred_label_mi_bits"
                 )
 
         model.load_state_dict(state_dict)
@@ -644,10 +595,9 @@ class AblationAnalyzer(AbstractAnalyzer):
 
         if self.compute_pred_label_mi:
             if isinstance(model, Classifier):
-                y_true, y_pred = self._predict_classes(model, test_dataset)
-                baselines["pred_label_mi_bits"] = self._pred_label_mi_bits(
-                    y_true, y_pred
-                )
+                baselines["pred_label_mi_bits"] = evaluate_pred_label_mi(
+                    classifier=model, test_ds=test_dataset, move_device=False
+                )[-1]
             else:
                 self.compute_pred_label_mi = False
 
