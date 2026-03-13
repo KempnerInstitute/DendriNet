@@ -365,7 +365,7 @@ def main(config_path):
             else len(sample_input)
         )
 
-        (encoder_network, encoded_train_ds, encoded_valid_ds, encoded_test_ds) = (
+        encoder_network, encoded_train_ds, encoded_valid_ds, encoded_test_ds = (
             load_train_encoder_network(
                 encoder_network=Identity(input_dim),
                 encoder_train_config=config.training.encoder,
@@ -405,12 +405,16 @@ def main(config_path):
         # Fall back to default method
         logger.info("Using default FSDP configuration")
         fsdp_config = get_fsdp_config(
-            mixed_precision=getattr(trainer_config, "use_mixed_precision", False)
-            if trainer_config
-            else False,
-            cpu_offload=getattr(trainer_config, "cpu_offload", False)
-            if trainer_config
-            else False,
+            mixed_precision=(
+                getattr(trainer_config, "use_mixed_precision", False)
+                if trainer_config
+                else False
+            ),
+            cpu_offload=(
+                getattr(trainer_config, "cpu_offload", False)
+                if trainer_config
+                else False
+            ),
             sharding_strategy="FULL_SHARD",
         )
 

@@ -1512,9 +1512,11 @@ class LocalCreditAssignment(Trainer):
                 )
             elif bmode == "pathway_vector":
                 e_n = self._compute_pathway_vector_broadcast(
-                    seed_error=feedback_seeds[layer_idx]
-                    if layer_idx < len(feedback_seeds)
-                    else None,
+                    seed_error=(
+                        feedback_seeds[layer_idx]
+                        if layer_idx < len(feedback_seeds)
+                        else None
+                    ),
                     delta=delta,
                     delta_scalar=delta_scalar,
                     rec=rec,

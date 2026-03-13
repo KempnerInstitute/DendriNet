@@ -244,7 +244,7 @@ def main(config_path: str, args=None):
     wandb_config = config.wandb
     outputs_config = config.outputs
 
-    (run_save_path, train_ds, valid_ds, test_ds, model, encoder_network) = (
+    run_save_path, train_ds, valid_ds, test_ds, model, encoder_network = (
         setup_environment(
             model_config=model_config,
             training_config=training_config,
@@ -311,7 +311,7 @@ def main(config_path: str, args=None):
 
     save_dict(asdict(config), run_save_path, "config.json")
 
-    (encoder_network, encoded_train_ds, encoded_valid_ds, encoded_test_ds) = (
+    encoder_network, encoded_train_ds, encoded_valid_ds, encoded_test_ds = (
         load_train_encoder_network(
             encoder_network=encoder_network,
             encoder_train_config=training_config.encoder,

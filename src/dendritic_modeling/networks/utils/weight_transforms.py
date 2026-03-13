@@ -11,9 +11,7 @@ from typing import Literal
 import torch
 import torch.nn.functional as functional
 
-WeightTransformType = Literal[
-    "identity", "exp", "relu", "softplus"
-]
+WeightTransformType = Literal["identity", "exp", "relu", "softplus"]
 
 
 def apply_weight_transform(

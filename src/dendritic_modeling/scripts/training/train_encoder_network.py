@@ -336,7 +336,7 @@ def main(config_path: str):
     encoder_network_config = config.model.encoder
     encoder_train_config = config.training.encoder
 
-    (load_save_path, train_ds, valid_ds, test_ds, encoder_network) = setup_environment(
+    load_save_path, train_ds, valid_ds, test_ds, encoder_network = setup_environment(
         encoder_network_config=encoder_network_config,
         train_config=config.training,
         task_config=config.data,

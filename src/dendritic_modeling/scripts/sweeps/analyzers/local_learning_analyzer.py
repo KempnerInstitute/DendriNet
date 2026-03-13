@@ -269,9 +269,9 @@ class LocalLearningSweepAnalyzer(BaseSweepAnalyzer):
                 .agg(
                     {
                         mean_col: "mean",
-                        std_col: "mean"
-                        if std_col in data_with_ids.columns
-                        else lambda x: 0,
+                        std_col: (
+                            "mean" if std_col in data_with_ids.columns else lambda x: 0
+                        ),
                     }
                 )
                 .sort_index()

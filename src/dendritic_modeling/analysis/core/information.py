@@ -3433,9 +3433,9 @@ class InformationAnalyzer(AbstractAnalyzer):
                     if layer_branch_results:
                         layer_stats = self._compute_layer_statistics(
                             layer_branch_results,
-                            entropy_C=entropy_C
-                            if self.compute_layer_total_proxies
-                            else None,
+                            entropy_C=(
+                                entropy_C if self.compute_layer_total_proxies else None
+                            ),
                             topk=self.layer_total_topk,
                         )
                         # Add has_synapses flag for plotting code to use
