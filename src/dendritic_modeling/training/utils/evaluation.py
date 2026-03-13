@@ -9,6 +9,7 @@ using various metrics including accuracy, log-likelihood, and MSE.
 import inspect
 from typing import Callable, Optional, Union
 
+import numpy as np
 import torch
 import torch.nn.functional as functional
 from torch.distributions import Categorical
@@ -625,6 +626,136 @@ def evaluate_categorical_loglikelihood(
     )
 
 
+def _pred_label_mi_bits(y_true: np.ndarray, y_pred: np.ndarray) -> float:
+    """Discrete mutual information I(C; Ĉ) in bits for predicted classes.
+
+    Notes
+    -----
+    This uses the empirical joint distribution of (C, Ĉ) and does not require
+    any external dependencies (e.g. scikit-learn).
+    """
+    y_true = np.asarray(y_true).ravel()
+    y_pred = np.asarray(y_pred).ravel()
+    if y_true.size == 0 or y_pred.size == 0:
+        return 0.0
+    if y_true.shape[0] != y_pred.shape[0]:
+        return 0.0
+
+    # Map labels to contiguous integer IDs
+    _, t = np.unique(y_true, return_inverse=True)
+    _, p = np.unique(y_pred, return_inverse=True)
+
+    joint = np.zeros((int(t.max()) + 1, int(p.max()) + 1), dtype=np.float64)
+    np.add.at(joint, (t, p), 1.0)
+    n = float(joint.sum())
+    if n <= 0:
+        return 0.0
+
+    joint /= n
+    p_t = joint.sum(axis=1, keepdims=True)
+    p_p = joint.sum(axis=0, keepdims=True)
+    denom = p_t @ p_p
+
+    nz = joint > 0
+    mi = float(np.sum(joint[nz] * np.log2(joint[nz] / denom[nz])))
+    return mi if np.isfinite(mi) else 0.0
+
+
+def _compute_pred_label_mi(
+    classifier: Classifier,
+    inputs: torch.Tensor,
+    labels: torch.Tensor,
+    reduce_dim: int = 0,
+) -> torch.Tensor:
+    yhat = classifier.predict(inputs)
+    y_true = labels.long().numpy()
+    y_pred = yhat.long().numpy()
+    mi = _pred_label_mi_bits(y_true, y_pred)
+    return torch.tensor(mi, dtype=torch.float32, device=labels.device)
+
+
+def pred_label_mi_score(
+    classifier: Classifier,
+    inputs: torch.Tensor,
+    labels: torch.Tensor,
+    reduce_dim: int = 0,
+    move_device: bool = True,
+    device: str = "cuda" if torch.cuda.is_available() else "cpu",
+) -> torch.Tensor:
+    """
+    Compute mutual information between predicted labels and
+    ground truth labels for a classifier.
+
+    Args:
+        classifier: The classifier model
+        inputs: Input tensor
+        labels: Ground truth labels
+        reduce_dim: Dimension along which to compute mean
+        move_device: Whether to move tensors to device
+        device: Device to use for computation
+
+    Returns:
+        Mutual information tensor
+    """
+    return _compute_metric_score(
+        computation_func=_compute_pred_label_mi,
+        model=classifier,
+        inputs=inputs,
+        labels=labels,
+        reduce_dim=reduce_dim,
+        move_device=move_device,
+        device=device,
+    )
+
+
+def evaluate_pred_label_mi(
+    classifier: Classifier,
+    train_ds: Optional[torch.utils.data.Dataset] = None,
+    valid_ds: Optional[torch.utils.data.Dataset] = None,
+    test_ds: Optional[torch.utils.data.Dataset] = None,
+    reduce_dim: int = 0,
+    move_device: bool = True,
+    device: str = "cuda" if torch.cuda.is_available() else "cpu",
+    save_path: Optional[str] = None,
+    filename: Optional[str] = "pred_label_mi",
+) -> tuple[
+    Optional[Union[float, torch.Tensor]],
+    Optional[Union[float, torch.Tensor]],
+    Optional[Union[float, torch.Tensor]],
+]:
+    """
+    Evaluate mutual information between predicted labels and
+    ground truth labels on multiple datasets.
+
+    Args:
+        classifier: The classifier model
+        train_ds: Training dataset (optional)
+        valid_ds: Validation dataset (optional)
+        test_ds: Test dataset (optional)
+        reduce_dim: Dimension along which to compute mean
+        move_device: Whether to move tensors to device
+        device: Device to use for computation
+        save_path: Path to save results (optional)
+        filename: Filename for saved results
+
+    Returns:
+        Tuple of (train_mi, valid_mi, test_mi)
+    """
+    return _evaluate_metric_generic(
+        metric_func=pred_label_mi_score,
+        metric_name="pred_label_mi",
+        model=classifier,
+        train_ds=train_ds,
+        valid_ds=valid_ds,
+        test_ds=test_ds,
+        reduce_dim=reduce_dim,
+        move_device=move_device,
+        device=device,
+        save_path=save_path,
+        filename=filename,
+    )
+
+
 def _compute_mse(
     regressor: Regressor,
     inputs: torch.Tensor,
@@ -824,44 +955,3 @@ def evaluate_cosine_similarity(
         save_path=save_path,
         filename=filename,
     )
-
-
-def pred_label_mi_bits(y_true, y_pred) -> float:
-    """Discrete mutual information I(C; Ĉ) in bits between true and predicted labels.
-
-    Uses the empirical joint distribution of (C, Ĉ) and does not require any
-    external dependencies (e.g. scikit-learn).
-
-    Args:
-        y_true: Array-like of true class labels.
-        y_pred: Array-like of predicted class labels.
-
-    Returns:
-        Mutual information in bits (non-negative float).
-    """
-    import numpy as np
-
-    y_true = np.asarray(y_true).ravel()
-    y_pred = np.asarray(y_pred).ravel()
-    if y_true.size == 0 or y_pred.size == 0:
-        return 0.0
-    if y_true.shape[0] != y_pred.shape[0]:
-        return 0.0
-
-    _, t = np.unique(y_true, return_inverse=True)
-    _, p = np.unique(y_pred, return_inverse=True)
-
-    joint = np.zeros((int(t.max()) + 1, int(p.max()) + 1), dtype=np.float64)
-    np.add.at(joint, (t, p), 1.0)
-    n = float(joint.sum())
-    if n <= 0:
-        return 0.0
-
-    joint /= n
-    p_t = joint.sum(axis=1, keepdims=True)
-    p_p = joint.sum(axis=0, keepdims=True)
-    denom = p_t @ p_p
-
-    nz = joint > 0
-    mi = float(np.sum(joint[nz] * np.log2(joint[nz] / denom[nz])))
-    return mi if np.isfinite(mi) else 0.0
