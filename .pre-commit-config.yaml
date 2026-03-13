@@ -15,7 +15,11 @@ repos:
       - id: ruff
         args: [--fix, --exit-non-zero-on-fix]
         exclude: '^external/'
-      - id: ruff-format
+
+  - repo: https://github.com/psf/black
+    rev: 24.10.0
+    hooks:
+      - id: black
         exclude: '^external/'
 
   - repo: https://github.com/pycqa/isort

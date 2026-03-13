@@ -575,7 +575,9 @@ class UnifiedSweepGenerator(BaseSweepGenerator):
                             else:
                                 branches_list = branches
 
-                            new_config.model.core.architecture.excitatory_branch_factors = branches_list
+                            new_config.model.core.architecture.excitatory_branch_factors = (
+                                branches_list
+                            )
                         else:
                             # Old structure fallback
                             if "core_network" not in new_config.model:

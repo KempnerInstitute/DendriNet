@@ -1860,7 +1860,9 @@ class LocalCreditAssignment(Trainer):
                     else:
                         den_factor = den_factor * dendritic_branch_scale.unsqueeze(
                             0
-                        ).unsqueeze(-1)  # [1, out, 1]
+                        ).unsqueeze(
+                            -1
+                        )  # [1, out, 1]
                 else:
                     den_factor = den_factor * float(dendritic_branch_scale)
 

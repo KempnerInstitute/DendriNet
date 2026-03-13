@@ -146,9 +146,7 @@ def plot_ablation_results(results: dict, **kwargs):
                     (
                         next(iter(result.values()))
                         if isinstance(result, dict) and result
-                        else result
-                        if isinstance(result, (int, float))
-                        else 0
+                        else result if isinstance(result, (int, float)) else 0
                     )
                     for result in results.values()
                 ]
