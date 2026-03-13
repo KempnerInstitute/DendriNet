@@ -2761,9 +2761,11 @@ def plot_fully_aggregated_analysis(
             logger.info(
                 "Skipping %s%s: no available metrics in aggregated results",
                 metric_category,
-                f" part {part_idx}/{n_parts}"
-                if part_idx is not None and n_parts is not None
-                else "",
+                (
+                    f" part {part_idx}/{n_parts}"
+                    if part_idx is not None and n_parts is not None
+                    else ""
+                ),
             )
             return
 

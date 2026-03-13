@@ -210,9 +210,11 @@ class BasePlotter:
         ]
         sorted_categories = sorted(
             categories,
-            key=lambda x: _canonical_order.index(x)
-            if x in _canonical_order
-            else len(_canonical_order),
+            key=lambda x: (
+                _canonical_order.index(x)
+                if x in _canonical_order
+                else len(_canonical_order)
+            ),
         )
 
         for category in sorted_categories:

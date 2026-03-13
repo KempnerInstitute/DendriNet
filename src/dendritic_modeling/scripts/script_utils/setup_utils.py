@@ -371,9 +371,9 @@ def setup_environment(
         (),
         {
             "dataset": data_config.dataset_name,
-            "data_path": os.path.join(base_dir, data_config.dataset_name)
-            if base_dir
-            else None,
+            "data_path": (
+                os.path.join(base_dir, data_config.dataset_name) if base_dir else None
+            ),
             "train_valid_split": experiment_config.train_valid_split,
             "parameters": {
                 **processing_params,
