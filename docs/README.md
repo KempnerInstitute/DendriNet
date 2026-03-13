@@ -1,32 +1,32 @@
 # Documentation
 
-This directory contains the Sphinx documentation for the Dendritic Modeling Framework.
+This directory contains the maintained Sphinx documentation for the current
+codebase. The `.rst` files here are the authoritative user-facing docs.
 
-## Structure
+## Key Pages
 
-### Getting Started
-- `installation.rst` -- Installation guide
-- `quickstart.rst` -- First experiment walkthrough
+- `installation.rst`
+- `quickstart.rst`
+- `network_architectures.rst`
+- `training_strategies.rst`
+- `datasets.rst`
+- `analysis.rst`
+- `CONFIGURATION_GUIDE.rst`
+- `sweeps.rst`
+- `config_reference.rst`
+- `FSDP_TROUBLESHOOTING.rst`
 
-### User Guide
-- `network_architectures.rst` -- All network types: EINet, DendriNet, recurrent E-I, RNNs, MLP
-- `training_strategies.rst` -- Training strategies: standard, FA/DFA, local learning, multi-stage, FSDP
-- `datasets.rst` -- Standard, synthetic, and sequence datasets
-- `analysis.rst` -- Information-theoretic, ablation, correlation, and other analyses
-- `CONFIGURATION_GUIDE.rst` -- Complete YAML configuration reference
-- `sweeps.rst` -- Parameter sweep setup and analysis
-- `FSDP_TROUBLESHOOTING.rst` -- Distributed training guide
-
-### Reference
-- `available_components.rst` -- Quick reference of all type strings and options
-- `contributing.rst` -- Development setup and code style
-
-## Building
+## Build
 
 ```bash
-conda activate dendritic_env
 cd docs
 make html
 ```
 
-Open `_build/html/index.html` to view.
+or
+
+```bash
+python -m sphinx -b html docs docs/_build/html
+```
+
+Open `docs/_build/html/index.html` after the build finishes.

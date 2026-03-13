@@ -1,152 +1,76 @@
-# Sweep Analysis Framework
+# Sweep Scripts
 
-## Overview
+This directory contains the CLI and support code for parameter sweeps.
 
-Modular architecture for analyzing parameter sweeps in dendritic modeling experiments.
+## Entry Points
 
-## Architecture
+- `sweep_manager.py`: generate configs, create job scripts, and optionally
+  analyze a finished sweep directory.
+- `result_analyzer.py`: analyze an existing sweep results directory.
+- `rerun_missing_configs.py`: requeue missing or failed sweep configs.
 
-```
-src/dendritic_modeling/scripts/sweeps/
-├── result_analyzer.py          # Main CLI entry point
-├── analyzers/                  # Sweep-type specific analyzers
-│   ├── ei_analyzer.py
-│   ├── local_learning_analyzer.py
-│   ├── noise_analyzer.py
-│   ├── ablation_analyzer.py
-│   └── general_analyzer.py
-├── collectors/                 # Data collection from results
-│   ├── data_collector.py
-│   └── config_extractor.py
-├── plotters/                   # Specialized plotting
-│   ├── performance_plotter.py
-│   ├── information_plotter.py
-│   └── weight_plotter.py
-└── utils/                      # Shared utilities
-    ├── metrics.py
-    ├── aggregation.py
-    └── formatting.py
-```
+## Internal Structure
 
-## Usage
+- `analyzers/`: sweep-type detection and grouping logic
+- `collectors/`: result loading and config extraction
+- `plotters/`: sweep plots
+- `unified/`: config expansion and SLURM job generation
+- `utils/`: aggregation and plotting metadata
 
-Basic usage (auto-detect sweep type):
+## Supported Analyzer Types
+
+The current registry in `analyzers/__init__.py` supports:
+
+- `ei`
+- `stoch`
+- `local_learning`
+- `branch`
+- `general`
+
+## Common Commands
+
+Generate configs only:
+
 ```bash
-python result_analyzer.py /path/to/sweep/results
+python src/dendritic_modeling/scripts/sweeps/sweep_manager.py \
+    --config configs/EI_sweeps_example.yaml --generate-only
 ```
 
-Specify sweep type:
+Dry-run submission:
+
 ```bash
-python result_analyzer.py /path/to/sweep --type ei
-python result_analyzer.py /path/to/sweep --type local_learning
-python result_analyzer.py /path/to/sweep --type noise
-python result_analyzer.py /path/to/sweep --type ablation
+python src/dendritic_modeling/scripts/sweeps/sweep_manager.py \
+    --config configs/EI_sweeps_example.yaml --dry-run
 ```
 
-List available types:
+Analyze a completed sweep:
+
 ```bash
-python result_analyzer.py --list-types
+python src/dendritic_modeling/scripts/sweeps/sweep_manager.py \
+    --analyze --results-dir /path/to/sweep/results
 ```
 
-Python API:
-```python
-from dendritic_modeling.scripts.sweeps.analyzers import get_analyzer
+Use the analyzer directly:
 
-analyzer = get_analyzer("ei")
-results = analyzer.analyze(Path("/path/to/results"))
-```
-
-## Sweep Types
-
-**ei** - E/I ratio sweeps
-- Groups by: ee_value, ie_value, ei_ratio, use_shunting
-- Unique plots: E/I heatmaps, shunting comparison
-- Standard plots: Performance, information, weights, ablation, noise
-
-**local_learning** - Local learning parameter sweeps
-- Groups by: rule_variant, rho_mode, error_broadcast_mode, morphology params
-- Unique plots: Rule variant comparison, parameter combination legend
-- Standard plots: Performance, information, weights, ablation, noise
-
-**branch** - Architecture/morphology sweeps
-- Groups by: excitatory_layers, inhibitory_layers, branch_factors, nparams
-- Unique plots: Performance vs parameter count (nparams scaling)
-- Standard plots: Performance, information, weights, ablation, noise
-
-**general** - Any other parameter sweep (fallback)
-- Groups by: Auto-detected varying parameters
-- Standard plots: Performance, information, weights, ablation, noise
-
-Note: Ablation and noise analyses are automatically included when data is available.
-
-## Directory Structure
-
-Input:
-```
-sweep_results/
-├── configs/config_*.yaml
-└── results/config_*/
-    ├── performance/final.json
-    ├── information_analysis/final
-    └── weight_analysis/final
-```
-
-Output:
-```
-plots/
-├── {type}_processed_data.csv
-├── {type}_aggregated_data.csv
-├── performance/
-├── information/
-├── weights/
-├── ablation/
-├── noise/
-└── {sweep_specific}/
-```
-
-## Testing
-
-Run sweep tests:
 ```bash
-python -m unittest tests.test_analyzers -v
-python -m unittest tests.test_config_extractor -v
-python -m unittest tests.test_aggregation -v
-python -m unittest tests.test_data_collector -v
+python src/dendritic_modeling/scripts/sweeps/result_analyzer.py \
+    /path/to/sweep/results --type ei
 ```
 
-## Adding New Sweep Types
+## Expected Directory Layout
 
-Create analyzer in `analyzers/custom_analyzer.py`:
-```python
-class CustomSweepAnalyzer(BaseSweepAnalyzer):
-    def can_handle(self, results_dir: Path) -> bool:
-        return True  # Detection logic
-
-    def get_groupby_columns(self) -> List[str]:
-        return ["param1", "param2"]
-
-    def _generate_all_plots(self, data: pd.DataFrame, output_dir: Path) -> List[Path]:
-        plotter = PerformancePlotter()
-        return plotter.generate_all(data, output_dir)
+```
+<sweep_dir>/
+|-- configs/
+|-- results/
+|-- plots/
+`-- jobs/
 ```
 
-Register in `analyzers/__init__.py`:
-```python
-ANALYZER_REGISTRY["custom"] = CustomSweepAnalyzer
-```
+Each generated config writes its outputs under `results/config_<n>/`.
 
-## Components
+## Notes
 
-**BaseSweepAnalyzer** - Abstract base class with analysis pipeline
-
-**Analyzers** - Sweep-type specific logic and plotting
-
-**DataCollector** - Collects results from canonical directory structure
-
-**ConfigExtractor** - Extracts parameters from config files
-
-**Plotters** - Generate plots (performance, information, weights)
-
-**Utils** - Metric definitions, aggregation, formatting
-
-See docstrings in each module for detailed API documentation.
+- The maintained user documentation is in `docs/sweeps.rst`.
+- Use the example configs under `configs/` and `configs/sweeps/` as the
+  source of truth for current schema.
