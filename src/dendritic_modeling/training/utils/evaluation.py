@@ -115,6 +115,51 @@ def _prepare_classification_logits_and_labels(
     return logits, labels
 
 
+def _prepare_regression_predictions_and_labels(
+    regressor: Regressor,
+    inputs: torch.Tensor,
+    labels: torch.Tensor,
+    seq_lengths: Optional[torch.Tensor] = None,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Normalize regressor outputs/labels for metric computation.
+
+    - Recurrent [B, T, C] outputs are flattened over valid timesteps when labels
+      are provided per timestep as [B, T, C].
+    - Otherwise recurrent outputs are reduced to the last timestep.
+    """
+    kwargs = {}
+    if seq_lengths is not None:
+        kwargs["seq_lengths"] = seq_lengths
+    predictions = regressor.predict(inputs, **kwargs)
+
+    if predictions.dim() == 1:
+        predictions = predictions.unsqueeze(0)
+
+    is_recurrent_core = bool(getattr(regressor, "_is_recurrent_core", False))
+    if predictions.dim() == 3 and is_recurrent_core:
+        if labels.dim() == 3 and labels.shape[:2] == predictions.shape[:2]:
+            if seq_lengths is not None:
+                time_index = torch.arange(
+                    predictions.shape[1], device=predictions.device
+                ).unsqueeze(0)
+                valid_mask = time_index < seq_lengths.to(predictions.device).unsqueeze(
+                    1
+                )
+                predictions = predictions[valid_mask]
+                labels = labels.to(predictions.device)[valid_mask]
+            else:
+                predictions = predictions.reshape(-1, predictions.shape[-1])
+                labels = labels.reshape(-1, labels.shape[-1])
+            return predictions, labels
+        predictions = _reduce_temporal(predictions)
+        labels = _reduce_temporal_labels(labels, expected_dims=2)
+        return predictions, labels
+
+    if labels.dim() > 2:
+        labels = _reduce_temporal_labels(labels, expected_dims=2)
+    return predictions, labels
+
+
 def _compute_metric_score(
     computation_func: Callable,
     model: Union[Classifier, Regressor],
@@ -585,12 +630,14 @@ def _compute_mse(
     inputs: torch.Tensor,
     labels: torch.Tensor,
     reduce_dim: int = 0,
+    seq_lengths: Optional[torch.Tensor] = None,
 ) -> torch.Tensor:
     # Early exit for Classifier models (safety check)
     if hasattr(regressor, "__class__") and "Classifier" in str(type(regressor)):
         return torch.tensor(float("nan"))
-    predictions = _reduce_temporal(regressor.predict(inputs))
-    labels = _reduce_temporal_labels(labels, expected_dims=2)
+    predictions, labels = _prepare_regression_predictions_and_labels(
+        regressor, inputs, labels, seq_lengths=seq_lengths
+    )
     return torch.mean((predictions - labels) ** 2, dim=reduce_dim)
 
 
@@ -601,6 +648,7 @@ def mse_score(
     reduce_dim: Optional[int] = None,
     move_device: bool = True,
     device: str = "cuda" if torch.cuda.is_available() else "cpu",
+    seq_lengths: Optional[torch.Tensor] = None,
 ) -> torch.Tensor:
     """
     Compute mean squared error score for a regressor.
@@ -612,6 +660,7 @@ def mse_score(
         reduce_dim: Dimension along which to compute mean (not used in current implementation)
         move_device: Whether to move tensors to device
         device: Device to use for computation
+        seq_lengths: Optional per-sample sequence lengths
 
     Returns:
         MSE tensor
@@ -624,6 +673,7 @@ def mse_score(
         reduce_dim=reduce_dim,
         move_device=move_device,
         device=device,
+        seq_lengths=seq_lengths,
     )
 
 
@@ -679,12 +729,14 @@ def _compute_cosine_similarity(
     inputs: torch.Tensor,
     labels: torch.Tensor,
     reduce_dim: int = 0,
+    seq_lengths: Optional[torch.Tensor] = None,
 ) -> torch.Tensor:
     # Early exit for Classifier models (safety check)
     if hasattr(regressor, "__class__") and "Classifier" in str(type(regressor)):
         return torch.tensor(float("nan"))
-    predictions = _reduce_temporal(regressor.predict(inputs))
-    labels = _reduce_temporal_labels(labels, expected_dims=2)
+    predictions, labels = _prepare_regression_predictions_and_labels(
+        regressor, inputs, labels, seq_lengths=seq_lengths
+    )
     return torch.mean(
         functional.cosine_similarity(predictions, labels, dim=-1),
         dim=reduce_dim,
@@ -698,6 +750,7 @@ def cosine_similarity_score(
     reduce_dim: Optional[int] = None,
     move_device: bool = True,
     device: str = "cuda" if torch.cuda.is_available() else "cpu",
+    seq_lengths: Optional[torch.Tensor] = None,
 ) -> torch.Tensor:
     """
     Compute cosine similarity score for a regressor.
@@ -709,6 +762,7 @@ def cosine_similarity_score(
         reduce_dim: Dimension along which to compute mean (not used in current implementation)
         move_device: Whether to move tensors to device
         device: Device to use for computation
+        seq_lengths: Optional per-sample sequence lengths
 
     Returns:
         Cosine similarity tensor
@@ -721,6 +775,7 @@ def cosine_similarity_score(
         reduce_dim=reduce_dim,
         move_device=move_device,
         device=device,
+        seq_lengths=seq_lengths,
     )
 
 
