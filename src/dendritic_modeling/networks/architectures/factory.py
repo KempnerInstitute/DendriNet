@@ -652,6 +652,18 @@ def get_architecture(
         return CNNVariationalAutoencoder(**parameters)
     elif type in ["pathway_router", "router"]:
         return PathwayRouter(**parameters)
+    elif type in ["pretrained", "pretrained_encoder"]:
+        from dendritic_modeling.networks.architectures.classical.pretrained import (
+            PretrainedEncoder,
+        )
+
+        return PretrainedEncoder(**parameters)
+    elif type in ["pretrained_decoder"]:
+        from dendritic_modeling.networks.architectures.classical.pretrained import (
+            PretrainedDecoder,
+        )
+
+        return PretrainedDecoder(**parameters)
     elif type in ["identity", "none", None]:
         return Identity(**parameters)
     else:

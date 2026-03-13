@@ -141,6 +141,13 @@ class EncoderParamsConfig(BaseConfig):
     learned_router_temperature: float = 1.0
     learned_router_init_scale: float = 4.0
 
+    # Pretrained model splitter fields
+    backbone: Optional[str] = None
+    weights: Optional[str] = None
+    split_after: Optional[str] = None
+    freeze: bool = False
+    drop_layers: list[str] = field(default_factory=list)
+
 
 @dataclass
 class EncoderConfig(BaseConfig):
@@ -187,6 +194,13 @@ class DecoderParamsConfig(BaseConfig):
     hidden_dims: list[int] = field(default_factory=lambda: [16])
     activation: str = "relu"
     output_dim: int = 10
+
+    # Pretrained model splitter fields
+    backbone: Optional[str] = None
+    weights: Optional[str] = None
+    split_from: Optional[str] = None
+    freeze: bool = False
+    drop_layers: list[str] = field(default_factory=list)
 
 
 @dataclass
