@@ -1,92 +1,54 @@
-# Dendritic Modeling Installation Guide
+# Installation
 
-## Quick Installation
+## Automated Setup
 
 ```bash
 bash install.sh
 ```
 
-The automated script handles environment creation, dependency installation, package setup, and verification.
+Useful variants:
 
-## Installation Options
-
-### Option 1: Full Automated Install
-```bash
-bash install.sh
-```
-
-### Option 2: Quick Install (Skip Optional Components)
 ```bash
 bash install.sh --quick
-```
-
-### Option 3: Fix Existing Installation
-```bash
 bash install.sh --fix-only
-```
-
-### Option 4: Verify Current Installation
-```bash
 bash install.sh --verify
 ```
 
-## Manual Installation
+## Manual Setup
 
-### Prerequisites
-- Conda/Miniconda/Anaconda installed
-- CUDA 12.1+ (for GPU support)
-- **Optional**: `ffmpeg` for video generation in ablation analysis (MP4 export)
-  ```bash
-  # Ubuntu/Debian
-  sudo apt-get install ffmpeg
+Create the default environment and install the package in editable mode:
 
-  # macOS
-  brew install ffmpeg
-
-  # Conda
-  conda install -c conda-forge ffmpeg
-  ```
-
-### Step-by-Step Manual Install
-
-#### 1. Remove Existing Environment (if corrupted)
-```bash
-conda env remove -n dendritic_env -y
-conda clean --all -y
-```
-
-#### 2. Create Environment
 ```bash
 conda env create -f setup/environment.yml
-# OR
-conda create -n dendritic_env python=3.11 -y
 conda activate dendritic_env
 pip install -e .
 ```
 
-#### 3. Activate and Install Package
+Optional extras:
+
 ```bash
-conda activate dendritic_env
-pip install -e .
+pip install -e .[dev]
+pip install -e .[train]
+pip install -e .[all]
 ```
 
-#### 4. Fix Import Issues (if needed)
+## Optional Dependency
+
+`ffmpeg` is only needed for ablation video export.
+
 ```bash
-export PYTHONPATH="$PYTHONPATH:$(pwd)/src"
-echo 'export PYTHONPATH="$PYTHONPATH:'$(pwd)'/src"' >> ~/.bashrc
+conda install -c conda-forge ffmpeg
 ```
 
-#### 5. Verify Installation
+## Verify
+
 ```bash
-python -c "import torch; import dendritic_modeling; print('Success!')"
+python -c "import dendritic_modeling; print('ok')"
+python src/dendritic_modeling/scripts/training/train_experiments.py --help
 python src/dendritic_modeling/scripts/sweeps/sweep_manager.py --help
 ```
 
-## Installation Options
+## Notes
 
-```bash
-pip install -e .         # Core dependencies
-pip install -e .[dev]    # Development tools
-pip install -e .[train]  # Training/analysis
-pip install -e .[all]    # All dependencies
-```
+- The supported workflow is `pip install -e .`.
+- Set `PYTHONPATH` manually only if you are debugging a broken environment.
