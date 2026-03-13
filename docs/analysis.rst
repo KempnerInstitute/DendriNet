@@ -135,7 +135,7 @@ Ablation Analysis
 Evaluates the contribution of specific network components by disabling or
 disrupting them.
 
-Methods (``params.ablation_methods``):
+Methods (``params.methods.ablation_methods``):
 
 ``"lesion"``
    Structural ablation -- disable connection weights entirely.
@@ -147,6 +147,8 @@ Methods (``params.ablation_methods``):
 ``"mean_clamp"``
    Replace the signal with its batch mean. Preserves operating point but
    removes trial-to-trial variability.
+
+Selectors live under ``params.selection``:
 
 ``levels``: ``"layer"``, ``"compartment"``.
 ``targets``: ``"all_synapses"``, ``"excitation"``, ``"inhibition"``,
@@ -160,10 +162,12 @@ Methods (``params.ablation_methods``):
      ablation_analysis:
        enabled: true
        params:
-         ablation_methods: ["lesion", "shuffle", "mean_clamp"]
-         levels: ["layer"]
-         targets: ["excitation", "inhibition", "upstream", "all_synapses"]
-         metrics: ["accuracy", "pred_label_mi_bits"]
+         selection:
+           levels: ["layer"]
+           targets: ["excitation", "inhibition", "upstream", "all_synapses"]
+           metrics: ["accuracy", "pred_label_mi_bits"]
+         methods:
+           ablation_methods: ["lesion", "shuffle", "mean_clamp"]
 
 Correlation Analysis
 --------------------
