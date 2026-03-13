@@ -1,42 +1,46 @@
-# Scripts Folder
+# Scripts
 
-This folder contains executable scripts for running experiments and tools.
+This directory contains CLI entry points. Reusable logic should live in package
+modules under `dendritic_modeling.*`, not in these scripts.
 
-## Structure
+## Layout
 
-- training/: Scripts for training models and running experiments
-  - `train_experiments.py` - Main training script for experiments
-  - `train_experiments_fsdp.py` - FSDP (Fully Sharded Data Parallel) variant for distributed training
-  - `train_encoder_network.py` - Script for training encoder networks
+- `training/`: experiment runners
+- `tools/`: SLURM, GPU estimation, and utility commands
+- `sweeps/`: sweep generation and sweep analysis
+- `analysis/`: task-specific analysis entry points
+- `script_utils/`: helpers used by the CLI scripts
 
-- tools/: Utility tools for development and analysis
-  - `submit_fsdp_job.py` - Automated FSDP job submission with resource estimation
-  - `generate_slurm_job.py` - Script to generate SLURM job files for cluster runs
-  - `calculate_ei_parameters.py` - Tool to calculate E/I network parameters and model size
+## Main Entry Points
 
-- script_utils/: Helper utilities specific to scripts
-  - `setup_utils.py` - Setup utilities for training environment initialization
-
-## Usage
-
-To run a script from the project root:
+Training:
 
 ```bash
-# Training experiments
-python src/dendritic_modeling/scripts/training/train_experiments.py [args]
-
-# FSDP training with automatic resource allocation (default behavior)
-python src/dendritic_modeling/scripts/tools/submit_fsdp_job.py configs/config_exp_fsdp.yaml
-
-# Generate SLURM jobs manually
-python src/dendritic_modeling/scripts/tools/generate_slurm_job.py [args]
+python src/dendritic_modeling/scripts/training/train_experiments.py \
+    configs/config_exp.yaml
+python src/dendritic_modeling/scripts/training/train_experiments_fsdp.py \
+    configs/config_exp_fsdp.yaml
 ```
 
-## Import Structure
+Tools:
 
-Scripts can be imported as modules:
-
-```python
-from dendritic_modeling.scripts.training.train_experiments import run_dendritic_modeling_experiments
-from dendritic_modeling.scripts.tools.estimate_gpu_requirements import main as estimate_gpu
+```bash
+python src/dendritic_modeling/scripts/tools/submit_fsdp_job.py \
+    configs/config_exp_fsdp.yaml --generate-only
+python src/dendritic_modeling/scripts/tools/estimate_gpu_requirements.py \
+    configs/config_exp.yaml
 ```
+
+Sweeps:
+
+```bash
+python src/dendritic_modeling/scripts/sweeps/sweep_manager.py \
+    --config configs/EI_sweeps_example.yaml --generate-only
+python src/dendritic_modeling/scripts/sweeps/result_analyzer.py \
+    /path/to/sweep/results
+```
+
+## Notes
+
+- Prefer running scripts from the repository root.
+- The detailed workflow docs live in `docs/`.

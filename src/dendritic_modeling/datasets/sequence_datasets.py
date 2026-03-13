@@ -577,6 +577,311 @@ class LorenzSequenceDataset(Dataset):
         return self.inputs[idx], self.targets[idx]
 
 
+class SwitchingLDSDataset(Dataset):
+    """Partially observed switching linear dynamical system benchmark.
+
+    The latent dynamics follow a mode-dependent linear transition:
+        x_{t+1} = A_{m_t} x_t + eps_t
+        y_t = C x_t + eta_t
+
+    Modes switch only every ``min_mode_duration`` to ``max_mode_duration`` steps,
+    making this a standard switching-LDS setting with a slow hidden regime and
+    faster within-mode linear state evolution. The benchmark is intended to test
+    whether models can simultaneously track a slow latent mode and a fast latent
+    state under partial observation.
+    """
+
+    def __init__(
+        self,
+        n_samples: int = 12000,
+        seq_len: int = 96,
+        latent_dim: int = 4,
+        observation_dim: int = 2,
+        n_modes: int = 3,
+        rollout_horizon: int = 80,
+        prediction_mode: str = "all",
+        observation_noise_std: float = 0.03,
+        transition_noise_std: float = 0.02,
+        min_mode_duration: int = 36,
+        max_mode_duration: int = 96,
+        burn_in_steps: int = 24,
+        seed: int = 42,
+        test_seed: Optional[int] = None,
+        normalize_states: bool = True,
+        normalize_observations: bool = True,
+        normalization_samples: int = 4096,
+        stats_seed: int = 1234,
+        initial_state_scale: float = 0.35,
+    ):
+        super().__init__()
+        if prediction_mode not in {"last", "all"}:
+            raise ValueError(
+                f"prediction_mode must be 'last' or 'all', got '{prediction_mode}'"
+            )
+        if latent_dim != 4:
+            raise ValueError(
+                f"SwitchingLDSDataset currently expects latent_dim=4, got {latent_dim}"
+            )
+        if observation_dim <= 0:
+            raise ValueError(f"observation_dim must be positive, got {observation_dim}")
+        if n_modes < 2:
+            raise ValueError(f"n_modes must be >= 2, got {n_modes}")
+
+        self.n_samples = n_samples
+        self.seq_len = seq_len
+        self.latent_dim = latent_dim
+        self.observation_dim = observation_dim
+        self.n_modes = n_modes
+        self.rollout_horizon = rollout_horizon
+        self.prediction_mode = prediction_mode
+        self.observation_noise_std = observation_noise_std
+        self.transition_noise_std = transition_noise_std
+        self.min_mode_duration = max(1, min_mode_duration)
+        self.max_mode_duration = max(self.min_mode_duration, max_mode_duration)
+        self.burn_in_steps = max(0, burn_in_steps)
+        self.seed = seed if test_seed is None else test_seed
+        self.normalize_states = normalize_states
+        self.normalize_observations = normalize_observations
+        self.normalization_samples = normalization_samples
+        self.stats_seed = stats_seed
+        self.initial_state_scale = initial_state_scale
+
+        self.transition_matrices = self._build_transition_matrices(n_modes)
+        self.observation_matrix = self._build_observation_matrix(
+            latent_dim=latent_dim,
+            observation_dim=observation_dim,
+            seed=stats_seed + 17,
+        )
+
+        stats_generator = torch.Generator().manual_seed(stats_seed)
+        reference_states, _ = self._simulate(
+            n_samples=normalization_samples,
+            total_steps=seq_len + rollout_horizon,
+            generator=stats_generator,
+        )
+        reference_observations = self._states_to_observations(
+            reference_states, add_noise=False
+        )
+        self.state_mean = reference_states.mean(dim=(0, 1))
+        self.state_std = reference_states.std(dim=(0, 1)).clamp(min=1e-8)
+        self.obs_mean = reference_observations.mean(dim=(0, 1))
+        self.obs_std = reference_observations.std(dim=(0, 1)).clamp(min=1e-8)
+
+        generator = torch.Generator().manual_seed(self.seed)
+        total_steps = seq_len + rollout_horizon
+        self.full_states_raw, self.full_modes = self._simulate(
+            n_samples=n_samples,
+            total_steps=total_steps,
+            generator=generator,
+        )
+        self.full_states = self.normalize_state_tensor(self.full_states_raw)
+        observations = self.states_to_observations(
+            self.full_states_raw,
+            add_noise=observation_noise_std > 0.0,
+            generator=generator,
+        )
+
+        self.inputs = observations[:, :seq_len]
+        if prediction_mode == "all":
+            self.targets = self.full_states[:, 1 : seq_len + 1]
+        else:
+            self.targets = self.full_states[:, seq_len]
+
+        self.switch_mask = self.full_modes[:, 1:] != self.full_modes[:, :-1]
+        self.time_since_switch = self._compute_time_since_switch(self.full_modes)
+
+    def _rotation_block(self, radius: float, angle: float) -> torch.Tensor:
+        return torch.tensor(
+            [
+                [radius * math.cos(angle), -radius * math.sin(angle)],
+                [radius * math.sin(angle), radius * math.cos(angle)],
+            ],
+            dtype=torch.float32,
+        )
+
+    def _build_transition_matrices(self, n_modes: int) -> torch.Tensor:
+        fast_blocks = [
+            self._rotation_block(radius=0.985, angle=0.33),
+            self._rotation_block(radius=0.975, angle=-0.24),
+            self._rotation_block(radius=0.992, angle=0.11),
+        ]
+        slow_blocks = [
+            torch.tensor([[0.996, 0.018], [0.0, 0.986]], dtype=torch.float32),
+            torch.tensor([[0.989, -0.021], [0.012, 0.993]], dtype=torch.float32),
+            torch.tensor([[0.995, 0.0], [0.024, 0.984]], dtype=torch.float32),
+        ]
+        slow_to_fast = [
+            torch.tensor([[0.09, -0.03], [0.02, 0.05]], dtype=torch.float32),
+            torch.tensor([[-0.07, 0.05], [0.06, -0.02]], dtype=torch.float32),
+            torch.tensor([[0.03, 0.08], [-0.05, 0.04]], dtype=torch.float32),
+        ]
+        fast_to_slow = [
+            torch.tensor([[0.012, 0.0], [0.0, 0.015]], dtype=torch.float32),
+            torch.tensor([[0.008, -0.006], [0.005, 0.01]], dtype=torch.float32),
+            torch.tensor([[0.004, 0.009], [-0.008, 0.006]], dtype=torch.float32),
+        ]
+
+        matrices = []
+        for mode_idx in range(n_modes):
+            fast = fast_blocks[mode_idx % len(fast_blocks)]
+            slow = slow_blocks[mode_idx % len(slow_blocks)]
+            sf = slow_to_fast[mode_idx % len(slow_to_fast)]
+            fs = fast_to_slow[mode_idx % len(fast_to_slow)]
+            top = torch.cat((fast, sf), dim=1)
+            bottom = torch.cat((fs, slow), dim=1)
+            matrix = torch.cat((top, bottom), dim=0)
+            eigvals = torch.linalg.eigvals(matrix)
+            spectral_radius = eigvals.abs().max().real.item()
+            if spectral_radius >= 0.998:
+                matrix = matrix * (0.998 / spectral_radius)
+            matrices.append(matrix)
+        return torch.stack(matrices, dim=0)
+
+    def _build_observation_matrix(
+        self, latent_dim: int, observation_dim: int, seed: int
+    ) -> torch.Tensor:
+        generator = torch.Generator().manual_seed(seed)
+        matrix = torch.randn(latent_dim, observation_dim, generator=generator)
+        matrix = matrix / matrix.norm(dim=0, keepdim=True).clamp(min=1e-8)
+        return matrix.to(dtype=torch.float32)
+
+    def _sample_initial_states(
+        self, n_samples: int, generator: torch.Generator
+    ) -> torch.Tensor:
+        return (
+            torch.randn(n_samples, self.latent_dim, generator=generator)
+            * self.initial_state_scale
+        )
+
+    def _generate_mode_sequences(
+        self, n_samples: int, total_steps: int, generator: torch.Generator
+    ) -> torch.Tensor:
+        modes = torch.zeros(n_samples, total_steps + 1, dtype=torch.long)
+        for sample_idx in range(n_samples):
+            current_mode = torch.randint(
+                0, self.n_modes, (1,), generator=generator
+            ).item()
+            t = 0
+            while t <= total_steps:
+                block = torch.randint(
+                    self.min_mode_duration,
+                    self.max_mode_duration + 1,
+                    (1,),
+                    generator=generator,
+                ).item()
+                end = min(total_steps + 1, t + block)
+                modes[sample_idx, t:end] = current_mode
+                if end >= total_steps + 1:
+                    break
+                next_mode = torch.randint(
+                    0, self.n_modes - 1, (1,), generator=generator
+                ).item()
+                current_mode = next_mode if next_mode < current_mode else next_mode + 1
+                t = end
+        return modes
+
+    def _simulate(
+        self, n_samples: int, total_steps: int, generator: torch.Generator
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        mode_sequences = self._generate_mode_sequences(
+            n_samples=n_samples,
+            total_steps=total_steps + self.burn_in_steps,
+            generator=generator,
+        )
+
+        states = self._sample_initial_states(n_samples=n_samples, generator=generator)
+        trajectories = torch.zeros(
+            n_samples,
+            total_steps + self.burn_in_steps + 1,
+            self.latent_dim,
+            dtype=torch.float32,
+        )
+        trajectories[:, 0] = states
+
+        for step_idx in range(total_steps + self.burn_in_steps):
+            active_modes = mode_sequences[:, step_idx]
+            transition = self.transition_matrices[active_modes]
+            process_noise = (
+                torch.randn(n_samples, self.latent_dim, generator=generator)
+                * self.transition_noise_std
+            )
+            states = torch.einsum("nij,nj->ni", transition, states) + process_noise
+            trajectories[:, step_idx + 1] = states
+
+        start = self.burn_in_steps
+        end = start + total_steps + 1
+        return trajectories[:, start:end], mode_sequences[:, start:end]
+
+    def _states_to_observations(
+        self,
+        states_raw: torch.Tensor,
+        *,
+        add_noise: bool,
+        generator: Optional[torch.Generator] = None,
+    ) -> torch.Tensor:
+        observations = states_raw @ self.observation_matrix
+        if add_noise and self.observation_noise_std > 0.0:
+            noise = torch.randn(
+                observations.shape, generator=generator, dtype=observations.dtype
+            )
+            observations = observations + self.observation_noise_std * noise
+        return observations
+
+    def _compute_time_since_switch(self, modes: torch.Tensor) -> torch.Tensor:
+        steps = torch.zeros_like(modes, dtype=torch.long)
+        for sample_idx in range(modes.shape[0]):
+            current = 0
+            for step_idx in range(1, modes.shape[1]):
+                if modes[sample_idx, step_idx] != modes[sample_idx, step_idx - 1]:
+                    current = 0
+                else:
+                    current += 1
+                steps[sample_idx, step_idx] = current
+        return steps
+
+    def normalize_state_tensor(self, states_raw: torch.Tensor) -> torch.Tensor:
+        if not self.normalize_states:
+            return states_raw
+        return (states_raw - self.state_mean) / self.state_std
+
+    def denormalize_state_tensor(self, states: torch.Tensor) -> torch.Tensor:
+        if not self.normalize_states:
+            return states
+        return states * self.state_std + self.state_mean
+
+    def normalize_observation_tensor(
+        self, observations_raw: torch.Tensor
+    ) -> torch.Tensor:
+        if not self.normalize_observations:
+            return observations_raw
+        return (observations_raw - self.obs_mean) / self.obs_std
+
+    def denormalize_observation_tensor(
+        self, observations: torch.Tensor
+    ) -> torch.Tensor:
+        if not self.normalize_observations:
+            return observations
+        return observations * self.obs_std + self.obs_mean
+
+    def states_to_observations(
+        self,
+        states_raw: torch.Tensor,
+        *,
+        add_noise: bool = False,
+        generator: Optional[torch.Generator] = None,
+    ) -> torch.Tensor:
+        observations_raw = self._states_to_observations(
+            states_raw, add_noise=add_noise, generator=generator
+        )
+        return self.normalize_observation_tensor(observations_raw)
+
+    def __len__(self):
+        return self.n_samples
+
+    def __getitem__(self, idx):
+        return self.inputs[idx], self.targets[idx]
+
+
 class StringerV1Dataset(Dataset):
     """Stringer et al. (2019) V1 population responses to drifting gratings.
 
@@ -1536,6 +1841,38 @@ def get_sequence_datasets(
             **common,
         )
         test_ds = LorenzSequenceDataset(
+            n_samples=max(n_train // 5, 1000),
+            **{
+                **common,
+                "seed": kwargs.get("test_seed", common["seed"] + 1),
+            },
+        )
+    elif dataset_name == "switching_lds":
+        n_train = kwargs.get("n_samples", 12000)
+        common = {
+            "seq_len": kwargs.get("seq_len", 96),
+            "latent_dim": kwargs.get("latent_dim", 4),
+            "observation_dim": kwargs.get("observation_dim", 2),
+            "n_modes": kwargs.get("n_modes", 3),
+            "rollout_horizon": kwargs.get("rollout_horizon", 80),
+            "prediction_mode": kwargs.get("prediction_mode", "all"),
+            "observation_noise_std": kwargs.get("observation_noise_std", 0.03),
+            "transition_noise_std": kwargs.get("transition_noise_std", 0.02),
+            "min_mode_duration": kwargs.get("min_mode_duration", 36),
+            "max_mode_duration": kwargs.get("max_mode_duration", 96),
+            "burn_in_steps": kwargs.get("burn_in_steps", 24),
+            "seed": kwargs.get("seed", 42),
+            "normalize_states": kwargs.get("normalize_states", True),
+            "normalize_observations": kwargs.get("normalize_observations", True),
+            "normalization_samples": kwargs.get("normalization_samples", 4096),
+            "stats_seed": kwargs.get("stats_seed", 1234),
+            "initial_state_scale": kwargs.get("initial_state_scale", 0.35),
+        }
+        train_full = SwitchingLDSDataset(
+            n_samples=n_train,
+            **common,
+        )
+        test_ds = SwitchingLDSDataset(
             n_samples=max(n_train // 5, 1000),
             **{
                 **common,

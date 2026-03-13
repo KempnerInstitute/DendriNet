@@ -11,6 +11,7 @@ from .sequence_datasets import (
     MultiFrequencyDataset,
     SequentialMNISTDataset,
     StringerV1Dataset,
+    SwitchingLDSDataset,
     VariableDelayDMSDataset,
     get_sequence_datasets,
 )
@@ -30,6 +31,7 @@ __all__ = [
     "MultiFrequencyDataset",
     "SequentialMNISTDataset",
     "StringerV1Dataset",
+    "SwitchingLDSDataset",
     "VariableDelayDMSDataset",
     "get_data_directory",
     "get_sequence_datasets",
