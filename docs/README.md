@@ -11,10 +11,10 @@ codebase. The `.rst` files here are the authoritative user-facing docs.
 - `training_strategies.rst`
 - `datasets.rst`
 - `analysis.rst`
-- `CONFIGURATION_GUIDE.rst`
+- `configuration_guide.rst`
 - `sweeps.rst`
 - `config_reference.rst`
-- `FSDP_TROUBLESHOOTING.rst`
+- `fsdp_troubleshooting.rst`
 
 ## Build
 
@@ -29,4 +29,4 @@ or
 python -m sphinx -b html docs docs/_build/html
 ```
 
-Open `docs/_build/html/index.html` after the build finishes.
+View the generated site at `docs/_build/html/index.html`.
