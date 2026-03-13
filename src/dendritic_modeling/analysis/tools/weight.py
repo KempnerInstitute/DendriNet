@@ -369,24 +369,24 @@ class WeightAnalyzer(AbstractAnalyzer):
                         )
 
                         if self.compute_mean:
-                            branch_results[branch_idx]["exc_weight_mean"] = (
-                                active_weights.mean().item()
-                            )
+                            branch_results[branch_idx][
+                                "exc_weight_mean"
+                            ] = active_weights.mean().item()
                         if self.compute_variance:
-                            branch_results[branch_idx]["exc_weight_var"] = (
-                                active_weights.var().item()
-                            )
+                            branch_results[branch_idx][
+                                "exc_weight_var"
+                            ] = active_weights.var().item()
                         if self.compute_min_max:
-                            branch_results[branch_idx]["exc_weight_min"] = (
-                                active_weights.min().item()
-                            )
-                            branch_results[branch_idx]["exc_weight_max"] = (
-                                active_weights.max().item()
-                            )
+                            branch_results[branch_idx][
+                                "exc_weight_min"
+                            ] = active_weights.min().item()
+                            branch_results[branch_idx][
+                                "exc_weight_max"
+                            ] = active_weights.max().item()
                         if self.compute_percentiles:
-                            branch_results[branch_idx]["exc_weight_median"] = (
-                                active_weights.median().item()
-                            )
+                            branch_results[branch_idx][
+                                "exc_weight_median"
+                            ] = active_weights.median().item()
                     else:
                         # No active weights
                         branch_results[branch_idx]["exc_n_active_synapses"] = 0
@@ -409,24 +409,24 @@ class WeightAnalyzer(AbstractAnalyzer):
                         )
 
                         if self.compute_mean:
-                            branch_results[branch_idx]["inh_weight_mean"] = (
-                                active_weights.mean().item()
-                            )
+                            branch_results[branch_idx][
+                                "inh_weight_mean"
+                            ] = active_weights.mean().item()
                         if self.compute_variance:
-                            branch_results[branch_idx]["inh_weight_var"] = (
-                                active_weights.var().item()
-                            )
+                            branch_results[branch_idx][
+                                "inh_weight_var"
+                            ] = active_weights.var().item()
                         if self.compute_min_max:
-                            branch_results[branch_idx]["inh_weight_min"] = (
-                                active_weights.min().item()
-                            )
-                            branch_results[branch_idx]["inh_weight_max"] = (
-                                active_weights.max().item()
-                            )
+                            branch_results[branch_idx][
+                                "inh_weight_min"
+                            ] = active_weights.min().item()
+                            branch_results[branch_idx][
+                                "inh_weight_max"
+                            ] = active_weights.max().item()
                         if self.compute_percentiles:
-                            branch_results[branch_idx]["inh_weight_median"] = (
-                                active_weights.median().item()
-                            )
+                            branch_results[branch_idx][
+                                "inh_weight_median"
+                            ] = active_weights.median().item()
                     else:
                         # No active weights
                         branch_results[branch_idx]["inh_n_active_synapses"] = 0
@@ -600,12 +600,12 @@ class WeightAnalyzer(AbstractAnalyzer):
             if self.compute_min_max and depth_to_weights.get(layer_idx_attr):
                 all_weights = torch.cat(depth_to_weights[layer_idx_attr])
                 if all_weights.numel() > 0:
-                    enhanced_stats[layer_name]["layer_weight_min"] = (
-                        all_weights.min().item()
-                    )
-                    enhanced_stats[layer_name]["layer_weight_max"] = (
-                        all_weights.max().item()
-                    )
+                    enhanced_stats[layer_name][
+                        "layer_weight_min"
+                    ] = all_weights.min().item()
+                    enhanced_stats[layer_name][
+                        "layer_weight_max"
+                    ] = all_weights.max().item()
 
         return enhanced_stats
 

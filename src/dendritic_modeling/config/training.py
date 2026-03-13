@@ -449,7 +449,9 @@ class LocalRuleConfig(BaseConfig):
 
     # ========== ERROR SIGNAL ==========
     error_mode: str = "auto"  # "auto", "mse", "ce", "bce"
-    error_broadcast_mode: str = "scalar"  # "scalar", "per_soma", "local_mismatch", "low_rank", "path_transport", "pathway_vector"
+    error_broadcast_mode: str = (
+        "scalar"  # "scalar", "per_soma", "local_mismatch", "low_rank", "path_transport", "pathway_vector"
+    )
     error_noise_sigma: float = (
         0.0  # Additive Gaussian noise on broadcast error (0 = off)
     )

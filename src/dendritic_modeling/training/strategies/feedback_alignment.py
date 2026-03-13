@@ -43,9 +43,9 @@ class FeedbackAlignmentTrainer(Trainer):
         # Populated lazily on first training step
         self._layer_info: list[tuple[nn.Module, str, int, int]] = []
         self._B_fa: dict[int, torch.Tensor] = {}  # FA: B[l] shape (out_dim_l, in_dim_l)
-        self._B_dfa: dict[
-            int, torch.Tensor
-        ] = {}  # DFA: B[l] shape (out_dim_l, output_dim)
+        self._B_dfa: dict[int, torch.Tensor] = (
+            {}
+        )  # DFA: B[l] shape (out_dim_l, output_dim)
 
     # ------------------------------------------------------------------
     # Feedback matrix initialisation

@@ -222,9 +222,9 @@ class CompartmentStatisticsAnalyzer(AbstractAnalyzer):
                                 f"{synapse_type}_activations_per_class"
                             ][class_key].append(class_activations)
                 else:
-                    self.raw_dict[key][branch_idx][f"{synapse_type}_activations"] = (
-                        branch_activation
-                    )
+                    self.raw_dict[key][branch_idx][
+                        f"{synapse_type}_activations"
+                    ] = branch_activation
 
     def _compute_statistics(
         self,
