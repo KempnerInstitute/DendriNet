@@ -311,8 +311,12 @@ class MultiFrequencyDataset(Dataset):
 class LorenzSequenceDataset(Dataset):
     """Lorenz attractor dynamics prediction (regression benchmark).
 
-    Input: [seq_len, 3] (x, y, z coordinates).
-    Target: [3] (next-step prediction of the final timestep).
+    By default this behaves like the original one-step benchmark:
+    input = [seq_len, 3] state history and target = [3] next-step state.
+    It also supports a stronger setting for recurrent regression:
+    - partial or projected observations
+    - per-timestep next-state targets for ``output_mode="all"``
+    - stored future trajectory for post-hoc autonomous rollout evaluation
 
     Args:
         n_samples: Number of trajectory segments.
@@ -329,36 +333,242 @@ class LorenzSequenceDataset(Dataset):
         sigma: float = 10.0,
         rho: float = 28.0,
         beta: float = 8.0 / 3.0,
+        rollout_horizon: int = 50,
+        prediction_mode: str = "last",
+        observation_mode: str = "full",
+        observation_dim: int = 3,
+        observation_noise_std: float = 0.0,
+        burn_in_steps: int = 200,
+        seed: int = 42,
+        test_seed: Optional[int] = None,
+        integration_method: str = "euler",
+        normalize_states: bool = True,
+        normalize_observations: bool = True,
+        normalization_steps: int = 10000,
+        initial_state_scale: float = 0.1,
     ):
+        if prediction_mode not in {"last", "all"}:
+            raise ValueError(
+                f"prediction_mode must be 'last' or 'all', got '{prediction_mode}'"
+            )
+        if observation_mode not in {"full", "partial", "linear"}:
+            raise ValueError(
+                "observation_mode must be one of {'full', 'partial', 'linear'}, "
+                f"got '{observation_mode}'"
+            )
+        if observation_dim <= 0:
+            raise ValueError(f"observation_dim must be positive, got {observation_dim}")
+        if integration_method not in {"euler", "rk4"}:
+            raise ValueError(
+                f"integration_method must be 'euler' or 'rk4', got '{integration_method}'"
+            )
+
         self.n_samples = n_samples
         self.seq_len = seq_len
+        self.rollout_horizon = rollout_horizon
+        self.prediction_mode = prediction_mode
+        self.observation_mode = observation_mode
+        self.observation_dim = 3 if observation_mode == "full" else observation_dim
+        self.observation_noise_std = observation_noise_std
+        self.burn_in_steps = burn_in_steps
+        self.seed = seed if test_seed is None else test_seed
+        self.integration_method = integration_method
+        self.normalize_states = normalize_states
+        self.normalize_observations = normalize_observations
+        self.normalization_steps = normalization_steps
+        self.initial_state_scale = initial_state_scale
+        self.dt = dt
+        self.sigma = sigma
+        self.rho = rho
+        self.beta = beta
 
-        # Generate a long trajectory then split into segments
-        total_steps = n_samples * seq_len + seq_len
-        trajectory = torch.zeros(total_steps + 1, 3)
-        # Random initial condition near attractor
-        trajectory[0] = torch.tensor([1.0, 1.0, 1.0]) + 0.1 * torch.randn(3)
+        total_future_steps = seq_len + rollout_horizon
+        generator = torch.Generator().manual_seed(self.seed)
 
-        for t in range(total_steps):
-            x, y, z = trajectory[t]
-            dx = sigma * (y - x)
-            dy = x * (rho - z) - y
-            dz = x * y - beta * z
-            trajectory[t + 1] = trajectory[t] + dt * torch.tensor([dx, dy, dz])
+        self.observation_matrix = self._build_observation_matrix(
+            mode=observation_mode,
+            observation_dim=self.observation_dim,
+            seed=self.seed,
+        )
+        self.state_mean, self.state_std = self._compute_state_stats(
+            n_steps=normalization_steps,
+            burn_in_steps=burn_in_steps,
+            generator=generator,
+        )
+        self.obs_mean, self.obs_std = self._compute_observation_stats(
+            n_steps=normalization_steps,
+            burn_in_steps=burn_in_steps,
+            generator=generator,
+        )
 
-        # Normalize
-        mean = trajectory.mean(dim=0)
-        std = trajectory.std(dim=0) + 1e-8
-        trajectory = (trajectory - mean) / std
+        self.full_states_raw = self._generate_trajectories(
+            n_samples=n_samples,
+            total_steps=total_future_steps,
+            burn_in_steps=burn_in_steps,
+            generator=generator,
+        )
+        self.full_states = self.normalize_state_tensor(self.full_states_raw)
+        observations = self.states_to_observations(
+            self.full_states_raw,
+            add_noise=observation_noise_std > 0.0,
+            generator=generator,
+        )
 
-        # Extract segments
-        self.inputs = torch.zeros(n_samples, seq_len, 3)
-        self.targets = torch.zeros(n_samples, 3)
+        self.inputs = observations[:, :seq_len]
+        if prediction_mode == "all":
+            self.targets = self.full_states[:, 1 : seq_len + 1]
+        else:
+            self.targets = self.full_states[:, seq_len]
 
-        for i in range(n_samples):
-            start = i * seq_len
-            self.inputs[i] = trajectory[start : start + seq_len]
-            self.targets[i] = trajectory[start + seq_len]
+    def _lorenz_derivative(self, state: torch.Tensor) -> torch.Tensor:
+        x = state[..., 0]
+        y = state[..., 1]
+        z = state[..., 2]
+        dx = self.sigma * (y - x)
+        dy = x * (self.rho - z) - y
+        dz = x * y - self.beta * z
+        return torch.stack((dx, dy, dz), dim=-1)
+
+    def _integrate_step(self, state: torch.Tensor) -> torch.Tensor:
+        if self.integration_method == "euler":
+            return state + self.dt * self._lorenz_derivative(state)
+
+        k1 = self._lorenz_derivative(state)
+        k2 = self._lorenz_derivative(state + 0.5 * self.dt * k1)
+        k3 = self._lorenz_derivative(state + 0.5 * self.dt * k2)
+        k4 = self._lorenz_derivative(state + self.dt * k3)
+        return state + (self.dt / 6.0) * (k1 + 2 * k2 + 2 * k3 + k4)
+
+    def _sample_initial_states(
+        self, n_samples: int, generator: torch.Generator
+    ) -> torch.Tensor:
+        center = torch.tensor([1.0, 1.0, 1.0], dtype=torch.float32)
+        noise = (
+            torch.randn(n_samples, 3, generator=generator) * self.initial_state_scale
+        )
+        return center.unsqueeze(0) + noise
+
+    def _generate_trajectories(
+        self,
+        n_samples: int,
+        total_steps: int,
+        burn_in_steps: int,
+        generator: torch.Generator,
+    ) -> torch.Tensor:
+        states = self._sample_initial_states(n_samples=n_samples, generator=generator)
+        for _ in range(burn_in_steps):
+            states = self._integrate_step(states)
+
+        trajectories = torch.zeros(n_samples, total_steps + 1, 3, dtype=torch.float32)
+        trajectories[:, 0] = states
+        for step_idx in range(total_steps):
+            states = self._integrate_step(states)
+            trajectories[:, step_idx + 1] = states
+        return trajectories
+
+    def _reference_trajectory(
+        self,
+        n_steps: int,
+        burn_in_steps: int,
+        generator: torch.Generator,
+    ) -> torch.Tensor:
+        state = self._sample_initial_states(n_samples=1, generator=generator).squeeze(0)
+        for _ in range(burn_in_steps):
+            state = self._integrate_step(state)
+        trajectory = torch.zeros(n_steps + 1, 3, dtype=torch.float32)
+        trajectory[0] = state
+        for step_idx in range(n_steps):
+            state = self._integrate_step(state)
+            trajectory[step_idx + 1] = state
+        return trajectory
+
+    def _build_observation_matrix(
+        self, mode: str, observation_dim: int, seed: int
+    ) -> torch.Tensor:
+        if mode == "full":
+            return torch.eye(3, dtype=torch.float32)
+
+        if mode == "partial":
+            if observation_dim > 3:
+                raise ValueError(
+                    f"partial observation_dim must be <= 3, got {observation_dim}"
+                )
+            basis = torch.eye(3, dtype=torch.float32)
+            return basis[:, :observation_dim]
+
+        generator = torch.Generator().manual_seed(seed + 17)
+        matrix = torch.randn(3, observation_dim, generator=generator)
+        matrix = matrix / matrix.norm(dim=0, keepdim=True).clamp(min=1e-8)
+        return matrix.to(dtype=torch.float32)
+
+    def _compute_state_stats(
+        self,
+        n_steps: int,
+        burn_in_steps: int,
+        generator: torch.Generator,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        reference = self._reference_trajectory(
+            n_steps=n_steps, burn_in_steps=burn_in_steps, generator=generator
+        )
+        mean = reference.mean(dim=0)
+        std = reference.std(dim=0).clamp(min=1e-8)
+        return mean, std
+
+    def _compute_observation_stats(
+        self,
+        n_steps: int,
+        burn_in_steps: int,
+        generator: torch.Generator,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        reference = self._reference_trajectory(
+            n_steps=n_steps, burn_in_steps=burn_in_steps, generator=generator
+        )
+        projected = torch.matmul(reference, self.observation_matrix)
+        mean = projected.mean(dim=0)
+        std = projected.std(dim=0).clamp(min=1e-8)
+        return mean, std
+
+    def normalize_state_tensor(self, states_raw: torch.Tensor) -> torch.Tensor:
+        if not self.normalize_states:
+            return states_raw
+        return (states_raw - self.state_mean) / self.state_std
+
+    def denormalize_state_tensor(self, states: torch.Tensor) -> torch.Tensor:
+        if not self.normalize_states:
+            return states
+        return states * self.state_std + self.state_mean
+
+    def normalize_observation_tensor(
+        self, observations_raw: torch.Tensor
+    ) -> torch.Tensor:
+        if not self.normalize_observations:
+            return observations_raw
+        return (observations_raw - self.obs_mean) / self.obs_std
+
+    def denormalize_observation_tensor(
+        self, observations: torch.Tensor
+    ) -> torch.Tensor:
+        if not self.normalize_observations:
+            return observations
+        return observations * self.obs_std + self.obs_mean
+
+    def states_to_observations(
+        self,
+        states_raw: torch.Tensor,
+        add_noise: bool = False,
+        generator: Optional[torch.Generator] = None,
+    ) -> torch.Tensor:
+        observations_raw = torch.matmul(states_raw, self.observation_matrix)
+        observations = self.normalize_observation_tensor(observations_raw)
+        if add_noise and self.observation_noise_std > 0.0:
+            noise = torch.randn(
+                observations.shape,
+                generator=generator,
+                dtype=observations.dtype,
+                device=observations.device,
+            )
+            observations = observations + self.observation_noise_std * noise
+        return observations
 
     def __len__(self):
         return self.n_samples
@@ -1300,17 +1510,37 @@ def get_sequence_datasets(
         test_ds = TimescaleGeneralizationDataset(
             n_samples=max(n_train // 5, 2000), **common_defaults
         )
-    elif dataset_name == "lorenz":
+    elif dataset_name in {"lorenz", "lorenz_sequence"}:
         n_train = kwargs.get("n_samples", 10000)
+        common = {
+            "seq_len": kwargs.get("seq_len", 50),
+            "dt": kwargs.get("dt", 0.01),
+            "sigma": kwargs.get("sigma", 10.0),
+            "rho": kwargs.get("rho", 28.0),
+            "beta": kwargs.get("beta", 8.0 / 3.0),
+            "rollout_horizon": kwargs.get("rollout_horizon", 50),
+            "prediction_mode": kwargs.get("prediction_mode", "last"),
+            "observation_mode": kwargs.get("observation_mode", "full"),
+            "observation_dim": kwargs.get("observation_dim", 3),
+            "observation_noise_std": kwargs.get("observation_noise_std", 0.0),
+            "burn_in_steps": kwargs.get("burn_in_steps", 200),
+            "seed": kwargs.get("seed", 42),
+            "integration_method": kwargs.get("integration_method", "euler"),
+            "normalize_states": kwargs.get("normalize_states", True),
+            "normalize_observations": kwargs.get("normalize_observations", True),
+            "normalization_steps": kwargs.get("normalization_steps", 10000),
+            "initial_state_scale": kwargs.get("initial_state_scale", 0.1),
+        }
         train_full = LorenzSequenceDataset(
             n_samples=n_train,
-            seq_len=kwargs.get("seq_len", 50),
-            dt=kwargs.get("dt", 0.01),
+            **common,
         )
         test_ds = LorenzSequenceDataset(
             n_samples=max(n_train // 5, 1000),
-            seq_len=kwargs.get("seq_len", 50),
-            dt=kwargs.get("dt", 0.01),
+            **{
+                **common,
+                "seed": kwargs.get("test_seed", common["seed"] + 1),
+            },
         )
     elif dataset_name == "stringer_v1":
         data_dir = kwargs.get("data_dir", data_path)
