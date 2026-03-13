@@ -167,45 +167,6 @@ def load_train_encoder_network(
     if isinstance(encoder_network, Identity):
         return encoder_network, train_ds, valid_ds, test_ds
 
-    # Frozen pretrained encoder: batch-encode datasets on GPU to avoid
-    # loading everything into RAM at once (critical for ImageNet).
-    from dendritic_modeling.networks.architectures.classical.pretrained import (
-        PretrainedEncoder,
-    )
-
-    if isinstance(encoder_network, PretrainedEncoder) and encoder_network.frozen:
-        logger.info(
-            "Frozen PretrainedEncoder: batch-encoding datasets (output_dim=%d)",
-            encoder_network.output_dim,
-        )
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        encoder_network = encoder_network.to(device)
-        encoder_network.eval()
-
-        def _batch_encode(dataset, batch_size=256):
-            loader = torch.utils.data.DataLoader(
-                dataset, batch_size=batch_size, shuffle=False, num_workers=2
-            )
-            features, labels = [], []
-            with torch.no_grad():
-                for x, y in loader:
-                    features.append(encoder_network(x.to(device)).cpu())
-                    labels.append(y)
-            return torch.cat(features), torch.cat(labels)
-
-        enc_train, lbl_train = _batch_encode(train_ds)
-        enc_valid, lbl_valid = _batch_encode(valid_ds)
-        enc_test, lbl_test = _batch_encode(test_ds)
-
-        encoder_network = encoder_network.cpu()
-
-        return (
-            encoder_network,
-            torch.utils.data.TensorDataset(enc_train, lbl_train),
-            torch.utils.data.TensorDataset(enc_valid, lbl_valid),
-            torch.utils.data.TensorDataset(enc_test, lbl_test),
-        )
-
     if not isinstance(encoder_network, BaseAutoencoder):
         # Plain encoders (for example pathway_router) should be trained jointly with
         # the main model rather than pre-encoded into the dataset.

@@ -1,9 +1,14 @@
 """
-Generic pretrained model splitter for encoder-core-decoder pipelines.
+Pretrained model splitter for encoder-core-decoder pipelines.
 
-Splits any torchvision model at a named layer to create a frozen encoder
-(pre-split layers) and trainable decoder (post-split layers), with a
-dendritic core network replacing the layers in between.
+Splits Sequential-based torchvision backbones (e.g., AlexNet, VGG) at a
+named layer to create a frozen encoder (pre-split layers) and trainable
+decoder (post-split layers), with a dendritic core network replacing the
+layers in between.
+
+Models whose forward() is not a simple Sequential walk (e.g., ResNet with
+skip connections) are supported only when the split point is *outside* the
+residual blocks — typically ``avgpool`` or ``fc``.
 
 Example config::
 
@@ -22,7 +27,7 @@ Example config::
         ...
 
       decoder:
-        type: "pretrained"
+        type: "pretrained_decoder"
         params:
           backbone: "alexnet"
           weights: "IMAGENET1K_V1"
@@ -288,6 +293,21 @@ class PretrainedDecoder(BaseNetwork):
         )
 
         self.layers = nn.Sequential(*modules)
+
+        # Validate input_dim against the first Linear layer if both are known
+        if input_dim is not None:
+            first_linear = None
+            for m in modules:
+                if isinstance(m, nn.Linear):
+                    first_linear = m
+                    break
+            if first_linear is not None and first_linear.in_features != input_dim:
+                raise ValueError(
+                    f"PretrainedDecoder: input_dim={input_dim} does not match "
+                    f"first Linear layer in_features={first_linear.in_features} "
+                    f"(backbone={backbone!r}, split_from={split_from!r}). "
+                    f"Check that core.output_dim matches decoder input."
+                )
 
         # Determine output_dim from the last Linear layer or dummy forward
         last_linear = None

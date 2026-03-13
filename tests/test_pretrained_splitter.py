@@ -11,6 +11,7 @@ from dendritic_modeling.networks.architectures.classical.pretrained import (
     _flatten_model_layers,
     _load_backbone,
 )
+from dendritic_modeling.networks.base import BaseNetwork
 
 
 # ---------------------------------------------------------------------------
@@ -346,3 +347,155 @@ class TestLoadBackbone:
         ):
             assert n1 == n2
             assert torch.equal(p1, p2)
+
+
+# ---------------------------------------------------------------------------
+# Tests for decoder input validation (ValueError on mismatch)
+# ---------------------------------------------------------------------------
+class TestDecoderInputValidation:
+    @pytest.fixture(autouse=True)
+    def skip_if_no_torchvision(self):
+        try:
+            from torchvision.models import get_model
+
+            get_model("alexnet", weights=None)
+        except Exception:
+            pytest.skip("torchvision alexnet not available")
+
+    def test_decoder_mismatch_raises(self):
+        """input_dim that doesn't match first Linear.in_features should raise."""
+        with pytest.raises(ValueError, match="does not match"):
+            PretrainedDecoder(
+                backbone="alexnet",
+                weights=None,
+                split_from="classifier.6",
+                freeze=False,
+                input_dim=999,  # AlexNet fc8 expects 4096
+            )
+
+    def test_decoder_correct_input_dim_ok(self):
+        """Correct input_dim should not raise."""
+        dec = PretrainedDecoder(
+            backbone="alexnet",
+            weights=None,
+            split_from="classifier.6",
+            freeze=False,
+            input_dim=4096,
+        )
+        assert dec.output_dim == 1000
+
+    def test_decoder_none_input_dim_ok(self):
+        """input_dim=None skips validation."""
+        dec = PretrainedDecoder(
+            backbone="alexnet",
+            weights=None,
+            split_from="classifier.6",
+            freeze=False,
+            input_dim=None,
+        )
+        assert dec.output_dim == 1000
+
+
+# ---------------------------------------------------------------------------
+# End-to-end smoke test: encoder -> core -> decoder forward pass
+# ---------------------------------------------------------------------------
+class _SimpleCore(BaseNetwork):
+    """Minimal core network stand-in for testing the pipeline."""
+
+    def __init__(self, input_dim, output_dim):
+        super().__init__()
+        self.net = nn.Linear(input_dim, output_dim)
+        self.output_dim = output_dim
+
+    def forward(self, x):
+        return self.net(x)
+
+    def get_output_dim(self):
+        return self.output_dim
+
+
+class TestEndToEndPipeline:
+    @pytest.fixture(autouse=True)
+    def skip_if_no_torchvision(self):
+        try:
+            from torchvision.models import get_model
+
+            get_model("alexnet", weights=None)
+        except Exception:
+            pytest.skip("torchvision alexnet not available")
+
+    def test_alexnet_encoder_core_decoder_forward(self):
+        """Full encoder -> core -> decoder pipeline on a random batch."""
+        encoder = PretrainedEncoder(
+            backbone="alexnet",
+            weights=None,
+            split_after="classifier.2",
+            freeze=True,
+            drop_layers=["classifier.0", "classifier.3"],
+        )
+        core = _SimpleCore(encoder.output_dim, 256)
+        decoder = PretrainedDecoder(
+            backbone="alexnet",
+            weights=None,
+            split_from="classifier.6",
+            freeze=False,
+            input_dim=None,  # fc8 expects 4096, but we use core output=256
+        )
+        # Replace decoder's first linear to accept core output
+        decoder.layers = nn.Sequential(nn.Linear(256, 1000))
+        decoder.output_dim = 1000
+
+        x = torch.randn(4, 3, 224, 224)
+        with torch.no_grad():
+            encoded = encoder(x)
+        assert encoded.shape == (4, 4096)
+
+        core_out = core(encoded)
+        assert core_out.shape == (4, 256)
+
+        logits = decoder(core_out)
+        assert logits.shape == (4, 1000)
+
+    def test_alexnet_k2_encoder_core_decoder_forward(self):
+        """K=2 split: features only -> core -> decoder."""
+        encoder = PretrainedEncoder(
+            backbone="alexnet",
+            weights=None,
+            split_after="avgpool",
+            freeze=True,
+        )
+        assert encoder.output_dim == 9216
+
+        core = _SimpleCore(9216, 128)
+        decoder_layer = nn.Linear(128, 10)
+
+        x = torch.randn(2, 3, 224, 224)
+        with torch.no_grad():
+            encoded = encoder(x)
+        core_out = core(encoded)
+        logits = decoder_layer(core_out)
+        assert logits.shape == (2, 10)
+
+    def test_frozen_encoder_no_grad(self):
+        """Frozen encoder should not accumulate gradients during pipeline."""
+        encoder = PretrainedEncoder(
+            backbone="alexnet",
+            weights=None,
+            split_after="classifier.2",
+            freeze=True,
+            drop_layers=["classifier.0", "classifier.3"],
+        )
+        core = _SimpleCore(encoder.output_dim, 100)
+
+        x = torch.randn(2, 3, 224, 224)
+        encoded = encoder(x)
+        out = core(encoded)
+        loss = out.sum()
+        loss.backward()
+
+        # Encoder params should have no gradient
+        for p in encoder.parameters():
+            assert p.grad is None
+        # Core params should have gradient
+        for p in core.parameters():
+            assert p.grad is not None

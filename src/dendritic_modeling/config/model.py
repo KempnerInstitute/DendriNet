@@ -147,6 +147,7 @@ class EncoderParamsConfig(BaseConfig):
     split_after: Optional[str] = None
     freeze: bool = False
     drop_layers: list[str] = field(default_factory=list)
+    input_size: Optional[list[int]] = None  # e.g. [1, 3, 224, 224]
 
 
 @dataclass

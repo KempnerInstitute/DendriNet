@@ -354,20 +354,18 @@ def main(config_path):
         config, rank, world_size
     )
 
-    # Only rank 0 needs to handle encoding for analysis
+    # Only rank 0 needs to handle encoding for analysis.
+    # Extract the encoder that create_large_model() already built into the model
+    # so that load_train_encoder_network() can use it (e.g., for pre-training
+    # BaseAutoencoder encoders).  For Identity and plain encoders (including
+    # PretrainedEncoder) it returns immediately with datasets unchanged.
     if rank == 0:
         logger.info("Encoding datasets for analysis...")
-        # Get input dimension from sample data
-        sample_input = train_ds[0][0]
-        input_dim = (
-            sample_input.numel()
-            if hasattr(sample_input, "numel")
-            else len(sample_input)
-        )
+        encoder_network = model.encoder
 
         encoder_network, encoded_train_ds, encoded_valid_ds, encoded_test_ds = (
             load_train_encoder_network(
-                encoder_network=Identity(input_dim),
+                encoder_network=encoder_network,
                 encoder_train_config=config.training.encoder,
                 train_ds=train_ds,
                 valid_ds=valid_ds,
@@ -378,7 +376,6 @@ def main(config_path):
         )
     else:
         encoded_train_ds = encoded_valid_ds = encoded_test_ds = None
-        # For non-rank 0 processes, create a dummy Identity
         encoder_network = Identity(1)
 
     # Generate detailed parameter summary with real sample input
@@ -436,11 +433,14 @@ def main(config_path):
         if isinstance(encoder_network, Identity):
             model.encoder_network = encoder_network
             logger.info("Set model encoder to Identity network")
-        else:
+        elif hasattr(encoder_network, "encoder"):
             model.encoder_network = Identity(encoder_network.encoder.output_dim)
             logger.info(
                 f"Set model encoder to Identity with output_dim: {encoder_network.encoder.output_dim}"
             )
+        else:
+            model.encoder_network = encoder_network
+            logger.info("Set model encoder to %s", type(encoder_network).__name__)
 
         encoded_data = {
             "train": encoded_train_ds,
@@ -500,8 +500,10 @@ def main(config_path):
     if rank == 0:
         if isinstance(encoder_network, Identity):
             model.encoder_network = encoder_network
-        else:
+        elif hasattr(encoder_network, "encoder"):
             model.encoder_network = Identity(encoder_network.encoder.output_dim)
+        else:
+            model.encoder_network = encoder_network
 
     if rank == 0:
         logger.info("Training completed successfully!")
