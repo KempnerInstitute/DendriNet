@@ -1056,8 +1056,9 @@ class ContextDependentDecisionDataset(Dataset):
             seq_lengths = self.seq_lengths[idx]
             if torch.is_tensor(seq_lengths) and seq_lengths.dim() == 0:
                 seq_lengths = int(seq_lengths.item())
-            return self.inputs[idx], self.targets[idx], seq_lengths
-        return self.inputs[idx], self.targets[idx]
+        else:
+            seq_lengths = None
+        return self.inputs[idx], self.targets[idx], seq_lengths
 
 
 class SwitchingContextDecisionDataset(Dataset):
@@ -1273,7 +1274,6 @@ class TimescaleGeneralizationDataset(Dataset):
         self.max_seq_len = max_seq_len
 
         inputs = torch.zeros(n_samples, max_seq_len, stimulus_dim)
-        targets = torch.zeros(n_samples, dtype=torch.long)
         seq_lengths = torch.zeros(n_samples, dtype=torch.long)
 
         delays = torch.randint(min_delay, max_delay + 1, (n_samples,))

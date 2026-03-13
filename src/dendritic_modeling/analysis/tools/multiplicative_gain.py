@@ -197,8 +197,8 @@ class MultiplicativeGainAnalyzer(AbstractAnalyzer):
                         )
 
             save_dict(data_dict, save_path, f"{filename}.json")
-        else:
-            return data_dict
+
+        return data_dict
 
     def _initialize_agg_structure(self, data: dict) -> dict:
         """
