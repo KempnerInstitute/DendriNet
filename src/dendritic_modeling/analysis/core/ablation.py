@@ -199,11 +199,12 @@ class AblationAnalyzer(AbstractAnalyzer):
         def _hook(_module, inputs):
             nonlocal call_idx
             if not inputs:
-                return inputs
+                return None
 
-            x = inputs[0]
-            inhibitory_input = inputs[1] if len(inputs) > 1 else None
-            branch_input = inputs[2] if len(inputs) > 2 else None
+            inputs_list = list(inputs)
+            x = inputs_list[0]
+            inhibitory_input = inputs_list[1] if len(inputs_list) > 1 else None
+            branch_input = inputs_list[2] if len(inputs_list) > 2 else None
 
             mod_exc = ablation_type in {"excitation", "all_synapses"}
             mod_inh = ablation_type in {"inhibition", "all_synapses"}
@@ -246,13 +247,15 @@ class AblationAnalyzer(AbstractAnalyzer):
                         branch_input
                     )
             else:
-                return inputs
+                return None
 
-            if len(inputs) == 1:
-                return (x,)
-            if len(inputs) == 2:
-                return (x, inhibitory_input)
-            return (x, inhibitory_input, branch_input)
+            # Write back modified values, preserving original tuple structure.
+            inputs_list[0] = x
+            if len(inputs_list) > 1:
+                inputs_list[1] = inhibitory_input
+            if len(inputs_list) > 2:
+                inputs_list[2] = branch_input
+            return tuple(inputs_list)
 
         return _hook
 
