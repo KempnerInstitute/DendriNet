@@ -1066,7 +1066,9 @@ class InformationPlotter(BasePlotter):
             .isin(["dendritic_shunting", "dendritic_additive"])
             .any()
         ):
-            print("No shunting/no_shunting data for information analysis")
+            print(
+                "No dendritic_shunting/dendritic_additive data for information analysis"
+            )
             return plot_paths
 
         # Define metric groups matching old analysis exactly

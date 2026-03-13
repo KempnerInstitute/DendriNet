@@ -94,7 +94,7 @@ class AblationPlotter(BasePlotter):
             .isin(["dendritic_shunting", "dendritic_additive"])
             .any()
         ):
-            print("No shunting/no_shunting data for ablation analysis")
+            print("No dendritic_shunting/dendritic_additive data for ablation analysis")
             return plot_paths
 
         sweep_types = self.detect_sweep_types(valid_data)
