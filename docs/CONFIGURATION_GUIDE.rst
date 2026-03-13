@@ -1,345 +1,217 @@
 Configuration Guide
 ===================
 
+The primary configuration reference is ``configs/config_exp.yaml``.  That file
+lists **every parameter** accepted by the framework together with its default
+value and valid options.  This page summarises the structure and highlights
+the most important settings; for the full parameter list, consult the YAML
+file directly or the :doc:`config_reference` page.
+
 Quick Start
 -----------
 
-All experiments use YAML configuration files. Start with these templates:
+.. code-block:: bash
 
-- ``configs/config_exp.yaml`` - Standard training
-- ``configs/config_exp_fsdp.yaml`` - FSDP training
-- ``configs/unified_all_sweeps_example.yaml`` - Parameter sweeps
+   # Standard training
+   python src/dendritic_modeling/scripts/training/train_experiments.py configs/config_exp.yaml
 
-Basic Structure
----------------
+   # With overrides
+   python ... configs/config_exp.yaml --output_dir results/my_run --run_name test1
 
-.. code-block:: yaml
+Templates:
 
-   model:
-     task: classification
-     encoder_network:
-       type: Identity
-     core_network:
-       type: EINet
-     decoder_network:
-       type: Identity
+- ``configs/config_exp.yaml`` -- single-GPU training (complete reference)
+- ``configs/config_exp_fsdp.yaml`` -- FSDP multi-GPU training
+- ``configs/EI_sweeps_example.yaml`` -- parameter sweeps
 
-   train:
-     main:
-       epochs: 100
-       batch_size: 64
-       learning_rate: 0.001
-
-   task:
-     name: mnist
-     data_dir: data/
-
-Core Networks
--------------
-
-EINet (Excitation-Inhibition Network)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Biologically-inspired network with separate excitatory and inhibitory pathways.
+Top-Level Structure
+-------------------
 
 .. code-block:: yaml
 
-   core_network:
-     type: EINet
-     parameters:
-       layer_sizes: [128, 64, 32]
-       ee_synapses_per_branch_per_layer: [[2], [2], [2]]
-       ie_synapses_per_branch_per_layer: [[1], [1], [1]]
-       use_shunting: true
+   experiment:   # seed, AMP, profiling, checkpointing
+   data:         # dataset, processing, dataset-specific params
+   model:        # encoder, core network, decoder
+   training:     # encoder + main training, strategies, regularization, pruning
+   analysis:     # 16 analysis modules
+   wandb:        # Weights & Biases logging
+   outputs:      # run_name, results_dir
+   fsdp:         # distributed training
 
-Key parameters:
-- ``layer_sizes``: Neurons per layer
-- ``ee_synapses_per_branch_per_layer``: Excitatory connections
-- ``ie_synapses_per_branch_per_layer``: Inhibitory connections
-- ``use_shunting``: Enable shunting inhibition
+Core Network Types
+------------------
 
-DendriNet
-~~~~~~~~~
+Set ``model.core.type`` to one of:
 
-Pure dendritic network with hierarchical branching.
+.. list-table::
+   :header-rows: 1
+   :widths: 30 70
 
-.. code-block:: yaml
+   * - Type string
+     - Description
+   * - ``dendritic_shunting``
+     - Shunting (divisive) inhibition
+   * - ``dendritic_additive``
+     - Additive (subtractive) inhibition
+   * - ``dendritic_mlp``
+     - Dendritic morphology, no E/I sign constraint
+   * - ``point_mlp``
+     - Point-neuron MLP baseline (matched params)
+   * - ``EINet``
+     - Legacy; uses ``morphology.use_shunting``
+   * - ``flat_shunting``
+     - Single-branch shunting variant
+   * - ``flat_additive``
+     - Single-branch additive variant
+   * - ``ei_unified``
+     - Unified E-I, supports feedforward and recurrent
+   * - ``gru``, ``lstm``
+     - Baseline RNNs
+   * - ``mlp``, ``sparse_mlp``
+     - Standard / sparse MLP
 
-   core_network:
-     type: DendriNet
-     parameters:
-       layer_sizes: [128, 64, 32]
-       branch_factors: [[2, 2], [2, 2], [2, 2]]
-       topk_type: standard
+See :doc:`network_architectures` for architecture details.
 
-MLP
-~~~
+Training Strategies
+-------------------
 
-Standard multi-layer perceptron.
+Set ``training.main.strategy`` to one of:
 
-.. code-block:: yaml
+``standard``, ``fa``, ``dfa``, ``shunting_fa``, ``shunting_dfa``,
+``local_ca``, ``freeze_layers``, ``freeze_branches``, ``freeze_branch_kl``,
+``voltage_stabilization``, ``homeostatic_control``,
+``multi_stage``, ``recurrent``, ``fsdp``, ``fsdp_standard``, ``enhanced``
 
-   core_network:
-     type: MLP
-     parameters:
-       hidden_sizes: [128, 64, 32]
-       activation: ReLU
+Each strategy has its own sub-configuration under
+``training.main.strategies.<name>``.  See :doc:`training_strategies` for details.
 
-Training Options
-----------------
+Loss Functions
+--------------
 
-Standard Training
-~~~~~~~~~~~~~~~~~
+Set ``training.main.common.loss_function`` (or ``training.encoder.common.loss_function``) to:
 
-.. code-block:: yaml
-
-   train:
-     main:
-       epochs: 100
-       batch_size: 64
-       learning_rate: 0.001
-       optimizer: Adam
-
-FSDP Training
-~~~~~~~~~~~~~
-
-.. code-block:: yaml
-
-   train:
-     main:
-       epochs: 100
-       batch_size: 32  # Smaller for FSDP
-       learning_rate: 0.001
-
-   fsdp:
-     enabled: true
-     sharding_strategy: FULL_SHARD
-
-Learning Strategies
-~~~~~~~~~~~~~~~~~~~
-
-Available strategies:
-- ``standard`` - Regular backpropagation
-- ``freeze_layers`` - Freeze specific layers
-- ``freeze_branches`` - Freeze dendritic branches
-- ``two_step`` - Two-phase training
-- ``voltage_stabilization`` - Stabilize dendritic voltages
-- ``local_ca`` - Local credit assignment
-
-.. code-block:: yaml
-
-   train:
-     main:
-       learning_strategy: standard
+``mse``, ``log_mse``, ``ce``, ``bce``, ``cat_nll``,
+``vae_elbo``, ``neg_cos_sim``, ``log_adj_neg_cos_sim``
 
 Datasets
 --------
 
-Supported datasets:
-- ``mnist`` - MNIST handwritten digits
-- ``cifar10`` - CIFAR-10 images
-- ``imagenet`` - ImageNet (requires download)
-- ``mnist_modulo10`` - MNIST with modulo arithmetic
+Set ``data.dataset_name`` to one of:
 
-.. code-block:: yaml
+- **Standard**: ``mnist``, ``fashion_mnist``, ``cifar10``, ``imagenet``,
+  ``mnist_modulo10``, ``random_flip_mnist``
+- **Synthetic**: ``correlated_gaussian``, ``nonlinear_interaction``,
+  ``linear_separable``, ``nonlinear_separable``, ``block_correlated``,
+  ``balanced_information``, ``poisson_generator``, ``multixor``,
+  ``orientation_bars``, ``orthonet``
+- **Sequence**: ``sequential_mnist``, ``copy_task``, ``adding_problem``,
+  ``variable_delay_dms``, ``multi_frequency``, ``hierarchical_temporal``,
+  ``lorenz``, ``stringer_v1``
 
-   task:
-     name: mnist
-     data_dir: data/
-     batch_size: 64
+Dataset-specific parameters go under ``data.dataset_params.<name>``.
+See :doc:`datasets` for details.
 
-Analysis Options
+Analysis Modules
 ----------------
 
-Enable analysis during training:
+Each module lives under ``analysis.<module_name>`` with ``enabled`` and
+``training`` flags:
 
 .. code-block:: yaml
 
    analysis:
      performance_analysis:
        enabled: true
+       training: true    # run every epoch
      information_analysis:
        enabled: true
-       method: kraskov
-     ablation_analysis:
-       enabled: true
-       layer_ablation: true
+       training: false   # run after training only
 
-WandB Integration
------------------
+Available modules: ``performance_analysis``, ``information_analysis``,
+``correlation_analysis``, ``ablation_analysis``, ``synapse_turnover_analysis``,
+``noise_perturbation_analysis``, ``weight_analysis``,
+``single_layer_contribution``, ``synaptic_activation_analysis``,
+``branch_activation_analysis``, ``compartment_statistics_analysis``,
+``compartment_snr_analysis``, ``multiplicative_gain_analysis``,
+``receptive_field_analysis``, ``adversarial_robustness_analysis``,
+``routing_analysis``.
 
-Track experiments with Weights & Biases:
+See :doc:`analysis` for per-module parameter details.
 
-.. code-block:: yaml
+Recurrent Networks
+------------------
 
-   wandb:
-     enabled: true
-     project: dendritic-modeling
-     name: my_experiment
-
-Common Configurations
---------------------
-
-Small Model (Development)
-~~~~~~~~~~~~~~~~~~~~~~~~~
+Any EINet type (``dendritic_shunting``, ``dendritic_additive``, ``EINet``)
+becomes recurrent when ``connectivity.rec_*`` synapse counts are nonzero.
+Recurrence is controlled solely by these counts — no separate ``enabled``
+flag is needed:
 
 .. code-block:: yaml
 
    model:
-     core_network:
-       type: EINet
-       parameters:
-         layer_sizes: [64, 32, 10]
+     core:
+       type: dendritic_shunting       # same type as feedforward
+       architecture:
+         excitatory_layer_sizes: [64]
+         excitatory_branch_factors: [3, 3]
+       connectivity:
+         ee_synapses_per_branch_per_layer: [12]
+         ie_synapses_per_branch_per_layer: [6]
+         # Recurrent synapse counts (nonzero = recurrent)
+         rec_ee_synapses_per_branch: [8]   # E->E recurrent
+         rec_ie_synapses_per_branch: [4]   # I->E recurrent
+         rec_ei_synapses_per_branch: [8]   # E->I recurrent
+         rec_ii_synapses_per_branch: [4]   # I->I recurrent
+       transfer:
+         input_mode: 1
+         inhibitory_mode: "first"     # none, first, all
+       # morphology, sparsity, reactivation as usual...
 
-   train:
+       recurrent_ei:                  # temporal params only
+         output_mode: last            # last, all, mean
+         use_transfer: true           # default true (set false to bypass TransferLayer)
+         dt: 1.0
+         tau_base: 50.0               # scalar or per-layer list
+         tau_ratio: 3.0               # scalar or per-layer list
+
+   training:
      main:
-       epochs: 50
-       batch_size: 128
+       strategy: recurrent
 
-Large Model (Production)
-~~~~~~~~~~~~~~~~~~~~~~~~
+For full per-layer, per-population control use ``core.type: ei_unified``
+with the ``unified_ei`` config instead. For baseline RNNs use
+``model.core.type: gru`` (or ``lstm``, ``vanilla_rnn``).
+See :doc:`network_architectures` for full details.
 
-.. code-block:: yaml
-
-   model:
-     core_network:
-       type: EINet
-       parameters:
-         layer_sizes: [512, 256, 128, 64]
-
-   train:
-     main:
-       epochs: 200
-       batch_size: 32
-
-   fsdp:
-     enabled: true
-
-Parameter Sweep
-~~~~~~~~~~~~~~~
-
-.. code-block:: yaml
-
-   sweep_config:
-     model.core_network.parameters.layer_sizes: [[64,32,10], [128,64,32,10]]
-     train.main.learning_rate: [0.001, 0.01, 0.1]
-
-   filter_config:
-     mode: "ei-sum"
-     value: 4
-
-Information Analysis
+Multi-Stage Training
 --------------------
 
-The framework provides flexible information-theoretic analysis with configurable computation levels.
-
-Computation Levels
-~~~~~~~~~~~~~~~~~~
-
 .. code-block:: yaml
 
-   analysis:
-     information_analysis:
-       params:
-         computation_level: "branch"  # Options: "branch", "layer", "network"
-         branch_aggregation: "mean"   # Options: "mean", "multivariate", "sample"
+   training:
+     main:
+       strategy: multi_stage
+       strategies:
+         multi_stage:
+           analyze_between_stages: true
+           stages:
+             - learning_strategy: standard
+               epochs: 50
+               trainer_config:
+                 loss_function: ce
+             - learning_strategy: local_ca
+               epochs: 50
 
-- ``branch``: Compute information for individual branches (most granular)
-- ``layer``: Aggregate branches within each layer then compute information
-- ``network``: Aggregate all branches across the network then compute information
+See :doc:`training_strategies` for per-stage options.
 
-Branch Aggregation
-~~~~~~~~~~~~~~~~~~
+FSDP / Distributed
+-------------------
 
-When using ``layer`` or ``network`` computation levels:
+See :doc:`FSDP_TROUBLESHOOTING` for distributed training setup.
 
-- ``mean``: Average branch activations to create scalar values
-- ``multivariate``: Use raw multi-dimensional branch data for joint information computation
-- ``sample``: Treat each branch as a separate observation by flattening branch dimension into sample dimension
+Full Parameter Reference
+------------------------
 
-Enhanced EI Network Analysis
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-The framework provides enhanced analysis specifically designed for excitation-inhibition networks.
-
-.. code-block:: yaml
-
-   analysis:
-     information_analysis:
-       params:
-         # Enhanced analysis modes
-         per_neuron_analysis: false       # Compute MI for each neuron individually
-         per_einet_analysis: false        # Analyze E and I networks separately
-         per_layer_analysis: false        # Compute enhanced analysis per layer
-
-Per-Neuron Analysis:
-
-When enabled, computes mutual information for each individual neuron separately, providing detailed per-neuron MI statistics and averaged results across all neurons.
-
-Per-EI-Network Analysis:
-
-When enabled, performs three separate analyses:
-- Excitatory network only (inhibitory inputs set to zero)
-- Inhibitory network only (excitatory inputs set to zero)  
-- Combined E+I network (standard analysis)
-
-Per-Layer Analysis:
-
-When enabled, computes enhanced analysis (per-neuron and per-EI-network) for each layer separately in multilayer networks, providing layer-specific insights into information processing.
-
-Training Optimization
----------------------
-
-Configure performance and debugging options for training.
-
-Trainer Structure
-~~~~~~~~~~~~~~~~~
-
-.. code-block:: yaml
-
-   train:
-     encoder_net_trainer:
-       loss_function: mse
-       epochs: 50
-       batch_size: 128
-     main_trainer:
-       loss_function: ce
-       epochs: 100
-       batch_size: 64
-       enable_nan_checking: false
-       enable_adaptive_clipping: false
-
-Performance Options
-~~~~~~~~~~~~~~~~~~~
-
-.. code-block:: yaml
-
-   train:
-     main_trainer:
-       enable_nan_checking: false      # Enable NaN detection (expensive)
-       enable_adaptive_clipping: false # Enable adaptive gradient clipping (expensive)
-       use_amp: false                  # Enable automatic mixed precision
-
-Encoder Network Caching
-~~~~~~~~~~~~~~~~~~~~~~~~
-
-Hash-based caching automatically reuses trained encoder networks with identical configurations.
-
-.. code-block:: yaml
-
-   train:
-     encoder:
-       load_save_root: ./.trained_encoder_networks/
-
-Models are saved to ``{load_save_root}/{config_hash}/best_model.pt`` and automatically loaded when configurations match.
-
-Troubleshooting
----------------
-
-Common Issues:
-- Model too large: Use FSDP or reduce layer sizes
-- Training slow: Increase batch size or use multiple GPUs
-- Low accuracy: Adjust learning rate or model architecture
-- Memory errors: Reduce batch size or enable gradient checkpointing
-
-For detailed troubleshooting, see ``FSDP_TROUBLESHOOTING.rst``.
+The complete annotated configuration with every parameter and its valid
+options is in ``configs/config_exp.yaml`` and reproduced in
+:doc:`config_reference`.

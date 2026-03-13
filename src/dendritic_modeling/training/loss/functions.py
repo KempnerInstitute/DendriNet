@@ -213,9 +213,7 @@ class VoltageStabilizationLoss(LossFunction):
         elif loss_metric == "squared_mean_error":
             self.metric_fn = lambda x, y: reduction_fn(x - y) ** 2
         elif loss_metric == "log_squared_mean_error":
-            self.metric_fn = lambda x, y: torch.log(
-                reduction_fn(x - y) ** 2 + self.eps
-            )
+            self.metric_fn = lambda x, y: torch.log(reduction_fn(x - y) ** 2 + self.eps)
         elif loss_metric == "abs_mean_error":
             self.metric_fn = lambda x, y: torch.abs(reduction_fn(x - y))
         elif loss_metric == "log_abs_mean_error":

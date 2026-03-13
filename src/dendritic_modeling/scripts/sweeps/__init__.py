@@ -4,7 +4,6 @@ Sweeps module for dendritic modeling.
 This module contains sweep management and analysis tools.
 """
 
-from . import unified
-from . import analyzers
+from . import analyzers, unified
 
-__all__ = ["unified", "analyzers"]
+__all__ = ["analyzers", "unified"]

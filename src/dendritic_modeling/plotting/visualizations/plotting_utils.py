@@ -111,7 +111,7 @@ def convert_layer_names(
     layer_results: dict[str, dict[str, Any]],
     somatic_synapses: bool = True,
 ) -> dict[str, dict[str, Any]]:
-    """Convert technical layer names to intuitive format (soma → distal).
+    """Convert technical layer names to readable format (soma to distal).
 
     Parameters
     ----------
@@ -155,7 +155,7 @@ def convert_layer_names(
                 parts = name.split("branch_layers.")
                 if len(parts) > 1:
                     branch_idx = int(parts[1].split(".")[0])
-                    # Use actual layer_idx (branch_idx) so ordering matches ablation (0=soma → distal)
+                    # Use actual layer_idx (branch_idx) so ordering matches ablation (0=soma to distal)
                     indexed_layers.append((branch_idx, name))
                 else:
                     indexed_layers.append((999, name))
@@ -180,7 +180,7 @@ def convert_layer_names(
     # In dendritic networks: layer_idx=0 is soma (if present), higher layer_idx is more distal
     indexed_layers.sort(key=lambda x: x[0])
 
-    # Create new dictionary with intuitive names
+    # Create new dictionary with readable names
     converted_results = {}
     for _i, (original_idx, original_name) in enumerate(indexed_layers):
         # Treat layer_idx==0 as Soma in all cases (synthetic or real)

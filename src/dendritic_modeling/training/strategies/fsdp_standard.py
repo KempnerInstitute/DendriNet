@@ -13,7 +13,7 @@ from typing import Any, Optional
 import torch
 import torch.distributed as dist
 from torch.cuda.amp import GradScaler, autocast
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Dataset
 
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.training.fsdp_utils import (
@@ -246,20 +246,28 @@ class FSDPTrainer(Trainer):
     def train(
         self,
         model: BaseModel,
-        train_loader: DataLoader,
-        valid_loader: Optional[DataLoader] = None,
+        train_loader: DataLoader | Dataset,
+        valid_loader: Optional[DataLoader | Dataset] = None,
     ) -> dict[str, Any]:
         """
         Train model using FSDP with pre-created DataLoaders.
 
         Args:
             model: Model to train (will be wrapped with FSDP)
-            train_loader: Training DataLoader with DistributedSampler
-            valid_loader: Validation DataLoader with DistributedSampler
+            train_loader: Training DataLoader (or training Dataset for auto-wrapping)
+            valid_loader: Validation DataLoader (or validation Dataset for auto-wrapping)
 
         Returns:
             Training results dictionary
         """
+        if isinstance(train_loader, DataLoader):
+            if valid_loader is not None and not isinstance(valid_loader, DataLoader):
+                raise TypeError(
+                    "If train_loader is a DataLoader, valid_loader must also be a DataLoader or None."
+                )
+        else:
+            train_loader, valid_loader = self._dataloaders(train_loader, valid_loader)
+
         # Wrap model with FSDP
         model = wrap_model_with_fsdp(model, self.fsdp_config)
 
@@ -313,7 +321,7 @@ class FSDPTrainer(Trainer):
                 if self.early_stopping and valid_loss < best_valid_loss:
                     best_valid_loss = valid_loss
                     patience_counter = 0
-                    if self.rank == 0 and self.save_checkpoints:
+                    if self.rank == 0 and self.checkpointing:
                         save_fsdp_checkpoint(
                             model,
                             self.optimizer,
@@ -437,12 +445,12 @@ class FSDPTrainer(Trainer):
         total_correct = 0
         total_examples = 0
 
-        for _batch_idx, (x_batch, y_batch) in enumerate(train_loader):
+        for _batch_idx, batch in enumerate(train_loader):
             # Clear GPU cache before each forward pass
             torch.cuda.empty_cache()
 
-            x_batch = x_batch.to(self.device)
-            y_batch = y_batch.to(self.device)
+            x_batch = batch[0].to(self.device)
+            y_batch = batch[1].to(self.device)
 
             if self.use_amp:
                 # Mixed precision forward pass
@@ -508,9 +516,9 @@ class FSDPTrainer(Trainer):
         total_examples = 0
 
         with torch.no_grad():
-            for x_batch, y_batch in valid_loader:
-                x_batch = x_batch.to(self.device)
-                y_batch = y_batch.to(self.device)
+            for batch in valid_loader:
+                x_batch = batch[0].to(self.device)
+                y_batch = batch[1].to(self.device)
 
                 outputs = model(x_batch)
                 loss = self.loss_fn(outputs, y_batch)

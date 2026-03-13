@@ -1,4 +1,4 @@
-"""Analysis metrics modules."""
+"""Performance, noise perturbation, layer contribution, and visual selectivity metrics."""
 
 from .layer_contribution import SingleLayerContributionAnalyzer
 from .noise_perturbation import NoisePerturbationAnalyzer
@@ -11,11 +11,11 @@ from .visual_metrics import (
 )
 
 __all__ = [
-    "direction_selectivity_index"
-    "length_selectivity_index"
-    "NoisePerturbationAnalyzer"
-    "orientation_selectivity_index"
-    "PerformanceAnalyzer"
-    "SingleLayerContributionAnalyzer"
-    "size_tuning_index"
+    "NoisePerturbationAnalyzer",
+    "PerformanceAnalyzer",
+    "SingleLayerContributionAnalyzer",
+    "direction_selectivity_index",
+    "length_selectivity_index",
+    "orientation_selectivity_index",
+    "size_tuning_index",
 ]

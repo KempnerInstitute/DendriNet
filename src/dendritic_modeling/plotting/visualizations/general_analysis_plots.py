@@ -146,9 +146,7 @@ def plot_ablation_results(results: dict, **kwargs):
                     (
                         next(iter(result.values()))
                         if isinstance(result, dict) and result
-                        else result
-                        if isinstance(result, (int, float))
-                        else 0
+                        else result if isinstance(result, (int, float)) else 0
                     )
                     for result in results.values()
                 ]
@@ -209,6 +207,7 @@ def plot_layer_ablation(
         "categorical_loglikelihood": "Log Likelihood",
         "mse": "MSE",
         "cosine_similarity": "Cosine Similarity",
+        "pred_label_mi_bits": "I(C; Ĉ) [bits]",
     }
 
     def has_metric_nested(dictionary, metric):
@@ -219,7 +218,9 @@ def plot_layer_ablation(
             key = f"{metric} drop"
             if key in dictionary:
                 return True
-            return any(has_metric_nested(value, metric) for value in dictionary.values())
+            return any(
+                has_metric_nested(value, metric) for value in dictionary.values()
+            )
         elif isinstance(dictionary, (list, tuple)):
             return any(has_metric_nested(item, metric) for item in dictionary)
         return False
@@ -229,60 +230,109 @@ def plot_layer_ablation(
         if has_metric_nested(layer_results, metric):
             metrics.append(metric)
 
-    synapse_ablation_types = []
-    if "excitation" in layer_results:
-        synapse_ablation_types.append("excitation")
-    if "inhibition" in layer_results:
-        synapse_ablation_types.append("inhibition")
-    if "all synapses" in layer_results:
-        synapse_ablation_types.append("all synapses")
+    # Support both legacy keys ("excitation") and method-prefixed keys
+    # ("lesion_excitation", "shuffle_all_synapses", "mean_clamp_upstream", ...).
+    base_targets = ["excitation", "inhibition", "all_synapses", "upstream"]
+    method_to_keys: dict[str, dict[str, str]] = {}
+    legacy_method = "legacy"
 
-    for metric in metrics:
-        results = {}
-        for ablation_type in synapse_ablation_types:
-            data_dict = {"depth": [], "decrease": []}
-            type_dict: dict = layer_results[ablation_type]
+    for k in layer_results.keys():
+        k_norm = str(k).replace(" ", "_")
+        if k_norm in set(base_targets):
+            method_to_keys.setdefault(legacy_method, {})[k_norm] = k
+            continue
+
+        for base in base_targets:
+            suffix = f"_{base}"
+            if k_norm.endswith(suffix):
+                method = k_norm[: -len(suffix)]
+                if method:
+                    method_to_keys.setdefault(method, {})[base] = k
+                break
+
+    if not method_to_keys:
+        logger.warning("No recognizable ablation keys found for plotting")
+        return fig_list if save_path is None else None
+
+    def _method_sort_key(m: str) -> tuple[int, str]:
+        return (0 if m == "lesion" else 1, m)
+
+    for method in sorted(method_to_keys.keys(), key=_method_sort_key):
+        base_to_key = method_to_keys[method]
+        bases_present = [b for b in base_targets if b in base_to_key]
+        if not bases_present:
+            continue
+
+        # Use consistent depth order across ablation types for this method.
+        depths_set = set()
+        for base in bases_present:
+            type_dict: dict = layer_results.get(base_to_key[base], {})
             for layer_dict in type_dict.values():
-                data_dict["depth"].append(layer_dict["depth"])
-                data_dict["decrease"].append(layer_dict[f"{metric} drop"])
-            results[ablation_type] = data_dict
+                if "depth" in layer_dict:
+                    depths_set.add(layer_dict["depth"])
+        depths = sorted(depths_set)
+        if not depths:
+            continue
 
-        fig, ax = plt.subplots(figsize=(10, 8))
-        n_ablation_types = len(synapse_ablation_types)
-        depths = results[synapse_ablation_types[0]]["depth"]
-        width = 0.25
-        for i, ablation_type in enumerate(synapse_ablation_types):
-            x = np.array(depths) + width * (i - (n_ablation_types - 1) / 2)
-            ax.bar(
-                x, results[ablation_type]["decrease"], width=width, label=ablation_type
-            )
         # Create depth labels - correct soma/distal ordering
-        # Lower depth values = closer to soma, higher = more distal
         depth_labels = []
         for depth in depths:
             if depth == min(depths):
                 depth_labels.append("Soma")
             else:
-                # Calculate distal layer number based on distance from soma
                 distal_layer = depth - min(depths)
                 depth_labels.append(f"Distal {distal_layer}")
 
-        ax.set_xticks(depths)
-        ax.set_xticklabels(depth_labels, rotation=45)
-        ax.set_xlabel("Branch Depth (Soma → Distal)")
-        ax.set_ylabel(f"{metric_mapping[metric]} Drop Decrease")
-        title = f"{metric_mapping[metric]} Drop Decrease vs. Branch Depth"
-        title += f"\n(Baseline: {baselines[metric]:.3f})"
-        ax.set_title(title)
-        ax.legend()
-        ax.grid(True, axis="y", alpha=0.3)
+        width = 0.8 / max(len(bases_present), 1)
 
-        if save_path is not None:
-            plot_path = os.path.join(save_path, f"{filename}_{metric}.png")
-            fig.savefig(plot_path, dpi=300, bbox_inches="tight")
-            plt.close()
-        else:
-            fig_list.append(fig)
+        for metric in metrics:
+            fig, ax = plt.subplots(figsize=(10, 8))
+
+            for i, base in enumerate(bases_present):
+                ablation_key = base_to_key[base]
+                type_dict: dict = layer_results.get(ablation_key, {})
+
+                # depth -> list[values] (handle duplicates safely)
+                depth_to_vals: dict[int, list[float]] = {}
+                for layer_dict in type_dict.values():
+                    d = layer_dict.get("depth")
+                    if d is None:
+                        continue
+                    v = layer_dict.get(f"{metric} drop", 0.0)
+                    if isinstance(v, list):
+                        v = float(np.mean(v)) if v else 0.0
+                    depth_to_vals.setdefault(int(d), []).append(float(v))
+
+                decreases = [
+                    float(np.mean(depth_to_vals.get(d, [0.0]))) for d in depths
+                ]
+
+                x = np.array(depths) + width * (i - (len(bases_present) - 1) / 2)
+                ax.bar(x, decreases, width=width, label=base.replace("_", " ").title())
+
+            ax.set_xticks(depths)
+            ax.set_xticklabels(depth_labels, rotation=45)
+            ax.set_xlabel("Branch Depth (Soma to Distal)")
+            ax.set_ylabel(f"{metric_mapping[metric]} Drop")
+
+            title = f"{metric_mapping[metric]} Drop vs. Branch Depth"
+            title += f"\nMethod: {method.replace('_', ' ').title()}"
+            title += f"\n(Baseline: {float(baselines.get(metric, 0.0)):.3f})"
+            ax.set_title(title)
+            ax.legend()
+            ax.grid(True, axis="y", alpha=0.3)
+
+            if save_path is not None:
+                method_suffix = ""
+                if len(method_to_keys) > 1 and method != legacy_method:
+                    method_suffix = f"_{method}"
+                plot_path = os.path.join(
+                    save_path, f"{filename}{method_suffix}_{metric}.png"
+                )
+                fig.savefig(plot_path, dpi=300, bbox_inches="tight")
+                plt.close()
+            else:
+                fig_list.append(fig)
 
     if save_path is None:
         return fig_list
@@ -402,7 +452,7 @@ def plot_per_layer_ablation(layer_results: dict[str, dict[str, dict]], **kwargs)
                             )
 
                 # Customize plot
-                ax.set_xlabel("Layer (Soma → Distal)", fontsize=12)
+                ax.set_xlabel("Layer (Soma to Distal)", fontsize=12)
                 ax.set_ylabel(f'{metric_type.replace("_", " ").title()}', fontsize=12)
                 ax.set_title(
                     f'Ablation Effects: {metric_type.replace("_", " ").title()} by Layer',

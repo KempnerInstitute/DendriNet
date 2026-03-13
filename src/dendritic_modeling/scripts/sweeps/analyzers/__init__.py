@@ -1,4 +1,4 @@
-"""Sweep analyzers for different experiment types."""
+"""Sweep analyzers for E-I, branch, stochastic dataset, local learning, and general experiments."""
 
 from pathlib import Path
 from typing import Optional
@@ -6,9 +6,9 @@ from typing import Optional
 from .base_analyzer import BaseSweepAnalyzer
 from .branch_analyzer import BranchSweepAnalyzer
 from .ei_analyzer import EISweepAnalyzer
-from .stoch_analyzer import StochasticDatasetSweepAnalyzer
 from .general_analyzer import GeneralSweepAnalyzer
 from .local_learning_analyzer import LocalLearningSweepAnalyzer
+from .stoch_analyzer import StochasticDatasetSweepAnalyzer
 
 # Analyzer registry
 ANALYZER_REGISTRY = {
@@ -66,9 +66,9 @@ __all__ = [
     "BaseSweepAnalyzer",
     "BranchSweepAnalyzer",
     "EISweepAnalyzer",
-    "StochasticDatasetSweepAnalyzer",
     "GeneralSweepAnalyzer",
     "LocalLearningSweepAnalyzer",
+    "StochasticDatasetSweepAnalyzer",
     "auto_detect_sweep_type",
     "get_analyzer",
 ]

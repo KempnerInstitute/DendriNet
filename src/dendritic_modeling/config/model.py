@@ -1,7 +1,8 @@
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Any, Optional
 
 from dendritic_modeling.config.base import BaseConfig
+from dendritic_modeling.config.recurrent import RecurrentConfig
 
 
 @dataclass
@@ -13,6 +14,7 @@ class TransferFunctionConfig(BaseConfig):
     excitatory_dim: Optional[int] = None
     inhibitory_dim: Optional[int] = None
     output_activation: Optional[str] = None
+    inhibitory_mode: str = "first"  # "none", "first", "all"
 
 
 @dataclass
@@ -23,6 +25,7 @@ class ArchitectureConfig(BaseConfig):
     inhibitory_layer_sizes: list[int] = field(default_factory=list)
     excitatory_branch_factors: list[int] = field(default_factory=lambda: [3, 3, 3, 3])
     inhibitory_branch_factors: list[int] = field(default_factory=lambda: [1])
+    input_projection_dims: list[int] = field(default_factory=list)
 
     # Inhibitory network type and MLP parameters
     inhibitory_network_type: str = "dendritic"  # Options: "dendritic", "mlp"
@@ -40,6 +43,12 @@ class ConnectivityConfig(BaseConfig):
     ie_synapses_per_branch_per_layer: list[int] = field(default_factory=lambda: [10])
     ii_synapses_per_branch_per_layer: list[int] = field(default_factory=lambda: [0])
 
+    # Recurrent synapse counts (per branch, list per layer; 0 = no recurrence)
+    rec_ee_synapses_per_branch: list[int] = field(default_factory=lambda: [0])
+    rec_ie_synapses_per_branch: list[int] = field(default_factory=lambda: [0])
+    rec_ei_synapses_per_branch: list[int] = field(default_factory=lambda: [0])
+    rec_ii_synapses_per_branch: list[int] = field(default_factory=lambda: [0])
+
 
 @dataclass
 class MorphologyConfig(BaseConfig):
@@ -47,6 +56,7 @@ class MorphologyConfig(BaseConfig):
 
     somatic_synapses: bool = False
     use_shunting: bool = True
+    use_additive_normalization: bool = False  # Normalize voltage in additive mode
     weight_transform: str = "softplus"
     dbl_init_method: str = "analytical_expectation"
 
@@ -105,6 +115,7 @@ class ImplementationConfig(BaseConfig):
 
     adaptive_initialization: bool = False
     print_hooks: bool = False
+    store_routing: bool = False
 
 
 @dataclass
@@ -120,6 +131,15 @@ class EncoderParamsConfig(BaseConfig):
     latent_shape: Optional[list[int]] = None
     decoder_hidden_dims: list[int] = field(default_factory=lambda: [64, 128])
     activation: str = "relu"
+    router_mode: str = "fixed"
+    pathway_groups: list[list[int]] = field(default_factory=list)
+    shared_indices: list[int] = field(default_factory=list)
+    n_pathways: int = 2
+    pathway_dim: Optional[int] = None
+    pathway_dims: list[int] = field(default_factory=list)
+    router_activation: str = "none"
+    learned_router_temperature: float = 1.0
+    learned_router_init_scale: float = 4.0
 
 
 @dataclass
@@ -147,6 +167,16 @@ class CoreConfig(BaseConfig):
     reactivation: ReactivationConfig = field(default_factory=ReactivationConfig)
     blocklinear: BlockLinearConfig = field(default_factory=BlockLinearConfig)
     implementation: ImplementationConfig = field(default_factory=ImplementationConfig)
+    # DEPRECATED: Legacy recurrent config. Use unified EI config classes instead.
+    recurrent: RecurrentConfig = field(default_factory=RecurrentConfig)
+    # Optional config payload for the new unified E-I architecture.
+    # Kept as a plain dict to avoid coupling config package to architecture modules.
+    unified_ei: dict[str, Any] = field(default_factory=dict)
+    # Optional recurrent mode for EINet-family cores.
+    # When enabled, factory can translate EINet structured config into recurrent EINetwork.
+    recurrent_ei: dict[str, Any] = field(default_factory=dict)
+    # Optional config payload for baseline recurrent cores (gru/lstm/vanilla_rnn).
+    baseline_rnn: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass

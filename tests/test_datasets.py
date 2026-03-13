@@ -38,6 +38,7 @@ try:
     from data_generation.synthetic_datasets import (
         CenterSurroundDataset,
         CompositionalMNIST,
+        CueIntegrationDataset,
         InfoShuntingDataset,
         LineDataset,
         MultiXORDataset,
@@ -78,6 +79,9 @@ except ImportError:
                 self.image_size = kwargs["image_size"]
             if "input_dim" in kwargs:
                 self.input_dim = kwargs["input_dim"]
+            if "cue_dim" in kwargs:
+                self.cue_dim = kwargs["cue_dim"]
+                self.input_dim = 2 + 2 * kwargs["cue_dim"]
             if "n_bits" in kwargs:
                 self.n_bits = kwargs["n_bits"]
             # Additional attributes for specific dataset types
@@ -152,6 +156,7 @@ except ImportError:
             return sample, label
 
     CenterSurroundDataset = DummyDataset
+    CueIntegrationDataset = DummyDataset
     InfoShuntingDataset = DummyDataset
     LineDataset = DummyDataset
     MultiXORDataset = DummyDataset
@@ -237,6 +242,17 @@ class TestSyntheticDatasets(unittest.TestCase):
         self.assertEqual(sample.shape, (8,))
         self.assertIn(label.item(), [0, 1])
 
+    def test_cue_integration_dataset(self):
+        """Test CueIntegrationDataset creation and properties."""
+        dataset = CueIntegrationDataset(n_samples=120, cue_dim=5)
+
+        self.assertEqual(len(dataset), 120)
+        self.assertEqual(dataset.cue_dim, 5)
+
+        sample, label = dataset[0]
+        self.assertEqual(sample.shape, (12,))  # 2 context dims + 2 * cue_dim
+        self.assertIn(label.item(), [0, 1])
+
     def test_noisy_line_dataset(self):
         """Test NoisyLineDataset creation and properties."""
         dataset = NoisyLineDataset(n_samples=50, image_size=8, noise_level=0.1)
@@ -289,7 +305,7 @@ class TestRealDatasets(unittest.TestCase):
             train_valid_split=0.8,
             flatten=True,
             normalize=False,
-            output_dir=self.temp_dir,
+            task_data_path=self.temp_dir,
         )
 
         # Check that datasets were created
@@ -313,7 +329,7 @@ class TestRealDatasets(unittest.TestCase):
             train_valid_split=0.8,
             flatten=False,
             normalize=False,
-            output_dir=self.temp_dir,
+            task_data_path=self.temp_dir,
         )
 
         # Check that datasets were created
@@ -352,7 +368,7 @@ class TestRealDatasets(unittest.TestCase):
                 shuffle_iterations=1,
                 train_valid_split=0.8,
                 flatten=True,
-                output_dir=self.temp_dir,
+                task_data_path=self.temp_dir,
             )
 
             # Check that data dictionary was created
@@ -379,15 +395,15 @@ class TestDatasetUtilities(unittest.TestCase):
 
     def test_get_data_directory(self):
         """Test data directory creation and path handling."""
-        # Test with custom path
-        data_dir = get_data_directory("mnist", custom_path=self.temp_dir)
-        expected_path = os.path.join(self.temp_dir, "mnist")
+        # Test with task data path
+        data_dir = get_data_directory("mnist", task_data_path=self.temp_dir)
+        expected_path = os.path.join(self.temp_dir, "datasets", "mnist")
         self.assertEqual(data_dir, expected_path)
         self.assertTrue(os.path.exists(data_dir))
 
-        # Test with output directory
-        data_dir2 = get_data_directory("cifar", output_dir=self.temp_dir)
-        expected_path2 = os.path.join(self.temp_dir, "datasets", "cifar")
+        # Test with default fallback path
+        data_dir2 = get_data_directory("cifar", task_data_path=None)
+        expected_path2 = os.path.join("./data", "cifar")
         self.assertEqual(data_dir2, expected_path2)
         self.assertTrue(os.path.exists(data_dir2))
 
@@ -401,8 +417,7 @@ class TestGetUnifiedDatasets(unittest.TestCase):
 
         # Create mock configs
         self.task_cfg = Mock()
-        self.train_cfg = Mock()
-        self.train_cfg.train_valid_split = 0.8
+        self.task_cfg.train_valid_split = 0.8
 
     def tearDown(self):
         """Clean up test fixtures."""
@@ -443,12 +458,10 @@ class TestGetUnifiedDatasets(unittest.TestCase):
 
         # Configure for MNIST
         self.task_cfg.dataset = "mnist"
-        self.task_cfg.data_path = None
+        self.task_cfg.data_path = self.temp_dir
         self.task_cfg.parameters = {"flatten": True, "normalize": False}
 
-        train_ds, valid_ds, test_ds = get_unified_datasets(
-            self.task_cfg, self.train_cfg
-        )
+        train_ds, valid_ds, test_ds = get_unified_datasets(self.task_cfg)
 
         # Verify results
         self.assertEqual(len(train_ds), 48)
@@ -458,7 +471,7 @@ class TestGetUnifiedDatasets(unittest.TestCase):
         # Verify the function was called with correct parameters
         mock_load_mnist.assert_called_once()
         _, kwargs = mock_load_mnist.call_args
-        self.assertEqual(kwargs["output_dir"], self.temp_dir)
+        self.assertEqual(kwargs["task_data_path"], self.temp_dir)
 
     def test_invalid_dataset(self):
         """Test handling of invalid dataset names."""
@@ -467,7 +480,7 @@ class TestGetUnifiedDatasets(unittest.TestCase):
         self.task_cfg.parameters = {}
 
         with self.assertRaises(ValueError):
-            get_unified_datasets(self.task_cfg, self.train_cfg)
+            get_unified_datasets(self.task_cfg)
 
 
 class TestSpecializedDatasets(unittest.TestCase):

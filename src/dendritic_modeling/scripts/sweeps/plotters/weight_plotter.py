@@ -95,7 +95,7 @@ class WeightPlotter(BasePlotter):
                             ].sort_values("ei_ratio")
                             if not cat_data.empty:
                                 color = self.category_colors.get(category, "black")
-                                linestyle = "-" if category == "shunting" else "--"
+                                linestyle = self.category_linestyles.get(category, "-")
                                 ax.plot(
                                     cat_data["ei_ratio"],
                                     cat_data[col],
@@ -193,7 +193,7 @@ class WeightPlotter(BasePlotter):
                             ].sort_values("ei_ratio")
                             if not cat_data.empty:
                                 color = self.category_colors.get(category, "black")
-                                linestyle = "-" if category == "shunting" else "--"
+                                linestyle = self.category_linestyles.get(category, "-")
                                 ax.plot(
                                     cat_data["ei_ratio"],
                                     cat_data["weight_ratio"],

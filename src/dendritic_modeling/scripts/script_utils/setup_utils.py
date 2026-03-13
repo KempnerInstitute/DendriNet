@@ -16,7 +16,7 @@ from omegaconf import OmegaConf
 
 from dendritic_modeling.config import DataConfig, ModelConfig, TrainingConfig
 from dendritic_modeling.datasets import get_unified_datasets
-from dendritic_modeling.models import Classifier, Regressor
+from dendritic_modeling.models import Classifier, RecurrentClassifier, Regressor
 from dendritic_modeling.networks import Identity
 from dendritic_modeling.networks.architectures.factory import get_architecture
 from dendritic_modeling.utils import set_seed
@@ -24,6 +24,172 @@ from dendritic_modeling.utils.logging_config import LoggerManager
 
 logger = logging.getLogger(__name__)
 logger_manager = LoggerManager()
+
+
+def _config_to_plain_dict(cfg) -> dict:
+    """Convert config sections to plain dicts without leaking OmegaConf internals."""
+    if cfg is None:
+        return {}
+    if isinstance(cfg, dict):
+        return dict(cfg)
+    if OmegaConf.is_config(cfg):
+        resolved = OmegaConf.to_container(cfg, resolve=True)
+        return resolved if isinstance(resolved, dict) else {}
+    try:
+        return asdict(cfg)
+    except TypeError:
+        if hasattr(cfg, "__dict__"):
+            return {k: v for k, v in vars(cfg).items() if not k.startswith("_")}
+    return {}
+
+
+def _get_dataset_specific_params(data_config: DataConfig) -> dict:
+    """Extract dataset-specific parameters for the selected dataset."""
+    dataset_name = getattr(data_config, "dataset_name", "")
+    dataset_params = getattr(data_config, "dataset_params", None)
+    if dataset_params is None:
+        return {}
+    if isinstance(dataset_params, dict):
+        return _config_to_plain_dict(dataset_params.get(dataset_name, {}))
+    if OmegaConf.is_config(dataset_params):
+        resolved = OmegaConf.to_container(dataset_params, resolve=True)
+        if isinstance(resolved, dict):
+            return _config_to_plain_dict(resolved.get(dataset_name, {}))
+        return {}
+    if hasattr(dataset_params, dataset_name):
+        return _config_to_plain_dict(getattr(dataset_params, dataset_name))
+    return {}
+
+
+def _get_experiment_value(experiment_config, key: str, default):
+    """Read experiment config values from either dicts or dataclass-like configs."""
+    if isinstance(experiment_config, dict):
+        return experiment_config.get(key, default)
+    return getattr(experiment_config, key, default)
+
+
+def _is_recurrent_core_config(core_cfg) -> bool:
+    """Detect whether a core config describes a recurrent model."""
+
+    def _get_type(cfg) -> str:
+        if isinstance(cfg, dict):
+            return str(cfg.get("type", "")).lower()
+        return str(getattr(cfg, "type", "")).lower()
+
+    def _get_recurrent_enabled(cfg) -> bool:
+        rec = (
+            cfg.get("recurrent", {})
+            if isinstance(cfg, dict)
+            else getattr(cfg, "recurrent", None)
+        )
+        if isinstance(rec, dict):
+            return bool(rec.get("enabled", False))
+        return bool(getattr(rec, "enabled", False))
+
+    def _has_unified_recurrent_layers(cfg) -> bool:
+        unified = (
+            cfg.get("unified_ei", cfg.get("ei_unified", {}))
+            if isinstance(cfg, dict)
+            else getattr(cfg, "unified_ei", {})
+        )
+        if not unified:
+            return False
+        layers = (
+            unified.get("layers", [])
+            if isinstance(unified, dict)
+            else getattr(unified, "layers", [])
+        )
+        for layer in layers:
+            if isinstance(layer, dict) and layer.get("recurrent", False):
+                return True
+            if getattr(layer, "recurrent", False):
+                return True
+        return False
+
+    def _has_recurrent_einet_layers(cfg) -> bool:
+        def _any_positive_in(mapping, keys):
+            for key in keys:
+                val = (
+                    mapping.get(key, 0)
+                    if isinstance(mapping, dict)
+                    else getattr(mapping, key, 0)
+                )
+                if isinstance(val, list):
+                    if any(v > 0 for v in val):
+                        return True
+                elif val is not None and val > 0:
+                    return True
+            return False
+
+        # New path: check connectivity.rec_* fields
+        conn = (
+            cfg.get("connectivity", {})
+            if isinstance(cfg, dict)
+            else getattr(cfg, "connectivity", {})
+        )
+        if conn and _any_positive_in(
+            conn,
+            (
+                "rec_ee_synapses_per_branch",
+                "rec_ie_synapses_per_branch",
+                "rec_ei_synapses_per_branch",
+                "rec_ii_synapses_per_branch",
+            ),
+        ):
+            return True
+
+        # Old path (backward compat): check recurrent_ei block
+        recurrent_ei = (
+            cfg.get("recurrent_ei", {})
+            if isinstance(cfg, dict)
+            else getattr(cfg, "recurrent_ei", {})
+        )
+        if not recurrent_ei:
+            return False
+
+        enabled = (
+            recurrent_ei.get("enabled", False)
+            if isinstance(recurrent_ei, dict)
+            else getattr(recurrent_ei, "enabled", False)
+        )
+        if enabled:
+            per_layer = (
+                recurrent_ei.get("recurrent_layers", None)
+                if isinstance(recurrent_ei, dict)
+                else getattr(recurrent_ei, "recurrent_layers", None)
+            )
+            if per_layer is None:
+                return True
+            if isinstance(per_layer, list):
+                return any(bool(v) for v in per_layer)
+            return bool(per_layer)
+
+        # Also check old-style synapse fields in recurrent_ei
+        return _any_positive_in(
+            recurrent_ei,
+            (
+                "rec_excitatory_synapses",
+                "rec_inhibitory_synapses",
+                "rec_excitatory_synapses_per_layer",
+                "rec_inhibitory_synapses_per_layer",
+            ),
+        )
+
+    core_type = _get_type(core_cfg)
+    if core_type in {"gru", "lstm", "vanilla_rnn", "rnn"}:
+        return True
+    if core_type in {"ei_unified", "unified_ei", "ei_net", "unified_einet"}:
+        return _has_unified_recurrent_layers(core_cfg)
+    if core_type in {
+        "einet",
+        "dendritic_shunting",
+        "dendritic_additive",
+        "flat_shunting",
+        "flat_additive",
+        "dendritic_mlp",
+    }:
+        return _has_recurrent_einet_layers(core_cfg) or _get_recurrent_enabled(core_cfg)
+    return _get_recurrent_enabled(core_cfg)
 
 
 def initialize_model(model_config: ModelConfig):
@@ -37,36 +203,49 @@ def initialize_model(model_config: ModelConfig):
     if encoder_config.type.lower() == "identity":
         encoder_params["input_dim"] = encoder_config.params.input_dim or 784
     else:
-        encoder_params = OmegaConf.to_container(encoder_config.params, resolve=True)
+        encoder_params = _config_to_plain_dict(encoder_config.params)
 
     # Create encoder
     encoder_network = get_architecture(encoder_config.type, encoder_params)
     if isinstance(encoder_network, Identity):
         encoder = encoder_network
-    else:
+    elif hasattr(encoder_network, "encoder"):
         encoder = encoder_network.encoder
+    else:
+        encoder = encoder_network
 
     # Create core network
+    core_params = _config_to_plain_dict(core_config)
     core_network = get_architecture(
-        core_config.type, core_config, input_dim=encoder.output_dim
+        core_config.type, core_params, input_dim=encoder.output_dim
     )
 
     # Build decoder parameters
-    decoder_params_dict = OmegaConf.to_container(decoder_config.params, resolve=True)
+    decoder_params_dict = _config_to_plain_dict(decoder_config.params)
     # Filter out None values to allow auto-setting
     decoder_params_dict = {
         k: v for k, v in decoder_params_dict.items() if v is not None
     }
     decoder_params = {
-        "input_dim": core_network.output_dim,
         **decoder_params_dict,
+        "input_dim": core_network.output_dim,
     }
 
     # Create decoder
     decoder_network = get_architecture(decoder_config.type, decoder_params)
 
+    # Detect recurrent mode (supports dendritic_rnn and ei_unified paths).
+    is_recurrent = _is_recurrent_core_config(core_config)
+
     # Create model based on task
-    if model_config.task == "classification":
+    if is_recurrent:
+        if model_config.task == "classification":
+            model = RecurrentClassifier(encoder, core_network, decoder_network)
+        elif model_config.task == "regression":
+            model = Regressor(encoder, core_network, decoder_network)
+        else:
+            raise ValueError(f"Invalid task: {model_config.task}")
+    elif model_config.task == "classification":
         model = Classifier(encoder, core_network, decoder_network)
     elif model_config.task == "regression":
         model = Regressor(encoder, core_network, decoder_network)
@@ -90,11 +269,45 @@ def setup_environment(
 
     # Set seed
     seed = experiment_config.seed
-    set_seed(seed)
+    fast_mode = bool(_get_experiment_value(experiment_config, "fast_mode", False))
+    deterministic = bool(
+        _get_experiment_value(experiment_config, "deterministic", not fast_mode)
+    )
+    cudnn_benchmark = bool(
+        _get_experiment_value(
+            experiment_config, "cudnn_benchmark", fast_mode and not deterministic
+        )
+    )
+    allow_tf32 = bool(_get_experiment_value(experiment_config, "allow_tf32", fast_mode))
+    float32_matmul_precision = str(
+        _get_experiment_value(
+            experiment_config,
+            "float32_matmul_precision",
+            "high" if fast_mode else "highest",
+        )
+    )
+
+    set_seed(
+        seed,
+        deterministic=deterministic,
+        cudnn_benchmark=cudnn_benchmark,
+        allow_tf32=allow_tf32,
+        float32_matmul_precision=float32_matmul_precision,
+    )
     logger.info(f"Set random seed to {seed}")
+    logger.info(
+        "Runtime performance: fast_mode=%s deterministic=%s cudnn_benchmark=%s "
+        "allow_tf32=%s matmul_precision=%s",
+        fast_mode,
+        deterministic,
+        cudnn_benchmark and not deterministic,
+        allow_tf32,
+        float32_matmul_precision,
+    )
 
     # Setup output directory
     output_dir = outputs_config.results_dir
+    run_name = getattr(outputs_config, "run_name", "run")
     if not os.path.exists(output_dir):
         os.makedirs(output_dir, exist_ok=True)
         logger.info(f"Created output directory: {output_dir}")
@@ -111,7 +324,6 @@ def setup_environment(
         logger.info(f"Sweep mode detected - using directory: {run_save_path}")
     else:
         # Standalone run - create timestamped directory
-        run_name = outputs_config.run_name
         run_id = f"{run_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         run_save_path = os.path.join(output_dir, run_id)
         os.makedirs(run_save_path, exist_ok=True)
@@ -151,24 +363,22 @@ def setup_environment(
             wandb_config.use_wandb = False
 
     base_dir = data_config.base_dir or output_dir
-    dataset_specific_params = {}
-    if hasattr(data_config.dataset_params, data_config.dataset_name):
-        dataset_specific_params = getattr(
-            data_config.dataset_params, data_config.dataset_name, {}
-        )
+    dataset_specific_params = _get_dataset_specific_params(data_config)
+    processing_params = _config_to_plain_dict(getattr(data_config, "processing", None))
 
     task_cfg = type(
         "TaskConfig",
         (),
         {
             "dataset": data_config.dataset_name,
-            "data_path": os.path.join(base_dir, data_config.dataset_name)
-            if base_dir
-            else None,
+            "data_path": (
+                os.path.join(base_dir, data_config.dataset_name) if base_dir else None
+            ),
             "train_valid_split": experiment_config.train_valid_split,
             "parameters": {
-                **data_config.processing.__dict__,
+                **processing_params,
                 **dataset_specific_params,
+                "label_noise_seed": experiment_config.seed,
             },
         },
     )()
@@ -184,17 +394,29 @@ def setup_environment(
 
     # Update encoder input dimension (only if params exists)
     input_sample: torch.Tensor = train_ds[0][0]
+
+    # Detect if this is sequence data (recurrent mode)
+    is_recurrent = _is_recurrent_core_config(model_config.core)
+
+    if is_recurrent:
+        # Sequence data: [seq_len, input_dim] -- use last dim as feature dim
+        input_dim = input_sample.shape[-1]
+    else:
+        # Image/vector data -- use total elements
+        input_dim = input_sample.numel()
+    input_shape = list(input_sample.shape)
+
     if (
         hasattr(model_config.encoder, "params")
         and model_config.encoder.params is not None
     ):
-        model_config.encoder.params.input_dim = input_sample.numel()
-        model_config.encoder.params.input_shape = list(input_sample.shape)
+        model_config.encoder.params.input_dim = input_dim
+        model_config.encoder.params.input_shape = input_shape
     else:
         # Create params if it doesn't exist (e.g., for identity encoder)
         model_config.encoder.params = {
-            "input_dim": input_sample.numel(),
-            "input_shape": list(input_sample.shape),
+            "input_dim": input_dim,
+            "input_shape": input_shape,
         }
 
     # Initialize model

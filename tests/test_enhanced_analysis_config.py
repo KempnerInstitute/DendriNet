@@ -3,8 +3,16 @@ Test new parameters added for enhanced analysis and trainer configurations.
 """
 
 from dendritic_modeling.analysis.core.information import InformationAnalyzer
-from dendritic_modeling.config.analysis import InformationAnalysisParams
-from dendritic_modeling.config.training import TrainConfig, TrainerConfig
+from dendritic_modeling.config.analysis import (
+    InformationAnalysisParams,
+    InformationComputeParams,
+)
+from dendritic_modeling.config.training import (
+    CommonTrainerConfig,
+    EncoderTrainingConfig,
+    MainTrainingConfig,
+    TrainingConfig,
+)
 
 
 class TestNewAnalysisParameters:
@@ -15,7 +23,9 @@ class TestNewAnalysisParameters:
         valid_levels = ["single_branch", "layer_branch", "all_branch"]
 
         for level in valid_levels:
-            params = InformationAnalysisParams(computation_level=level)
+            params = InformationAnalysisParams(
+                compute=InformationComputeParams(computation_level=level)
+            )
             analyzer = InformationAnalyzer(params)
             assert analyzer.computation_level == level
 
@@ -24,14 +34,20 @@ class TestNewAnalysisParameters:
         valid_aggregations = ["mean", "multivariate", "sample"]
 
         for aggregation in valid_aggregations:
-            params = InformationAnalysisParams(branch_aggregation=aggregation)
+            params = InformationAnalysisParams(
+                compute=InformationComputeParams(branch_aggregation=aggregation)
+            )
             analyzer = InformationAnalyzer(params)
             assert analyzer.branch_aggregation == aggregation
 
     def test_enhanced_analysis_parameters(self):
         """Test that enhanced analysis parameters work."""
         params = InformationAnalysisParams(
-            per_neuron_analysis=True, per_einet_analysis=True, per_layer_analysis=True
+            compute=InformationComputeParams(
+                per_neuron_analysis=True,
+                per_einet_analysis=True,
+                per_layer_analysis=True,
+            )
         )
         analyzer = InformationAnalyzer(params)
 
@@ -56,7 +72,7 @@ class TestNewTrainerParameters:
 
     def test_training_optimization_flags(self):
         """Test that training optimization flags work."""
-        trainer = TrainerConfig(
+        trainer = CommonTrainerConfig(
             enable_nan_checking=True, enable_adaptive_clipping=True, use_amp=True
         )
 
@@ -66,26 +82,27 @@ class TestNewTrainerParameters:
 
     def test_dual_trainer_structure(self):
         """Test that the dual trainer structure works."""
-        main_trainer = TrainerConfig(
+        main_trainer = CommonTrainerConfig(
             enable_nan_checking=True, enable_adaptive_clipping=True, use_amp=True
         )
 
-        encoder_trainer = TrainerConfig(
+        encoder_trainer = CommonTrainerConfig(
             enable_nan_checking=False, enable_adaptive_clipping=False, use_amp=False
         )
 
-        config = TrainConfig(
-            main_trainer=main_trainer, encoder_net_trainer=encoder_trainer
+        config = TrainingConfig(
+            main=MainTrainingConfig(common=main_trainer),
+            encoder=EncoderTrainingConfig(common=encoder_trainer),
         )
 
-        assert config.main_trainer.enable_nan_checking is True
-        assert config.encoder_net_trainer.enable_nan_checking is False
-        assert config.main_trainer.use_amp is True
-        assert config.encoder_net_trainer.use_amp is False
+        assert config.main.common.enable_nan_checking is True
+        assert config.encoder.common.enable_nan_checking is False
+        assert config.main.common.use_amp is True
+        assert config.encoder.common.use_amp is False
 
     def test_trainer_defaults(self):
         """Test that trainer defaults are correct."""
-        trainer = TrainerConfig()
+        trainer = CommonTrainerConfig()
 
         assert trainer.enable_nan_checking is False
         assert trainer.enable_adaptive_clipping is False
@@ -105,7 +122,7 @@ def test_backward_compatibility():
     assert hasattr(analyzer, "per_einet_analysis")
     assert hasattr(analyzer, "per_layer_analysis")
 
-    # Test that old-style TrainerConfig still works
-    trainer = TrainerConfig()
+    # Test that trainer configuration still exposes optimization knobs
+    trainer = CommonTrainerConfig()
     assert hasattr(trainer, "enable_nan_checking")
     assert hasattr(trainer, "enable_adaptive_clipping")

@@ -11,7 +11,10 @@ from dendritic_modeling.networks.architectures.classical import (
     CNNDownsample,
     CNNUpsample,
     Identity,
-    MatchedParamMLP,
+    MatchedActiveParamMLP,
+    MatchedTotalParamMLP,
+    PathwayRouter,
+    SparseStructuredMLP,
 )
 from dendritic_modeling.networks.architectures.excitation_inhibition import (
     BlockLinear,
@@ -29,26 +32,47 @@ from dendritic_modeling.networks.architectures.excitation_inhibition import (
     VarianceTopKLinear,
     analytical_expectation_dbl_init,
 )
+from dendritic_modeling.networks.architectures.recurrent import (
+    DendriNetState,
+    EILayer,
+    EILayerConfig,
+    EINetwork,
+    EINetworkConfig,
+    EIState,
+    PopulationConfig,
+    StatefulDendriNet,
+)
 
 __all__ = [
-    "AlexNet"
-    "BlockLinear"
-    "CNNDownsample"
-    "CNNUpsample"
-    "DeepstLinear"
-    "DendriNet"
-    "DendriticBranchLayer"
-    "ExcitationInhibitionLayer"
-    "ExcitationInhibitionNetwork"
-    "GradientScaler"
-    "Identity"
-    "IdentityInputTransform"
-    "IndexInputTransform"
-    "analytical_expectation_dbl_init"
-    "MatchedParamMLP"
-    "MLP"
-    "StochasticTopKLinear"
-    "TopKLinear"
-    "TransferLayer"
-    "VarianceTopKLinear"
+    "MLP",
+    "AlexNet",
+    "BlockLinear",
+    "CNNDownsample",
+    "CNNUpsample",
+    "DeepstLinear",
+    "DendriNet",
+    "DendriNetState",
+    "DendriticBranchLayer",
+    "EILayer",
+    "EILayerConfig",
+    "EINetwork",
+    "EINetworkConfig",
+    "EIState",
+    "ExcitationInhibitionLayer",
+    "ExcitationInhibitionNetwork",
+    "GradientScaler",
+    "Identity",
+    "IdentityInputTransform",
+    "IndexInputTransform",
+    "MatchedActiveParamMLP",
+    "MatchedTotalParamMLP",
+    "PathwayRouter",
+    "PopulationConfig",
+    "SparseStructuredMLP",
+    "StatefulDendriNet",
+    "StochasticTopKLinear",
+    "TopKLinear",
+    "TransferLayer",
+    "VarianceTopKLinear",
+    "analytical_expectation_dbl_init",
 ]

@@ -127,6 +127,7 @@ class DataCollector:
         params.update(self._load_weights(config_dir))
         params.update(self._load_ablation(config_dir))
         params.update(self._load_snr(config_dir))
+        params.update(self._load_gain(config_dir))
         params.update(self._load_noise(config_dir))
         params.update(self._load_nparams(config_dir))
 
@@ -224,6 +225,7 @@ class DataCollector:
             for mi_key, mi_value in data["basic_mi"].items():
                 if isinstance(mi_value, (int, float)):
                     # Convert I(E;C) format to mi_E_C
+                    # Also handles: I(Vb;C) -> mi_Vb_C, I(E_lin;C) -> mi_E_lin_C
                     normalized_key = (
                         mi_key.replace("I(", "mi_")
                         .replace(";", "_")
@@ -343,9 +345,10 @@ class DataCollector:
 
         result = {}
 
-        # Handle layer ablation format
+        # Handle layer ablation format (supports both 3-level and 2-level schemas)
         if "layer" in data and isinstance(data["layer"], dict):
-            for ablation_type, layer_data in data["layer"].items():
+            flat_layer = self._flatten_ablation_layer(data["layer"])
+            for ablation_type, layer_data in flat_layer.items():
                 if isinstance(layer_data, dict):
                     for _layer_name, layer_metrics in layer_data.items():
                         if isinstance(layer_metrics, dict):
@@ -354,6 +357,7 @@ class DataCollector:
                                 if metric_name not in [
                                     "depth",
                                     "layer_name",
+                                    "ablation_method",
                                 ] and isinstance(metric_value, (int, float)):
                                     safe_ablation = ablation_type.replace(
                                         " ", "_"
@@ -363,6 +367,32 @@ class DataCollector:
                                     ] = metric_value
 
         return result
+
+    @staticmethod
+    def _flatten_ablation_layer(layer_dict: dict) -> dict:
+        """Flatten 3-level ablation schema to 2-level if needed.
+
+        3-level: ``{"lesion": {"excitation": {module: metrics}}}``
+        2-level: ``{"lesion_excitation": {module: metrics}}``
+
+        Returns 2-level dict in both cases.
+        """
+        known_targets = {"all_synapses", "excitation", "inhibition", "upstream"}
+        flat: dict = {}
+        for key, value in layer_dict.items():
+            if not isinstance(value, dict):
+                continue
+            # Detect 3-level: value's keys are target names
+            inner_keys = set(value.keys())
+            if inner_keys & known_targets:
+                # 3-level: method -> target -> modules
+                for target, modules in value.items():
+                    if isinstance(modules, dict):
+                        flat[f"{key}_{target}"] = modules
+            else:
+                # 2-level: already method_target -> modules
+                flat[key] = value
+        return flat
 
     def _load_snr(self, config_dir: Path) -> dict:
         """Load compartment SNR analysis metrics."""
@@ -384,7 +414,9 @@ class DataCollector:
             # Fallback to original path
             compartment_snr_file = config_dir / "compartment_snr_analysis" / "final"
 
-        data = self._load_json_file(compartment_snr_file)
+        data: dict[str, dict[str, dict[str, float]]] = self._load_json_file(
+            compartment_snr_file
+        )
 
         if not data:
             return {}
@@ -392,16 +424,64 @@ class DataCollector:
         result = {}
 
         prefixes = ["exc", "inh", "upstream", "vout"]
-        # Handle layer ablation format
-        if "layer_statistics" in data.keys():
-            for layer_data in data["layer_statistics"].values():
-                depth = layer_data["depth"]
-                for prefix in prefixes:
-                    field_name = f"{prefix}_d'^2_mean"
-                    if field_name in layer_data:
-                        result[f"snr_{field_name}_depth{depth}"] = layer_data[
-                            field_name
-                        ]
+        metrics = ["d_max", "d_total", "n_sig_dirs", "ratio_sig_dirs"]
+
+        if "input_analysis" in data.keys():
+            input_data = data["input_analysis"]
+            for prefix in ["exc", "inh"]:
+                for metric in metrics:
+                    field_name = f"{prefix}_inputs_{metric}"
+                    if field_name in input_data:
+                        result[f"snr_{field_name}"] = input_data[field_name]
+
+        # Handle layer analysis format
+        if "layer_analysis" in data.keys():
+            if "layer_statistics" in data["layer_analysis"].keys():
+                for layer_data in data["layer_analysis"]["layer_statistics"].values():
+                    depth = layer_data["depth"]
+                    for prefix in prefixes:
+                        for metric in metrics:
+                            field_name = f"{prefix}_{metric}"
+                            if field_name in layer_data:
+                                result[f"snr_{field_name}_depth{depth}"] = layer_data[
+                                    field_name
+                                ]
+
+        return result
+
+    def _load_gain(self, config_dir: Path) -> dict:
+        """Load multiplicative gain analysis metrics."""
+        multiplicative_gain_files = list(
+            config_dir.rglob("multiplicative_gain_analysis/final.json")
+        )
+
+        if not multiplicative_gain_files:
+            multiplicative_gain_files = list(
+                config_dir.rglob("multiplicative_gain_analysis/final")
+            )
+
+        if multiplicative_gain_files:
+            multiplicative_gain_file = multiplicative_gain_files[0]
+        else:
+            multiplicative_gain_file = (
+                config_dir / "multiplicative_gain_analysis" / "final"
+            )
+
+        data = self._load_json_file(multiplicative_gain_file)
+
+        if not data:
+            return {}
+
+        result = {}
+
+        gain_factors = data["gain_factors"]
+
+        metrics = list(data.keys())
+        metrics.remove("gain_factors")
+
+        for metric in metrics:
+            for i, gain_factor in enumerate(gain_factors):
+                result[f"mult_gain_{metric}_gf{gain_factor}"] = data[metric][i]
 
         return result
 

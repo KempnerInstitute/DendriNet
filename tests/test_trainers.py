@@ -54,10 +54,9 @@ def test_fsdp_trainer_init(simple_model):
 
 def test_two_step_trainer(simple_model, sample_data):
     optimizer = torch.optim.Adam(simple_model.parameters())
-    trainer = get_trainer(
-        "two_step",
-        optimizer,
-        {"loss_function": "cross_entropy", "epochs": 1, "batch_size": 10},
-    )
-    results = trainer.train(simple_model, sample_data, sample_data)
-    assert "train_losses" in results
+    with pytest.raises(ValueError, match="Unknown training strategy"):
+        get_trainer(
+            "two_step",
+            optimizer,
+            {"loss_function": "cross_entropy", "epochs": 1, "batch_size": 10},
+        )

@@ -1,4 +1,4 @@
-"""Mathematical utility functions."""
+"""Mathematical utilities including ROC-AUC computation."""
 
 from .auc import roc_auc_score
 

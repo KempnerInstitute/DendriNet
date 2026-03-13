@@ -10,6 +10,7 @@ import torch.nn as nn
 
 from dendritic_modeling.config.training import (
     OptimizerConfig,
+    ParamGroupsConfig,
     PruningConfig,
     RegularizationConfig,
     ReportingConfig,
@@ -128,6 +129,31 @@ class TestExtractEnhancedConfigs:
         assert result == {}
         assert trainer_config["some_other_param"] == "value"
 
+    def test_extract_param_groups_config_normalized_dict(self):
+        """Test extracting and normalizing param groups from dict config."""
+        trainer_config = {
+            "param_groups": {"lr": 0.02, "split_params": False, "unknown_key": 123}
+        }
+
+        result = _extract_enhanced_configs(trainer_config)
+
+        assert "param_groups_config" in result
+        assert isinstance(result["param_groups_config"], ParamGroupsConfig)
+        assert result["param_groups_config"].lr == 0.02
+        assert result["param_groups_config"].split_params is False
+        assert not hasattr(result["param_groups_config"], "unknown_key")
+        assert "param_groups" not in trainer_config
+
+    def test_extract_param_groups_config_passthrough_typed(self):
+        """Test preserving typed param groups config objects."""
+        typed_config = ParamGroupsConfig(lr=0.03, split_params=False)
+        trainer_config = {"param_groups": typed_config}
+
+        result = _extract_enhanced_configs(trainer_config)
+
+        assert result["param_groups_config"] is typed_config
+        assert "param_groups" not in trainer_config
+
     def test_extract_non_dict_configs(self):
         """Test that non-dict configs are handled properly."""
         trainer_config = {
@@ -181,13 +207,12 @@ class TestGetTrainer:
     def test_get_enhanced_trainer_with_warning(
         self, mock_optimizer, basic_trainer_config
     ):
-        """Test creating enhanced trainer (deprecated) with warning."""
+        """Test creating enhanced trainer (alias of standard strategy)."""
         with patch("dendritic_modeling.training.factory.Trainer") as MockTrainer:
             with patch("dendritic_modeling.training.factory.logger") as mock_logger:
                 get_trainer("enhanced", mock_optimizer, basic_trainer_config)
 
-                mock_logger.warning.assert_called_once()
-                assert "deprecated" in mock_logger.warning.call_args[0][0]
+                mock_logger.warning.assert_not_called()
                 MockTrainer.assert_called_once()
 
     def test_get_layerwise_trainer(self, mock_optimizer, basic_trainer_config):
@@ -233,7 +258,7 @@ class TestGetTrainer:
         with patch(
             "dendritic_modeling.training.factory.VoltageStabilizationTrainer"
         ) as MockTrainer:
-            get_trainer("voltage_stablization", mock_optimizer, basic_trainer_config)
+            get_trainer("voltage_stabilization", mock_optimizer, basic_trainer_config)
 
             MockTrainer.assert_called_once()
 
@@ -268,17 +293,52 @@ class TestGetTrainer:
                 # Should not call get_fsdp_config since config already provided
                 mock_fsdp_config.assert_not_called()
 
-    def test_get_unknown_trainer_defaults_to_standard(
-        self, mock_optimizer, basic_trainer_config
-    ):
-        """Test that unknown strategy defaults to standard with info log."""
-        with patch("dendritic_modeling.training.factory.Trainer") as MockTrainer:
-            with patch("dendritic_modeling.training.factory.logger") as mock_logger:
-                get_trainer("unknown_strategy", mock_optimizer, basic_trainer_config)
+    def test_get_multi_stage_trainer(self, mock_optimizer, basic_trainer_config):
+        """Test creating multi-stage trainer."""
+        trainer_config = dict(basic_trainer_config)
+        trainer_config["multi_stage_config"] = {
+            "stages": [{"learning_strategy": "standard", "epochs": 1}]
+        }
 
-                mock_logger.info.assert_called_once()
-                assert "Unrecognized strategy" in mock_logger.info.call_args[0][0]
-                MockTrainer.assert_called_once()
+        with patch(
+            "dendritic_modeling.training.factory.MultiStageTrainer"
+        ) as mock_trainer:
+            get_trainer("multi_stage", mock_optimizer, trainer_config)
+            mock_trainer.assert_called_once()
+            call_args = mock_trainer.call_args[1]
+            assert call_args["base_optimizer"] == mock_optimizer
+
+    def test_get_recurrent_trainer_uses_recurrent_config(self, mock_optimizer):
+        """Recurrent strategy should consume nested recurrent_config fields."""
+        trainer_config = {
+            "task": "classification",
+            "grad_clip_value": 5.0,
+            "enable_amp": False,
+            "recurrent_config": {
+                "grad_clip": 0.25,
+                "enable_amp": True,
+                "lr_schedule": "cosine",
+                "lr_warmup_epochs": 3,
+            },
+        }
+
+        with patch(
+            "dendritic_modeling.training.factory.RecurrentTrainer"
+        ) as mock_trainer:
+            get_trainer("recurrent", mock_optimizer, trainer_config)
+            mock_trainer.assert_called_once()
+            call_args = mock_trainer.call_args[1]
+            assert call_args["optimizer"] == mock_optimizer
+            assert call_args["task"] == "classification"
+            assert call_args["grad_clip"] == 0.25
+            assert call_args["enable_amp"] is True
+            assert call_args["lr_schedule"] == "cosine"
+            assert call_args["lr_warmup_epochs"] == 3
+
+    def test_get_unknown_trainer_raises(self, mock_optimizer, basic_trainer_config):
+        """Test that unknown strategy raises a ValueError."""
+        with pytest.raises(ValueError, match="Unknown training strategy"):
+            get_trainer("unknown_strategy", mock_optimizer, basic_trainer_config)
 
     def test_case_insensitive_strategy(self, mock_optimizer, basic_trainer_config):
         """Test that strategy names are case insensitive."""
@@ -311,9 +371,8 @@ class TestGetTrainer:
             get_trainer("standard", mock_optimizer, trainer_config)
 
             call_args = MockTrainer.call_args[1]
-            assert "optimizer_config" in call_args
             assert "pruning_config" in call_args
-            assert isinstance(call_args["optimizer_config"], OptimizerConfig)
+            assert call_args["optimizer"] == mock_optimizer
             assert isinstance(call_args["pruning_config"], PruningConfig)
 
 
@@ -599,10 +658,10 @@ class TestTrainingFactoryEdgeCases:
 
         with patch("dendritic_modeling.training.factory.Trainer"):
             with patch("dendritic_modeling.training.factory.logger") as mock_logger:
-                # Test warning for enhanced strategy
+                # Enhanced is treated as an alias for standard.
                 get_trainer("enhanced", mock_optimizer, trainer_config)
-                mock_logger.warning.assert_called_once()
+                mock_logger.warning.assert_not_called()
 
-                # Test info for unknown strategy
-                get_trainer("unknown", mock_optimizer, trainer_config)
-                mock_logger.info.assert_called_once()
+                # Unknown strategies should raise instead of silently falling back.
+                with pytest.raises(ValueError, match="Unknown training strategy"):
+                    get_trainer("unknown", mock_optimizer, trainer_config)

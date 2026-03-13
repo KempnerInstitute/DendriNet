@@ -52,10 +52,14 @@ class RegularizationManager:
         # Check parameter group regularization
         if self.split_params and self.param_group_weights:
             for group_weights in self.param_group_weights.values():
-                if (
-                    getattr(group_weights, "l1_weight", 0) > 0
-                    or getattr(group_weights, "l2_weight", 0) > 0
-                ):
+                if isinstance(group_weights, dict):
+                    l1_weight = group_weights.get("l1_weight", 0)
+                    l2_weight = group_weights.get("l2_weight", 0)
+                else:
+                    l1_weight = getattr(group_weights, "l1_weight", 0)
+                    l2_weight = getattr(group_weights, "l2_weight", 0)
+
+                if l1_weight > 0 or l2_weight > 0:
                     return True
 
         # Check E/I ratio regularization
@@ -285,9 +289,9 @@ class PruningManager:
                         "pruned": 0,
                     }
 
-                pruning_stats["layer_stats"][layer_key]["total_before"] += (
-                    original_count
-                )
+                pruning_stats["layer_stats"][layer_key][
+                    "total_before"
+                ] += original_count
                 pruning_stats["layer_stats"][layer_key]["remaining"] += remaining_count
                 pruning_stats["layer_stats"][layer_key]["pruned"] += pruned_count
 
@@ -301,12 +305,12 @@ class PruningManager:
                             "pruned": 0,
                         }
 
-                    pruning_stats["branch_stats"][branch_name]["total_before"] += (
-                        original_count
-                    )
-                    pruning_stats["branch_stats"][branch_name]["remaining"] += (
-                        remaining_count
-                    )
+                    pruning_stats["branch_stats"][branch_name][
+                        "total_before"
+                    ] += original_count
+                    pruning_stats["branch_stats"][branch_name][
+                        "remaining"
+                    ] += remaining_count
                     pruning_stats["branch_stats"][branch_name]["pruned"] += pruned_count
 
                 # Weight type statistics
@@ -318,15 +322,15 @@ class PruningManager:
                         "pruned": 0,
                     }
 
-                pruning_stats["weight_type_stats"][weight_type]["total_before"] += (
-                    original_count
-                )
-                pruning_stats["weight_type_stats"][weight_type]["remaining"] += (
-                    remaining_count
-                )
-                pruning_stats["weight_type_stats"][weight_type]["pruned"] += (
-                    pruned_count
-                )
+                pruning_stats["weight_type_stats"][weight_type][
+                    "total_before"
+                ] += original_count
+                pruning_stats["weight_type_stats"][weight_type][
+                    "remaining"
+                ] += remaining_count
+                pruning_stats["weight_type_stats"][weight_type][
+                    "pruned"
+                ] += pruned_count
 
                 pruning_stats["total_params_after"] += remaining_count
                 pruning_stats["pruned_params"] += pruned_count

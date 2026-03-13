@@ -28,10 +28,6 @@ def plot_hierarchical_correlations(
     try:
         # Create output directory
         os.makedirs(save_path, exist_ok=True)
-        print(
-            f"DEBUG: plot_hierarchical_correlations called with save_path: {save_path}"
-        )
-        print(f"DEBUG: results keys: {list(results.keys())}")
 
         # Plot network-level summary
         if "network_level" in results:
@@ -50,6 +46,14 @@ def plot_hierarchical_correlations(
             "per_einet_analysis_enabled", False
         ):
             plot_per_ei_correlations(results["per_einet_analysis"], save_path=save_path)
+
+        # Plot per-neuron/unit summary results if available
+        if "per_neuron_analysis" in results and results.get(
+            "per_neuron_analysis_enabled", False
+        ):
+            plot_per_neuron_correlations(
+                results["per_neuron_analysis"], save_path=save_path
+            )
 
     except Exception as e:
         handle_plot_error("hierarchical correlations", e)
@@ -195,11 +199,13 @@ def plot_network_summary(network_results: dict[str, Any], save_path: str) -> Non
             fontsize=12,
             fontweight="bold",
         )
-        fig.text(0.02, 0.92, "• EI Layers: Network depth (0→1→2)", fontsize=10)
+        fig.text(0.02, 0.92, "• EI Layers: Network depth (0 to 1 to 2)", fontsize=10)
         fig.text(
             0.02, 0.90, "• E/I Networks: Excitatory vs Inhibitory pathways", fontsize=10
         )
-        fig.text(0.02, 0.88, "• Dendritic Layers: Branch depth (0→1→2)", fontsize=10)
+        fig.text(
+            0.02, 0.88, "• Dendritic Layers: Branch depth (0 to 1 to 2)", fontsize=10
+        )
 
         plt.suptitle(
             "Comprehensive Correlation Analysis\nComparisons: EI Layers | E/I Networks | Dendritic Branch Layers",
@@ -235,6 +241,32 @@ def plot_correlation_comparisons(results: dict[str, Any], save_path: str) -> Non
             layer_data = results["per_layer_analysis"]
             correlation_types = ["EE", "II", "EI", "E_Vout", "I_Vout", "Vout_Vout"]
 
+            def _parse_ei_layer_idx(layer_name: str):
+                """Best-effort parse EI layer index from module names.
+
+                Supports:
+                - "core_network.layers.0.excitatory_cells.branch_layers.1"
+                - "layer_0" / "layers_0"
+                """
+                s = str(layer_name)
+                if "layers." in s:
+                    try:
+                        after = s.split("layers.", 1)[1]
+                        return int(after.split(".", 1)[0])
+                    except Exception:
+                        pass
+                for token in ("layer_", "layers_"):
+                    if token in s:
+                        try:
+                            tail = s.split(token, 1)[1]
+                            return int(tail.split(".", 1)[0].split("_", 1)[0])
+                        except Exception:
+                            pass
+                try:
+                    return int(s.split("_")[-1])
+                except Exception:
+                    return None
+
             for i, corr_type in enumerate(correlation_types[:6]):
                 ax = axes1.flatten()[i]
 
@@ -245,7 +277,9 @@ def plot_correlation_comparisons(results: dict[str, Any], save_path: str) -> Non
                 for layer_name, layer_stats in layer_data.items():
                     if corr_type in layer_stats:
                         try:
-                            layer_idx = int(layer_name.split("_")[-1])
+                            layer_idx = _parse_ei_layer_idx(layer_name)
+                            if layer_idx is None:
+                                continue
                             layers.append(layer_idx)
 
                             corr_data = layer_stats[corr_type]
@@ -650,9 +684,14 @@ def plot_per_layer_correlations(
 
         for idx, (layer_name, layer_data) in enumerate(per_layer_results.items()):
             # Plot correlation matrix heatmap
-            if "correlations" in layer_data:
+            correlations = layer_data.get("correlations")
+            if correlations is None:
+                # Current analyzer format: top-level keys are correlation types.
+                corr_types = ["EE", "II", "EI", "E_Vout", "I_Vout", "Vout_Vout"]
+                correlations = {k: layer_data[k] for k in corr_types if k in layer_data}
+            if correlations:
                 plot_layer_correlation_matrix(
-                    layer_data["correlations"], axes[idx, 0], f"Layer: {layer_name}"
+                    correlations, axes[idx, 0], f"Layer: {layer_name}"
                 )
 
             # Plot summary statistics
@@ -673,6 +712,90 @@ def plot_per_layer_correlations(
 
     except Exception as e:
         handle_plot_error("per-layer correlations", e)
+
+
+def plot_per_neuron_correlations(
+    per_neuron_results: dict[str, Any], save_path: str
+) -> None:
+    """Plot per-unit correlation-strength distributions.
+
+    Args:
+        per_neuron_results: Output of CorrelationAnalyzer per-neuron summary
+        save_path: Directory to save plots
+    """
+    try:
+        by_type = per_neuron_results.get("by_type", {})
+        if not isinstance(by_type, dict) or not by_type:
+            return
+
+        # Prefer "total" condition; fall back to any available condition.
+        def pick_cond(d: dict[str, Any]) -> tuple[str, dict[str, Any]]:
+            if "total" in d and isinstance(d["total"], dict):
+                return "total", d["total"]
+            for k, v in d.items():
+                if isinstance(v, dict):
+                    return k, v
+            return "total", {}
+
+        corr_types = list(by_type.keys())
+        n_rows = len(corr_types)
+        fig, axes = plt.subplots(
+            n_rows, 2, figsize=(14, max(3, 2.6 * n_rows)), squeeze=False
+        )
+
+        for r, corr_type in enumerate(corr_types):
+            conds = by_type.get(corr_type, {})
+            if not isinstance(conds, dict):
+                continue
+            cond, data = pick_cond(conds)
+
+            ax_l = axes[r, 0]
+            ax_r = axes[r, 1]
+
+            if "per_unit_mean_abs" in data:
+                vals = np.asarray(data["per_unit_mean_abs"], dtype=float)
+                ax_l.hist(vals, bins=30, alpha=0.7)
+                ax_l.set_title(f"{corr_type} ({cond}) per-unit |corr| mean")
+                ax_l.set_xlabel("mean |corr|")
+                ax_l.set_ylabel("count")
+                ax_l.grid(True, alpha=0.3)
+                ax_r.axis("off")
+            elif "per_x_mean_abs" in data or "per_y_mean_abs" in data:
+                x_vals = np.asarray(data.get("per_x_mean_abs", []), dtype=float)
+                y_vals = np.asarray(data.get("per_y_mean_abs", []), dtype=float)
+                ax_l.hist(x_vals, bins=30, alpha=0.7, color="#e74c3c")
+                ax_l.set_title(f"{corr_type} ({cond}) x-side per-unit |corr| mean")
+                ax_l.set_xlabel("mean |corr|")
+                ax_l.set_ylabel("count")
+                ax_l.grid(True, alpha=0.3)
+
+                ax_r.hist(y_vals, bins=30, alpha=0.7, color="#3498db")
+                ax_r.set_title(f"{corr_type} ({cond}) y-side per-unit |corr| mean")
+                ax_r.set_xlabel("mean |corr|")
+                ax_r.set_ylabel("count")
+                ax_r.grid(True, alpha=0.3)
+            else:
+                ax_l.text(
+                    0.5,
+                    0.5,
+                    "No per-unit summaries available",
+                    ha="center",
+                    va="center",
+                    transform=ax_l.transAxes,
+                )
+                ax_l.axis("off")
+                ax_r.axis("off")
+
+        plt.suptitle(
+            "Per-unit Correlation Strength Distributions",
+            fontsize=16,
+            fontweight="bold",
+        )
+        plt.tight_layout()
+        save_plot(fig, save_path, "per_neuron_correlation_summary")
+
+    except Exception as e:
+        handle_plot_error("per-neuron correlations", e)
 
 
 def plot_correlation_matrices(
@@ -854,7 +977,7 @@ def _plot_multiclass_tuning_curves(tuning: dict[str, Any], save_path: str) -> No
         fontsize=16,
         fontweight="bold",
     )
-    save_plot(fig, save_path, "correlation_plot")
+    save_plot(fig, save_path, "multiclass_tuning_curves")
 
 
 def _plot_class_preference_distribution(
@@ -1121,7 +1244,7 @@ def plot_per_ei_correlations(
             "Per-EI Network Correlation Analysis", fontsize=16, fontweight="bold"
         )
         plt.tight_layout()
-        save_plot(fig, save_path, "correlation_plot")
+        save_plot(fig, save_path, "per_ei_correlation_analysis")
 
     except Exception as e:
         handle_plot_error("per-EI correlations", e)
@@ -1237,7 +1360,7 @@ def plot_synaptic_correlations(
             "Synaptic-Level Correlation Analysis", fontsize=16, fontweight="bold"
         )
         plt.tight_layout()
-        save_plot(fig, save_path, "correlation_plot")
+        save_plot(fig, save_path, "synaptic_correlation_analysis")
 
     except Exception as e:
         handle_plot_error("synaptic correlations", e)

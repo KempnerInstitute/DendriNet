@@ -8,6 +8,7 @@ for different sweep types (EI, branch, noise, general).
 import os
 from abc import ABC, abstractmethod
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Optional
 
 from omegaconf import DictConfig, OmegaConf
@@ -284,17 +285,25 @@ class SweepJobManager:
         self, script_path: str, config_paths: list[str], output_dir: str
     ):
         """Create a single SLURM job script."""
+        repo_root = Path(__file__).resolve().parents[5]
+        account = self.slurm_config.get("account")
+        partition = self.slurm_config.get("partition")
+        if not account:
+            raise ValueError(
+                "SLURM account not set. Provide 'account' in slurm_config."
+            )
+        if not partition:
+            raise ValueError(
+                "SLURM partition not set. Provide 'partition' in slurm_config."
+            )
         with open(script_path, "w") as f:
             f.write("#!/bin/bash\n")
             f.write(
                 f"#SBATCH --job-name={self.slurm_config.get('run_name') or self.slurm_config.get('job_name', 'sweep')}\n"
             )
-            f.write(
-                f"#SBATCH --account={self.slurm_config.get('account', 'kempner_dev')}\n"
-            )
-            f.write(
-                f"#SBATCH --partition={self.slurm_config.get('partition', 'kempner')}\n"
-            )
+            f.write(f"#SBATCH --account={account}\n")
+            f.write(f"#SBATCH --partition={partition}\n")
+            f.write(f"#SBATCH --chdir={repo_root}\n")
             constraint = self.slurm_config.get("constraint", None)
             if constraint:
                 f.write(f"#SBATCH --constraint={constraint}\n")
@@ -333,6 +342,12 @@ class SweepJobManager:
                 f.write(f"# Using conda environment at: {conda_env_path}\n")
                 f.write(f'PYTHON_BIN="{python_path}"\n')
                 f.write("\n")
+                # Add LD_LIBRARY_PATH to ensure conda libs are found
+                f.write("# Set library path for conda environment\n")
+                f.write(
+                    f'export LD_LIBRARY_PATH="{conda_env_path}/lib:$LD_LIBRARY_PATH"\n'
+                )
+                f.write("\n")
                 f.write("# Verify environment works\n")
                 f.write(
                     "$PYTHON_BIN -c \"import torch; print(f'PyTorch version: {torch.__version__}')\"\n"
@@ -341,6 +356,7 @@ class SweepJobManager:
                 # Fallback to system python
                 f.write("# Using system python\n")
                 f.write('PYTHON_BIN="python"\n')
+            f.write('export PYTHONPATH="$(pwd)/src:${PYTHONPATH:-}"\n')
 
             f.write("\n# Run experiments\n")
 
@@ -350,7 +366,9 @@ class SweepJobManager:
             )
 
             for config_path in config_paths:
-                rel_config_path = os.path.relpath(config_path, os.getcwd())
+                rel_config_path = os.path.relpath(
+                    os.path.abspath(config_path), start=repo_root
+                )
                 f.write(f"$PYTHON_BIN {training_script} {rel_config_path}\n")
 
         # Make executable
@@ -360,6 +378,17 @@ class SweepJobManager:
         self, script_path: str, config_paths: list[str], output_dir: str
     ):
         """Create a SLURM array job script for parallel execution."""
+        repo_root = Path(__file__).resolve().parents[5]
+        account = self.slurm_config.get("account")
+        partition = self.slurm_config.get("partition")
+        if not account:
+            raise ValueError(
+                "SLURM account not set. Provide 'account' in slurm_config."
+            )
+        if not partition:
+            raise ValueError(
+                "SLURM partition not set. Provide 'partition' in slurm_config."
+            )
         num_configs = len(config_paths)
         max_concurrent = self.slurm_config.get("max_concurrent_jobs", 10)
 
@@ -381,12 +410,9 @@ class SweepJobManager:
             f.write(
                 f"#SBATCH --job-name={self.slurm_config.get('run_name') or self.slurm_config.get('job_name', 'sweep')}\n"
             )
-            f.write(
-                f"#SBATCH --account={self.slurm_config.get('account', 'kempner_dev')}\n"
-            )
-            f.write(
-                f"#SBATCH --partition={self.slurm_config.get('partition', 'kempner')}\n"
-            )
+            f.write(f"#SBATCH --account={account}\n")
+            f.write(f"#SBATCH --partition={partition}\n")
+            f.write(f"#SBATCH --chdir={repo_root}\n")
             f.write(f"#SBATCH --time={formatted_time}\n")
             f.write(f"#SBATCH --nodes={self.slurm_config.get('nodes', 1)}\n")
             f.write(
@@ -416,6 +442,9 @@ class SweepJobManager:
             f.write(f"#SBATCH --output={output_dir}/jobs/%A_%a/output_%A_%a.out\n")
             f.write(f"#SBATCH --error={output_dir}/jobs/%A_%a/error_%A_%a.err\n\n")
 
+            # IMPORTANT: SBATCH directives must appear before any shell commands.
+            f.write("set -euo pipefail\n\n")
+
             f.write(
                 "# ================================================================\n"
             )
@@ -436,10 +465,14 @@ class SweepJobManager:
             # Set up Python environment
             conda_env_path = self.slurm_config.get("conda_env_path")
             if conda_env_path:
-                f.write(f"conda activate {conda_env_path}\n\n")
                 python_path = f"{conda_env_path}/bin/python"
-                f.write("# Python path\n")
+                f.write(f"# Using conda environment at: {conda_env_path}\n")
                 f.write(f'PYTHON="{python_path}"\n\n')
+                # Add LD_LIBRARY_PATH to ensure conda libs are found
+                f.write("# Set library path for conda environment\n")
+                f.write(
+                    f'export LD_LIBRARY_PATH="{conda_env_path}/lib:$LD_LIBRARY_PATH"\n\n'
+                )
                 f.write("# Verify environment works\n")
                 f.write(
                     "$PYTHON -c \"import torch; print(f'PyTorch version: {torch.__version__}')\"\n\n"
@@ -447,6 +480,7 @@ class SweepJobManager:
             else:
                 f.write("# Using system python\n")
                 f.write('PYTHON="python"\n\n')
+            f.write('export PYTHONPATH="$(pwd)/src:${PYTHONPATH:-}"\n\n')
 
             # Define config directory and files
             config_dir = (
@@ -464,7 +498,9 @@ class SweepJobManager:
             f.write("# Array job: select config based on SLURM_ARRAY_TASK_ID\n")
             f.write("CONFIG_FILES=(\n")
             for config_path in config_paths:
-                rel_config_path = os.path.relpath(config_path, os.getcwd())
+                rel_config_path = os.path.relpath(
+                    os.path.abspath(config_path), start=repo_root
+                )
                 f.write(f'    "{rel_config_path}"\n')
             f.write(")\n\n")
 
@@ -516,22 +552,32 @@ class SweepJobManager:
     ) -> str:
         """Create main script to submit all jobs."""
         main_script = os.path.join(output_dir, "submit_all_jobs.sh")
+        repo_root = Path(__file__).resolve().parents[5]
 
         with open(main_script, "w") as f:
             f.write("#!/bin/bash\n")
+            f.write("set -euo pipefail\n")
             f.write("# Main script to submit all sweep jobs\n\n")
             f.write(f"# Sweep output directory: {output_dir}\n\n")
+            f.write(f'REPO_ROOT="{repo_root}"\n')
+            f.write('SWEEP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"\n\n')
 
             f.write('echo "Submitting sweep jobs..."\n')
+            f.write('echo "- sweep_dir: ${SWEEP_DIR}"\n')
+            f.write('echo "- repo_root: ${REPO_ROOT}"\n')
             for script in job_scripts:
                 if script.endswith("submit_all_jobs.sh"):
                     continue  # Skip self
-                rel_script = os.path.relpath(script, os.getcwd())
-                f.write(f'echo "Submitting {rel_script}"\n')
-                f.write(f"sbatch {rel_script}\n")
+                script_basename = os.path.basename(script)
+                # NOTE: This is a Python f-string; we must escape bash `${VAR}` braces as `${{VAR}}`
+                # so Python doesn't try to interpolate `{VAR}` as a Python variable.
+                f.write(f'echo "Submitting ${{SWEEP_DIR}}/jobs/{script_basename}"\n')
+                f.write(
+                    f'sbatch --chdir "${{REPO_ROOT}}" "${{SWEEP_DIR}}/jobs/{script_basename}"\n'
+                )
                 f.write("sleep 2  # Brief delay between submissions\n")
 
-            f.write('\necho "All jobs submitted. Check status with: squeue -u $USER"\n')
+            f.write('\necho "Submitted. Check status with: squeue -u $USER"\n')
 
         os.chmod(main_script, 0o755)
         return main_script

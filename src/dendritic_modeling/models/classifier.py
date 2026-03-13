@@ -10,8 +10,8 @@ import torch
 import torch.nn as nn
 
 from dendritic_modeling.models.base import BaseModel
-from dendritic_modeling.networks.base import BaseNetwork
 from dendritic_modeling.networks import Identity
+from dendritic_modeling.networks.base import BaseNetwork
 
 
 class Classifier(BaseModel):
@@ -33,20 +33,17 @@ class Classifier(BaseModel):
                 torch.zeros((self.core_network.output_dim,)), requires_grad=True
             )
 
-        self.final = nn.LogSoftmax(dim=-1)
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = super().forward(x)
+    def forward(self, x: torch.Tensor, **kwargs) -> torch.Tensor:
+        x = super().forward(x, **kwargs)
 
         if hasattr(self, "log_output_scale"):
             x = self.log_output_scale.exp() * x
 
-        logits = self.final(x)
-        return logits
+        return x
 
-    def predict(self, x: torch.Tensor) -> torch.Tensor:
+    def predict(self, x: torch.Tensor, **kwargs) -> torch.Tensor:
         with torch.no_grad():
-            logits = self.forward(x)
+            logits = self.forward(x, **kwargs)
             return logits.argmax(dim=-1)
 
 

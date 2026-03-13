@@ -138,8 +138,8 @@ class SynapticActivationAnalyzer:
         model = model.to(device)
         model.eval()
 
-        inputs, _ = test_dataset[:]
-        inputs: torch.Tensor = inputs.to(device)
+        items = test_dataset[:]
+        inputs: torch.Tensor = items[0].to(device)
 
         # Optionally downsample for efficiency
         if self.downsample:

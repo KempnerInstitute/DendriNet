@@ -8,8 +8,20 @@ from dendritic_modeling.networks.architectures.classical.mlp.effective_matched i
     EffectiveMatchedParamMLP,
 )
 from dendritic_modeling.networks.architectures.classical.mlp.matched_param import (
-    MatchedParamMLP,
+    MatchedActiveParamMLP,
+    MatchedTotalParamMLP,
+    SparseStructuredMLP,
 )
 from dendritic_modeling.networks.architectures.classical.mlp.mlp import MLP
+from dendritic_modeling.networks.architectures.classical.mlp.point_mlp import (
+    PointMatchedParamMLP,
+)
 
-__all__ = ["MLP", "EffectiveMatchedParamMLP", "MatchedParamMLP"]
+__all__ = [
+    "MLP",
+    "EffectiveMatchedParamMLP",
+    "MatchedActiveParamMLP",
+    "MatchedTotalParamMLP",
+    "PointMatchedParamMLP",
+    "SparseStructuredMLP",
+]
