@@ -361,7 +361,7 @@ def main(config_path):
     # PretrainedEncoder) it returns immediately with datasets unchanged.
     if rank == 0:
         logger.info("Encoding datasets for analysis...")
-        encoder_network = model.encoder
+        encoder_network = model.encoder_network
 
         encoder_network, encoded_train_ds, encoded_valid_ds, encoded_test_ds = (
             load_train_encoder_network(

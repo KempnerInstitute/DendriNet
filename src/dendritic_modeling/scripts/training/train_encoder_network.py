@@ -150,7 +150,7 @@ def setup_environment(
 
 
 def load_train_encoder_network(
-    encoder_network: BaseAutoencoder,
+    encoder_network: torch.nn.Module,
     encoder_train_config: EncoderTrainingConfig,
     train_ds: torch.utils.data.Dataset,
     valid_ds: torch.utils.data.Dataset,
@@ -159,7 +159,7 @@ def load_train_encoder_network(
     task_config: Optional[DataConfig] = None,
     load_save_path: Optional[str] = None,
 ) -> tuple[
-    BaseAutoencoder,
+    torch.nn.Module,
     torch.utils.data.Dataset,
     torch.utils.data.Dataset,
     torch.utils.data.Dataset,

@@ -425,7 +425,8 @@ class TestEndToEndPipeline:
             pytest.skip("torchvision alexnet not available")
 
     def test_alexnet_encoder_core_decoder_forward(self):
-        """Full encoder -> core -> decoder pipeline on a random batch."""
+        """Full encoder -> core -> real PretrainedDecoder pipeline."""
+        # K=1: encoder = features + fc6, decoder = fc8 (expects 4096 input)
         encoder = PretrainedEncoder(
             backbone="alexnet",
             weights=None,
@@ -433,17 +434,15 @@ class TestEndToEndPipeline:
             freeze=True,
             drop_layers=["classifier.0", "classifier.3"],
         )
-        core = _SimpleCore(encoder.output_dim, 256)
+        # Core output must match fc8 in_features (4096) so decoder stays intact
+        core = _SimpleCore(encoder.output_dim, 4096)
         decoder = PretrainedDecoder(
             backbone="alexnet",
             weights=None,
             split_from="classifier.6",
             freeze=False,
-            input_dim=None,  # fc8 expects 4096, but we use core output=256
+            input_dim=4096,
         )
-        # Replace decoder's first linear to accept core output
-        decoder.layers = nn.Sequential(nn.Linear(256, 1000))
-        decoder.output_dim = 1000
 
         x = torch.randn(4, 3, 224, 224)
         with torch.no_grad():
@@ -451,13 +450,13 @@ class TestEndToEndPipeline:
         assert encoded.shape == (4, 4096)
 
         core_out = core(encoded)
-        assert core_out.shape == (4, 256)
+        assert core_out.shape == (4, 4096)
 
         logits = decoder(core_out)
         assert logits.shape == (4, 1000)
 
     def test_alexnet_k2_encoder_core_decoder_forward(self):
-        """K=2 split: features only -> core -> decoder."""
+        """K=2 split: features only -> core -> real PretrainedDecoder."""
         encoder = PretrainedEncoder(
             backbone="alexnet",
             weights=None,
@@ -466,15 +465,22 @@ class TestEndToEndPipeline:
         )
         assert encoder.output_dim == 9216
 
-        core = _SimpleCore(9216, 128)
-        decoder_layer = nn.Linear(128, 10)
+        # Core output must match fc8 in_features (4096)
+        core = _SimpleCore(9216, 4096)
+        decoder = PretrainedDecoder(
+            backbone="alexnet",
+            weights=None,
+            split_from="classifier.6",
+            freeze=False,
+            input_dim=4096,
+        )
 
         x = torch.randn(2, 3, 224, 224)
         with torch.no_grad():
             encoded = encoder(x)
         core_out = core(encoded)
-        logits = decoder_layer(core_out)
-        assert logits.shape == (2, 10)
+        logits = decoder(core_out)
+        assert logits.shape == (2, 1000)
 
     def test_frozen_encoder_no_grad(self):
         """Frozen encoder should not accumulate gradients during pipeline."""
