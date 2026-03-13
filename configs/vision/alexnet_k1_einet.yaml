@@ -23,7 +23,7 @@ experiment:
 
 data:
   dataset_name: "imagenet"
-  base_dir: "/n/netscratch/bsabatini_lab/Lab/bkang/imagenet_1k"
+  base_dir: "/n/holylfs06/LABS/kempner_shared/Everyone/testbed/vision/imagenet_1k"
   processing:
     flatten: false
     normalize: true

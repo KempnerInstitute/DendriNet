@@ -120,6 +120,12 @@ class DatasetParamsConfig(BaseConfig):
             "noise_std": 0.1,
         }
     )
+    imagenet: dict[str, Any] = field(
+        default_factory=lambda: {
+            "train_samples_per_class": None,
+            "val_samples_per_class": None,
+        }
+    )
 
 
 @dataclass

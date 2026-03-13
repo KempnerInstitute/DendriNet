@@ -371,9 +371,11 @@ def setup_environment(
         (),
         {
             "dataset": data_config.dataset_name,
-            "data_path": (
-                os.path.join(base_dir, data_config.dataset_name) if base_dir else None
-            ),
+            # Pass the configured base_dir through directly. Dataset loaders decide
+            # whether to treat it as a dataset root (for example ImageNet train/val
+            # trees) or as a parent directory that still needs dataset-specific
+            # subdirectories.
+            "data_path": (base_dir if base_dir else None),
             "train_valid_split": experiment_config.train_valid_split,
             "parameters": {
                 **processing_params,
