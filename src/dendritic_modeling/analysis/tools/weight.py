@@ -88,9 +88,6 @@ class WeightAnalyzer(AbstractAnalyzer):
         try:
             assert isinstance(model.core_network, ExcitationInhibitionNetwork)
         except AssertionError:
-            self.logger.error(
-                "Model must have ExcitationInhibitionNetwork for weight analysis"
-            )
             return None
 
         self.logger.info("Starting comprehensive weight analysis...")
@@ -221,7 +218,7 @@ class WeightAnalyzer(AbstractAnalyzer):
                     and self.analyze_branch_output
                     and hasattr(module, "branches_to_output")
                 ):
-                    branch_w = module.branches_to_output.weight().cpu()
+                    branch_w = module.branches_to_output.weight().cpu().flatten()
                     branch_weights.append(branch_w)
 
         global_stats = {}
@@ -372,24 +369,24 @@ class WeightAnalyzer(AbstractAnalyzer):
                         )
 
                         if self.compute_mean:
-                            branch_results[branch_idx]["exc_weight_mean"] = (
-                                active_weights.mean().item()
-                            )
+                            branch_results[branch_idx][
+                                "exc_weight_mean"
+                            ] = active_weights.mean().item()
                         if self.compute_variance:
-                            branch_results[branch_idx]["exc_weight_var"] = (
-                                active_weights.var().item()
-                            )
+                            branch_results[branch_idx][
+                                "exc_weight_var"
+                            ] = active_weights.var().item()
                         if self.compute_min_max:
-                            branch_results[branch_idx]["exc_weight_min"] = (
-                                active_weights.min().item()
-                            )
-                            branch_results[branch_idx]["exc_weight_max"] = (
-                                active_weights.max().item()
-                            )
+                            branch_results[branch_idx][
+                                "exc_weight_min"
+                            ] = active_weights.min().item()
+                            branch_results[branch_idx][
+                                "exc_weight_max"
+                            ] = active_weights.max().item()
                         if self.compute_percentiles:
-                            branch_results[branch_idx]["exc_weight_median"] = (
-                                active_weights.median().item()
-                            )
+                            branch_results[branch_idx][
+                                "exc_weight_median"
+                            ] = active_weights.median().item()
                     else:
                         # No active weights
                         branch_results[branch_idx]["exc_n_active_synapses"] = 0
@@ -412,24 +409,24 @@ class WeightAnalyzer(AbstractAnalyzer):
                         )
 
                         if self.compute_mean:
-                            branch_results[branch_idx]["inh_weight_mean"] = (
-                                active_weights.mean().item()
-                            )
+                            branch_results[branch_idx][
+                                "inh_weight_mean"
+                            ] = active_weights.mean().item()
                         if self.compute_variance:
-                            branch_results[branch_idx]["inh_weight_var"] = (
-                                active_weights.var().item()
-                            )
+                            branch_results[branch_idx][
+                                "inh_weight_var"
+                            ] = active_weights.var().item()
                         if self.compute_min_max:
-                            branch_results[branch_idx]["inh_weight_min"] = (
-                                active_weights.min().item()
-                            )
-                            branch_results[branch_idx]["inh_weight_max"] = (
-                                active_weights.max().item()
-                            )
+                            branch_results[branch_idx][
+                                "inh_weight_min"
+                            ] = active_weights.min().item()
+                            branch_results[branch_idx][
+                                "inh_weight_max"
+                            ] = active_weights.max().item()
                         if self.compute_percentiles:
-                            branch_results[branch_idx]["inh_weight_median"] = (
-                                active_weights.median().item()
-                            )
+                            branch_results[branch_idx][
+                                "inh_weight_median"
+                            ] = active_weights.median().item()
                     else:
                         # No active weights
                         branch_results[branch_idx]["inh_n_active_synapses"] = 0
@@ -603,12 +600,12 @@ class WeightAnalyzer(AbstractAnalyzer):
             if self.compute_min_max and depth_to_weights.get(layer_idx_attr):
                 all_weights = torch.cat(depth_to_weights[layer_idx_attr])
                 if all_weights.numel() > 0:
-                    enhanced_stats[layer_name]["layer_weight_min"] = (
-                        all_weights.min().item()
-                    )
-                    enhanced_stats[layer_name]["layer_weight_max"] = (
-                        all_weights.max().item()
-                    )
+                    enhanced_stats[layer_name][
+                        "layer_weight_min"
+                    ] = all_weights.min().item()
+                    enhanced_stats[layer_name][
+                        "layer_weight_max"
+                    ] = all_weights.max().item()
 
         return enhanced_stats
 
@@ -643,7 +640,9 @@ class WeightAnalyzer(AbstractAnalyzer):
                 )
                 self.logger.info("Enhanced plots completed")
             else:
-                self.logger.warning("No enhanced_layer_statistics found in results")
+                self.logger.info(
+                    "enhanced_layer_statistics not present; skipping optional enhanced plots"
+                )
 
             # Generate global distribution plots
             if "global_statistics" in results:
@@ -748,7 +747,7 @@ class WeightAnalyzer(AbstractAnalyzer):
                 setup_basic_plot(
                     ax1,
                     "Min/Max Weights per Layer",
-                    "Layer (Soma → Distal)",
+                    "Layer (Soma to Distal)",
                     "Weight Value",
                     grid=True,
                 )
@@ -769,7 +768,7 @@ class WeightAnalyzer(AbstractAnalyzer):
                 setup_basic_plot(
                     ax2,
                     "Total Dendritic Strength per Layer",
-                    "Layer (Soma → Distal)",
+                    "Layer (Soma to Distal)",
                     "Total Weight Sum",
                     grid=True,
                 )

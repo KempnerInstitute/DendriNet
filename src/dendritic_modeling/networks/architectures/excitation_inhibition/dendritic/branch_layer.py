@@ -23,6 +23,7 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.i
     analytical_expectation_dbl_init,
     default_dbl_init,
     ei_equivalence_dbl_init,
+    identity_weighttransform_dbl_init,
     naive_dbl_init,
 )
 
@@ -75,6 +76,10 @@ class DendriticBranchLayer(nn.Module):
         inhibitory_input_dim=None,
         inhibitory_synapses_per_branch=None,
         input_branch_factor=None,
+        recurrent_input_dim=None,
+        recurrent_synapses_per_branch=None,
+        rec_inhibitory_input_dim=None,
+        rec_inhibitory_synapses_per_branch=None,
         topk_init_method="xavier_normal",
         topk_noise_level=0.0,
         topk_type="standard",  # New parameter
@@ -119,6 +124,9 @@ class DendriticBranchLayer(nn.Module):
         self.blocklinear_strategy = blocklinear_strategy
         self.efficient_blocklinear = efficient_blocklinear
         self.use_shunting = use_shunting
+        self.use_additive_normalization = kwargs.pop(
+            "use_additive_normalization", False
+        )
         self.dbl_init_method = dbl_init_method
         self.epsilon = epsilon  # Store epsilon for numerical stability
         self.topk_type = topk_type  # Store the strategy
@@ -196,6 +204,50 @@ class DendriticBranchLayer(nn.Module):
         else:
             self.branch_inhibition = None
 
+        # Recurrent excitatory synapses (optional, for RNN usage).
+        # When recurrent_input_dim is None (default for all feedforward code),
+        # no layer is created and no extra computation occurs.
+        self.input_recurrent = (
+            recurrent_input_dim is not None
+            and recurrent_synapses_per_branch is not None
+            and recurrent_synapses_per_branch > 0
+        )
+        if self.input_recurrent:
+            self.branch_recurrent = self._create_topk_layer(
+                in_features=recurrent_input_dim,
+                out_features=output_dim,
+                K=recurrent_synapses_per_branch,
+                init_method=topk_init_method,
+                noise_level=topk_noise_level,
+                synapse_type="exc",
+            )
+            gradient_scaler.register_topk_dynamic(self.branch_recurrent)
+            self.recurrent_input_dim = recurrent_input_dim
+        else:
+            self.branch_recurrent = None
+
+        # Recurrent inhibitory synapses (optional, for RNN usage with local I pool).
+        # When rec_inhibitory_input_dim is None (default for all feedforward code),
+        # no layer is created and no extra computation occurs.
+        self.input_rec_inhibitory = (
+            rec_inhibitory_input_dim is not None
+            and rec_inhibitory_synapses_per_branch is not None
+            and rec_inhibitory_synapses_per_branch > 0
+        )
+        if self.input_rec_inhibitory:
+            self.branch_rec_inhibition = self._create_topk_layer(
+                in_features=rec_inhibitory_input_dim,
+                out_features=output_dim,
+                K=rec_inhibitory_synapses_per_branch,
+                init_method=topk_init_method,
+                noise_level=topk_noise_level,
+                synapse_type="inh",
+            )
+            gradient_scaler.register_topk_dynamic(self.branch_rec_inhibition)
+            self.rec_inhibitory_input_dim = rec_inhibitory_input_dim
+        else:
+            self.branch_rec_inhibition = None
+
         self.input_branches = input_branch_factor is not None
         if self.input_branches:
             BlockCls = (
@@ -236,6 +288,11 @@ class DendriticBranchLayer(nn.Module):
         synapse_type="exc",
     ):
         """Helper function that picks which topk class to use based on strategy."""
+        # Keep invalid sweep configs runnable by capping requested synapse count to
+        # available presynaptic features for this layer.
+        if K is not None and K > in_features:
+            K = in_features
+
         # For 'standard' strategy, use the original TopKLinear class exactly as before
         # This provides a direct path with zero overhead compared to the original code
         if self.topk_type is None or self.topk_type == "standard":
@@ -320,7 +377,10 @@ class DendriticBranchLayer(nn.Module):
             )
 
     def initialize(self):
-        if self.dbl_init_method == "analytical_expectation":
+        if (self.weight_transform or "").lower() == "identity":
+            identity_weighttransform_dbl_init(self)
+
+        elif self.dbl_init_method == "analytical_expectation":
             analytical_expectation_dbl_init(
                 self,
                 adaptive=self.adaptive_initialization,
@@ -340,6 +400,10 @@ class DendriticBranchLayer(nn.Module):
             self.branch_excitation.decay_weights(weight_decay, weight_boosting)
         if self.branch_inhibition is not None:
             self.branch_inhibition.decay_weights(weight_decay, weight_boosting)
+        if self.branch_recurrent is not None:
+            self.branch_recurrent.decay_weights(weight_decay, weight_boosting)
+        if self.branch_rec_inhibition is not None:
+            self.branch_rec_inhibition.decay_weights(weight_decay, weight_boosting)
         # if self.input_branches:
         #     self.branches_to_output.decay_weights(weight_decay)
 
@@ -359,8 +423,23 @@ class DendriticBranchLayer(nn.Module):
                 self.branch_inhibition, "apply_noise_and_enforce_constraints"
             ):
                 self.branch_inhibition.apply_noise_and_enforce_constraints()
+            if rewire_condition and hasattr(
+                self.branch_recurrent, "apply_noise_and_enforce_constraints"
+            ):
+                self.branch_recurrent.apply_noise_and_enforce_constraints()
+            if rewire_condition and hasattr(
+                self.branch_rec_inhibition, "apply_noise_and_enforce_constraints"
+            ):
+                self.branch_rec_inhibition.apply_noise_and_enforce_constraints()
 
-    def forward(self, x, inhibitory_input=None, branch_input=None):
+    def forward(
+        self,
+        x,
+        inhibitory_input=None,
+        branch_input=None,
+        recurrent_input=None,
+        rec_inhibitory_input=None,
+    ):
         if self.use_shunting:
             numerator = 0
             denominator = 1
@@ -368,13 +447,22 @@ class DendriticBranchLayer(nn.Module):
             if self.input_excitatory and self.branch_excitation is not None:
                 excitation = self.branch_excitation(x)
                 numerator = numerator + excitation
-                denominator = denominator + torch.nn.functional.relu(excitation)
+                denominator = denominator + excitation
+
+            if (
+                self.input_recurrent
+                and self.branch_recurrent is not None
+                and recurrent_input is not None
+            ):
+                rec_excitation = self.branch_recurrent(recurrent_input)
+                numerator = numerator + rec_excitation
+                denominator = denominator + rec_excitation
 
             if self.input_branches and branch_input is not None:
                 current = self.branches_to_output(branch_input)
                 numerator = numerator + current
                 conductance = self.branches_to_output.sum_conductances()
-                denominator = denominator + torch.nn.functional.relu(conductance)
+                denominator = denominator + conductance
 
             if (
                 self.input_inhibitory
@@ -382,15 +470,37 @@ class DendriticBranchLayer(nn.Module):
                 and inhibitory_input is not None
             ):
                 inhibition = self.branch_inhibition(inhibitory_input)
-                denominator = denominator + torch.nn.functional.relu(inhibition)
+                denominator = denominator + inhibition
+
+            if (
+                self.input_rec_inhibitory
+                and self.branch_rec_inhibition is not None
+                and rec_inhibitory_input is not None
+            ):
+                rec_inhibition = self.branch_rec_inhibition(rec_inhibitory_input)
+                denominator = denominator + rec_inhibition
 
             voltage = numerator / (denominator + self.epsilon)
+
+            # Store for diagnostic access (no-op during normal training)
+            if getattr(self, "_store_diagnostics", False):
+                self._diag_g_tot = denominator.detach()
+                self._diag_numerator = (
+                    numerator.detach() if torch.is_tensor(numerator) else None
+                )
 
         else:
             voltage = 0
 
             if self.input_excitatory and self.branch_excitation is not None:
                 voltage = voltage + self.branch_excitation(x)
+
+            if (
+                self.input_recurrent
+                and self.branch_recurrent is not None
+                and recurrent_input is not None
+            ):
+                voltage = voltage + self.branch_recurrent(recurrent_input)
 
             if self.input_branches and branch_input is not None:
                 voltage = voltage + self.branches_to_output(branch_input)
@@ -402,6 +512,21 @@ class DendriticBranchLayer(nn.Module):
             ):
                 voltage = voltage - self.branch_inhibition(inhibitory_input)
 
+            if (
+                self.input_rec_inhibitory
+                and self.branch_rec_inhibition is not None
+                and rec_inhibitory_input is not None
+            ):
+                voltage = voltage - self.branch_rec_inhibition(rec_inhibitory_input)
+
+            # Optional voltage normalization for additive mode
+            # (control experiment: tests whether normalization alone recovers
+            # the gradient fidelity benefits of shunting inhibition)
+            if self.use_additive_normalization and torch.is_tensor(voltage):
+                voltage = (voltage - voltage.mean(dim=-1, keepdim=True)) / (
+                    voltage.std(dim=-1, keepdim=True) + self.epsilon
+                )
+
         if self.training and "conductance_dynamic" in [
             self.topk_strategy,
             self.blocklinear_strategy,
@@ -410,6 +535,80 @@ class DendriticBranchLayer(nn.Module):
 
         result = self.reactivation(voltage)
         return result
+
+    def compute_raw_currents(
+        self, x, inhibitory_input=None, recurrent_input=None, rec_inhibitory_input=None
+    ):
+        """Compute raw synaptic currents without shunting or reactivation.
+
+        Used by the RNN cell to separate current computation from temporal
+        integration and shunting. Feedforward code should use forward() instead.
+
+        Returns:
+            raw_E: FF excitatory current [batch, output_dim] or 0
+            raw_E_rec: Recurrent excitatory current [batch, output_dim] or 0
+            raw_I: FF inhibitory current [batch, output_dim] or 0
+            raw_I_rec: Recurrent inhibitory current [batch, output_dim] or 0
+        """
+        raw_E = 0
+        if self.input_excitatory and self.branch_excitation is not None:
+            raw_E = self.branch_excitation(x)
+
+        raw_E_rec = 0
+        if (
+            self.input_recurrent
+            and self.branch_recurrent is not None
+            and recurrent_input is not None
+        ):
+            raw_E_rec = self.branch_recurrent(recurrent_input)
+
+        raw_I = 0
+        if (
+            self.input_inhibitory
+            and self.branch_inhibition is not None
+            and inhibitory_input is not None
+        ):
+            raw_I = self.branch_inhibition(inhibitory_input)
+
+        raw_I_rec = 0
+        if (
+            self.input_rec_inhibitory
+            and self.branch_rec_inhibition is not None
+            and rec_inhibitory_input is not None
+        ):
+            raw_I_rec = self.branch_rec_inhibition(rec_inhibitory_input)
+
+        return raw_E, raw_E_rec, raw_I, raw_I_rec
+
+    def shunt_from_currents(self, trace_E, trace_E_rec, trace_I, trace_I_rec=0):
+        """Apply shunting (or additive) computation on pre-integrated currents.
+
+        Used by the RNN cell after temporal integration of traces.
+        The traces are the leaky-integrated versions of raw currents.
+
+        Args:
+            trace_E: Integrated FF excitatory trace [batch, output_dim]
+            trace_E_rec: Integrated recurrent excitatory trace (can be 0)
+            trace_I: Integrated FF inhibitory trace (can be 0)
+            trace_I_rec: Integrated recurrent inhibitory trace (can be 0)
+
+        Returns:
+            voltage: Post-shunting, post-reactivation output [batch, output_dim]
+        """
+        if self.use_shunting:
+            numerator = trace_E + trace_E_rec
+            denominator = 1 + trace_E
+            if isinstance(trace_E_rec, torch.Tensor):
+                denominator = denominator + trace_E_rec
+            if isinstance(trace_I, torch.Tensor):
+                denominator = denominator + trace_I
+            if isinstance(trace_I_rec, torch.Tensor):
+                denominator = denominator + trace_I_rec
+            voltage = numerator / (denominator + self.epsilon)
+        else:
+            voltage = trace_E + trace_E_rec - trace_I - trace_I_rec
+
+        return self.reactivation(voltage)
 
     def compute_grad_scales(self, g_total: Optional[torch.Tensor] = None):
         """
@@ -448,77 +647,66 @@ class DendriticBranchLayer(nn.Module):
                     ).mean(dim=0)
                     self.branch_inhibition.param_scale_vec = g_total[:, None]
 
+                if (
+                    self.branch_recurrent is not None
+                    and self.topk_strategy == "conductance_dynamic"
+                ):
+                    self.branch_recurrent.input_scale_vec = (
+                        g_total[:, None] / self.branch_recurrent.weight()
+                    ).mean(dim=0)
+                    self.branch_recurrent.param_scale_vec = g_total[:, None]
+
+                if (
+                    self.branch_rec_inhibition is not None
+                    and self.topk_strategy == "conductance_dynamic"
+                ):
+                    self.branch_rec_inhibition.input_scale_vec = (
+                        g_total[:, None] / self.branch_rec_inhibition.weight()
+                    ).mean(dim=0)
+                    self.branch_rec_inhibition.param_scale_vec = g_total[:, None]
+
             else:
                 if (
                     hasattr(self, "branches_to_output")
                     and self.blocklinear_strategy == "conductance_dynamic"
                 ):
                     # only apply input_scale_vec = 1 / branch_weights
+                    w = self.branches_to_output.weight()
+
+                    if (self.weight_transform or "").lower() == "identity":
+                        w = w.abs() + self.epsilon
+
                     self.branches_to_output.input_scale_vec = torch.exp(
-                        -1 * self.branches_to_output.weight().log()
+                        -1 * w.log()
                     ).flatten()
 
+    def _collect_from_layers(self, method_name):
+        """Helper to collect a named attribute from all active TopK layers."""
+        result = {}
+        if self.branch_excitation is not None:
+            result["exc"] = getattr(self.branch_excitation, method_name)()
+        if self.branch_recurrent is not None:
+            result["rec_exc"] = getattr(self.branch_recurrent, method_name)()
+        if self.branch_inhibition is not None:
+            result["inh"] = getattr(self.branch_inhibition, method_name)()
+        if self.branch_rec_inhibition is not None:
+            result["rec_inh"] = getattr(self.branch_rec_inhibition, method_name)()
+        return result if result else None
+
     def get_weights(self):
-        if self.input_inhibitory and self.input_excitatory:
-            return (self.branch_excitation.weight(), self.branch_inhibition.weight())
-        elif self.input_excitatory:
-            return self.branch_excitation.weight()
-        elif self.input_inhibitory:
-            return self.branch_inhibition.weight()
-        else:
-            return None
+        return self._collect_from_layers("weight")
 
     def get_log_weights(self):
-        if self.input_inhibitory and self.input_excitatory:
-            return (
-                self.branch_excitation.log_weight(),
-                self.branch_inhibition.log_weight(),
-            )
-        elif self.input_excitatory:
-            return self.branch_excitation.log_weight()
-        elif self.input_inhibitory:
-            return self.branch_inhibition.log_weight()
-        else:
-            return None
+        return self._collect_from_layers("log_weight")
 
     def get_mask(self):
-        if self.input_inhibitory and self.input_excitatory:
-            return (
-                self.branch_excitation.weight_mask(),
-                self.branch_inhibition.weight_mask(),
-            )
-        elif self.input_excitatory:
-            return self.branch_excitation.weight_mask()
-        elif self.input_inhibitory:
-            return self.branch_inhibition.weight_mask()
-        else:
-            return None
+        return self._collect_from_layers("weight_mask")
 
     def get_pruned_weights(self):
-        if self.input_inhibitory and self.input_excitatory:
-            return (
-                self.branch_excitation.pruned_weight(),
-                self.branch_inhibition.pruned_weight(),
-            )
-        elif self.input_excitatory:
-            return self.branch_excitation.pruned_weight()
-        elif self.input_inhibitory:
-            return self.branch_inhibition.pruned_weight()
-        else:
-            return None
+        return self._collect_from_layers("pruned_weight")
 
     def get_log_pruned_weights(self):
-        if self.input_inhibitory and self.input_excitatory:
-            return (
-                self.branch_excitation.log_pruned_weight(),
-                self.branch_inhibition.log_pruned_weight(),
-            )
-        elif self.input_excitatory:
-            return self.branch_excitation.log_pruned_weight()
-        elif self.input_inhibitory:
-            return self.branch_inhibition.log_pruned_weight()
-        else:
-            return None
+        return self._collect_from_layers("log_pruned_weight")
 
 
 __all__ = ["DendriticBranchLayer"]

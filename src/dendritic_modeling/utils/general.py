@@ -73,11 +73,26 @@ def convert_to_serializable(obj: Any) -> Any:
         return obj.item()
     elif isinstance(obj, np.ndarray):
         return obj.tolist()
+    elif isinstance(obj, torch.Tensor):
+        tensor = obj.detach().cpu()
+        if tensor.numel() == 1:
+            return tensor.item()
+        return tensor.tolist()
+    elif isinstance(obj, torch.device):
+        return str(obj)
+    elif isinstance(obj, torch.dtype):
+        return str(obj)
     else:
         return obj
 
 
-def set_seed(seed: int) -> None:
+def set_seed(
+    seed: int,
+    deterministic: bool = True,
+    cudnn_benchmark: bool = False,
+    allow_tf32: bool = False,
+    float32_matmul_precision: str = "highest",
+) -> None:
     """
     Set the seed for all random number generators to ensure reproducibility.
 
@@ -89,14 +104,28 @@ def set_seed(seed: int) -> None:
 
     Args:
         seed: Random seed value
+        deterministic: Enable deterministic CUDNN kernels when possible.
+        cudnn_benchmark: Enable CUDNN autotuning for fixed-shape workloads.
+        allow_tf32: Allow TF32 matmul/CUDNN kernels on Ampere+ GPUs.
+        float32_matmul_precision: PyTorch float32 matmul precision mode.
     """
     torch.manual_seed(seed)
     torch.cuda.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
     np.random.seed(seed)
     random.seed(seed)
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False
+    torch.backends.cudnn.deterministic = deterministic
+    torch.backends.cudnn.benchmark = cudnn_benchmark and not deterministic
+
+    if hasattr(torch.backends, "cuda") and hasattr(torch.backends.cuda, "matmul"):
+        torch.backends.cuda.matmul.allow_tf32 = allow_tf32
+    if hasattr(torch.backends, "cudnn"):
+        torch.backends.cudnn.allow_tf32 = allow_tf32
+    if hasattr(torch, "set_float32_matmul_precision"):
+        try:
+            torch.set_float32_matmul_precision(float32_matmul_precision)
+        except ValueError:
+            torch.set_float32_matmul_precision("highest")
 
 
 def save_dict(dict_obj: dict[str, Any], save_path: str, fname: str) -> None:

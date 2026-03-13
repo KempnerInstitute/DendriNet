@@ -159,28 +159,40 @@ class Trainer:
     def _dataloaders(
         self, train_data: torch.utils.data.Dataset, valid_data: torch.utils.data.Dataset
     ) -> tuple[DataLoader, DataLoader]:
+        # Respect scheduler CPU affinity when available (e.g., SLURM cpus-per-task).
+        available_cpus = os.cpu_count() or 1
+        if hasattr(os, "sched_getaffinity"):
+            try:
+                available_cpus = len(os.sched_getaffinity(0))
+            except OSError:
+                pass
+
         # Determine number of workers automatically or use override
         if hasattr(self, "num_workers") and self.num_workers is not None:
-            num_workers = self.num_workers
+            num_workers = max(0, int(self.num_workers))
         else:
-            # Automatically determine optimal number of workers
-            import multiprocessing
-
-            cpu_count = multiprocessing.cpu_count()
-
             if torch.cuda.is_available():
-                # On GPU systems, use a reasonable fraction of CPUs
-                # Rule of thumb: 4 workers per GPU is often good, but cap at CPU count
-                num_workers = min(8, cpu_count)
+                # On GPU jobs, cap workers to avoid oversubscription warnings/freezes.
+                num_workers = min(8, available_cpus)
             else:
-                # On CPU-only systems, leave one core free for main process
-                num_workers = max(0, cpu_count - 1)
+                # On CPU-only runs, leave one core for the main process and cap to 8.
+                num_workers = min(8, max(0, available_cpus - 1))
 
-            # Log the auto-detected value
-            if not self.suppress_prints:
-                logger.info(
-                    f"Auto-detected num_workers={num_workers} (available CPUs: {cpu_count})"
-                )
+        # Never spawn more workers than visible CPUs.
+        if num_workers > available_cpus:
+            num_workers = available_cpus
+
+        # Log the auto-detected value
+        if not self.suppress_prints and (
+            not hasattr(self, "num_workers") or self.num_workers is None
+        ):
+            total_cpus = os.cpu_count() or available_cpus
+            logger.info(
+                "Auto-detected num_workers=%s (visible CPUs: %s, total system CPUs: %s)",
+                num_workers,
+                available_cpus,
+                total_cpus,
+            )
 
         # Check if we should use pinned memory and persistent workers
         use_pin_memory = torch.cuda.is_available() and num_workers > 0
@@ -360,8 +372,8 @@ class Trainer:
         # Check once if regularization is enabled to avoid repeated checks
         has_regularization = self.regularization_manager.has_regularization()
 
-        for x_batch, y_batch in train_loader:
-            x_batch, y_batch = x_batch.to(self.device), y_batch.to(self.device)
+        for batch in train_loader:
+            x_batch, y_batch = batch[0].to(self.device), batch[1].to(self.device)
 
             if self.enable_amp:
                 # Mixed precision forward pass
@@ -448,11 +460,9 @@ class Trainer:
         model.eval()
         valid_loss = 0
         with torch.no_grad():
-            for x_batch, y_batch in valid_loader:
-                x_batch: torch.Tensor
-                y_batch: torch.Tensor
-                x_batch = x_batch.to(self.device)
-                y_batch = y_batch.to(self.device)
+            for batch in valid_loader:
+                x_batch: torch.Tensor = batch[0].to(self.device)
+                y_batch: torch.Tensor = batch[1].to(self.device)
                 loss: torch.Tensor = self.loss_function(model, x_batch, y_batch)
                 valid_loss += loss.item()
 

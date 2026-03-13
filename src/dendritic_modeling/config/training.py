@@ -2,7 +2,15 @@ from dataclasses import dataclass, field
 from typing import Any, Optional
 
 from dendritic_modeling.config.base import BaseConfig
-from dendritic_modeling.config.regularization import PruningConfig, RegularizationConfig
+from dendritic_modeling.config.regularization import (
+    PruningConfig,
+    RegularizationConfig,
+    SelectiveConfig as _SelectiveConfig,
+)
+
+# Backward-compatible re-export: downstream code imports SelectiveConfig
+# from config.training in several places.
+SelectiveConfig = _SelectiveConfig
 
 
 @dataclass
@@ -108,6 +116,7 @@ class LocalCAStrategyConfig(BaseConfig):
     ema_alpha: float = 0.1
     use_conductance_scaling: bool = True
     use_driving_force: bool = True
+    dynamics_mode: str = "auto"  # "auto", "conductance", "additive"
     theta: float = 0.0
     e_rev_exc: float = 1.0
     e_rev_inh: float = 0.0
@@ -137,8 +146,10 @@ class LocalCAStrategyConfig(BaseConfig):
     hsic_apply_last_layer_only: bool = False
 
     rho_mode: str = "dot"
+    encoder_update_mode: str = "none"
     decoder_update_mode: str = "backprop"
     update_reactivation: bool = True
+    freeze_encoder_epochs: int = 0
     freeze_reactivation_epochs: int = 20
     freeze_decoder_epochs: int = 0
     training_schedule: list = field(default_factory=list)
@@ -256,23 +267,6 @@ class EncoderTrainingConfig(BaseConfig):
 
 
 @dataclass
-class MainTrainingConfig(BaseConfig):
-    """Main network training configuration."""
-
-    strategy: str = "standard"
-
-    common: CommonTrainerConfig = field(default_factory=CommonTrainerConfig)
-    regularization: RegularizationConfig = field(default_factory=RegularizationConfig)
-    pruning: PruningConfig = field(default_factory=PruningConfig)
-    strategies: TrainingStrategiesConfig = field(
-        default_factory=TrainingStrategiesConfig
-    )
-    learning_strategy_config: Optional["LocalRuleConfig"] = field(
-        default_factory=lambda: None
-    )
-
-
-@dataclass
 class OptimizerConfig(BaseConfig):
     """Configuration for optimizer selection and parameters."""
 
@@ -285,70 +279,20 @@ class OptimizerConfig(BaseConfig):
 
 
 @dataclass
-class SelectiveConfig(BaseConfig):
-    """Configuration for selective application of regularization/pruning."""
+class MainTrainingConfig(BaseConfig):
+    """Main network training configuration."""
 
-    layers: list[int] = field(
-        default_factory=list
-    )  # List of layer indices (empty = all)
-    branches: list[str] = field(
-        default_factory=list
-    )  # List of branch names (empty = all)
-    weight_types: list[str] = field(default_factory=lambda: ["all"])  # Types of weights
+    strategy: str = "standard"
 
-
-@dataclass
-class RegularizationConfig(BaseConfig):
-    """Configuration for all regularization types."""
-
-    # L1/L2 regularization
-    l1_weight: float = 0.0  # Strength of L1 regularization (0 to disable)
-    l2_weight: float = 0.0  # Strength of L2 regularization (0 to disable)
-    selective: SelectiveConfig = field(default_factory=SelectiveConfig)
-
-    # Parameter group specific regularization
-    split_params: bool = (
-        False  # Split parameters into groups for differential regularization
+    common: CommonTrainerConfig = field(default_factory=CommonTrainerConfig)
+    optimizer: OptimizerConfig = field(default_factory=OptimizerConfig)
+    regularization: RegularizationConfig = field(default_factory=RegularizationConfig)
+    pruning: PruningConfig = field(default_factory=PruningConfig)
+    strategies: TrainingStrategiesConfig = field(
+        default_factory=TrainingStrategiesConfig
     )
-    param_group_weights: dict[str, dict[str, float]] = field(
-        default_factory=lambda: {
-            "topk": {"l1_weight": 0.0, "l2_weight": 0.0},
-            "blocklinear": {"l1_weight": 0.0, "l2_weight": 0.0},
-            "reactivation": {"l1_weight": 0.0, "l2_weight": 0.0},
-            "decoder": {"l1_weight": 0.0, "l2_weight": 0.0},
-        }
-    )
-
-    # E/I Weight Ratio Regularization
-    enforce_ei_weight_ratio: bool = False  # Enable E/I weight ratio regularization
-    target_ei_weight_ratio: float = 0.5  # Target excitatory/inhibitory weight ratio
-    ei_ratio_loss_weight: float = (
-        0.5  # Regularization strength (fraction of total loss)
-    )
-    ei_ratio_scope: str = "per_branch"  # Options: "per_branch", "per_layer", "global"
-    ei_ratio_metric: str = "mean"  # Options: "mean", "median", "rms"
-
-
-@dataclass
-class PruningConfig(BaseConfig):
-    """Configuration for weight pruning."""
-
-    enabled: bool = False
-    threshold: float = 2  # Prune weights with abs(value) < threshold
-    selective: SelectiveConfig = field(
-        default_factory=lambda: SelectiveConfig(
-            weight_types=["excitatory", "inhibitory"]
-        )
-    )
-    re_evaluate_after: bool = False  # Whether to re-evaluate after pruning
-    dynamic_pruning: bool = False  # Whether to prune during training
-    pruning_frequency: int = 10  # Epochs between dynamic pruning
-
-    report_non_pruned: bool = True  # Report number of non-pruned synapses
-    save_pruning_stats: bool = False  # Save pruning statistics to file
-    detailed_branch_report: bool = True  # Detailed per-branch reporting
-    redo_analysis_after_pruning: bool = (
-        False  # Redo all analyses after pruning for comparison
+    learning_strategy_config: Optional["LocalRuleConfig"] = field(
+        default_factory=lambda: None
     )
 
 
@@ -360,11 +304,25 @@ class ThreeFactorConfig(BaseConfig):
     """
 
     # Compartmental dynamics
+    # "auto": conductance-aware updates for shunting layers, additive-consistent
+    # updates for additive layers.
+    # "conductance": force conductance-aware updates (legacy behavior).
+    # "additive": force additive-consistent updates.
+    dynamics_mode: str = "auto"  # "auto", "conductance", "additive"
     use_conductance_scaling: bool = True  # Scale by R_tot = 1/g_tot
     use_driving_force: bool = True  # Use (E_rev - V_n) driving force
     theta: float = 0.0  # Leak reversal potential
     e_rev_exc: float = 1.0  # Excitatory reversal potential
     e_rev_inh: float = 0.0  # Inhibitory reversal (shunting)
+
+    # Additive gain control mode (only used when dynamics_mode is "additive").
+    # "none"            : post_factor = e_n  (current default, no local modulation)
+    # "input_dependent" : post_factor = e_n * pseudo_R * pseudo_drive
+    #                     pseudo_R = 1/(1 + |activations|), pseudo_drive = (v_mean - v_n + 1)
+    # "running_stats"   : post_factor = e_n * (1 / running_std_n)
+    # "learned_gain"    : post_factor = e_n * sigmoid(learnable_param_n)
+    additive_gain_mode: str = "none"
+    additive_stats_ema_alpha: float = 0.01  # EMA rate for running_stats mode
 
 
 @dataclass
@@ -404,17 +362,21 @@ class FiveFactorConfig(BaseConfig):
     layer_wise_phi_scale: float = 1.0
     # RLS forgetting factor (if using RLS-based estimators)
     rls_forgetting: float = 0.99
+    # Stability clamp for the phi confidence factor
+    phi_clamp_min: float = 0.25
+    phi_clamp_max: float = 4.0
 
 
 @dataclass
 class MorphologyAwareConfig(BaseConfig):
     """Parameters for morphology-aware extensions.
 
-    These extensions explicitly leverage dendritic tree topology.
+    These extensions use dendritic tree topology explicitly.
     """
 
     # Path-integrated propagation: approximate ∏ R_k g_k attenuation
     use_path_propagation: bool = False
+    path_factor_mode: str = "per_branch"  # "per_branch", "scalar_mean"
 
     # Branch-specific depth modulation: rho_j = rho_base / (depth_j + alpha)
     morphology_modulator_mode: str = "none"  # "none", "depth", "centrality"
@@ -429,6 +391,14 @@ class MorphologyAwareConfig(BaseConfig):
     apical_branch_scale: float = 1.0  # Scale for apical (feedback) branches
     basal_branch_scale: float = 1.0  # Scale for basal (feedforward) branches
     use_branch_length_modulation: bool = False
+
+    # Router/pathway-derived branch roles (preferred over heuristic branch types)
+    use_branch_role_rules: bool = False
+    branch_role_source: str = "router_pathways"  # "router_pathways"
+    specialized_branch_scale: float = 1.0
+    mixed_branch_scale: float = 1.0
+    branch_role_power: float = 1.0
+    branch_role_alignment_weight: float = 0.0
 
 
 @dataclass
@@ -452,6 +422,21 @@ class HSICConfig(BaseConfig):
 
 
 @dataclass
+class InhibitoryHomeostasisConfig(BaseConfig):
+    """Parameters for local inhibitory homeostasis updates.
+
+    These auxiliary updates are applied only to inhibitory synapses and are
+    designed to steer branches toward stable shunting regimes using local state.
+    """
+
+    enabled: bool = False
+    mode: str = "r_tot"  # "r_tot", "voltage"
+    weight: float = 0.0
+    target_r_tot: float = 0.35
+    target_voltage: float = 0.15
+
+
+@dataclass
 class LocalRuleConfig(BaseConfig):
     """Configuration for local learning rules.
 
@@ -464,7 +449,26 @@ class LocalRuleConfig(BaseConfig):
 
     # ========== ERROR SIGNAL ==========
     error_mode: str = "auto"  # "auto", "mse", "ce", "bce"
-    error_broadcast_mode: str = "scalar"  # "scalar", "per_soma", "local_mismatch"
+    error_broadcast_mode: str = (
+        "scalar"  # "scalar", "per_soma", "local_mismatch", "low_rank", "path_transport", "pathway_vector"
+    )
+    error_noise_sigma: float = (
+        0.0  # Additive Gaussian noise on broadcast error (0 = off)
+    )
+    broadcast_rank: int = 4  # Rank for low-rank vectorized broadcast
+    broadcast_init_scale: float = 1.0  # Scale for low-rank random broadcast
+    pathway_broadcast_residual: float = 0.25  # Blend with direct local error
+    pathway_activity_gate_strength: float = 1.0  # Modulate by local pathway activity
+
+    # ========== BROADCAST BANDWIDTH CONTROL ==========
+    # Reduce broadcast precision to test low-bandwidth biological plausibility
+    broadcast_bandwidth: str = "full"  # "full", "sign_only", "quantized", "sparse_topk"
+    broadcast_bits: int = (
+        8  # Quantization bits (2, 4, 8); only used when bandwidth="quantized"
+    )
+    broadcast_topk_fraction: float = (
+        0.3  # Fraction of neurons to keep; only for "sparse_topk"
+    )
 
     # ========== RULE-SPECIFIC PARAMETERS ==========
     # 3-factor rule parameters
@@ -484,12 +488,19 @@ class LocalRuleConfig(BaseConfig):
     # HSIC auxiliary loss
     hsic: HSICConfig = field(default_factory=HSICConfig)
 
+    # Local inhibitory homeostasis
+    inhibitory_homeostasis: InhibitoryHomeostasisConfig = field(
+        default_factory=InhibitoryHomeostasisConfig
+    )
+
     # ========== PARAMETER UPDATE CONTROL ==========
     update_inactive_weights: bool = False
     update_reactivation: bool = True
+    encoder_update_mode: str = "none"  # "backprop", "none"
     decoder_update_mode: str = "backprop"  # "backprop", "local", "none"
 
     # ========== TRAINING SCHEDULE ==========
+    freeze_encoder_epochs: int = 0
     freeze_reactivation_epochs: int = 0
     freeze_decoder_epochs: int = 0
     training_schedule: Optional[list[dict[str, Any]]] = None

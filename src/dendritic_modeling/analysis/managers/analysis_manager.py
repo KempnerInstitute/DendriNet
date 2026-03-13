@@ -14,6 +14,9 @@ import torch
 from dendritic_modeling.analysis.core.ablation import AblationAnalyzer
 from dendritic_modeling.analysis.core.branch_activation import BranchActivationAnalyzer
 from dendritic_modeling.analysis.core.information import InformationAnalyzer
+from dendritic_modeling.analysis.metrics.adversarial_robustness import (
+    AdversarialRobustnessAnalyzer,
+)
 from dendritic_modeling.analysis.metrics.layer_contribution import (
     SingleLayerContributionAnalyzer,
 )
@@ -21,15 +24,21 @@ from dendritic_modeling.analysis.metrics.noise_perturbation import (
     NoisePerturbationAnalyzer,
 )
 from dendritic_modeling.analysis.metrics.performance import PerformanceAnalyzer
+from dendritic_modeling.analysis.tools.compartment_snr import CompartmentSNRAnalyzer
+from dendritic_modeling.analysis.tools.compartment_statistics import (
+    CompartmentStatisticsAnalyzer,
+)
 from dendritic_modeling.analysis.tools.correlation_analysis import CorrelationAnalyzer
+from dendritic_modeling.analysis.tools.multiplicative_gain import (
+    MultiplicativeGainAnalyzer,
+)
+from dendritic_modeling.analysis.tools.receptive_fields import ReceptiveFieldAnalyzer
+from dendritic_modeling.analysis.tools.routing_analysis import RoutingAnalyzer
 from dendritic_modeling.analysis.tools.synaptic_activation import (
     SynapticActivationAnalyzer,
 )
 from dendritic_modeling.analysis.tools.synaptic_turnover import SynapticTurnoverAnalyzer
 from dendritic_modeling.analysis.tools.weight import WeightAnalyzer
-from dendritic_modeling.analysis.tools.compartment_statistics import CompartmentStatisticsAnalyzer
-from dendritic_modeling.analysis.tools.compartment_snr import CompartmentSNRAnalyzer
-from dendritic_modeling.analysis.tools.receptive_fields import ReceptiveFieldAnalyzer
 from dendritic_modeling.config import AnalysisConfig
 from dendritic_modeling.models import BaseModel
 
@@ -99,7 +108,7 @@ class AnalysisManager:
         # Initialize Weight Analysis
         if self.config.weight_analysis.enabled:
             self.weight_analyzer = WeightAnalyzer(self.config.weight_analysis.params)
-        
+
         # Initialize Compartment Statistics Analysis
         if self.config.compartment_statistics_analysis.enabled:
             self.compartment_statistics_analyzer = CompartmentStatisticsAnalyzer(
@@ -110,6 +119,11 @@ class AnalysisManager:
         if self.config.compartment_snr_analysis.enabled:
             self.compartment_snr_analyzer = CompartmentSNRAnalyzer(
                 self.config.compartment_snr_analysis.params
+            )
+
+        if self.config.multiplicative_gain_analysis.enabled:
+            self.multiplicative_gain_analyzer = MultiplicativeGainAnalyzer(
+                self.config.multiplicative_gain_analysis.params
             )
 
         # Initialize Receptive Field Analysis
@@ -141,6 +155,22 @@ class AnalysisManager:
             )
         else:
             self.correlation_analysis_enabled = False
+
+        # Initialize Routing Analysis (recurrent models only)
+        if (
+            hasattr(self.config, "routing_analysis")
+            and self.config.routing_analysis.enabled
+        ):
+            self.routing_analyzer = RoutingAnalyzer()
+
+        # Initialize Adversarial Robustness Analysis
+        if (
+            hasattr(self.config, "adversarial_robustness_analysis")
+            and self.config.adversarial_robustness_analysis.enabled
+        ):
+            self.adversarial_robustness_analyzer = AdversarialRobustnessAnalyzer(
+                self.config.adversarial_robustness_analysis.params
+            )
 
     def set_pruning_results(self, pruning_results: dict):
         """Set pruning results for inclusion in performance plots."""
@@ -253,20 +283,23 @@ class AnalysisManager:
                 filename=filename,
                 training=training,
             )
-        
+
         # Compartment Statistics Analysis
         if self.config.compartment_statistics_analysis.enabled and (
-            (self.config.compartment_statistics_analysis.training and training) or not training
+            (self.config.compartment_statistics_analysis.training and training)
+            or not training
         ):
             self.compartment_statistics_analyzer.analyze(
                 model=self.model,
                 test_dataset=self.data["test"],
                 device=self.device,
-                save_path=os.path.join(self.save_root, "compartment_statistics_analysis"),
+                save_path=os.path.join(
+                    self.save_root, "compartment_statistics_analysis"
+                ),
                 filename=filename,
-                training=training
+                training=training,
             )
-        
+
         # Compartment SNR Analysis
         if self.config.compartment_snr_analysis.enabled and (
             (self.config.compartment_snr_analysis.training and training) or not training
@@ -277,7 +310,21 @@ class AnalysisManager:
                 device=self.device,
                 save_path=os.path.join(self.save_root, "compartment_snr_analysis"),
                 filename=filename,
-                training=training
+                training=training,
+            )
+
+        # Multiplicative Gain Analysis
+        if self.config.multiplicative_gain_analysis.enabled and (
+            (self.config.multiplicative_gain_analysis.training and training)
+            or not training
+        ):
+            self.multiplicative_gain_analyzer.analyze(
+                model=self.model,
+                test_dataset=self.data["test"],
+                device=self.device,
+                save_path=os.path.join(self.save_root, "multiplicative_gain_analysis"),
+                filename=filename,
+                training=training,
             )
 
         # Receptive Field Analysis
@@ -334,3 +381,53 @@ class AnalysisManager:
                 filename=filename,
             )
             self.logger.info("Correlation analysis completed successfully")
+
+        # Routing Analysis (recurrent models)
+        if (
+            hasattr(self.config, "routing_analysis")
+            and self.config.routing_analysis.enabled
+            and hasattr(self, "routing_analyzer")
+            and (
+                (
+                    hasattr(self.config.routing_analysis, "training")
+                    and self.config.routing_analysis.training
+                    and training
+                )
+                or not training
+            )
+        ):
+            self.logger.info("Starting routing analysis...")
+            self.routing_analyzer.analyze(
+                model=self.model,
+                data=self.data["test"],
+                device=self.device,
+                save_path=os.path.join(self.save_root, "routing_analysis"),
+                filename=filename,
+            )
+            self.logger.info("Routing analysis completed successfully")
+
+        # Adversarial Robustness Analysis
+        if (
+            hasattr(self.config, "adversarial_robustness_analysis")
+            and self.config.adversarial_robustness_analysis.enabled
+            and hasattr(self, "adversarial_robustness_analyzer")
+            and (
+                (
+                    hasattr(self.config.adversarial_robustness_analysis, "training")
+                    and self.config.adversarial_robustness_analysis.training
+                    and training
+                )
+                or not training
+            )
+        ):
+            self.logger.info("Starting adversarial robustness analysis...")
+            self.adversarial_robustness_analyzer.analyze(
+                model=self.model,
+                test_dataset=self.data["test"],
+                device=self.device,
+                save_path=os.path.join(
+                    self.save_root, "adversarial_robustness_analysis"
+                ),
+                filename=filename,
+            )
+            self.logger.info("Adversarial robustness analysis completed successfully")

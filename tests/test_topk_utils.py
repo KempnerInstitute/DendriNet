@@ -195,12 +195,10 @@ class TestConfigCaching(unittest.TestCase):
 
         # Create a temporary config file
         config_content = """
-model:
-  task: classification
-train:
+experiment:
   seed: 42
-task:
-  dataset: mnist
+data:
+  dataset_name: mnist
 """
         with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
             f.write(config_content)
@@ -213,8 +211,8 @@ task:
 
             # Should be the same object (cached)
             self.assertIs(config1, config2)
-            self.assertEqual(config1.train.seed, 42)
-            self.assertEqual(config1.task.dataset, "mnist")
+            self.assertEqual(config1.experiment.seed, 42)
+            self.assertEqual(config1.data.dataset_name, "mnist")
 
         finally:
             # Clean up temp file

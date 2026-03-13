@@ -11,6 +11,7 @@ from matplotlib.ticker import ScalarFormatter
 from ..utils.metrics import (
     INFO_COLORS,
     NETWORK_CATEGORY_COLORS,
+    NETWORK_CATEGORY_LINESTYLES,
     NETWORK_CATEGORY_MARKERS,
 )
 
@@ -24,6 +25,7 @@ class BasePlotter:
         """Initialize the plotter."""
         self.category_colors = NETWORK_CATEGORY_COLORS
         self.category_markers = NETWORK_CATEGORY_MARKERS
+        self.category_linestyles = NETWORK_CATEGORY_LINESTYLES
         self.info_colors = INFO_COLORS
         self.default_dpi = 300
         self.default_figsize = (10, 6)
@@ -34,7 +36,7 @@ class BasePlotter:
         """
         sweep_types = []
 
-        if data["ei_ratio"].unique().size > 1:
+        if "ei_ratio" in data.columns and data["ei_ratio"].unique().size > 1:
             sweep_types.append("ei")
 
         if "stimulus_duration" in data.columns and "max_gain_factor" in data.columns:
@@ -44,6 +46,28 @@ class BasePlotter:
             ):
                 sweep_types.append("stoch1")
 
+            elif data["stimulus_duration"].unique().size > 1:
+                sweep_types.append("stim_duration")
+
+            elif data["max_gain_factor"].unique().size > 1:
+                sweep_types.append("max_gf")
+
+        if "stimulus_duration" in data.columns and "fixed_gain_factor" in data.columns:
+            if (
+                data["stimulus_duration"].unique().size > 1
+                and data["fixed_gain_factor"].unique().size > 1
+            ):
+                sweep_types.append("stoch3")
+
+            elif (
+                data["stimulus_duration"].unique().size > 1
+                and "stim_duration" not in sweep_types
+            ):
+                sweep_types.append("stim_duration")
+
+            elif data["fixed_gain_factor"].unique().size > 1:
+                sweep_types.append("fixed_gf")
+
         if "stimulus_duration" in data.columns and "max_gain_tau_ratio" in data.columns:
             if (
                 data["stimulus_duration"].unique().size > 1
@@ -51,8 +75,23 @@ class BasePlotter:
             ):
                 sweep_types.append("stoch2")
 
-        if data["nparams"].unique().size > 1:
+        if (
+            "nparams" in data.columns
+            and "network_category" in data.columns
+            and data[
+                data["network_category"].isin(
+                    ["dendritic_shunting", "dendritic_additive"]
+                )
+            ]["nparams"]
+            .dropna()
+            .unique()
+            .size
+            > 1
+        ):
             sweep_types.append("nparams")
+
+        if not sweep_types:
+            sweep_types.append("network_type_comp")
 
         return sweep_types
 
@@ -149,9 +188,36 @@ class BasePlotter:
             show_error: Whether to show error bars
             **plot_kwargs: Additional plot arguments
         """
-        categories = data[category_col].unique()
+        categories: list[str] = data[category_col].unique()
 
-        for category in categories:
+        # Deterministic ordering by canonical category order
+        _canonical_order = [
+            "dendritic_shunting",
+            "flat_shunting",
+            "dendritic_additive",
+            "flat_additive",
+            "dendritic_mlp",
+            "point_mlp",
+            "ss_mlp",
+            "ss_mlp_flat",
+            "total_param_mlp",
+            "active_param_mlp",
+            # Old names (for sorting pre-migration data)
+            "shunting",
+            "no_shunting",
+            "unknown",
+            "default",
+        ]
+        sorted_categories = sorted(
+            categories,
+            key=lambda x: (
+                _canonical_order.index(x)
+                if x in _canonical_order
+                else len(_canonical_order)
+            ),
+        )
+
+        for category in sorted_categories:
             cat_data = data[data[category_col] == category].sort_values(x_col)
 
             if cat_data.empty:
@@ -159,6 +225,7 @@ class BasePlotter:
 
             color = self.category_colors.get(category, "black")
             marker = self.category_markers.get(category, "o")
+            linestyle = self.category_linestyles.get(category, "-")
 
             # Check for _mean and _std columns
             mean_col = f"{y_col}_mean" if f"{y_col}_mean" in cat_data.columns else y_col
@@ -178,7 +245,7 @@ class BasePlotter:
                 label=category,
                 color=color,
                 marker=marker,
-                linestyle="-",
+                linestyle=linestyle,
                 alpha=0.8,
                 capsize=3,
                 **plot_kwargs,

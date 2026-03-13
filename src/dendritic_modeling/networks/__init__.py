@@ -23,14 +23,24 @@ from dendritic_modeling.networks.architectures import (
     CNNUpsample,
     DeepstLinear,
     DendriNet,
+    DendriNetState,
     DendriticBranchLayer,
+    EILayer,
+    EILayerConfig,
+    EINetwork,
+    EINetworkConfig,
+    EIState,
     ExcitationInhibitionLayer,
     ExcitationInhibitionNetwork,
     GradientScaler,
     Identity,
     IdentityInputTransform,
     IndexInputTransform,
-    MatchedParamMLP,
+    MatchedActiveParamMLP,
+    MatchedTotalParamMLP,
+    PathwayRouter,
+    PopulationConfig,
+    StatefulDendriNet,
     StochasticTopKLinear,
     TopKLinear,
     TransferLayer,
@@ -50,39 +60,49 @@ from dendritic_modeling.networks.base import BaseNetwork
 from dendritic_modeling.networks.input import InputNetTransform, SigmoidOutputNetwork
 
 __all__ = [
-    "ActivationFactory"
-    "AlexNet"
-    "BaseAutoencoder"
-    "BaseNetwork"
-    "BlockLinear"
-    "CNNAutoencoder"
-    "CNNDownsample"
-    "CNNUpsample"
-    "CNNVariationalAutoencoder"
-    "DeepstLinear"
-    "DendriNet"
-    "DendriticBranchLayer"
-    "ExcitationInhibitionLayer"
-    "ExcitationInhibitionNetwork"
-    "GradientScaler"
-    "Identity"
-    "IdentityInputTransform"
-    "IndexInputTransform"
-    "analytical_expectation_dbl_init"
-    "InputNetTransform"
-    "MatchedParamMLP"
-    "MLP"
-    "MLPAutoencoder"
-    "MLPVariationalAutoencoder"
-    "ParametricActivation"
-    "ParametricLinearSigmoid"
-    "ParametricLinearTanh"
-    "ParametricLinearTanhTransition"
-    "ParametricTanh"
-    "ParametricTanhOnlyM"
-    "SigmoidOutputNetwork"
-    "StochasticTopKLinear"
-    "TopKLinear"
-    "TransferLayer"
-    "VarianceTopKLinear"
+    "MLP",
+    "ActivationFactory",
+    "AlexNet",
+    "BaseAutoencoder",
+    "BaseNetwork",
+    "BlockLinear",
+    "CNNAutoencoder",
+    "CNNDownsample",
+    "CNNUpsample",
+    "CNNVariationalAutoencoder",
+    "DeepstLinear",
+    "DendriNet",
+    "DendriNetState",
+    "DendriticBranchLayer",
+    "EILayer",
+    "EILayerConfig",
+    "EINetwork",
+    "EINetworkConfig",
+    "EIState",
+    "ExcitationInhibitionLayer",
+    "ExcitationInhibitionNetwork",
+    "GradientScaler",
+    "Identity",
+    "IdentityInputTransform",
+    "IndexInputTransform",
+    "InputNetTransform",
+    "MLPAutoencoder",
+    "MLPVariationalAutoencoder",
+    "MatchedActiveParamMLP",
+    "MatchedTotalParamMLP",
+    "ParametricActivation",
+    "ParametricLinearSigmoid",
+    "ParametricLinearTanh",
+    "ParametricLinearTanhTransition",
+    "ParametricTanh",
+    "ParametricTanhOnlyM",
+    "PathwayRouter",
+    "PopulationConfig",
+    "SigmoidOutputNetwork",
+    "StatefulDendriNet",
+    "StochasticTopKLinear",
+    "TopKLinear",
+    "TransferLayer",
+    "VarianceTopKLinear",
+    "analytical_expectation_dbl_init",
 ]

@@ -44,20 +44,23 @@ import torch
 # External imports
 import torchinfo
 import wandb
+from omegaconf import DictConfig, OmegaConf
 
 from dendritic_modeling.analysis import AnalysisManager
 from dendritic_modeling.config import load_config
+from dendritic_modeling.config.training import OptimizerConfig, ParamGroupsConfig
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.networks import Identity
 from dendritic_modeling.plotting.visualizations.performance_plots import (
     PerformancePlotter,
 )
-from dendritic_modeling.scripts.script_utils.config_utils import prepare_trainer_config
+from dendritic_modeling.scripts.script_utils import config_utils as _config_utils
 from dendritic_modeling.scripts.script_utils.setup_utils import setup_environment
 from dendritic_modeling.scripts.training.train_encoder_network import (
     load_train_encoder_network,
 )
 from dendritic_modeling.training import CustomWeightDecayOptimizer, get_trainer
+from dendritic_modeling.training.optimizers import create_optimizer
 from dendritic_modeling.utils import save_dict
 from dendritic_modeling.utils.training_stability_validator import (
     apply_automatic_safeguards,
@@ -66,6 +69,68 @@ from dendritic_modeling.utils.training_stability_validator import (
 )
 
 logger = logging.getLogger(__name__)
+
+prepare_trainer_config = _config_utils.prepare_trainer_config
+normalize_param_groups_config = getattr(
+    _config_utils, "normalize_param_groups_config", None
+)
+
+
+if normalize_param_groups_config is None:
+    # Backward-compatible fallback for environments where config_utils lacks this helper.
+    def normalize_param_groups_config(param_groups):
+        if param_groups is None:
+            return ParamGroupsConfig()
+
+        if isinstance(param_groups, ParamGroupsConfig):
+            return param_groups
+
+        if isinstance(param_groups, DictConfig):
+            param_groups = OmegaConf.to_container(param_groups, resolve=True)
+
+        if hasattr(param_groups, "asdict") and callable(param_groups.asdict):
+            param_groups = param_groups.asdict()
+        elif not isinstance(param_groups, dict) and hasattr(param_groups, "__dict__"):
+            param_groups = {
+                key: value
+                for key, value in vars(param_groups).items()
+                if not key.startswith("_")
+            }
+
+        if not isinstance(param_groups, dict):
+            return ParamGroupsConfig()
+
+        allowed_fields = set(ParamGroupsConfig.__dataclass_fields__.keys())
+        sanitized = {k: v for k, v in param_groups.items() if k in allowed_fields}
+        return ParamGroupsConfig(**sanitized)
+
+
+def normalize_optimizer_config(optimizer_cfg) -> OptimizerConfig:
+    """Normalize optimizer config to a typed OptimizerConfig."""
+    if optimizer_cfg is None:
+        return OptimizerConfig()
+
+    if isinstance(optimizer_cfg, OptimizerConfig):
+        return optimizer_cfg
+
+    if isinstance(optimizer_cfg, DictConfig):
+        optimizer_cfg = OmegaConf.to_container(optimizer_cfg, resolve=True)
+
+    if hasattr(optimizer_cfg, "asdict") and callable(optimizer_cfg.asdict):
+        optimizer_cfg = optimizer_cfg.asdict()
+    elif not isinstance(optimizer_cfg, dict) and hasattr(optimizer_cfg, "__dict__"):
+        optimizer_cfg = {
+            key: value
+            for key, value in vars(optimizer_cfg).items()
+            if not key.startswith("_")
+        }
+
+    if not isinstance(optimizer_cfg, dict):
+        return OptimizerConfig()
+
+    allowed_fields = set(OptimizerConfig.__dataclass_fields__.keys())
+    sanitized = {k: v for k, v in optimizer_cfg.items() if k in allowed_fields}
+    return OptimizerConfig(**sanitized)
 
 
 def run_analysis(
@@ -166,6 +231,9 @@ def main(config_path: str, args=None):
         if args.run_name:
             config.outputs.run_name = args.run_name
             logger.info(f"Override run name: {args.run_name}")
+        if getattr(args, "seed", None) is not None:
+            config.experiment.seed = args.seed
+            logger.info(f"Override seed: {args.seed}")
 
     # Extract config sections
     experiment_config = config.experiment
@@ -176,7 +244,7 @@ def main(config_path: str, args=None):
     wandb_config = config.wandb
     outputs_config = config.outputs
 
-    (run_save_path, train_ds, valid_ds, test_ds, model, encoder_network) = (
+    run_save_path, train_ds, valid_ds, test_ds, model, encoder_network = (
         setup_environment(
             model_config=model_config,
             training_config=training_config,
@@ -189,29 +257,61 @@ def main(config_path: str, args=None):
 
     logger.info("Network architecture summary before training:")
     try:
-        sample_input: torch.Tensor = train_ds[0][0]
-        summary = torchinfo.summary(
-            model,
-            input_size=(100, *sample_input.shape),
-            col_names=["input_size", "output_size", "num_params"],
-            col_width=25,
-            row_settings=["depth"],
-            depth=7,
-        )
-        logger.info("Model summary generated (see console output)")
-        if wandb.run:
-            wandb.log(
-                {
-                    "total_params": summary.total_params,
-                    "trainable_params": summary.trainable_params,
-                }
+        is_recurrent_core = getattr(model.core_network, "is_recurrent", False)
+        if callable(is_recurrent_core):
+            is_recurrent_core = is_recurrent_core()
+
+        if is_recurrent_core:
+            strategy = getattr(
+                getattr(config.training, "main", None), "strategy", "standard"
             )
+            if strategy not in ("recurrent", "multi_stage"):
+                logger.warning(
+                    "Recurrent model detected but training.main.strategy='%s'. "
+                    "Use strategy='recurrent' for correct sequence handling.",
+                    strategy,
+                )
+            # torchinfo unrolls recurrent timesteps and can produce extremely large
+            # summaries (and OOM) for sequence models. Use lightweight param counts.
+            total_params = sum(p.numel() for p in model.parameters())
+            trainable_params = sum(
+                p.numel() for p in model.parameters() if p.requires_grad
+            )
+            logger.info(
+                "Skipping torchinfo summary for recurrent model. "
+                f"total_params={total_params}, trainable_params={trainable_params}"
+            )
+            if wandb.run:
+                wandb.log(
+                    {
+                        "total_params": total_params,
+                        "trainable_params": trainable_params,
+                    }
+                )
+        else:
+            sample_input: torch.Tensor = train_ds[0][0]
+            summary = torchinfo.summary(
+                model,
+                input_size=(100, *sample_input.shape),
+                col_names=["input_size", "output_size", "num_params"],
+                col_width=25,
+                row_settings=["depth"],
+                depth=7,
+            )
+            logger.info("Model summary generated (see console output)")
+            if wandb.run:
+                wandb.log(
+                    {
+                        "total_params": summary.total_params,
+                        "trainable_params": summary.trainable_params,
+                    }
+                )
     except Exception as e:
         logger.error(f"Failed to generate model summary before training: {e}")
 
     save_dict(asdict(config), run_save_path, "config.json")
 
-    (encoder_network, encoded_train_ds, encoded_valid_ds, encoded_test_ds) = (
+    encoder_network, encoded_train_ds, encoded_valid_ds, encoded_test_ds = (
         load_train_encoder_network(
             encoder_network=encoder_network,
             encoder_train_config=training_config.encoder,
@@ -239,8 +339,10 @@ def main(config_path: str, args=None):
     # Fix for Identity encoder
     if isinstance(encoder_network, Identity):
         model.encoder_network = encoder_network
-    else:
+    elif hasattr(encoder_network, "encoder"):
         model.encoder_network = Identity(encoder_network.encoder.output_dim)
+    else:
+        model.encoder_network = encoder_network
 
     main_net_save_path = os.path.join(run_save_path, "main_network")
     os.makedirs(main_net_save_path, exist_ok=True)
@@ -259,9 +361,15 @@ def main(config_path: str, args=None):
     if isinstance(main_train_config, dict):
         common_config = main_train_config.get("common", {})
         strategy = main_train_config.get("strategy", "standard")
+        optimizer_config = normalize_optimizer_config(
+            main_train_config.get("optimizer")
+        )
     else:
         common_config = main_train_config.common
         strategy = main_train_config.strategy
+        optimizer_config = normalize_optimizer_config(
+            getattr(main_train_config, "optimizer", None)
+        )
 
     # Extract from common_config (also handle dict vs object)
     if isinstance(common_config, dict):
@@ -275,9 +383,13 @@ def main(config_path: str, args=None):
         weight_boosting = getattr(common_config, "weight_boosting", False)
         common_epochs = common_config.epochs
 
+    param_groups = normalize_param_groups_config(param_groups)
+    model_param_groups = model.get_param_groups(param_groups)
+    base_optimizer = create_optimizer(model_param_groups, optimizer_config)
+
     optimizer = CustomWeightDecayOptimizer(
         model=model,
-        optimizer=torch.optim.Adam(model.get_param_groups(param_groups)),
+        optimizer=base_optimizer,
         weight_decay=weight_decay_rate,
         weight_boosting=weight_boosting,
     )
@@ -292,6 +404,9 @@ def main(config_path: str, args=None):
                 "Learning strategy is 'multi_stage' but no 'multi_stage_config' found"
             )
         logger.info("Using multi-stage training strategy")
+
+    # Inject task from model config for recurrent trainer
+    main_trainer_config_dict["task"] = model_config.task
 
     main_trainer = get_trainer(
         strategy=strategy,
@@ -336,6 +451,8 @@ def main(config_path: str, args=None):
             analysis_config.branch_activation_analysis.enabled,
             hasattr(analysis_config, "correlation_analysis")
             and analysis_config.correlation_analysis.enabled,
+            hasattr(analysis_config, "routing_analysis")
+            and analysis_config.routing_analysis.enabled,
         ]
     )
 
@@ -404,8 +521,10 @@ def main(config_path: str, args=None):
     # Fix for Identity encoder
     if isinstance(encoder_network, Identity):
         model.encoder_network = encoder_network
-    else:
+    elif hasattr(encoder_network, "encoder"):
         model.encoder_network = encoder_network.encoder
+    else:
+        model.encoder_network = encoder_network
     torch.save(model.state_dict(), os.path.join(run_save_path, "final_model.pt"))
 
     if (
@@ -430,16 +549,28 @@ if __name__ == "__main__":
     parser.add_argument(
         "--learning_strategy",
         choices=[
-            "mle",
+            "standard",
+            "enhanced",
+            "freeze_layers",
             "freeze_branches",
-            "freeze_branches_reversed",
-            "freeze_branches_with_pretraining",
-            "freeze_branches_reversed_with_pretraining",
-            "two_step",
-            "two_step_kl",
+            "fa",
+            "dfa",
+            "shunting_fa",
+            "shunting_dfa",
+            "local_ca",
+            "freeze_branch_kl",
             "voltage_stabilization",
+            "homeostatic_control",
+            "recurrent",
+            "multi_stage",
         ],
         help="Override learning strategy specified in config.",
+    )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=None,
+        help="Override experiment seed (for running multiple seeds per config).",
     )
 
     args = parser.parse_args()

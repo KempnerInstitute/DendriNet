@@ -137,6 +137,8 @@ class EffectiveMatchedParamMLP(nn.Module):
         # Output layer
         layers.append(nn.Linear(hidden_width, excitatory_layer_sizes[-1]))
         self.hidden = nn.Sequential(*layers)
+        # Match the interface expected by training code (decoder input sizing)
+        self.output_dim = int(excitatory_layer_sizes[-1])
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.hidden(x)

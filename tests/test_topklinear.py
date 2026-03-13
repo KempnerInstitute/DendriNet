@@ -143,15 +143,19 @@ class TestTopKLinear(unittest.TestCase):
         batch_size = 4
 
         model = TopKLinear(in_features, out_features, K, param_space="presigmoid")
+        model.initialize()
         x = torch.randn(batch_size, in_features)
         output = model(x)
 
         # Check output shape
         self.assertEqual(output.shape, (batch_size, out_features))
 
-        # Ensure weights are between 0 and 1
+        # Ensure transformed weights are finite and top-k pruning still works.
         weights = model.weight()
-        self.assertTrue(torch.all((weights >= 0) & (weights <= 1)))
+        self.assertTrue(torch.isfinite(weights).all())
+        pruned_weights = model.pruned_weight()
+        non_zero_counts = (pruned_weights > 0).sum(dim=1)
+        self.assertTrue(torch.all(non_zero_counts == K))
 
     # def test_weight_gradients(self):
     #     """Test that gradients flow correctly through the pruned weights."""

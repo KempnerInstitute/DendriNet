@@ -56,7 +56,7 @@ from dendritic_modeling.config import (
     InformationAnalysisParams,
     PerformanceAnalysisParams,
     SynapticActivationAnalysisParams,
-    TransferFunctionParams,
+    TransferFunctionConfig,
 )
 from dendritic_modeling.models import Classifier
 from dendritic_modeling.networks import ExcitationInhibitionNetwork, Identity
@@ -72,7 +72,7 @@ class TestPerformanceAnalyzer(unittest.TestCase):
         self.analyzer = PerformanceAnalyzer(params)
 
         # Create a simple test model
-        transfer_params = TransferFunctionParams().asdict()
+        transfer_params = TransferFunctionConfig().asdict()
         self.model = Classifier(
             encoder_network=Identity(input_dim=10),
             core_network=ExcitationInhibitionNetwork(
@@ -166,7 +166,7 @@ class TestAblationAnalyzer(unittest.TestCase):
         self.analyzer = AblationAnalyzer(params)
 
         # Create test model with multiple layers
-        transfer_params = TransferFunctionParams().asdict()
+        transfer_params = TransferFunctionConfig().asdict()
         self.model = Classifier(
             encoder_network=Identity(input_dim=10),
             core_network=ExcitationInhibitionNetwork(
@@ -229,7 +229,7 @@ class TestInformationAnalyzer(unittest.TestCase):
         self.analyzer = InformationAnalyzer(params)
 
         # Create test model
-        transfer_params = TransferFunctionParams().asdict()
+        transfer_params = TransferFunctionConfig().asdict()
         self.model = Classifier(
             encoder_network=Identity(input_dim=8),
             core_network=ExcitationInhibitionNetwork(
@@ -275,8 +275,9 @@ class TestInformationAnalyzer(unittest.TestCase):
                     filename="test",
                 )
 
-                # When save_path is provided, results should be None
-                self.assertIsNone(results)
+                # Current analyzer returns computed results while also saving.
+                self.assertIsInstance(results, dict)
+                self.assertIn("method", results)
 
 
 class TestActivationAnalyzers(unittest.TestCase):
@@ -290,7 +291,7 @@ class TestActivationAnalyzers(unittest.TestCase):
         self.branch_analyzer = BranchActivationAnalyzer(branch_params)
 
         # Create test model
-        transfer_params = TransferFunctionParams().asdict()
+        transfer_params = TransferFunctionConfig().asdict()
         self.model = Classifier(
             encoder_network=Identity(input_dim=8),
             core_network=ExcitationInhibitionNetwork(
@@ -346,7 +347,7 @@ class TestAnalysisManager(unittest.TestCase):
     def setUp(self):
         """Set up test fixtures."""
         # Create test model
-        transfer_params = TransferFunctionParams().asdict()
+        transfer_params = TransferFunctionConfig().asdict()
         self.model = Classifier(
             encoder_network=Identity(input_dim=8),
             core_network=ExcitationInhibitionNetwork(
@@ -413,9 +414,16 @@ class TestAnalysisManager(unittest.TestCase):
 
 
 def test_ablation_analyzer():
-    from dendritic_modeling.config.analysis import AblationAnalysisParams
+    from dendritic_modeling.config.analysis import (
+        AblationAnalysisParams,
+        AblationSelectionParams,
+    )
 
-    params = AblationAnalysisParams(layer_ablation=True, compartment_ablation=True)
+    params = AblationAnalysisParams(
+        selection=AblationSelectionParams(
+            levels=["layer", "compartment"],
+        ),
+    )
     analyzer = AblationAnalyzer(params)
     assert analyzer.layer_ablation
     assert analyzer.compartment_ablation

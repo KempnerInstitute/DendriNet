@@ -31,6 +31,7 @@ from .information_plots import (
     plot_fully_aggregated_analysis,
     plot_info_vs_ei_depth_per_dendritic_layer,
     plot_layer_wise_aggregated_analysis,
+    plot_lda_vs_trained_performance,
     plot_network_wise_aggregated_analysis,
     plot_per_layer_information,
     plot_structured_ei_network_analysis,
@@ -57,6 +58,7 @@ __all__ = [
     # Information analysis (now modular)
     "plot_layer_contributions",
     "plot_layer_wise_aggregated_analysis",
+    "plot_lda_vs_trained_performance",
     # Training/sweep functions
     "plot_loss_curves",
     "plot_network_wise_aggregated_analysis",

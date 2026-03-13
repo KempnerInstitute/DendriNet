@@ -5,7 +5,7 @@ This module implements a custom linear layer that aggregates information
 from converging branches in a previous branch layer.
 """
 
-from math import floor
+from math import floor, log
 
 import torch
 import torch.nn as nn
@@ -151,9 +151,30 @@ class BlockLinear(nn.Module):
             grad_block[row_ix, col_ix] = self.log_weight.grad
         return grad_block
 
-    def decay_weights(self, weight_decay):
+    def decay_weights(self, weight_decay, weight_boosting=False):
         with torch.no_grad():
-            self.log_weight.data -= weight_decay
+            if self.weight_transform in ["identity", "relu"]:
+                self.log_weight.data *= 1 - weight_decay
+            elif self.weight_transform == "exp":
+                decay = log(1 - weight_decay)
+                self.log_weight.data += decay
+            elif self.weight_transform == "softplus":
+                w = nn.functional.softplus(self.log_weight.data)
+                decayed_w = w * (1 - weight_decay)
+                p_prime = torch.log(torch.exp(decayed_w) - 1 + 1e-8)
+                self.log_weight.data = p_prime
+
+            if weight_boosting:
+                if self.weight_transform in ["identity", "relu"]:
+                    self.log_weight.data *= 1 + weight_decay
+                elif self.weight_transform == "exp":
+                    boost = log(1 + weight_decay)
+                    self.log_weight.data += boost
+                elif self.weight_transform == "softplus":
+                    w = nn.functional.softplus(self.log_weight.data)
+                    boosted_w = w * (1 + weight_decay)
+                    p_prime = torch.log(torch.exp(boosted_w) - 1 + 1e-8)
+                    self.log_weight.data = p_prime
 
     def forward(self, x):
         # Ensure x is a tensor

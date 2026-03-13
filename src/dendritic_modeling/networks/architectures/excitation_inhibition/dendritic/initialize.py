@@ -64,6 +64,11 @@ def _truncated_normal_moments(
         mean_c: E[X | X > alpha]
         var_c: Var[X | X > alpha]
     """
+    # Determine threshold alpha such that P(X > alpha) = upper_quantile.
+    # Clamp to open interval (0, 1) to avoid +/-inf from norm.ppf at the edges
+    # (e.g., K == in_features -> upper_quantile == 1.0).
+    upper_quantile = min(max(float(upper_quantile), 1e-12), 1 - 1e-12)
+
     # Determine threshold alpha such that P(X > alpha) = upper_quantile
     # gamma = (alpha - mean) / std
     gamma = norm.ppf(1 - upper_quantile)
@@ -174,11 +179,17 @@ def compute_network_scale_factor(dbl, branch_factors=None):
 
     # Calculate approximate total conductance
     k_exc = dbl.branch_excitation.K if dbl.input_excitatory else 0
+    k_rec = dbl.branch_recurrent.K if getattr(dbl, "input_recurrent", False) else 0
     k_inh = dbl.branch_inhibition.K if dbl.input_inhibitory else 0
+    k_rec_inh = (
+        dbl.branch_rec_inhibition.K
+        if getattr(dbl, "input_rec_inhibitory", False)
+        else 0
+    )
 
     # Total approximate conductance with all weights at 1
     # Scale by sqrt of branches for more conservative scaling
-    total_conductance = (k_exc + k_inh) * sqrt(total_branches)
+    total_conductance = (k_exc + k_rec + k_inh + k_rec_inh) * sqrt(total_branches)
 
     # Target a reasonable initial total conductance
     target_conductance = 5.0
@@ -189,6 +200,37 @@ def compute_network_scale_factor(dbl, branch_factors=None):
         scale_factor = 0.0
 
     return scale_factor
+
+
+def identity_weighttransform_dbl_init(dbl):
+    """
+    Initialize a dendritic branch layer.
+
+    Args:
+        dbl: The DendriticBranchLayer to initialize
+    """
+    from .branch_layer import DendriticBranchLayer
+
+    assert isinstance(dbl, DendriticBranchLayer)
+
+    with torch.no_grad():
+        if dbl.branch_excitation is not None:
+            torch.nn.init.xavier_normal_(dbl.branch_excitation.pre_w)
+
+        if dbl.branch_recurrent is not None:
+            torch.nn.init.xavier_normal_(dbl.branch_recurrent.pre_w)
+
+        if dbl.branch_inhibition is not None:
+            torch.nn.init.xavier_normal_(dbl.branch_inhibition.pre_w)
+
+        if dbl.branch_rec_inhibition is not None:
+            torch.nn.init.xavier_normal_(dbl.branch_rec_inhibition.pre_w)
+
+        if hasattr(dbl, "branches_to_output"):
+            torch.nn.init.xavier_normal_(dbl.branches_to_output.log_weight)
+
+        if dbl.reactivate:
+            dbl.reactivation.initialize(1.0, 0.0)
 
 
 def analytical_expectation_dbl_init(dbl, adaptive=True, branch_factors=None):
@@ -250,6 +292,18 @@ def analytical_expectation_dbl_init(dbl, adaptive=True, branch_factors=None):
             # Adjust expected conductance by the scale factor
             E_g_exc = (
                 0.5 * dbl.branch_excitation.K * E_w_exc * exp(-network_scale_factor)
+            )
+
+        if dbl.branch_recurrent is not None:
+            rec_std = sqrt(2 / (dbl.recurrent_input_dim + 1))
+            rec_mean_adjusted = -network_scale_factor
+            _no_grad_normal_(dbl.branch_recurrent.pre_w, rec_mean_adjusted, rec_std)
+
+        if dbl.branch_rec_inhibition is not None:
+            rec_inh_std = sqrt(2 / (dbl.rec_inhibitory_input_dim + 1))
+            rec_inh_mean_adjusted = -network_scale_factor
+            _no_grad_normal_(
+                dbl.branch_rec_inhibition.pre_w, rec_inh_mean_adjusted, rec_inh_std
             )
 
         if dbl.input_inhibitory:
@@ -314,16 +368,18 @@ def analytical_expectation_dbl_init(dbl, adaptive=True, branch_factors=None):
         if dbl.input_branches:
             if dbl.use_shunting:
                 E_Vinf = E_g_exc / (E_g_exc + E_g_inh + 1)
-
+                # Map E_Vinf close to 0.5 to give strong initial branch
+                # conductances. Clamp strictly below 0.5 to keep the
+                # downstream conductance formula well-defined.
                 if E_Vinf < 0.5:
                     E_Vinf = max(0.49, 0.5 * E_Vinf + 0.25)
                 else:
-                    E_Vinf = min(0.51, 0.5 * E_Vinf + 0.25)
+                    E_Vinf = min(0.499, 0.5 * E_Vinf + 0.25)
 
                 sum_g_branch = ((E_g_exc + E_g_inh + 1) * E_Vinf - E_g_exc) / (
                     0.5 - E_Vinf
                 )
-                g_branch = sum_g_branch / dbl.branches_to_output.block_size
+                g_branch = max(sum_g_branch / dbl.branches_to_output.block_size, 1e-6)
                 m = 1.5
             else:
                 # g_branch = E_g_exc + E_g_inh + 1
@@ -413,8 +469,16 @@ def ei_equivalence_dbl_init(dbl):
         if dbl.branch_excitation is not None:
             _no_grad_normal_(dbl.branch_excitation.pre_w, 0, exc_std)
 
+        if dbl.branch_recurrent is not None:
+            rec_std = sqrt(2 / (dbl.recurrent_input_dim + 1))
+            _no_grad_normal_(dbl.branch_recurrent.pre_w, 0, rec_std)
+
         if dbl.branch_inhibition is not None:
             _no_grad_normal_(dbl.branch_inhibition.pre_w, 0, inh_std)
+
+        if dbl.branch_rec_inhibition is not None:
+            rec_inh_std = sqrt(2 / (dbl.rec_inhibitory_input_dim + 1))
+            _no_grad_normal_(dbl.branch_rec_inhibition.pre_w, 0, rec_inh_std)
 
         if dbl.input_branches:
             if dbl.use_shunting:
@@ -465,6 +529,14 @@ def naive_dbl_init(dbl):
                 upper_quantile=exc_upper_quantile,
             )
             E_g_exc = 0.5 * dbl.branch_excitation.K * E_w_exc
+
+        if dbl.branch_recurrent is not None:
+            rec_std = sqrt(2 / (dbl.recurrent_input_dim + 1))
+            _no_grad_normal_(dbl.branch_recurrent.pre_w, 0, rec_std)
+
+        if dbl.branch_rec_inhibition is not None:
+            rec_inh_std = sqrt(2 / (dbl.rec_inhibitory_input_dim + 1))
+            _no_grad_normal_(dbl.branch_rec_inhibition.pre_w, 0, rec_inh_std)
 
         if dbl.branch_inhibition is not None:
             inh_upper_quantile = dbl.branch_inhibition.K / dbl.inhibitory_input_dim
@@ -523,6 +595,14 @@ def default_dbl_init(dbl):
                 upper_quantile=exc_upper_quantile,
             )
             E_g_exc = 0.5 * dbl.branch_excitation.K * E_w_exc
+
+        if dbl.branch_recurrent is not None:
+            rec_std = sqrt(2 / (dbl.recurrent_input_dim + 1))
+            _no_grad_normal_(dbl.branch_recurrent.pre_w, 0, rec_std)
+
+        if dbl.branch_rec_inhibition is not None:
+            rec_inh_std = sqrt(2 / (dbl.rec_inhibitory_input_dim + 1))
+            _no_grad_normal_(dbl.branch_rec_inhibition.pre_w, 0, rec_inh_std)
 
         if dbl.branch_inhibition is not None:
             inh_upper_quantile = dbl.branch_inhibition.K / dbl.inhibitory_input_dim

@@ -85,10 +85,6 @@ import sys
 from pathlib import Path
 from typing import Optional
 
-# Add project root to path for absolute imports
-project_root = Path(__file__).parent.parent.parent.parent.parent
-sys.path.insert(0, str(project_root / "src"))
-
 from dendritic_modeling.scripts.sweeps.analyzers import (
     ANALYZER_REGISTRY,
     auto_detect_sweep_type,

@@ -147,7 +147,7 @@ def main():
             logger.info(f"Overriding precision to: {args.precision}")
 
         # Perform GPU memory estimation
-        estimator, model = estimate_from_config(
+        _estimator, _model = estimate_from_config(
             str(args.config_file),
             batch_size=args.batch_size,
         )

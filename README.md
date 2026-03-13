@@ -118,6 +118,20 @@ See [`src/dendritic_modeling/scripts/sweeps/README.md`](src/dendritic_modeling/s
 
 For detailed usage, configuration options, and advanced features, see the [full documentation](docs/index.html).
 
+### Network Type Configuration
+
+The framework supports both feedforward and recurrent cores through `model.core.type`:
+
+- Feedforward: `dendritic_shunting`, `dendritic_additive`, `flat_shunting`, `flat_additive`, `dendritic_mlp`, `mlp`
+- Unified E-I recurrent-capable core: `ei_unified` (aliases: `unified_ei`, `ei_net`, `unified_einet`)
+- Baseline recurrent cores: `gru`, `lstm`, `vanilla_rnn` (alias: `rnn`)
+
+Detailed recurrent config recipes (unified E-I, GRU/LSTM/vanilla baselines, routing analysis, sequence datasets) are documented in:
+
+- [`docs/NETWORK_TYPES_AND_RNN.rst`](docs/NETWORK_TYPES_AND_RNN.rst)
+
+For recurrent training, set `training.main.strategy: recurrent`. Feedforward runs remain on the standard path and do not instantiate recurrent unrolling logic.
+
 ## Core Components
 
 - Models: Classifier and Regressor with encoder-core-decoder architecture

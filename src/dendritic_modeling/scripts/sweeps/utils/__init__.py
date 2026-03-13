@@ -1,4 +1,4 @@
-"""Utilities for sweep analysis."""
+"""Seed aggregation, parameter grouping, metric labels, and value formatting for sweeps."""
 
 from .aggregation import aggregate_over_seeds, group_by_params
 from .formatting import format_metric_name, format_value

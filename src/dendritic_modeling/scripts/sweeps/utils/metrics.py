@@ -64,17 +64,63 @@ METRIC_CATEGORIES: dict[str, list[str]] = {
 
 # Color schemes for different network categories
 NETWORK_CATEGORY_COLORS: dict[str, str] = {
-    "shunting": "#1f77b4",  # Blue
-    "no_shunting": "#ff7f0e",  # Orange
+    # Canonical EINet categories
+    "dendritic_shunting": "#1f77b4",  # Blue
+    "dendritic_additive": "#ff0000",  # Red
+    "flat_shunting": "#1f77b4",  # Blue (dashed line distinguishes)
+    "flat_additive": "#ff0000",  # Red
+    "dendritic_mlp": "#7f7f7f",  # Gray
+    # MLP baselines
+    "point_mlp": "#9467bd",  # Purple
+    "ss_mlp": "#2ca02c",  # Green
+    "ss_mlp_flat": "#2ca02c",  # Green
+    "total_param_mlp": "#7f7f7f",  # Gray
+    "active_param_mlp": "#7f7f7f",  # Gray
+    # Legacy aliases (kept for backward compatibility)
+    "shunting": "#1f77b4",
+    "no_shunting": "#ff0000",
+    "mlp": "#9467bd",
+    # Fallback
     "unknown": "#7f7f7f",  # Gray
     "default": "#2ca02c",  # Green
 }
 
 NETWORK_CATEGORY_MARKERS: dict[str, str] = {
-    "shunting": "o",  # Circle
-    "no_shunting": "s",  # Square
+    # Canonical categories
+    "dendritic_shunting": "o",  # Circle
+    "dendritic_additive": "s",  # Square
+    "flat_shunting": "^",  # Triangle up
+    "flat_additive": "+",  # Plus
+    "dendritic_mlp": "*",  # Star
+    "point_mlp": "D",  # Diamond
+    "ss_mlp": "*",  # Star
+    "ss_mlp_flat": "d",  # Thin diamond
+    "total_param_mlp": ".",  # Point
+    "active_param_mlp": "d",  # Thin diamond
+    # Legacy aliases
+    "shunting": "o",
+    "no_shunting": "s",
+    "mlp": "D",
+    # Fallback
     "unknown": "x",  # X
     "default": "^",  # Triangle
+}
+
+NETWORK_CATEGORY_LINESTYLES: dict[str, str] = {
+    # Canonical categories
+    "dendritic_shunting": "-",  # Solid
+    "dendritic_additive": "-",  # Solid
+    "flat_shunting": "--",  # Dashed
+    "flat_additive": "--",  # Dashed
+    "dendritic_mlp": "-",  # Solid
+    "point_mlp": ":",  # Dotted
+    "ss_mlp": "-",  # Solid
+    "ss_mlp_flat": "--",  # Dashed
+    "total_param_mlp": ":",  # Dotted
+    "active_param_mlp": "-.",  # Dash-dot
+    # Fallback
+    "unknown": "-",
+    "default": "-",
 }
 
 # Information theory color scheme

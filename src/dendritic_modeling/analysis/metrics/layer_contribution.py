@@ -62,7 +62,7 @@ class SingleLayerContributionAnalyzer:
         results_dict[contribution_type][module_name] = {}
         results_dict[contribution_type][module_name]["depth"] = module.layer_idx
 
-        for mod, name in model.named_modules():
+        for name, mod in model.named_modules():
             if isinstance(mod, DendriticBranchLayer):
                 if (
                     name != module_name
@@ -115,21 +115,16 @@ class SingleLayerContributionAnalyzer:
         self.logger.info("Starting single layer contribution analysis...")
 
         try:
-            assert isinstance(model.core_network, ExcitationInhibitionNetwork), (
-                "Model must be an instance of ExcitationInhibitionNetwork"
-                + "but got "
-                + str(type(model.core_network))
-            )
-        except AssertionError as e:
-            self.logger.error(e)
+            assert isinstance(model.core_network, ExcitationInhibitionNetwork)
+        except AssertionError:
             return
 
         # Ensure model is on the correct device
         model = model.to(device)
         model.eval()
-        inputs, labels = test_dataset[:]
-        inputs: torch.Tensor = inputs.to(device)
-        labels: torch.Tensor = labels.to(device)
+        items = test_dataset[:]
+        inputs: torch.Tensor = items[0].to(device)
+        labels: torch.Tensor = items[1].to(device)
         test_dataset = TensorDataset(inputs, labels)
 
         state_dict = deepcopy(model.state_dict())
@@ -272,7 +267,7 @@ def plot_layer_contribution(
 
         ax.set_xticks(depths)
         ax.set_xticklabels(depth_labels, rotation=45)
-        ax.set_xlabel("Branch Depth (Soma → Distal)")
+        ax.set_xlabel("Branch Depth (Soma to Distal)")
         ax.set_ylabel(f"{metric_mapping[metric]}")
         ax.set_title(f"{metric_mapping[metric]} vs. Branch Depth")
         ax.legend()

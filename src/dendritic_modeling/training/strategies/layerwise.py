@@ -36,12 +36,14 @@ class LayerWiseTrainer(Trainer):
         model: BaseModel,
         train_data: torch.utils.data.Dataset,
         valid_data: torch.utils.data.Dataset,
-    ) -> tuple[list[float], list[float]]:
+    ) -> tuple[list[float], list[float], list[float], list[float]]:
         """
         Pretrain the model.
         """
         pretrain_train_losses = []
         pretrain_valid_losses = []
+        pretrain_train_losses_base = []
+        pretrain_train_losses_reg = []
 
         if self.pretrain_epochs > 0:
             logger.info(
@@ -58,8 +60,15 @@ class LayerWiseTrainer(Trainer):
 
             pretrain_train_losses = pretrain_results.get("train_losses", [])
             pretrain_valid_losses = pretrain_results.get("valid_losses", [])
+            pretrain_train_losses_base = pretrain_results.get("train_losses_base", [])
+            pretrain_train_losses_reg = pretrain_results.get("train_losses_reg", [])
 
-        return pretrain_train_losses, pretrain_valid_losses
+        return (
+            pretrain_train_losses,
+            pretrain_valid_losses,
+            pretrain_train_losses_base,
+            pretrain_train_losses_reg,
+        )
 
     def train(
         self,
@@ -98,9 +107,12 @@ class LayerWiseTrainer(Trainer):
         )
         self._initialize_attributes(model, total_epochs)
 
-        pretrain_train_losses, pretrain_valid_losses = self._pretrain(
-            model, train_data, valid_data
-        )
+        (
+            pretrain_train_losses,
+            pretrain_valid_losses,
+            pretrain_train_losses_base,
+            pretrain_train_losses_reg,
+        ) = self._pretrain(model, train_data, valid_data)
 
         layer_modules = []
         layer_indices = []
@@ -121,6 +133,8 @@ class LayerWiseTrainer(Trainer):
 
         train_losses = []
         valid_losses = []
+        train_losses_base = []
+        train_losses_reg = []
 
         train_loader, valid_loader = self._dataloaders(train_data, valid_data)
 
@@ -140,18 +154,24 @@ class LayerWiseTrainer(Trainer):
                 f"{self.epochs_per_layer} epochs."
             )
 
-            train_losses, valid_losses = self._run_training_loop(
-                n_epochs=self.epochs_per_layer,
-                model=model,
-                train_loader=train_loader,
-                valid_loader=valid_loader,
-                train_losses=train_losses,
-                valid_losses=valid_losses,
-                logger_info=f"[{learning_strategy}] layer={layer_idx}, ",
-                wandb_info={"layer": layer_idx},
+            train_losses, valid_losses, train_losses_base, train_losses_reg = (
+                self._run_training_loop(
+                    n_epochs=self.epochs_per_layer,
+                    model=model,
+                    train_loader=train_loader,
+                    valid_loader=valid_loader,
+                    train_losses=train_losses,
+                    valid_losses=valid_losses,
+                    train_losses_base=train_losses_base,
+                    train_losses_reg=train_losses_reg,
+                    logger_info=f"[{learning_strategy}] layer={layer_idx}, ",
+                    wandb_info={"layer": layer_idx},
+                )
             )
 
-        self._loss_plotting(train_losses, valid_losses)
+        self._loss_plotting(
+            train_losses, valid_losses, train_losses_base, train_losses_reg
+        )
 
         logger.info(
             f"Finished {learning_strategy} training. "
@@ -163,6 +183,8 @@ class LayerWiseTrainer(Trainer):
 
         train_losses = pretrain_train_losses + train_losses
         valid_losses = pretrain_valid_losses + valid_losses
+        train_losses_base = pretrain_train_losses_base + train_losses_base
+        train_losses_reg = pretrain_train_losses_reg + train_losses_reg
 
         # Final full-network tuning
         logger.info(
@@ -183,6 +205,12 @@ class LayerWiseTrainer(Trainer):
         )
         final_results["valid_losses"] = valid_losses + final_results.get(
             "valid_losses", []
+        )
+        final_results["train_losses_base"] = train_losses_base + final_results.get(
+            "train_losses_base", []
+        )
+        final_results["train_losses_reg"] = train_losses_reg + final_results.get(
+            "train_losses_reg", []
         )
         return final_results
 

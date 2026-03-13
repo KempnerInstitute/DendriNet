@@ -15,11 +15,11 @@ from typing import Any, Optional
 import numpy as np
 import torch
 import torch.nn as nn
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Dataset
 
-from dendritic_modeling.analysis.core.abstract_analyzer import AbstractAnalyzer
-from dendritic_modeling.config.analysis import BaseConfig
-from dendritic_modeling.models.base_model import BaseModel
+from dendritic_modeling.analysis.core.base import AbstractAnalyzer
+from dendritic_modeling.config.base import BaseConfig
+from dendritic_modeling.models.base import BaseModel
 
 logger = logging.getLogger(__name__)
 
@@ -32,22 +32,29 @@ class LinearityAnalyzer(AbstractAnalyzer):
     """
 
     def __init__(self, params: Optional[BaseConfig] = None):
-        super().__init__(params if params is not None else BaseConfig())
-        self.n_samples = getattr(params, "n_samples", 500)
-        self.finite_diff_h = getattr(params, "finite_diff_h", 1e-4)
-        self.epsilon = getattr(params, "epsilon", 1e-8)
+        super().__init__()
+        self.params = params if params is not None else BaseConfig()
+        self.n_samples = getattr(self.params, "n_samples", 500)
+        self.finite_diff_h = getattr(self.params, "finite_diff_h", 1e-4)
+        self.epsilon = getattr(self.params, "epsilon", 1e-8)
 
         self.results = {}
 
     def analyze(
-        self, model: BaseModel, data_loader: DataLoader, save_path: Optional[str] = None
+        self,
+        model: BaseModel,
+        data_loader: DataLoader | Dataset,
+        device: str = "cpu",
+        save_path: Optional[str] = None,
+        **kwargs,
     ) -> dict[str, Any]:
         """
         Compute linearity index for model outputs.
 
         Args:
             model: Trained model
-            data_loader: Data loader for validation/test set
+            data_loader: Data loader or dataset for validation/test set
+            device: Device to run analysis on
             save_path: Where to save results
 
         Returns:
@@ -56,21 +63,28 @@ class LinearityAnalyzer(AbstractAnalyzer):
         logger.info("Computing linearity index...")
 
         model.eval()
-        device = next(model.parameters()).device
+        if not isinstance(data_loader, DataLoader):
+            data_loader = DataLoader(data_loader, batch_size=256, shuffle=False)
+
+        model_device = next(model.parameters()).device
+        analysis_device = torch.device(device)
+        if analysis_device != model_device:
+            analysis_device = model_device
 
         # Collect samples for analysis
         all_inputs = []
         all_labels = []
 
         with torch.no_grad():
-            for x_batch, y_batch in data_loader:
+            for batch in data_loader:
+                x_batch = batch[0]
                 all_inputs.append(x_batch)
-                all_labels.append(y_batch)
+                all_labels.append(batch[1])
 
                 if len(all_inputs) * x_batch.shape[0] >= self.n_samples:
                     break
 
-        inputs = torch.cat(all_inputs, dim=0)[: self.n_samples].to(device)
+        inputs = torch.cat(all_inputs, dim=0)[: self.n_samples].to(analysis_device)
         labels = torch.cat(all_labels, dim=0)[: self.n_samples]
 
         logger.info(f"Analyzing {len(inputs)} samples, input_dim = {inputs.shape[1]}")
@@ -103,7 +117,7 @@ class LinearityAnalyzer(AbstractAnalyzer):
 
         # Save if path provided
         if save_path is not None:
-            self.save_results(save_path)
+            self.save_results(self.results, save_path)
 
         logger.info(f"Linearity index: {linearity_index:.4f}")
         logger.info(f"Gradient norm: {gradient_norm:.4f}")
@@ -222,15 +236,15 @@ class LinearityAnalyzer(AbstractAnalyzer):
 
         return float(np.mean(hess_norms))
 
-    def save_results(self, save_path: str):
-        """Save results to file"""
+    def save_results(self, results: dict[str, Any], save_path: str):
+        """Save results to file."""
         import pickle
 
         save_path = Path(save_path)
         save_path.parent.mkdir(parents=True, exist_ok=True)
 
         with open(save_path, "wb") as f:
-            pickle.dump(self.results, f)
+            pickle.dump(results, f)
 
         logger.info(f"Linearity analysis results saved to {save_path}")
 

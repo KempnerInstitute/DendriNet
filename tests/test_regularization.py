@@ -160,6 +160,23 @@ class TestRegularizationManager:
         assert isinstance(reg_loss, torch.Tensor)
         assert reg_loss.item() >= 0.0
 
+    def test_has_regularization_from_param_group_weights_only(self):
+        """Per-group nonzero weights should enable regularization even with zero global weights."""
+        config = RegularizationConfig(
+            l1_weight=0.0,
+            l2_weight=0.0,
+            split_params=True,
+            param_group_weights={
+                "topk": {"l1_weight": 0.02, "l2_weight": 0.0},
+                "blocklinear": {"l1_weight": 0.0, "l2_weight": 0.0},
+                "reactivation": {"l1_weight": 0.0, "l2_weight": 0.0},
+                "decoder": {"l1_weight": 0.0, "l2_weight": 0.0},
+            },
+        )
+        manager = RegularizationManager(config)
+
+        assert manager.has_regularization() is True
+
     def test_regularization_with_different_devices(self):
         """Test regularization when model is on different device."""
         model = nn.Linear(5, 2)

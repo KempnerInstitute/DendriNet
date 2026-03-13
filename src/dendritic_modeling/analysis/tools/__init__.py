@@ -1,4 +1,4 @@
-"""Analysis tools modules."""
+"""Weight, synaptic activation/pruning/turnover, and correlation analysis tools."""
 
 from .correlation_analysis import CorrelationAnalyzer
 from .synaptic_activation import SynapticActivationAnalyzer

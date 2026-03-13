@@ -9,10 +9,25 @@ branch combination generation, and config generation.
 import pytest
 from omegaconf import DictConfig, OmegaConf
 
+from dendritic_modeling.scripts.sweeps.unified.sweep_types import unified_sweep
 from dendritic_modeling.scripts.sweeps.unified.sweep_types.unified_sweep import (
     UnifiedSweepGenerator,
     expand_ranges,
 )
+
+
+def _build_sweep_request(
+    sweep_definition: DictConfig, base_training_config: DictConfig
+) -> DictConfig:
+    """Compose generator input with sweep metadata and explicit base config."""
+    return OmegaConf.create(
+        {
+            "sweep_config": sweep_definition.get("sweep_config", {}),
+            "filter_config": sweep_definition.get("filter_config", {}),
+            "experiment_settings": sweep_definition.get("experiment_settings", {}),
+            "base_config": base_training_config,
+        }
+    )
 
 
 class TestExpandRanges:
@@ -59,13 +74,13 @@ class TestExpandRanges:
 
     def test_edge_cases(self):
         """Test edge cases for range expansion."""
-        # Same start and end
+        # Same start and end: not treated as a range by current logic.
         result = expand_ranges([5, 5, 1])
-        assert result == [5]  # Single value when start == end
+        assert result == [5, 5, 1]
 
-        # Step larger than range
+        # Step larger than range: treated as a regular list, not a range.
         result = expand_ranges([1, 3, 5])
-        assert result == [1]  # Only start value
+        assert result == [1, 3, 5]
 
         # Negative step (should work backwards)
         result = expand_ranges([10, 1, -2])
@@ -89,7 +104,7 @@ class TestUnifiedSweepGenerator:
                 "sweep_config": {
                     "model.network.excitatory_layer_sizes": [[4, 8], [8, 16]],
                     "model.network.inhibitory_layer_sizes": [[2, 4], [4, 8]],
-                    "train.main.trainer.learning_rate": [0.001, 0.01, 0.1],
+                    "training.main.trainer.learning_rate": [0.001, 0.01, 0.1],
                 },
                 "filter_config": {},
                 "experiment_settings": {"seeds_per_condition": 2, "base_seed": 42},
@@ -109,7 +124,18 @@ class TestUnifiedSweepGenerator:
                         "inhibitory_branch_factors": [2],
                     }
                 },
-                "train": {"main": {"trainer": {"learning_rate": 0.001, "epochs": 100}}},
+                "training": {
+                    "main": {"trainer": {"learning_rate": 0.001, "epochs": 100}}
+                },
+                "data": {
+                    "dataset_name": "mnist",
+                    "base_dir": "",
+                    "processing": {"flatten": True, "normalize": False},
+                },
+                "wandb": {"use_wandb": False},
+                "analysis": {},
+                "outputs": {},
+                "experiment": {"seed": 42},
             }
         )
 
@@ -253,10 +279,8 @@ class TestUnifiedSweepGenerator:
 
     def test_generate_configs_basic(self, generator, basic_config, base_model_config):
         """Test basic config generation."""
-        # Set the sweep configuration
-        generator.config = basic_config
-
-        configs = generator.generate_configs(base_model_config)
+        request_config = _build_sweep_request(basic_config, base_model_config)
+        configs = generator.generate_configs(request_config)
 
         assert len(configs) > 0
 
@@ -264,7 +288,7 @@ class TestUnifiedSweepGenerator:
         for config in configs:
             assert isinstance(config, DictConfig)
             assert "model" in config
-            assert "train" in config
+            assert "training" in config
 
     def test_generate_configs_with_seeds(
         self, generator, basic_config, base_model_config
@@ -272,9 +296,8 @@ class TestUnifiedSweepGenerator:
         """Test config generation with multiple seeds."""
         # Ensure seeds_per_condition > 1
         basic_config.experiment_settings.seeds_per_condition = 3
-        generator.config = basic_config
-
-        configs = generator.generate_configs(base_model_config)
+        request_config = _build_sweep_request(basic_config, base_model_config)
+        configs = generator.generate_configs(request_config)
 
         # Should have at least one config
         assert len(configs) >= 1
@@ -293,7 +316,7 @@ class TestUnifiedSweepGenerator:
         config_with_ranges = OmegaConf.create(
             {
                 "sweep_config": {
-                    "train.main.trainer.learning_rate": [
+                    "training.main.trainer.learning_rate": [
                         0.001,
                         0.01,
                         0.002,
@@ -304,16 +327,16 @@ class TestUnifiedSweepGenerator:
             }
         )
 
-        generator.config = config_with_ranges
-        configs = generator.generate_configs(base_model_config)
+        request_config = _build_sweep_request(config_with_ranges, base_model_config)
+        configs = generator.generate_configs(request_config)
 
         assert len(configs) > 0
 
         # Check that learning rates were expanded
         learning_rates = []
         for config in configs:
-            if "train" in config and "main" in config.train:
-                lr = config.train.main.trainer.learning_rate
+            if "training" in config and "main" in config.training:
+                lr = config.training.main.trainer.learning_rate
                 learning_rates.append(lr)
 
         # Check if range expansion is working
@@ -338,8 +361,8 @@ class TestUnifiedSweepGenerator:
             }
         )
 
-        generator.config = config_with_ei
-        configs = generator.generate_configs(base_model_config)
+        request_config = _build_sweep_request(config_with_ei, base_model_config)
+        configs = generator.generate_configs(request_config)
 
         assert len(configs) > 0
 
@@ -363,8 +386,8 @@ class TestUnifiedSweepGenerator:
             }
         )
 
-        generator.config = config_with_branches
-        configs = generator.generate_configs(base_model_config)
+        request_config = _build_sweep_request(config_with_branches, base_model_config)
+        configs = generator.generate_configs(request_config)
 
         assert len(configs) > 0
 
@@ -385,8 +408,8 @@ class TestUnifiedSweepGenerator:
             }
         )
 
-        generator.config = empty_config
-        configs = generator.generate_configs(base_model_config)
+        request_config = _build_sweep_request(empty_config, base_model_config)
+        configs = generator.generate_configs(request_config)
 
         # Should still generate at least one config (base config with seed)
         assert len(configs) >= 1
@@ -394,14 +417,14 @@ class TestUnifiedSweepGenerator:
         # Should be essentially the base config with experiment info
         config = configs[0]
         assert "model" in config
-        assert "train" in config
+        assert "training" in config
 
     def test_config_deep_copy_independence(
         self, generator, basic_config, base_model_config
     ):
         """Test that generated configs are independent deep copies."""
-        generator.config = basic_config
-        configs = generator.generate_configs(base_model_config)
+        request_config = _build_sweep_request(basic_config, base_model_config)
+        configs = generator.generate_configs(request_config)
 
         if len(configs) >= 2:
             # Modify one config
@@ -416,15 +439,15 @@ class TestUnifiedSweepGenerator:
             {
                 "sweep_config": {
                     "model.network.excitatory_layer_sizes": [[8, 16]],
-                    "train.main.trainer.epochs": [50, 100],
+                    "training.main.trainer.epochs": [50, 100],
                 },
                 "filter_config": {},
                 "experiment_settings": {"seeds_per_condition": 1, "base_seed": 42},
             }
         )
 
-        generator.config = config
-        configs = generator.generate_configs(base_model_config)
+        request_config = _build_sweep_request(config, base_model_config)
+        configs = generator.generate_configs(request_config)
 
         assert len(configs) > 0
 
@@ -440,11 +463,108 @@ class TestUnifiedSweepGenerator:
                 assert len(layer_sizes) > 0
 
             # Should have some epoch value (either swept or base)
-            if hasattr(config.train.main.trainer, "epochs"):
-                epochs = config.train.main.trainer.epochs
+            if "training" in config and hasattr(config.training.main.trainer, "epochs"):
+                epochs = config.training.main.trainer.epochs
                 print(f"Generated epochs: {epochs}")
                 assert isinstance(epochs, int)
                 assert epochs > 0
+
+    def test_warns_when_param_group_lr_axis_is_likely_noop(
+        self, generator, monkeypatch
+    ):
+        """Warn when only param_groups.lr is swept under split-param optimization."""
+        sweep_definition = OmegaConf.create(
+            {
+                "sweep_config": {
+                    "training.main.common.param_groups.lr": [0.0008, 0.003]
+                },
+                "filter_config": {},
+                "experiment_settings": {"seeds_per_condition": 1, "base_seed": 42},
+            }
+        )
+        base_training_config = OmegaConf.create(
+            {
+                "experiment": {"seed": 42},
+                "training": {
+                    "main": {
+                        "common": {
+                            "param_groups": {
+                                "split_params": True,
+                                "lr": 0.0015,
+                                "topk_lr": 0.0015,
+                                "blocklinear_lr": 0.0007,
+                                "reactivation_lr": 0.0005,
+                                "decoder_lr": 0.0015,
+                            }
+                        }
+                    }
+                },
+                "model": {},
+                "data": {},
+                "wandb": {},
+                "analysis": {},
+                "outputs": {},
+            }
+        )
+
+        warning_calls: list[str] = []
+
+        def _capture_warning(msg, *args, **kwargs):
+            warning_calls.append(str(msg) % args if args else str(msg))
+
+        monkeypatch.setattr(unified_sweep.logger, "warning", _capture_warning)
+
+        request_config = _build_sweep_request(sweep_definition, base_training_config)
+        _ = generator.generate_configs(request_config)
+        assert any("may be mostly a no-op" in msg for msg in warning_calls)
+
+    def test_no_warning_when_group_specific_lrs_are_swept(self, generator, monkeypatch):
+        """Do not warn when the effective group LRs are explicitly swept."""
+        sweep_definition = OmegaConf.create(
+            {
+                "sweep_config": {
+                    "training.main.common.param_groups.lr": [0.0008, 0.003],
+                    "training.main.common.param_groups.topk_lr": [0.001, 0.002],
+                },
+                "filter_config": {},
+                "experiment_settings": {"seeds_per_condition": 1, "base_seed": 42},
+            }
+        )
+        base_training_config = OmegaConf.create(
+            {
+                "experiment": {"seed": 42},
+                "training": {
+                    "main": {
+                        "common": {
+                            "param_groups": {
+                                "split_params": True,
+                                "lr": 0.0015,
+                                "topk_lr": 0.0015,
+                                "blocklinear_lr": 0.0007,
+                                "reactivation_lr": 0.0005,
+                                "decoder_lr": 0.0015,
+                            }
+                        }
+                    }
+                },
+                "model": {},
+                "data": {},
+                "wandb": {},
+                "analysis": {},
+                "outputs": {},
+            }
+        )
+
+        warning_calls: list[str] = []
+
+        def _capture_warning(msg, *args, **kwargs):
+            warning_calls.append(str(msg) % args if args else str(msg))
+
+        monkeypatch.setattr(unified_sweep.logger, "warning", _capture_warning)
+
+        request_config = _build_sweep_request(sweep_definition, base_training_config)
+        _ = generator.generate_configs(request_config)
+        assert not any("may be mostly a no-op" in msg for msg in warning_calls)
 
 
 class TestUnifiedSweepIntegration:
@@ -459,7 +579,7 @@ class TestUnifiedSweepIntegration:
                 "sweep_config": {
                     "model.network.excitatory_layer_sizes": [[8, 16], [16, 32]],
                     "model.network.inhibitory_layer_sizes": [[4, 8], [8, 16]],
-                    "train.main.trainer.learning_rate": [0.001, 0.01],
+                    "training.main.trainer.learning_rate": [0.001, 0.01],
                 },
                 "filter_config": {"ei_ratio_mode": "maintain_ratio"},
                 "experiment_settings": {"seeds_per_condition": 2, "base_seed": 42},
@@ -475,7 +595,7 @@ class TestUnifiedSweepIntegration:
                         "input_dim": 784,
                     }
                 },
-                "train": {
+                "training": {
                     "main": {
                         "trainer": {
                             "learning_rate": 0.001,
@@ -484,11 +604,19 @@ class TestUnifiedSweepIntegration:
                         }
                     }
                 },
+                "data": {
+                    "dataset_name": "mnist",
+                    "base_dir": "",
+                    "processing": {"flatten": True, "normalize": False},
+                },
+                "wandb": {"use_wandb": False},
+                "analysis": {},
+                "outputs": {},
             }
         )
 
-        generator.config = sweep_config
-        configs = generator.generate_configs(base_config)
+        request_config = _build_sweep_request(sweep_config, base_config)
+        configs = generator.generate_configs(request_config)
 
         # Should generate multiple configurations
         assert len(configs) > 0
@@ -496,7 +624,7 @@ class TestUnifiedSweepIntegration:
         # Each config should be valid and complete
         for config in configs:
             assert "model" in config
-            assert "train" in config
+            assert "training" in config
             # Check if experiment section exists (may be optional)
             if "experiment" in config:
                 assert isinstance(config.experiment.seed, int)
@@ -514,7 +642,7 @@ class TestUnifiedSweepIntegration:
 
         sweep_config = OmegaConf.create(
             {
-                "sweep_config": {"train.main.trainer.batch_size": [16, 32, 64]},
+                "sweep_config": {"training.main.trainer.batch_size": [16, 32, 64]},
                 "filter_config": {
                     "branch_mode": "manual",
                     "excitatory_branch_factors": [[2, 4], [4, 8]],
@@ -538,14 +666,22 @@ class TestUnifiedSweepIntegration:
                         "inhibitory_branch_factors": [1, 1],
                     }
                 },
-                "train": {
+                "training": {
                     "main": {"trainer": {"batch_size": 32, "learning_rate": 0.001}}
                 },
+                "data": {
+                    "dataset_name": "mnist",
+                    "base_dir": "",
+                    "processing": {"flatten": True, "normalize": False},
+                },
+                "wandb": {"use_wandb": False},
+                "analysis": {},
+                "outputs": {},
             }
         )
 
-        generator.config = sweep_config
-        configs = generator.generate_configs(base_config)
+        request_config = _build_sweep_request(sweep_config, base_config)
+        configs = generator.generate_configs(request_config)
 
         # Should generate configurations with different branch parameters
         assert len(configs) > 0
@@ -575,8 +711,12 @@ class TestUnifiedSweepIntegration:
                 "sweep_config": {
                     "model.network.excitatory_layer_sizes": [[8, 16], [16, 32]],
                     "model.network.inhibitory_layer_sizes": [[4, 8], [8, 16]],
-                    "train.main.trainer.learning_rate": [0.001, 0.005, 0.01],  # Range
-                    "train.main.trainer.batch_size": [32, 64],
+                    "training.main.trainer.learning_rate": [
+                        0.001,
+                        0.005,
+                        0.01,
+                    ],  # Range
+                    "training.main.trainer.batch_size": [32, 64],
                 },
                 "filter_config": {
                     "ei_ratio_mode": "maintain_ratio",
@@ -599,7 +739,7 @@ class TestUnifiedSweepIntegration:
                         "input_dim": 784,
                     }
                 },
-                "train": {
+                "training": {
                     "main": {
                         "trainer": {
                             "learning_rate": 0.001,
@@ -608,12 +748,19 @@ class TestUnifiedSweepIntegration:
                         }
                     }
                 },
-                "task": {"dataset": "mnist", "data_path": "/data"},
+                "data": {
+                    "dataset_name": "mnist",
+                    "base_dir": "/data",
+                    "processing": {"flatten": True, "normalize": False},
+                },
+                "wandb": {"use_wandb": False},
+                "analysis": {},
+                "outputs": {},
             }
         )
 
-        generator.config = sweep_config
-        configs = generator.generate_configs(base_config)
+        request_config = _build_sweep_request(sweep_config, base_config)
+        configs = generator.generate_configs(request_config)
 
         # Should generate at least one configuration
         assert len(configs) >= 1  # Basic sweep functionality should work
@@ -630,9 +777,9 @@ class TestUnifiedSweepIntegration:
         seeds = set()
 
         for config in configs:
-            if "train" in config:
-                learning_rates.add(config.train.main.trainer.learning_rate)
-                batch_sizes.add(config.train.main.trainer.batch_size)
+            if "training" in config:
+                learning_rates.add(config.training.main.trainer.learning_rate)
+                batch_sizes.add(config.training.main.trainer.batch_size)
             if "experiment" in config:
                 seeds.add(config.experiment.seed)
 

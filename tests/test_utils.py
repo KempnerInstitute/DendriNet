@@ -50,11 +50,13 @@ class TestShaper(unittest.TestCase):
 
 class TestAccuracyScore(unittest.TestCase):
     def setUp(self):
-        # Create a dummy classifier with a predict method for testing
+        # Create a dummy classifier that always predicts class 1
         class DummyClassifier(nn.Module):
-            def predict(self, inputs):
-                # Always predicts '1'
-                return torch.ones(inputs.shape[0], dtype=torch.long)
+            def forward(self, inputs):
+                batch_size = inputs.shape[0]
+                logits = torch.zeros(batch_size, 2)
+                logits[:, 1] = 10.0  # High logit for class 1
+                return logits
 
         self.classifier = DummyClassifier()
 
@@ -90,7 +92,9 @@ class TestLoadMNISTModulo10(unittest.TestCase):
 
     def test_data_loading_no_split(self):
         """Test data loading with no train/validation split."""
-        data = load_mnist_modulo10(train_valid_split=1, cache_dir=self.temp_dir.name)
+        data = load_mnist_modulo10(
+            train_valid_split=1, task_data_path=self.temp_dir.name
+        )
         self.assertIn("train", data)
         self.assertIn("test", data)
         # Check that datasets are not None and have length
@@ -101,7 +105,9 @@ class TestLoadMNISTModulo10(unittest.TestCase):
 
     def test_data_loading_with_split(self):
         """Test data loading with train/validation split."""
-        data = load_mnist_modulo10(train_valid_split=0.8, cache_dir=self.temp_dir.name)
+        data = load_mnist_modulo10(
+            train_valid_split=0.8, task_data_path=self.temp_dir.name
+        )
         self.assertIn("train", data)
         self.assertIn("valid", data)
         self.assertIn("test", data)
@@ -119,11 +125,15 @@ class TestLoadMNISTModulo10(unittest.TestCase):
         """Test that different shuffle iterations produce different results."""
         # Load data with 1 shuffle iteration
         data1 = load_mnist_modulo10(
-            shuffle_iterations=1, train_valid_split=1, cache_dir=self.temp_dir.name
+            shuffle_iterations=1,
+            train_valid_split=1,
+            task_data_path=self.temp_dir.name,
         )
         # Load data with 2 shuffle iterations
         data2 = load_mnist_modulo10(
-            shuffle_iterations=2, train_valid_split=1, cache_dir=self.temp_dir.name
+            shuffle_iterations=2,
+            train_valid_split=1,
+            task_data_path=self.temp_dir.name,
         )
 
         # Check that different shuffle iterations yield different input tensors
@@ -133,7 +143,9 @@ class TestLoadMNISTModulo10(unittest.TestCase):
     def test_modulo10_labels(self):
         """Test that labels are correctly computed with modulo 10."""
         data = load_mnist_modulo10(
-            shuffle_iterations=1, train_valid_split=1, cache_dir=self.temp_dir.name
+            shuffle_iterations=1,
+            train_valid_split=1,
+            task_data_path=self.temp_dir.name,
         )
         labels = [item[1].numpy().tolist() for item in data["train"]]
         mod_status = [(item >= 0) and (item < 10) for item in labels]

@@ -43,10 +43,10 @@ def _gabor_kernel(
 def _push_pull_layer(E: np.ndarray, I_var: np.ndarray) -> DendriteConv2d:
     layer = DendriteConv2d(1, 1, E.shape[0], padding=E.shape[0] // 2, bias=False)
     with torch.no_grad():
-        layer.weight_E_raw.data[0, 0] = torch.log(
+        layer.weight_E_raw.data[0, 0, 0] = torch.log(
             torch.tensor(E, dtype=torch.float32) + 1e-6
         )
-        layer.weight_I_raw.data[0, 0] = torch.log(
+        layer.weight_I_raw.data[0, 0, 0] = torch.log(
             torch.tensor(I_var, dtype=torch.float32) + 1e-6
         )
     return layer

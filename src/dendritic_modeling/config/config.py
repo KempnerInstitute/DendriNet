@@ -6,7 +6,7 @@ This module defines the configuration dataclasses for the model, training, task,
 It loads and saves configurations using OmegaConf.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from functools import lru_cache
 from typing import Any, Optional
 
@@ -14,12 +14,29 @@ from omegaconf import OmegaConf
 
 from dendritic_modeling.config.analysis import AnalysisConfig
 from dendritic_modeling.config.base import BaseConfig
-from dendritic_modeling.config.model import ModelConfig
+from dendritic_modeling.config.model import (
+    ArchitectureConfig,
+    BlockLinearConfig,
+    ConnectivityConfig,
+    CoreConfig,
+    DecoderConfig,
+    DecoderParamsConfig,
+    EncoderConfig,
+    EncoderParamsConfig,
+    ImplementationConfig,
+    ModelConfig,
+    MorphologyConfig,
+    ReactivationConfig,
+    SparsityConfig,
+    TransferFunctionConfig,
+)
+from dendritic_modeling.config.recurrent import RecurrentConfig
 from dendritic_modeling.config.training import (
     EncoderTrainingConfig,
     FiveFactorConfig,
     FourFactorConfig,
     HSICConfig,
+    InhibitoryHomeostasisConfig,
     LocalRuleConfig,
     MainTrainingConfig,
     MorphologyAwareConfig,
@@ -35,6 +52,11 @@ class ExperimentConfig(BaseConfig):
     seed: int = 42
     train_valid_split: float = 0.8
     enable_amp: bool = False
+    fast_mode: bool = False
+    deterministic: bool = True
+    cudnn_benchmark: bool = False
+    allow_tf32: bool = False
+    float32_matmul_precision: str = "highest"
     enable_profiling: bool = False
     profiling_output_dir: str = "results/profiling/"
     enable_hooks: bool = True
@@ -54,6 +76,9 @@ class DataProcessingConfig(BaseConfig):
 
     flatten: bool = True
     normalize: bool = False
+    label_noise_rate: float = (
+        0.0  # Fraction of training labels to randomize (0 = clean)
+    )
 
 
 @dataclass
@@ -72,13 +97,16 @@ class DatasetParamsConfig(BaseConfig):
     poisson_generator: dict[str, Any] = field(
         default_factory=lambda: {
             "base_dataset": "mnist",
-            "stimulus_duration": 1.0,
+            "multiplicative_gain": True,
+            "fixed_gain_factor": None,
             "max_gain_factor": None,
             "max_gain_tau_ratio": None,
-            "uniform_gain": True
+            "uniform_gain": True,
+            "poisson_sampling": True,
+            "stimulus_duration": 1.0,
         }
     )
-    
+
     multixor: dict[str, Any] = field(default_factory=lambda: {"n_bits": 8})
     orientation_bars: dict[str, Any] = field(
         default_factory=lambda: {"n_orient_classes": 8}
@@ -115,10 +143,6 @@ class WandbConfig(BaseConfig):
     group: str = "unified_sweep"
     tags: list[str] = field(default_factory=lambda: ["debug"])
     enabled: bool = True
-    log_freq: int = 100
-    log_gradients: bool = False
-    log_parameters: bool = False
-    log_activations: bool = False
 
 
 @dataclass
@@ -161,6 +185,113 @@ class Config:
     fsdp: FSDPConfig = field(default_factory=FSDPConfig)
 
 
+def _to_plain_dict(data: Any) -> dict[str, Any]:
+    """Convert OmegaConf/dict-like objects to a plain Python dict."""
+    if data is None:
+        return {}
+    if isinstance(data, dict):
+        return dict(data)
+    if hasattr(data, "_metadata"):
+        converted = OmegaConf.to_container(data, resolve=True)
+        return converted if isinstance(converted, dict) else {}
+    if hasattr(data, "asdict") and callable(data.asdict):
+        converted = data.asdict()
+        return converted if isinstance(converted, dict) else {}
+    if hasattr(data, "__dict__"):
+        return {
+            key: value for key, value in vars(data).items() if not key.startswith("_")
+        }
+    return {}
+
+
+def _build_core_config(core_data: Any) -> CoreConfig:
+    """Build a typed CoreConfig from possibly nested dict/OmegaConf payload."""
+    core_dict = _to_plain_dict(core_data)
+    unified_ei = core_dict.get("unified_ei", core_dict.get("ei_unified", {}))
+    return CoreConfig(
+        type=str(core_dict.get("type", "EINet")),
+        architecture=ArchitectureConfig(
+            **_to_plain_dict(core_dict.get("architecture", {}))
+        ),
+        connectivity=ConnectivityConfig(
+            **_to_plain_dict(core_dict.get("connectivity", {}))
+        ),
+        transfer=TransferFunctionConfig(
+            **_to_plain_dict(core_dict.get("transfer", {}))
+        ),
+        morphology=MorphologyConfig(**_to_plain_dict(core_dict.get("morphology", {}))),
+        sparsity=SparsityConfig(**_to_plain_dict(core_dict.get("sparsity", {}))),
+        reactivation=ReactivationConfig(
+            **_to_plain_dict(core_dict.get("reactivation", {}))
+        ),
+        blocklinear=BlockLinearConfig(
+            **_to_plain_dict(core_dict.get("blocklinear", {}))
+        ),
+        implementation=ImplementationConfig(
+            **_to_plain_dict(core_dict.get("implementation", {}))
+        ),
+        recurrent=RecurrentConfig(**_to_plain_dict(core_dict.get("recurrent", {}))),
+        unified_ei=_to_plain_dict(unified_ei),
+        recurrent_ei=_to_plain_dict(core_dict.get("recurrent_ei", {})),
+        baseline_rnn=_to_plain_dict(core_dict.get("baseline_rnn", {})),
+    )
+
+
+def _build_model_config(model_data: Any) -> ModelConfig:
+    """Build a typed ModelConfig from possibly nested dict/OmegaConf payload."""
+    model_dict = _to_plain_dict(model_data)
+    encoder_dict = _to_plain_dict(model_dict.get("encoder", {}))
+    decoder_dict = _to_plain_dict(model_dict.get("decoder", {}))
+
+    return ModelConfig(
+        task=str(model_dict.get("task", "classification")),
+        encoder=EncoderConfig(
+            type=str(encoder_dict.get("type", "identity")),
+            load_save_root=str(
+                encoder_dict.get("load_save_root", "./trained_encoder_networks/")
+            ),
+            params=EncoderParamsConfig(
+                **_to_plain_dict(encoder_dict.get("params", {}))
+            ),
+        ),
+        core=_build_core_config(model_dict.get("core", {})),
+        decoder=DecoderConfig(
+            type=str(decoder_dict.get("type", "MLP")),
+            params=DecoderParamsConfig(
+                **_to_plain_dict(decoder_dict.get("params", {}))
+            ),
+        ),
+    )
+
+
+def _build_data_config(data_data: Any) -> DataConfig:
+    """Build a typed DataConfig while preserving custom dataset sections."""
+    data_dict = _to_plain_dict(data_data)
+    processing = DataProcessingConfig(**_to_plain_dict(data_dict.get("processing", {})))
+
+    dataset_params = data_dict.get("dataset_params")
+    if dataset_params is None:
+        dataset_params = DatasetParamsConfig()
+    elif hasattr(dataset_params, "_metadata"):
+        dataset_params = OmegaConf.to_container(dataset_params, resolve=True)
+
+    return DataConfig(
+        dataset_name=str(data_dict.get("dataset_name", "cifar10")),
+        base_dir=str(data_dict.get("base_dir", "")),
+        processing=processing,
+        dataset_params=dataset_params,
+    )
+
+
+def _filter_dataclass_kwargs(config_cls: type, raw_data: Any) -> dict[str, Any]:
+    """Drop unknown keys when loading historical configs into dataclasses."""
+    data = raw_data or {}
+    if not isinstance(data, dict):
+        return {}
+    allowed = {f.name for f in fields(config_cls)}
+    return {key: value for key, value in data.items() if key in allowed}
+
+
 @lru_cache(maxsize=10)
 def load_config(path: Optional[str] = None) -> Config:
     """Load configuration from a file or use defaults."""
@@ -190,11 +321,13 @@ def load_config(path: Optional[str] = None) -> Config:
 
         return Config(
             experiment=ExperimentConfig(**conf_data.get("experiment", {})),
-            data=DataConfig(**conf_data.get("data", {})),
-            model=ModelConfig(**conf_data.get("model", {})),
+            data=_build_data_config(conf_data.get("data", {})),
+            model=_build_model_config(conf_data.get("model", {})),
             training=training_config,
             analysis=AnalysisConfig(**mapped_analysis),
-            wandb=WandbConfig(**conf_data.get("wandb", {})),
+            wandb=WandbConfig(
+                **_filter_dataclass_kwargs(WandbConfig, conf_data.get("wandb", {}))
+            ),
             outputs=OutputsConfig(**conf_data.get("outputs", {})),
             fsdp=FSDPConfig(**conf_data.get("fsdp", {})),
         )
@@ -215,10 +348,13 @@ def _map_analysis_config(analysis_data: dict) -> dict:
         "weight": "weight_analysis",
         "compartment_statistics": "compartment_statistics_analysis",
         "compartment_snr": "compartment_snr_analysis",
+        "multiplicative_gain": "multiplicative_gain_analysis",
         "receptive_field": "receptive_field_analysis",
         "single_layer_contribution": "single_layer_contribution",
         "synaptic_activation": "synaptic_activation_analysis",
         "branch_activation": "branch_activation_analysis",
+        "routing": "routing_analysis",
+        "adversarial_robustness": "adversarial_robustness_analysis",
     }
 
     for new_name, old_name in field_mapping.items():
@@ -258,6 +394,14 @@ def _build_local_rule_config(lsc_data: dict) -> LocalRuleConfig:
     if "hsic" in lsc_kwargs and isinstance(lsc_kwargs["hsic"], dict):
         lsc_kwargs["hsic"] = HSICConfig(**lsc_kwargs["hsic"])
 
+    # Handle nested inhibitory homeostasis config
+    if "inhibitory_homeostasis" in lsc_kwargs and isinstance(
+        lsc_kwargs["inhibitory_homeostasis"], dict
+    ):
+        lsc_kwargs["inhibitory_homeostasis"] = InhibitoryHomeostasisConfig(
+            **lsc_kwargs["inhibitory_homeostasis"]
+        )
+
     return LocalRuleConfig(**lsc_kwargs)
 
 
@@ -270,7 +414,7 @@ def _map_training_config(training_data: dict) -> dict:
         else dict(training_data)
     )
 
-    # Handle nested learning_strategy_config in main config
+    # Handle nested learning_strategy_config and optimizer in main config
     if "main" in mapped and isinstance(mapped["main"], dict):
         main_data = dict(mapped["main"])
 
@@ -283,6 +427,12 @@ def _map_training_config(training_data: dict) -> dict:
                 main_data["learning_strategy_config"] = _build_local_rule_config(
                     main_data["learning_strategy_config"]
                 )
+
+        # Build OptimizerConfig if present as dict
+        if "optimizer" in main_data and isinstance(main_data["optimizer"], dict):
+            from dendritic_modeling.config.training import OptimizerConfig
+
+            main_data["optimizer"] = OptimizerConfig(**main_data["optimizer"])
 
         mapped["main"] = main_data
 

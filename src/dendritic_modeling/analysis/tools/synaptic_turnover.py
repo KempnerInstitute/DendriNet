@@ -42,18 +42,21 @@ class SynapticTurnoverAnalyzer:
 
         This automatically takes an initial snapshot of the model's synaptic masks.
         """
-        assert isinstance(model.core_network, ExcitationInhibitionNetwork), (
-            "model.core_network must be an instance of ExcitationInhibitionNetwork. "
-            + f"Got model.core_network type: {type(model.core_network)}"
-        )
-
         self.data_dict_list = []
-        self.snapshot_interval = params.snapshot_interval
         self.epoch_counter = 0
+        self.snapshot_interval = max(1, int(getattr(params, "snapshot_interval", 1)))
 
         # Store additional params for potential future use
         self.synaptic_analysis = getattr(params, "synaptic_analysis", True)
         self.save_synaptic_report = getattr(params, "save_synaptic_report", True)
+
+        # Default to unsupported, then enable if model has EI core.
+        self.enabled = isinstance(
+            getattr(model, "core_network", None), ExcitationInhibitionNetwork
+        )
+        self.synapse_config = {"ee": [], "ei": [], "ie": [], "ii": []}
+        if not self.enabled:
+            return
 
         # Store synapse configuration for layer-wise analysis
         self.synapse_config = {
@@ -137,9 +140,9 @@ class SynapticTurnoverAnalyzer:
         Returns:
             Dictionary containing turnover statistics if training=False and save_path is None
         """
-        try:
-            assert isinstance(model.core_network, ExcitationInhibitionNetwork)
-        except AssertionError:
+        if not self.enabled or not isinstance(
+            getattr(model, "core_network", None), ExcitationInhibitionNetwork
+        ):
             return
 
         if training:

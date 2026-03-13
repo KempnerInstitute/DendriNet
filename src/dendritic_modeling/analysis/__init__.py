@@ -51,23 +51,19 @@ from .tools import (
 )
 
 __all__ = [
-    # Core
-    "AblationAnalyzer"
-    # Manager
-    "AnalysisManager"
-    "BranchActivationAnalyzer"
-    # Tools
-    "CorrelationAnalyzer"
-    "direction_selectivity_index"
-    "InformationAnalyzer"
-    "length_selectivity_index"
-    # Metrics
-    "NoisePerturbationAnalyzer"
-    "orientation_selectivity_index"
-    "PerformanceAnalyzer"
-    "SingleLayerContributionAnalyzer"
-    "size_tuning_index"
-    "SynapticActivationAnalyzer"
-    "SynapticTurnoverAnalyzer"
-    "WeightAnalyzer"
+    "AblationAnalyzer",
+    "AnalysisManager",
+    "BranchActivationAnalyzer",
+    "CorrelationAnalyzer",
+    "InformationAnalyzer",
+    "NoisePerturbationAnalyzer",
+    "PerformanceAnalyzer",
+    "SingleLayerContributionAnalyzer",
+    "SynapticActivationAnalyzer",
+    "SynapticTurnoverAnalyzer",
+    "WeightAnalyzer",
+    "direction_selectivity_index",
+    "length_selectivity_index",
+    "orientation_selectivity_index",
+    "size_tuning_index",
 ]
