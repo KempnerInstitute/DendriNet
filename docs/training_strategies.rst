@@ -1,9 +1,8 @@
 Training Strategies
 ===================
 
-The framework uses a dual-trainer structure: an optional encoder trainer
-(for the input encoder network) followed by the main trainer (for the core
-network and decoder). The main trainer strategy is set via
+The framework uses an optional encoder trainer followed by the main trainer for
+the core network and decoder. The main trainer strategy is set via
 ``training.main.strategy`` in the YAML config.
 
 .. contents:: On this page
@@ -24,7 +23,7 @@ Available Strategies
    * - ``fa``
      - Feedback Alignment with fixed random feedback matrices
    * - ``dfa``
-     - Direct Feedback Alignment -- output error projected to each layer
+     - Direct Feedback Alignment; output error projected to each layer
    * - ``shunting_fa``
      - FA with conductance-based modulation
    * - ``shunting_dfa``
@@ -101,7 +100,7 @@ Local Credit Assignment
 
 Biologically-plausible local learning using Hebbian-style updates with
 locally available signals (pre/post-synaptic activity) and a broadcast soma
-error.
+error. The current config path is ``training.main.learning_strategy_config``.
 
 Rule Variants
 ~~~~~~~~~~~~~
@@ -226,7 +225,7 @@ FSDP Distributed Training
 --------------------------
 
 For large models across multiple GPUs or nodes. See
-:doc:`FSDP_TROUBLESHOOTING` for detailed guidance.
+:doc:`fsdp_troubleshooting` for setup and runtime issues.
 
 .. code-block:: yaml
 

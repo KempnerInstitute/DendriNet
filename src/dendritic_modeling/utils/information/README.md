@@ -55,4 +55,4 @@ For model analysis, use:
 - `dendritic_modeling.config.InformationAnalysisParams`
 
 The maintained user-facing documentation for that workflow is in
-`docs/analysis.rst` and `docs/CONFIGURATION_GUIDE.rst`.
+`docs/analysis.rst` and `docs/configuration_guide.rst`.

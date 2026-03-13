@@ -9,8 +9,7 @@ Train an E-I network on MNIST
    python src/dendritic_modeling/scripts/training/train_experiments.py configs/config_exp.yaml
 
 This runs a single experiment using the default configuration. Results are
-saved to the output directory specified in the config (or ``output/`` by
-default).
+saved to the run output directory configured under ``outputs``.
 
 Override parameters from the command line
 -----------------------------------------
@@ -18,7 +17,7 @@ Override parameters from the command line
 .. code-block:: bash
 
    python src/dendritic_modeling/scripts/training/train_experiments.py \
-     configs/config_exp.yaml --epochs 50 --seed 42 --output_dir results/my_run
+     configs/config_exp.yaml --seed 42 --output_dir results/my_run --run_name mnist_seed42
 
 Distributed training with FSDP
 ------------------------------
@@ -38,11 +37,11 @@ Run a parameter sweep
 
    # Generate configs and submit jobs
    python src/dendritic_modeling/scripts/sweeps/sweep_manager.py \
-     --config configs/unified_all_sweeps_example.yaml
+     --config configs/EI_sweeps_example.yaml
 
    # Analyze results
    python src/dendritic_modeling/scripts/sweeps/result_analyzer.py \
-     --results-dir output/sweep_20240101120000 --auto-detect
+     /path/to/sweep/results
 
 Output structure
 ----------------
@@ -52,10 +51,11 @@ A typical experiment produces:
 .. code-block:: text
 
    output/experiment_name/
-   +-- checkpoints/         # Model checkpoints
-   +-- analysis/            # Analysis results and plots
-   +-- losses.json          # Training and validation losses
-   +-- config.yaml          # Saved configuration
+   +-- config.json          # Saved resolved configuration
+   +-- final_model.pt       # Final network weights
+   +-- performance/         # Training metrics and plots
+   +-- analysis/            # Optional analysis outputs
+   `-- checkpoints/         # Optional checkpoints
 
 WandB integration
 -----------------

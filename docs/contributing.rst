@@ -44,4 +44,5 @@ Building Documentation
    cd docs
    make html
 
-Open ``_build/html/index.html`` to view locally.
+View the generated site at ``docs/_build/html/index.html`` from the repository
+root.

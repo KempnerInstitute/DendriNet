@@ -16,7 +16,8 @@ Quick Start
    python src/dendritic_modeling/scripts/training/train_experiments.py configs/config_exp.yaml
 
    # With overrides
-   python ... configs/config_exp.yaml --output_dir results/my_run --run_name test1
+   python src/dendritic_modeling/scripts/training/train_experiments.py \
+     configs/config_exp.yaml --output_dir results/my_run --run_name test1
 
 Templates:
 
@@ -57,8 +58,8 @@ Set ``model.core.type`` to one of:
      - Dendritic morphology, no E/I sign constraint
    * - ``point_mlp``
      - Point-neuron MLP baseline (matched params)
-   * - ``EINet``
-     - Legacy; uses ``morphology.use_shunting``
+   * - ``einet``
+     - Legacy generic E-I type; uses ``morphology.use_shunting``
    * - ``flat_shunting``
      - Single-branch shunting variant
    * - ``flat_additive``
@@ -67,8 +68,8 @@ Set ``model.core.type`` to one of:
      - Unified E-I, supports feedforward and recurrent
    * - ``gru``, ``lstm``
      - Baseline RNNs
-   * - ``mlp``, ``sparse_mlp``
-     - Standard / sparse MLP
+   * - ``mlp``
+     - MLP baseline
 
 See :doc:`network_architectures` for architecture details.
 
@@ -82,8 +83,10 @@ Set ``training.main.strategy`` to one of:
 ``voltage_stabilization``, ``homeostatic_control``,
 ``multi_stage``, ``recurrent``, ``fsdp``, ``fsdp_standard``, ``enhanced``
 
-Each strategy has its own sub-configuration under
-``training.main.strategies.<name>``.  See :doc:`training_strategies` for details.
+Strategy-specific configuration usually lives under
+``training.main.strategies.<name>``. Local credit assignment also supports the
+direct path ``training.main.learning_strategy_config``. See
+:doc:`training_strategies` for details.
 
 Loss Functions
 --------------
@@ -99,14 +102,15 @@ Datasets
 Set ``data.dataset_name`` to one of:
 
 - **Standard**: ``mnist``, ``fashion_mnist``, ``cifar10``, ``imagenet``,
-  ``mnist_modulo10``, ``random_flip_mnist``
+  ``mnist_modulo10``
 - **Synthetic**: ``correlated_gaussian``, ``nonlinear_interaction``,
   ``linear_separable``, ``nonlinear_separable``, ``block_correlated``,
   ``balanced_information``, ``poisson_generator``, ``multixor``,
   ``orientation_bars``, ``orthonet``
 - **Sequence**: ``sequential_mnist``, ``copy_task``, ``adding_problem``,
   ``variable_delay_dms``, ``multi_frequency``, ``hierarchical_temporal``,
-  ``lorenz``, ``stringer_v1``
+  ``context_dependent_decision``, ``switching_context_decision``,
+  ``timescale_generalization``, ``lorenz``, ``stringer_v1``
 
 Dataset-specific parameters go under ``data.dataset_params.<name>``.
 See :doc:`datasets` for details.
@@ -141,9 +145,9 @@ See :doc:`analysis` for per-module parameter details.
 Recurrent Networks
 ------------------
 
-Any EINet type (``dendritic_shunting``, ``dendritic_additive``, ``EINet``)
+Any E-I type (``dendritic_shunting``, ``dendritic_additive``, ``einet``)
 becomes recurrent when ``connectivity.rec_*`` synapse counts are nonzero.
-Recurrence is controlled solely by these counts — no separate ``enabled``
+Recurrence is controlled solely by these counts; no separate ``enabled``
 flag is needed:
 
 .. code-block:: yaml
@@ -207,7 +211,7 @@ See :doc:`training_strategies` for per-stage options.
 FSDP / Distributed
 -------------------
 
-See :doc:`FSDP_TROUBLESHOOTING` for distributed training setup.
+See :doc:`fsdp_troubleshooting` for distributed training setup.
 
 Full Parameter Reference
 ------------------------
