@@ -49,6 +49,14 @@ class ExcitationInhibitionLayer(nn.Module):
         print_hooks=False,
         excitatory_target_density=0.1,
         inhibitory_target_density=0.1,
+        # Fine-grained density overrides — when set, these take precedence:
+        #   ee_target_density: E→E (input → excitatory branch_excitation)
+        #   ei_target_density: E→I (input → inhibitory branch_excitation)
+        #   ie_target_density: I→E (inhibitory cells → excitatory branch_inhibition)
+        # Falls back to excitatory/inhibitory_target_density when None.
+        ee_target_density=None,
+        ei_target_density=None,
+        ie_target_density=None,
         use_noise=True,
         sigma=0.05,
         rewiring_mode="global",
@@ -69,6 +77,11 @@ class ExcitationInhibitionLayer(nn.Module):
         **kwargs,
     ):
         super().__init__()
+
+        # Resolve fine-grained densities, falling back to shared params.
+        _ee_density = ee_target_density if ee_target_density is not None else excitatory_target_density
+        _ei_density = ei_target_density if ei_target_density is not None else excitatory_target_density
+        _ie_density = ie_target_density if ie_target_density is not None else inhibitory_target_density
 
         if topk_type == "deepst":
             NetworkClass = DeepstNet
@@ -104,8 +117,8 @@ class ExcitationInhibitionLayer(nn.Module):
                     topk_type=topk_type,
                     weight_transform=weight_transform,
                     print_hooks=print_hooks,
-                    excitatory_target_density=excitatory_target_density,
-                    inhibitory_target_density=inhibitory_target_density,
+                    excitatory_target_density=_ei_density,   # EI: input → inhibitory branch_excitation
+                    inhibitory_target_density=inhibitory_target_density,  # II: inhibitory → inhibitory branch_inhibition (unchanged)
                     use_noise=use_noise,
                     sigma=sigma,
                     rewiring_mode=rewiring_mode,
@@ -167,8 +180,8 @@ class ExcitationInhibitionLayer(nn.Module):
             topk_type=topk_type,
             weight_transform=weight_transform,
             print_hooks=print_hooks,
-            excitatory_target_density=excitatory_target_density,
-            inhibitory_target_density=inhibitory_target_density,
+            excitatory_target_density=_ee_density,   # EE: input → excitatory branch_excitation
+            inhibitory_target_density=_ie_density,   # IE: inhibitory cells → excitatory branch_inhibition
             use_noise=use_noise,
             sigma=sigma,
             rewiring_mode=rewiring_mode,

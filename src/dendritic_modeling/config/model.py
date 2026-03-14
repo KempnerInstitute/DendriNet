@@ -65,6 +65,14 @@ class SparsityConfig(BaseConfig):
         default_factory=lambda: {
             "excitatory_target_density": 0.1,
             "inhibitory_target_density": 0.1,
+            # Fine-grained density overrides (take precedence over the shared params above).
+            # ee_target_density: E→E synapses (input → excitatory dendritic branches).
+            # ei_target_density: E→I synapses (input → inhibitory dendritic branches).
+            # ie_target_density: I→E synapses (inhibitory cells → excitatory dendritic branches).
+            # When None, each falls back to excitatory_target_density / inhibitory_target_density.
+            "ee_target_density": None,
+            "ei_target_density": None,
+            "ie_target_density": None,
             "use_noise": True,
             "sigma": 0.05,
             "rewiring_mode": "global",

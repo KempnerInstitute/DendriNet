@@ -53,8 +53,14 @@ class ExcitationInhibitionNetwork(nn.Module):
         topk_strategy: Strategy for topk.
         topk_type: Type of topk.
         print_hooks: Whether to print hooks.
-        excitatory_target_density: Target density for excitatory cells.
-        inhibitory_target_density: Target density for inhibitory cells.
+        excitatory_target_density: Shared fallback density for excitatory-type branches (EE and EI).
+        inhibitory_target_density: Shared fallback density for inhibitory-type branches (IE and II).
+        ee_target_density: Override density for E→E synapses (input → excitatory branch_excitation).
+            Falls back to excitatory_target_density when None.
+        ei_target_density: Override density for E→I synapses (input → inhibitory branch_excitation).
+            Falls back to excitatory_target_density when None.
+        ie_target_density: Override density for I→E synapses (inhibitory cells → excitatory branch_inhibition).
+            Falls back to inhibitory_target_density when None.
         use_noise: Whether to use noise.
         sigma: Standard deviation for noise.
         rewiring_mode: Mode for rewiring.
@@ -100,6 +106,9 @@ class ExcitationInhibitionNetwork(nn.Module):
         print_hooks: bool = False,
         excitatory_target_density=0.1,
         inhibitory_target_density=0.1,
+        ee_target_density=None,
+        ei_target_density=None,
+        ie_target_density=None,
         use_noise=True,
         sigma=0.05,
         rewiring_mode="global",
@@ -158,6 +167,9 @@ class ExcitationInhibitionNetwork(nn.Module):
         self.print_hooks = print_hooks
         self.excitatory_target_density = excitatory_target_density
         self.inhibitory_target_density = inhibitory_target_density
+        self.ee_target_density = ee_target_density
+        self.ei_target_density = ei_target_density
+        self.ie_target_density = ie_target_density
         self.use_noise = use_noise
         self.sigma = sigma
         self.rewiring_mode = rewiring_mode
@@ -352,6 +364,9 @@ class ExcitationInhibitionNetwork(nn.Module):
                 print_hooks=self.print_hooks,
                 excitatory_target_density=self.excitatory_target_density,
                 inhibitory_target_density=self.inhibitory_target_density,
+                ee_target_density=self.ee_target_density,
+                ei_target_density=self.ei_target_density,
+                ie_target_density=self.ie_target_density,
                 use_noise=self.use_noise,
                 sigma=self.sigma,
                 rewiring_mode=self.rewiring_mode,
