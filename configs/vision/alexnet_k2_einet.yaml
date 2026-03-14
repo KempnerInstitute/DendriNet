@@ -1,13 +1,29 @@
-# AlexNet K=2: replace fc6 + fc7 with dendritic EI layer
+# ============================================================================
+# AlexNet K=2: Replace fc6 + fc7 with a dendritic EI layer
+# ============================================================================
 #
-# Pipeline:
-#   encoder = pretrained AlexNet conv features (frozen) -> 9216-dim
-#   core    = EINet (trainable, replaces fc6+fc7) -> 4096-dim
-#   decoder = pretrained fc8 (trainable) -> 1000 classes
+# This config replaces TWO fully-connected layers (fc6 and fc7) inside a
+# pretrained AlexNet with a dendritic EI network. The convolutional backbone
+# feeds directly into the EINet core, which then feeds into fc8.
+#
+# See alexnet_k1_einet.yaml for the full AlexNet layer map.
+#
+# Pipeline after splitting:
+#   prefix (encoder)  = features.* + avgpool          → 9216-dim, frozen
+#   core (EINet)      = replaces fc6 + ReLU + fc7 + ReLU → 4096-dim, trainable
+#   suffix (decoder)  = fc8                            → 1000 classes, trainable
+#
+# Key difference from K=1:
+#   - K=1 replaces only fc7 (4096→4096), so the core sees 4096-dim input
+#   - K=2 replaces fc6+fc7 (9216→4096→4096), so the core sees 9216-dim input
+#     from the flattened conv features. This is a harder replacement since
+#     the EINet must learn the full dimensionality reduction.
 #
 # Run:
-#   PYTHONPATH=src:$PYTHONPATH python src/dendritic_modeling/scripts/training/train_experiments.py \
-#       configs/vision/alexnet_k2_einet.yaml
+#   PYTHONPATH=src:$PYTHONPATH python \
+#     src/dendritic_modeling/scripts/training/train_experiments.py \
+#     configs/vision/alexnet_k2_einet.yaml
+# ============================================================================
 
 experiment:
   seed: 42
@@ -32,21 +48,33 @@ data:
 model:
   task: "classification"
 
-  encoder:
-    type: "pretrained"
-    load_save_root: "./.trained_encoder_networks/"
-    params:
-      backbone: "alexnet"
-      weights: "IMAGENET1K_V1"
-      split_after: "avgpool"               # conv features only -> 9216-dim
-      freeze: true
-      drop_layers: []
+  pretrained_replacement:
+    enabled: true
+    backbone: "alexnet"
+    weights: "IMAGENET1K_V1"
+    input_shape: [3, 224, 224]
 
+    # Replace fc6 through fc7 (both Linear + ReLU layers).
+    replace:
+      start: "classifier.1"                        # fc6 Linear(9216 → 4096)
+      end: "classifier.5"                          # fc7 ReLU
+
+    omit_layers: ["classifier.0", "classifier.3"]  # skip Dropout layers
+
+    trainability:
+      encoder:
+        mode: "frozen"                             # freeze conv backbone
+      decoder:
+        mode: "trainable"                          # train fc8
+
+  # --- Core network: EINet replacing fc6 + fc7 ---
+  # Input: 9216-dim (from flattened conv features)
+  # Output: 4096-dim (must match fc8 in_features)
   core:
     type: "einet"
 
     architecture:
-      excitatory_layer_sizes: [4096]       # match fc8 input
+      excitatory_layer_sizes: [4096]               # match fc8 input dim
       inhibitory_layer_sizes: [512]
       excitatory_branch_factors: [3, 3]
       inhibitory_branch_factors: [3, 3]
@@ -110,14 +138,6 @@ model:
       adaptive_initialization: true
       print_hooks: false
 
-  decoder:
-    type: "pretrained_decoder"
-    params:
-      backbone: "alexnet"
-      weights: "IMAGENET1K_V1"
-      split_from: "classifier.6"           # fc8: Linear(4096 -> 1000)
-      freeze: false
-
 training:
   encoder:
     strategy: "standard"
@@ -164,7 +184,8 @@ training:
         topk_lr: 0.001
         blocklinear_lr: 0.0001
         reactivation_lr: 0.0001
-        decoder_lr: 0.01
+        decoder_lr: 0.01                           # suffix (fc8) LR
+        encoder_lr: 0.0                            # prefix frozen
 
     regularization:
       l1_weight: 0.0

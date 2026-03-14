@@ -15,6 +15,7 @@ import wandb
 from omegaconf import OmegaConf
 
 from dendritic_modeling.config import DataConfig, ModelConfig, TrainingConfig
+from dendritic_modeling.config.model import DecoderConfig, EncoderConfig
 from dendritic_modeling.datasets import get_unified_datasets
 from dendritic_modeling.models import Classifier, RecurrentClassifier, Regressor
 from dendritic_modeling.networks import Identity
@@ -66,6 +67,27 @@ def _get_experiment_value(experiment_config, key: str, default):
     if isinstance(experiment_config, dict):
         return experiment_config.get(key, default)
     return getattr(experiment_config, key, default)
+
+
+def _warn_ignored_legacy_model_sections(model_config: ModelConfig) -> None:
+    """Warn when legacy encoder/decoder config is set but ignored."""
+    ignored_sections = []
+
+    if _config_to_plain_dict(getattr(model_config, "encoder", None)) != asdict(
+        EncoderConfig()
+    ):
+        ignored_sections.append("model.encoder")
+
+    if _config_to_plain_dict(getattr(model_config, "decoder", None)) != asdict(
+        DecoderConfig()
+    ):
+        ignored_sections.append("model.decoder")
+
+    if ignored_sections:
+        logger.warning(
+            "%s ignored because model.pretrained_replacement.enabled=true",
+            ", ".join(ignored_sections),
+        )
 
 
 def _is_recurrent_core_config(core_cfg) -> bool:
@@ -192,50 +214,111 @@ def _is_recurrent_core_config(core_cfg) -> bool:
     return _get_recurrent_enabled(core_cfg)
 
 
-def initialize_model(model_config: ModelConfig):
-    """Initialize the model based on configuration."""
-    encoder_config = model_config.encoder
-    core_config = model_config.core
-    decoder_config = model_config.decoder
+def _build_from_pretrained_replacement(model_config: ModelConfig):
+    """Build encoder/core/decoder from a ``pretrained_replacement`` config.
 
-    # Build encoder parameters dict
-    encoder_params = {}
-    if encoder_config.type.lower() == "identity":
-        encoder_params["input_dim"] = encoder_config.params.input_dim or 784
-    else:
-        encoder_params = _config_to_plain_dict(encoder_config.params)
-
-    # Create encoder
-    encoder_network = get_architecture(encoder_config.type, encoder_params)
-    if isinstance(encoder_network, Identity):
-        encoder = encoder_network
-    elif hasattr(encoder_network, "encoder"):
-        encoder = encoder_network.encoder
-    else:
-        encoder = encoder_network
-
-    # Create core network
-    core_params = _config_to_plain_dict(core_config)
-    core_network = get_architecture(
-        core_config.type, core_params, input_dim=encoder.output_dim
+    Loads the backbone once, splits it into prefix and suffix via
+    :func:`build_split_plan`, then creates the core network in between.
+    Returns ``(encoder, core_network, decoder_network, encoder_network)``.
+    """
+    from dendritic_modeling.networks.architectures.classical.pretrained import (
+        build_encoder_decoder_from_plan,
+        build_split_plan,
     )
 
-    # Build decoder parameters
-    decoder_params_dict = _config_to_plain_dict(decoder_config.params)
-    # Filter out None values to allow auto-setting
-    decoder_params_dict = {
-        k: v for k, v in decoder_params_dict.items() if v is not None
-    }
-    decoder_params = {
-        **decoder_params_dict,
-        "input_dim": core_network.output_dim,
-    }
+    pr = model_config.pretrained_replacement
+    prefix_freeze = pr.trainability.encoder.mode == "frozen"
+    suffix_freeze = pr.trainability.decoder.mode == "frozen"
 
-    # Create decoder
-    decoder_network = get_architecture(decoder_config.type, decoder_params)
+    plan = build_split_plan(
+        backbone=pr.backbone,
+        weights=pr.weights,
+        replace_start=pr.replace.start,
+        replace_end=pr.replace.end,
+        omit_layers=list(pr.omit_layers) if pr.omit_layers else None,
+        input_shape=list(pr.input_shape) if pr.input_shape else None,
+    )
+
+    encoder, decoder_network = build_encoder_decoder_from_plan(
+        plan,
+        prefix_freeze=prefix_freeze,
+        suffix_freeze=suffix_freeze,
+    )
+
+    # Validate that core output matches suffix expectation
+    core_params = _config_to_plain_dict(model_config.core)
+    core_network = get_architecture(
+        model_config.core.type, core_params, input_dim=encoder.output_dim
+    )
+
+    if (
+        hasattr(core_network, "output_dim")
+        and core_network.output_dim != plan.suffix_input_dim
+    ):
+        raise ValueError(
+            f"Core output_dim={core_network.output_dim} does not match "
+            f"suffix expected input_dim={plan.suffix_input_dim}. "
+            f"The suffix decoder's first Linear layer expects "
+            f"{plan.suffix_input_dim} features."
+        )
+
+    return encoder, core_network, decoder_network, encoder
+
+
+def initialize_model(model_config: ModelConfig):
+    """Initialize the model based on configuration."""
+
+    # New API: pretrained_replacement takes precedence when enabled
+    pr = getattr(model_config, "pretrained_replacement", None)
+    if pr is not None and getattr(pr, "enabled", False):
+        _warn_ignored_legacy_model_sections(model_config)
+        encoder, core_network, decoder_network, encoder_network = (
+            _build_from_pretrained_replacement(model_config)
+        )
+    else:
+        # Legacy path
+        encoder_config = model_config.encoder
+        core_config = model_config.core
+        decoder_config = model_config.decoder
+
+        # Build encoder parameters dict
+        encoder_params = {}
+        if encoder_config.type.lower() == "identity":
+            encoder_params["input_dim"] = encoder_config.params.input_dim or 784
+        else:
+            encoder_params = _config_to_plain_dict(encoder_config.params)
+
+        # Create encoder
+        encoder_network = get_architecture(encoder_config.type, encoder_params)
+        if isinstance(encoder_network, Identity):
+            encoder = encoder_network
+        elif hasattr(encoder_network, "encoder"):
+            encoder = encoder_network.encoder
+        else:
+            encoder = encoder_network
+
+        # Create core network
+        core_params = _config_to_plain_dict(core_config)
+        core_network = get_architecture(
+            core_config.type, core_params, input_dim=encoder.output_dim
+        )
+
+        # Build decoder parameters
+        decoder_params_dict = _config_to_plain_dict(decoder_config.params)
+        # Filter out None values to allow auto-setting
+        decoder_params_dict = {
+            k: v for k, v in decoder_params_dict.items() if v is not None
+        }
+        decoder_params = {
+            **decoder_params_dict,
+            "input_dim": core_network.output_dim,
+        }
+
+        # Create decoder
+        decoder_network = get_architecture(decoder_config.type, decoder_params)
 
     # Detect recurrent mode (supports dendritic_rnn and ei_unified paths).
-    is_recurrent = _is_recurrent_core_config(core_config)
+    is_recurrent = _is_recurrent_core_config(model_config.core)
 
     # Create model based on task
     if is_recurrent:

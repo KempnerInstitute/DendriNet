@@ -141,14 +141,6 @@ class EncoderParamsConfig(BaseConfig):
     learned_router_temperature: float = 1.0
     learned_router_init_scale: float = 4.0
 
-    # Pretrained model splitter fields
-    backbone: Optional[str] = None
-    weights: Optional[str] = None
-    split_after: Optional[str] = None
-    freeze: bool = False
-    drop_layers: list[str] = field(default_factory=list)
-    input_size: Optional[list[int]] = None  # e.g. [1, 3, 224, 224]
-
 
 @dataclass
 class EncoderConfig(BaseConfig):
@@ -196,13 +188,6 @@ class DecoderParamsConfig(BaseConfig):
     activation: str = "relu"
     output_dim: int = 10
 
-    # Pretrained model splitter fields
-    backbone: Optional[str] = None
-    weights: Optional[str] = None
-    split_from: Optional[str] = None
-    freeze: bool = False
-    drop_layers: list[str] = field(default_factory=list)
-
 
 @dataclass
 class DecoderConfig(BaseConfig):
@@ -210,6 +195,74 @@ class DecoderConfig(BaseConfig):
 
     type: str = "MLP"
     params: DecoderParamsConfig = field(default_factory=DecoderParamsConfig)
+
+
+@dataclass
+class ReplacementRegionConfig(BaseConfig):
+    """Specifies the contiguous layer range to replace with a core network."""
+
+    start: str = ""  # first replaced layer (inclusive)
+    end: str = ""  # last replaced layer (inclusive)
+
+
+@dataclass
+class SegmentTrainabilityConfig(BaseConfig):
+    """Trainability policy for an encoder or decoder segment.
+
+    ``mode`` must be ``"frozen"`` or ``"trainable"``.
+    Learning rates are controlled via ``training.main.common.param_groups``
+    (``encoder_lr`` for the encoder, ``decoder_lr`` for the decoder).
+    """
+
+    mode: str = "frozen"
+
+
+@dataclass
+class TrainabilityConfig(BaseConfig):
+    """Trainability policies for encoder and decoder segments."""
+
+    encoder: SegmentTrainabilityConfig = field(
+        default_factory=lambda: SegmentTrainabilityConfig(mode="frozen")
+    )
+    decoder: SegmentTrainabilityConfig = field(
+        default_factory=lambda: SegmentTrainabilityConfig(mode="trainable")
+    )
+
+
+@dataclass
+class PretrainedReplacementConfig(BaseConfig):
+    """Single-source config for replacing layers in a pretrained backbone.
+
+    When ``enabled=true``, ``model.encoder`` and ``model.decoder`` are
+    ignored — the encoder and decoder are built from the backbone split.
+
+    Example::
+
+        pretrained_replacement:
+          backbone: "alexnet"
+          weights: "IMAGENET1K_V1"
+          input_shape: [3, 224, 224]
+          replace:
+            start: "classifier.4"
+            end: "classifier.5"
+          omit_layers: ["classifier.0", "classifier.3"]
+          trainability:
+            encoder:
+              mode: "frozen"
+            decoder:
+              mode: "trainable"
+
+    Learning rates are controlled via ``training.main.common.param_groups``
+    (``encoder_lr`` for the encoder, ``decoder_lr`` for the decoder).
+    """
+
+    enabled: bool = False
+    backbone: str = "alexnet"
+    weights: Optional[str] = "IMAGENET1K_V1"
+    input_shape: list[int] = field(default_factory=lambda: [3, 224, 224])
+    replace: ReplacementRegionConfig = field(default_factory=ReplacementRegionConfig)
+    omit_layers: list[str] = field(default_factory=list)
+    trainability: TrainabilityConfig = field(default_factory=TrainabilityConfig)
 
 
 @dataclass
@@ -221,3 +274,8 @@ class ModelConfig(BaseConfig):
     encoder: EncoderConfig = field(default_factory=EncoderConfig)
     core: CoreConfig = field(default_factory=CoreConfig)
     decoder: DecoderConfig = field(default_factory=DecoderConfig)
+
+    # New unified pretrained replacement config
+    pretrained_replacement: PretrainedReplacementConfig = field(
+        default_factory=PretrainedReplacementConfig
+    )

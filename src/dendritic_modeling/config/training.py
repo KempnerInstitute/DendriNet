@@ -23,6 +23,7 @@ class ParamGroupsConfig(BaseConfig):
     blocklinear_lr: float = 0.0001
     reactivation_lr: float = 0.0001
     decoder_lr: float = 0.001
+    encoder_lr: Optional[float] = None  # None = frozen / use default LR
 
 
 @dataclass

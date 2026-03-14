@@ -32,7 +32,7 @@ Top-Level Structure
 
    experiment:   # seed, AMP, profiling, checkpointing
    data:         # dataset, processing, dataset-specific params
-   model:        # encoder, core network, decoder
+   model:        # encoder, core network, decoder, pretrained_replacement
    training:     # encoder + main training, strategies, regularization, pruning
    analysis:     # 16 analysis modules
    wandb:        # Weights & Biases logging
@@ -141,6 +141,78 @@ Available modules: ``performance_analysis``, ``information_analysis``,
 ``routing_analysis``.
 
 See :doc:`analysis` for per-module parameter details.
+
+Pretrained Backbone Replacement
+--------------------------------
+
+Replace one or more layers of a pretrained torchvision backbone (e.g. AlexNet,
+VGG) with an EINet core.  The backbone is loaded once and split into three
+segments:
+
+- **prefix** (encoder): all layers before the replacement range
+- **core**: the dendritic EI network that replaces the removed layers
+- **suffix** (decoder): all layers after the replacement range
+
+When ``model.pretrained_replacement.enabled`` is ``true``, the legacy
+``model.encoder`` and ``model.decoder`` sections are ignored.
+
+.. code-block:: yaml
+
+   model:
+     pretrained_replacement:
+       enabled: true
+       backbone: "alexnet"                    # torchvision model name
+       weights: "IMAGENET1K_V1"               # pretrained weights (null = random init)
+       input_shape: [3, 224, 224]
+
+       # Layers to replace (inclusive range).
+       # Use list_backbone_layers("alexnet") to see all available names.
+       replace:
+         start: "classifier.4"                # fc7 Linear
+         end: "classifier.5"                  # fc7 ReLU
+
+       # Drop layers entirely (e.g. Dropout that is not useful with EI nets).
+       omit_layers: ["classifier.0", "classifier.3"]
+
+       # Freeze/train policy for encoder and decoder segments.
+       trainability:
+         encoder:
+           mode: "frozen"                     # freeze conv backbone + fc6
+         decoder:
+           mode: "trainable"                  # train final classifier
+
+     core:
+       type: "einet"
+       architecture:
+         excitatory_layer_sizes: [4096]       # must match suffix input dim
+         # ... rest of EINet config ...
+
+Learning rates for the prefix and suffix are controlled in the training config::
+
+   training.main.common.param_groups.encoder_lr    # prefix LR (0.0 = frozen)
+   training.main.common.param_groups.decoder_lr    # suffix LR
+
+To discover valid layer names for a backbone, use the ``list_backbone_layers``
+utility:
+
+.. code-block:: python
+
+   from dendritic_modeling.networks.architectures.classical.pretrained import (
+       list_backbone_layers,
+   )
+   print(list_backbone_layers("alexnet"))
+   # ['features.0', 'features.1', ..., 'avgpool', 'classifier.0', ..., 'classifier.6']
+
+**Scope**: The current splitter linearizes ``nn.Sequential`` containers.  This
+works for AlexNet, VGG, and coarse splits of ResNet (e.g. at ``avgpool`` or
+``fc``).  Replacing layers *inside* residual blocks requires an FX-graph
+backend (planned).
+
+Example configs:
+
+- ``configs/vision/alexnet_k1_einet.yaml`` — replace fc7 only (K=1)
+- ``configs/vision/alexnet_k2_einet.yaml`` — replace fc6 + fc7 (K=2)
+- ``configs/vision/alexnet_k1_einet_smoke.yaml`` — 1-epoch smoke test
 
 Recurrent Networks
 ------------------

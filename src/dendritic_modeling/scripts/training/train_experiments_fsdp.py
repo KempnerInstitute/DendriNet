@@ -44,6 +44,7 @@ from dendritic_modeling.datasets import get_unified_datasets
 from dendritic_modeling.models import Classifier, Regressor
 from dendritic_modeling.networks import Identity
 from dendritic_modeling.networks.architectures.factory import get_architecture
+from dendritic_modeling.scripts.script_utils.setup_utils import initialize_model
 from dendritic_modeling.scripts.training.train_encoder_network import (
     load_train_encoder_network,
 )
@@ -193,6 +194,21 @@ def create_large_model(config):
     """Create a large dendritic model from configuration."""
     model_config = config.model
 
+    pretrained_replacement = getattr(model_config, "pretrained_replacement", None)
+    if pretrained_replacement is not None and getattr(
+        pretrained_replacement, "enabled", False
+    ):
+        model, _ = initialize_model(model_config)
+
+        total_params = sum(p.numel() for p in model.parameters())
+        trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+        logger.info(
+            "Model created from pretrained_replacement with %s total parameters",
+            f"{total_params:,}",
+        )
+        logger.info("Trainable parameters: %s", f"{trainable_params:,}")
+        return model
+
     # Get input dimension from data config
     data_params = config.data.processing if hasattr(config.data, "processing") else {}
     if config.data.dataset_name == "mnist":
@@ -267,12 +283,20 @@ def create_large_model(config):
     return model
 
 
+def _get_analysis_encoder_network(encoder_network):
+    """Return the encoder module that analysis paths should see."""
+    if isinstance(encoder_network, Identity):
+        return encoder_network
+    if hasattr(encoder_network, "encoder"):
+        return Identity(encoder_network.encoder.output_dim)
+    return encoder_network
+
+
 def setup_data_loaders(config, rank, world_size):
     """Setup distributed data loaders."""
-    # Get datasets
+    # Get datasets — task_cfg is actually the DataConfig section
     train_ds, valid_ds, test_ds = get_unified_datasets(
-        task_cfg=config.task,
-        train_cfg=config.train,
+        task_cfg=config.data,
     )
 
     # Create distributed samplers
@@ -325,7 +349,7 @@ def main(config_path):
     # Setup output directory (only on rank 0)
     if rank == 0:
         run_id = f"{config.outputs.run_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-        run_save_path = os.path.join(config.outputs.dir, run_id)
+        run_save_path = os.path.join(config.outputs.results_dir, run_id)
         os.makedirs(run_save_path, exist_ok=True)
 
         # Set up logging
@@ -357,8 +381,8 @@ def main(config_path):
     # Only rank 0 needs to handle encoding for analysis.
     # Extract the encoder that create_large_model() already built into the model
     # so that load_train_encoder_network() can use it (e.g., for pre-training
-    # BaseAutoencoder encoders).  For Identity and plain encoders (including
-    # PretrainedEncoder) it returns immediately with datasets unchanged.
+    # BaseAutoencoder encoders).  For Identity and BackboneSegment encoders
+    # it returns immediately with datasets unchanged.
     if rank == 0:
         logger.info("Encoding datasets for analysis...")
         encoder_network = model.encoder_network
@@ -387,11 +411,11 @@ def main(config_path):
             logger.warning(f"Could not generate model summary with sample input: {e}")
             print_model_parameter_summary(model)  # Fallback without sample input
 
-    # Create FSDP config from config file or defaults
-    trainer_config = getattr(config.training.main, "trainer", None)
+    # Training common config is the source of truth for epochs, loss, etc.
+    train_common = config.training.main.common
 
-    # Use FSDP config from config file if available
-    if hasattr(config, "fsdp") and config.fsdp.use_fsdp:
+    # Create FSDP config from config file or defaults
+    if hasattr(config, "fsdp") and getattr(config.fsdp, "use_fsdp", False):
         logger.info("Using FSDP configuration from config file")
         fsdp_config = get_fsdp_config(
             mixed_precision=config.fsdp.mixed_precision,
@@ -402,26 +426,16 @@ def main(config_path):
         # Fall back to default method
         logger.info("Using default FSDP configuration")
         fsdp_config = get_fsdp_config(
-            mixed_precision=(
-                getattr(trainer_config, "use_mixed_precision", False)
-                if trainer_config
-                else False
-            ),
-            cpu_offload=(
-                getattr(trainer_config, "cpu_offload", False)
-                if trainer_config
-                else False
-            ),
+            mixed_precision=getattr(train_common, "use_mixed_precision", False),
+            cpu_offload=getattr(train_common, "cpu_offload", False),
             sharding_strategy="FULL_SHARD",
         )
 
     # Create optimizer config
     optimizer_config = {
-        "lr": config.training.main.common.param_groups.lr,
-        "weight_decay": config.training.main.common.weight_decay_rate,
-        "split_params": getattr(
-            config.training.main.common.param_groups, "split_params", False
-        ),
+        "lr": train_common.param_groups.lr,
+        "weight_decay": getattr(train_common, "weight_decay_rate", 0.0),
+        "split_params": getattr(train_common.param_groups, "split_params", False),
     }
 
     # Setup analysis manager (only on rank 0)
@@ -430,17 +444,8 @@ def main(config_path):
         logger.info("Setting up AnalysisManager...")
 
         # Set the model's encoder network
-        if isinstance(encoder_network, Identity):
-            model.encoder_network = encoder_network
-            logger.info("Set model encoder to Identity network")
-        elif hasattr(encoder_network, "encoder"):
-            model.encoder_network = Identity(encoder_network.encoder.output_dim)
-            logger.info(
-                f"Set model encoder to Identity with output_dim: {encoder_network.encoder.output_dim}"
-            )
-        else:
-            model.encoder_network = encoder_network
-            logger.info("Set model encoder to %s", type(encoder_network).__name__)
+        model.encoder_network = _get_analysis_encoder_network(encoder_network)
+        logger.info("Set model encoder to %s", type(model.encoder_network).__name__)
 
         encoded_data = {
             "train": encoded_train_ds,
@@ -469,27 +474,26 @@ def main(config_path):
         world_size=world_size,
         fsdp_config=fsdp_config,
         checkpoint_dir=run_save_path if rank == 0 else None,
-        save_every_n_epochs=getattr(trainer_config, "save_every_n_epochs", None),
+        save_every_n_epochs=getattr(train_common, "save_every_n_epochs", None),
         optimizer_config=optimizer_config,
         analysis_manager=analysis_manager,
         wandb_run=wandb_run,
-        epochs=trainer_config.epochs,
-        loss_function=getattr(trainer_config, "loss_function", "cat_nll"),
-        grad_clip_value=getattr(trainer_config, "grad_clip_value", 5.0),
-        use_amp=getattr(config.train, "enable_amp", False),
-        early_stopping=getattr(trainer_config, "early_stopping", False),
-        patience=getattr(trainer_config, "patience", 10),
-        print_every=getattr(trainer_config, "print_every", 1),
+        epochs=train_common.epochs,
+        loss_function=getattr(train_common, "loss_function", "cat_nll"),
+        grad_clip_value=getattr(train_common, "grad_clip_value", 5.0),
+        use_amp=getattr(train_common, "use_amp", False),
+        early_stopping=getattr(train_common, "early_stopping", False),
+        patience=getattr(train_common, "patience", 10),
+        print_every=getattr(train_common, "print_every", 1),
         save_checkpoints=True,
-        # Add plotting functionality similar to regular trainer
-        plot_losses=getattr(trainer_config, "plot_losses", False),
+        plot_losses=getattr(train_common, "plot_losses", False),
         save_path=run_save_path if rank == 0 else None,
     )
 
     if rank == 0:
         logger.info("Starting FSDP training...")
         logger.info(
-            f"Plot losses enabled: {getattr(trainer_config, 'plot_losses', False)}"
+            f"Plot losses enabled: {getattr(train_common, 'plot_losses', False)}"
         )
         logger.info(f"Save path for plots: {run_save_path}")
 
@@ -498,12 +502,7 @@ def main(config_path):
 
     # Fix for Identity encoder
     if rank == 0:
-        if isinstance(encoder_network, Identity):
-            model.encoder_network = encoder_network
-        elif hasattr(encoder_network, "encoder"):
-            model.encoder_network = Identity(encoder_network.encoder.output_dim)
-        else:
-            model.encoder_network = encoder_network
+        model.encoder_network = _get_analysis_encoder_network(encoder_network)
 
     if rank == 0:
         logger.info("Training completed successfully!")

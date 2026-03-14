@@ -1,15 +1,19 @@
-"""Tests for the pretrained model splitter (PretrainedEncoder / PretrainedDecoder)."""
+"""Tests for the pretrained backbone splitter (build_split_plan API)."""
+
+from unittest.mock import patch
 
 import pytest
 import torch
 import torch.nn as nn
 
 from dendritic_modeling.networks.architectures.classical.pretrained import (
-    PretrainedDecoder,
-    PretrainedEncoder,
+    BackboneSegment,
     _extract_layers,
     _flatten_model_layers,
     _load_backbone,
+    build_encoder_decoder_from_plan,
+    build_split_plan,
+    list_backbone_layers,
 )
 from dendritic_modeling.networks.base import BaseNetwork
 
@@ -44,6 +48,21 @@ class _MiniAlexNet(nn.Module):
         x = torch.flatten(x, 1)
         x = self.classifier(x)
         return x
+
+
+class _SimpleCore(BaseNetwork):
+    """Minimal core network stand-in for testing the pipeline."""
+
+    def __init__(self, input_dim, output_dim):
+        super().__init__()
+        self.net = nn.Linear(input_dim, output_dim)
+        self.output_dim = output_dim
+
+    def forward(self, x):
+        return self.net(x)
+
+    def get_output_dim(self):
+        return self.output_dim
 
 
 # ---------------------------------------------------------------------------
@@ -133,194 +152,6 @@ class TestExtractLayers:
 
 
 # ---------------------------------------------------------------------------
-# Tests for PretrainedEncoder (using real torchvision AlexNet)
-# ---------------------------------------------------------------------------
-class TestPretrainedEncoderReal:
-    @pytest.fixture(autouse=True)
-    def skip_if_no_torchvision(self):
-        """Skip if torchvision models can't be loaded."""
-        try:
-            from torchvision.models import get_model
-
-            get_model("alexnet", weights=None)
-        except Exception:
-            pytest.skip("torchvision alexnet not available")
-
-    def test_alexnet_k1_encoder(self):
-        """K=1: features + fc6 -> 4096-dim output."""
-        enc = PretrainedEncoder(
-            backbone="alexnet",
-            weights=None,  # random init to avoid download
-            split_after="classifier.2",
-            freeze=True,
-            drop_layers=["classifier.0", "classifier.3"],
-        )
-
-        assert enc.output_dim == 4096
-        assert enc.frozen is True
-
-        # All params frozen
-        for p in enc.parameters():
-            assert not p.requires_grad
-
-        # Forward pass
-        x = torch.randn(2, 3, 224, 224)
-        out = enc(x)
-        assert out.shape == (2, 4096)
-
-    def test_alexnet_k2_encoder(self):
-        """K=2: features only -> 9216-dim output."""
-        enc = PretrainedEncoder(
-            backbone="alexnet",
-            weights=None,
-            split_after="avgpool",
-            freeze=True,
-        )
-
-        assert enc.output_dim == 9216
-
-        x = torch.randn(1, 3, 224, 224)
-        out = enc(x)
-        assert out.shape == (1, 9216)
-
-    def test_unfrozen_encoder(self):
-        """Encoder with freeze=False has trainable params."""
-        enc = PretrainedEncoder(
-            backbone="alexnet",
-            weights=None,
-            split_after="classifier.2",
-            freeze=False,
-        )
-
-        assert enc.frozen is False
-        trainable = [p for p in enc.parameters() if p.requires_grad]
-        assert len(trainable) > 0
-
-    def test_resnet18_encoder(self):
-        """ResNet18: split after avgpool -> 512-dim."""
-        try:
-            from torchvision.models import get_model
-
-            get_model("resnet18", weights=None)
-        except Exception:
-            pytest.skip("resnet18 not available")
-
-        enc = PretrainedEncoder(
-            backbone="resnet18",
-            weights=None,
-            split_after="avgpool",
-            freeze=True,
-        )
-
-        assert enc.output_dim == 512
-
-        x = torch.randn(1, 3, 224, 224)
-        out = enc(x)
-        assert out.shape == (1, 512)
-
-    def test_3d_input_adds_batch_dim(self):
-        """Single image (C, H, W) should work."""
-        enc = PretrainedEncoder(
-            backbone="alexnet",
-            weights=None,
-            split_after="classifier.2",
-            freeze=True,
-            drop_layers=["classifier.0"],
-        )
-
-        x = torch.randn(3, 224, 224)
-        out = enc(x)
-        assert out.shape == (4096,)
-
-
-# ---------------------------------------------------------------------------
-# Tests for PretrainedDecoder (using real torchvision AlexNet)
-# ---------------------------------------------------------------------------
-class TestPretrainedDecoderReal:
-    @pytest.fixture(autouse=True)
-    def skip_if_no_torchvision(self):
-        try:
-            from torchvision.models import get_model
-
-            get_model("alexnet", weights=None)
-        except Exception:
-            pytest.skip("torchvision alexnet not available")
-
-    def test_alexnet_fc8_decoder(self):
-        """fc8: Linear(4096 -> 1000)."""
-        dec = PretrainedDecoder(
-            backbone="alexnet",
-            weights=None,
-            split_from="classifier.6",
-            freeze=False,
-        )
-
-        assert dec.output_dim == 1000
-
-        x = torch.randn(2, 4096)
-        out = dec(x)
-        assert out.shape == (2, 1000)
-
-    def test_frozen_decoder(self):
-        dec = PretrainedDecoder(
-            backbone="alexnet",
-            weights=None,
-            split_from="classifier.6",
-            freeze=True,
-        )
-
-        for p in dec.parameters():
-            assert not p.requires_grad
-
-
-# ---------------------------------------------------------------------------
-# Tests for factory registration
-# ---------------------------------------------------------------------------
-class TestFactoryRegistration:
-    @pytest.fixture(autouse=True)
-    def skip_if_no_torchvision(self):
-        try:
-            from torchvision.models import get_model
-
-            get_model("alexnet", weights=None)
-        except Exception:
-            pytest.skip("torchvision alexnet not available")
-
-    def test_factory_pretrained_encoder(self):
-        from dendritic_modeling.networks.architectures.factory import get_architecture
-
-        enc = get_architecture(
-            "pretrained",
-            {
-                "backbone": "alexnet",
-                "weights": None,
-                "split_after": "classifier.2",
-                "freeze": True,
-                "drop_layers": ["classifier.0", "classifier.3"],
-            },
-        )
-
-        assert isinstance(enc, PretrainedEncoder)
-        assert enc.output_dim == 4096
-
-    def test_factory_pretrained_decoder(self):
-        from dendritic_modeling.networks.architectures.factory import get_architecture
-
-        dec = get_architecture(
-            "pretrained_decoder",
-            {
-                "backbone": "alexnet",
-                "weights": None,
-                "split_from": "classifier.6",
-                "freeze": False,
-            },
-        )
-
-        assert isinstance(dec, PretrainedDecoder)
-        assert dec.output_dim == 1000
-
-
-# ---------------------------------------------------------------------------
 # Tests for _load_backbone
 # ---------------------------------------------------------------------------
 class TestLoadBackbone:
@@ -328,7 +159,6 @@ class TestLoadBackbone:
         """weights=None creates model with random init."""
         model = _load_backbone("alexnet", weights=None)
         assert model is not None
-        # Should have the standard AlexNet structure
         assert hasattr(model, "features")
         assert hasattr(model, "classifier")
 
@@ -341,7 +171,6 @@ class TestLoadBackbone:
         loaded = _load_backbone("alexnet", weights=path)
         assert loaded is not None
 
-        # Verify weights match
         for (n1, p1), (n2, p2) in zip(
             model.named_parameters(), loaded.named_parameters()
         ):
@@ -350,9 +179,9 @@ class TestLoadBackbone:
 
 
 # ---------------------------------------------------------------------------
-# Tests for decoder input validation (ValueError on mismatch)
+# Tests for list_backbone_layers
 # ---------------------------------------------------------------------------
-class TestDecoderInputValidation:
+class TestListBackboneLayers:
     @pytest.fixture(autouse=True)
     def skip_if_no_torchvision(self):
         try:
@@ -362,59 +191,189 @@ class TestDecoderInputValidation:
         except Exception:
             pytest.skip("torchvision alexnet not available")
 
-    def test_decoder_mismatch_raises(self):
-        """input_dim that doesn't match first Linear.in_features should raise."""
-        with pytest.raises(ValueError, match="does not match"):
-            PretrainedDecoder(
-                backbone="alexnet",
+    def test_alexnet_layers(self):
+        names = list_backbone_layers("alexnet")
+        assert "features.0" in names
+        assert "avgpool" in names
+        assert "classifier.6" in names
+        assert "features" not in names
+        assert "classifier" not in names
+
+    def test_resnet18_layers(self):
+        try:
+            from torchvision.models import get_model
+
+            get_model("resnet18", weights=None)
+        except Exception:
+            pytest.skip("resnet18 not available")
+
+        names = list_backbone_layers("resnet18")
+        assert "conv1" in names
+        assert "avgpool" in names
+        assert "fc" in names
+
+
+# ---------------------------------------------------------------------------
+# Tests for build_split_plan
+# ---------------------------------------------------------------------------
+class TestBuildSplitPlan:
+    @pytest.fixture(autouse=True)
+    def skip_if_no_torchvision(self):
+        try:
+            from torchvision.models import get_model
+
+            get_model("alexnet", weights=None)
+        except Exception:
+            pytest.skip("torchvision alexnet not available")
+
+    def test_alexnet_replace_fc7(self):
+        """Replace fc7 (classifier.4 + classifier.5) in AlexNet."""
+        plan = build_split_plan(
+            "alexnet",
+            weights=None,
+            replace_start="classifier.4",
+            replace_end="classifier.5",
+            omit_layers=["classifier.0", "classifier.3"],
+        )
+
+        assert "classifier.4" in plan.replaced_names
+        assert "classifier.5" in plan.replaced_names
+        assert "classifier.6" in plan.suffix_names
+        assert plan.prefix_output_dim == 4096
+        assert plan.suffix_input_dim == 4096
+        assert plan.suffix_output_dim == 1000
+
+    def test_alexnet_replace_fc6_fc7(self):
+        """Replace fc6+fc7 (classifier.1 through classifier.5)."""
+        plan = build_split_plan(
+            "alexnet",
+            weights=None,
+            replace_start="classifier.1",
+            replace_end="classifier.5",
+        )
+
+        assert plan.prefix_output_dim == 9216
+        assert plan.suffix_output_dim == 1000
+        assert "classifier.1" in plan.replaced_names
+        assert "classifier.5" in plan.replaced_names
+
+    def test_invalid_start_layer_raises(self):
+        with pytest.raises(ValueError, match="not found"):
+            build_split_plan(
+                "alexnet",
                 weights=None,
-                split_from="classifier.6",
-                freeze=False,
-                input_dim=999,  # AlexNet fc8 expects 4096
+                replace_start="nonexistent",
+                replace_end="classifier.5",
             )
 
-    def test_decoder_correct_input_dim_ok(self):
-        """Correct input_dim should not raise."""
-        dec = PretrainedDecoder(
-            backbone="alexnet",
-            weights=None,
-            split_from="classifier.6",
-            freeze=False,
-            input_dim=4096,
-        )
-        assert dec.output_dim == 1000
+    def test_invalid_end_layer_raises(self):
+        with pytest.raises(ValueError, match="not found"):
+            build_split_plan(
+                "alexnet",
+                weights=None,
+                replace_start="classifier.4",
+                replace_end="nonexistent",
+            )
 
-    def test_decoder_none_input_dim_ok(self):
-        """input_dim=None skips validation."""
-        dec = PretrainedDecoder(
-            backbone="alexnet",
+    def test_start_after_end_raises(self):
+        with pytest.raises(ValueError, match="comes after"):
+            build_split_plan(
+                "alexnet",
+                weights=None,
+                replace_start="classifier.6",
+                replace_end="classifier.4",
+            )
+
+    def test_omit_layers_filtered(self):
+        plan = build_split_plan(
+            "alexnet",
             weights=None,
-            split_from="classifier.6",
-            freeze=False,
-            input_dim=None,
+            replace_start="classifier.4",
+            replace_end="classifier.5",
+            omit_layers=["classifier.0", "classifier.3"],
         )
-        assert dec.output_dim == 1000
+
+        assert "classifier.0" not in plan.prefix_names
+        assert "classifier.3" not in plan.prefix_names
+
+    def test_summary_string(self):
+        plan = build_split_plan(
+            "alexnet",
+            weights=None,
+            replace_start="classifier.4",
+            replace_end="classifier.5",
+        )
+        s = plan.summary()
+        assert "BackboneSplitPlan" in s
+        assert "prefix" in s
+        assert "replace" in s
+        assert "suffix" in s
 
 
 # ---------------------------------------------------------------------------
-# End-to-end smoke test: encoder -> core -> decoder forward pass
+# Tests for BackboneSegment
 # ---------------------------------------------------------------------------
-class _SimpleCore(BaseNetwork):
-    """Minimal core network stand-in for testing the pipeline."""
+class TestBackboneSegment:
+    def test_linear_segment(self):
+        """Simple linear segment with known dims."""
+        mods = [nn.Linear(32, 16), nn.ReLU(), nn.Linear(16, 10)]
+        seg = BackboneSegment(
+            mods,
+            ["fc1", "relu", "fc2"],
+            input_size=(1, 32),
+            auto_flatten=False,
+        )
 
-    def __init__(self, input_dim, output_dim):
-        super().__init__()
-        self.net = nn.Linear(input_dim, output_dim)
-        self.output_dim = output_dim
+        assert seg.output_dim == 10
 
-    def forward(self, x):
-        return self.net(x)
+        x = torch.randn(4, 32)
+        out = seg(x)
+        assert out.shape == (4, 10)
 
-    def get_output_dim(self):
-        return self.output_dim
+    def test_frozen_segment(self):
+        mods = [nn.Linear(32, 16)]
+        seg = BackboneSegment(
+            mods,
+            ["fc1"],
+            freeze=True,
+            input_size=(1, 32),
+            auto_flatten=False,
+        )
+
+        assert seg.frozen is True
+        for p in seg.parameters():
+            assert not p.requires_grad
+
+    def test_unfrozen_segment(self):
+        mods = [nn.Linear(32, 16)]
+        seg = BackboneSegment(
+            mods,
+            ["fc1"],
+            freeze=False,
+            input_size=(1, 32),
+            auto_flatten=False,
+        )
+
+        assert seg.frozen is False
+        for p in seg.parameters():
+            assert p.requires_grad
+
+    def test_is_base_network(self):
+        mods = [nn.Linear(32, 16)]
+        seg = BackboneSegment(
+            mods,
+            ["fc1"],
+            input_size=(1, 32),
+            auto_flatten=False,
+        )
+        assert isinstance(seg, BaseNetwork)
+        assert seg.get_output_dim() == 16
 
 
-class TestEndToEndPipeline:
+# ---------------------------------------------------------------------------
+# Tests for build_encoder_decoder_from_plan
+# ---------------------------------------------------------------------------
+class TestBuildEncoderDecoderFromPlan:
     @pytest.fixture(autouse=True)
     def skip_if_no_torchvision(self):
         try:
@@ -424,56 +383,66 @@ class TestEndToEndPipeline:
         except Exception:
             pytest.skip("torchvision alexnet not available")
 
-    def test_alexnet_encoder_core_decoder_forward(self):
-        """Full encoder -> core -> real PretrainedDecoder pipeline."""
-        # K=1: encoder = features + fc6, decoder = fc8 (expects 4096 input)
-        encoder = PretrainedEncoder(
-            backbone="alexnet",
+    def test_alexnet_encoder_decoder_dims(self):
+        plan = build_split_plan(
+            "alexnet",
             weights=None,
-            split_after="classifier.2",
-            freeze=True,
-            drop_layers=["classifier.0", "classifier.3"],
-        )
-        # Core output must match fc8 in_features (4096) so decoder stays intact
-        core = _SimpleCore(encoder.output_dim, 4096)
-        decoder = PretrainedDecoder(
-            backbone="alexnet",
-            weights=None,
-            split_from="classifier.6",
-            freeze=False,
-            input_dim=4096,
+            replace_start="classifier.4",
+            replace_end="classifier.5",
+            omit_layers=["classifier.0", "classifier.3"],
         )
 
-        x = torch.randn(4, 3, 224, 224)
+        encoder, decoder = build_encoder_decoder_from_plan(
+            plan,
+            prefix_freeze=True,
+            suffix_freeze=False,
+        )
+
+        assert encoder.output_dim == 4096
+        assert decoder.output_dim == 1000
+        assert encoder.frozen is True
+        assert decoder.frozen is False
+
+    def test_encoder_decoder_forward(self):
+        plan = build_split_plan(
+            "alexnet",
+            weights=None,
+            replace_start="classifier.4",
+            replace_end="classifier.5",
+            omit_layers=["classifier.0", "classifier.3"],
+        )
+
+        encoder, decoder = build_encoder_decoder_from_plan(plan)
+
+        x = torch.randn(2, 3, 224, 224)
         with torch.no_grad():
             encoded = encoder(x)
-        assert encoded.shape == (4, 4096)
+        assert encoded.shape == (2, 4096)
 
+        core = _SimpleCore(4096, 4096)
         core_out = core(encoded)
-        assert core_out.shape == (4, 4096)
-
         logits = decoder(core_out)
-        assert logits.shape == (4, 1000)
+        assert logits.shape == (2, 1000)
 
-    def test_alexnet_k2_encoder_core_decoder_forward(self):
-        """K=2 split: features only -> core -> real PretrainedDecoder."""
-        encoder = PretrainedEncoder(
-            backbone="alexnet",
+    def test_full_pipeline_with_plan(self):
+        """End-to-end: plan -> encoder -> core -> decoder."""
+        plan = build_split_plan(
+            "alexnet",
             weights=None,
-            split_after="avgpool",
-            freeze=True,
+            replace_start="classifier.1",
+            replace_end="classifier.5",
         )
+
+        encoder, decoder = build_encoder_decoder_from_plan(
+            plan,
+            prefix_freeze=True,
+            suffix_freeze=False,
+        )
+
         assert encoder.output_dim == 9216
+        assert decoder.output_dim == 1000
 
-        # Core output must match fc8 in_features (4096)
-        core = _SimpleCore(9216, 4096)
-        decoder = PretrainedDecoder(
-            backbone="alexnet",
-            weights=None,
-            split_from="classifier.6",
-            freeze=False,
-            input_dim=4096,
-        )
+        core = _SimpleCore(encoder.output_dim, plan.suffix_input_dim)
 
         x = torch.randn(2, 3, 224, 224)
         with torch.no_grad():
@@ -484,13 +453,20 @@ class TestEndToEndPipeline:
 
     def test_frozen_encoder_no_grad(self):
         """Frozen encoder should not accumulate gradients during pipeline."""
-        encoder = PretrainedEncoder(
-            backbone="alexnet",
+        plan = build_split_plan(
+            "alexnet",
             weights=None,
-            split_after="classifier.2",
-            freeze=True,
-            drop_layers=["classifier.0", "classifier.3"],
+            replace_start="classifier.4",
+            replace_end="classifier.5",
+            omit_layers=["classifier.0", "classifier.3"],
         )
+
+        encoder, decoder = build_encoder_decoder_from_plan(
+            plan,
+            prefix_freeze=True,
+            suffix_freeze=False,
+        )
+
         core = _SimpleCore(encoder.output_dim, 100)
 
         x = torch.randn(2, 3, 224, 224)
@@ -499,9 +475,340 @@ class TestEndToEndPipeline:
         loss = out.sum()
         loss.backward()
 
-        # Encoder params should have no gradient
         for p in encoder.parameters():
             assert p.grad is None
-        # Core params should have gradient
         for p in core.parameters():
             assert p.grad is not None
+
+    def test_3d_input_adds_batch_dim(self):
+        """Single image (C, H, W) should work."""
+        plan = build_split_plan(
+            "alexnet",
+            weights=None,
+            replace_start="classifier.4",
+            replace_end="classifier.5",
+            omit_layers=["classifier.0"],
+        )
+
+        encoder, _ = build_encoder_decoder_from_plan(plan, prefix_freeze=True)
+
+        x = torch.randn(3, 224, 224)
+        out = encoder(x)
+        assert out.shape == (4096,)
+
+
+# ---------------------------------------------------------------------------
+# Integration test: load_config -> initialize_model
+# ---------------------------------------------------------------------------
+class TestConfigIntegration:
+    @pytest.fixture(autouse=True)
+    def skip_if_no_torchvision(self):
+        try:
+            from torchvision.models import get_model
+
+            get_model("alexnet", weights=None)
+        except Exception:
+            pytest.skip("torchvision alexnet not available")
+
+    def test_load_config_pretrained_replacement_enabled(self, tmp_path):
+        """Loading a YAML with pretrained_replacement.enabled=true should
+        populate ModelConfig.pretrained_replacement correctly."""
+        from dendritic_modeling.config import load_config
+        from dendritic_modeling.config.training import (
+            CommonTrainerConfig,
+            ParamGroupsConfig,
+        )
+
+        yaml_content = """\
+experiment:
+  seed: 42
+  train_valid_split: 0.8
+
+data:
+  dataset_name: "imagenet"
+  base_dir: "/tmp/fake"
+  processing:
+    flatten: false
+    normalize: true
+
+model:
+  task: "classification"
+  pretrained_replacement:
+    enabled: true
+    backbone: "alexnet"
+    weights: null
+    input_shape: [3, 224, 224]
+    replace:
+      start: "classifier.4"
+      end: "classifier.5"
+    omit_layers: ["classifier.0", "classifier.3"]
+    trainability:
+      encoder:
+        mode: "frozen"
+      decoder:
+        mode: "trainable"
+
+  core:
+    type: "einet"
+    architecture:
+      excitatory_layer_sizes: [4096]
+      inhibitory_layer_sizes: [820]
+      excitatory_branch_factors: [2, 2]
+      inhibitory_branch_factors: [2, 2]
+    connectivity:
+      ee_synapses_per_branch_per_layer: [40]
+      ei_synapses_per_branch_per_layer: [10]
+      ie_synapses_per_branch_per_layer: [10]
+      ii_synapses_per_branch_per_layer: [0]
+
+training:
+  encoder:
+    strategy: "standard"
+    common:
+      lr: 0.0
+      epochs: 0
+      batch_size: 64
+  main:
+    strategy: "standard"
+    common:
+      epochs: 1
+      batch_size: 64
+      loss_function: "cat_nll"
+      param_groups:
+        lr: 0.001
+        split_params: true
+        encoder_lr: 0.0
+
+outputs:
+  run_name: "test_integration"
+  results_dir: "/tmp/test_outputs"
+"""
+        config_path = tmp_path / "test_config.yaml"
+        config_path.write_text(yaml_content)
+
+        config = load_config(str(config_path))
+        mc = config.model
+
+        # pretrained_replacement should be enabled
+        assert mc.pretrained_replacement.enabled is True
+        assert mc.pretrained_replacement.backbone == "alexnet"
+        assert mc.pretrained_replacement.replace.start == "classifier.4"
+        assert mc.pretrained_replacement.replace.end == "classifier.5"
+        assert "classifier.0" in mc.pretrained_replacement.omit_layers
+        assert isinstance(config.training.main.common, CommonTrainerConfig)
+        assert isinstance(config.training.encoder.common, CommonTrainerConfig)
+        assert isinstance(config.training.main.common.param_groups, ParamGroupsConfig)
+
+    def test_initialize_model_from_pretrained_replacement(self, tmp_path):
+        """initialize_model should produce BackboneSegment encoder/decoder
+        when pretrained_replacement is enabled."""
+        from dendritic_modeling.config import load_config
+        from dendritic_modeling.scripts.script_utils.setup_utils import initialize_model
+
+        yaml_content = """\
+experiment:
+  seed: 42
+  train_valid_split: 0.8
+
+data:
+  dataset_name: "imagenet"
+  base_dir: "/tmp/fake"
+  processing:
+    flatten: false
+    normalize: true
+
+model:
+  task: "classification"
+  pretrained_replacement:
+    enabled: true
+    backbone: "alexnet"
+    weights: null
+    input_shape: [3, 224, 224]
+    replace:
+      start: "classifier.4"
+      end: "classifier.5"
+    omit_layers: ["classifier.0", "classifier.3"]
+    trainability:
+      encoder:
+        mode: "frozen"
+      decoder:
+        mode: "trainable"
+
+  core:
+    type: "einet"
+    architecture:
+      excitatory_layer_sizes: [4096]
+      inhibitory_layer_sizes: [820]
+      excitatory_branch_factors: [2, 2]
+      inhibitory_branch_factors: [2, 2]
+    connectivity:
+      ee_synapses_per_branch_per_layer: [40]
+      ei_synapses_per_branch_per_layer: [10]
+      ie_synapses_per_branch_per_layer: [10]
+      ii_synapses_per_branch_per_layer: [0]
+
+training:
+  encoder:
+    strategy: "standard"
+    common:
+      lr: 0.0
+      epochs: 0
+      batch_size: 64
+  main:
+    strategy: "standard"
+    common:
+      epochs: 1
+      batch_size: 64
+      loss_function: "cat_nll"
+      param_groups:
+        lr: 0.001
+        split_params: true
+        encoder_lr: 0.0
+
+outputs:
+  run_name: "test_integration"
+  results_dir: "/tmp/test_outputs"
+"""
+        config_path = tmp_path / "test_config.yaml"
+        config_path.write_text(yaml_content)
+
+        config = load_config(str(config_path))
+        model, encoder_network = initialize_model(config.model)
+
+        # Encoder and decoder should be BackboneSegment instances
+        assert isinstance(model.encoder_network, BackboneSegment)
+        assert isinstance(model.decoder_network, BackboneSegment)
+        assert isinstance(encoder_network, BackboneSegment)
+
+        # Dims should match the split plan
+        assert model.encoder_network.output_dim == 4096
+        assert model.decoder_network.output_dim == 1000
+
+        # Core input/output dims should be consistent
+        assert model.core_network.output_dim == 4096
+
+        # Forward pass should work
+        x = torch.randn(2, 3, 224, 224)
+        with torch.no_grad():
+            out = model(x)
+        assert out.shape == (2, 1000)
+
+    def test_initialize_model_warns_for_ignored_legacy_sections(self, tmp_path):
+        """Legacy encoder/decoder config should warn when replacement is enabled."""
+        from dendritic_modeling.config import load_config
+        from dendritic_modeling.scripts.script_utils.setup_utils import initialize_model
+
+        yaml_content = """\
+experiment:
+  seed: 42
+
+data:
+  dataset_name: "imagenet"
+  base_dir: "/tmp/fake"
+  processing:
+    flatten: false
+
+model:
+  task: "classification"
+  encoder:
+    type: "pathway_router"
+  decoder:
+    type: "identity"
+  pretrained_replacement:
+    enabled: true
+    backbone: "alexnet"
+    weights: null
+    input_shape: [3, 224, 224]
+    replace:
+      start: "classifier.4"
+      end: "classifier.5"
+    omit_layers: ["classifier.0", "classifier.3"]
+  core:
+    type: "einet"
+    architecture:
+      excitatory_layer_sizes: [4096]
+      inhibitory_layer_sizes: [820]
+      excitatory_branch_factors: [2, 2]
+      inhibitory_branch_factors: [2, 2]
+    connectivity:
+      ee_synapses_per_branch_per_layer: [40]
+      ei_synapses_per_branch_per_layer: [10]
+      ie_synapses_per_branch_per_layer: [10]
+      ii_synapses_per_branch_per_layer: [0]
+"""
+        config_path = tmp_path / "warn_config.yaml"
+        config_path.write_text(yaml_content)
+
+        config = load_config(str(config_path))
+
+        with patch(
+            "dendritic_modeling.scripts.script_utils.setup_utils.logger.warning"
+        ) as warn_mock:
+            initialize_model(config.model)
+
+        warn_mock.assert_called_once()
+        assert "ignored because model.pretrained_replacement.enabled=true" in (
+            warn_mock.call_args.args[0]
+        )
+        assert "model.encoder, model.decoder" in warn_mock.call_args.args[1]
+
+    def test_fsdp_create_large_model_from_pretrained_replacement(self, tmp_path):
+        """FSDP model creation should honor pretrained_replacement configs."""
+        from dendritic_modeling.config import load_config
+        from dendritic_modeling.scripts.training.train_experiments_fsdp import (
+            create_large_model,
+        )
+
+        yaml_content = """\
+experiment:
+  seed: 42
+
+data:
+  dataset_name: "imagenet"
+  base_dir: "/tmp/fake"
+  processing:
+    flatten: false
+
+model:
+  task: "classification"
+  pretrained_replacement:
+    enabled: true
+    backbone: "alexnet"
+    weights: null
+    input_shape: [3, 224, 224]
+    replace:
+      start: "classifier.4"
+      end: "classifier.5"
+    omit_layers: ["classifier.0", "classifier.3"]
+    trainability:
+      encoder:
+        mode: "frozen"
+      decoder:
+        mode: "trainable"
+  core:
+    type: "einet"
+    architecture:
+      excitatory_layer_sizes: [4096]
+      inhibitory_layer_sizes: [820]
+      excitatory_branch_factors: [2, 2]
+      inhibitory_branch_factors: [2, 2]
+    connectivity:
+      ee_synapses_per_branch_per_layer: [40]
+      ei_synapses_per_branch_per_layer: [10]
+      ie_synapses_per_branch_per_layer: [10]
+      ii_synapses_per_branch_per_layer: [0]
+
+training:
+  main:
+    common:
+      param_groups:
+        lr: 0.001
+"""
+        config_path = tmp_path / "fsdp_config.yaml"
+        config_path.write_text(yaml_content)
+
+        config = load_config(str(config_path))
+        model = create_large_model(config)
+
+        assert isinstance(model.encoder_network, BackboneSegment)
+        assert isinstance(model.decoder_network, BackboneSegment)

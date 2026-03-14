@@ -26,12 +26,17 @@ from dendritic_modeling.config.model import (
     ImplementationConfig,
     ModelConfig,
     MorphologyConfig,
+    PretrainedReplacementConfig,
     ReactivationConfig,
+    ReplacementRegionConfig,
+    SegmentTrainabilityConfig,
     SparsityConfig,
+    TrainabilityConfig,
     TransferFunctionConfig,
 )
 from dendritic_modeling.config.recurrent import RecurrentConfig
 from dendritic_modeling.config.training import (
+    CommonTrainerConfig,
     EncoderTrainingConfig,
     FiveFactorConfig,
     FourFactorConfig,
@@ -40,6 +45,8 @@ from dendritic_modeling.config.training import (
     LocalRuleConfig,
     MainTrainingConfig,
     MorphologyAwareConfig,
+    OptimizerConfig,
+    ParamGroupsConfig,
     ThreeFactorConfig,
     TrainingConfig,
 )
@@ -243,11 +250,88 @@ def _build_core_config(core_data: Any) -> CoreConfig:
     )
 
 
+def _build_pretrained_replacement_config(
+    pr_data: Any,
+) -> PretrainedReplacementConfig:
+    """Build a typed PretrainedReplacementConfig from dict/OmegaConf."""
+    pr_dict = _to_plain_dict(pr_data)
+    replace_dict = _to_plain_dict(pr_dict.get("replace", {}))
+    train_dict = _to_plain_dict(pr_dict.get("trainability", {}))
+
+    encoder_dict = _to_plain_dict(train_dict.get("encoder", {}))
+    decoder_dict = _to_plain_dict(train_dict.get("decoder", {}))
+    trainability = TrainabilityConfig(
+        encoder=SegmentTrainabilityConfig(
+            mode=str(encoder_dict.get("mode", "frozen")),
+        ),
+        decoder=SegmentTrainabilityConfig(
+            mode=str(decoder_dict.get("mode", "trainable")),
+        ),
+    )
+
+    return PretrainedReplacementConfig(
+        enabled=bool(pr_dict.get("enabled", False)),
+        backbone=str(pr_dict.get("backbone", "alexnet")),
+        weights=pr_dict.get("weights", "IMAGENET1K_V1"),
+        input_shape=list(pr_dict.get("input_shape", [3, 224, 224])),
+        replace=ReplacementRegionConfig(
+            start=str(replace_dict.get("start", "")),
+            end=str(replace_dict.get("end", "")),
+        ),
+        omit_layers=list(pr_dict.get("omit_layers", [])),
+        trainability=trainability,
+    )
+
+
+def _build_param_groups_config(param_groups_data: Any) -> ParamGroupsConfig:
+    """Build a typed ParamGroupsConfig from dict/OmegaConf payload."""
+    param_groups_dict = _to_plain_dict(param_groups_data)
+    return ParamGroupsConfig(**param_groups_dict)
+
+
+def _build_common_trainer_config(common_data: Any) -> CommonTrainerConfig:
+    """Build a typed CommonTrainerConfig with typed param groups."""
+    common_dict = _to_plain_dict(common_data)
+    param_group_keys = set(ParamGroupsConfig.__dataclass_fields__.keys())
+    param_groups_dict = _to_plain_dict(common_dict.get("param_groups", {}))
+
+    # Backward compatibility: historical configs sometimes put LR knobs
+    # directly under `training.*.common` instead of under `param_groups`.
+    for key in list(common_dict.keys()):
+        if key in param_group_keys:
+            param_groups_dict.setdefault(key, common_dict.pop(key))
+
+    common_dict["param_groups"] = _build_param_groups_config(param_groups_dict)
+    return CommonTrainerConfig(**common_dict)
+
+
+def _build_encoder_training_config(encoder_data: Any) -> EncoderTrainingConfig:
+    """Build a typed EncoderTrainingConfig with typed common config."""
+    encoder_dict = _to_plain_dict(encoder_data)
+    encoder_dict["common"] = _build_common_trainer_config(
+        encoder_dict.get("common", {})
+    )
+    return EncoderTrainingConfig(**encoder_dict)
+
+
+def _build_main_training_config(main_data: Any) -> MainTrainingConfig:
+    """Build a typed MainTrainingConfig with typed common/optimizer config."""
+    main_dict = _to_plain_dict(main_data)
+    main_dict["common"] = _build_common_trainer_config(main_dict.get("common", {}))
+    optimizer_data = main_dict.get("optimizer")
+    if optimizer_data is not None and not isinstance(optimizer_data, OptimizerConfig):
+        main_dict["optimizer"] = OptimizerConfig(**_to_plain_dict(optimizer_data))
+    return MainTrainingConfig(**main_dict)
+
+
 def _build_model_config(model_data: Any) -> ModelConfig:
     """Build a typed ModelConfig from possibly nested dict/OmegaConf payload."""
     model_dict = _to_plain_dict(model_data)
     encoder_dict = _to_plain_dict(model_dict.get("encoder", {}))
     decoder_dict = _to_plain_dict(model_dict.get("decoder", {}))
+
+    pr_data = model_dict.get("pretrained_replacement", {})
+    pr_config = _build_pretrained_replacement_config(pr_data)
 
     return ModelConfig(
         task=str(model_dict.get("task", "classification")),
@@ -267,6 +351,7 @@ def _build_model_config(model_data: Any) -> ModelConfig:
                 **_to_plain_dict(decoder_dict.get("params", {}))
             ),
         ),
+        pretrained_replacement=pr_config,
     )
 
 
@@ -321,8 +406,10 @@ def load_config(path: Optional[str] = None) -> Config:
         mapped_training = _map_training_config(training_data)
 
         # Explicitly construct nested training configs
-        encoder_config = EncoderTrainingConfig(**mapped_training.get("encoder", {}))
-        main_config = MainTrainingConfig(**mapped_training.get("main", {}))
+        encoder_config = _build_encoder_training_config(
+            mapped_training.get("encoder", {})
+        )
+        main_config = _build_main_training_config(mapped_training.get("main", {}))
         training_config = TrainingConfig(encoder=encoder_config, main=main_config)
 
         return Config(
