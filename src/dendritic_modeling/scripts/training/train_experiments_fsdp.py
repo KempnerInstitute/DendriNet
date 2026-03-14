@@ -44,7 +44,11 @@ from dendritic_modeling.datasets import get_unified_datasets
 from dendritic_modeling.models import Classifier, Regressor
 from dendritic_modeling.networks import Identity
 from dendritic_modeling.networks.architectures.factory import get_architecture
-from dendritic_modeling.scripts.script_utils.setup_utils import initialize_model
+from dendritic_modeling.scripts.script_utils.setup_utils import (
+    _config_to_plain_dict,
+    _get_dataset_specific_params,
+    initialize_model,
+)
 from dendritic_modeling.scripts.training.train_encoder_network import (
     load_train_encoder_network,
 )
@@ -294,10 +298,27 @@ def _get_analysis_encoder_network(encoder_network):
 
 def setup_data_loaders(config, rank, world_size):
     """Setup distributed data loaders."""
-    # Get datasets — task_cfg is actually the DataConfig section
-    train_ds, valid_ds, test_ds = get_unified_datasets(
-        task_cfg=config.data,
-    )
+    data_config = config.data
+    base_dir = data_config.base_dir or ""
+    dataset_specific_params = _get_dataset_specific_params(data_config)
+    processing_params = _config_to_plain_dict(getattr(data_config, "processing", None))
+
+    task_cfg = type(
+        "TaskConfig",
+        (),
+        {
+            "dataset": data_config.dataset_name,
+            "data_path": base_dir or None,
+            "train_valid_split": config.experiment.train_valid_split,
+            "parameters": {
+                **processing_params,
+                **dataset_specific_params,
+                "label_noise_seed": config.experiment.seed,
+            },
+        },
+    )()
+
+    train_ds, valid_ds, test_ds = get_unified_datasets(task_cfg=task_cfg)
 
     # Create distributed samplers
     train_sampler = DistributedSampler(
@@ -426,7 +447,7 @@ def main(config_path):
         # Fall back to default method
         logger.info("Using default FSDP configuration")
         fsdp_config = get_fsdp_config(
-            mixed_precision=getattr(train_common, "use_mixed_precision", False),
+            mixed_precision=getattr(train_common, "use_amp", False),
             cpu_offload=getattr(train_common, "cpu_offload", False),
             sharding_strategy="FULL_SHARD",
         )
