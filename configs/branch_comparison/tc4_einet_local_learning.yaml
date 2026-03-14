@@ -92,29 +92,29 @@ training:
         blocklinear_lr: 0.0001
         reactivation_lr: 0.0001
         decoder_lr: 0.001
-      learning_strategy_config:
-        rule_variant: 5f
-        error_mode: auto
-        error_broadcast_mode: per_soma
-        decoder_update_mode: local
-        update_reactivation: true
-        update_inactive_weights: false
-        normalize_by_batch: true
-        clip_grad_value: 5.0
-        three_factor:
-          use_conductance_scaling: true
-          use_driving_force: true
-          theta: 0.0
-          e_rev_exc: 1.0
-          e_rev_inh: 0.0
-        four_factor:
-          rho_mode: dot
-          rho_estimator: ema
-          ema_alpha: 0.1
-        five_factor:
-          phi_mode: conditional
-          phi_estimator: conditional_ema
-          phi_ridge_lambda: 0.001
+    learning_strategy_config:
+      rule_variant: 5f
+      error_mode: auto
+      error_broadcast_mode: per_soma
+      decoder_update_mode: local
+      update_reactivation: true
+      update_inactive_weights: false
+      normalize_by_batch: true
+      clip_grad_value: 5.0
+      three_factor:
+        use_conductance_scaling: true
+        use_driving_force: true
+        theta: 0.0
+        e_rev_exc: 1.0
+        e_rev_inh: 0.0
+      four_factor:
+        rho_mode: dot
+        rho_estimator: ema
+        ema_alpha: 0.1
+      five_factor:
+        phi_mode: conditional
+        phi_estimator: conditional_ema
+        phi_ridge_lambda: 0.001
 analysis:
   performance_analysis:
     enabled: true

@@ -1,0 +1,307 @@
+# ============================================================================
+# AlexNet K=1: Replace fc7 with a dendritic EI layer
+# ============================================================================
+#
+# This config replaces ONE fully-connected layer (fc7) inside a pretrained
+# AlexNet with a dendritic excitatory-inhibitory (EI) network, while keeping
+# the convolutional backbone and the final classifier layer from ImageNet.
+#
+# AlexNet layer map (use `list_backbone_layers("alexnet")` to regenerate):
+#
+#   Layer name          Module              Notes
+#   ─────────────────── ─────────────────── ──────────────────────────────
+#   features.0          Conv2d(3→64)        \
+#   features.1          ReLU                 |
+#   features.2          MaxPool2d            |
+#   features.3          Conv2d(64→192)       |  Convolutional backbone
+#   features.4          ReLU                 |  (all frozen in this config)
+#   features.5          MaxPool2d            |
+#   features.6          Conv2d(192→384)      |
+#   features.7          ReLU                 |
+#   features.8          Conv2d(384→256)      |
+#   features.9          ReLU                 |
+#   features.10         Conv2d(256→256)      |
+#   features.11         ReLU                 |
+#   features.12         MaxPool2d           /
+#   avgpool             AdaptiveAvgPool2d   → 256×6×6 = 9216-dim (flattened)
+#   classifier.0        Dropout             omitted (not needed at eval)
+#   classifier.1        Linear(9216→4096)   fc6 — frozen prefix
+#   classifier.2        ReLU                fc6 activation — frozen prefix
+#   classifier.3        Dropout             omitted (not needed at eval)
+#   classifier.4        Linear(4096→4096)   fc7 — REPLACED by EINet core
+#   classifier.5        ReLU                fc7 activation — REPLACED
+#   classifier.6        Linear(4096→1000)   fc8 — trainable suffix (decoder)
+#
+# Pipeline after splitting:
+#   prefix (encoder)  = features.* + avgpool + fc6 + ReLU    → 4096-dim, frozen
+#   core (EINet)      = replaces fc7 + ReLU                  → 4096-dim, trainable
+#   suffix (decoder)  = fc8                                  → 1000 classes, trainable
+#
+# Learning rates:
+#   - encoder (prefix): encoder_lr = 0.0 (frozen, no gradients)
+#   - core EINet:       lr / topk_lr / blocklinear_lr / reactivation_lr
+#   - decoder (suffix): decoder_lr = 0.01
+#
+# Run:
+#   PYTHONPATH=src:$PYTHONPATH python \
+#     src/dendritic_modeling/scripts/training/train_experiments.py \
+#     configs/vision/alexnet_k1_einet.yaml
+# ============================================================================
+
+experiment:
+  seed: 42
+  train_valid_split: 0.8
+  enable_amp: false
+  enable_profiling: false
+  profiling_output_dir: "results/profiling/"
+  enable_hooks: false
+  checkpointing:
+    enabled: true
+    save_every_n_epochs: 25
+    checkpoint_dir: "results/checkpoints/"
+
+data:
+  dataset_name: "imagenet"
+  base_dir: "/n/holylfs06/LABS/kempner_shared/Everyone/testbed/vision/imagenet_1k"
+  processing:
+    flatten: false
+    normalize: true
+  dataset_params: {}
+
+model:
+  task: "classification"
+
+  # --- Pretrained replacement config ---
+  # When enabled, this replaces model.encoder / model.decoder entirely.
+  # The backbone is loaded once and split at the layer boundaries below.
+  pretrained_replacement:
+    enabled: true
+    backbone: "alexnet"                            # torchvision model name
+    weights: "IMAGENET1K_V1"                       # pretrained weights (null = random)
+    input_shape: [3, 224, 224]                     # expected input tensor shape
+
+    # Which layers to replace with the EINet core (inclusive range).
+    replace:
+      start: "classifier.4"                        # fc7 Linear(4096 → 4096)
+      end: "classifier.5"                          # fc7 ReLU
+
+    # Layers to drop entirely (e.g. Dropout — not useful during training
+    # with EI networks that have their own regularization).
+    omit_layers: ["classifier.0", "classifier.3"]
+
+    # Freeze/train policy for encoder and decoder segments.
+    # LRs are set in training.main.common.param_groups below.
+    trainability:
+      encoder:
+        mode: "frozen"                             # freeze conv backbone + fc6
+      decoder:
+        mode: "frozen"                             # keep pretrained fc8 frozen
+
+  # --- Core network: EINet replacing fc7 ---
+  # Input: 4096-dim (from prefix output)
+  # Output: 4096-dim (must match suffix first Linear in_features)
+  core:
+    type: "einet"
+
+    architecture:
+      excitatory_layer_sizes: [4096]               # match fc8 input dim
+      inhibitory_layer_sizes: [820]                # ~20% of excitatory
+      excitatory_branch_factors: [2, 2]
+      inhibitory_branch_factors: [2, 2]
+      inhibitory_network_type: "dendritic"
+      mlp_inhibitory_network_params:
+        hidden_dims: []
+        activation: "relu"
+
+    connectivity:
+      ee_synapses_per_branch_per_layer: [40]
+      ei_synapses_per_branch_per_layer: [10]
+      ie_synapses_per_branch_per_layer: [10]
+      ii_synapses_per_branch_per_layer: [0]
+
+    transfer:
+      input_mode: 0
+      independent_pathways: false
+      excitatory_dim: null
+      inhibitory_dim: null
+      output_activation: null
+
+    morphology:
+      somatic_synapses: false
+      use_shunting: true
+      weight_transform: "softplus"
+      dbl_init_method: "analytical_expectation"
+
+    sparsity:
+      init_method: "xavier_normal"
+      noise_level: 0.0
+      type: "standard"
+      weight_norm_order: null
+      gamma: 1.0
+      temperature: 0.0
+      gradient_scaling: "none"
+      deepst:
+        excitatory_target_density: 0.1
+        inhibitory_target_density: 0.1
+        use_noise: true
+        sigma: 0.05
+        rewiring_mode: "global"
+        rewire_frequency: 1
+        synapses_per_branch: null
+        freeze_excitatory_connectivity: false
+        freeze_inhibitory_connectivity: false
+        init_method: "xavier_normal"
+        weight_threshold: 1.0e-6
+
+    reactivation:
+      enabled: true
+      type: "param_tanh"
+      init_m: 1.5
+      init_b: 0.5
+      gradient_scaling: "none"
+
+    blocklinear:
+      gradient_scaling: "none"
+      efficient: false
+
+    implementation:
+      adaptive_initialization: false
+      print_hooks: false
+
+training:
+  encoder:
+    strategy: "standard"
+    common:
+      lr: 0.0
+      loss_function: "log_mse"
+      epochs: 0                                    # no encoder pretraining
+      early_stopping: false
+      patience: 100
+      batch_size: 256
+      shuffle: false
+      grad_clip_value: 5.0
+      load_best_state_dict: false
+      plot_losses: false
+      suppress_prints: false
+      print_every: 1
+      use_amp: false
+      enable_nan_checking: false
+      enable_adaptive_clipping: false
+
+  main:
+    strategy: "standard"
+    common:
+      epochs: 200
+      batch_size: 128
+      shuffle: true
+      grad_clip_value: 5.0
+      loss_function: "cat_nll"
+      early_stopping: true
+      patience: 50
+      load_best_state_dict: true
+      save_path: null
+      plot_losses: true
+      suppress_prints: false
+      print_every: 10
+      use_amp: false
+      enable_nan_checking: false
+      enable_adaptive_clipping: false
+      weight_decay_rate: 0.0
+      weight_boosting: false
+      param_groups:
+        lr: 0.001                                  # core EINet default LR
+        split_params: true
+        topk_lr: 0.001
+        blocklinear_lr: 0.0001
+        reactivation_lr: 0.0001
+        decoder_lr: 0.01                           # suffix (fc8) LR
+        encoder_lr: 0.0                            # prefix frozen, no updates
+
+    regularization:
+      l1_weight: 0.0
+      l2_weight: 0.0
+      selective:
+        layers: []
+        branches: []
+        weight_types: ["all"]
+      split_params: false
+      param_group_weights:
+        topk: { l1_weight: 0.0, l2_weight: 0.0 }
+        blocklinear: { l1_weight: 0.0, l2_weight: 0.0 }
+        reactivation: { l1_weight: 0.0, l2_weight: 0.0 }
+        decoder: { l1_weight: 0.0, l2_weight: 0.0 }
+      enforce_ei_weight_ratio: false
+      target_ei_weight_ratio: 0.5
+      ei_ratio_loss_weight: 0.5
+      ei_ratio_scope: "per_branch"
+      ei_ratio_metric: "mean"
+
+    pruning:
+      enabled: false
+      threshold: 2
+      selective:
+        layers: []
+        branches: []
+        weight_types: ["excitatory", "inhibitory"]
+      re_evaluate_after: false
+      dynamic_pruning: false
+      pruning_frequency: 10
+      report_non_pruned: true
+      save_pruning_stats: false
+      detailed_branch_report: true
+      redo_analysis_after_pruning: false
+
+    strategies:
+      standard: {}
+
+analysis:
+  performance_analysis:
+    enabled: true
+    training: true
+    params:
+      accuracy: true
+      auc: true
+      categorical_loglikelihood: true
+      mse: false
+      cosine_similarity: false
+  information_analysis: { enabled: false, training: false, params: {} }
+  correlation_analysis: { enabled: false, training: false, params: {} }
+  ablation_analysis: { enabled: false, training: false, params: {} }
+  synapse_turnover_analysis: { enabled: false, training: false, params: {} }
+  noise_perturbation_analysis: { enabled: false, training: false, params: {} }
+  weight_analysis: { enabled: false, training: false, params: {} }
+  single_layer_contribution: { enabled: false, training: false, params: {} }
+  synaptic_activation_analysis: { enabled: false, training: false, params: {} }
+  branch_activation_analysis: { enabled: false, training: false, params: {} }
+  compartment_statistics_analysis: { enabled: false, training: false, params: {} }
+  compartment_snr_analysis: { enabled: false, training: false, params: {} }
+
+wandb:
+  use_wandb: false
+  entity: ""
+  project: "dendritic-sweeps"
+  group: "alexnet_fc_replacement"
+  tags: ["alexnet", "k1", "einet", "imagenet"]
+  enabled: true
+  log_freq: 10
+  log_gradients: false
+  log_parameters: false
+  log_activations: false
+
+outputs:
+  run_name: "alexnet_k1_einet_frozen_dec"
+  results_dir: "outputs"
+
+fsdp:
+  use_fsdp: false
+  sharding_strategy: "FULL_SHARD"
+  mixed_precision: true
+  cpu_offload: false
+  min_num_params: 1000000
+  reduce_communication_overhead: true
+  limit_all_gathers: true
+  forward_prefetch: true
+  sync_module_states: true
+  use_orig_params: true
+  backward_prefetch: "BACKWARD_PRE"
+  gradient_checkpointing: false

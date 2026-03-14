@@ -214,7 +214,7 @@ training:
         topk_lr: 0.001
         blocklinear_lr: 0.0001
         reactivation_lr: 0.0001
-        decoder_lr: 0.01                           # suffix (fc8) LR
+        decoder_lr: 0.0001                         # suffix (fc8) LR — low to preserve pretrained weights
         encoder_lr: 0.0                            # prefix frozen, no updates
 
     regularization:

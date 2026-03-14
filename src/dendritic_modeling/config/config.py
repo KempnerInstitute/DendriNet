@@ -6,6 +6,7 @@ This module defines the configuration dataclasses for the model, training, task,
 It loads and saves configurations using OmegaConf.
 """
 
+import logging
 from dataclasses import dataclass, field, fields
 from functools import lru_cache
 from typing import Any, Optional
@@ -50,6 +51,8 @@ from dendritic_modeling.config.training import (
     ThreeFactorConfig,
     TrainingConfig,
 )
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -510,6 +513,19 @@ def _map_training_config(training_data: dict) -> dict:
     # Handle nested learning_strategy_config and optimizer in main config
     if "main" in mapped and isinstance(mapped["main"], dict):
         main_data = dict(mapped["main"])
+
+        # Backward compatibility: hoist learning_strategy_config from common
+        # to main if it was placed there by legacy configs.
+        if "common" in main_data and isinstance(main_data["common"], dict):
+            common = main_data["common"]
+            if "learning_strategy_config" in common:
+                main_data.setdefault(
+                    "learning_strategy_config", common.pop("learning_strategy_config")
+                )
+                logger.warning(
+                    "learning_strategy_config found under training.main.common — "
+                    "hoisting to training.main. Please update your config."
+                )
 
         # Build learning_strategy_config if present
         if (
