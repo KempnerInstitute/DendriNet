@@ -175,7 +175,7 @@ training:
         topk_lr: 0.001
         blocklinear_lr: 0.0001
         reactivation_lr: 0.0001
-        decoder_lr: 0.01
+        decoder_lr: 0.0001
         encoder_lr: 0.0
 
     regularization:

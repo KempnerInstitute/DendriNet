@@ -43,6 +43,8 @@ class CommonTrainerConfig(BaseConfig):
     suppress_prints: bool = False
     print_every: int = 10
     use_amp: bool = False
+    lr_schedule: str = "none"
+    lr_warmup_epochs: int = 0
     enable_nan_checking: bool = False
     enable_adaptive_clipping: bool = False
     weight_decay_rate: float = 0.01
