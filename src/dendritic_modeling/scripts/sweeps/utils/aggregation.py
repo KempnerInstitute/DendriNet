@@ -189,6 +189,7 @@ def extract_network_category(data: pd.DataFrame) -> pd.DataFrame:
         "flat_shunting",
         "flat_additive",
         "dendritic_mlp",
+        "flat_mlp",
         "point_mlp",
         "ss_mlp",
         "ss_mlp_flat",
@@ -196,10 +197,6 @@ def extract_network_category(data: pd.DataFrame) -> pd.DataFrame:
         "active_param_mlp",
     ]:
         result.loc[nt.eq(name), "network_category"] = name
-
-    # ---- MR-style network_type values that differ from category names ----
-    result.loc[nt.eq("matchedtotalparammlp"), "network_category"] = "total_param_mlp"
-    result.loc[nt.eq("matchedactiveparammlp"), "network_category"] = "active_param_mlp"
 
     # ---- Legacy: network_type == "einet"/"einetwork", decide by use_shunting ----
     einet_mask = nt.isin(["einet", "einetwork"])

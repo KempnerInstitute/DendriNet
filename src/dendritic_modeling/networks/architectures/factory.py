@@ -39,6 +39,7 @@ _EINET_TYPES: set[str] = {
     "dendritic_mlp",
     "flat_shunting",
     "flat_additive",
+    "flat_mlp",
 }
 
 _UNIFIED_EI_TYPES: set[str] = {

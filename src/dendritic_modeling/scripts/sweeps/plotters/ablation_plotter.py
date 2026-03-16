@@ -60,34 +60,16 @@ class AblationPlotter(BasePlotter):
             print("No ablation columns found")
             return plot_paths
 
-        # Extract methods, targets, metrics, depths from column structure
-        # Column pattern: ablation_{method}_{target}_{metric}_depth{X}_mean
-        methods = []
-        targets = []
-        metrics = []
-        depths = []
+        # Extract methods, targets, metrics, depths using the canonical parser.
+        # This correctly handles multi-word methods (mean_clamp) and
+        # multi-word metrics (categorical_loglikelihood_drop, pred_label_mi_bits_drop).
+        from dendritic_modeling.scripts.sweeps.utils.ablation_columns import (
+            discover_ablation_dimensions,
+        )
 
-        for col in ablation_cols:
-            if "_depth" in col and col.endswith("_mean"):
-                parts = col.split("_")
-                if len(parts) >= 5:
-                    method = parts[1]
-                    target = parts[2]
-                    metric = parts[3]
-                    depth_part = parts[4]
-                    if depth_part.startswith("depth"):
-                        try:
-                            depth = int(depth_part.replace("depth", ""))
-                            if method not in methods:
-                                methods.append(method)
-                            if target not in targets:
-                                targets.append(target)
-                            if metric not in metrics:
-                                metrics.append(metric)
-                            if depth not in depths:
-                                depths.append(depth)
-                        except ValueError:
-                            continue
+        methods, targets, metrics, depths = discover_ablation_dimensions(
+            list(valid_data.columns)
+        )
 
         if (
             not valid_data["network_category"]

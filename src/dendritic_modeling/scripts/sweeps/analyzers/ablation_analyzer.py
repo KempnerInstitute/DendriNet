@@ -102,46 +102,32 @@ class AblationSweepAnalyzer(BaseSweepAnalyzer):
         """Plot contribution of each layer when ablated."""
         plot_paths = []
 
-        # Find layer ablation columns by depth
-        layer_cols = [
-            col
-            for col in data.columns
-            if "ablation_" in col and "_depth" in col and col.endswith("_mean")
-        ]
+        # Find layer ablation columns using the canonical parser
+        from dendritic_modeling.scripts.sweeps.utils.ablation_columns import (
+            discover_ablation_dimensions,
+            find_ablation_columns,
+        )
 
-        if not layer_cols:
+        parsed_cols = find_ablation_columns(list(data.columns), stat="mean")
+        if not parsed_cols:
             return plot_paths
 
-        # Extract depths and ablation types
-        depths = set()
-        ablation_types = set()
-
-        for col in layer_cols:
-            try:
-                # Parse column name: ablation_{type}_{metric}_depth{N}_mean
-                parts = col.split("_")
-                if "depth" in col:
-                    depth_part = next((p for p in parts if p.startswith("depth")), None)
-                    if depth_part:
-                        depth = int(depth_part.replace("depth", ""))
-                    depths.add(depth)
-
-                # Extract ablation type (e.g., "all_synapses", "excitation", "inhibition")
-                ablation_type = parts[1] if len(parts) > 1 else "unknown"
-                ablation_types.add(ablation_type)
-            except (ValueError, IndexError):
-                pass
-
-        depths = sorted(depths)
+        _methods, _targets, _metrics, depths = discover_ablation_dimensions(
+            list(data.columns)
+        )
 
         if not depths:
             return plot_paths
+
+        # Build method_target labels for backward-compatible plotting
+        ablation_types = sorted({f"{p.method}_{p.target}" for p in parsed_cols})
+        layer_cols = [p.full_col for p in parsed_cols]
 
         # Plot accuracy drop per layer for each ablation type
         try:
             fig, ax = plt.subplots(figsize=(12, 6))
 
-            for ablation_type in sorted(ablation_types):
+            for ablation_type in ablation_types:
                 layer_accuracies = []
 
                 for depth in depths:

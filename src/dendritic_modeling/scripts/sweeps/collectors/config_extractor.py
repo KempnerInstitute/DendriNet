@@ -135,6 +135,7 @@ class ConfigExtractor:
                     elif nt in [
                         "dendritic_additive",
                         "dendritic_mlp",
+                        "flat_mlp",
                         "mlp",
                         "point_mlp",
                     ]:
