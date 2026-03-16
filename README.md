@@ -1,5 +1,11 @@
 # Dendritic Modeling Framework
 
+[![CI Pipeline](https://github.com/KempnerInstitute/dendritic-modeling/actions/workflows/ci-simplified.yml/badge.svg)](https://github.com/KempnerInstitute/dendritic-modeling/actions/workflows/ci-simplified.yml)
+[![codecov](https://codecov.io/gh/KempnerInstitute/dendritic-modeling/graph/badge.svg)](https://codecov.io/gh/KempnerInstitute/dendritic-modeling)
+[![Documentation](https://github.com/KempnerInstitute/dendritic-modeling/actions/workflows/deploy-docs.yml/badge.svg)](https://github.com/KempnerInstitute/dendritic-modeling/actions/workflows/deploy-docs.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://github.com/KempnerInstitute/dendritic-modeling/blob/main/pyproject.toml)
+
 Code for dendritic excitation-inhibition networks, matched MLP baselines,
 recurrent E-I models, training strategies, and analysis utilities.
 
