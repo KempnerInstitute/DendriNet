@@ -171,7 +171,7 @@ def test_training_speed_benchmark():
         "epochs": 1,
         "batch_size": 32,
         "enable_profiling": False,  # Disable for pure speed test
-        "enable_amp": False,  # Test standard precision first
+        "use_amp": False,  # Test standard precision first
     }
 
     Trainer(**trainer_config)
@@ -199,7 +199,7 @@ def test_amp_functionality():
         "optimizer": torch.optim.Adam([torch.tensor(1.0, requires_grad=True)]),
         "loss_function": "mse",
         "epochs": 1,
-        "enable_amp": True,
+        "use_amp": True,
     }
 
     trainer = Trainer(**trainer_config)

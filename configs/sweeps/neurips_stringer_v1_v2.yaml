@@ -34,7 +34,6 @@ base_config:
   experiment:
     seed: 42
     train_valid_split: 0.9
-    enable_amp: false
     enable_profiling: false
     enable_hooks: true
   data:

@@ -43,7 +43,7 @@ Run a sweep from an example config:
 
 ```bash
 python src/dendritic_modeling/scripts/sweeps/sweep_manager.py \
-    --config configs/EI_sweeps_example.yaml --generate-only
+    --config configs/sweep_config.yaml --generate-only
 ```
 
 Analyze an existing sweep:

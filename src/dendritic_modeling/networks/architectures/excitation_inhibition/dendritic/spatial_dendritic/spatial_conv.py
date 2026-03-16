@@ -46,10 +46,15 @@ def _pair(x):
 class HierarchicalDendriticConv(BaseNetwork):
     """Spatially local hierarchical dendritic core.
 
-    Replaces a Conv2d layer (or Conv2d + activation) with dendritic E-I
+    Replaces a Conv2d layer (or a multi-layer conv block) with dendritic E-I
     computation over local patches.  A single shared
     :class:`ConfigurableEINetwork` is evaluated on all unfolded spatial
     positions in a batched forward pass.
+
+    When replacing a multi-layer conv range (e.g. Conv2d + ReLU + Conv2d),
+    the dendritic conv acts as a learned surrogate with user-chosen local
+    geometry (kernel_size, stride, padding), not a faithful 1:1 replacement
+    of each original layer.
 
     The spatial contract:
       - Input must be 4D: ``(B, C_in, H, W)``

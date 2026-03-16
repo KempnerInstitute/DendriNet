@@ -32,5 +32,5 @@ python src/dendritic_modeling/scripts/sweeps/sweep_manager.py --config <yaml>
 ## Notes
 
 - Current schema and examples are documented in `docs/sweeps.rst`.
-- Use `configs/EI_sweeps_example.yaml` and `configs/sweeps/*.yaml` as current
+- Use `configs/sweep_config.yaml` and `configs/sweeps/*.yaml` as current
   examples rather than this README.

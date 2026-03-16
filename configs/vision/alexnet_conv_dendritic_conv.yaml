@@ -8,12 +8,18 @@
 # patches, and reshapes back to spatial output.
 #
 # Pipeline after splitting:
-#   prefix (encoder)  = features.0..5                     → (B, 192, 13, 13), frozen
-#   core (dendritic)  = shared DendriNet on 3×3 patches   → (B, 192, 13, 13), trainable
-#   suffix (decoder)  = features.9..12 + avgpool + fc     → 1000 classes, trainable
+#   prefix (encoder)  = features.0..5                     -> (B, 192, 13, 13), frozen
+#   core (dendritic)  = shared DendriNet on 3x3 patches   -> (B, 256, 13, 13), trainable
+#   suffix (decoder)  = features.9..12 + avgpool + fc     -> 1000 classes, trainable
 #
-# The core replaces features.6 (Conv2d 192→384), features.7 (ReLU),
-# features.8 (Conv2d 384→256) with a single dendritic conv layer.
+# The core replaces features.6 (Conv2d 192->384), features.7 (ReLU),
+# features.8 (Conv2d 384->256) with a single dendritic conv layer.
+#
+# NOTE: This is a multi-layer replacement (two convs + activation -> one
+# dendritic operator). The dendritic conv acts as a learned surrogate with
+# user-chosen local geometry (kernel_size, stride, padding), NOT a faithful
+# 1:1 conv replacement. For single-conv replacement, narrow the replace range
+# to a single Conv2d layer.
 #
 # Run:
 #   PYTHONPATH=src:$PYTHONPATH python \
@@ -169,7 +175,6 @@ training:
       early_stopping: true
       patience: 100
       load_best_state_dict: true
-      save_path: null
       plot_losses: true
       suppress_prints: false
       print_every: 10

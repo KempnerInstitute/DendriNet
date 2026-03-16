@@ -98,7 +98,7 @@ Set via ``training.main.strategy``:
 ``standard``, ``fa``, ``dfa``, ``shunting_fa``, ``shunting_dfa``,
 ``local_ca``, ``freeze_layers``, ``freeze_branches``, ``freeze_branch_kl``,
 ``voltage_stabilization``, ``homeostatic_control``, ``recurrent``,
-``multi_stage``, ``fsdp``.
+``multi_stage``.
 
 Loss Functions
 --------------

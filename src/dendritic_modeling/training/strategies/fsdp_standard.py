@@ -119,11 +119,7 @@ class FSDPTrainer(Trainer):
         # Store checkpoint_dir before parent call (parent might override it)
         checkpoint_dir_backup = self.checkpoint_dir
 
-        # Handle AMP parameter name mismatch between FSDP and standard trainer
         fsdp_kwargs = kwargs.copy()
-        if "use_amp" in fsdp_kwargs:
-            fsdp_kwargs["enable_amp"] = fsdp_kwargs.pop("use_amp")
-
         super().__init__(optimizer=dummy_optimizer, **fsdp_kwargs)
         # Restore checkpoint_dir after parent call
         self.checkpoint_dir = checkpoint_dir_backup

@@ -218,6 +218,7 @@ def prepare_trainer_config(
         else main_train_config.common
     )
     trainer_config = to_dict(common_config)
+    trainer_config.pop("save_path", None)
     trainer_config["save_path"] = save_path
 
     # Add parameter groups
@@ -297,35 +298,30 @@ def prepare_trainer_config(
 
     if learning_strategy_config is not None:
         trainer_config["local_rule_config"] = to_dict(learning_strategy_config)
-    else:
-        # Fallback to strategies.local_ca (old structure)
-        strategies = (
-            main_train_config.get("strategies")
-            if isinstance(main_train_config, dict)
-            else getattr(main_train_config, "strategies", None)
-        )
 
-        if strategies is not None:
-            strategies_dict = to_dict(strategies)
+    strategies = (
+        main_train_config.get("strategies")
+        if isinstance(main_train_config, dict)
+        else getattr(main_train_config, "strategies", None)
+    )
 
-            # Add local learning config if present (old structure)
-            if "local_ca" in strategies_dict:
-                trainer_config["local_rule_config"] = strategies_dict["local_ca"]
+    if strategies is not None:
+        strategies_dict = to_dict(strategies)
 
-            # Add other strategy configs
-            for strategy_name in [
-                "voltage_stabilization",
-                "homeostatic_control",
-                "freeze_layers",
-                "freeze_branches",
-                "freeze_branch_kl",
-                "multi_stage",
-                "recurrent",
-            ]:
-                if strategy_name in strategies_dict:
-                    trainer_config[f"{strategy_name}_config"] = strategies_dict[
-                        strategy_name
-                    ]
+        # Add other strategy configs
+        for strategy_name in [
+            "voltage_stabilization",
+            "homeostatic_control",
+            "freeze_layers",
+            "freeze_branches",
+            "freeze_branch_kl",
+            "multi_stage",
+            "recurrent",
+        ]:
+            if strategy_name in strategies_dict:
+                trainer_config[f"{strategy_name}_config"] = strategies_dict[
+                    strategy_name
+                ]
 
     return trainer_config
 

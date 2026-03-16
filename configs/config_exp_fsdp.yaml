@@ -336,7 +336,8 @@ outputs:
 training:
   encoder:
     common:
-      lr: 0.001
+      param_groups:
+        lr: 0.001
     strategy: standard
   main:
     common:
@@ -349,7 +350,6 @@ training:
       freeze_branches: {}
       freeze_layers: {}
       homeostatic_control: {}
-      local_ca: {}
       multi_stage: {}
       standard: {}
       voltage_stabilization: {}

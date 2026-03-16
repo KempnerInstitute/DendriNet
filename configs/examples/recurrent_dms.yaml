@@ -1,0 +1,133 @@
+# ============================================================================
+# Unified E-I Recurrent Network on Variable-Delay DMS Task
+# ============================================================================
+# Trains a recurrent dendritic E-I network (unified_ei config format) on a
+# delayed match-to-sample task with variable delay lengths.
+#
+# Run:
+#   PYTHONPATH=src:$PYTHONPATH python \
+#     src/dendritic_modeling/scripts/training/train_experiments.py \
+#     configs/examples/recurrent_dms.yaml
+# ============================================================================
+
+experiment:
+  seed: 42
+  train_valid_split: 0.8
+  enable_hooks: true
+  checkpointing:
+    enabled: true
+    save_every_n_epochs: 50
+    checkpoint_dir: "outputs/checkpoints/"
+
+data:
+  dataset_name: "variable_delay_dms"
+  processing:
+    flatten: false
+    normalize: false
+  dataset_params:
+    variable_delay_dms:
+      n_samples: 10000
+      stimulus_dim: 16
+      stimulus_duration: 10
+      min_delay: 5
+      max_delay: 50
+      probe_duration: 10
+
+model:
+  task: "classification"
+  encoder:
+    type: "identity"
+  core:
+    type: "unified_ei"
+    unified_ei:
+      n_excitatory: 64
+      n_inhibitory: 16
+      output_mode: "last"               # "last" | "all" | "mean"
+      dt: 1.0
+      g_leak: 1.0
+      learn_taus: true                  # learnable time constants (log-space)
+      dropout: 0.0
+      grad_clip: 1.0
+      layers:
+        - tau: 10.0
+          ff_synapses: 12
+          rec_synapses: 8
+          ie_synapses: 4
+          compartment: "topk"           # "topk" | "dendritic_branch" | "dendrinet" | "linear"
+          use_shunting: true
+          reactivate: true
+          reactivation_type: "param_tanh"
+          weight_transform: "softplus"
+        - tau: 50.0
+          ff_synapses: 6
+          rec_synapses: 10
+          ie_synapses: 4
+          compartment: "topk"
+          use_shunting: true
+          reactivate: true
+          reactivation_type: "param_tanh"
+          weight_transform: "softplus"
+        - tau: 200.0
+          ff_synapses: 0
+          rec_synapses: 12
+          ie_synapses: 4
+          compartment: "topk"
+          use_shunting: true
+          reactivate: true
+          reactivation_type: "param_tanh"
+          weight_transform: "softplus"
+      i_tau: 10.0
+      i_compartment: "topk"
+      soma_mode: "shunting"             # "shunting" | "additive" | "sum"
+      input_projection_layers: [32]
+  decoder:
+    type: "MLP"
+    params:
+      hidden_dims: [32]
+      activation: "relu"
+      output_dim: 2                     # match / non-match
+
+training:
+  encoder:
+    strategy: "standard"
+    common:
+      epochs: 0
+  main:
+    strategy: "recurrent"
+    common:
+      epochs: 300
+      batch_size: 128
+      shuffle: true
+      grad_clip_value: 1.0
+      loss_function: "ce"
+      early_stopping: true
+      patience: 50
+      load_best_state_dict: true
+      use_amp: false
+      param_groups:
+        lr: 0.001
+        split_params: true
+        decoder_lr: 0.01
+    optimizer:
+      name: "adam"
+    strategies:
+      standard: {}
+
+analysis:
+  performance:
+    enabled: true
+    params:
+      accuracy: true
+  routing:
+    enabled: true
+    training: false
+
+wandb:
+  use_wandb: false
+
+outputs:
+  run_name: "recurrent_dms"
+  results_dir: "outputs"
+
+distributed:
+  mode: none

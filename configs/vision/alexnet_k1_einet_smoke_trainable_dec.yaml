@@ -159,7 +159,6 @@ training:
       early_stopping: false
       patience: 50
       load_best_state_dict: false
-      save_path: null
       plot_losses: false
       suppress_prints: false
       print_every: 1

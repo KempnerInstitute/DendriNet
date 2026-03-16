@@ -99,7 +99,7 @@ class Trainer:
         self.enable_nan_checking = kwargs.get("enable_nan_checking", False)
         self.enable_adaptive_clipping = kwargs.get("enable_adaptive_clipping", False)
 
-        self.enable_amp = kwargs.get("enable_amp", kwargs.get("use_amp", False))
+        self.enable_amp = kwargs.get("use_amp", False)
         if self.enable_amp and torch.cuda.is_available():
             try:
                 self.scaler = GradScaler()

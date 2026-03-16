@@ -54,7 +54,6 @@ def validate_training_stability(config) -> bool:
             config,
             [
                 ["training", "main", "common", "use_amp"],
-                ["training", "enable_amp"],
             ],
             default=False,
         )
@@ -262,7 +261,6 @@ def apply_automatic_safeguards(config) -> None:
             config,
             [
                 ["training", "main", "common", "use_amp"],
-                ["training", "enable_amp"],
             ],
             default=False,
         )

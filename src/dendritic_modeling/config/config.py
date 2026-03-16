@@ -48,15 +48,24 @@ from dendritic_modeling.config.training import (
     EncoderTrainingConfig,
     FiveFactorConfig,
     FourFactorConfig,
+    FreezeBranchesStrategyConfig,
+    FreezeBranchKLStrategyConfig,
+    FreezeLayersStrategyConfig,
+    HomeostaticControlStrategyConfig,
     HSICConfig,
     InhibitoryHomeostasisConfig,
     LocalRuleConfig,
     MainTrainingConfig,
     MorphologyAwareConfig,
+    MultiStageStrategyConfig,
     OptimizerConfig,
     ParamGroupsConfig,
+    RecurrentStrategyConfig,
+    StandardStrategyConfig,
     ThreeFactorConfig,
     TrainingConfig,
+    TrainingStrategiesConfig,
+    VoltageStabilizationStrategyConfig,
 )
 
 logger = logging.getLogger(__name__)
@@ -334,7 +343,36 @@ def _build_common_trainer_config(common_data: Any) -> CommonTrainerConfig:
             param_groups_dict.setdefault(key, common_dict.pop(key))
 
     common_dict["param_groups"] = _build_param_groups_config(param_groups_dict)
-    return CommonTrainerConfig(**common_dict)
+    return CommonTrainerConfig(
+        **_filter_dataclass_kwargs(CommonTrainerConfig, common_dict)
+    )
+
+
+def _build_training_strategies_config(strategies_data: Any) -> TrainingStrategiesConfig:
+    """Build typed nested strategy configs from dict/OmegaConf payload."""
+    strategies_dict = _to_plain_dict(strategies_data)
+    strategy_classes = {
+        "standard": StandardStrategyConfig,
+        "multi_stage": MultiStageStrategyConfig,
+        "recurrent": RecurrentStrategyConfig,
+        "voltage_stabilization": VoltageStabilizationStrategyConfig,
+        "homeostatic_control": HomeostaticControlStrategyConfig,
+        "freeze_layers": FreezeLayersStrategyConfig,
+        "freeze_branches": FreezeBranchesStrategyConfig,
+        "freeze_branch_kl": FreezeBranchKLStrategyConfig,
+    }
+
+    built: dict[str, Any] = {}
+    for name, config_cls in strategy_classes.items():
+        raw_value = strategies_dict.get(name)
+        if raw_value is None:
+            continue
+        if isinstance(raw_value, config_cls):
+            built[name] = raw_value
+        else:
+            built[name] = config_cls(**_to_plain_dict(raw_value))
+
+    return TrainingStrategiesConfig(**built)
 
 
 def _build_encoder_training_config(encoder_data: Any) -> EncoderTrainingConfig:
@@ -343,6 +381,25 @@ def _build_encoder_training_config(encoder_data: Any) -> EncoderTrainingConfig:
     encoder_dict["common"] = _build_common_trainer_config(
         encoder_dict.get("common", {})
     )
+    if (
+        "learning_strategy_config" in encoder_dict
+        and encoder_dict["learning_strategy_config"] is not None
+        and not isinstance(encoder_dict["learning_strategy_config"], LocalRuleConfig)
+    ):
+        encoder_dict["learning_strategy_config"] = _build_local_rule_config(
+            _to_plain_dict(encoder_dict["learning_strategy_config"])
+        )
+    strategies_data = encoder_dict.get("strategies")
+    if strategies_data is not None and not isinstance(
+        strategies_data, TrainingStrategiesConfig
+    ):
+        strategies_dict = _to_plain_dict(strategies_data)
+        if "local_ca" in strategies_dict:
+            logger.warning(
+                "training.encoder.strategies.local_ca is no longer supported; "
+                "use training.encoder.learning_strategy_config instead."
+            )
+        encoder_dict["strategies"] = _build_training_strategies_config(strategies_dict)
     return EncoderTrainingConfig(**encoder_dict)
 
 
@@ -353,6 +410,25 @@ def _build_main_training_config(main_data: Any) -> MainTrainingConfig:
     optimizer_data = main_dict.get("optimizer")
     if optimizer_data is not None and not isinstance(optimizer_data, OptimizerConfig):
         main_dict["optimizer"] = OptimizerConfig(**_to_plain_dict(optimizer_data))
+    if (
+        "learning_strategy_config" in main_dict
+        and main_dict["learning_strategy_config"] is not None
+        and not isinstance(main_dict["learning_strategy_config"], LocalRuleConfig)
+    ):
+        main_dict["learning_strategy_config"] = _build_local_rule_config(
+            _to_plain_dict(main_dict["learning_strategy_config"])
+        )
+    strategies_data = main_dict.get("strategies")
+    if strategies_data is not None and not isinstance(
+        strategies_data, TrainingStrategiesConfig
+    ):
+        strategies_dict = _to_plain_dict(strategies_data)
+        if "local_ca" in strategies_dict:
+            logger.warning(
+                "training.main.strategies.local_ca is no longer supported; "
+                "use training.main.learning_strategy_config instead."
+            )
+        main_dict["strategies"] = _build_training_strategies_config(strategies_dict)
     return MainTrainingConfig(**main_dict)
 
 

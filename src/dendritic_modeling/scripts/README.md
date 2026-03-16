@@ -39,7 +39,7 @@ Sweeps:
 
 ```bash
 python src/dendritic_modeling/scripts/sweeps/sweep_manager.py \
-    --config configs/EI_sweeps_example.yaml --generate-only
+    --config configs/sweep_config.yaml --generate-only
 python src/dendritic_modeling/scripts/sweeps/result_analyzer.py \
     /path/to/sweep/results
 ```

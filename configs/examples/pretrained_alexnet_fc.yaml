@@ -1,0 +1,120 @@
+# ============================================================================
+# Pretrained AlexNet FC Layer Replacement (Tensor Map)
+# ============================================================================
+# Replaces the middle FC layers (classifier.1 through classifier.5) of a
+# pretrained AlexNet with a DendriNet. The conv backbone is frozen; only the
+# dendritic core and the final classifier layer are trained.
+#
+# This is the "tensor map" variant (Variant 1): flatten spatial/FC output,
+# run through ConfigurableEINetwork, project to suffix dim.
+#
+# Run:
+#   PYTHONPATH=src:$PYTHONPATH python \
+#     src/dendritic_modeling/scripts/training/train_experiments.py \
+#     configs/examples/pretrained_alexnet_fc.yaml
+# ============================================================================
+
+experiment:
+  seed: 42
+  train_valid_split: 0.8
+  enable_hooks: false
+  checkpointing:
+    enabled: true
+    save_every_n_epochs: 25
+    checkpoint_dir: "outputs/checkpoints/"
+
+data:
+  dataset_name: "imagenet"
+  base_dir: "/n/holylfs06/LABS/kempner_shared/Everyone/testbed/vision/imagenet_1k"
+  processing:
+    flatten: false
+    normalize: true
+
+model:
+  task: "classification"
+
+  pretrained_replacement:
+    enabled: true
+    backbone: "alexnet"                 # "alexnet" | "vgg16" | etc.
+    weights: "IMAGENET1K_V1"            # str | null (null = random init)
+    input_shape: [3, 224, 224]
+    replace:
+      start: "classifier.1"            # first replaced layer (inclusive)
+      end: "classifier.5"              # last replaced layer (inclusive)
+    omit_layers: []
+    trainability:
+      encoder:
+        mode: "frozen"                  # freeze conv backbone
+      decoder:
+        mode: "trainable"              # train classifier.6 (final FC)
+
+  core:
+    type: "hierarchical_dendritic_tensor_map"
+    architecture:
+      excitatory_layer_sizes: [256]
+      inhibitory_layer_sizes: [64]
+      excitatory_branch_factors: [3, 3]
+      inhibitory_branch_factors: [1]
+    connectivity:
+      ee_synapses_per_branch_per_layer: [40]
+      ie_synapses_per_branch_per_layer: [10]
+    morphology:
+      use_shunting: true
+      weight_transform: "softplus"
+    sparsity:
+      type: "standard"
+      init_method: "xavier_normal"
+    reactivation:
+      enabled: true
+      type: "param_tanh"
+
+training:
+  encoder:
+    strategy: "standard"
+    common:
+      epochs: 0
+  main:
+    strategy: "standard"
+    common:
+      epochs: 100
+      batch_size: 128
+      shuffle: true
+      grad_clip_value: 5.0
+      loss_function: "cat_nll"
+      early_stopping: true
+      patience: 20
+      load_best_state_dict: true
+      print_every: 5
+      param_groups:
+        lr: 0.001
+        split_params: true
+        topk_lr: 0.001
+        blocklinear_lr: 0.0001
+        reactivation_lr: 0.0001
+        decoder_lr: 0.01
+        encoder_lr: 0.0                 # frozen
+    optimizer:
+      name: "adam"
+    strategies:
+      standard: {}
+
+analysis:
+  performance:
+    enabled: true
+    params:
+      accuracy: true
+      auc: true
+    final_runtime:
+      mode: "stream"                    # ImageNet is too large to materialize
+      batch_size: 128
+      num_workers: 4
+
+wandb:
+  use_wandb: false
+
+outputs:
+  run_name: "alexnet_fc_dendrinet"
+  results_dir: "outputs"
+
+distributed:
+  mode: none

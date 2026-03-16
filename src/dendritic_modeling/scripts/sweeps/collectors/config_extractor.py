@@ -169,19 +169,12 @@ class ConfigExtractor:
                     if hasattr(common, "batch_size"):
                         params["batch_size"] = common.batch_size
 
-                # Local learning parameters (new structure)
+                # Local learning parameters
                 if (
                     hasattr(main, "learning_strategy_config")
                     and main.learning_strategy_config
                 ):
                     local_cfg = main.learning_strategy_config
-                    params.update(self._extract_local_learning_params(local_cfg))
-
-                # Fallback to old structure
-                elif hasattr(main, "strategies") and hasattr(
-                    main.strategies, "local_ca"
-                ):
-                    local_cfg = main.strategies.local_ca
                     params.update(self._extract_local_learning_params(local_cfg))
 
         except Exception as e:

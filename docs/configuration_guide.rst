@@ -23,7 +23,7 @@ Templates:
 
 - ``configs/config_exp.yaml`` -- single-GPU training (complete reference)
 - ``configs/config_exp_fsdp.yaml`` -- FSDP multi-GPU training
-- ``configs/EI_sweeps_example.yaml`` -- parameter sweeps
+- ``configs/sweep_config.yaml`` -- parameter sweeps
 
 Top-Level Structure
 -------------------
@@ -81,11 +81,11 @@ Set ``training.main.strategy`` to one of:
 ``standard``, ``fa``, ``dfa``, ``shunting_fa``, ``shunting_dfa``,
 ``local_ca``, ``freeze_layers``, ``freeze_branches``, ``freeze_branch_kl``,
 ``voltage_stabilization``, ``homeostatic_control``,
-``multi_stage``, ``recurrent``, ``fsdp``, ``fsdp_standard``, ``enhanced``
+``multi_stage``, ``recurrent``
 
 Strategy-specific configuration usually lives under
-``training.main.strategies.<name>``. Local credit assignment also supports the
-direct path ``training.main.learning_strategy_config``. See
+``training.main.strategies.<name>``. Local credit assignment uses the direct
+path ``training.main.learning_strategy_config``. See
 :doc:`training_strategies` for details.
 
 Loss Functions

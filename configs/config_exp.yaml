@@ -11,7 +11,7 @@
 #   --output_dir /path    --run_name my_exp    --learning_strategy local_ca
 #
 # For multi-GPU / FSDP training use config_exp_fsdp.yaml.
-# For parameter sweeps use unified_all_sweeps_example.yaml.
+# For parameter sweeps use sweep_config.yaml.
 
 # ============================================================================
 # EXPERIMENT SETUP
@@ -37,7 +37,12 @@ experiment:
 # DATA
 # ============================================================================
 data:
-  dataset_name: "cifar10"               # str: "cifar10" | "mnist" | "fashion_mnist" | "imagenet" | "poisson_generator" | "multixor" | "orientation_bars" | "orthonet" | "mnist_modulo10" | "random_flip_mnist" | "context_dependent_decision" | "timescale_generalization"
+  # Standard vision: "cifar10" | "mnist" | "fashion_mnist" | "imagenet"
+  # Synthetic vision: "poisson_generator" | "multixor" | "orientation_bars" | "orthonet" | "mnist_modulo10" | "random_flip_mnist"
+  # Sequence / recurrent: "sequential_mnist" | "copy_task" | "adding_problem" | "variable_delay_dms" | "multi_frequency" | "hierarchical_temporal" | "context_dependent_decision" | "context_dependent_decision_hard" | "switching_context_decision" | "timescale_generalization"
+  # Neural data: "stringer_v1"
+  # Theoretical: "correlated_gaussian" | "nonlinear_interaction" | "linear_separable" | "nonlinear_separable" | "block_correlated" | "balanced_information"
+  dataset_name: "cifar10"
   base_dir: ""                          # str: Override dataset root (empty = default)
 
   # ---------- Data processing ----------
@@ -75,6 +80,40 @@ data:
       train_samples_per_class: null     # int | null: Subsample train (null = all)
       val_samples_per_class: null       # int | null: Subsample val (null = all)
 
+    # ---------- Sequence dataset params ----------
+    sequential_mnist:
+      mode: "pixel"                     # str: "pixel" | "row"
+      normalize: false                  # bool: Normalize inputs
+    copy_task:
+      n_samples: 10000                  # int: Number of samples
+      seq_len: 10                       # int: Sequence length
+      delay: 10                         # int: Delay before recall
+      n_symbols: 8                      # int: Number of symbols
+    adding_problem:
+      n_samples: 10000                  # int: Number of samples
+      seq_len: 100                      # int: Sequence length
+    variable_delay_dms:
+      n_samples: 10000                  # int: Number of samples
+      stimulus_dim: 16                  # int: Stimulus dimensionality
+      stimulus_duration: 10             # int: Stimulus presentation steps
+      min_delay: 5                      # int: Minimum delay steps
+      max_delay: 50                     # int: Maximum delay steps
+      probe_duration: 10                # int: Probe presentation steps
+    context_dependent_decision:
+      n_samples: 10000                  # int: Number of samples
+      signal_dim: 16                    # int: Signal dimensionality
+      context_duration: 10              # int: Context cue steps
+      integration_duration: 30          # int: Integration window steps
+      coherence_levels: [0.1, 0.2, 0.4, 0.8]  # list[float]: Coherence levels
+      noise_std: 0.1                    # float: Noise standard deviation
+      variable_delay: false             # bool: Variable delay between context and integration
+    timescale_generalization:
+      stimulus_dim: 16                  # int: Stimulus dimensionality
+      stimulus_duration: 10             # int: Stimulus presentation steps
+      min_delay: 5                      # int: Minimum delay steps
+      max_delay: 50                     # int: Maximum delay steps
+      probe_duration: 10                # int: Probe presentation steps
+
 # ============================================================================
 # MODEL
 # ============================================================================
@@ -107,7 +146,14 @@ model:
 
   # ---------- Core network ----------
   core:
-    type: "EINet"                       # str: "EINet" | "unified_ei" | "recurrent_ei" | "baseline_rnn"
+    # Legacy EI (feedforward): "EINet" | "dendritic_shunting" | "dendritic_additive" | "flat_shunting" | "flat_additive" | "dendritic_mlp"
+    # Unified EI (recommended): "unified_ei" | "ei_unified" | "ei_net" | "unified_einet"
+    # Recurrent EI: "recurrent_ei"
+    # Baseline RNN: "baseline_rnn" | "gru" | "lstm" | "vanilla_rnn" | "rnn"
+    # Point neuron MLP: "mlp" | "point_mlp" | "matchedtotalparammlp" | "total_param_mlp" | "matchedactiveparammlp" | "active_param_mlp" | "ss_mlp" | "ss_mlp_flat"
+    # Spatial dendritic (pretrained replacement): "hierarchical_dendritic_tensor_map" | "dendritic_tensor_map" | "tensor_map" | "hierarchical_dendritic_conv" | "spatial_dendritic_conv"
+    # Classical: "alexnet" | "cnn" | "cnn_down" | "cnn_up" | "identity" | "none"
+    type: "EINet"
 
     # ---- Architecture ----
     architecture:
@@ -189,6 +235,12 @@ model:
       adaptive_initialization: false    # bool: Adaptive weight initialization
       print_hooks: false                # bool: Print hook debug info
       store_routing: false              # bool: Store routing (alpha) info for analysis
+
+    # ---- Spatial (for hierarchical_dendritic_conv core type) ----
+    spatial:
+      kernel_size: 3                    # int: Receptive field size (unfold kernel)
+      stride: 1                         # int: Stride for unfold
+      padding: 0                        # int: Padding before unfold (set = kernel_size//2 for same-size)
 
     # ---- Recurrent (DEPRECATED -- use unified_ei instead) ----
     recurrent:
@@ -299,7 +351,8 @@ training:
 
   # ---------- Encoder training ----------
   encoder:
-    strategy: "standard"                # str: "standard" | "multi_stage" | "local_ca" | "voltage_stabilization" | "homeostatic_control" | "freeze_layers" | "freeze_branches" | "freeze_branch_kl"
+    # Strategies: "standard" | "multi_stage" | "local_ca" | "fa" | "dfa" | "shunting_fa" | "shunting_dfa" | "recurrent" | "voltage_stabilization" | "homeostatic_control" | "freeze_layers" | "freeze_branches" | "freeze_branch_kl"
+    strategy: "standard"
 
     common:
       epochs: 500                       # int: Training epochs
@@ -310,7 +363,6 @@ training:
       early_stopping: true              # bool: Enable early stopping
       patience: 100                     # int: Early stopping patience (epochs)
       load_best_state_dict: true        # bool: Load best model after training
-      save_path: null                   # str | null: Model save path
       plot_losses: false                # bool: Plot loss curves
       suppress_prints: false            # bool: Suppress training prints
       print_every: 10                   # int: Print frequency (epochs)
@@ -369,50 +421,6 @@ training:
               loss_function: "ce"
               early_stopping: false
 
-      local_ca:
-        rule_variant: "4f"              # str: "3f" | "4f" | "5f"
-        error_mode: "auto"              # str: "auto" | "mse" | "ce" | "bce"
-        error_broadcast_mode: "scalar"  # str: "scalar" | "per_soma" | "local_mismatch" | "low_rank" | "path_transport" | "pathway_vector"
-        ema_alpha: 0.1                  # float: EMA smoothing rate
-        use_conductance_scaling: true   # bool: Scale by R_tot = 1/g_tot
-        use_driving_force: true         # bool: Use (E_rev - V_n) driving force
-        dynamics_mode: "auto"           # str: "auto" | "conductance" | "additive"
-        theta: 0.0                      # float: Leak reversal potential
-        e_rev_exc: 1.0                  # float: Excitatory reversal potential
-        e_rev_inh: 0.0                  # float: Inhibitory reversal potential (shunting)
-        clip_grad_value: 5.0            # float: Local gradient clipping
-        normalize_by_batch: false       # bool: Normalize updates by batch size
-        phi_mode: "conditional"         # str: "conditional" | "variance"
-        phi_ridge_lambda: 0.001         # float: Ridge lambda for phi
-        rho_estimator: "ema"            # str: "ema" | "augment" | "ema+augment"
-        phi_estimator: "conditional_ema"  # str: "conditional_ema" | "variance_ema"
-        augment_k: 8                    # int: Number of augmented samples
-        augment_noise_sigma: 0.01       # float: Augmentation noise sigma
-        rls_forgetting: 0.99            # float: RLS forgetting factor
-        update_inactive_weights: false  # bool: Update inactive weights
-        hsic_enabled: true              # bool: Enable HSIC auxiliary loss
-        hsic_weight: 0.01               # float: HSIC loss weight
-        hsic_self_weight: 0.3           # float: Self-decorrelation weight
-        hsic_target_weight: 0.3         # float: Target-correlation weight
-        hsic_target_source: "labels"    # str: "labels" | "logits"
-        hsic_kernel: "rbf"              # str: "rbf" | "linear" | "polynomial"
-        hsic_sigma: 1.0                 # float: RBF kernel bandwidth
-        hsic_degree: 2                  # int: Polynomial kernel degree
-        hsic_coef0: 1.0                 # float: Polynomial coefficient
-        hsic_grad_clip_value: 0.1       # float: HSIC gradient clip
-        hsic_warmup_epochs: 5           # int: HSIC warmup epochs
-        hsic_apply_last_layer_only: false  # bool: Apply HSIC to last layer only
-        rho_mode: "dot"                 # str: "dot" | "pearson" | "none"
-        encoder_update_mode: "none"     # str: "backprop" | "none"
-        decoder_update_mode: "backprop" # str: "backprop" | "local" | "none"
-        update_reactivation: true       # bool: Update reactivation params
-        freeze_encoder_epochs: 0        # int: Freeze encoder for N epochs
-        freeze_reactivation_epochs: 20  # int: Freeze reactivation for N epochs
-        freeze_decoder_epochs: 0        # int: Freeze decoder for N epochs
-        training_schedule: []           # list: Custom training schedule
-        layer_wise_rho_scale: 0.0       # float: Layer-wise rho scaling
-        layer_wise_phi_scale: 0.0       # float: Layer-wise phi scaling
-
       voltage_stabilization:
         pretrain_epochs: 100            # int: Pre-training epochs
         stabilize_mode: "vout"          # str: "vout" | "vinf"
@@ -446,9 +454,14 @@ training:
         final_tune_epochs: 10           # int: Final fine-tuning epochs
         kl_weight: 0.1                  # float: KL divergence loss weight
 
+    # ---- Learning strategy config (for encoder.strategy = "local_ca") ----
+    # Uses the same schema as training.main.learning_strategy_config below.
+    learning_strategy_config: null      # LocalRuleConfig | null
+
   # ---------- Main training ----------
   main:
-    strategy: "standard"                # str: "standard" | "multi_stage" | "local_ca" | "voltage_stabilization" | "homeostatic_control" | "freeze_layers" | "freeze_branches" | "freeze_branch_kl"
+    # Strategies: "standard" | "multi_stage" | "local_ca" | "fa" | "dfa" | "shunting_fa" | "shunting_dfa" | "recurrent" | "voltage_stabilization" | "homeostatic_control" | "freeze_layers" | "freeze_branches" | "freeze_branch_kl"
+    strategy: "standard"
 
     common:
       epochs: 1000                      # int: Training epochs
@@ -459,7 +472,6 @@ training:
       early_stopping: true              # bool: Enable early stopping
       patience: 500                     # int: Early stopping patience (epochs)
       load_best_state_dict: true        # bool: Load best model after training
-      save_path: null                   # str | null: Model save path
       plot_losses: true                 # bool: Plot loss curves
       suppress_prints: false            # bool: Suppress training prints
       print_every: 10                   # int: Print frequency (epochs)
@@ -568,50 +580,6 @@ training:
               loss_function: "ce"
               early_stopping: false
 
-      local_ca:
-        rule_variant: "4f"              # str: "3f" | "4f" | "5f"
-        error_mode: "auto"              # str: "auto" | "mse" | "ce" | "bce"
-        error_broadcast_mode: "scalar"  # str: "scalar" | "per_soma" | "local_mismatch" | "low_rank" | "path_transport" | "pathway_vector"
-        ema_alpha: 0.1                  # float: EMA smoothing rate
-        use_conductance_scaling: true   # bool: Scale by R_tot
-        use_driving_force: true         # bool: Use driving force
-        dynamics_mode: "auto"           # str: "auto" | "conductance" | "additive"
-        theta: 0.0                      # float: Leak reversal potential
-        e_rev_exc: 1.0                  # float: Excitatory reversal potential
-        e_rev_inh: 0.0                  # float: Inhibitory reversal potential
-        clip_grad_value: 5.0            # float: Local gradient clipping
-        normalize_by_batch: false       # bool: Normalize updates by batch size
-        phi_mode: "conditional"         # str: "conditional" | "variance"
-        phi_ridge_lambda: 0.001         # float: Ridge lambda
-        rho_estimator: "ema"            # str: "ema" | "augment" | "ema+augment"
-        phi_estimator: "conditional_ema"  # str: "conditional_ema" | "variance_ema"
-        augment_k: 8                    # int: Augmented sample count
-        augment_noise_sigma: 0.01       # float: Augmentation noise sigma
-        rls_forgetting: 0.99            # float: RLS forgetting factor
-        update_inactive_weights: false  # bool: Update inactive weights
-        hsic_enabled: true              # bool: Enable HSIC
-        hsic_weight: 0.01               # float: HSIC loss weight
-        hsic_self_weight: 0.3           # float: Self-decorrelation weight
-        hsic_target_weight: 0.3         # float: Target-correlation weight
-        hsic_target_source: "labels"    # str: "labels" | "logits"
-        hsic_kernel: "rbf"              # str: "rbf" | "linear" | "polynomial"
-        hsic_sigma: 1.0                 # float: RBF bandwidth
-        hsic_degree: 2                  # int: Polynomial degree
-        hsic_coef0: 1.0                 # float: Polynomial coefficient
-        hsic_grad_clip_value: 0.1       # float: HSIC gradient clip
-        hsic_warmup_epochs: 5           # int: HSIC warmup epochs
-        hsic_apply_last_layer_only: false  # bool: HSIC last layer only
-        rho_mode: "dot"                 # str: "dot" | "pearson" | "none"
-        encoder_update_mode: "none"     # str: "backprop" | "none"
-        decoder_update_mode: "backprop" # str: "backprop" | "local" | "none"
-        update_reactivation: true       # bool: Update reactivation params
-        freeze_encoder_epochs: 0        # int: Freeze encoder epochs
-        freeze_reactivation_epochs: 20  # int: Freeze reactivation epochs
-        freeze_decoder_epochs: 0        # int: Freeze decoder epochs
-        training_schedule: []           # list: Custom training schedule
-        layer_wise_rho_scale: 0.0       # float: Layer-wise rho scaling
-        layer_wise_phi_scale: 0.0       # float: Layer-wise phi scaling
-
       voltage_stabilization:
         pretrain_epochs: 100            # int: Pre-training epochs
         stabilize_mode: "vout"          # str: "vout" | "vinf"
@@ -625,6 +593,12 @@ training:
         freeze_reactivation: false      # bool: Freeze reactivation
         target_voltage: 0.5             # float: Target voltage
         loss_metric: "mse"              # str: "mse" | "mae"
+
+      recurrent:
+        grad_clip: 1.0                  # float: Recurrent gradient norm clip (0 = off)
+        use_amp: false                  # bool: Recurrent mixed precision
+        lr_schedule: "none"             # str: "none" | "cosine"
+        lr_warmup_epochs: 0             # int: Warmup epochs for recurrent LR schedule
 
       freeze_layers:
         pretrain_epochs: 10             # int: Pre-training epochs
@@ -1124,16 +1098,28 @@ outputs:
 # the launcher CLI argument, NOT by this config.
 # ============================================================================
 distributed:
+  # "none" = single GPU, "ddp" = DistributedDataParallel, "fsdp" = FullyShardedDataParallel
+  # For ddp/fsdp, launch via torchrun or SLURM srun; node/GPU counts are set by
+  # the launcher (--nproc_per_node, --nodes), NOT by this config.
   mode: "none"                          # str: "none" | "ddp" | "fsdp"
+
+  # DDP has no configurable parameters in this framework -- just set mode: "ddp"
+  # and PyTorch handles the rest (gradient sync, broadcast, etc.).
+
+  # FSDP settings (only used when mode = "fsdp")
   fsdp:
-    sharding_strategy: "FULL_SHARD"       # str: "FULL_SHARD" | "SHARD_GRAD_OP" | "NO_SHARD"
-    mixed_precision: true                 # bool: FSDP mixed precision
-    cpu_offload: false                    # bool: Offload params to CPU
+    # FULL_SHARD: shard params + grads + optimizer across all ranks (lowest memory)
+    # SHARD_GRAD_OP: shard grads + optimizer only (faster, more memory)
+    # NO_SHARD: no sharding (equivalent to DDP)
+    # HYBRID_SHARD: shard within node, replicate across nodes (multi-node sweet spot)
+    sharding_strategy: "FULL_SHARD"       # str: "FULL_SHARD" | "SHARD_GRAD_OP" | "NO_SHARD" | "HYBRID_SHARD"
+    mixed_precision: true                 # bool: FSDP mixed precision (BF16 compute, FP32 reduce)
+    cpu_offload: false                    # bool: Offload params to CPU (saves GPU memory, slower)
     min_num_params: 1000000               # int: Min params to shard a module
     reduce_communication_overhead: true   # bool: Reduce communication overhead
-    limit_all_gathers: true              # bool: Limit all-gathers
-    forward_prefetch: true                # bool: Prefetch next forward
-    sync_module_states: true              # bool: Sync module states on init
-    use_orig_params: true                 # bool: Use original param references
+    limit_all_gathers: true              # bool: Limit concurrent all-gathers
+    forward_prefetch: true                # bool: Prefetch next FSDP unit in forward
+    sync_module_states: true              # bool: Sync module states on init (broadcast rank 0)
+    use_orig_params: true                 # bool: Use original param references (needed for param groups)
     backward_prefetch: "BACKWARD_PRE"     # str: "BACKWARD_PRE" | "BACKWARD_POST"
-    gradient_checkpointing: false         # bool: Activation checkpointing
+    gradient_checkpointing: false         # bool: Activation checkpointing (trade compute for memory)

@@ -651,7 +651,6 @@ if __name__ == "__main__":
         "--learning_strategy",
         choices=[
             "standard",
-            "enhanced",
             "freeze_layers",
             "freeze_branches",
             "fa",

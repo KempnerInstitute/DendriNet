@@ -48,7 +48,7 @@ Run a parameter sweep
 
    # Generate configs and submit jobs
    python src/dendritic_modeling/scripts/sweeps/sweep_manager.py \
-     --config configs/EI_sweeps_example.yaml
+     --config configs/sweep_config.yaml
 
    # Analyze results
    python src/dendritic_modeling/scripts/sweeps/result_analyzer.py \

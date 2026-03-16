@@ -19,7 +19,7 @@ class ConfigNode(SimpleNamespace):
 
 def _build_config(
     *,
-    enable_amp=False,
+    use_amp=False,
     enable_hooks=True,
     distributed_mode="none",
     fsdp_config=None,
@@ -49,10 +49,9 @@ def _build_config(
             enable_hooks=enable_hooks,
         ),
         training=ConfigNode(
-            enable_amp=enable_amp,
             main=ConfigNode(
                 common=ConfigNode(
-                    use_amp=enable_amp,
+                    use_amp=use_amp,
                     grad_clip_value=grad_clip_value,
                 ),
                 param_groups=ConfigNode(lr=learning_rate),
@@ -71,7 +70,7 @@ def _build_config(
 
 def test_validate_training_stability_logs_expected_warnings(monkeypatch):
     config = _build_config(
-        enable_amp=True,
+        use_amp=True,
         enable_hooks=True,
         distributed_mode="fsdp",
         fsdp_config=ConfigNode(
@@ -103,7 +102,7 @@ def test_validate_training_stability_logs_expected_warnings(monkeypatch):
 def test_validate_training_stability_warns_on_memory_optimization_without_amp(
     monkeypatch,
 ):
-    config = _build_config(efficient_blocklinear=True, enable_amp=False)
+    config = _build_config(efficient_blocklinear=True, use_amp=False)
 
     warnings = []
     monkeypatch.setattr(
@@ -143,7 +142,7 @@ def test_apply_automatic_safeguards_sets_flags_for_amp_with_gradient_scaling(
     monkeypatch,
 ):
     config = _build_config(
-        enable_amp=True,
+        use_amp=True,
         topk_strategy="scaled",
     )
     info_messages = []
@@ -162,7 +161,7 @@ def test_apply_automatic_safeguards_sets_flags_for_amp_with_gradient_scaling(
 
 
 def test_apply_automatic_safeguards_does_not_override_existing_values():
-    config = _build_config(enable_amp=True, topk_strategy="scaled")
+    config = _build_config(use_amp=True, topk_strategy="scaled")
     config.training.main.common.enable_adaptive_clipping = False
     config.training.main.common.disable_hooks_with_amp = False
 
@@ -173,5 +172,5 @@ def test_apply_automatic_safeguards_does_not_override_existing_values():
 
 
 def test_apply_automatic_safeguards_handles_missing_nested_config():
-    config = ConfigNode(training=ConfigNode(enable_amp=True))
+    config = ConfigNode(training=ConfigNode())
     apply_automatic_safeguards(config)
