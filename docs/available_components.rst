@@ -22,10 +22,30 @@ Core Network Types
      - Flattened dendrites with additive inhibition
    * - ``dendritic_mlp``
      - E-I with signed weights (identity transform)
+   * - ``flat_mlp``
+     - Flattened dendrites with signed weights (MLP-like dendritic baseline)
    * - ``einet``
      - Generic E-I; reads use_shunting from config
    * - ``ei_unified``
      - Unified E-I (feedforward + recurrent capable)
+   * - ``recurrent_ei``
+     - Recurrent E-I network built from the structured recurrent config
+   * - ``point_mlp``
+     - Plain point-neuron MLP baseline
+   * - ``total_param_mlp``
+     - MLP baseline matched by total parameter count
+   * - ``active_param_mlp``
+     - MLP baseline matched by active parameter count
+   * - ``ss_mlp``
+     - Sparse structured MLP baseline
+   * - ``ss_mlp_flat``
+     - Flattened sparse structured MLP baseline
+   * - ``hierarchical_dendritic_tensor_map``
+     - Spatial-pretrained replacement baseline: flatten spatial tensor, run EINet, then project
+   * - ``hierarchical_dendritic_conv``
+     - Spatial dendritic convolutional core over local patches
+   * - ``baseline_rnn``
+     - Wrapper for simple RNN cores with a shared baseline interface
    * - ``gru``
      - Gated Recurrent Unit
    * - ``lstm``
@@ -34,6 +54,16 @@ Core Network Types
      - Standard RNN
    * - ``mlp``
      - Multi-layer perceptron
+   * - ``alexnet``
+     - AlexNet-style classical CNN backbone
+   * - ``cnn``
+     - Small classical CNN
+   * - ``cnn_down``
+     - Downsampling CNN decoder/encoder helper
+   * - ``cnn_up``
+     - Upsampling CNN decoder helper
+   * - ``identity``
+     - Identity core / pass-through
 
 Encoder / Decoder Types
 -----------------------
@@ -54,7 +84,7 @@ Encoder / Decoder Types
 TopK Variants
 -------------
 
-Set via ``model.core.sparsity.type``:
+Set via ``model.core.sparsity.type``. Canonical values are:
 
 .. list-table::
    :header-rows: 1
@@ -70,6 +100,8 @@ Set via ``model.core.sparsity.type``:
      - Variance-aware selection
    * - ``deepst``
      - Dynamic rewiring with density targets
+
+``topk`` is retained as a backward-compatible alias for ``standard``.
 
 Weight Transforms
 -----------------
@@ -129,12 +161,15 @@ Analysis Modules
 
 Each enabled under ``analysis.<module_name>.enabled``:
 
-``performance_analysis``, ``information_analysis``, ``ablation_analysis``,
-``correlation_analysis``, ``weight_analysis``, ``synapse_turnover_analysis``,
-``noise_perturbation_analysis``, ``compartment_statistics_analysis``,
-``compartment_snr_analysis``, ``multiplicative_gain_analysis``,
-``routing_analysis``, ``receptive_field_analysis``,
-``adversarial_robustness_analysis``, ``single_layer_contribution_analysis``.
+Preferred short names in YAML are ``performance``, ``information``,
+``ablation``, and ``correlation``. The longer ``*_analysis`` names are still
+accepted for backward compatibility.
+
+Available modules: ``performance``, ``information``, ``ablation``,
+``correlation``, ``weight``, ``synapse_turnover``, ``noise_perturbation``,
+``compartment_statistics``, ``compartment_snr``, ``multiplicative_gain``,
+``routing``, ``receptive_field``, ``adversarial_robustness``,
+``single_layer_contribution``, ``synaptic_activation``, ``branch_activation``.
 
 Initialization Methods
 ----------------------

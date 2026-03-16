@@ -431,8 +431,9 @@ class SynapticPruningAnalyzer(SynapticTurnoverAnalyzer):
 
         # Extract connectivity from all snapshots
         for _snapshot in self.data_dict_list:
-            # This would need to be implemented based on the snapshot structure
-            # For now, return placeholder
+            # Connectivity-evolution extraction depends on richer snapshot
+            # metadata than some runs save today, so leave the timelines empty
+            # when that structure is unavailable.
             pass
 
         return evolution

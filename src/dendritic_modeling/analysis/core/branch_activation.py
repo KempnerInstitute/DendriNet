@@ -9,7 +9,9 @@ from typing import Optional
 
 import torch
 
+from dendritic_modeling.analysis.utils.runtime import iter_analysis_batches
 from dendritic_modeling.config import BranchActivationAnalysisParams
+from dendritic_modeling.config.analysis import EvaluationRuntimeConfig
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.networks import (
     DendriticBranchLayer,
@@ -95,15 +97,19 @@ class BranchActivationAnalyzer:
 
         # Collect excitatory synapse activations
         if self.synapse_activations and module.branch_excitation is not None:
-            self.data_dict[key]["exc"] = module.branch_excitation(excitatory_input)
+            self.data_dict[key].setdefault("exc", []).append(
+                module.branch_excitation(excitatory_input).detach().cpu()
+            )
 
         # Collect inhibitory synapse activations
         if self.synapse_activations and module.branch_inhibition is not None:
-            self.data_dict[key]["inh"] = module.branch_inhibition(inhibitory_input)
+            self.data_dict[key].setdefault("inh", []).append(
+                module.branch_inhibition(inhibitory_input).detach().cpu()
+            )
 
         # Collect branch output activations
         if self.branch_activations:
-            self.data_dict[key]["Vout"] = output
+            self.data_dict[key].setdefault("Vout", []).append(output.detach().cpu())
 
     def analyze(
         self,
@@ -112,6 +118,7 @@ class BranchActivationAnalyzer:
         device: str = "cpu",
         save_path: Optional[str] = None,
         filename: str = "final",
+        runtime: Optional[EvaluationRuntimeConfig] = None,
     ):
         """
         Analyze branch activations in the model.
@@ -136,17 +143,16 @@ class BranchActivationAnalyzer:
         model = model.to(device)
         model.eval()
 
-        items = test_dataset[:]
-        inputs: torch.Tensor = items[0].to(device)
-
-        # Optionally downsample for efficiency
-        if self.downsample:
-            ixs = torch.randperm(inputs.shape[0])[: self.samples]
-            inputs = inputs[ixs]
-
         handles = self.attach_forward_hooks(model)
+        sample_cap = self.samples if self.downsample else None
+        with torch.no_grad():
+            for batch in iter_analysis_batches(test_dataset, runtime, sample_cap):
+                _ = model(batch[0].to(device))
 
-        _ = model(inputs)
+        for module_dict in self.data_dict.values():
+            for key, value in list(module_dict.items()):
+                if isinstance(value, list) and value:
+                    module_dict[key] = torch.cat(value, dim=0)
 
         # Initialize summary structures
         if self.network_summary:

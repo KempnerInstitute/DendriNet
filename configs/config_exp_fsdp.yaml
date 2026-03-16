@@ -1,5 +1,24 @@
 analysis:
-  ablation_analysis:
+  runtime:
+    # Keep the same shared runtime surface as the main reference config.
+    # For FSDP / large datasets, streaming is usually the right final-analysis choice.
+    training:
+      mode: "auto"                      # "auto" keeps small datasets materialized; use "stream" if training analysis is too heavy
+      batch_size: 256
+      num_workers: 4
+      pin_memory: true
+      max_batches: null
+      max_samples: null
+      materialize_threshold_mb: 1024
+    final:
+      mode: "stream"                    # safest default for large datasets / large activation analyses
+      batch_size: 256
+      num_workers: 4
+      pin_memory: true
+      max_batches: null
+      max_samples: null
+      materialize_threshold_mb: 1024
+  ablation:
     enabled: false
     params:
       selection:
@@ -12,7 +31,7 @@ analysis:
         shuffle_seed: 0               # Shuffle seed (int)
         clamp_statistic: "mean"       # mean_clamp statistic: "mean"
     training: false
-  branch_activation_analysis:
+  branch_activation:
     enabled: false
     params:
       branch_activations: true
@@ -25,7 +44,7 @@ analysis:
       samples: 5
       synapse_activations: true
     training: false
-  correlation_analysis:
+  correlation:
     enabled: false
     params:
       selection:
@@ -47,7 +66,7 @@ analysis:
         stratified_categories: ["within_branch", "within_layer", "across_layer"]  # Stratified categories: "within_branch", "within_layer", "across_layer"
         max_pairs_per_category: 1000       # Stratified-only: max pairs per category (int >= 1)
     training: false
-  information_analysis:
+  information:
     enabled: false
     params:
       selection:
@@ -108,7 +127,7 @@ analysis:
           seed: 0                         # Null baseline seed (int)
           components: ["basic"]           # Null components: "basic", "conditional", "ablation_aligned", "upstream_unique_cmi", "all"
     training: false
-  noise_perturbation_analysis:
+  noise_perturbation:
     enabled: false
     params:
       accuracy: true
@@ -126,7 +145,7 @@ analysis:
       - 0.2
       uniform_noise: true
     training: false
-  performance_analysis:
+  performance:
     enabled: true
     params:
       accuracy: true
@@ -135,6 +154,8 @@ analysis:
       cosine_similarity: false
       mse: false
     training: true
+    training_splits: ["train", "valid", "test"]   # use ["valid"] for cheaper training-time checks
+    final_splits: ["train", "valid", "test"]
   single_layer_contribution:
     enabled: false
     params:
@@ -147,14 +168,14 @@ analysis:
       inhibition_contribution: true
       mse: false
     training: false
-  synapse_turnover_analysis:
+  synapse_turnover:
     enabled: false
     training: false
     params:
       snapshot_interval: 10
       synaptic_analysis: false
       save_synaptic_report: false
-  synaptic_activation_analysis:
+  synaptic_activation:
     enabled: false
     params:
       branch_summary: true
@@ -165,7 +186,7 @@ analysis:
       raw_summary: true
       samples: 5
     training: false
-  weight_analysis:
+  weight:
     enabled: false
     params:
       analyze_branch_output: false
@@ -185,7 +206,7 @@ analysis:
       synapse_weights: true
       weight_threshold: 1e-6
     training: false
-  compartment_statistics_analysis:
+  compartment_statistics:
     enabled: true
     training: false
     params:

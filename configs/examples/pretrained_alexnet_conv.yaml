@@ -124,16 +124,18 @@ training:
       standard: {}
 
 analysis:
+  runtime:
+    final:
+      mode: "stream"                    # large ImageNet split; stream instead of materializing to device memory
+      batch_size: 128
+      num_workers: 4
   performance:
     enabled: true
     params:
       accuracy: true
       auc: true
       categorical_loglikelihood: true
-    final_runtime:
-      mode: "stream"
-      batch_size: 128
-      num_workers: 4
+    final_splits: ["train", "valid", "test"]
 
 wandb:
   use_wandb: false

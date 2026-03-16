@@ -153,7 +153,7 @@ base_config:
         hsic:
           enabled: false
   analysis:
-    performance_analysis:
+    performance:
       enabled: true
       training: true
       params:
@@ -162,9 +162,9 @@ base_config:
         categorical_loglikelihood: true
         mse: false
         cosine_similarity: false
-    information_analysis:
+    information:
       enabled: false
-    correlation_analysis:
+    correlation:
       enabled: false
   wandb:
     use_wandb: false

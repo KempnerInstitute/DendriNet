@@ -15,10 +15,16 @@ import matplotlib.animation as animation
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-from torch.utils.data import TensorDataset
 
 from dendritic_modeling.analysis.core.base import AbstractAnalyzer
-from dendritic_modeling.config.analysis import AblationAnalysisParams
+from dendritic_modeling.analysis.utils.runtime import (
+    evaluation_kwargs_from_runtime,
+    subset_dataset_for_runtime,
+)
+from dendritic_modeling.config.analysis import (
+    AblationAnalysisParams,
+    EvaluationRuntimeConfig,
+)
 from dendritic_modeling.models import BaseModel, Classifier, Regressor
 from dendritic_modeling.networks import ExcitationInhibitionNetwork
 from dendritic_modeling.networks.architectures import DendriticBranchLayer
@@ -55,19 +61,12 @@ def flatten_3level_ablation(nested_results: dict) -> dict:
               This helper exists only for backward compatibility with old
               plotting code.
     """
-    for _k, v in nested_results.items():
-        if isinstance(v, dict):
-            inner = next(iter(v.values()), None)
-            if isinstance(inner, dict) and "depth" in inner:
-                return nested_results
-        break
-
     flat: dict = {}
     for method, targets in nested_results.items():
         if not isinstance(targets, dict):
             flat[method] = targets
             continue
-        if any(t in _KNOWN_TARGETS for t in targets):
+        if set(targets.keys()) & _KNOWN_TARGETS:
             for target, modules in targets.items():
                 flat[f"{method}_{target}"] = modules
         else:
@@ -90,24 +89,48 @@ class AblationAnalyzer(AbstractAnalyzer):
 
         # Method settings
         self.ablation_methods = list(
-            getattr(methods_cfg, "ablation_methods", ["lesion"])
+            getattr(
+                methods_cfg,
+                "ablation_methods",
+                getattr(params, "ablation_methods", ["lesion"]),
+            )
         )
         if not self.ablation_methods:
             self.ablation_methods = ["lesion"]
-        self.shuffle_seed = int(getattr(methods_cfg, "shuffle_seed", 0))
-        self.clamp_statistic = str(getattr(methods_cfg, "clamp_statistic", "mean"))
+        self.shuffle_seed = int(
+            getattr(methods_cfg, "shuffle_seed", getattr(params, "shuffle_seed", 0))
+        )
+        self.clamp_statistic = str(
+            getattr(
+                methods_cfg,
+                "clamp_statistic",
+                getattr(params, "clamp_statistic", "mean"),
+            )
+        )
 
         # Selection: levels, targets, metrics
-        levels_raw = list(getattr(selection_cfg, "levels", []) or [])
-        targets_raw = list(getattr(selection_cfg, "targets", []) or [])
-        metrics_raw = list(getattr(selection_cfg, "metrics", []) or [])
+        levels_raw = list(
+            getattr(selection_cfg, "levels", getattr(params, "levels", [])) or []
+        )
+        targets_raw = list(
+            getattr(selection_cfg, "targets", getattr(params, "targets", [])) or []
+        )
+        metrics_raw = list(
+            getattr(selection_cfg, "metrics", getattr(params, "metrics", [])) or []
+        )
 
         levels = {_norm(x) for x in levels_raw if str(x).strip()}
         targets = {_norm(x) for x in targets_raw if str(x).strip()}
         metrics = {_norm(x) for x in metrics_raw if str(x).strip()}
 
-        self.layer_ablation = "layer" in levels if levels else False
-        self.compartment_ablation = "compartment" in levels if levels else False
+        if levels:
+            self.layer_ablation = "layer" in levels
+            self.compartment_ablation = "compartment" in levels
+        else:
+            self.layer_ablation = bool(getattr(params, "layer_ablation", False))
+            self.compartment_ablation = bool(
+                getattr(params, "compartment_ablation", False)
+            )
 
         if targets:
             self.ablate_all_synapses = bool(
@@ -119,10 +142,12 @@ class AblationAnalyzer(AbstractAnalyzer):
                 {"upstream", "vb", "branch_input"}.intersection(targets)
             )
         else:
-            self.ablate_all_synapses = False
-            self.ablate_excitation = False
-            self.ablate_inhibition = False
-            self.ablate_upstream = False
+            self.ablate_all_synapses = bool(
+                getattr(params, "ablate_all_synapses", False)
+            )
+            self.ablate_excitation = bool(getattr(params, "ablate_excitation", False))
+            self.ablate_inhibition = bool(getattr(params, "ablate_inhibition", False))
+            self.ablate_upstream = bool(getattr(params, "ablate_upstream", False))
 
         if metrics:
             self.accuracy = "accuracy" in metrics
@@ -143,12 +168,17 @@ class AblationAnalyzer(AbstractAnalyzer):
                 {"pred_label_mi_bits", "pred_label_mi", "pred_mi"}.intersection(metrics)
             )
         else:
-            self.accuracy = False
-            self.auc = False
-            self.categorical_ll = False
-            self.mse = False
-            self.cosine_similarity = False
-            self.compute_pred_label_mi = False
+            self.accuracy = bool(getattr(params, "accuracy", False))
+            self.auc = bool(getattr(params, "auc", False))
+            self.categorical_ll = bool(
+                getattr(params, "categorical_loglikelihood", False)
+            )
+            self.mse = bool(getattr(params, "mse", False))
+            self.cosine_similarity = bool(getattr(params, "cosine_similarity", False))
+            self.compute_pred_label_mi = bool(
+                getattr(params, "pred_label_mi_bits", False)
+                or getattr(params, "pred_label_mi", False)
+            )
 
     @staticmethod
     def _normalize_ablation_target(target: str) -> str:
@@ -242,6 +272,7 @@ class AblationAnalyzer(AbstractAnalyzer):
         baseline_dict: dict,
         results_dict: dict,
         state_dict: dict,
+        eval_kwargs: Optional[dict] = None,
     ):
         """Ablate a single layer and evaluate its impact.
 
@@ -256,6 +287,8 @@ class AblationAnalyzer(AbstractAnalyzer):
         results_dict[ablation_type][module_name] = {}
         results_dict[ablation_type][module_name]["depth"] = module.layer_idx
         results_dict[ablation_type][module_name]["ablation_method"] = ablation_method
+        if eval_kwargs is None:
+            eval_kwargs = {}
 
         # Allow ablation_type keys to be namespaced, e.g. "lesion_excitation".
         target_type = ablation_type
@@ -329,7 +362,10 @@ class AblationAnalyzer(AbstractAnalyzer):
                         local_hook = module.register_forward_pre_hook(pre_hook)
 
                     metric_score = metric_func(
-                        model, test_ds=test_dataset, move_device=False
+                        model,
+                        test_ds=test_dataset,
+                        move_device=False,
+                        **eval_kwargs,
                     )[-1]
                 finally:
                     if local_hook is not None:
@@ -375,8 +411,11 @@ class AblationAnalyzer(AbstractAnalyzer):
         baseline_dict: dict,
         results_dict: dict,
         state_dict: dict,
+        eval_kwargs: Optional[dict] = None,
     ):
         """Ablate a single compartment and evaluate its impact."""
+        if eval_kwargs is None:
+            eval_kwargs = {}
         results_dict[ablation_type][module_name] = {}
         results_dict[ablation_type][module_name]["depth"] = module.layer_idx
         results_dict[ablation_type][module_name]["ablation_method"] = ablation_method
@@ -411,9 +450,12 @@ class AblationAnalyzer(AbstractAnalyzer):
             cosine_similarity_list = []
 
         def _evaluate_metric(metric_func: Callable, metric_key: str, metric_list: list):
-            metric_score = metric_func(model, test_ds=test_dataset, move_device=False)[
-                -1
-            ]
+            metric_score = metric_func(
+                model,
+                test_ds=test_dataset,
+                move_device=False,
+                **eval_kwargs,
+            )[-1]
             metric_list.append(baseline_dict[metric_key] - metric_score)
 
         for branch_ix in range(n_branches):
@@ -517,6 +559,7 @@ class AblationAnalyzer(AbstractAnalyzer):
         save_path: Optional[str] = None,
         filename: str = "final",
         training: bool = False,
+        runtime: Optional[EvaluationRuntimeConfig] = None,
     ):
         """Perform ablation analysis and return results."""
         try:
@@ -524,12 +567,10 @@ class AblationAnalyzer(AbstractAnalyzer):
         except AssertionError:
             return
 
+        eval_kwargs = evaluation_kwargs_from_runtime(runtime)
+        test_dataset = subset_dataset_for_runtime(test_dataset, runtime)
         model = model.to(device)
         model.eval()
-        items = test_dataset[:]
-        inputs: torch.Tensor = items[0].to(device)
-        labels: torch.Tensor = items[1].to(device)
-        test_dataset = TensorDataset(inputs, labels)
 
         state_dict = deepcopy(model.state_dict())
 
@@ -538,7 +579,10 @@ class AblationAnalyzer(AbstractAnalyzer):
         if self.accuracy:
             if isinstance(model, Classifier):
                 baselines["accuracy"] = evaluate_accuracy(
-                    classifier=model, test_ds=test_dataset, move_device=False
+                    classifier=model,
+                    test_ds=test_dataset,
+                    move_device=False,
+                    **eval_kwargs,
                 )[-1]
             else:
                 self.accuracy = False
@@ -546,7 +590,10 @@ class AblationAnalyzer(AbstractAnalyzer):
         if self.auc:
             if isinstance(model, Classifier):
                 baselines["auc"] = evaluate_auc(
-                    classifier=model, test_ds=test_dataset, move_device=False
+                    classifier=model,
+                    test_ds=test_dataset,
+                    move_device=False,
+                    **eval_kwargs,
                 )[-1]
             else:
                 self.auc = False
@@ -555,7 +602,10 @@ class AblationAnalyzer(AbstractAnalyzer):
             if isinstance(model, Classifier):
                 baselines["categorical_loglikelihood"] = (
                     evaluate_categorical_loglikelihood(
-                        classifier=model, test_ds=test_dataset, move_device=False
+                        classifier=model,
+                        test_ds=test_dataset,
+                        move_device=False,
+                        **eval_kwargs,
                     )[-1]
                 )
             else:
@@ -564,7 +614,10 @@ class AblationAnalyzer(AbstractAnalyzer):
         if self.mse:
             if isinstance(model, Regressor):
                 baselines["mse"] = evaluate_mse(
-                    regressor=model, test_ds=test_dataset, move_device=False
+                    regressor=model,
+                    test_ds=test_dataset,
+                    move_device=False,
+                    **eval_kwargs,
                 )[-1]
             else:
                 self.mse = False
@@ -572,7 +625,10 @@ class AblationAnalyzer(AbstractAnalyzer):
         if self.cosine_similarity:
             if isinstance(model, Regressor):
                 baselines["cosine_similarity"] = evaluate_cosine_similarity(
-                    regressor=model, test_ds=test_dataset, move_device=False
+                    regressor=model,
+                    test_ds=test_dataset,
+                    move_device=False,
+                    **eval_kwargs,
                 )[-1]
             else:
                 self.cosine_similarity = False
@@ -580,7 +636,10 @@ class AblationAnalyzer(AbstractAnalyzer):
         if self.compute_pred_label_mi:
             if isinstance(model, Classifier):
                 baselines["pred_label_mi_bits"] = evaluate_pred_label_mi(
-                    classifier=model, test_ds=test_dataset, move_device=False
+                    classifier=model,
+                    test_ds=test_dataset,
+                    move_device=False,
+                    **eval_kwargs,
                 )[-1]
             else:
                 self.compute_pred_label_mi = False
@@ -638,6 +697,7 @@ class AblationAnalyzer(AbstractAnalyzer):
                             baseline_dict=baselines,
                             results_dict=layer_results[method],
                             state_dict=state_dict,
+                            eval_kwargs=eval_kwargs,
                         )
                     if self.compartment_ablation and method == "lesion":
                         self.ablate_compartment_and_evaluate(
@@ -650,6 +710,7 @@ class AblationAnalyzer(AbstractAnalyzer):
                             baseline_dict=baselines,
                             results_dict=compartment_results[method],
                             state_dict=state_dict,
+                            eval_kwargs=eval_kwargs,
                         )
 
                 if self.ablate_excitation:
@@ -665,6 +726,7 @@ class AblationAnalyzer(AbstractAnalyzer):
                             baseline_dict=baselines,
                             results_dict=layer_results[method],
                             state_dict=state_dict,
+                            eval_kwargs=eval_kwargs,
                         )
                     if self.compartment_ablation and method == "lesion":
                         self.ablate_compartment_and_evaluate(
@@ -677,6 +739,7 @@ class AblationAnalyzer(AbstractAnalyzer):
                             baseline_dict=baselines,
                             results_dict=compartment_results[method],
                             state_dict=state_dict,
+                            eval_kwargs=eval_kwargs,
                         )
 
                 if self.ablate_inhibition:
@@ -692,6 +755,7 @@ class AblationAnalyzer(AbstractAnalyzer):
                             baseline_dict=baselines,
                             results_dict=layer_results[method],
                             state_dict=state_dict,
+                            eval_kwargs=eval_kwargs,
                         )
                     if self.compartment_ablation and method == "lesion":
                         self.ablate_compartment_and_evaluate(
@@ -704,6 +768,7 @@ class AblationAnalyzer(AbstractAnalyzer):
                             baseline_dict=baselines,
                             results_dict=compartment_results[method],
                             state_dict=state_dict,
+                            eval_kwargs=eval_kwargs,
                         )
 
                 if self.ablate_upstream and hasattr(module, "branches_to_output"):
@@ -719,6 +784,7 @@ class AblationAnalyzer(AbstractAnalyzer):
                             baseline_dict=baselines,
                             results_dict=layer_results[method],
                             state_dict=state_dict,
+                            eval_kwargs=eval_kwargs,
                         )
                     if self.compartment_ablation and method == "lesion":
                         self.ablate_compartment_and_evaluate(
@@ -731,6 +797,7 @@ class AblationAnalyzer(AbstractAnalyzer):
                             baseline_dict=baselines,
                             results_dict=compartment_results[method],
                             state_dict=state_dict,
+                            eval_kwargs=eval_kwargs,
                         )
 
         # ------------------------------------------------------------------
@@ -767,6 +834,7 @@ class AblationAnalyzer(AbstractAnalyzer):
                             baseline_dict=baselines,
                             results_dict=layer_results[method],
                             state_dict=state_dict,
+                            eval_kwargs=eval_kwargs,
                         )
 
                     if self.compartment_ablation and method == "lesion":
@@ -784,6 +852,7 @@ class AblationAnalyzer(AbstractAnalyzer):
                             baseline_dict=baselines,
                             results_dict=compartment_results[method],
                             state_dict=state_dict,
+                            eval_kwargs=eval_kwargs,
                         )
 
         results = {"baseline": baselines}

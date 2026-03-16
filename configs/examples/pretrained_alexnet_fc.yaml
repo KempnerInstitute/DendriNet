@@ -99,15 +99,17 @@ training:
       standard: {}
 
 analysis:
+  runtime:
+    final:
+      mode: "stream"                    # ImageNet-scale analysis: prefer stream; use materialize only for smaller debugging subsets
+      batch_size: 128
+      num_workers: 4
   performance:
     enabled: true
     params:
       accuracy: true
       auc: true
-    final_runtime:
-      mode: "stream"                    # ImageNet is too large to materialize
-      batch_size: 128
-      num_workers: 4
+    final_splits: ["train", "valid", "test"]
 
 wandb:
   use_wandb: false

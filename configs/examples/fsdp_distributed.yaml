@@ -88,13 +88,15 @@ training:
       standard: {}
 
 analysis:
+  runtime:
+    final:
+      mode: "stream"                    # large-image analysis under FSDP: stream by default
+      batch_size: 128
   performance:
     enabled: true
     params:
       accuracy: true
-    final_runtime:
-      mode: "stream"
-      batch_size: 128
+    final_splits: ["train", "valid", "test"]
 
 wandb:
   use_wandb: false

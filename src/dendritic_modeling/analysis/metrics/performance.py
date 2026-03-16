@@ -17,6 +17,7 @@ os.environ["TORCHDYNAMO_DISABLE"] = "1"
 
 import torch
 
+from dendritic_modeling.analysis.utils.runtime import evaluation_kwargs_from_runtime
 from dendritic_modeling.config import PerformanceAnalysisParams
 from dendritic_modeling.config.analysis import EvaluationRuntimeConfig
 from dendritic_modeling.models import BaseModel
@@ -63,6 +64,7 @@ class PerformanceAnalyzer:
         filename: str = "final",
         training: bool = False,
         runtime: Optional[EvaluationRuntimeConfig] = None,
+        splits: Optional[list[str]] = None,
     ):
         """
         Analyze model performance on specified datasets.
@@ -76,8 +78,8 @@ class PerformanceAnalyzer:
             save_path: Path to save results (optional)
             filename: Filename for saved results
             training: Whether this is being called during training
-            runtime: Evaluation runtime config (controls streaming vs materialize,
-                     splits, max_batches, etc.).  Falls back to defaults when None.
+            runtime: Shared analysis runtime config for dataset iteration.
+            splits: Dataset splits to evaluate. Defaults to all available splits.
 
         Returns:
             Dictionary containing results if save_path is None, otherwise None
@@ -85,24 +87,15 @@ class PerformanceAnalyzer:
         if runtime is None:
             runtime = EvaluationRuntimeConfig()
 
-        # Filter splits according to runtime config.
         split_map = {"train": train_ds, "valid": valid_ds, "test": test_ds}
-        active_splits = {k: v for k, v in split_map.items() if k in runtime.splits}
+        if splits is None:
+            splits = ["train", "valid", "test"]
+        active_splits = {k: v for k, v in split_map.items() if k in splits}
         active_train = active_splits.get("train")
         active_valid = active_splits.get("valid")
         active_test = active_splits.get("test")
 
-        # Build eval kwargs passed down to _evaluate_metric_generic.
-        eval_kwargs = {
-            "eval_mode": runtime.mode,
-            "eval_batch_size": runtime.batch_size,
-            "eval_num_workers": runtime.num_workers,
-            "eval_pin_memory": runtime.pin_memory,
-            "eval_persistent_workers": runtime.persistent_workers,
-            "eval_prefetch_factor": runtime.prefetch_factor,
-            "eval_max_batches": runtime.max_batches,
-            "eval_materialize_threshold_mb": runtime.materialize_threshold_mb,
-        }
+        eval_kwargs = evaluation_kwargs_from_runtime(runtime)
 
         results = {}
 

@@ -124,23 +124,61 @@ Each module lives under ``analysis.<module_name>`` with ``enabled`` and
 .. code-block:: yaml
 
    analysis:
-     performance_analysis:
+     runtime:
+       training:
+         mode: "auto"
+         batch_size: 256
+         num_workers: 4
+         pin_memory: true
+         max_batches: null
+         max_samples: null
+         materialize_threshold_mb: 1024
+       final:
+         mode: "auto"
+         batch_size: 256
+         num_workers: 4
+         pin_memory: true
+         max_batches: null
+         max_samples: null
+         materialize_threshold_mb: 1024
+     performance:
        enabled: true
        training: true    # run every epoch
-     information_analysis:
+       training_splits: ["valid"]
+       final_splits: ["train", "valid", "test"]
+     information:
        enabled: true
        training: false   # run after training only
 
-Available modules: ``performance_analysis``, ``information_analysis``,
-``correlation_analysis``, ``ablation_analysis``, ``synapse_turnover_analysis``,
-``noise_perturbation_analysis``, ``weight_analysis``,
-``single_layer_contribution``, ``synaptic_activation_analysis``,
-``branch_activation_analysis``, ``compartment_statistics_analysis``,
-``compartment_snr_analysis``, ``multiplicative_gain_analysis``,
-``receptive_field_analysis``, ``adversarial_robustness_analysis``,
-``routing_analysis``.
+``analysis.runtime`` is the shared dataset-iteration policy for all analysis
+modules. Use ``mode: "stream"`` for large datasets that should not be fully
+materialized on the device, and use ``max_samples`` for expensive analyses
+that still accumulate tensors on CPU. If you want older small-dataset
+single-GPU behavior for hook-based analyses, set ``mode: "materialize"``:
+the runtime will use one full batch again when the dataset supports slicing.
+For most runs, keep the default ``mode: "auto"``: it behaves like the old path
+on small datasets and switches to streaming only when the dataset estimate is large.
+If you omit ``analysis.runtime`` entirely, non-distributed runs default to the
+old ``materialize`` behavior for backward compatibility, while DDP/FSDP runs
+keep the generic ``auto`` default.
+
+Preferred short names are ``performance``, ``information``, ``ablation``, and
+``correlation``. The longer ``*_analysis`` aliases are still accepted for
+backward compatibility.
+
+Available modules: ``performance``, ``information``, ``correlation``,
+``ablation``, ``synapse_turnover``, ``noise_perturbation``, ``weight``,
+``single_layer_contribution``, ``synaptic_activation``, ``branch_activation``,
+``compartment_statistics``, ``compartment_snr``, ``multiplicative_gain``,
+``receptive_field``, ``adversarial_robustness``, ``routing``.
 
 See :doc:`analysis` for per-module parameter details.
+
+Backward compatibility:
+
+- Older configs using ``performance_analysis`` instead of ``performance`` still load.
+- Older performance-only ``training_runtime`` / ``final_runtime`` blocks still load
+  and are migrated into the shared ``analysis.runtime`` structure.
 
 Pretrained Backbone Replacement
 --------------------------------

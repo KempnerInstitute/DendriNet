@@ -14,6 +14,14 @@ logger = logging.getLogger(__name__)
 _config_cache = {}
 
 
+def normalize_sparsity_type(sparsity_type: Any) -> str:
+    """Normalize public sparsity aliases to the internal TopK strategy names."""
+    normalized = "standard" if sparsity_type is None else str(sparsity_type).lower()
+    if normalized == "topk":
+        return "standard"
+    return normalized
+
+
 def get_config_value(config: Union[dict, object], key: str, default: Any = None) -> Any:
     """
     Safely get a value from a config object, handling both dict and attribute access.
@@ -144,6 +152,8 @@ def prepare_ei_network_params(
                 params[deepst_key] = deepst_value
         elif key == "gradient_scaling":
             params["topk_strategy"] = value
+        elif key == "type":
+            params["topk_type"] = normalize_sparsity_type(value)
         else:
             params[f"topk_{key}"] = value
 

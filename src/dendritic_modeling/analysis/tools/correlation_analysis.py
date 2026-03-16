@@ -22,7 +22,9 @@ from scipy.stats import pearsonr
 from tqdm import tqdm
 
 from dendritic_modeling.analysis.core.base import AbstractAnalyzer
+from dendritic_modeling.analysis.utils.runtime import materialize_dataset
 from dendritic_modeling.config import CorrelationAnalysisParams
+from dendritic_modeling.config.analysis import EvaluationRuntimeConfig
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.networks import (
     DendriticBranchLayer,
@@ -843,6 +845,7 @@ class CorrelationAnalyzer(AbstractAnalyzer):
         device: str = "cpu",
         save_path: Optional[str] = None,
         filename: str = "final",
+        runtime: Optional[EvaluationRuntimeConfig] = None,
     ):
         """Run hierarchical correlation analysis."""
         self.logger.info(
@@ -864,18 +867,11 @@ class CorrelationAnalyzer(AbstractAnalyzer):
             model = model.to(device)
             model.eval()
 
-            items = test_dataset[:]
+            items = materialize_dataset(
+                test_dataset, runtime, explicit_max_samples=self.max_samples
+            )
             inputs = items[0].to(device)
             labels_np = items[1].numpy()
-
-            # Sample data if needed
-            if self.max_samples and len(inputs) > self.max_samples:
-                self.logger.info(
-                    f"Sampling {self.max_samples} samples from {len(inputs)}"
-                )
-                indices = torch.randperm(len(inputs))[: self.max_samples]
-                inputs = inputs[indices]
-                labels_np = labels_np[indices]
 
             # Attach hooks and run forward pass
             handles = self.attach_forward_hooks(model)

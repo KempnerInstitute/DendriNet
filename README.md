@@ -53,6 +53,14 @@ python src/dendritic_modeling/scripts/sweeps/result_analyzer.py \
     /path/to/sweep/results
 ```
 
+Analysis runtime is configured centrally under `analysis.runtime` in YAML.
+Use `mode: "stream"` there for large datasets, and set `max_samples` for
+expensive analyses that should only inspect a bounded subset. Keep
+`mode: "auto"` for the normal default, and use `mode: "materialize"` when you
+want the closest match to the old exact small-dataset single-GPU analysis path.
+If `analysis.runtime` is omitted entirely, non-distributed runs default to that
+backward-compatible materialized behavior automatically.
+
 ## Documentation
 
 The maintained user docs live under [docs/README.md](docs/README.md).

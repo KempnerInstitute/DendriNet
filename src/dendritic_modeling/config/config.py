@@ -16,6 +16,7 @@ from omegaconf import OmegaConf
 
 from dendritic_modeling.config.analysis import (
     AnalysisConfig,
+    AnalysisRuntimeConfig,
     EvaluationRuntimeConfig,
     PerformanceAnalysisConfig,
     PerformanceAnalysisParams,
@@ -511,7 +512,11 @@ def load_config(path: Optional[str] = None) -> Config:
 
         # Handle analysis config field mapping
         analysis_data = conf_data.get("analysis", {})
-        mapped_analysis = _map_analysis_config(analysis_data)
+        distributed_config = _build_distributed_config(conf_data)
+        mapped_analysis = _map_analysis_config(
+            analysis_data,
+            distributed_mode=distributed_config.mode,
+        )
 
         # Handle training config field mapping
         training_data = conf_data.get("training", {})
@@ -538,7 +543,7 @@ def load_config(path: Optional[str] = None) -> Config:
                 **_filter_dataclass_kwargs(WandbConfig, conf_data.get("wandb", {}))
             ),
             outputs=OutputsConfig(**conf_data.get("outputs", {})),
-            distributed=_build_distributed_config(conf_data),
+            distributed=distributed_config,
         )
     return Config()
 
@@ -578,7 +583,21 @@ def _build_distributed_config(conf_data: dict) -> DistributedConfig:
     )
 
 
-def _map_analysis_config(analysis_data: dict) -> dict:
+def _default_analysis_runtime_config(distributed_mode: str) -> AnalysisRuntimeConfig:
+    """Return the implicit shared analysis runtime for a distributed mode."""
+    if str(distributed_mode).lower() == "none":
+        default_runtime = EvaluationRuntimeConfig(mode="materialize")
+        return AnalysisRuntimeConfig(
+            training=default_runtime,
+            final=EvaluationRuntimeConfig(mode="materialize"),
+        )
+    return AnalysisRuntimeConfig()
+
+
+def _map_analysis_config(
+    analysis_data: dict,
+    distributed_mode: str = "none",
+) -> dict:
     """Map analysis config fields to expected AnalysisConfig structure."""
     mapped = {}
 
@@ -607,19 +626,74 @@ def _map_analysis_config(analysis_data: dict) -> dict:
         elif old_name in analysis_data:
             mapped[old_name] = analysis_data[old_name]
 
-    # Instantiate PerformanceAnalysisConfig with nested EvaluationRuntimeConfig.
-    # Use Mapping to match both plain dict and omegaconf DictConfig.
+    if "runtime" in analysis_data and isinstance(analysis_data["runtime"], Mapping):
+        runtime_data = dict(analysis_data["runtime"])
+        default_runtime = _default_analysis_runtime_config(distributed_mode)
+        if "training" in runtime_data and isinstance(runtime_data["training"], Mapping):
+            tr = dict(runtime_data["training"])
+            tr.pop("splits", None)
+            tr.pop("persistent_workers", None)
+            tr.pop("prefetch_factor", None)
+            runtime_data["training"] = EvaluationRuntimeConfig(**tr)
+        elif "training" not in runtime_data:
+            runtime_data["training"] = default_runtime.training
+        if "final" in runtime_data and isinstance(runtime_data["final"], Mapping):
+            fr = dict(runtime_data["final"])
+            fr.pop("splits", None)
+            fr.pop("persistent_workers", None)
+            fr.pop("prefetch_factor", None)
+            runtime_data["final"] = EvaluationRuntimeConfig(**fr)
+        elif "final" not in runtime_data:
+            runtime_data["final"] = default_runtime.final
+        mapped["runtime"] = AnalysisRuntimeConfig(**runtime_data)
+
+    # Instantiate PerformanceAnalysisConfig and migrate legacy performance runtime
+    # config into the shared top-level analysis.runtime surface.
     if "performance_analysis" in mapped and isinstance(
         mapped["performance_analysis"], Mapping
     ):
         pa = dict(mapped["performance_analysis"])
         if "params" in pa and isinstance(pa["params"], Mapping):
             pa["params"] = PerformanceAnalysisParams(**pa["params"])
+
+        legacy_training_runtime = None
+        legacy_final_runtime = None
+        legacy_training_splits = None
+        legacy_final_splits = None
         if "training_runtime" in pa and isinstance(pa["training_runtime"], Mapping):
-            pa["training_runtime"] = EvaluationRuntimeConfig(**pa["training_runtime"])
+            tr = dict(pa["training_runtime"])
+            legacy_training_splits = tr.pop("splits", None)
+            tr.pop("persistent_workers", None)
+            tr.pop("prefetch_factor", None)
+            legacy_training_runtime = EvaluationRuntimeConfig(**tr)
         if "final_runtime" in pa and isinstance(pa["final_runtime"], Mapping):
-            pa["final_runtime"] = EvaluationRuntimeConfig(**pa["final_runtime"])
+            fr = dict(pa["final_runtime"])
+            legacy_final_splits = fr.pop("splits", None)
+            fr.pop("persistent_workers", None)
+            fr.pop("prefetch_factor", None)
+            legacy_final_runtime = EvaluationRuntimeConfig(**fr)
+
+        if "runtime" not in mapped and (
+            legacy_training_runtime is not None or legacy_final_runtime is not None
+        ):
+            mapped["runtime"] = AnalysisRuntimeConfig(
+                training=legacy_training_runtime
+                or _default_analysis_runtime_config(distributed_mode).training,
+                final=legacy_final_runtime
+                or _default_analysis_runtime_config(distributed_mode).final,
+            )
+
+        if legacy_training_splits is not None and "training_splits" not in pa:
+            pa["training_splits"] = list(legacy_training_splits)
+        if legacy_final_splits is not None and "final_splits" not in pa:
+            pa["final_splits"] = list(legacy_final_splits)
+
+        pa.pop("training_runtime", None)
+        pa.pop("final_runtime", None)
         mapped["performance_analysis"] = PerformanceAnalysisConfig(**pa)
+
+    if "runtime" not in mapped:
+        mapped["runtime"] = _default_analysis_runtime_config(distributed_mode)
 
     return mapped
 

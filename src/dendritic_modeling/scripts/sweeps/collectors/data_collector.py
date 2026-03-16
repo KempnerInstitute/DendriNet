@@ -330,6 +330,7 @@ class DataCollector:
         columns via :func:`ablation_columns.flatten_ablation_results`.
         """
         from dendritic_modeling.scripts.sweeps.utils.ablation_columns import (
+            flatten_ablation_module_results,
             flatten_ablation_results,
         )
 
@@ -352,6 +353,7 @@ class DataCollector:
             # Detect and convert legacy 2-level schema if needed
             layer_data = self._ensure_3level(layer_data)
             result.update(flatten_ablation_results(layer_data))
+            result.update(flatten_ablation_module_results(layer_data))
 
         return result
 
@@ -365,21 +367,14 @@ class DataCollector:
         Already 3-level dicts are returned unchanged.
         """
         known_targets = {"all_synapses", "excitation", "inhibition", "upstream"}
-        # Detect format: if any top-level value's keys are known targets,
-        # it's already 3-level.
-        for _key, value in layer_dict.items():
-            if isinstance(value, dict):
-                if set(value.keys()) & known_targets:
-                    return layer_dict  # already 3-level
-                inner = next(iter(value.values()), None)
-                if isinstance(inner, dict) and "depth" in inner:
-                    break  # 2-level (module dicts with depth)
-            break
-
-        # Convert 2-level -> 3-level
+        # Convert any legacy 2-level entries while preserving already-canonical
+        # 3-level entries in mixed payloads.
         nested: dict = {}
         for key, modules in layer_dict.items():
             if not isinstance(modules, dict):
+                continue
+            if set(modules.keys()) & known_targets:
+                nested[key] = modules
                 continue
             key_norm = str(key).replace(" ", "_")
             matched = False

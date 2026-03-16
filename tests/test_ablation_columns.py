@@ -4,9 +4,13 @@ import pytest
 
 from dendritic_modeling.scripts.sweeps.utils.ablation_columns import (
     discover_ablation_dimensions,
+    discover_ablation_module_dimensions,
+    flatten_ablation_module_results,
     flatten_ablation_results,
     normalize_metric_key,
     parse_ablation_column,
+    parse_ablation_module_column,
+    sanitize_module_key,
 )
 
 
@@ -31,6 +35,11 @@ class TestNormalizeMetricKey:
 
     def test_pred_label_mi(self):
         assert normalize_metric_key("pred_label_mi_bits") == "pred_label_mi_bits_drop"
+
+
+class TestSanitizeModuleKey:
+    def test_module_slug(self):
+        assert sanitize_module_key("core.layers.0/branch") == "core_layers_0_branch"
 
 
 # ---------------------------------------------------------------------------
@@ -97,6 +106,41 @@ class TestFlattenAblationResults:
         flat = flatten_ablation_results(nested_results)
         assert "ablation_lesion_excitation_accuracy_drop_depth0" in flat
         assert "ablation_lesion_excitation_accuracy_drop_depth1" in flat
+
+    def test_duplicate_depths_are_averaged(self):
+        nested = {
+            "lesion": {
+                "excitation": {
+                    "mod_a": {"depth": 1, "accuracy_drop": 0.1},
+                    "mod_b": {"depth": 1, "accuracy_drop": 0.3},
+                }
+            }
+        }
+        flat = flatten_ablation_results(nested)
+        assert flat["ablation_lesion_excitation_accuracy_drop_depth1"] == pytest.approx(
+            0.2
+        )
+
+
+class TestFlattenAblationModuleResults:
+    def test_preserves_module_identity(self):
+        nested = {
+            "lesion": {
+                "excitation": {
+                    "core.layers.0": {"depth": 0, "accuracy_drop": 0.1},
+                    "core.layers.1": {"depth": 1, "accuracy_drop": 0.2},
+                }
+            }
+        }
+        flat = flatten_ablation_module_results(nested)
+        assert (
+            "ablation_module__lesion__excitation__accuracy_drop__core_layers_0__depth0"
+            in flat
+        )
+        assert (
+            "ablation_module__lesion__excitation__accuracy_drop__core_layers_1__depth1"
+            in flat
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -168,6 +212,20 @@ class TestParseAblationColumn:
         assert parsed.full_col == "ablation_lesion_excitation_accuracy_drop_depth0_mean"
 
 
+class TestParseAblationModuleColumn:
+    def test_module_column(self):
+        parsed = parse_ablation_module_column(
+            "ablation_module__mean_clamp__upstream__pred_label_mi_bits_drop__core_layers_1__depth2_mean"
+        )
+        assert parsed is not None
+        assert parsed.method == "mean_clamp"
+        assert parsed.target == "upstream"
+        assert parsed.metric == "pred_label_mi_bits_drop"
+        assert parsed.module == "core_layers_1"
+        assert parsed.depth == 2
+        assert parsed.stat == "mean"
+
+
 # ---------------------------------------------------------------------------
 # discover_ablation_dimensions
 # ---------------------------------------------------------------------------
@@ -192,6 +250,22 @@ class TestDiscoverAblationDimensions:
         assert targets == []
         assert metrics == []
         assert depths == []
+
+
+class TestDiscoverAblationModuleDimensions:
+    def test_discovers_module_dimensions(self):
+        cols = [
+            "ablation_module__lesion__excitation__accuracy_drop__core_layers_0__depth0_mean",
+            "ablation_module__mean_clamp__upstream__pred_label_mi_bits_drop__core_layers_1__depth2_mean",
+        ]
+        methods, targets, metrics, modules, depths = (
+            discover_ablation_module_dimensions(cols)
+        )
+        assert methods == ["lesion", "mean_clamp"]
+        assert targets == ["excitation", "upstream"]
+        assert metrics == ["accuracy_drop", "pred_label_mi_bits_drop"]
+        assert modules == ["core_layers_0", "core_layers_1"]
+        assert depths == [0, 2]
 
 
 # ---------------------------------------------------------------------------

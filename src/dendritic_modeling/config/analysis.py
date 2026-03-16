@@ -6,7 +6,7 @@ from dendritic_modeling.config.base import BaseConfig
 
 @dataclass
 class EvaluationRuntimeConfig(BaseConfig):
-    """Controls how evaluation iterates over a dataset.
+    """Controls how analysis iterates over a dataset.
 
     mode:
         "auto"        - materialize if estimated size < *materialize_threshold_mb*,
@@ -14,14 +14,13 @@ class EvaluationRuntimeConfig(BaseConfig):
         "materialize" - always load the full dataset into memory (old behaviour).
         "stream"      - always iterate batch-by-batch through a DataLoader.
 
-    splits:
-        Which data splits to evaluate.  Default ``["train", "valid", "test"]``
-        preserves old behaviour.  For ImageNet-scale training set
-        ``["valid"]`` during training.
-
     max_batches:
         If set, cap evaluation to this many batches per split (useful for
         cheap approximate metrics during training).
+
+    max_samples:
+        If set, cap the number of examples exposed to the analysis.
+        This is useful for expensive hook-based analyses.
 
     materialize_threshold_mb:
         Dataset size threshold (MB) for the ``"auto"`` mode switch.
@@ -32,11 +31,17 @@ class EvaluationRuntimeConfig(BaseConfig):
     batch_size: int = 256
     num_workers: int = 4
     pin_memory: bool = True
-    persistent_workers: bool = False
-    prefetch_factor: int = 2
     max_batches: Optional[int] = None
+    max_samples: Optional[int] = None
     materialize_threshold_mb: int = 1024
-    splits: list[str] = field(default_factory=lambda: ["train", "valid", "test"])
+
+
+@dataclass
+class AnalysisRuntimeConfig(BaseConfig):
+    """Shared runtime profiles for analysis during training and final evaluation."""
+
+    training: EvaluationRuntimeConfig = field(default_factory=EvaluationRuntimeConfig)
+    final: EvaluationRuntimeConfig = field(default_factory=EvaluationRuntimeConfig)
 
 
 @dataclass
@@ -64,19 +69,17 @@ class PerformanceAnalysisConfig(BaseConfig):
 
     - enabled: turns the analysis module on/off.
     - training: if true, run during training.
-    - training_runtime / final_runtime: control how datasets are iterated
+    - training_splits / final_splits: which dataset splits are evaluated
       during training-time vs. final evaluation.
     """
 
     enabled: bool = True
     training: bool = False
     params: PerformanceAnalysisParams = field(default_factory=PerformanceAnalysisParams)
-    training_runtime: EvaluationRuntimeConfig = field(
-        default_factory=EvaluationRuntimeConfig
+    training_splits: list[str] = field(
+        default_factory=lambda: ["train", "valid", "test"]
     )
-    final_runtime: EvaluationRuntimeConfig = field(
-        default_factory=EvaluationRuntimeConfig
-    )
+    final_splits: list[str] = field(default_factory=lambda: ["train", "valid", "test"])
 
 
 @dataclass
@@ -1125,6 +1128,8 @@ class AnalysisConfig(BaseConfig):
 
     Each field corresponds to an analysis module under `analysis.*` in YAML.
     """
+
+    runtime: AnalysisRuntimeConfig = field(default_factory=AnalysisRuntimeConfig)
 
     performance_analysis: PerformanceAnalysisConfig = field(
         default_factory=PerformanceAnalysisConfig

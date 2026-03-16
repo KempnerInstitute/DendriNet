@@ -13,9 +13,13 @@ from typing import Callable, Optional
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-from torch.utils.data import TensorDataset
 
+from dendritic_modeling.analysis.utils.runtime import (
+    evaluation_kwargs_from_runtime,
+    subset_dataset_for_runtime,
+)
 from dendritic_modeling.config import SingleLayerContributionAnalysisParams
+from dendritic_modeling.config.analysis import EvaluationRuntimeConfig
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.networks import (
     DendriticBranchLayer,
@@ -58,7 +62,10 @@ class SingleLayerContributionAnalyzer:
         contribution_type: str,
         results_dict: dict,
         state_dict: dict,
+        eval_kwargs: Optional[dict] = None,
     ):
+        if eval_kwargs is None:
+            eval_kwargs = {}
         results_dict[contribution_type][module_name] = {}
         results_dict[contribution_type][module_name]["depth"] = module.layer_idx
 
@@ -78,9 +85,9 @@ class SingleLayerContributionAnalyzer:
             module.branch_excitation.pre_w.data.fill_(-1000)
 
         def _evaluate_metric(metric_func: Callable, metric_key: str):
-            metric_score = metric_func(model, test_ds=test_dataset, move_device=False)[
-                -1
-            ]
+            metric_score = metric_func(
+                model, test_ds=test_dataset, move_device=False, **eval_kwargs
+            )[-1]
             results_dict[contribution_type][module_name][metric_key] = metric_score
 
         if self.accuracy:
@@ -110,6 +117,7 @@ class SingleLayerContributionAnalyzer:
         device: str = "cuda",
         save_path: Optional[str] = None,
         filename: str = "final",
+        runtime: Optional[EvaluationRuntimeConfig] = None,
     ):
         """Analyze each layer's contribution in isolation"""
         self.logger.info("Starting single layer contribution analysis...")
@@ -120,12 +128,10 @@ class SingleLayerContributionAnalyzer:
             return
 
         # Ensure model is on the correct device
+        eval_kwargs = evaluation_kwargs_from_runtime(runtime)
+        test_dataset = subset_dataset_for_runtime(test_dataset, runtime)
         model = model.to(device)
         model.eval()
-        items = test_dataset[:]
-        inputs: torch.Tensor = items[0].to(device)
-        labels: torch.Tensor = items[1].to(device)
-        test_dataset = TensorDataset(inputs, labels)
 
         state_dict = deepcopy(model.state_dict())
 
@@ -152,6 +158,7 @@ class SingleLayerContributionAnalyzer:
                         contribution_type="both",
                         results_dict=results,
                         state_dict=state_dict,
+                        eval_kwargs=eval_kwargs,
                     )
 
                 if self.excitation_contribution:
@@ -163,6 +170,7 @@ class SingleLayerContributionAnalyzer:
                         contribution_type="excitation",
                         results_dict=results,
                         state_dict=state_dict,
+                        eval_kwargs=eval_kwargs,
                     )
 
                 if self.inhibition_contribution:
@@ -174,6 +182,7 @@ class SingleLayerContributionAnalyzer:
                         contribution_type="inhibition",
                         results_dict=results,
                         state_dict=state_dict,
+                        eval_kwargs=eval_kwargs,
                     )
 
         if save_path is not None:

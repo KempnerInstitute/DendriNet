@@ -74,11 +74,16 @@ class ConfigExtractor:
                 core = config.model.core
                 if hasattr(core, "type"):
                     # Canonical architecture selector (preferred over legacy booleans)
-                    core_type = str(core.type)
-                    params["network_type"] = core_type
-
-                if hasattr(core, "type"):
-                    params["network_type"] = str(core.type).lower()
+                    core_type = str(core.type).lower()
+                    canonical_type = {
+                        "matchedtotalparammlp": "total_param_mlp",
+                        "matchedactiveparammlp": "active_param_mlp",
+                        "einet_sh": "dendritic_shunting",
+                        "einet_ns": "dendritic_additive",
+                        "einet_sh_flat": "flat_shunting",
+                        "einet_ns_flat": "flat_additive",
+                    }.get(core_type, core_type)
+                    params["network_type"] = canonical_type
 
                 # Connectivity parameters
                 if hasattr(core, "connectivity"):

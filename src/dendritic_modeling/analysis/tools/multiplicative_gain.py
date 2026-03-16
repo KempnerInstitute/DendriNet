@@ -10,7 +10,12 @@ import torch
 from torch.utils.data import TensorDataset
 
 from dendritic_modeling.analysis.core.base import AbstractAnalyzer
+from dendritic_modeling.analysis.utils.runtime import (
+    evaluation_kwargs_from_runtime,
+    materialize_dataset,
+)
 from dendritic_modeling.config import MultiplicativeGainAnalysisParams
+from dendritic_modeling.config.analysis import EvaluationRuntimeConfig
 from dendritic_modeling.datasets.standard_datasets import PoissonGeneratorDataset
 from dendritic_modeling.models import BaseModel, Classifier, Regressor
 from dendritic_modeling.training.utils.evaluation import (
@@ -53,7 +58,11 @@ class MultiplicativeGainAnalyzer(AbstractAnalyzer):
         self.cosine_similarity = getattr(params, "cosine_similarity", False)
 
     def _apply_gain_to_inputs(
-        self, dataset: torch.utils.data.Dataset, gain_factor: float
+        self,
+        dataset: torch.utils.data.Dataset,
+        gain_factor: float,
+        runtime: Optional[EvaluationRuntimeConfig] = None,
+        base_inputs: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         if isinstance(dataset, PoissonGeneratorDataset):
             if self.uniform_gain:
@@ -61,11 +70,15 @@ class MultiplicativeGainAnalyzer(AbstractAnalyzer):
             else:
                 dataset._set_max_gain_factor(gain_factor)
 
-            inputs = dataset[:][0]
+            inputs = materialize_dataset(dataset, runtime)[0]
             return inputs
 
         else:
-            inputs = dataset[:][0]
+            inputs = (
+                base_inputs
+                if base_inputs is not None
+                else materialize_dataset(dataset, runtime)[0]
+            )
 
             if not self.uniform_gain:
                 gain_factor = (torch.rand_like(inputs) * (gain_factor - 1)) + 1
@@ -85,6 +98,7 @@ class MultiplicativeGainAnalyzer(AbstractAnalyzer):
         save_path: Optional[str] = None,
         filename: str = "final",
         training: bool = False,
+        runtime: Optional[EvaluationRuntimeConfig] = None,
     ):
         if not isinstance(model, Classifier):
             self.accuracy = False
@@ -125,17 +139,24 @@ class MultiplicativeGainAnalyzer(AbstractAnalyzer):
 
         model = model.to(device)
         model.eval()
+        eval_kwargs = evaluation_kwargs_from_runtime(runtime)
 
-        test_labels: torch.Tensor = test_dataset[:][1].to(device)
+        base_items = materialize_dataset(test_dataset, runtime)
+        base_inputs = base_items[0]
+        test_labels: torch.Tensor = base_items[1].to(device)
 
         def _evaluate_metric(
             metric_func: Callable, metric_key: str, dataset: torch.utils.data.Dataset
         ):
-            metric_score = metric_func(model, test_ds=dataset, move_device=False)[-1]
+            metric_score = metric_func(
+                model, test_ds=dataset, move_device=False, **eval_kwargs
+            )[-1]
             data_dict[metric_key].append(metric_score)
 
         for gain_factor in data_dict["gain_factors"]:
-            scaled_test_inputs = self._apply_gain_to_inputs(test_dataset, gain_factor)
+            scaled_test_inputs = self._apply_gain_to_inputs(
+                test_dataset, gain_factor, runtime, base_inputs
+            )
             scaled_test_inputs = scaled_test_inputs.to(device)
             scaled_test_dataset = TensorDataset(scaled_test_inputs, test_labels)
 

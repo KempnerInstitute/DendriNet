@@ -214,7 +214,7 @@ training:
       standard: {}
 
 analysis:
-  performance_analysis:
+  performance:
     enabled: true
     training: true
     params:
@@ -223,11 +223,11 @@ analysis:
       categorical_loglikelihood: true
       mse: false
       cosine_similarity: false
-  information_analysis: { enabled: false, training: false, params: {} }
-  correlation_analysis: { enabled: false, training: false, params: {} }
-  ablation_analysis: { enabled: false, training: false, params: {} }
-  synapse_turnover_analysis: { enabled: false, training: false, params: {} }
-  noise_perturbation_analysis: { enabled: false, training: false, params: {} }
+  information: { enabled: false, training: false, params: {} }
+  correlation: { enabled: false, training: false, params: {} }
+  ablation: { enabled: false, training: false, params: {} }
+  synapse_turnover: { enabled: false, training: false, params: {} }
+  noise_perturbation: { enabled: false, training: false, params: {} }
 
 outputs:
   run_name: "alexnet_k1_einet_smoke"

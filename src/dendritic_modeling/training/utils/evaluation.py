@@ -25,6 +25,11 @@ import torch.nn.functional as functional
 from torch.distributions import Categorical
 from torch.utils.data import DataLoader
 
+from dendritic_modeling.analysis.utils.runtime import (
+    estimate_dataset_size_mb,
+    make_analysis_loader,
+    should_materialize_dataset,
+)
 from dendritic_modeling.models import Classifier, Regressor
 from dendritic_modeling.utils.general import save_dict
 from dendritic_modeling.utils.math.auc import roc_auc_score
@@ -232,44 +237,19 @@ def _compute_metric_score(
         return nan_tensor
 
 
-def _estimate_dataset_size_mb(dataset: torch.utils.data.Dataset) -> float:
-    """Estimate dataset memory footprint in MB without materializing it.
-
-    Samples one item and multiplies by ``len(dataset)``.  Returns ``float('inf')``
-    when length cannot be determined (safest: forces streaming).
-    """
-    try:
-        n = len(dataset)
-    except (TypeError, AttributeError):
-        return float("inf")
-    if n == 0:
-        return 0.0
-    try:
-        sample = dataset[0]
-        # sample is typically (tensor, label) or (tensor, label, seq_len)
-        item_bytes = 0
-        for s in sample if isinstance(sample, (tuple, list)) else [sample]:
-            if isinstance(s, torch.Tensor):
-                item_bytes += s.nelement() * s.element_size()
-            else:
-                item_bytes += 8  # scalar label
-        return n * item_bytes / (1024 * 1024)
-    except Exception:
-        return float("inf")
-
-
 def _should_materialize(
     dataset: torch.utils.data.Dataset,
     mode: str = "auto",
     threshold_mb: float = 1024,
 ) -> bool:
     """Decide whether to materialize *dataset* into a single tensor."""
-    if mode == "materialize":
-        return True
-    if mode == "stream":
-        return False
-    # auto
-    return _estimate_dataset_size_mb(dataset) <= threshold_mb
+
+    class _Runtime:
+        def __init__(self):
+            self.mode = mode
+            self.materialize_threshold_mb = threshold_mb
+
+    return should_materialize_dataset(dataset, _Runtime())
 
 
 def _stream_model_outputs(
@@ -342,17 +322,18 @@ def _make_eval_loader(
     **_extra,
 ) -> DataLoader:
     """Build a DataLoader suitable for evaluation (no shuffle, no drop_last)."""
-    worker_kwargs: dict = {}
-    if num_workers > 0:
-        worker_kwargs["persistent_workers"] = persistent_workers
-        worker_kwargs["prefetch_factor"] = prefetch_factor
-    return DataLoader(
-        dataset,
-        batch_size=batch_size,
-        shuffle=False,
-        num_workers=num_workers,
-        pin_memory=pin_memory,
-        **worker_kwargs,
+
+    class _Runtime:
+        def __init__(self):
+            self.batch_size = batch_size
+            self.num_workers = num_workers
+            self.pin_memory = pin_memory
+
+    _ = persistent_workers
+    _ = prefetch_factor
+    return make_analysis_loader(
+        dataset=dataset,
+        runtime=_Runtime(),
     )
 
 
@@ -510,7 +491,7 @@ def _evaluate_metric_generic(
         # then compute the metric once on the full accumulated data.
         # This is numerically identical to the materialize path because the
         # same metric function runs on the complete output+label tensors. ---
-        est_mb = _estimate_dataset_size_mb(dataset)
+        est_mb = estimate_dataset_size_mb(dataset)
         logger.info(
             "Streaming evaluation for %s (est. %.0f MB, threshold %.0f MB, "
             "max_batches=%s)",

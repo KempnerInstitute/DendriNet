@@ -173,6 +173,40 @@ class TestConfigExtractor(unittest.TestCase):
         self.assertEqual(params["seed"], 42)
         self.assertEqual(params["dataset"], "cifar10")
 
+    def test_extract_model_params_normalizes_deprecated_network_type(self):
+        """Deprecated network type aliases should extract as canonical names."""
+        config = OmegaConf.create(
+            {
+                "model": {
+                    "core": {
+                        "type": "matchedtotalparammlp",
+                        "morphology": {"use_shunting": False},
+                    }
+                }
+            }
+        )
+
+        params = self.extractor._extract_model_params(config)
+        self.assertEqual(params["network_type"], "total_param_mlp")
+        self.assertEqual(params["use_shunting"], False)
+
+    def test_extract_model_params_flat_mlp(self):
+        """flat_mlp should be extracted as canonical non-shunting network."""
+        config = OmegaConf.create(
+            {
+                "model": {
+                    "core": {
+                        "type": "flat_mlp",
+                        "morphology": {"use_shunting": True},
+                    }
+                }
+            }
+        )
+
+        params = self.extractor._extract_model_params(config)
+        self.assertEqual(params["network_type"], "flat_mlp")
+        self.assertEqual(params["use_shunting"], False)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,3 +1,4 @@
+import warnings
 from dataclasses import asdict, is_dataclass
 from typing import Any, Optional, Union
 
@@ -107,6 +108,14 @@ def _layer_value(
     if value is None:
         return default
     return value
+
+
+def _normalize_sparsity_type(sparsity_type: Any) -> str:
+    """Normalize public sparsity aliases to the internal TopK strategy names."""
+    normalized = "standard" if sparsity_type is None else str(sparsity_type).lower()
+    if normalized == "topk":
+        return "standard"
+    return normalized
 
 
 def _build_recurrent_einet_from_structured_config(
@@ -281,7 +290,7 @@ def _build_recurrent_einet_from_structured_config(
             rec_inhibitory_synapses=int(_layer_value(rec_ie, layer_idx, default=0)),
             topk_init_method=str(sparsity.get("init_method", "xavier_normal")),
             topk_noise_level=float(sparsity.get("noise_level", 0.0)),
-            topk_type=str(sparsity.get("type", "standard")),
+            topk_type=_normalize_sparsity_type(sparsity.get("type", "standard")),
             topk_weight_norm_order=sparsity.get("weight_norm_order"),
             topk_gamma=float(sparsity.get("gamma", 1.0)),
             topk_temperature=float(sparsity.get("temperature", 0.0)),
@@ -683,9 +692,23 @@ def get_architecture(
     # MR-style structured-config MLP baselines
     # ------------------------------------------------------------------
     if type in ["matchedtotalparammlp", "total_param_mlp"]:
+        if type == "matchedtotalparammlp":
+            warnings.warn(
+                "Architecture type 'matchedtotalparammlp' is deprecated; use "
+                "'total_param_mlp' instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
         return MatchedTotalParamMLP(parameters, input_dim)
 
     if type in ["matchedactiveparammlp", "active_param_mlp"]:
+        if type == "matchedactiveparammlp":
+            warnings.warn(
+                "Architecture type 'matchedactiveparammlp' is deprecated; use "
+                "'active_param_mlp' instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
         return MatchedActiveParamMLP(parameters, input_dim)
 
     if type == "ss_mlp":

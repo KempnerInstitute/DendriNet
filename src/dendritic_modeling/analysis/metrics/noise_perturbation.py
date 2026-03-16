@@ -10,7 +10,12 @@ from typing import Callable, Optional
 import torch
 from torch.utils.data import TensorDataset
 
+from dendritic_modeling.analysis.utils.runtime import (
+    evaluation_kwargs_from_runtime,
+    materialize_dataset,
+)
 from dendritic_modeling.config import NoisePerturbationAnalysisParams
+from dendritic_modeling.config.analysis import EvaluationRuntimeConfig
 from dendritic_modeling.datasets.augmentation.noise import (
     add_gaussian_noise,
     add_uniform_noise,
@@ -65,6 +70,7 @@ class NoisePerturbationAnalyzer:
         device: str = "cpu",
         save_path: Optional[str] = None,
         filename: str = "final",
+        runtime: Optional[EvaluationRuntimeConfig] = None,
     ):
         """
         Analyze model robustness under noise perturbations.
@@ -80,7 +86,8 @@ class NoisePerturbationAnalyzer:
             Dictionary containing noise robustness results if save_path is None, otherwise None
         """
         model = model.to(device)
-        items = test_dataset[:]
+        eval_kwargs = evaluation_kwargs_from_runtime(runtime)
+        items = materialize_dataset(test_dataset, runtime)
         x: torch.Tensor = items[0].to(device)
         y: torch.Tensor = items[1].to(device)
         y = y[None, ...].expand(self.n_samples, *y.shape)
@@ -95,7 +102,11 @@ class NoisePerturbationAnalyzer:
             noisy_test_ds: torch.utils.data.Dataset,
         ):
             metric_result = metric_func(
-                model, test_ds=noisy_test_ds, reduce_dim=1, move_device=False
+                model,
+                test_ds=noisy_test_ds,
+                reduce_dim=1,
+                move_device=False,
+                **eval_kwargs,
             )[-1]
 
             # Handle both tensor and scalar results

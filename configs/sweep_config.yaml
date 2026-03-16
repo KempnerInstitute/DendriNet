@@ -386,11 +386,11 @@ base_config:
 
   # ---------- Analysis ----------
   # NOTE: Inside base_config the analysis keys use the full dataclass field
-  # names with the _analysis suffix (e.g., performance_analysis, not just
+  # names with the _analysis suffix (e.g., performance, not just
   # "performance"). The sweep manager passes these directly to the config
   # builder without short-name mapping.
   analysis:
-    performance_analysis:
+    performance:
       enabled: true
       training: true
       params:
@@ -400,27 +400,27 @@ base_config:
         mse: false
         cosine_similarity: false
 
-    information_analysis:
+    information:
       enabled: false
       training: false
 
-    correlation_analysis:
+    correlation:
       enabled: false
       training: false
 
-    ablation_analysis:
+    ablation:
       enabled: false
       training: false
 
-    synapse_turnover_analysis:
+    synapse_turnover:
       enabled: false
       training: false
 
-    noise_perturbation_analysis:
+    noise_perturbation:
       enabled: false
       training: false
 
-    weight_analysis:
+    weight:
       enabled: false
       training: false
 
@@ -428,23 +428,23 @@ base_config:
       enabled: false
       training: false
 
-    synaptic_activation_analysis:
+    synaptic_activation:
       enabled: false
       training: false
 
-    branch_activation_analysis:
+    branch_activation:
       enabled: false
       training: false
 
-    compartment_statistics_analysis:
+    compartment_statistics:
       enabled: false
       training: false
 
-    compartment_snr_analysis:
+    compartment_snr:
       enabled: false
       training: false
 
-    multiplicative_gain_analysis:
+    multiplicative_gain:
       enabled: false
       training: false
 

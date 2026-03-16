@@ -146,11 +146,11 @@ model:
 
   # ---------- Core network ----------
   core:
-    # Legacy EI (feedforward): "EINet" | "dendritic_shunting" | "dendritic_additive" | "flat_shunting" | "flat_additive" | "dendritic_mlp"
+    # Legacy EI (feedforward): "EINet" | "dendritic_shunting" | "dendritic_additive" | "flat_shunting" | "flat_additive" | "dendritic_mlp" | "flat_mlp"
     # Unified EI (recommended): "unified_ei" | "ei_unified" | "ei_net" | "unified_einet"
     # Recurrent EI: "recurrent_ei"
     # Baseline RNN: "baseline_rnn" | "gru" | "lstm" | "vanilla_rnn" | "rnn"
-    # Point neuron MLP: "mlp" | "point_mlp" | "matchedtotalparammlp" | "total_param_mlp" | "matchedactiveparammlp" | "active_param_mlp" | "ss_mlp" | "ss_mlp_flat"
+    # Point neuron MLP: "mlp" | "point_mlp" | "total_param_mlp" | "active_param_mlp" | "ss_mlp" | "ss_mlp_flat"
     # Spatial dendritic (pretrained replacement): "hierarchical_dendritic_tensor_map" | "dendritic_tensor_map" | "tensor_map" | "hierarchical_dendritic_conv" | "spatial_dendritic_conv"
     # Classical: "alexnet" | "cnn" | "cnn_down" | "cnn_up" | "identity" | "none"
     type: "EINet"
@@ -199,7 +199,7 @@ model:
     sparsity:
       init_method: "xavier_normal"      # str: "xavier_normal" | "kaiming_normal" | "uniform"
       noise_level: 0.0                  # float: Additive noise on init
-      type: "standard"                  # str: "standard" | "topk" | "deepst"
+      type: "standard"                  # str: "standard" | "stochastic" | "variance" | "deepst" (legacy "topk" -> "standard")
       weight_norm_order: null           # int | null: Weight norm order (null = off)
       gamma: 1.0                        # float: TopK gamma
       temperature: 0.0                  # float: TopK temperature (0 = hard)
@@ -714,6 +714,30 @@ training:
 # ANALYSIS
 # ============================================================================
 analysis:
+  # Shared dataset-iteration policy for all analysis modules.
+  # Recommended defaults:
+  #   auto        -> best default; small datasets behave like the old path
+  #                  because they stay materialized, large datasets stream.
+  #   materialize -> closest match to the old exact single-GPU path; hook-based
+  #                  analyses use one full batch when dataset slicing is supported.
+  #   stream      -> safest choice for large datasets such as ImageNet.
+  runtime:
+    training:
+      mode: "auto"                      # str: "auto" | "materialize" | "stream"
+      batch_size: 256                   # int: Analysis batch size
+      num_workers: 4                    # int: DataLoader workers
+      pin_memory: true                  # bool: Pin memory for GPU transfer
+      max_batches: null                 # int | null: Optional cheap/training-time cap (null = all batches)
+      max_samples: null                 # int | null: Hard cap for expensive analyses that still accumulate CPU tensors
+      materialize_threshold_mb: 1024    # int: Auto-mode threshold (MB); keeps small single-GPU datasets materialized
+    final:
+      mode: "auto"                      # str: "auto" | "materialize" | "stream"
+      batch_size: 256                   # int: Analysis batch size
+      num_workers: 4                    # int: DataLoader workers
+      pin_memory: true                  # bool: Pin memory for GPU transfer
+      max_batches: null                 # int | null: Optional cap (usually leave null for final analysis)
+      max_samples: null                 # int | null: Use when heavy analyses must inspect only a bounded subset
+      materialize_threshold_mb: 1024    # int: Auto-mode threshold (MB); use materialize for exact old small-dataset behavior
 
   # ---------- Performance ----------
   performance:
@@ -725,26 +749,8 @@ analysis:
       categorical_loglikelihood: true   # bool: Compute categorical log-likelihood
       mse: false                        # bool: Compute MSE
       cosine_similarity: false          # bool: Compute cosine similarity
-    training_runtime:
-      mode: "auto"                      # str: "auto" | "materialize" | "stream"
-      batch_size: 256                   # int: Evaluation batch size
-      num_workers: 4                    # int: DataLoader workers
-      pin_memory: true                  # bool: Pin memory for GPU transfer
-      persistent_workers: false         # bool: Keep workers alive
-      prefetch_factor: 2                # int: Prefetch batches per worker
-      max_batches: null                 # int | null: Cap evaluation batches (null = all)
-      materialize_threshold_mb: 1024    # int: Auto-mode threshold (MB)
-      splits: ["train", "valid", "test"]  # list[str]: Splits to evaluate
-    final_runtime:
-      mode: "auto"                      # str: "auto" | "materialize" | "stream"
-      batch_size: 256                   # int: Evaluation batch size
-      num_workers: 4                    # int: DataLoader workers
-      pin_memory: true                  # bool: Pin memory for GPU transfer
-      persistent_workers: false         # bool: Keep workers alive
-      prefetch_factor: 2                # int: Prefetch batches per worker
-      max_batches: null                 # int | null: Cap evaluation batches (null = all)
-      materialize_threshold_mb: 1024    # int: Auto-mode threshold (MB)
-      splits: ["train", "valid", "test"]  # list[str]: Splits to evaluate
+    training_splits: ["train", "valid", "test"]  # list[str]: Splits to evaluate during training analysis
+    final_splits: ["train", "valid", "test"]     # list[str]: Splits to evaluate during final analysis
 
   # ---------- Information ----------
   information:

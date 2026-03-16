@@ -97,7 +97,7 @@ training:
         reactivation_lr: 0.0001
         decoder_lr: 0.001
 analysis:
-  performance_analysis:
+  performance:
     enabled: true
     training: true
     params:
@@ -106,7 +106,7 @@ analysis:
       categorical_loglikelihood: true
       mse: false
       cosine_similarity: false
-  information_analysis:
+  information:
     enabled: true
     training: false
     params:
@@ -138,7 +138,7 @@ analysis:
         label_shuffle_null:
           n_shuffles: 0
           seed: 0
-  weight_analysis:
+  weight:
     enabled: true
     training: false
     params:
@@ -157,7 +157,7 @@ analysis:
       compute_min_max: true
       compute_dendritic_strength: true
       weight_threshold: 1.0e-06
-  compartment_statistics_analysis:
+  compartment_statistics:
     enabled: true
     training: false
     params:
@@ -175,14 +175,14 @@ analysis:
       compute_entropy: true
       per_class_analysis: false
       n_samples: 1000
-  compartment_snr_analysis:
+  compartment_snr:
     enabled: true
     training: false
     params:
       input_analysis: true
       layer_analysis: true
       branch_analysis: true
-  ablation_analysis:
+  ablation:
     enabled: true
     training: false
     params:
@@ -204,7 +204,7 @@ analysis:
         - mean_clamp
         shuffle_seed: 0
         clamp_statistic: mean
-  noise_perturbation_analysis:
+  noise_perturbation:
     enabled: true
     training: false
     params:
@@ -226,22 +226,22 @@ analysis:
       accuracy: true
       auc: true
       categorical_loglikelihood: true
-  synapse_turnover_analysis:
+  synapse_turnover:
     enabled: true
     training: true
     params:
       snapshot_interval: 1
       synaptic_analysis: true
       save_synaptic_report: true
-  multiplicative_gain_analysis:
+  multiplicative_gain:
     enabled: false
-  receptive_field_analysis:
+  receptive_field:
     enabled: false
-  synaptic_activation_analysis:
+  synaptic_activation:
     enabled: false
-  branch_activation_analysis:
+  branch_activation:
     enabled: false
   single_layer_contribution:
     enabled: false
-  correlation_analysis:
+  correlation:
     enabled: false

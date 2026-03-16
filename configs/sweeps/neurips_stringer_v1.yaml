@@ -118,7 +118,7 @@ base_config:
           reactivation_lr: 0.001
           decoder_lr: 0.002
   analysis:
-    performance_analysis:
+    performance:
       enabled: true
       training: true
       params:
@@ -127,11 +127,11 @@ base_config:
         categorical_loglikelihood: true
         mse: false
         cosine_similarity: false
-    information_analysis:
+    information:
       enabled: false
-    correlation_analysis:
+    correlation:
       enabled: false
-    multiplicative_gain_analysis:
+    multiplicative_gain:
       enabled: true
       training: true
       params:
