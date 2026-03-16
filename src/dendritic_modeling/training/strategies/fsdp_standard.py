@@ -6,6 +6,7 @@ for scaling to very large models across multiple GPUs and nodes.
 """
 
 import logging
+import math
 import os
 import time
 from typing import Any, Optional
@@ -13,7 +14,7 @@ from typing import Any, Optional
 import torch
 import torch.distributed as dist
 from torch.cuda.amp import GradScaler, autocast
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader, Dataset, Sampler
 
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.training.fsdp_utils import (
@@ -24,6 +25,38 @@ from dendritic_modeling.training.fsdp_utils import (
 from dendritic_modeling.training.strategies.standard import Trainer
 
 logger = logging.getLogger(__name__)
+
+
+class PaddedDistributedEvalSampler(Sampler):
+    """Distributed sampler that pads to equal length but marks padding indices.
+
+    Unlike ``DistributedSampler(drop_last=False)`` which silently duplicates
+    samples, this sampler:
+    1. Pads each rank to ``ceil(N / world_size)`` using a sentinel index (-1).
+    2. Exposes ``num_padding`` so the consumer can ignore those entries in
+       the reduction.
+
+    All ranks yield the same number of indices, which is required by FSDP
+    (the all-gather in forward must execute on every rank for every batch).
+    """
+
+    def __init__(self, dataset: Dataset, num_replicas: int, rank: int):
+        self.dataset = dataset
+        self.num_replicas = num_replicas
+        self.rank = rank
+        n = len(dataset)
+        self.samples_per_rank = math.ceil(n / num_replicas)
+        # Interleaved assignment: rank gets indices rank, rank+ws, rank+2*ws, …
+        self.real_indices = list(range(rank, n, num_replicas))
+        # Pad to samples_per_rank with -1 sentinels
+        self.num_padding = self.samples_per_rank - len(self.real_indices)
+        self._indices = self.real_indices + ([-1] * self.num_padding)
+
+    def __iter__(self):
+        return iter(self._indices)
+
+    def __len__(self):
+        return self.samples_per_rank
 
 
 class FSDPTrainer(Trainer):
@@ -279,6 +312,10 @@ class FSDPTrainer(Trainer):
         if not cpu_offload_enabled:
             model = model.to(self.device)
 
+        # Store the FSDP-wrapped model so callers can use it for
+        # checkpoint saving / full-param gathering after training.
+        self.fsdp_model = model
+
         # Create optimizer after FSDP wrapping
         self.optimizer = self.create_optimizer(model)
 
@@ -335,40 +372,11 @@ class FSDPTrainer(Trainer):
                             logger.info(f"Early stopping at epoch {epoch}")
                         break
 
-            # Analysis (only on rank 0 to avoid duplication)
-            if self.rank == 0 and self.analysis_manager is not None:
-                try:
-                    # Run analysis if enabled and we have the manager
-                    if self.analysis_manager is not None:
-                        # Lazy import to avoid circular dependency
-                        from dendritic_modeling.analysis import AnalysisManager
-
-                        if isinstance(self.analysis_manager, AnalysisManager):
-                            # Only log analysis runs every 10 epochs to reduce verbosity
-                            if epoch % 10 == 0:
-                                logger.info(
-                                    f"Running epoch analysis for epoch {epoch + 1}..."
-                                )
-                            self.analysis_manager.run_analysis(
-                                filename=f"epoch{epoch + 1}", training=True
-                            )
-                            if epoch % 10 == 0:
-                                logger.info(
-                                    f"Epoch analysis completed for epoch {epoch + 1}"
-                                )
-                        else:
-                            logger.warning(
-                                f"Analysis manager is not AnalysisManager instance: {type(self.analysis_manager)}"
-                            )
-                    else:
-                        logger.warning("Analysis manager is None")
-                except Exception as e:
-                    logger.warning(f"Analysis failed for epoch {epoch + 1}: {e}")
-                    import traceback
-
-                    logger.warning(
-                        f"Analysis error traceback: {traceback.format_exc()}"
-                    )
+            # Epoch-level analysis is intentionally skipped for FSDP.
+            # FSDP shards model parameters across ranks; running analysis
+            # on the sharded model produces incorrect results.  Final
+            # analysis runs on rank 0 after gathering the full state dict
+            # (see train_experiments_fsdp.py).
 
             # Logging
             epoch_time = time.time() - epoch_start
@@ -490,52 +498,89 @@ class FSDPTrainer(Trainer):
                 # Optimizer step
                 self.optimizer.step()
 
-            total_loss += loss.item()
+            bs = y_batch.size(0)
+            total_loss += loss.item() * bs
             total_correct += (outputs.argmax(dim=1) == y_batch).sum().item()
-            total_examples += y_batch.size(0)
+            total_examples += bs
 
-        # Average loss across batches
-        avg_loss = total_loss / (len(train_loader))
-        avg_acc = total_correct / total_examples if total_examples > 0 else 0.0
-
-        # Reduce loss across all processes
-        avg_loss_tensor = torch.tensor([avg_loss, avg_acc], device=self.device)
-        dist.all_reduce(avg_loss_tensor, op=dist.ReduceOp.SUM)
-        avg_loss = avg_loss_tensor[0].item() / self.world_size
-        avg_acc = avg_loss_tensor[1].item() / self.world_size
+        # All-reduce exact counts across ranks.
+        stats = torch.tensor(
+            [total_loss, float(total_correct), float(total_examples)],
+            device=self.device,
+        )
+        dist.all_reduce(stats, op=dist.ReduceOp.SUM)
+        global_examples = stats[2].item()
+        avg_loss = stats[0].item() / max(global_examples, 1)
+        avg_acc = stats[1].item() / max(global_examples, 1)
 
         return avg_loss, avg_acc
 
     def _epoch_valid_fsdp(
         self, model: BaseModel, valid_loader: DataLoader
     ) -> tuple[float, float]:
-        """Validation epoch with FSDP."""
+        """Validation epoch with FSDP.
+
+        All ranks must participate (FSDP needs all-gather during forward).
+        We accumulate sample-weighted loss, correct count, and total
+        examples, then all-reduce with SUM for an exact global average.
+
+        When used with ``PaddedDistributedEvalSampler``, padding indices
+        (-1) may appear in the last batch.  These are sentinel values that
+        index into real data (Python wraps -1 to the last element), so the
+        forward pass succeeds on every rank, but we exclude them from the
+        stats by tracking the known number of real samples.
+        """
         model.eval()
-        total_loss = 0
+        weighted_loss_sum = 0.0
         total_correct = 0
         total_examples = 0
 
+        # Determine how many real (non-padding) samples this rank has.
+        sampler = valid_loader.sampler
+        if isinstance(sampler, PaddedDistributedEvalSampler):
+            real_count = len(sampler.real_indices)
+        else:
+            real_count = None  # unknown — count all
+
+        seen = 0
         with torch.no_grad():
             for batch in valid_loader:
                 x_batch = batch[0].to(self.device)
                 y_batch = batch[1].to(self.device)
+                bs = y_batch.size(0)
 
                 outputs = model(x_batch)
                 loss = self.loss_fn(outputs, y_batch)
 
-                total_loss += loss.item()
+                if real_count is not None:
+                    # Only count the real (non-padding) samples.
+                    real_in_batch = min(bs, real_count - seen)
+                    if real_in_batch <= 0:
+                        # Entire batch is padding — still ran forward for
+                        # FSDP all-gather, but skip stats.
+                        seen += bs
+                        continue
+                    if real_in_batch < bs:
+                        # Partial padding in this batch.
+                        outputs = outputs[:real_in_batch]
+                        y_batch = y_batch[:real_in_batch]
+                        loss = self.loss_fn(outputs, y_batch)
+                        bs = real_in_batch
+                    seen += bs
+
+                weighted_loss_sum += loss.item() * bs
                 total_correct += (outputs.argmax(dim=1) == y_batch).sum().item()
-                total_examples += y_batch.size(0)
+                total_examples += bs
 
-        # Average loss across batches
-        avg_loss = total_loss / (len(valid_loader))
-        avg_acc = total_correct / total_examples if total_examples > 0 else 0.0
-
-        # Reduce loss across all processes
-        avg_loss_tensor = torch.tensor([avg_loss, avg_acc], device=self.device)
-        dist.all_reduce(avg_loss_tensor, op=dist.ReduceOp.SUM)
-        avg_loss = avg_loss_tensor[0].item() / self.world_size
-        avg_acc = avg_loss_tensor[1].item() / self.world_size
+        # All-reduce exact counts across ranks.
+        stats = torch.tensor(
+            [weighted_loss_sum, float(total_correct), float(total_examples)],
+            device=self.device,
+        )
+        dist.all_reduce(stats, op=dist.ReduceOp.SUM)
+        global_examples = stats[2].item()
+        avg_loss = stats[0].item() / max(global_examples, 1)
+        avg_acc = stats[1].item() / max(global_examples, 1)
 
         return avg_loss, avg_acc
 

@@ -1,37 +1,63 @@
-FSDP Training Guide
-===================
+Distributed Training Guide
+==========================
 
 Quick Start
 -----------
 
-Use the automated FSDP workflow for large models:
+Set ``distributed.mode`` in your YAML config and use the unified launcher:
 
 .. code-block:: bash
 
-   # Generate and submit an FSDP job
-   python src/dendritic_modeling/scripts/tools/submit_fsdp_job.py configs/config_exp_fsdp.yaml
+   # DDP (data-parallel, model fits on one GPU)
+   sbatch scripts/train.sh configs/my_config.yaml
 
-   # Generate SLURM script only
-   python src/dendritic_modeling/scripts/tools/submit_fsdp_job.py configs/config_exp_fsdp.yaml --generate-only
+   # FSDP (model too large for one GPU)
+   sbatch scripts/train.sh configs/my_config.yaml
 
-When to Use FSDP
------------------
+   # Multi-node (2 nodes)
+   sbatch --nodes=2 scripts/train.sh configs/my_config.yaml
 
-- Model doesn't fit on single GPU
-- Multiple GPUs available
-- Large datasets requiring distributed training
-
-When to Use Single GPU
-----------------------
-
-- Model fits comfortably on single GPU
-- Development and debugging
-- Quick experiments
+Or use the dedicated launchers directly:
 
 .. code-block:: bash
 
-   # Standard single-GPU training
-   python src/dendritic_modeling/scripts/training/train_experiments.py configs/config_exp.yaml
+   sbatch scripts/train_ddp.sh configs/my_config.yaml
+   sbatch scripts/train_fsdp.sh configs/my_config.yaml
+
+When to Use What
+----------------
+
+.. list-table::
+   :header-rows: 1
+
+   * - Mode
+     - When to use
+   * - ``none``
+     - Model fits on one GPU; development and debugging
+   * - ``ddp``
+     - Model fits on one GPU; want data-parallel speedup across GPUs
+   * - ``fsdp``
+     - Model does NOT fit on one GPU; parameters must be sharded
+
+Configuration
+-------------
+
+.. code-block:: yaml
+
+   distributed:
+     mode: fsdp             # none | ddp | fsdp
+     fsdp:                  # FSDP-specific knobs (only used when mode=fsdp)
+       sharding_strategy: "FULL_SHARD"  # FULL_SHARD, SHARD_GRAD_OP, NO_SHARD, HYBRID_SHARD
+       mixed_precision: true
+       cpu_offload: false
+       min_num_params: 1000000
+       sync_module_states: true
+       use_orig_params: true
+       backward_prefetch: "BACKWARD_PRE"
+       gradient_checkpointing: false
+
+Node and GPU counts are controlled by the SLURM allocation
+(``--nodes``, ``--gpus-per-node``), not by the YAML config.
 
 Common Issues
 -------------
@@ -42,9 +68,11 @@ Network Timeout
 Symptoms: NCCL timeout errors
 
 Solutions:
-- Add to environment: ``export NCCL_IB_DISABLE=1``
-- Use smaller batch sizes
-- Check network connectivity
+
+- The launch scripts set ``NCCL_SOCKET_IFNAME=ib0,eth0`` for InfiniBand.
+  If your cluster uses a different interface, override this in your script.
+- Use smaller batch sizes.
+- Check network connectivity between nodes.
 
 Memory Issues
 ~~~~~~~~~~~~~
@@ -52,32 +80,34 @@ Memory Issues
 Symptoms: CUDA out of memory
 
 Solutions:
-- Reduce batch size in config
-- Enable gradient checkpointing
-- Use smaller model variants
 
-Job Submission Failed
-~~~~~~~~~~~~~~~~~~~~~
+- Reduce ``training.main.common.batch_size``.
+- Enable ``fsdp.gradient_checkpointing: true``.
+- Use ``fsdp.cpu_offload: true`` (slow but saves GPU memory).
+- Use ``fsdp.sharding_strategy: FULL_SHARD`` (maximum sharding).
 
-Symptoms: SLURM submission errors
+FSDP Validation
+~~~~~~~~~~~~~~~
 
-Solutions:
-- Check SLURM partition availability
-- Verify account permissions
-- Use ``--dry-run`` to debug
+FSDP validation uses ``PaddedDistributedEvalSampler`` which pads each
+rank to equal batch counts (required by FSDP all-gather) but excludes
+padding samples from the metric reduction.  This produces results
+numerically identical to a non-distributed validation run.
 
-Configuration
--------------
+FSDP Final Analysis
+~~~~~~~~~~~~~~~~~~~
 
-FSDP settings in ``configs/config_exp_fsdp.yaml``:
+After training, the FSDP script gathers the full (unsharded) state dict
+from all ranks, saves it as a checkpoint, then loads it into a plain
+non-FSDP model on rank 0 for analysis.  This avoids running analysis
+on sharded parameters.
 
-.. code-block:: yaml
+Autoencoder Pretraining
+~~~~~~~~~~~~~~~~~~~~~~~
 
-   fsdp:
-     enabled: true
-     sharding_strategy: "FULL_SHARD"
-     auto_wrap_policy: "transformer"
-     cpu_offload: false
+FSDP does **not** support autoencoder pretraining.  If you need a
+pretrained encoder, train it separately with the standard single-GPU
+script, then point the config at the saved checkpoint.
 
 Monitoring
 ----------
@@ -85,5 +115,5 @@ Monitoring
 .. code-block:: bash
 
    squeue -u $USER
-   tail -f slurm-*.out
+   tail -f logs/train_fsdp_*.out
    nvidia-smi

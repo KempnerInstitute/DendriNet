@@ -139,6 +139,7 @@ def test_core_config_asdict_keys():
         "reactivation",
         "blocklinear",
         "implementation",
+        "spatial",
         "recurrent",
         "unified_ei",
         "recurrent_ei",

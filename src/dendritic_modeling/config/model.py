@@ -152,6 +152,19 @@ class EncoderConfig(BaseConfig):
 
 
 @dataclass
+class SpatialConfig(BaseConfig):
+    """Spatial convolution parameters for dendritic conv cores.
+
+    Used by ``hierarchical_dendritic_conv`` to configure the unfold operation
+    that extracts local patches from spatial feature maps.
+    """
+
+    kernel_size: int = 3
+    stride: int = 1
+    padding: int = 0
+
+
+@dataclass
 class CoreConfig(BaseConfig):
     """Core network configuration."""
 
@@ -167,6 +180,8 @@ class CoreConfig(BaseConfig):
     reactivation: ReactivationConfig = field(default_factory=ReactivationConfig)
     blocklinear: BlockLinearConfig = field(default_factory=BlockLinearConfig)
     implementation: ImplementationConfig = field(default_factory=ImplementationConfig)
+    # Spatial convolution params for hierarchical_dendritic_conv cores.
+    spatial: SpatialConfig = field(default_factory=SpatialConfig)
     # DEPRECATED: Legacy recurrent config. Use unified EI config classes instead.
     recurrent: RecurrentConfig = field(default_factory=RecurrentConfig)
     # Optional config payload for the new unified E-I architecture.

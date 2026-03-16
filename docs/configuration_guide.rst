@@ -30,14 +30,14 @@ Top-Level Structure
 
 .. code-block:: yaml
 
-   experiment:   # seed, AMP, profiling, checkpointing
+   experiment:   # seed, profiling, checkpointing
    data:         # dataset, processing, dataset-specific params
    model:        # encoder, core network, decoder, pretrained_replacement
-   training:     # encoder + main training, strategies, regularization, pruning
+   training:     # encoder + main training, strategies, regularization, pruning, AMP
    analysis:     # 16 analysis modules
    wandb:        # Weights & Biases logging
    outputs:      # run_name, results_dir
-   fsdp:         # distributed training
+   distributed:  # mode (none/ddp/fsdp), FSDP tuning knobs
 
 Core Network Types
 ------------------
@@ -280,10 +280,58 @@ Multi-Stage Training
 
 See :doc:`training_strategies` for per-stage options.
 
-FSDP / Distributed
--------------------
+Distributed Training
+--------------------
 
-See :doc:`fsdp_troubleshooting` for distributed training setup.
+Set ``distributed.mode`` to choose the runtime:
+
+.. code-block:: yaml
+
+   distributed:
+     mode: ddp            # none | ddp | fsdp
+     fsdp:                # FSDP-specific knobs (only used when mode=fsdp)
+       sharding_strategy: "FULL_SHARD"
+       mixed_precision: true
+       cpu_offload: false
+
+- ``none`` — single-GPU, plain ``python`` (default)
+- ``ddp`` — DistributedDataParallel via ``torchrun``.  Best when the model
+  fits on one GPU and you want data-parallel speedup.  Supports multi-node.
+- ``fsdp`` — FullyShardedDataParallel via ``torchrun``.  Use when the model
+  is too large for a single GPU.  Supports multi-node.
+
+Node and GPU counts are controlled by the SLURM allocation (``sbatch --nodes``,
+``--gpus-per-node``) or by the launcher CLI argument, **not** by the YAML
+config.  The training config only selects the *mode*; the scheduler decides
+the resources.
+
+FSDP-specific knobs (sharding strategy, mixed precision, CPU offload, etc.)
+live under ``distributed.fsdp``.
+
+Launch scripts
+~~~~~~~~~~~~~~
+
+The unified launcher reads ``distributed.mode`` from the YAML:
+
+.. code-block:: bash
+
+   # Auto-selects entrypoint based on distributed.mode
+   sbatch scripts/train.sh configs/my_config.yaml
+
+   # Multi-node (override nodes at submit time)
+   sbatch --nodes=2 scripts/train.sh configs/my_config.yaml
+
+   # Override GPUs per node
+   sbatch scripts/train.sh configs/my_config.yaml 2
+
+Dedicated launchers are also available:
+
+.. code-block:: bash
+
+   sbatch scripts/train_ddp.sh configs/my_config.yaml      # DDP
+   sbatch scripts/train_fsdp.sh configs/my_config.yaml     # FSDP
+
+See :doc:`fsdp_troubleshooting` for FSDP-specific troubleshooting.
 
 Full Parameter Reference
 ------------------------

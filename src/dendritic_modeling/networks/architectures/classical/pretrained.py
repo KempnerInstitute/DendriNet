@@ -38,7 +38,7 @@ from __future__ import annotations
 
 import logging
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import torch
 import torch.nn as nn
@@ -49,6 +49,32 @@ from dendritic_modeling.networks.base import BaseNetwork
 logger = logging.getLogger(__name__)
 
 _DEFAULT_INPUT_SIZE = (1, 3, 224, 224)
+
+
+# ---------------------------------------------------------------------------
+# TensorSpec — shape metadata for spatial tensors
+# ---------------------------------------------------------------------------
+@dataclass(frozen=True)
+class TensorSpec:
+    """Shape descriptor for a spatial tensor ``(C, H, W)``.
+
+    Used to communicate spatial shape information between backbone segments
+    and spatial core networks that preserve spatial structure (e.g., dendritic
+    conv replacements), as opposed to the scalar ``output_dim`` used by the
+    flattened path.
+    """
+
+    channels: int
+    height: int
+    width: int
+
+    @property
+    def numel(self) -> int:
+        """Total number of elements (C * H * W)."""
+        return self.channels * self.height * self.width
+
+    def as_tuple(self) -> tuple[int, int, int]:
+        return (self.channels, self.height, self.width)
 
 
 # ---------------------------------------------------------------------------
@@ -191,8 +217,9 @@ class BackboneSegment(BaseNetwork):
         self.layers = nn.Sequential(*modules)
         self.frozen = freeze
         self._layer_names = names
+        self._auto_flatten = auto_flatten
 
-        # Compute output_dim via dummy forward
+        # Compute output shape via dummy forward
         with torch.no_grad():
             dummy = torch.zeros(*input_size)
             out = self.layers(dummy)
@@ -201,26 +228,40 @@ class BackboneSegment(BaseNetwork):
             self.layers.append(nn.Flatten(start_dim=1))
             out = out.flatten(start_dim=1)
 
-        self.output_dim = out.shape[-1]
+        # Store spatial spec if output is 4D (spatial mode)
+        if out.dim() == 4:
+            self.output_spec = TensorSpec(
+                channels=out.shape[1],
+                height=out.shape[2],
+                width=out.shape[3],
+            )
+            self.output_dim = out.shape[1] * out.shape[2] * out.shape[3]
+        else:
+            self.output_spec = None
+            self.output_dim = out.shape[-1]
 
         if freeze:
             self.requires_grad_(False)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         squeezed = False
-        if x.dim() == 3:
+        if x.dim() == 3 and self._auto_flatten:
+            # 3D input (C, H, W) — add batch dim
             x = x.unsqueeze(0)
             squeezed = True
 
-        batch_shape = x.shape[:-3] if x.dim() > 2 else x.shape[:-1]
-        if x.dim() > 2:
-            x = x.reshape(-1, *x.shape[-3:])
+        if self._auto_flatten:
+            batch_shape = x.shape[:-3] if x.dim() > 2 else x.shape[:-1]
+            if x.dim() > 2:
+                x = x.reshape(-1, *x.shape[-3:])
 
         out = self.layers(x)
-        out = out.reshape(*batch_shape, -1)
 
-        if squeezed:
-            out = out.squeeze(0)
+        if self._auto_flatten:
+            out = out.reshape(*batch_shape, -1)
+            if squeezed:
+                out = out.squeeze(0)
+
         return out
 
     def get_output_dim(self):
@@ -251,15 +292,24 @@ class BackboneSplitPlan:
     prefix_modules: list[nn.Module]
     suffix_modules: list[nn.Module]
 
-    # Shape metadata
+    # Shape metadata (flattened path — always populated)
     input_size: tuple[int, ...]
     prefix_output_dim: int
     suffix_input_dim: int  # expected input dim for the first suffix Linear
     suffix_output_dim: int
 
+    # Shape metadata (spatial path — populated only when spatial=True)
+    prefix_output_spec: TensorSpec | None = field(default=None)
+    suffix_input_spec: TensorSpec | None = field(default=None)
+
+    @property
+    def is_spatial(self) -> bool:
+        """Whether this plan preserves spatial structure (no auto-flatten)."""
+        return self.prefix_output_spec is not None
+
     def summary(self) -> str:
         lines = [
-            f"BackboneSplitPlan(backbone={self.backbone!r})",
+            f"BackboneSplitPlan(backbone={self.backbone!r}, spatial={self.is_spatial})",
             f"  prefix  ({len(self.prefix_names)} layers): {self.prefix_names}",
             f"  replace ({len(self.replaced_names)} layers): {self.replaced_names}",
             f"  suffix  ({len(self.suffix_names)} layers): {self.suffix_names}",
@@ -267,6 +317,10 @@ class BackboneSplitPlan:
             f"  suffix_input_dim={self.suffix_input_dim}",
             f"  suffix_output_dim={self.suffix_output_dim}",
         ]
+        if self.prefix_output_spec is not None:
+            lines.append(f"  prefix_output_spec={self.prefix_output_spec}")
+        if self.suffix_input_spec is not None:
+            lines.append(f"  suffix_input_spec={self.suffix_input_spec}")
         return "\n".join(lines)
 
 
@@ -278,6 +332,7 @@ def build_split_plan(
     replace_end: str,
     omit_layers: list[str] | None = None,
     input_shape: list[int] | None = None,
+    spatial: bool = False,
 ) -> BackboneSplitPlan:
     """Build a split plan by loading the backbone once and slicing it three ways.
 
@@ -288,6 +343,10 @@ def build_split_plan(
         replace_end: Last layer to replace (inclusive).
         omit_layers: Layer names to drop entirely (e.g. dropout).
         input_shape: Model input shape ``[C, H, W]``. Defaults to ``[3, 224, 224]``.
+        spatial: If True, compute and store ``TensorSpec`` for the prefix output
+            and suffix input shapes, preserving spatial dimensions. The flattened
+            ``prefix_output_dim`` / ``suffix_input_dim`` are still computed for
+            backward compatibility and for cores that flatten internally.
     """
     model = _load_backbone(backbone, weights)
     all_layers = _flatten_model_layers(model)
@@ -362,6 +421,62 @@ def build_split_plan(
             dummy_out = nn.Sequential(*suffix_modules)(dummy_in)
         suffix_output_dim = dummy_out.shape[-1]
 
+    # Spatial spec: compute raw (pre-flatten) prefix output shape
+    prefix_output_spec = None
+    suffix_input_spec = None
+    if spatial:
+        # If the prefix contains both spatial and linear layers, it needs a
+        # flatten transition internally and therefore can't produce spatial
+        # output. Skip the raw forward in that case.
+        if _needs_flatten(prefix_modules):
+            logger.warning(
+                "spatial=True but prefix contains both spatial and linear "
+                "layers — it already flattens internally. Spatial specs will "
+                "be None. Consider splitting earlier to get spatial output.",
+            )
+        else:
+            # Run prefix modules *without* flatten to get raw spatial shape
+            raw_prefix = nn.Sequential(*list(prefix_modules))
+            with torch.no_grad():
+                raw_out = raw_prefix(torch.zeros(*input_size))
+            if raw_out.dim() == 4:  # (B, C, H, W)
+                prefix_output_spec = TensorSpec(
+                    channels=raw_out.shape[1],
+                    height=raw_out.shape[2],
+                    width=raw_out.shape[3],
+                )
+            elif raw_out.dim() == 2:  # (B, D) — already flat
+                logger.warning(
+                    "spatial=True but prefix output is 2D (shape=%s). "
+                    "Spatial specs will be None — the prefix already produces "
+                    "flat features. Consider splitting earlier.",
+                    list(raw_out.shape),
+                )
+            else:
+                logger.warning(
+                    "spatial=True but prefix output has unexpected ndim=%d "
+                    "(shape=%s). Spatial specs will be None.",
+                    raw_out.dim(),
+                    list(raw_out.shape),
+                )
+
+            # Suffix input spec: only compute if the replaced layers are
+            # purely spatial (no Linear layers). If they contain Linears,
+            # the suffix expects flat input (already captured by suffix_input_dim).
+            if prefix_output_spec is not None:
+                replaced_mods = [m for _, m in replaced_layers]
+                has_linear = any(isinstance(m, nn.Linear) for m in replaced_mods)
+                if not has_linear:
+                    raw_replaced = nn.Sequential(*list(prefix_modules), *replaced_mods)
+                    with torch.no_grad():
+                        replaced_out = raw_replaced(torch.zeros(*input_size))
+                    if replaced_out.dim() == 4:
+                        suffix_input_spec = TensorSpec(
+                            channels=replaced_out.shape[1],
+                            height=replaced_out.shape[2],
+                            width=replaced_out.shape[3],
+                        )
+
     plan = BackboneSplitPlan(
         backbone=backbone,
         weights=weights,
@@ -375,6 +490,8 @@ def build_split_plan(
         prefix_output_dim=prefix_output_dim,
         suffix_input_dim=suffix_input_dim,
         suffix_output_dim=suffix_output_dim,
+        prefix_output_spec=prefix_output_spec,
+        suffix_input_spec=suffix_input_spec,
     )
 
     logger.info("Built split plan:\n%s", plan.summary())
@@ -387,27 +504,52 @@ def build_encoder_decoder_from_plan(
     prefix_freeze: bool = True,
     suffix_freeze: bool = False,
 ) -> tuple[BackboneSegment, BackboneSegment]:
-    """Create encoder and decoder ``BackboneSegment`` instances from a plan."""
+    """Create encoder and decoder ``BackboneSegment`` instances from a plan.
+
+    When ``plan.is_spatial`` is True, the encoder is built **without**
+    auto-flatten so it preserves the spatial ``(B, C, H, W)`` output.
+
+    The decoder is built based on the suffix's expected input shape:
+    - If ``suffix_input_spec`` is set, the suffix expects spatial ``(B, C, H, W)``
+      input (e.g., when replacing mid-conv layers). The decoder is built with a
+      4D ``input_size`` and ``auto_flatten=True`` so it handles the spatial→flat
+      transition internally if needed.
+    - Otherwise the decoder receives flat ``(B, D)`` input.
+    """
     encoder = BackboneSegment(
         plan.prefix_modules,
         plan.prefix_names,
         freeze=prefix_freeze,
         input_size=plan.input_size,
-        auto_flatten=True,
+        auto_flatten=not plan.is_spatial,
     )
-    decoder = BackboneSegment(
-        plan.suffix_modules,
-        plan.suffix_names,
-        freeze=suffix_freeze,
-        input_size=(1, plan.suffix_input_dim),
-        auto_flatten=False,
-    )
+
+    if plan.suffix_input_spec is not None:
+        # Spatial suffix: expects (B, C, H, W) input from the core.
+        spec = plan.suffix_input_spec
+        decoder = BackboneSegment(
+            plan.suffix_modules,
+            plan.suffix_names,
+            freeze=suffix_freeze,
+            input_size=(1, spec.channels, spec.height, spec.width),
+            auto_flatten=True,
+        )
+    else:
+        decoder = BackboneSegment(
+            plan.suffix_modules,
+            plan.suffix_names,
+            freeze=suffix_freeze,
+            input_size=(1, plan.suffix_input_dim),
+            auto_flatten=False,
+        )
+
     return encoder, decoder
 
 
 __all__ = [
     "BackboneSegment",
     "BackboneSplitPlan",
+    "TensorSpec",
     "build_encoder_decoder_from_plan",
     "build_split_plan",
     "list_backbone_layers",

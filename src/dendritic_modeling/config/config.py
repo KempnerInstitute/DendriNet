@@ -7,13 +7,19 @@ It loads and saves configurations using OmegaConf.
 """
 
 import logging
+from collections.abc import Mapping
 from dataclasses import dataclass, field, fields
 from functools import lru_cache
 from typing import Any, Optional
 
 from omegaconf import OmegaConf
 
-from dendritic_modeling.config.analysis import AnalysisConfig
+from dendritic_modeling.config.analysis import (
+    AnalysisConfig,
+    EvaluationRuntimeConfig,
+    PerformanceAnalysisConfig,
+    PerformanceAnalysisParams,
+)
 from dendritic_modeling.config.base import BaseConfig
 from dendritic_modeling.config.model import (
     ArchitectureConfig,
@@ -32,6 +38,7 @@ from dendritic_modeling.config.model import (
     ReplacementRegionConfig,
     SegmentTrainabilityConfig,
     SparsityConfig,
+    SpatialConfig,
     TrainabilityConfig,
     TransferFunctionConfig,
 )
@@ -61,7 +68,6 @@ class ExperimentConfig(BaseConfig):
 
     seed: int = 42
     train_valid_split: float = 0.8
-    enable_amp: bool = False
     fast_mode: bool = False
     deterministic: bool = True
     cudnn_benchmark: bool = False
@@ -158,7 +164,6 @@ class WandbConfig(BaseConfig):
     project: str = "dendritic-sweeps"
     group: str = "unified_sweep"
     tags: list[str] = field(default_factory=lambda: ["debug"])
-    enabled: bool = True
 
 
 @dataclass
@@ -171,9 +176,11 @@ class OutputsConfig(BaseConfig):
 
 @dataclass
 class FSDPConfig(BaseConfig):
-    """Fully Sharded Data Parallel configuration."""
+    """FSDP-specific tuning knobs.
 
-    use_fsdp: bool = False
+    These only take effect when ``distributed.mode`` is ``"fsdp"``.
+    """
+
     sharding_strategy: str = "FULL_SHARD"
     mixed_precision: bool = True
     cpu_offload: bool = False
@@ -188,6 +195,27 @@ class FSDPConfig(BaseConfig):
 
 
 @dataclass
+class DistributedConfig(BaseConfig):
+    """Distributed training configuration.
+
+    ``mode`` selects the runtime:
+
+        - ``"none"`` — single-GPU, plain ``python`` (default)
+        - ``"ddp"``  — DistributedDataParallel via ``torchrun``
+        - ``"fsdp"`` — FullyShardedDataParallel via ``torchrun``
+
+    ``fsdp`` contains FSDP-specific tuning knobs (only used when mode=fsdp).
+
+    Node and GPU counts are **not** part of training config — they are
+    scheduler/launcher concerns.  Use ``sbatch --nodes=`` and
+    ``--gpus-per-node=`` (or the script's CLI argument) to control resources.
+    """
+
+    mode: str = "none"  # none | ddp | fsdp
+    fsdp: FSDPConfig = field(default_factory=FSDPConfig)
+
+
+@dataclass
 class Config:
     """Main configuration class with clean structure."""
 
@@ -198,7 +226,7 @@ class Config:
     analysis: AnalysisConfig = field(default_factory=AnalysisConfig)
     wandb: WandbConfig = field(default_factory=WandbConfig)
     outputs: OutputsConfig = field(default_factory=OutputsConfig)
-    fsdp: FSDPConfig = field(default_factory=FSDPConfig)
+    distributed: DistributedConfig = field(default_factory=DistributedConfig)
 
 
 def _to_plain_dict(data: Any) -> dict[str, Any]:
@@ -246,6 +274,7 @@ def _build_core_config(core_data: Any) -> CoreConfig:
         implementation=ImplementationConfig(
             **_to_plain_dict(core_dict.get("implementation", {}))
         ),
+        spatial=SpatialConfig(**_to_plain_dict(core_dict.get("spatial", {}))),
         recurrent=RecurrentConfig(**_to_plain_dict(core_dict.get("recurrent", {}))),
         unified_ei=_to_plain_dict(unified_ei),
         recurrent_ei=_to_plain_dict(core_dict.get("recurrent_ei", {})),
@@ -380,7 +409,11 @@ def _build_data_config(data_data: Any) -> DataConfig:
 def _filter_dataclass_kwargs(config_cls: type, raw_data: Any) -> dict[str, Any]:
     """Drop unknown keys when loading historical configs into dataclasses."""
     data = raw_data or {}
-    if not isinstance(data, dict):
+    if isinstance(data, Mapping):
+        pass  # dict, OmegaConf DictConfig, etc.
+    elif hasattr(data, "_metadata"):
+        data = OmegaConf.to_container(data, resolve=True) or {}
+    else:
         return {}
     allowed = {f.name for f in fields(config_cls)}
     return {key: value for key, value in data.items() if key in allowed}
@@ -416,7 +449,11 @@ def load_config(path: Optional[str] = None) -> Config:
         training_config = TrainingConfig(encoder=encoder_config, main=main_config)
 
         return Config(
-            experiment=ExperimentConfig(**conf_data.get("experiment", {})),
+            experiment=ExperimentConfig(
+                **_filter_dataclass_kwargs(
+                    ExperimentConfig, conf_data.get("experiment", {})
+                )
+            ),
             data=_build_data_config(conf_data.get("data", {})),
             model=_build_model_config(conf_data.get("model", {})),
             training=training_config,
@@ -425,9 +462,44 @@ def load_config(path: Optional[str] = None) -> Config:
                 **_filter_dataclass_kwargs(WandbConfig, conf_data.get("wandb", {}))
             ),
             outputs=OutputsConfig(**conf_data.get("outputs", {})),
-            fsdp=FSDPConfig(**conf_data.get("fsdp", {})),
+            distributed=_build_distributed_config(conf_data),
         )
     return Config()
+
+
+def _build_distributed_config(conf_data: dict) -> DistributedConfig:
+    """Build DistributedConfig from the ``distributed:`` YAML block.
+
+    Expected layout::
+
+        distributed:
+          mode: ddp
+          fsdp:
+            sharding_strategy: FULL_SHARD
+
+    Raises ``ValueError`` if a legacy top-level ``fsdp:`` block is present
+    (it must be nested under ``distributed:`` now).
+    """
+    # Reject legacy top-level fsdp: block.
+    if "fsdp" in conf_data and "distributed" not in conf_data:
+        raise ValueError(
+            "Top-level 'fsdp:' block is no longer supported. "
+            "Move FSDP settings under 'distributed.fsdp:' and set "
+            "'distributed.mode: fsdp'. See docs/configuration_guide.rst."
+        )
+    if "fsdp" in conf_data and "fsdp" not in conf_data.get("distributed", {}):
+        logger.warning(
+            "Ignoring top-level 'fsdp:' block. FSDP settings must be under "
+            "'distributed.fsdp:'. See docs/configuration_guide.rst."
+        )
+
+    dist_raw = dict(conf_data.get("distributed", {}))
+    fsdp_raw = dict(dist_raw.pop("fsdp", {}))
+    fsdp_config = FSDPConfig(**_filter_dataclass_kwargs(FSDPConfig, fsdp_raw))
+    return DistributedConfig(
+        **_filter_dataclass_kwargs(DistributedConfig, dist_raw),
+        fsdp=fsdp_config,
+    )
 
 
 def _map_analysis_config(analysis_data: dict) -> dict:
@@ -458,6 +530,20 @@ def _map_analysis_config(analysis_data: dict) -> dict:
             mapped[old_name] = analysis_data[new_name]
         elif old_name in analysis_data:
             mapped[old_name] = analysis_data[old_name]
+
+    # Instantiate PerformanceAnalysisConfig with nested EvaluationRuntimeConfig.
+    # Use Mapping to match both plain dict and omegaconf DictConfig.
+    if "performance_analysis" in mapped and isinstance(
+        mapped["performance_analysis"], Mapping
+    ):
+        pa = dict(mapped["performance_analysis"])
+        if "params" in pa and isinstance(pa["params"], Mapping):
+            pa["params"] = PerformanceAnalysisParams(**pa["params"])
+        if "training_runtime" in pa and isinstance(pa["training_runtime"], Mapping):
+            pa["training_runtime"] = EvaluationRuntimeConfig(**pa["training_runtime"])
+        if "final_runtime" in pa and isinstance(pa["final_runtime"], Mapping):
+            pa["final_runtime"] = EvaluationRuntimeConfig(**pa["final_runtime"])
+        mapped["performance_analysis"] = PerformanceAnalysisConfig(**pa)
 
     return mapped
 

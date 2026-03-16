@@ -197,6 +197,14 @@ class AnalysisManager:
                 # Save final results in main performance folder
                 save_path = os.path.join(self.save_root, "performance")
 
+            # Select training-time or final runtime config.
+            perf_cfg = self.config.performance_analysis
+            runtime = (
+                getattr(perf_cfg, "training_runtime", None)
+                if training
+                else getattr(perf_cfg, "final_runtime", None)
+            )
+
             self.performance_analyzer.analyze(
                 model=self.model,
                 train_ds=self.data["train"],
@@ -206,6 +214,7 @@ class AnalysisManager:
                 save_path=save_path,
                 filename=filename,
                 training=training,
+                runtime=runtime,
             )
 
         # Information Analysis

@@ -232,25 +232,26 @@ experiment:
     checkpoint_dir: results/checkpoints/
     enabled: false
     save_every_n_epochs: 10
-  enable_amp: false
   enable_hooks: true
   enable_profiling: false
   profiling_output_dir: results/profiling/
   seed: 42
   train_valid_split: 0.8
-fsdp:
-  backward_prefetch: BACKWARD_POST
-  cpu_offload: false
-  forward_prefetch: true
-  gradient_checkpointing: false
-  limit_all_gathers: true
-  min_num_params: 10000
-  mixed_precision: false
-  reduce_communication_overhead: true
-  sharding_strategy: FULL_SHARD
-  sync_module_states: false
-  use_fsdp: true
-  use_orig_params: true
+# Distributed training mode: use scripts/train.sh to auto-select launcher.
+distributed:
+  mode: fsdp
+  fsdp:
+    backward_prefetch: BACKWARD_POST
+    cpu_offload: false
+    forward_prefetch: true
+    gradient_checkpointing: false
+    limit_all_gathers: true
+    min_num_params: 10000
+    mixed_precision: false
+    reduce_communication_overhead: true
+    sharding_strategy: FULL_SHARD
+    sync_module_states: false
+    use_orig_params: true
 model:
   core:
     architecture:
@@ -354,7 +355,6 @@ training:
       voltage_stabilization: {}
     strategy: standard
 wandb:
-  enabled: true
   entity: null
   group: large-scale-ei
   project: dendritic-fsdp-experiments

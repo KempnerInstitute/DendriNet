@@ -641,6 +641,11 @@ def load_imagenet_as_datasets(
     """
     Load the ImageNet dataset and split into train, validation, and test sets.
 
+    If the environment variable ``IMAGENET_LOCAL_DIR`` is set and points to a
+    valid directory, it overrides *task_data_path*.  This allows SLURM scripts
+    to copy ImageNet to node-local NVMe (``$SLURM_TMPDIR``) for faster I/O
+    without editing the YAML config.
+
     Args:
         train_valid_split (float): Proportion of training data to use for training (vs validation)
         flatten (bool): Whether to flatten the images
@@ -652,6 +657,15 @@ def load_imagenet_as_datasets(
     Returns:
         tuple: (train_dataset, valid_dataset, test_dataset)
     """
+    # Allow SLURM scripts to redirect to node-local NVMe for faster I/O.
+    local_override = os.environ.get("IMAGENET_LOCAL_DIR")
+    if local_override and os.path.isdir(local_override):
+        _ds_logger.info(
+            "IMAGENET_LOCAL_DIR set — using local data path: %s (was: %s)",
+            local_override,
+            task_data_path,
+        )
+        task_data_path = local_override
 
     def _resolve_imagefolder_roots(root: str | None) -> tuple[str | None, str | None]:
         """Return (train_root, val_root) for ImageFolder-style layouts."""

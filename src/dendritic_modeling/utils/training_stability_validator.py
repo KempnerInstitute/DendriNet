@@ -52,7 +52,10 @@ def validate_training_stability(config) -> bool:
     enable_amp = bool(
         _first_present(
             config,
-            [["experiment", "enable_amp"], ["training", "enable_amp"]],
+            [
+                ["training", "main", "common", "use_amp"],
+                ["training", "enable_amp"],
+            ],
             default=False,
         )
     )
@@ -151,19 +154,9 @@ def validate_training_stability(config) -> bool:
         )
 
     # 3. FSDP Configuration Recommendations
-    use_fsdp = bool(
-        _first_present(
-            config,
-            [["fsdp", "use_fsdp"], ["training", "use_fsdp"]],
-            default=False,
-        )
-    )
-    if use_fsdp:
-        fsdp_config = _first_present(
-            config,
-            [["fsdp"], ["training", "fsdp_config"]],
-            default={},
-        )
+    dist_mode = str(_cfg_path(config, ["distributed", "mode"], "none")).lower()
+    if dist_mode == "fsdp":
+        fsdp_config = _cfg_path(config, ["distributed", "fsdp"], {})
         sharding_strategy = str(
             _cfg_get(fsdp_config, "sharding_strategy", "FULL_SHARD")
         ).upper()
@@ -173,13 +166,14 @@ def validate_training_stability(config) -> bool:
         ):
             warnings.append(
                 "FSDP Performance: Using FULL_SHARD without communication optimizations. "
-                "Consider enabling 'reduce_communication_overhead: true' or using 'sharding_strategy: HYBRID_SHARD'."
+                "Consider enabling 'distributed.fsdp.reduce_communication_overhead: true' "
+                "or using 'sharding_strategy: HYBRID_SHARD'."
             )
 
     # 5. Memory vs Speed Trade-offs
     if efficient_blocklinear and not enable_amp:
         warnings.append(
-            "Memory Optimization: 'efficient_blocklinear' provides memory savings but consider enabling 'enable_amp' for additional 50% memory reduction."
+            "Memory Optimization: 'efficient_blocklinear' provides memory savings but consider enabling 'training.main.common.use_amp: true' for additional 50% memory reduction."
         )
 
     # 6. Gradient Clipping Recommendations
@@ -221,33 +215,31 @@ def suggest_optimal_config_for_model_size(total_params: int) -> dict:
     if total_params < 10_000_000:  # < 10M parameters
         suggestions.update(
             {
-                "enable_amp": False,  # Not needed for small models
-                "use_fsdp": False,
-                "enable_hooks": True,  # Good for development and analysis
-                "enable_profiling": True,  # Good for development
+                "training.main.common.use_amp": False,
+                "distributed.mode": "none",
+                "experiment.enable_hooks": True,
+                "experiment.enable_profiling": True,
             }
         )
     elif total_params < 100_000_000:  # 10M - 100M parameters
         suggestions.update(
             {
-                "enable_amp": True,
-                "use_fsdp": False,  # Single GPU should handle this
-                "enable_hooks": True,  # Keep analysis capability
-                "enable_profiling": False,  # Better performance
+                "training.main.common.use_amp": True,
+                "distributed.mode": "ddp",  # data-parallel across GPUs
+                "experiment.enable_hooks": True,
+                "experiment.enable_profiling": False,
             }
         )
     else:  # > 100M parameters
         suggestions.update(
             {
-                "enable_amp": True,
-                "use_fsdp": True,
-                "enable_hooks": False,  # Disable for maximum performance
-                "enable_profiling": False,
-                "fsdp_config": {
-                    "mixed_precision": True,
-                    "sharding_strategy": "HYBRID_SHARD",
-                    "reduce_communication_overhead": True,
-                },
+                "training.main.common.use_amp": True,
+                "distributed.mode": "fsdp",
+                "experiment.enable_hooks": False,
+                "experiment.enable_profiling": False,
+                "distributed.fsdp.mixed_precision": True,
+                "distributed.fsdp.sharding_strategy": "HYBRID_SHARD",
+                "distributed.fsdp.reduce_communication_overhead": True,
             }
         )
 
@@ -268,7 +260,10 @@ def apply_automatic_safeguards(config) -> None:
     enable_amp = bool(
         _first_present(
             config,
-            [["experiment", "enable_amp"], ["training", "enable_amp"]],
+            [
+                ["training", "main", "common", "use_amp"],
+                ["training", "enable_amp"],
+            ],
             default=False,
         )
     )

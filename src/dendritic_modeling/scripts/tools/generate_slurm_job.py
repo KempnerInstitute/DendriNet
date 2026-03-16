@@ -300,14 +300,11 @@ conda activate dendritic_env"""
             SLURM script as a string
         """
         resources = self.estimate_resources()
-        # Check if FSDP is enabled in config or if multi-GPU is needed
-        config_uses_fsdp = self.config.get("train", {}).get("use_fsdp", False)
-        use_fsdp = (
-            config_uses_fsdp or resources["num_nodes"] > 1 or resources["num_gpus"] > 1
-        )
+        # Check distributed mode from config
+        dist_mode = self.config.get("distributed", {}).get("mode", "none").lower()
         default_script = (
             "src/dendritic_modeling/scripts/training/train_experiments_fsdp.py"
-            if use_fsdp
+            if dist_mode == "fsdp"
             else "src/dendritic_modeling/scripts/training/train_experiments.py"
         )
         training_script = self.run_config.get("training_script", default_script)
@@ -430,7 +427,7 @@ cd {self.project_dir}
 mkdir -p {self.log_dir}
 
 """
-        if use_fsdp:
+        if dist_mode == "fsdp":
             if resources["num_nodes"] == 1 and resources["gpus_per_node"] == 1:
                 template += f"""# Single GPU training - no distributed setup needed
 echo "Starting single GPU training..."

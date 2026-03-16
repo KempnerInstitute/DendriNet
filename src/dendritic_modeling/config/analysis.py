@@ -5,6 +5,41 @@ from dendritic_modeling.config.base import BaseConfig
 
 
 @dataclass
+class EvaluationRuntimeConfig(BaseConfig):
+    """Controls how evaluation iterates over a dataset.
+
+    mode:
+        "auto"        - materialize if estimated size < *materialize_threshold_mb*,
+                         otherwise stream via DataLoader.
+        "materialize" - always load the full dataset into memory (old behaviour).
+        "stream"      - always iterate batch-by-batch through a DataLoader.
+
+    splits:
+        Which data splits to evaluate.  Default ``["train", "valid", "test"]``
+        preserves old behaviour.  For ImageNet-scale training set
+        ``["valid"]`` during training.
+
+    max_batches:
+        If set, cap evaluation to this many batches per split (useful for
+        cheap approximate metrics during training).
+
+    materialize_threshold_mb:
+        Dataset size threshold (MB) for the ``"auto"`` mode switch.
+        Default 1024 MB keeps CIFAR/MNIST fully materialized.
+    """
+
+    mode: str = "auto"
+    batch_size: int = 256
+    num_workers: int = 4
+    pin_memory: bool = True
+    persistent_workers: bool = False
+    prefetch_factor: int = 2
+    max_batches: Optional[int] = None
+    materialize_threshold_mb: int = 1024
+    splits: list[str] = field(default_factory=lambda: ["train", "valid", "test"])
+
+
+@dataclass
 class PerformanceAnalysisParams(BaseConfig):
     """Parameters for performance evaluation metrics.
 
@@ -29,11 +64,19 @@ class PerformanceAnalysisConfig(BaseConfig):
 
     - enabled: turns the analysis module on/off.
     - training: if true, run during training.
+    - training_runtime / final_runtime: control how datasets are iterated
+      during training-time vs. final evaluation.
     """
 
     enabled: bool = True
     training: bool = False
     params: PerformanceAnalysisParams = field(default_factory=PerformanceAnalysisParams)
+    training_runtime: EvaluationRuntimeConfig = field(
+        default_factory=EvaluationRuntimeConfig
+    )
+    final_runtime: EvaluationRuntimeConfig = field(
+        default_factory=EvaluationRuntimeConfig
+    )
 
 
 @dataclass

@@ -21,7 +21,7 @@ def _build_config(
     *,
     enable_amp=False,
     enable_hooks=True,
-    use_fsdp=False,
+    distributed_mode="none",
     fsdp_config=None,
     learning_rate=0.001,
     grad_clip_value=None,
@@ -45,15 +45,22 @@ def _build_config(
     )
 
     return ConfigNode(
+        experiment=ConfigNode(
+            enable_hooks=enable_hooks,
+        ),
         training=ConfigNode(
             enable_amp=enable_amp,
-            enable_hooks=enable_hooks,
-            use_fsdp=use_fsdp,
-            fsdp_config=fsdp_config or {},
             main=ConfigNode(
-                common=ConfigNode(grad_clip_value=grad_clip_value),
+                common=ConfigNode(
+                    use_amp=enable_amp,
+                    grad_clip_value=grad_clip_value,
+                ),
                 param_groups=ConfigNode(lr=learning_rate),
             ),
+        ),
+        distributed=ConfigNode(
+            mode=distributed_mode,
+            fsdp=fsdp_config or ConfigNode(),
         ),
         model=ConfigNode(
             core=ConfigNode(architecture=architecture),
@@ -66,11 +73,11 @@ def test_validate_training_stability_logs_expected_warnings(monkeypatch):
     config = _build_config(
         enable_amp=True,
         enable_hooks=True,
-        use_fsdp=True,
-        fsdp_config={
-            "sharding_strategy": "full",
-            "reduce_communication_overhead": False,
-        },
+        distributed_mode="fsdp",
+        fsdp_config=ConfigNode(
+            sharding_strategy="full",
+            reduce_communication_overhead=False,
+        ),
         learning_rate=0.02,
         grad_clip_value=20.0,
         topk_ultrafast=True,
@@ -116,20 +123,20 @@ def test_validate_training_stability_handles_missing_sections_gracefully():
 
 def test_suggest_optimal_config_for_model_size_ranges():
     small = suggest_optimal_config_for_model_size(9_999_999)
-    assert small["enable_amp"] is False
-    assert small["use_fsdp"] is False
-    assert small["enable_profiling"] is True
+    assert small["training.main.common.use_amp"] is False
+    assert small["distributed.mode"] == "none"
+    assert small["experiment.enable_profiling"] is True
 
     medium = suggest_optimal_config_for_model_size(50_000_000)
-    assert medium["enable_amp"] is True
-    assert medium["use_fsdp"] is False
-    assert medium["enable_hooks"] is True
+    assert medium["training.main.common.use_amp"] is True
+    assert medium["distributed.mode"] == "ddp"
+    assert medium["experiment.enable_hooks"] is True
 
     large = suggest_optimal_config_for_model_size(100_000_000)
-    assert large["enable_amp"] is True
-    assert large["use_fsdp"] is True
-    assert large["enable_hooks"] is False
-    assert large["fsdp_config"]["sharding_strategy"] == "HYBRID_SHARD"
+    assert large["training.main.common.use_amp"] is True
+    assert large["distributed.mode"] == "fsdp"
+    assert large["experiment.enable_hooks"] is False
+    assert large["distributed.fsdp.sharding_strategy"] == "HYBRID_SHARD"
 
 
 def test_apply_automatic_safeguards_sets_flags_for_amp_with_gradient_scaling(

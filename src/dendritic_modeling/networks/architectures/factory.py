@@ -48,6 +48,22 @@ _UNIFIED_EI_TYPES: set[str] = {
     "unified_einet",
 }
 
+# Spatial dendritic cores: flatten encoder spatial output → EINet → project.
+# Tensor-map baseline: flatten → DendriNet → project (no spatial locality).
+_SPATIAL_DENDRITIC_TYPES: set[str] = {
+    "hierarchical_dendritic_tensor_map",
+    "dendritic_tensor_map",
+    "tensor_map",
+}
+
+# Spatial dendritic conv: F.unfold → shared DendriNet on local patches → fold.
+# Preserves spatial structure (B, C_out, H_out, W_out).
+# Canonical name: hierarchical_dendritic_conv
+_SPATIAL_DENDRITIC_CONV_TYPES: set[str] = {
+    "hierarchical_dendritic_conv",
+    "spatial_dendritic_conv",
+}
+
 _BASELINE_RNN_TYPES: dict[str, str] = {
     "gru": "gru",
     "lstm": "lstm",
@@ -428,6 +444,7 @@ def get_architecture(
     type: str,
     parameters: Union[dict[str, Any], DictConfig],
     input_dim: Optional[int] = None,
+    suffix_input_dim: Optional[int] = None,
 ) -> nn.Module:
     """
     Factory method for creating network architectures.
@@ -436,6 +453,10 @@ def get_architecture(
         type: Architecture type name
         parameters: Either flat parameters dict or structured config
         input_dim: Optional input dimension (needed for EINet from config)
+        suffix_input_dim: Optional suffix input dimension. Used by spatial
+            dendritic cores (e.g., ``hierarchical_dendritic_tensor_map``) to
+            add an output projection when the EINet output dim doesn't match
+            the downstream decoder's expected input.
 
     Returns:
         Initialized network module
@@ -530,6 +551,54 @@ def get_architecture(
             f"Architecture type '{type}' has been removed. "
             f"Use 'ei_unified' (or 'unified_ei', 'ei_net') with the new "
             f"EINetworkConfig format instead."
+        )
+
+    # ------------------------------------------------------------------
+    # Spatial dendritic cores (flatten → EINet → project)
+    # ------------------------------------------------------------------
+    if type in _SPATIAL_DENDRITIC_TYPES:
+        from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.spatial_dendritic import (
+            HierarchicalDendriticTensorMap,
+        )
+
+        if input_dim is None:
+            raise ValueError(
+                f"input_dim required when creating spatial dendritic core (type='{type}')"
+            )
+
+        return HierarchicalDendriticTensorMap(
+            config=parameters,
+            input_dim=input_dim,
+            suffix_input_dim=suffix_input_dim,
+        )
+
+    # ------------------------------------------------------------------
+    # Spatial dendritic conv (unfold → shared DendriNet → spatial output)
+    # ------------------------------------------------------------------
+    if type in _SPATIAL_DENDRITIC_CONV_TYPES:
+        from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.spatial_dendritic import (
+            HierarchicalDendriticConv,
+        )
+
+        raw_params = _to_plain_mapping(parameters)
+        spatial_cfg = _to_plain_mapping(raw_params.get("spatial", {}))
+        kernel_size = spatial_cfg.get("kernel_size", 3)
+        stride = spatial_cfg.get("stride", 1)
+        padding = spatial_cfg.get("padding", 0)
+
+        if input_dim is None:
+            raise ValueError(
+                f"input_dim required when creating spatial dendritic conv (type='{type}')"
+            )
+
+        # input_dim here is the number of input channels (C_in).
+        # For spatial cores, input_dim = prefix_output_spec.channels.
+        return HierarchicalDendriticConv(
+            config=parameters,
+            in_channels=input_dim,
+            kernel_size=kernel_size,
+            stride=stride,
+            padding=padding,
         )
 
     # ------------------------------------------------------------------

@@ -51,7 +51,6 @@
 experiment:
   seed: 42
   train_valid_split: 0.8
-  enable_amp: false
   enable_profiling: false
   profiling_output_dir: "results/profiling/"
   enable_hooks: false
@@ -255,9 +254,11 @@ training:
       standard: {}
 
 analysis:
+  # DISABLED: re-enable with training_runtime/final_runtime config once
+  # streaming evaluation is validated on ImageNet (see EvaluationRuntimeConfig).
   performance_analysis:
-    enabled: true
-    training: true
+    enabled: false
+    training: false
     params:
       accuracy: true
       auc: true
@@ -282,26 +283,24 @@ wandb:
   project: "dendritic-sweeps"
   group: "alexnet_fc_replacement"
   tags: ["alexnet", "k1", "einet", "imagenet"]
-  enabled: true
-  log_freq: 10
-  log_gradients: false
-  log_parameters: false
-  log_activations: false
 
 outputs:
   run_name: "alexnet_k1_einet"
   results_dir: "outputs"
 
-fsdp:
-  use_fsdp: false
-  sharding_strategy: "FULL_SHARD"
-  mixed_precision: true
-  cpu_offload: false
-  min_num_params: 1000000
-  reduce_communication_overhead: true
-  limit_all_gathers: true
-  forward_prefetch: true
-  sync_module_states: true
-  use_orig_params: true
-  backward_prefetch: "BACKWARD_PRE"
-  gradient_checkpointing: false
+# Distributed training mode: none (single GPU), ddp, or fsdp.
+# Use scripts/train.sh to auto-select the launcher from this setting.
+distributed:
+  mode: none
+  fsdp:
+    sharding_strategy: "FULL_SHARD"
+    mixed_precision: true
+    cpu_offload: false
+    min_num_params: 1000000
+    reduce_communication_overhead: true
+    limit_all_gathers: true
+    forward_prefetch: true
+    sync_module_states: true
+    use_orig_params: true
+    backward_prefetch: "BACKWARD_PRE"
+    gradient_checkpointing: false

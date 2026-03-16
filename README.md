@@ -24,11 +24,19 @@ python src/dendritic_modeling/scripts/training/train_experiments.py \
     configs/config_exp.yaml
 ```
 
-Generate an FSDP SLURM script:
+Distributed training (DDP or FSDP) — set `distributed.mode` in your YAML
+config and use the unified launcher:
 
 ```bash
-python src/dendritic_modeling/scripts/tools/submit_fsdp_job.py \
-    configs/config_exp_fsdp.yaml --generate-only
+# Auto-selects entrypoint based on distributed.mode in YAML
+sbatch scripts/train.sh configs/my_config.yaml
+
+# Multi-node
+sbatch --nodes=2 scripts/train.sh configs/my_config.yaml
+
+# Or use dedicated launchers directly
+sbatch scripts/train_ddp.sh configs/my_config.yaml
+sbatch scripts/train_fsdp.sh configs/my_config.yaml
 ```
 
 Run a sweep from an example config:

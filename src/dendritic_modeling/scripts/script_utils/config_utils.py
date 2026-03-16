@@ -265,11 +265,6 @@ def prepare_trainer_config(
         if isinstance(experiment_config, dict)
         else experiment_config.enable_profiling
     )
-    enable_amp = (
-        experiment_config.get("enable_amp", False)
-        if isinstance(experiment_config, dict)
-        else experiment_config.enable_amp
-    )
     enable_hooks = (
         experiment_config.get("enable_hooks", False)
         if isinstance(experiment_config, dict)
@@ -290,7 +285,6 @@ def prepare_trainer_config(
         trainer_config["enable_profiling"] = True
         trainer_config["profiling_output_dir"] = f"{save_path}/profiling"
 
-    trainer_config["enable_amp"] = enable_amp
     trainer_config["enable_hooks"] = enable_hooks
 
     # Add strategy-specific configurations

@@ -1,0 +1,273 @@
+# ============================================================================
+# AlexNet Conv Layer Replacement with Hierarchical Dendritic Conv
+# ============================================================================
+#
+# This config replaces conv layers features.6-8 (the last conv block) inside a
+# pretrained AlexNet with a HierarchicalDendriticConv core. The dendritic conv
+# applies F.unfold to extract local patches, runs a shared DendriNet on all
+# patches, and reshapes back to spatial output.
+#
+# Pipeline after splitting:
+#   prefix (encoder)  = features.0..5                     → (B, 192, 13, 13), frozen
+#   core (dendritic)  = shared DendriNet on 3×3 patches   → (B, 192, 13, 13), trainable
+#   suffix (decoder)  = features.9..12 + avgpool + fc     → 1000 classes, trainable
+#
+# The core replaces features.6 (Conv2d 192→384), features.7 (ReLU),
+# features.8 (Conv2d 384→256) with a single dendritic conv layer.
+#
+# Run:
+#   PYTHONPATH=src:$PYTHONPATH python \
+#     src/dendritic_modeling/scripts/training/train_experiments.py \
+#     configs/vision/alexnet_conv_dendritic_conv.yaml
+# ============================================================================
+
+experiment:
+  seed: 42
+  train_valid_split: 0.8
+  enable_profiling: false
+  profiling_output_dir: "results/profiling/"
+  enable_hooks: false
+  checkpointing:
+    enabled: true
+    save_every_n_epochs: 25
+    checkpoint_dir: "results/checkpoints/"
+
+data:
+  dataset_name: "imagenet"
+  base_dir: "/n/holylfs06/LABS/kempner_shared/Everyone/testbed/vision/imagenet_1k"
+  processing:
+    flatten: false
+    normalize: true
+  dataset_params: {}
+
+model:
+  task: "classification"
+
+  pretrained_replacement:
+    enabled: true
+    backbone: "alexnet"
+    weights: "IMAGENET1K_V1"
+    input_shape: [3, 224, 224]
+
+    # Replace the middle conv block (features.6 through features.8)
+    replace:
+      start: "features.6"                             # Conv2d(192, 384, 3, padding=1)
+      end: "features.8"                               # Conv2d(384, 256, 3, padding=1)
+
+    omit_layers: []
+
+    trainability:
+      encoder:
+        mode: "frozen"                                 # freeze early conv layers
+      decoder:
+        mode: "trainable"                              # train remaining conv + FC
+
+  # --- Core network: dendritic conv replacing features.6-8 ---
+  # Input: (B, 192, 13, 13) spatial from encoder
+  # Output: (B, C_out, 13, 13) spatial to suffix
+  core:
+    type: "hierarchical_dendritic_conv"
+
+    spatial:
+      kernel_size: 3
+      stride: 1
+      padding: 1                                       # same spatial size
+
+    architecture:
+      excitatory_layer_sizes: [256]                    # C_out = 256 (match original)
+      inhibitory_layer_sizes: [64]
+      excitatory_branch_factors: [3, 3]
+      inhibitory_branch_factors: [3, 3]
+      inhibitory_network_type: "dendritic"
+      mlp_inhibitory_network_params:
+        hidden_dims: []
+        activation: "relu"
+
+    connectivity:
+      ee_synapses_per_branch_per_layer: [16]           # K out of 192×3×3 = 1728
+      ei_synapses_per_branch_per_layer: [8]
+      ie_synapses_per_branch_per_layer: [8]
+      ii_synapses_per_branch_per_layer: [0]
+
+    transfer:
+      input_mode: 0
+      independent_pathways: false
+      excitatory_dim: null
+      inhibitory_dim: null
+      output_activation: null
+
+    morphology:
+      somatic_synapses: false
+      use_shunting: true
+      weight_transform: "softplus"
+      dbl_init_method: "analytical_expectation"
+
+    sparsity:
+      init_method: "xavier_normal"
+      noise_level: 0.0
+      type: "standard"
+      weight_norm_order: null
+      gamma: 1.0
+      temperature: 0.0
+      gradient_scaling: "none"
+      deepst:
+        excitatory_target_density: 0.1
+        inhibitory_target_density: 0.1
+        use_noise: true
+        sigma: 0.05
+        rewiring_mode: "global"
+        rewire_frequency: 1
+        synapses_per_branch: null
+        freeze_excitatory_connectivity: false
+        freeze_inhibitory_connectivity: false
+        init_method: "xavier_normal"
+        weight_threshold: 1.0e-6
+
+    reactivation:
+      enabled: true
+      type: "param_tanh"
+      init_m: 1.5
+      init_b: 0.5
+      gradient_scaling: "none"
+
+    blocklinear:
+      gradient_scaling: "none"
+      efficient: false
+
+    implementation:
+      adaptive_initialization: true
+      print_hooks: false
+
+training:
+  encoder:
+    strategy: "standard"
+    common:
+      lr: 0.0
+      loss_function: "log_mse"
+      epochs: 0
+      early_stopping: false
+      patience: 100
+      batch_size: 128
+      shuffle: false
+      grad_clip_value: 5.0
+      load_best_state_dict: false
+      plot_losses: false
+      suppress_prints: false
+      print_every: 1
+      use_amp: false
+      enable_nan_checking: false
+      enable_adaptive_clipping: false
+
+  main:
+    strategy: "standard"
+    common:
+      epochs: 500
+      batch_size: 128                                  # smaller batch for memory
+      shuffle: true
+      grad_clip_value: 5.0
+      loss_function: "cat_nll"
+      early_stopping: true
+      patience: 100
+      load_best_state_dict: true
+      save_path: null
+      plot_losses: true
+      suppress_prints: false
+      print_every: 10
+      use_amp: false
+      enable_nan_checking: false
+      enable_adaptive_clipping: false
+      weight_decay_rate: 0.0
+      weight_boosting: false
+      param_groups:
+        lr: 0.001
+        split_params: true
+        topk_lr: 0.001
+        blocklinear_lr: 0.0001
+        reactivation_lr: 0.0001
+        decoder_lr: 0.01
+        encoder_lr: 0.0
+
+    regularization:
+      l1_weight: 0.0
+      l2_weight: 0.0
+      selective:
+        layers: []
+        branches: []
+        weight_types: ["all"]
+      split_params: false
+      param_group_weights:
+        topk: { l1_weight: 0.0, l2_weight: 0.0 }
+        blocklinear: { l1_weight: 0.0, l2_weight: 0.0 }
+        reactivation: { l1_weight: 0.0, l2_weight: 0.0 }
+        decoder: { l1_weight: 0.0, l2_weight: 0.0 }
+      enforce_ei_weight_ratio: false
+      target_ei_weight_ratio: 0.5
+      ei_ratio_loss_weight: 0.5
+      ei_ratio_scope: "per_branch"
+      ei_ratio_metric: "mean"
+
+    pruning:
+      enabled: false
+      threshold: 2
+      selective:
+        layers: []
+        branches: []
+        weight_types: ["excitatory", "inhibitory"]
+      re_evaluate_after: false
+      dynamic_pruning: false
+      pruning_frequency: 10
+      report_non_pruned: true
+      save_pruning_stats: false
+      detailed_branch_report: true
+      redo_analysis_after_pruning: false
+
+    strategies:
+      standard: {}
+
+analysis:
+  performance_analysis:
+    enabled: false
+    training: false
+    params:
+      accuracy: true
+      auc: true
+      categorical_loglikelihood: true
+      mse: false
+      cosine_similarity: false
+  information_analysis: { enabled: false, training: false, params: {} }
+  correlation_analysis: { enabled: false, training: false, params: {} }
+  ablation_analysis: { enabled: false, training: false, params: {} }
+  synapse_turnover_analysis: { enabled: false, training: false, params: {} }
+  noise_perturbation_analysis: { enabled: false, training: false, params: {} }
+  weight_analysis: { enabled: false, training: false, params: {} }
+  single_layer_contribution: { enabled: false, training: false, params: {} }
+  synaptic_activation_analysis: { enabled: false, training: false, params: {} }
+  branch_activation_analysis: { enabled: false, training: false, params: {} }
+  compartment_statistics_analysis: { enabled: false, training: false, params: {} }
+  compartment_snr_analysis: { enabled: false, training: false, params: {} }
+
+wandb:
+  use_wandb: false
+  entity: ""
+  project: "dendritic-sweeps"
+  group: "alexnet_conv_replacement"
+  tags: ["alexnet", "dendritic_conv", "spatial", "imagenet"]
+
+outputs:
+  run_name: "alexnet_conv_dendritic_conv"
+  results_dir: "outputs"
+
+distributed:
+  mode: none
+  fsdp:
+    sharding_strategy: "FULL_SHARD"
+    mixed_precision: true
+    cpu_offload: false
+    min_num_params: 1000000
+    reduce_communication_overhead: true
+    limit_all_gathers: true
+    forward_prefetch: true
+    sync_module_states: true
+    use_orig_params: true
+    backward_prefetch: "BACKWARD_PRE"
+    gradient_checkpointing: false

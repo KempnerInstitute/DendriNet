@@ -32,7 +32,6 @@ slurm_config:
   time: "12:00:00"
   nodes: 1
   ntasks_per_node: 1
-  gpus_per_node: 1
   cpus_per_task: 12
   mem: 200GB
   max_concurrent_jobs: 32  # Maximum number of array jobs to run simultaneously
@@ -95,7 +94,6 @@ base_config:
   experiment:
     seed: 42                              # Random seed for reproducibility (any integer)
     train_valid_split: 0.8                # Train/validation split ratio (0.0-1.0)
-    enable_amp: false                     # Enable automatic mixed precision (true/false)
     enable_profiling: false               # Enable PyTorch profiler (true/false)
     profiling_output_dir: "results/profiling/"  # Directory for profiling output
     enable_hooks: true                    # Enable gradient hooks for analysis (true/false)
@@ -764,7 +762,6 @@ base_config:
     project: "dendritic-sweeps"           # W&B project name (string)
     group: "unified_sweep"                # W&B group name (string)
     tags: ["debug"]                       # W&B tags (list of strings)
-    enabled: true                         # Enable W&B features (true/false)
 
   # ============================================================================
   # OUTPUTS
@@ -776,19 +773,21 @@ base_config:
   # ============================================================================
   # DISTRIBUTED/FSDP
   # ============================================================================
-  fsdp:
-    use_fsdp: false                       # Enable Fully Sharded Data Parallel (true/false)
-    sharding_strategy: "FULL_SHARD"      # Sharding strategy: "FULL_SHARD", "SHARD_GRAD_OP", "NO_SHARD", "HYBRID_SHARD"
-    mixed_precision: true                 # Use mixed precision (true/false)
-    cpu_offload: false                    # Offload to CPU (true/false)
-    min_num_params: 1000000               # Minimum parameters for FSDP wrapping
-    reduce_communication_overhead: true   # Reduce communication overhead (true/false)
-    limit_all_gathers: true               # Limit all-gather operations (true/false)
-    forward_prefetch: true                # Prefetch in forward pass (true/false)
-    sync_module_states: true              # Synchronize module states (true/false)
-    use_orig_params: true                 # Use original parameters (true/false)
-    backward_prefetch: "BACKWARD_PRE"     # Backward prefetch: "BACKWARD_PRE", "BACKWARD_POST", null
-    gradient_checkpointing: false         # Enable gradient checkpointing (true/false)
+  # distributed.mode selects the runtime: none (single GPU), ddp, or fsdp.
+  distributed:
+    mode: none                            # "none", "ddp", "fsdp"
+    fsdp:
+      sharding_strategy: "FULL_SHARD"      # Sharding strategy: "FULL_SHARD", "SHARD_GRAD_OP", "NO_SHARD", "HYBRID_SHARD"
+      mixed_precision: true                 # Use mixed precision (true/false)
+      cpu_offload: false                    # Offload to CPU (true/false)
+      min_num_params: 1000000               # Minimum parameters for FSDP wrapping
+      reduce_communication_overhead: true   # Reduce communication overhead (true/false)
+      limit_all_gathers: true               # Limit all-gather operations (true/false)
+      forward_prefetch: true                # Prefetch in forward pass (true/false)
+      sync_module_states: true              # Synchronize module states (true/false)
+      use_orig_params: true                 # Use original parameters (true/false)
+      backward_prefetch: "BACKWARD_PRE"     # Backward prefetch: "BACKWARD_PRE", "BACKWARD_POST", null
+      gradient_checkpointing: false         # Enable gradient checkpointing (true/false)
 
 
 # ============================================================================

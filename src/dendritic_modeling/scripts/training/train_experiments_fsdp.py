@@ -52,8 +52,11 @@ from dendritic_modeling.scripts.script_utils.setup_utils import (
 from dendritic_modeling.scripts.training.train_encoder_network import (
     load_train_encoder_network,
 )
-from dendritic_modeling.training.fsdp_utils import get_fsdp_config
-from dendritic_modeling.training.strategies.fsdp_standard import FSDPTrainer
+from dendritic_modeling.training.fsdp_utils import get_fsdp_config, save_fsdp_checkpoint
+from dendritic_modeling.training.strategies.fsdp_standard import (
+    FSDPTrainer,
+    PaddedDistributedEvalSampler,
+)
 from dendritic_modeling.utils.general import save_dict, set_seed
 from dendritic_modeling.utils.logging_config import LoggerManager
 
@@ -117,41 +120,30 @@ def setup_wandb(config, rank, world_size):
     return run
 
 
-def setup_distributed():
-    """Initialize distributed environment."""
-    # Check if we're in a SLURM environment without torchrun
-    if "SLURM_PROCID" in os.environ and "RANK" not in os.environ:
-        # Set up environment variables from SLURM
-        rank = int(os.environ["SLURM_PROCID"])
-        local_rank = int(os.environ["SLURM_LOCALID"])
-        world_size = int(os.environ["SLURM_NTASKS"])
+def setup_distributed() -> tuple[int, int, int]:
+    """Initialize distributed environment via ``torchrun``.
 
-        # Set the environment variables that PyTorch expects
-        os.environ["RANK"] = str(rank)
-        os.environ["LOCAL_RANK"] = str(local_rank)
-        os.environ["WORLD_SIZE"] = str(world_size)
+    ``torchrun`` sets ``RANK``, ``LOCAL_RANK``, and ``WORLD_SIZE``
+    automatically.  When these are absent the function raises an error
+    because FSDP requires a distributed process group.
 
-        # MASTER_ADDR and MASTER_PORT should already be set by SLURM script
-        if "MASTER_ADDR" not in os.environ or "MASTER_PORT" not in os.environ:
-            raise RuntimeError(
-                "MASTER_ADDR and MASTER_PORT must be set in SLURM environment"
-            )
-    else:
-        # Get rank and world size from torchrun
-        rank = int(os.environ.get("RANK", 0))
-        local_rank = int(os.environ.get("LOCAL_RANK", 0))
-        world_size = int(os.environ.get("WORLD_SIZE", 1))
+    Returns:
+        (rank, local_rank, world_size)
+    """
+    if "RANK" not in os.environ:
+        raise RuntimeError(
+            "FSDP requires torchrun.  Launch with:\n"
+            "  torchrun --nproc_per_node=<N> train_experiments_fsdp.py <config>"
+        )
 
-    # Initialize distributed training
-    # Use GLOO backend if specified (more robust for network issues)
-    backend = os.environ.get("PYTORCH_BACKEND", "nccl")
-    if backend == "gloo":
-        logger.info("Using Gloo backend for distributed training")
-    dist.init_process_group(backend=backend)
+    rank = int(os.environ["RANK"])
+    local_rank = int(os.environ.get("LOCAL_RANK", 0))
+    world_size = int(os.environ.get("WORLD_SIZE", 1))
 
-    # Set device using local rank (rank within the node)
+    if not dist.is_initialized():
+        dist.init_process_group(backend="nccl")
+
     torch.cuda.set_device(local_rank)
-
     return rank, local_rank, world_size
 
 
@@ -320,13 +312,23 @@ def setup_data_loaders(config, rank, world_size):
 
     train_ds, valid_ds, test_ds = get_unified_datasets(task_cfg=task_cfg)
 
-    # Create distributed samplers
+    # Create distributed sampler for training only.
+    # Validation uses a non-padded sampler: each rank gets a disjoint
+    # shard *without* padding, and the trainer reduces exact counts
+    # (loss_sum, correct, total_examples) via all-reduce SUM.
     train_sampler = DistributedSampler(
         train_ds, num_replicas=world_size, rank=rank, shuffle=True
     )
 
-    valid_sampler = DistributedSampler(
-        valid_ds, num_replicas=world_size, rank=rank, shuffle=False
+    # PaddedDistributedEvalSampler gives each rank an equal number of
+    # indices (required by FSDP all-gather) but marks the extras as
+    # padding (-1 sentinels).  The trainer's _epoch_valid_fsdp excludes
+    # padding from the reduction, so validation is numerically identical
+    # to a non-distributed run over the full dataset.
+    valid_sampler = PaddedDistributedEvalSampler(
+        valid_ds,
+        num_replicas=world_size,
+        rank=rank,
     )
 
     # Create data loaders
@@ -399,26 +401,42 @@ def main(config_path):
         config, rank, world_size
     )
 
-    # Only rank 0 needs to handle encoding for analysis.
-    # Extract the encoder that create_large_model() already built into the model
-    # so that load_train_encoder_network() can use it (e.g., for pre-training
-    # BaseAutoencoder encoders).  For Identity and BackboneSegment encoders
-    # it returns immediately with datasets unchanged.
+    # Encode datasets for analysis (rank 0 only).
+    # Note: FSDP does NOT support autoencoder pretraining.  If the
+    # encoder is a BaseAutoencoder, create_large_model() already
+    # collapsed it to its encoder sub-module, so
+    # load_train_encoder_network() will return immediately.
+    # To pretrain an autoencoder encoder, run it *before* FSDP
+    # training with the standard single-GPU script, then point
+    # the config at the saved checkpoint.
     if rank == 0:
-        logger.info("Encoding datasets for analysis...")
-        encoder_network = model.encoder_network
-
-        encoder_network, encoded_train_ds, encoded_valid_ds, encoded_test_ds = (
-            load_train_encoder_network(
-                encoder_network=encoder_network,
-                encoder_train_config=config.training.encoder,
-                train_ds=train_ds,
-                valid_ds=valid_ds,
-                test_ds=test_ds,
-                encoder_network_config=config.model.encoder,
-                task_config=config.data,
-            )
+        from dendritic_modeling.networks.architectures.classical.autoencoder import (
+            BaseAutoencoder,
         )
+
+        encoder_network = model.encoder_network
+        if isinstance(encoder_network, BaseAutoencoder):
+            logger.warning(
+                "BaseAutoencoder pretraining is not supported inside the "
+                "FSDP script.  Pretrain the encoder separately, then load "
+                "its checkpoint.  Skipping encoder pretraining."
+            )
+            encoded_train_ds = train_ds
+            encoded_valid_ds = valid_ds
+            encoded_test_ds = test_ds
+        else:
+            logger.info("Encoding datasets for analysis...")
+            encoder_network, encoded_train_ds, encoded_valid_ds, encoded_test_ds = (
+                load_train_encoder_network(
+                    encoder_network=encoder_network,
+                    encoder_train_config=config.training.encoder,
+                    train_ds=train_ds,
+                    valid_ds=valid_ds,
+                    test_ds=test_ds,
+                    encoder_network_config=config.model.encoder,
+                    task_config=config.data,
+                )
+            )
     else:
         encoded_train_ds = encoded_valid_ds = encoded_test_ds = None
         encoder_network = Identity(1)
@@ -435,22 +453,15 @@ def main(config_path):
     # Training common config is the source of truth for epochs, loss, etc.
     train_common = config.training.main.common
 
-    # Create FSDP config from config file or defaults
-    if hasattr(config, "fsdp") and getattr(config.fsdp, "use_fsdp", False):
-        logger.info("Using FSDP configuration from config file")
-        fsdp_config = get_fsdp_config(
-            mixed_precision=config.fsdp.mixed_precision,
-            cpu_offload=config.fsdp.cpu_offload,
-            sharding_strategy=config.fsdp.sharding_strategy,
-        )
-    else:
-        # Fall back to default method
-        logger.info("Using default FSDP configuration")
-        fsdp_config = get_fsdp_config(
-            mixed_precision=getattr(train_common, "use_amp", False),
-            cpu_offload=getattr(train_common, "cpu_offload", False),
-            sharding_strategy="FULL_SHARD",
-        )
+    # Read FSDP tuning knobs from config.distributed.fsdp.
+    fsdp_cfg = config.distributed.fsdp
+    logger.info("Using FSDP configuration from config file")
+    fsdp_config = get_fsdp_config(
+        mixed_precision=fsdp_cfg.mixed_precision,
+        cpu_offload=fsdp_cfg.cpu_offload,
+        sharding_strategy=fsdp_cfg.sharding_strategy,
+        fsdp_config_dict=vars(fsdp_cfg) if hasattr(fsdp_cfg, "__dict__") else None,
+    )
 
     # Create optimizer config
     optimizer_config = {
@@ -479,7 +490,6 @@ def main(config_path):
             analysis_config=config.analysis,
             save_root=run_save_path,
             device=f"cuda:{local_rank}",
-            train_config=config.training,
         )
         logger.info(f"AnalysisManager created: {type(analysis_manager)}")
         logger.info(
@@ -521,10 +531,6 @@ def main(config_path):
     # Train the model
     results = trainer.train(model, train_loader, valid_loader)
 
-    # Fix for Identity encoder
-    if rank == 0:
-        model.encoder_network = _get_analysis_encoder_network(encoder_network)
-
     if rank == 0:
         logger.info("Training completed successfully!")
         logger.info(f"Final training loss: {results.get('final_train_loss', 'N/A')}")
@@ -533,26 +539,54 @@ def main(config_path):
         # Save final results
         save_dict(results, run_save_path, "training_results.json")
 
-        # Run final analysis - this will automatically handle performance analysis and figure generation
-        if analysis_manager:
-            try:
-                logger.info(
-                    "Running final analysis (includes performance metrics plotting)..."
-                )
+    # --- Final analysis: gather full state dict, reload into plain model ---
+    # FSDP shards parameters across ranks; analysis on the sharded model
+    # produces incorrect results.  The safe pattern is:
+    # 1. Save a full (unsharded) checkpoint from the FSDP model (all ranks
+    #    participate in the all-gather, rank 0 saves).
+    # 2. On rank 0, create a fresh non-FSDP model and load that checkpoint.
+    # 3. Run analysis on the plain model.
+    fsdp_model = trainer.fsdp_model
+    full_ckpt_path = os.path.join(
+        run_save_path or "/tmp", "checkpoints", "final_full.pt"
+    )
+    if rank == 0:
+        os.makedirs(os.path.dirname(full_ckpt_path), exist_ok=True)
 
-                # Use unwrapped model for analysis if FSDP-wrapped
-                if hasattr(model, "module"):
-                    unwrapped_model = model.module
-                    # Ensure the unwrapped model is on the correct device
-                    unwrapped_model = unwrapped_model.to(f"cuda:{local_rank}")
-                    analysis_manager.model = unwrapped_model
+    # All ranks participate in the full state-dict gather.
+    save_fsdp_checkpoint(
+        fsdp_model,
+        trainer.optimizer,
+        trainer.epochs - 1,
+        full_ckpt_path,
+        rank=rank,
+    )
+    if rank == 0:
+        logger.info(f"Full checkpoint saved to {full_ckpt_path}")
 
-                analysis_manager.run_analysis(filename="final", training=False)
-                logger.info(
-                    "Final analysis completed - figures saved to performance folder"
-                )
-            except Exception as e:
-                logger.error(f"Final analysis failed: {e}")
+    if rank == 0 and analysis_manager:
+        try:
+            logger.info("Running final analysis on non-FSDP model...")
+            # Create a fresh non-FSDP model and load the gathered state dict
+            plain_model = create_large_model(config)
+            ckpt = torch.load(full_ckpt_path, map_location=f"cuda:{local_rank}")
+            plain_model.load_state_dict(ckpt["model_state_dict"])
+            plain_model = plain_model.to(f"cuda:{local_rank}")
+            plain_model.eval()
+
+            # Set the encoder for analysis
+            plain_model.encoder_network = _get_analysis_encoder_network(encoder_network)
+
+            analysis_manager.model = plain_model
+            analysis_manager.run_analysis(filename="final", training=False)
+            logger.info(
+                "Final analysis completed - figures saved to performance folder"
+            )
+        except Exception as e:
+            logger.error(f"Final analysis failed: {e}")
+            import traceback
+
+            logger.error(traceback.format_exc())
 
     # Clean up distributed
     if wandb_run:
