@@ -378,24 +378,66 @@ class TestInputGuard:
 # Config-path tests: load_config → verify spatial settings survive
 # ---------------------------------------------------------------------------
 class TestConfigPath:
-    def test_spatial_config_survives_load(self):
+    def test_spatial_config_survives_load(self, tmp_path):
         """core.spatial.{kernel_size, stride, padding} must survive load_config."""
+        import yaml
+
         from dendritic_modeling.config import load_config
 
-        cfg = load_config("configs/vision/alexnet_conv_dendritic_conv.yaml")
+        # Create a minimal config with spatial settings inline
+        cfg_dict = {
+            "experiment": {"seed": 42, "train_valid_split": 0.8},
+            "data": {"dataset_name": "mnist", "processing": {"flatten": True}},
+            "model": {
+                "task": "classification",
+                "encoder": {"type": "identity"},
+                "core": {
+                    "type": "hierarchical_dendritic_conv",
+                    "spatial": {"kernel_size": 3, "stride": 1, "padding": 1},
+                    "architecture": {"excitatory_layer_sizes": [32]},
+                },
+                "decoder": {"type": "MLP", "params": {"output_dim": 10}},
+            },
+            "training": {"main": {"strategy": "standard", "common": {"epochs": 1}}},
+            "outputs": {"run_name": "test", "results_dir": str(tmp_path)},
+        }
+        cfg_path = tmp_path / "spatial_test.yaml"
+        cfg_path.write_text(yaml.dump(cfg_dict))
 
-        # SpatialConfig should be populated from the YAML
+        cfg = load_config(str(cfg_path))
+
         assert cfg.model.core.spatial.kernel_size == 3
         assert cfg.model.core.spatial.stride == 1
         assert cfg.model.core.spatial.padding == 1
 
-    def test_spatial_config_in_plain_dict(self):
+    def test_spatial_config_in_plain_dict(self, tmp_path):
         """_config_to_plain_dict should include core.spatial as a dict."""
+        from dataclasses import asdict
+
+        import yaml
+
         from dendritic_modeling.config import load_config
 
-        cfg = load_config("configs/vision/alexnet_conv_dendritic_conv.yaml")
+        cfg_dict = {
+            "experiment": {"seed": 42, "train_valid_split": 0.8},
+            "data": {"dataset_name": "mnist", "processing": {"flatten": True}},
+            "model": {
+                "task": "classification",
+                "encoder": {"type": "identity"},
+                "core": {
+                    "type": "hierarchical_dendritic_conv",
+                    "spatial": {"kernel_size": 3, "stride": 1, "padding": 1},
+                    "architecture": {"excitatory_layer_sizes": [32]},
+                },
+                "decoder": {"type": "MLP", "params": {"output_dim": 10}},
+            },
+            "training": {"main": {"strategy": "standard", "common": {"epochs": 1}}},
+            "outputs": {"run_name": "test", "results_dir": str(tmp_path)},
+        }
+        cfg_path = tmp_path / "spatial_test.yaml"
+        cfg_path.write_text(yaml.dump(cfg_dict))
 
-        from dataclasses import asdict
+        cfg = load_config(str(cfg_path))
 
         core_dict = asdict(cfg.model.core)
         assert "spatial" in core_dict
@@ -408,18 +450,48 @@ class TestConfigPath:
 # ---------------------------------------------------------------------------
 @pytest.mark.usefixtures("_skip_if_no_torchvision")
 class TestSpatialContractValidation:
-    def test_flat_suffix_with_spatial_conv_raises(self):
+    def test_flat_suffix_with_spatial_conv_raises(self, tmp_path):
         """Using spatial conv core on a flat-suffix split should raise ValueError."""
+        import yaml
+
         from dendritic_modeling.config import load_config
 
-        # Load the tensor_map config (flat suffix) and switch type to spatial conv.
-        # Force weights=None so this test works offline without cached weights.
-        cfg = load_config("configs/vision/alexnet_k2_tensor_map.yaml")
-        cfg.model.pretrained_replacement.weights = None
-        cfg.model.core.type = "hierarchical_dendritic_conv"
-        cfg.model.core.spatial.kernel_size = 3
-        cfg.model.core.spatial.stride = 1
-        cfg.model.core.spatial.padding = 1
+        # Build a tensor-map style config inline (flat suffix), then switch
+        # core type to spatial conv — this should raise because suffix is flat.
+        cfg_dict = {
+            "experiment": {"seed": 42, "train_valid_split": 0.8},
+            "data": {
+                "dataset_name": "imagenet",
+                "processing": {"flatten": False, "normalize": True},
+            },
+            "model": {
+                "task": "classification",
+                "pretrained_replacement": {
+                    "enabled": True,
+                    "backbone": "alexnet",
+                    "weights": None,
+                    "input_shape": [3, 224, 224],
+                    "replace": {
+                        "start": "classifier.1",
+                        "end": "classifier.5",
+                    },
+                    "omit_layers": ["classifier.0", "classifier.3"],
+                },
+                "encoder": {"type": "identity"},
+                "core": {
+                    "type": "hierarchical_dendritic_conv",
+                    "spatial": {"kernel_size": 3, "stride": 1, "padding": 1},
+                    "architecture": {"excitatory_layer_sizes": [32]},
+                },
+                "decoder": {"type": "MLP", "params": {"output_dim": 1000}},
+            },
+            "training": {"main": {"strategy": "standard", "common": {"epochs": 1}}},
+            "outputs": {"run_name": "test", "results_dir": str(tmp_path)},
+        }
+        cfg_path = tmp_path / "flat_suffix_test.yaml"
+        cfg_path.write_text(yaml.dump(cfg_dict))
+
+        cfg = load_config(str(cfg_path))
 
         from dendritic_modeling.scripts.script_utils.setup_utils import (
             _build_from_pretrained_replacement,
