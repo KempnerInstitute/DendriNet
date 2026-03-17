@@ -19,7 +19,7 @@
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-    <link rel="next" title="FSDP Training Guide" href="fsdp_troubleshooting.html" />
+    <link rel="next" title="Distributed Training Guide" href="fsdp_troubleshooting.html" />
     <link rel="prev" title="Configuration Guide" href="configuration_guide.html" /> 
 </head>
 
@@ -62,7 +62,7 @@
 <li class="toctree-l2"><a class="reference internal" href="#examples">Examples</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="fsdp_troubleshooting.html">FSDP Training Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fsdp_troubleshooting.html">Distributed Training Guide</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Reference</span></p>
 <ul>
@@ -102,10 +102,10 @@
 <h2>Quick Start<a class="headerlink" href="#quick-start" title="Link to this heading"></a></h2>
 <p>Run a parameter sweep:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Generate and run a sweep</span>
-python<span class="w"> </span>src/dendritic_modeling/scripts/sweeps/sweep_manager.py<span class="w"> </span>--config<span class="w"> </span>configs/EI_sweeps_example.yaml
+python<span class="w"> </span>src/dendritic_modeling/scripts/sweeps/sweep_manager.py<span class="w"> </span>--config<span class="w"> </span>configs/sweep_config.yaml
 
 <span class="c1"># Generate configs only (no job submission)</span>
-python<span class="w"> </span>src/dendritic_modeling/scripts/sweeps/sweep_manager.py<span class="w"> </span>--config<span class="w"> </span>configs/EI_sweeps_example.yaml<span class="w"> </span>--generate-only
+python<span class="w"> </span>src/dendritic_modeling/scripts/sweeps/sweep_manager.py<span class="w"> </span>--config<span class="w"> </span>configs/sweep_config.yaml<span class="w"> </span>--generate-only
 
 <span class="c1"># Analyze an existing sweep directory</span>
 python<span class="w"> </span>src/dendritic_modeling/scripts/sweeps/result_analyzer.py<span class="w"> </span>/path/to/sweep/results
@@ -162,7 +162,7 @@ python<span class="w"> </span>src/dendritic_modeling/scripts/sweeps/result_analy
 </section>
 <section id="examples">
 <h2>Examples<a class="headerlink" href="#examples" title="Link to this heading"></a></h2>
-<p>See example configurations in <code class="docutils literal notranslate"><span class="pre">configs/EI_sweeps_example.yaml</span></code> and the
+<p>See example configurations in <code class="docutils literal notranslate"><span class="pre">configs/sweep_config.yaml</span></code> and the
 specialized examples under <code class="docutils literal notranslate"><span class="pre">configs/sweeps/</span></code>.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>src/dendritic_modeling/scripts/sweeps/sweep_manager.py<span class="w"> </span>--help
 python<span class="w"> </span>src/dendritic_modeling/scripts/sweeps/result_analyzer.py<span class="w"> </span>--help
@@ -176,7 +176,7 @@ python<span class="w"> </span>src/dendritic_modeling/scripts/sweeps/result_analy
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
         <a href="configuration_guide.html" class="btn btn-neutral float-left" title="Configuration Guide" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-        <a href="fsdp_troubleshooting.html" class="btn btn-neutral float-right" title="FSDP Training Guide" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="fsdp_troubleshooting.html" class="btn btn-neutral float-right" title="Distributed Training Guide" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>

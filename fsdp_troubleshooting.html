@@ -6,7 +6,7 @@
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>FSDP Training Guide &mdash; Dendritic Modeling Framework v0.1.0</title>
+  <title>Distributed Training Guide &mdash; Dendritic Modeling Framework v0.1.0</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
 
@@ -55,17 +55,18 @@
 <li class="toctree-l1"><a class="reference internal" href="analysis.html">Analysis</a></li>
 <li class="toctree-l1"><a class="reference internal" href="configuration_guide.html">Configuration Guide</a></li>
 <li class="toctree-l1"><a class="reference internal" href="sweeps.html">Parameter Sweeps</a></li>
-<li class="toctree-l1 current"><a class="current reference internal" href="#">FSDP Training Guide</a><ul>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Distributed Training Guide</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#quick-start">Quick Start</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#when-to-use-fsdp">When to Use FSDP</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#when-to-use-single-gpu">When to Use Single GPU</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#when-to-use-what">When to Use What</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#configuration">Configuration</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#common-issues">Common Issues</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#network-timeout">Network Timeout</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#memory-issues">Memory Issues</a></li>
-<li class="toctree-l3"><a class="reference internal" href="#job-submission-failed">Job Submission Failed</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#fsdp-validation">FSDP Validation</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#fsdp-final-analysis">FSDP Final Analysis</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#autoencoder-pretraining">Autoencoder Pretraining</a></li>
 </ul>
 </li>
-<li class="toctree-l2"><a class="reference internal" href="#configuration">Configuration</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#monitoring">Monitoring</a></li>
 </ul>
 </li>
@@ -91,7 +92,7 @@
           <div role="navigation" aria-label="Page navigation">
   <ul class="wy-breadcrumbs">
       <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
-      <li class="breadcrumb-item active">FSDP Training Guide</li>
+      <li class="breadcrumb-item active">Distributed Training Guide</li>
       <li class="wy-breadcrumbs-aside">
             <a href="_sources/fsdp_troubleshooting.rst.txt" rel="nofollow"> View page source</a>
       </li>
@@ -101,81 +102,115 @@
           <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
            <div itemprop="articleBody">
              
-  <section id="fsdp-training-guide">
-<h1>FSDP Training Guide<a class="headerlink" href="#fsdp-training-guide" title="Link to this heading"></a></h1>
+  <section id="distributed-training-guide">
+<h1>Distributed Training Guide<a class="headerlink" href="#distributed-training-guide" title="Link to this heading"></a></h1>
 <section id="quick-start">
 <h2>Quick Start<a class="headerlink" href="#quick-start" title="Link to this heading"></a></h2>
-<p>Use the automated FSDP workflow for large models:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Generate and submit an FSDP job</span>
-python<span class="w"> </span>src/dendritic_modeling/scripts/tools/submit_fsdp_job.py<span class="w"> </span>configs/config_exp_fsdp.yaml
+<p>Set <code class="docutils literal notranslate"><span class="pre">distributed.mode</span></code> in your YAML config and use the unified launcher:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># DDP (data-parallel, model fits on one GPU)</span>
+sbatch<span class="w"> </span>scripts/train.sh<span class="w"> </span>configs/my_config.yaml
 
-<span class="c1"># Generate SLURM script only</span>
-python<span class="w"> </span>src/dendritic_modeling/scripts/tools/submit_fsdp_job.py<span class="w"> </span>configs/config_exp_fsdp.yaml<span class="w"> </span>--generate-only
+<span class="c1"># FSDP (model too large for one GPU)</span>
+sbatch<span class="w"> </span>scripts/train.sh<span class="w"> </span>configs/my_config.yaml
+
+<span class="c1"># Multi-node (2 nodes)</span>
+sbatch<span class="w"> </span>--nodes<span class="o">=</span><span class="m">2</span><span class="w"> </span>scripts/train.sh<span class="w"> </span>configs/my_config.yaml
+</pre></div>
+</div>
+<p>Or use the dedicated launchers directly:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sbatch<span class="w"> </span>scripts/train_ddp.sh<span class="w"> </span>configs/my_config.yaml
+sbatch<span class="w"> </span>scripts/train_fsdp.sh<span class="w"> </span>configs/my_config.yaml
 </pre></div>
 </div>
 </section>
-<section id="when-to-use-fsdp">
-<h2>When to Use FSDP<a class="headerlink" href="#when-to-use-fsdp" title="Link to this heading"></a></h2>
-<ul class="simple">
-<li><p>Model doesn’t fit on single GPU</p></li>
-<li><p>Multiple GPUs available</p></li>
-<li><p>Large datasets requiring distributed training</p></li>
-</ul>
+<section id="when-to-use-what">
+<h2>When to Use What<a class="headerlink" href="#when-to-use-what" title="Link to this heading"></a></h2>
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Mode</p></th>
+<th class="head"><p>When to use</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">none</span></code></p></td>
+<td><p>Model fits on one GPU; development and debugging</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">ddp</span></code></p></td>
+<td><p>Model fits on one GPU; want data-parallel speedup across GPUs</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">fsdp</span></code></p></td>
+<td><p>Model does NOT fit on one GPU; parameters must be sharded</p></td>
+</tr>
+</tbody>
+</table>
 </section>
-<section id="when-to-use-single-gpu">
-<h2>When to Use Single GPU<a class="headerlink" href="#when-to-use-single-gpu" title="Link to this heading"></a></h2>
-<ul class="simple">
-<li><p>Model fits comfortably on single GPU</p></li>
-<li><p>Development and debugging</p></li>
-<li><p>Quick experiments</p></li>
-</ul>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Standard single-GPU training</span>
-python<span class="w"> </span>src/dendritic_modeling/scripts/training/train_experiments.py<span class="w"> </span>configs/config_exp.yaml
+<section id="configuration">
+<h2>Configuration<a class="headerlink" href="#configuration" title="Link to this heading"></a></h2>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">distributed</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">mode</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">fsdp</span><span class="w">             </span><span class="c1"># none | ddp | fsdp</span>
+<span class="w">  </span><span class="nt">fsdp</span><span class="p">:</span><span class="w">                  </span><span class="c1"># FSDP-specific knobs (only used when mode=fsdp)</span>
+<span class="w">    </span><span class="nt">sharding_strategy</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;FULL_SHARD&quot;</span><span class="w">  </span><span class="c1"># FULL_SHARD, SHARD_GRAD_OP, NO_SHARD, HYBRID_SHARD</span>
+<span class="w">    </span><span class="nt">mixed_precision</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">cpu_offload</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+<span class="w">    </span><span class="nt">min_num_params</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1000000</span>
+<span class="w">    </span><span class="nt">sync_module_states</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">use_orig_params</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">backward_prefetch</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;BACKWARD_PRE&quot;</span>
+<span class="w">    </span><span class="nt">gradient_checkpointing</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
 </pre></div>
 </div>
+<p>Node and GPU counts are controlled by the SLURM allocation
+(<code class="docutils literal notranslate"><span class="pre">--nodes</span></code>, <code class="docutils literal notranslate"><span class="pre">--gpus-per-node</span></code>), not by the YAML config.</p>
 </section>
 <section id="common-issues">
 <h2>Common Issues<a class="headerlink" href="#common-issues" title="Link to this heading"></a></h2>
 <section id="network-timeout">
 <h3>Network Timeout<a class="headerlink" href="#network-timeout" title="Link to this heading"></a></h3>
 <p>Symptoms: NCCL timeout errors</p>
-<p>Solutions:
-- Add to environment: <code class="docutils literal notranslate"><span class="pre">export</span> <span class="pre">NCCL_IB_DISABLE=1</span></code>
-- Use smaller batch sizes
-- Check network connectivity</p>
+<p>Solutions:</p>
+<ul class="simple">
+<li><p>The launch scripts set <code class="docutils literal notranslate"><span class="pre">NCCL_SOCKET_IFNAME=ib0,eth0</span></code> for InfiniBand.
+If your cluster uses a different interface, override this in your script.</p></li>
+<li><p>Use smaller batch sizes.</p></li>
+<li><p>Check network connectivity between nodes.</p></li>
+</ul>
 </section>
 <section id="memory-issues">
 <h3>Memory Issues<a class="headerlink" href="#memory-issues" title="Link to this heading"></a></h3>
 <p>Symptoms: CUDA out of memory</p>
-<p>Solutions:
-- Reduce batch size in config
-- Enable gradient checkpointing
-- Use smaller model variants</p>
+<p>Solutions:</p>
+<ul class="simple">
+<li><p>Reduce <code class="docutils literal notranslate"><span class="pre">training.main.common.batch_size</span></code>.</p></li>
+<li><p>Enable <code class="docutils literal notranslate"><span class="pre">fsdp.gradient_checkpointing:</span> <span class="pre">true</span></code>.</p></li>
+<li><p>Use <code class="docutils literal notranslate"><span class="pre">fsdp.cpu_offload:</span> <span class="pre">true</span></code> (slow but saves GPU memory).</p></li>
+<li><p>Use <code class="docutils literal notranslate"><span class="pre">fsdp.sharding_strategy:</span> <span class="pre">FULL_SHARD</span></code> (maximum sharding).</p></li>
+</ul>
 </section>
-<section id="job-submission-failed">
-<h3>Job Submission Failed<a class="headerlink" href="#job-submission-failed" title="Link to this heading"></a></h3>
-<p>Symptoms: SLURM submission errors</p>
-<p>Solutions:
-- Check SLURM partition availability
-- Verify account permissions
-- Use <code class="docutils literal notranslate"><span class="pre">--dry-run</span></code> to debug</p>
+<section id="fsdp-validation">
+<h3>FSDP Validation<a class="headerlink" href="#fsdp-validation" title="Link to this heading"></a></h3>
+<p>FSDP validation uses <code class="docutils literal notranslate"><span class="pre">PaddedDistributedEvalSampler</span></code> which pads each
+rank to equal batch counts (required by FSDP all-gather) but excludes
+padding samples from the metric reduction.  This produces results
+numerically identical to a non-distributed validation run.</p>
 </section>
+<section id="fsdp-final-analysis">
+<h3>FSDP Final Analysis<a class="headerlink" href="#fsdp-final-analysis" title="Link to this heading"></a></h3>
+<p>After training, the FSDP script gathers the full (unsharded) state dict
+from all ranks, saves it as a checkpoint, then loads it into a plain
+non-FSDP model on rank 0 for analysis.  This avoids running analysis
+on sharded parameters.</p>
 </section>
-<section id="configuration">
-<h2>Configuration<a class="headerlink" href="#configuration" title="Link to this heading"></a></h2>
-<p>FSDP settings in <code class="docutils literal notranslate"><span class="pre">configs/config_exp_fsdp.yaml</span></code>:</p>
-<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">fsdp</span><span class="p">:</span>
-<span class="w">  </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
-<span class="w">  </span><span class="nt">sharding_strategy</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;FULL_SHARD&quot;</span>
-<span class="w">  </span><span class="nt">auto_wrap_policy</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;transformer&quot;</span>
-<span class="w">  </span><span class="nt">cpu_offload</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
-</pre></div>
-</div>
+<section id="autoencoder-pretraining">
+<h3>Autoencoder Pretraining<a class="headerlink" href="#autoencoder-pretraining" title="Link to this heading"></a></h3>
+<p>FSDP does <strong>not</strong> support autoencoder pretraining.  If you need a
+pretrained encoder, train it separately with the standard single-GPU
+script, then point the config at the saved checkpoint.</p>
+</section>
 </section>
 <section id="monitoring">
 <h2>Monitoring<a class="headerlink" href="#monitoring" title="Link to this heading"></a></h2>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>squeue<span class="w"> </span>-u<span class="w"> </span><span class="nv">$USER</span>
-tail<span class="w"> </span>-f<span class="w"> </span>slurm-*.out
+tail<span class="w"> </span>-f<span class="w"> </span>logs/train_fsdp_*.out
 nvidia-smi
 </pre></div>
 </div>

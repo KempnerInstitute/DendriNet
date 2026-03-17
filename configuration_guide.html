@@ -61,14 +61,18 @@
 <li class="toctree-l2"><a class="reference internal" href="#loss-functions">Loss Functions</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#datasets">Datasets</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#analysis-modules">Analysis Modules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#pretrained-backbone-replacement">Pretrained Backbone Replacement</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#recurrent-networks">Recurrent Networks</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#multi-stage-training">Multi-Stage Training</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#fsdp-distributed">FSDP / Distributed</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#distributed-training">Distributed Training</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#launch-scripts">Launch scripts</a></li>
+</ul>
+</li>
 <li class="toctree-l2"><a class="reference internal" href="#full-parameter-reference">Full Parameter Reference</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="sweeps.html">Parameter Sweeps</a></li>
-<li class="toctree-l1"><a class="reference internal" href="fsdp_troubleshooting.html">FSDP Training Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fsdp_troubleshooting.html">Distributed Training Guide</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Reference</span></p>
 <ul>
@@ -122,19 +126,19 @@ python<span class="w"> </span>src/dendritic_modeling/scripts/training/train_expe
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">configs/config_exp.yaml</span></code> – single-GPU training (complete reference)</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">configs/config_exp_fsdp.yaml</span></code> – FSDP multi-GPU training</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">configs/EI_sweeps_example.yaml</span></code> – parameter sweeps</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">configs/sweep_config.yaml</span></code> – parameter sweeps</p></li>
 </ul>
 </section>
 <section id="top-level-structure">
 <h2>Top-Level Structure<a class="headerlink" href="#top-level-structure" title="Link to this heading"></a></h2>
-<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">experiment</span><span class="p">:</span><span class="w">   </span><span class="c1"># seed, AMP, profiling, checkpointing</span>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">experiment</span><span class="p">:</span><span class="w">   </span><span class="c1"># seed, profiling, checkpointing</span>
 <span class="nt">data</span><span class="p">:</span><span class="w">         </span><span class="c1"># dataset, processing, dataset-specific params</span>
-<span class="nt">model</span><span class="p">:</span><span class="w">        </span><span class="c1"># encoder, core network, decoder</span>
-<span class="nt">training</span><span class="p">:</span><span class="w">     </span><span class="c1"># encoder + main training, strategies, regularization, pruning</span>
+<span class="nt">model</span><span class="p">:</span><span class="w">        </span><span class="c1"># encoder, core network, decoder, pretrained_replacement</span>
+<span class="nt">training</span><span class="p">:</span><span class="w">     </span><span class="c1"># encoder + main training, strategies, regularization, pruning, AMP</span>
 <span class="nt">analysis</span><span class="p">:</span><span class="w">     </span><span class="c1"># 16 analysis modules</span>
 <span class="nt">wandb</span><span class="p">:</span><span class="w">        </span><span class="c1"># Weights &amp; Biases logging</span>
 <span class="nt">outputs</span><span class="p">:</span><span class="w">      </span><span class="c1"># run_name, results_dir</span>
-<span class="nt">fsdp</span><span class="p">:</span><span class="w">         </span><span class="c1"># distributed training</span>
+<span class="nt">distributed</span><span class="p">:</span><span class="w">  </span><span class="c1"># mode (none/ddp/fsdp), FSDP tuning knobs</span>
 </pre></div>
 </div>
 </section>
@@ -192,10 +196,10 @@ python<span class="w"> </span>src/dendritic_modeling/scripts/training/train_expe
 <p><code class="docutils literal notranslate"><span class="pre">standard</span></code>, <code class="docutils literal notranslate"><span class="pre">fa</span></code>, <code class="docutils literal notranslate"><span class="pre">dfa</span></code>, <code class="docutils literal notranslate"><span class="pre">shunting_fa</span></code>, <code class="docutils literal notranslate"><span class="pre">shunting_dfa</span></code>,
 <code class="docutils literal notranslate"><span class="pre">local_ca</span></code>, <code class="docutils literal notranslate"><span class="pre">freeze_layers</span></code>, <code class="docutils literal notranslate"><span class="pre">freeze_branches</span></code>, <code class="docutils literal notranslate"><span class="pre">freeze_branch_kl</span></code>,
 <code class="docutils literal notranslate"><span class="pre">voltage_stabilization</span></code>, <code class="docutils literal notranslate"><span class="pre">homeostatic_control</span></code>,
-<code class="docutils literal notranslate"><span class="pre">multi_stage</span></code>, <code class="docutils literal notranslate"><span class="pre">recurrent</span></code>, <code class="docutils literal notranslate"><span class="pre">fsdp</span></code>, <code class="docutils literal notranslate"><span class="pre">fsdp_standard</span></code>, <code class="docutils literal notranslate"><span class="pre">enhanced</span></code></p>
+<code class="docutils literal notranslate"><span class="pre">multi_stage</span></code>, <code class="docutils literal notranslate"><span class="pre">recurrent</span></code></p>
 <p>Strategy-specific configuration usually lives under
-<code class="docutils literal notranslate"><span class="pre">training.main.strategies.&lt;name&gt;</span></code>. Local credit assignment also supports the
-direct path <code class="docutils literal notranslate"><span class="pre">training.main.learning_strategy_config</span></code>. See
+<code class="docutils literal notranslate"><span class="pre">training.main.strategies.&lt;name&gt;</span></code>. Local credit assignment uses the direct
+path <code class="docutils literal notranslate"><span class="pre">training.main.learning_strategy_config</span></code>. See
 <a class="reference internal" href="training_strategies.html"><span class="doc">Training Strategies</span></a> for details.</p>
 </section>
 <section id="loss-functions">
@@ -227,23 +231,154 @@ See <a class="reference internal" href="datasets.html"><span class="doc">Dataset
 <p>Each module lives under <code class="docutils literal notranslate"><span class="pre">analysis.&lt;module_name&gt;</span></code> with <code class="docutils literal notranslate"><span class="pre">enabled</span></code> and
 <code class="docutils literal notranslate"><span class="pre">training</span></code> flags:</p>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">analysis</span><span class="p">:</span>
-<span class="w">  </span><span class="nt">performance_analysis</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">runtime</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">training</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">mode</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;auto&quot;</span>
+<span class="w">      </span><span class="nt">batch_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">256</span>
+<span class="w">      </span><span class="nt">num_workers</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">4</span>
+<span class="w">      </span><span class="nt">pin_memory</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">max_batches</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">null</span>
+<span class="w">      </span><span class="nt">max_samples</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">null</span>
+<span class="w">      </span><span class="nt">materialize_threshold_mb</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1024</span>
+<span class="w">    </span><span class="nt">final</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">mode</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;auto&quot;</span>
+<span class="w">      </span><span class="nt">batch_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">256</span>
+<span class="w">      </span><span class="nt">num_workers</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">4</span>
+<span class="w">      </span><span class="nt">pin_memory</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">      </span><span class="nt">max_batches</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">null</span>
+<span class="w">      </span><span class="nt">max_samples</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">null</span>
+<span class="w">      </span><span class="nt">materialize_threshold_mb</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1024</span>
+<span class="w">  </span><span class="nt">performance</span><span class="p">:</span>
 <span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
 <span class="w">    </span><span class="nt">training</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">    </span><span class="c1"># run every epoch</span>
-<span class="w">  </span><span class="nt">information_analysis</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">training_splits</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;valid&quot;</span><span class="p p-Indicator">]</span>
+<span class="w">    </span><span class="nt">final_splits</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;train&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;valid&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;test&quot;</span><span class="p p-Indicator">]</span>
+<span class="w">  </span><span class="nt">information</span><span class="p">:</span>
 <span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
 <span class="w">    </span><span class="nt">training</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span><span class="w">   </span><span class="c1"># run after training only</span>
 </pre></div>
 </div>
-<p>Available modules: <code class="docutils literal notranslate"><span class="pre">performance_analysis</span></code>, <code class="docutils literal notranslate"><span class="pre">information_analysis</span></code>,
-<code class="docutils literal notranslate"><span class="pre">correlation_analysis</span></code>, <code class="docutils literal notranslate"><span class="pre">ablation_analysis</span></code>, <code class="docutils literal notranslate"><span class="pre">synapse_turnover_analysis</span></code>,
-<code class="docutils literal notranslate"><span class="pre">noise_perturbation_analysis</span></code>, <code class="docutils literal notranslate"><span class="pre">weight_analysis</span></code>,
-<code class="docutils literal notranslate"><span class="pre">single_layer_contribution</span></code>, <code class="docutils literal notranslate"><span class="pre">synaptic_activation_analysis</span></code>,
-<code class="docutils literal notranslate"><span class="pre">branch_activation_analysis</span></code>, <code class="docutils literal notranslate"><span class="pre">compartment_statistics_analysis</span></code>,
-<code class="docutils literal notranslate"><span class="pre">compartment_snr_analysis</span></code>, <code class="docutils literal notranslate"><span class="pre">multiplicative_gain_analysis</span></code>,
-<code class="docutils literal notranslate"><span class="pre">receptive_field_analysis</span></code>, <code class="docutils literal notranslate"><span class="pre">adversarial_robustness_analysis</span></code>,
-<code class="docutils literal notranslate"><span class="pre">routing_analysis</span></code>.</p>
+<p><code class="docutils literal notranslate"><span class="pre">analysis.runtime</span></code> is the shared dataset-iteration policy for all analysis
+modules. Use <code class="docutils literal notranslate"><span class="pre">mode:</span> <span class="pre">&quot;stream&quot;</span></code> for large datasets that should not be fully
+materialized on the device, and use <code class="docutils literal notranslate"><span class="pre">max_samples</span></code> for expensive analyses
+that still accumulate tensors on CPU. If you want older small-dataset
+single-GPU behavior for hook-based analyses, set <code class="docutils literal notranslate"><span class="pre">mode:</span> <span class="pre">&quot;materialize&quot;</span></code>:
+the runtime will use one full batch again when the dataset supports slicing.
+Analyzers may temporarily move the model to the requested analysis device, but
+the original device and train/eval mode are restored automatically after the
+analysis finishes.
+For most runs, keep the default <code class="docutils literal notranslate"><span class="pre">mode:</span> <span class="pre">&quot;auto&quot;</span></code>: it behaves like the old path
+on small datasets and switches to streaming only when the dataset estimate is large.
+If you omit <code class="docutils literal notranslate"><span class="pre">analysis.runtime</span></code> entirely, non-distributed runs default to the
+old <code class="docutils literal notranslate"><span class="pre">materialize</span></code> behavior for backward compatibility, while DDP/FSDP runs
+keep the generic <code class="docutils literal notranslate"><span class="pre">auto</span></code> default.
+The <code class="docutils literal notranslate"><span class="pre">pin_memory</span></code> flag is also interpreted per device: CPU analysis disables
+it automatically even if the shared runtime block leaves it set to <code class="docutils literal notranslate"><span class="pre">true</span></code>.</p>
+<p>Preferred short names are <code class="docutils literal notranslate"><span class="pre">performance</span></code>, <code class="docutils literal notranslate"><span class="pre">information</span></code>, <code class="docutils literal notranslate"><span class="pre">ablation</span></code>, and
+<code class="docutils literal notranslate"><span class="pre">correlation</span></code>. The longer <code class="docutils literal notranslate"><span class="pre">*_analysis</span></code> aliases are still accepted for
+backward compatibility.</p>
+<p>Available modules: <code class="docutils literal notranslate"><span class="pre">performance</span></code>, <code class="docutils literal notranslate"><span class="pre">information</span></code>, <code class="docutils literal notranslate"><span class="pre">correlation</span></code>,
+<code class="docutils literal notranslate"><span class="pre">ablation</span></code>, <code class="docutils literal notranslate"><span class="pre">synapse_turnover</span></code>, <code class="docutils literal notranslate"><span class="pre">noise_perturbation</span></code>, <code class="docutils literal notranslate"><span class="pre">weight</span></code>,
+<code class="docutils literal notranslate"><span class="pre">single_layer_contribution</span></code>, <code class="docutils literal notranslate"><span class="pre">synaptic_activation</span></code>, <code class="docutils literal notranslate"><span class="pre">branch_activation</span></code>,
+<code class="docutils literal notranslate"><span class="pre">compartment_statistics</span></code>, <code class="docutils literal notranslate"><span class="pre">compartment_snr</span></code>, <code class="docutils literal notranslate"><span class="pre">multiplicative_gain</span></code>,
+<code class="docutils literal notranslate"><span class="pre">receptive_field</span></code>, <code class="docutils literal notranslate"><span class="pre">adversarial_robustness</span></code>, <code class="docutils literal notranslate"><span class="pre">routing</span></code>.</p>
 <p>See <a class="reference internal" href="analysis.html"><span class="doc">Analysis</span></a> for per-module parameter details.</p>
+<p>Backward compatibility:</p>
+<ul class="simple">
+<li><p>Older configs using <code class="docutils literal notranslate"><span class="pre">performance_analysis</span></code> instead of <code class="docutils literal notranslate"><span class="pre">performance</span></code> still load.</p></li>
+<li><p>Older performance-only <code class="docutils literal notranslate"><span class="pre">training_runtime</span></code> / <code class="docutils literal notranslate"><span class="pre">final_runtime</span></code> blocks still load
+and are migrated into the shared <code class="docutils literal notranslate"><span class="pre">analysis.runtime</span></code> structure.</p></li>
+</ul>
+</section>
+<section id="pretrained-backbone-replacement">
+<h2>Pretrained Backbone Replacement<a class="headerlink" href="#pretrained-backbone-replacement" title="Link to this heading"></a></h2>
+<p>Replace one or more layers of a pretrained torchvision backbone (e.g. AlexNet,
+VGG) with an EINet core.  The backbone is loaded once and split into three
+segments:</p>
+<ul class="simple">
+<li><p><strong>prefix</strong> (encoder): all layers before the replacement range</p></li>
+<li><p><strong>core</strong>: the dendritic EI network that replaces the removed layers</p></li>
+<li><p><strong>suffix</strong> (decoder): all layers after the replacement range</p></li>
+</ul>
+<p>When <code class="docutils literal notranslate"><span class="pre">model.pretrained_replacement.enabled</span></code> is <code class="docutils literal notranslate"><span class="pre">true</span></code>, the legacy
+<code class="docutils literal notranslate"><span class="pre">model.encoder</span></code> and <code class="docutils literal notranslate"><span class="pre">model.decoder</span></code> sections are ignored.</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">model</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">pretrained_replacement</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">backbone</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;alexnet&quot;</span><span class="w">                    </span><span class="c1"># torchvision model name</span>
+<span class="w">    </span><span class="nt">weights</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;IMAGENET1K_V1&quot;</span><span class="w">               </span><span class="c1"># pretrained weights (null = random init)</span>
+<span class="w">    </span><span class="nt">input_shape</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">3</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">224</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">224</span><span class="p p-Indicator">]</span>
+
+<span class="w">    </span><span class="c1"># Layers to replace (inclusive range).</span>
+<span class="w">    </span><span class="c1"># Use list_backbone_layers(&quot;alexnet&quot;) to see all available names.</span>
+<span class="w">    </span><span class="nt">replace</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">start</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;classifier.4&quot;</span><span class="w">                </span><span class="c1"># fc7 Linear</span>
+<span class="w">      </span><span class="nt">end</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;classifier.5&quot;</span><span class="w">                  </span><span class="c1"># fc7 ReLU</span>
+
+<span class="w">    </span><span class="c1"># Drop layers entirely (e.g. Dropout that is not useful with EI nets).</span>
+<span class="w">    </span><span class="nt">omit_layers</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;classifier.0&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;classifier.3&quot;</span><span class="p p-Indicator">]</span>
+
+<span class="w">    </span><span class="c1"># Freeze/train policy for encoder and decoder segments.</span>
+<span class="w">    </span><span class="nt">trainability</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">encoder</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">mode</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;frozen&quot;</span><span class="w">                     </span><span class="c1"># freeze conv backbone + fc6</span>
+<span class="w">      </span><span class="nt">decoder</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">mode</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;trainable&quot;</span><span class="w">                  </span><span class="c1"># train final classifier</span>
+
+<span class="w">  </span><span class="nt">core</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;einet&quot;</span>
+<span class="w">    </span><span class="nt">architecture</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">excitatory_layer_sizes</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">4096</span><span class="p p-Indicator">]</span><span class="w">       </span><span class="c1"># must match suffix input dim</span>
+<span class="w">      </span><span class="c1"># ... rest of EINet config ...</span>
+</pre></div>
+</div>
+<p>Alternative pretrained-replacement cores:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">hierarchical_dendritic_tensor_map</span></code>
+Flattens the prefix tensor, runs an EINet-style hierarchical dendritic core,
+then projects to the suffix input dimension. Use this as the baseline/control
+for late classifier-adjacent replacements where the suffix expects flat input.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">hierarchical_dendritic_conv</span></code>
+Uses local spatial patches (<code class="docutils literal notranslate"><span class="pre">core.spatial.kernel_size/stride/padding</span></code>) and
+a shared hierarchical dendritic core to produce a spatial feature map for the
+suffix. Use this for convolutional suffixes that still expect spatial input.</p></li>
+</ul>
+<p>Current spatial-replacement scope:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">hierarchical_dendritic_tensor_map</span></code> is intended for flat suffixes or small
+spatial maps that can be flattened safely.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">hierarchical_dendritic_conv</span></code> preserves the prefix/suffix spatial contract,
+but its local geometry is set by <code class="docutils literal notranslate"><span class="pre">core.spatial.*</span></code>; it does not infer the
+effective receptive field of an arbitrary multi-layer CNN block automatically.</p></li>
+<li><p>Sequential backbones such as AlexNet and VGG are the primary supported cases.</p></li>
+</ul>
+<p>Learning rates for the prefix and suffix are controlled in the training config:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">training</span><span class="o">.</span><span class="n">main</span><span class="o">.</span><span class="n">common</span><span class="o">.</span><span class="n">param_groups</span><span class="o">.</span><span class="n">encoder_lr</span>    <span class="c1"># prefix LR (0.0 = frozen)</span>
+<span class="n">training</span><span class="o">.</span><span class="n">main</span><span class="o">.</span><span class="n">common</span><span class="o">.</span><span class="n">param_groups</span><span class="o">.</span><span class="n">decoder_lr</span>    <span class="c1"># suffix LR</span>
+</pre></div>
+</div>
+<p>To discover valid layer names for a backbone, use the <code class="docutils literal notranslate"><span class="pre">list_backbone_layers</span></code>
+utility:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">dendritic_modeling.networks.architectures.classical.pretrained</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">list_backbone_layers</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">list_backbone_layers</span><span class="p">(</span><span class="s2">&quot;alexnet&quot;</span><span class="p">))</span>
+<span class="c1"># [&#39;features.0&#39;, &#39;features.1&#39;, ..., &#39;avgpool&#39;, &#39;classifier.0&#39;, ..., &#39;classifier.6&#39;]</span>
+</pre></div>
+</div>
+<p><strong>Scope</strong>: The current splitter linearizes <code class="docutils literal notranslate"><span class="pre">nn.Sequential</span></code> containers.  This
+works for AlexNet, VGG, and coarse splits of ResNet (e.g. at <code class="docutils literal notranslate"><span class="pre">avgpool</span></code> or
+<code class="docutils literal notranslate"><span class="pre">fc</span></code>).  Replacing layers <em>inside</em> residual blocks requires an FX-graph
+backend (planned).</p>
+<p>Example configs:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">configs/vision/alexnet_k1_einet_single.yaml</span></code> — replace fc7 only (K=1), single-GPU / non-DDP</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">configs/vision/alexnet_k1_einet_ddp.yaml</span></code> — same K=1 replacement configured for DDP launch</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">configs/vision/alexnet_k2_einet.yaml</span></code> — replace fc6 + fc7 (K=2)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">configs/vision/alexnet_k2_tensor_map.yaml</span></code> — tensor-map dendritic baseline</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">configs/vision/alexnet_conv_dendritic_conv.yaml</span></code> — spatial dendritic conv replacement</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">scripts/test_pretrained_training.sh</span></code> — generates a temporary 1-epoch AlexNet smoke config</p></li>
+</ul>
 </section>
 <section id="recurrent-networks">
 <h2>Recurrent Networks<a class="headerlink" href="#recurrent-networks" title="Link to this heading"></a></h2>
@@ -306,9 +441,50 @@ See <a class="reference internal" href="network_architectures.html"><span class=
 </div>
 <p>See <a class="reference internal" href="training_strategies.html"><span class="doc">Training Strategies</span></a> for per-stage options.</p>
 </section>
-<section id="fsdp-distributed">
-<h2>FSDP / Distributed<a class="headerlink" href="#fsdp-distributed" title="Link to this heading"></a></h2>
-<p>See <a class="reference internal" href="fsdp_troubleshooting.html"><span class="doc">FSDP Training Guide</span></a> for distributed training setup.</p>
+<section id="distributed-training">
+<h2>Distributed Training<a class="headerlink" href="#distributed-training" title="Link to this heading"></a></h2>
+<p>Set <code class="docutils literal notranslate"><span class="pre">distributed.mode</span></code> to choose the runtime:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">distributed</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">mode</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ddp</span><span class="w">            </span><span class="c1"># none | ddp | fsdp</span>
+<span class="w">  </span><span class="nt">fsdp</span><span class="p">:</span><span class="w">                </span><span class="c1"># FSDP-specific knobs (only used when mode=fsdp)</span>
+<span class="w">    </span><span class="nt">sharding_strategy</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;FULL_SHARD&quot;</span>
+<span class="w">    </span><span class="nt">mixed_precision</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">cpu_offload</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+</pre></div>
+</div>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">none</span></code> — single-GPU, plain <code class="docutils literal notranslate"><span class="pre">python</span></code> (default)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">ddp</span></code> — DistributedDataParallel via <code class="docutils literal notranslate"><span class="pre">torchrun</span></code>.  Best when the model
+fits on one GPU and you want data-parallel speedup.  Supports multi-node.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">fsdp</span></code> — FullyShardedDataParallel via <code class="docutils literal notranslate"><span class="pre">torchrun</span></code>.  Use when the model
+is too large for a single GPU.  Supports multi-node.</p></li>
+</ul>
+<p>Node and GPU counts are controlled by the SLURM allocation (<code class="docutils literal notranslate"><span class="pre">sbatch</span> <span class="pre">--nodes</span></code>,
+<code class="docutils literal notranslate"><span class="pre">--gpus-per-node</span></code>) or by the launcher CLI argument, <strong>not</strong> by the YAML
+config.  The training config only selects the <em>mode</em>; the scheduler decides
+the resources.</p>
+<p>FSDP-specific knobs (sharding strategy, mixed precision, CPU offload, etc.)
+live under <code class="docutils literal notranslate"><span class="pre">distributed.fsdp</span></code>.</p>
+<section id="launch-scripts">
+<h3>Launch scripts<a class="headerlink" href="#launch-scripts" title="Link to this heading"></a></h3>
+<p>The unified launcher reads <code class="docutils literal notranslate"><span class="pre">distributed.mode</span></code> from the YAML:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Auto-selects entrypoint based on distributed.mode</span>
+sbatch<span class="w"> </span>scripts/train.sh<span class="w"> </span>configs/my_config.yaml
+
+<span class="c1"># Multi-node (override nodes at submit time)</span>
+sbatch<span class="w"> </span>--nodes<span class="o">=</span><span class="m">2</span><span class="w"> </span>scripts/train.sh<span class="w"> </span>configs/my_config.yaml
+
+<span class="c1"># Override GPUs per node</span>
+sbatch<span class="w"> </span>scripts/train.sh<span class="w"> </span>configs/my_config.yaml<span class="w"> </span><span class="m">2</span>
+</pre></div>
+</div>
+<p>Dedicated launchers are also available:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sbatch<span class="w"> </span>scripts/train_ddp.sh<span class="w"> </span>configs/my_config.yaml<span class="w">      </span><span class="c1"># DDP</span>
+sbatch<span class="w"> </span>scripts/train_fsdp.sh<span class="w"> </span>configs/my_config.yaml<span class="w">     </span><span class="c1"># FSDP</span>
+</pre></div>
+</div>
+<p>See <a class="reference internal" href="fsdp_troubleshooting.html"><span class="doc">Distributed Training Guide</span></a> for FSDP-specific troubleshooting.</p>
+</section>
 </section>
 <section id="full-parameter-reference">
 <h2>Full Parameter Reference<a class="headerlink" href="#full-parameter-reference" title="Link to this heading"></a></h2>

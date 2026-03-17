@@ -54,7 +54,7 @@
 <li class="toctree-l1"><a class="reference internal" href="analysis.html">Analysis</a></li>
 <li class="toctree-l1"><a class="reference internal" href="configuration_guide.html">Configuration Guide</a></li>
 <li class="toctree-l1"><a class="reference internal" href="sweeps.html">Parameter Sweeps</a></li>
-<li class="toctree-l1"><a class="reference internal" href="fsdp_troubleshooting.html">FSDP Training Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fsdp_troubleshooting.html">Distributed Training Guide</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Reference</span></p>
 <ul>
@@ -106,7 +106,7 @@ files.</p>
 <li class="toctree-l1"><a class="reference internal" href="quickstart.html">Quick Start</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="quickstart.html#train-an-e-i-network-on-mnist">Train an E-I network on MNIST</a></li>
 <li class="toctree-l2"><a class="reference internal" href="quickstart.html#override-parameters-from-the-command-line">Override parameters from the command line</a></li>
-<li class="toctree-l2"><a class="reference internal" href="quickstart.html#distributed-training-with-fsdp">Distributed training with FSDP</a></li>
+<li class="toctree-l2"><a class="reference internal" href="quickstart.html#distributed-training-ddp-fsdp">Distributed training (DDP / FSDP)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="quickstart.html#run-a-parameter-sweep">Run a parameter sweep</a></li>
 <li class="toctree-l2"><a class="reference internal" href="quickstart.html#output-structure">Output structure</a></li>
 <li class="toctree-l2"><a class="reference internal" href="quickstart.html#wandb-integration">WandB integration</a></li>
@@ -161,6 +161,7 @@ files.</p>
 <li class="toctree-l2"><a class="reference internal" href="analysis.html#ablation-analysis">Ablation Analysis</a></li>
 <li class="toctree-l2"><a class="reference internal" href="analysis.html#correlation-analysis">Correlation Analysis</a></li>
 <li class="toctree-l2"><a class="reference internal" href="analysis.html#other-analysis-modules">Other Analysis Modules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="analysis.html#compatibility-notes">Compatibility Notes</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="configuration_guide.html">Configuration Guide</a><ul>
@@ -171,9 +172,10 @@ files.</p>
 <li class="toctree-l2"><a class="reference internal" href="configuration_guide.html#loss-functions">Loss Functions</a></li>
 <li class="toctree-l2"><a class="reference internal" href="configuration_guide.html#datasets">Datasets</a></li>
 <li class="toctree-l2"><a class="reference internal" href="configuration_guide.html#analysis-modules">Analysis Modules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="configuration_guide.html#pretrained-backbone-replacement">Pretrained Backbone Replacement</a></li>
 <li class="toctree-l2"><a class="reference internal" href="configuration_guide.html#recurrent-networks">Recurrent Networks</a></li>
 <li class="toctree-l2"><a class="reference internal" href="configuration_guide.html#multi-stage-training">Multi-Stage Training</a></li>
-<li class="toctree-l2"><a class="reference internal" href="configuration_guide.html#fsdp-distributed">FSDP / Distributed</a></li>
+<li class="toctree-l2"><a class="reference internal" href="configuration_guide.html#distributed-training">Distributed Training</a></li>
 <li class="toctree-l2"><a class="reference internal" href="configuration_guide.html#full-parameter-reference">Full Parameter Reference</a></li>
 </ul>
 </li>
@@ -185,12 +187,11 @@ files.</p>
 <li class="toctree-l2"><a class="reference internal" href="sweeps.html#examples">Examples</a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="fsdp_troubleshooting.html">FSDP Training Guide</a><ul>
+<li class="toctree-l1"><a class="reference internal" href="fsdp_troubleshooting.html">Distributed Training Guide</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="fsdp_troubleshooting.html#quick-start">Quick Start</a></li>
-<li class="toctree-l2"><a class="reference internal" href="fsdp_troubleshooting.html#when-to-use-fsdp">When to Use FSDP</a></li>
-<li class="toctree-l2"><a class="reference internal" href="fsdp_troubleshooting.html#when-to-use-single-gpu">When to Use Single GPU</a></li>
-<li class="toctree-l2"><a class="reference internal" href="fsdp_troubleshooting.html#common-issues">Common Issues</a></li>
+<li class="toctree-l2"><a class="reference internal" href="fsdp_troubleshooting.html#when-to-use-what">When to Use What</a></li>
 <li class="toctree-l2"><a class="reference internal" href="fsdp_troubleshooting.html#configuration">Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="fsdp_troubleshooting.html#common-issues">Common Issues</a></li>
 <li class="toctree-l2"><a class="reference internal" href="fsdp_troubleshooting.html#monitoring">Monitoring</a></li>
 </ul>
 </li>

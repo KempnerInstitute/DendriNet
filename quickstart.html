@@ -48,7 +48,7 @@
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Quick Start</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#train-an-e-i-network-on-mnist">Train an E-I network on MNIST</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#override-parameters-from-the-command-line">Override parameters from the command line</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#distributed-training-with-fsdp">Distributed training with FSDP</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#distributed-training-ddp-fsdp">Distributed training (DDP / FSDP)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#run-a-parameter-sweep">Run a parameter sweep</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#output-structure">Output structure</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#wandb-integration">WandB integration</a></li>
@@ -64,7 +64,7 @@
 <li class="toctree-l1"><a class="reference internal" href="analysis.html">Analysis</a></li>
 <li class="toctree-l1"><a class="reference internal" href="configuration_guide.html">Configuration Guide</a></li>
 <li class="toctree-l1"><a class="reference internal" href="sweeps.html">Parameter Sweeps</a></li>
-<li class="toctree-l1"><a class="reference internal" href="fsdp_troubleshooting.html">FSDP Training Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fsdp_troubleshooting.html">Distributed Training Guide</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Reference</span></p>
 <ul>
@@ -114,21 +114,30 @@ saved to the run output directory configured under <code class="docutils literal
 </pre></div>
 </div>
 </section>
-<section id="distributed-training-with-fsdp">
-<h2>Distributed training with FSDP<a class="headerlink" href="#distributed-training-with-fsdp" title="Link to this heading"></a></h2>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Generate and submit a SLURM job</span>
-python<span class="w"> </span>src/dendritic_modeling/scripts/tools/submit_fsdp_job.py<span class="w"> </span>configs/config_exp_fsdp.yaml
+<section id="distributed-training-ddp-fsdp">
+<h2>Distributed training (DDP / FSDP)<a class="headerlink" href="#distributed-training-ddp-fsdp" title="Link to this heading"></a></h2>
+<p>Set <code class="docutils literal notranslate"><span class="pre">distributed.mode</span></code> in your YAML config and use the unified launcher:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Auto-selects entrypoint based on distributed.mode in YAML</span>
+sbatch<span class="w"> </span>scripts/train.sh<span class="w"> </span>configs/my_config.yaml
 
-<span class="c1"># Or generate the script without submitting</span>
-python<span class="w"> </span>src/dendritic_modeling/scripts/tools/submit_fsdp_job.py<span class="w"> </span>configs/config_exp_fsdp.yaml<span class="w"> </span>--generate-only
+<span class="c1"># Multi-node (override nodes at submit time)</span>
+sbatch<span class="w"> </span>--nodes<span class="o">=</span><span class="m">2</span><span class="w"> </span>scripts/train.sh<span class="w"> </span>configs/my_config.yaml
+
+<span class="c1"># Or use dedicated launchers directly</span>
+sbatch<span class="w"> </span>scripts/train_ddp.sh<span class="w"> </span>configs/my_config.yaml<span class="w">     </span><span class="c1"># DDP</span>
+sbatch<span class="w"> </span>scripts/train_fsdp.sh<span class="w"> </span>configs/my_config.yaml<span class="w">    </span><span class="c1"># FSDP</span>
+
+<span class="c1"># Local (non-SLURM) single-node DDP/FSDP</span>
+bash<span class="w"> </span>scripts/train.sh<span class="w"> </span>configs/my_config.yaml
 </pre></div>
 </div>
+<p>See <a class="reference internal" href="configuration_guide.html"><span class="doc">Configuration Guide</span></a> for details on the <code class="docutils literal notranslate"><span class="pre">distributed:</span></code> config block.</p>
 </section>
 <section id="run-a-parameter-sweep">
 <h2>Run a parameter sweep<a class="headerlink" href="#run-a-parameter-sweep" title="Link to this heading"></a></h2>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Generate configs and submit jobs</span>
 python<span class="w"> </span>src/dendritic_modeling/scripts/sweeps/sweep_manager.py<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>--config<span class="w"> </span>configs/EI_sweeps_example.yaml
+<span class="w">  </span>--config<span class="w"> </span>configs/sweep_config.yaml
 
 <span class="c1"># Analyze results</span>
 python<span class="w"> </span>src/dendritic_modeling/scripts/sweeps/result_analyzer.py<span class="w"> </span><span class="se">\</span>
@@ -151,9 +160,8 @@ python<span class="w"> </span>src/dendritic_modeling/scripts/sweeps/result_analy
 <section id="wandb-integration">
 <h2>WandB integration<a class="headerlink" href="#wandb-integration" title="Link to this heading"></a></h2>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">wandb</span><span class="p">:</span>
-<span class="w">  </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">  </span><span class="nt">use_wandb</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
 <span class="w">  </span><span class="nt">project</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dendritic-modeling</span>
-<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">my_experiment</span>
 </pre></div>
 </div>
 </section>

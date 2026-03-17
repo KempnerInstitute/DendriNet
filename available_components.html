@@ -55,7 +55,7 @@
 <li class="toctree-l1"><a class="reference internal" href="analysis.html">Analysis</a></li>
 <li class="toctree-l1"><a class="reference internal" href="configuration_guide.html">Configuration Guide</a></li>
 <li class="toctree-l1"><a class="reference internal" href="sweeps.html">Parameter Sweeps</a></li>
-<li class="toctree-l1"><a class="reference internal" href="fsdp_troubleshooting.html">FSDP Training Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fsdp_troubleshooting.html">Distributed Training Guide</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">Reference</span></p>
 <ul class="current">
@@ -132,11 +132,41 @@
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">dendritic_mlp</span></code></p></td>
 <td><p>E-I with signed weights (identity transform)</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">einet</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">flat_mlp</span></code></p></td>
+<td><p>Flattened dendrites with signed weights (MLP-like dendritic baseline)</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">einet</span></code></p></td>
 <td><p>Generic E-I; reads use_shunting from config</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">ei_unified</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">ei_unified</span></code></p></td>
 <td><p>Unified E-I (feedforward + recurrent capable)</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">recurrent_ei</span></code></p></td>
+<td><p>Recurrent E-I network built from the structured recurrent config</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">point_mlp</span></code></p></td>
+<td><p>Plain point-neuron MLP baseline</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">total_param_mlp</span></code></p></td>
+<td><p>MLP baseline matched by total parameter count</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">active_param_mlp</span></code></p></td>
+<td><p>MLP baseline matched by active parameter count</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">ss_mlp</span></code></p></td>
+<td><p>Sparse structured MLP baseline</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">ss_mlp_flat</span></code></p></td>
+<td><p>Flattened sparse structured MLP baseline</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">hierarchical_dendritic_tensor_map</span></code></p></td>
+<td><p>Pretrained-replacement baseline: flatten the prefix tensor, run an EINet-style hierarchical dendritic core, then project to a flat suffix input</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">hierarchical_dendritic_conv</span></code></p></td>
+<td><p>Spatial dendritic convolutional core over local patches; preserves the prefix/suffix spatial tensor contract for convolutional replacement</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">baseline_rnn</span></code></p></td>
+<td><p>Wrapper for simple RNN cores with a shared baseline interface</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">gru</span></code></p></td>
 <td><p>Gated Recurrent Unit</p></td>
@@ -149,6 +179,21 @@
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">mlp</span></code></p></td>
 <td><p>Multi-layer perceptron</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">alexnet</span></code></p></td>
+<td><p>AlexNet-style classical CNN backbone</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">cnn</span></code></p></td>
+<td><p>Small classical CNN</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">cnn_down</span></code></p></td>
+<td><p>Downsampling CNN decoder/encoder helper</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">cnn_up</span></code></p></td>
+<td><p>Upsampling CNN decoder helper</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">identity</span></code></p></td>
+<td><p>Identity core / pass-through</p></td>
 </tr>
 </tbody>
 </table>
@@ -180,7 +225,7 @@
 </section>
 <section id="topk-variants">
 <h2>TopK Variants<a class="headerlink" href="#topk-variants" title="Link to this heading"></a></h2>
-<p>Set via <code class="docutils literal notranslate"><span class="pre">model.core.sparsity.type</span></code>:</p>
+<p>Set via <code class="docutils literal notranslate"><span class="pre">model.core.sparsity.type</span></code>. Canonical values are:</p>
 <table class="docutils align-default">
 <colgroup>
 <col style="width: 20.0%" />
@@ -206,6 +251,7 @@
 </tr>
 </tbody>
 </table>
+<p><code class="docutils literal notranslate"><span class="pre">topk</span></code> is retained as a backward-compatible alias for <code class="docutils literal notranslate"><span class="pre">standard</span></code>.</p>
 </section>
 <section id="weight-transforms">
 <h2>Weight Transforms<a class="headerlink" href="#weight-transforms" title="Link to this heading"></a></h2>
@@ -228,7 +274,7 @@
 <p><code class="docutils literal notranslate"><span class="pre">standard</span></code>, <code class="docutils literal notranslate"><span class="pre">fa</span></code>, <code class="docutils literal notranslate"><span class="pre">dfa</span></code>, <code class="docutils literal notranslate"><span class="pre">shunting_fa</span></code>, <code class="docutils literal notranslate"><span class="pre">shunting_dfa</span></code>,
 <code class="docutils literal notranslate"><span class="pre">local_ca</span></code>, <code class="docutils literal notranslate"><span class="pre">freeze_layers</span></code>, <code class="docutils literal notranslate"><span class="pre">freeze_branches</span></code>, <code class="docutils literal notranslate"><span class="pre">freeze_branch_kl</span></code>,
 <code class="docutils literal notranslate"><span class="pre">voltage_stabilization</span></code>, <code class="docutils literal notranslate"><span class="pre">homeostatic_control</span></code>, <code class="docutils literal notranslate"><span class="pre">recurrent</span></code>,
-<code class="docutils literal notranslate"><span class="pre">multi_stage</span></code>, <code class="docutils literal notranslate"><span class="pre">fsdp</span></code>.</p>
+<code class="docutils literal notranslate"><span class="pre">multi_stage</span></code>.</p>
 </section>
 <section id="loss-functions">
 <h2>Loss Functions<a class="headerlink" href="#loss-functions" title="Link to this heading"></a></h2>
@@ -251,12 +297,14 @@
 <section id="analysis-modules">
 <h2>Analysis Modules<a class="headerlink" href="#analysis-modules" title="Link to this heading"></a></h2>
 <p>Each enabled under <code class="docutils literal notranslate"><span class="pre">analysis.&lt;module_name&gt;.enabled</span></code>:</p>
-<p><code class="docutils literal notranslate"><span class="pre">performance_analysis</span></code>, <code class="docutils literal notranslate"><span class="pre">information_analysis</span></code>, <code class="docutils literal notranslate"><span class="pre">ablation_analysis</span></code>,
-<code class="docutils literal notranslate"><span class="pre">correlation_analysis</span></code>, <code class="docutils literal notranslate"><span class="pre">weight_analysis</span></code>, <code class="docutils literal notranslate"><span class="pre">synapse_turnover_analysis</span></code>,
-<code class="docutils literal notranslate"><span class="pre">noise_perturbation_analysis</span></code>, <code class="docutils literal notranslate"><span class="pre">compartment_statistics_analysis</span></code>,
-<code class="docutils literal notranslate"><span class="pre">compartment_snr_analysis</span></code>, <code class="docutils literal notranslate"><span class="pre">multiplicative_gain_analysis</span></code>,
-<code class="docutils literal notranslate"><span class="pre">routing_analysis</span></code>, <code class="docutils literal notranslate"><span class="pre">receptive_field_analysis</span></code>,
-<code class="docutils literal notranslate"><span class="pre">adversarial_robustness_analysis</span></code>, <code class="docutils literal notranslate"><span class="pre">single_layer_contribution_analysis</span></code>.</p>
+<p>Preferred short names in YAML are <code class="docutils literal notranslate"><span class="pre">performance</span></code>, <code class="docutils literal notranslate"><span class="pre">information</span></code>,
+<code class="docutils literal notranslate"><span class="pre">ablation</span></code>, and <code class="docutils literal notranslate"><span class="pre">correlation</span></code>. The longer <code class="docutils literal notranslate"><span class="pre">*_analysis</span></code> names are still
+accepted for backward compatibility.</p>
+<p>Available modules: <code class="docutils literal notranslate"><span class="pre">performance</span></code>, <code class="docutils literal notranslate"><span class="pre">information</span></code>, <code class="docutils literal notranslate"><span class="pre">ablation</span></code>,
+<code class="docutils literal notranslate"><span class="pre">correlation</span></code>, <code class="docutils literal notranslate"><span class="pre">weight</span></code>, <code class="docutils literal notranslate"><span class="pre">synapse_turnover</span></code>, <code class="docutils literal notranslate"><span class="pre">noise_perturbation</span></code>,
+<code class="docutils literal notranslate"><span class="pre">compartment_statistics</span></code>, <code class="docutils literal notranslate"><span class="pre">compartment_snr</span></code>, <code class="docutils literal notranslate"><span class="pre">multiplicative_gain</span></code>,
+<code class="docutils literal notranslate"><span class="pre">routing</span></code>, <code class="docutils literal notranslate"><span class="pre">receptive_field</span></code>, <code class="docutils literal notranslate"><span class="pre">adversarial_robustness</span></code>,
+<code class="docutils literal notranslate"><span class="pre">single_layer_contribution</span></code>, <code class="docutils literal notranslate"><span class="pre">synaptic_activation</span></code>, <code class="docutils literal notranslate"><span class="pre">branch_activation</span></code>.</p>
 </section>
 <section id="initialization-methods">
 <h2>Initialization Methods<a class="headerlink" href="#initialization-methods" title="Link to this heading"></a></h2>

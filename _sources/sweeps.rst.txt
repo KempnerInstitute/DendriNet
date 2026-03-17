@@ -11,10 +11,10 @@ Run a parameter sweep:
 .. code-block:: bash
 
    # Generate and run a sweep
-   python src/dendritic_modeling/scripts/sweeps/sweep_manager.py --config configs/EI_sweeps_example.yaml
+   python src/dendritic_modeling/scripts/sweeps/sweep_manager.py --config configs/sweep_config.yaml
 
    # Generate configs only (no job submission)
-   python src/dendritic_modeling/scripts/sweeps/sweep_manager.py --config configs/EI_sweeps_example.yaml --generate-only
+   python src/dendritic_modeling/scripts/sweeps/sweep_manager.py --config configs/sweep_config.yaml --generate-only
 
    # Analyze an existing sweep directory
    python src/dendritic_modeling/scripts/sweeps/result_analyzer.py /path/to/sweep/results
@@ -75,7 +75,7 @@ Typical layout:
 Examples
 --------
 
-See example configurations in ``configs/EI_sweeps_example.yaml`` and the
+See example configurations in ``configs/sweep_config.yaml`` and the
 specialized examples under ``configs/sweeps/``.
 
 .. code-block:: bash
