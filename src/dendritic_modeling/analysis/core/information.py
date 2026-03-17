@@ -3074,16 +3074,11 @@ class InformationAnalyzer(AbstractAnalyzer):
                 explicit_max_samples=self.max_samples,
                 device=device,
             )
-            inputs, labels = items[0], items[1]
-            inputs: torch.Tensor
-            labels: torch.Tensor
+            inputs: torch.Tensor = items[0].to(device)
+            labels: torch.Tensor = items[1].to(device)
             self.logger.info(
                 f"Loaded dataset: {len(inputs)} samples, input shape: {inputs.shape}"
             )
-
-            self.logger.info(f"Moving data to {device}...")
-            inputs = inputs.to(device)
-            labels = labels.to(device)
 
             # Attach forward hooks and run forward pass
             handles = self.attach_forward_hooks(model)
