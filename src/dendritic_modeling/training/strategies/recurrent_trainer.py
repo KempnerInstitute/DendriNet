@@ -5,7 +5,7 @@ Overrides both _epoch_train() and _epoch_valid() from the standard Trainer
 to handle sequence data with proper temporal loss computation.
 
 Supports:
-- AMP (automatic mixed precision) via ``enable_amp=True``
+- AMP (automatic mixed precision) via ``use_amp=True``
 - Cosine-annealing LR schedule with linear warmup via
   ``lr_schedule="cosine"`` and ``lr_warmup_epochs=N``
 """
@@ -34,7 +34,7 @@ class RecurrentTrainer(Trainer):
     Args:
         task: "classification" or "regression" -- determines loss function.
         grad_clip: Maximum gradient norm (0 to disable).
-        enable_amp: Use automatic mixed precision (default False).
+        use_amp: Use automatic mixed precision (default False).
         lr_schedule: LR schedule type -- "none" or "cosine" (default "none").
         lr_warmup_epochs: Number of linear warmup epochs (default 0).
         **kwargs: All standard Trainer arguments.
@@ -44,7 +44,7 @@ class RecurrentTrainer(Trainer):
         self,
         task: str = "classification",
         grad_clip: float = 1.0,
-        enable_amp: bool = False,
+        use_amp: bool = False,
         lr_schedule: str = "none",
         lr_warmup_epochs: int = 0,
         **kwargs,
@@ -54,7 +54,7 @@ class RecurrentTrainer(Trainer):
         self.task = task
 
         # AMP setup
-        self.recurrent_amp = enable_amp and torch.cuda.is_available()
+        self.recurrent_amp = use_amp and torch.cuda.is_available()
         self.recurrent_scaler = GradScaler() if self.recurrent_amp else None
 
         # LR schedule setup (created lazily in train() once we know n_epochs)

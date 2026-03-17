@@ -1,0 +1,129 @@
+experiment:
+  seed: 42
+  train_valid_split: 0.8
+  enable_profiling: false
+  enable_hooks: false
+  checkpointing:
+    enabled: false
+
+data:
+  dataset_name: "cifar10"
+  base_dir: "/tmp/parity_data"
+  processing:
+    flatten: true
+    normalize: true
+  dataset_params: {}
+
+model:
+  task: "classification"
+  core:
+    type: "einet"
+    architecture:
+      excitatory_layer_sizes: [64]
+      inhibitory_layer_sizes: [16]
+      excitatory_branch_factors: [2]
+      inhibitory_branch_factors: [2]
+      inhibitory_network_type: "dendritic"
+      mlp_inhibitory_network_params:
+        hidden_dims: []
+        activation: "relu"
+    connectivity:
+      ee_synapses_per_branch_per_layer: [5]
+      ei_synapses_per_branch_per_layer: [3]
+      ie_synapses_per_branch_per_layer: [3]
+      ii_synapses_per_branch_per_layer: [0]
+    transfer:
+      input_mode: 0
+      independent_pathways: false
+    morphology:
+      somatic_synapses: false
+      use_shunting: true
+      weight_transform: "softplus"
+      dbl_init_method: "analytical_expectation"
+    sparsity:
+      init_method: "xavier_normal"
+      noise_level: 0.0
+      type: "standard"
+      gradient_scaling: "none"
+      deepst:
+        excitatory_target_density: 0.1
+        inhibitory_target_density: 0.1
+        use_noise: true
+        sigma: 0.05
+        rewiring_mode: "global"
+        rewire_frequency: 1
+        init_method: "xavier_normal"
+        weight_threshold: 1.0e-6
+    reactivation:
+      enabled: true
+      type: "param_tanh"
+      init_m: 1.5
+      init_b: 0.5
+      gradient_scaling: "none"
+    blocklinear:
+      gradient_scaling: "none"
+      efficient: false
+    implementation:
+      adaptive_initialization: false
+      print_hooks: false
+
+training:
+  encoder:
+    strategy: "standard"
+    common:
+      lr: 0.0
+      epochs: 0
+      batch_size: 64
+  main:
+    strategy: "standard"
+    common:
+      epochs: 10
+      batch_size: 64
+      shuffle: true
+      grad_clip_value: 5.0
+      loss_function: "cat_nll"
+      early_stopping: false
+      load_best_state_dict: false
+      plot_losses: false
+      suppress_prints: false
+      print_every: 1
+      use_amp: false
+      weight_decay_rate: 0.0
+      weight_boosting: false
+      enable_nan_checking: false
+      enable_adaptive_clipping: false
+      patience: 500
+      param_groups:
+        lr: 0.001
+        split_params: true
+        topk_lr: 0.001
+        blocklinear_lr: 0.0001
+        reactivation_lr: 0.0001
+        decoder_lr: 0.001
+    regularization:
+      l1_weight: 0.0
+      l2_weight: 0.0
+    pruning:
+      enabled: false
+    strategies:
+      standard: {}
+
+analysis:
+  performance:
+    enabled: true
+    training: true
+    params:
+      accuracy: true
+      auc: true
+      categorical_loglikelihood: true
+      mse: false
+      cosine_similarity: false
+  information: { enabled: false, training: false, params: {} }
+  correlation: { enabled: false, training: false, params: {} }
+  ablation: { enabled: false, training: false, params: {} }
+  synapse_turnover: { enabled: false, training: false, params: {} }
+  noise_perturbation: { enabled: false, training: false, params: {} }
+
+outputs:
+  run_name: "parity_test"
+  results_dir: "PLACEHOLDER"

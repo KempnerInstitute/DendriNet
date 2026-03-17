@@ -219,6 +219,50 @@ class TestAblationAnalyzer(unittest.TestCase):
             # When save_path is provided, results should be None
             self.assertIsNone(results)
 
+    def test_layer_ablation_restores_weights_on_metric_error(self):
+        """Temporary ablation edits should be rolled back even on failure."""
+        module_name, module = next(
+            (
+                name,
+                mod,
+            )
+            for name, mod in self.model.named_modules()
+            if hasattr(mod, "branch_excitation") and mod.branch_excitation is not None
+        )
+        state_dict = {
+            key: value.detach().clone()
+            for key, value in self.model.state_dict().items()
+        }
+
+        self.analyzer.accuracy = True
+        self.analyzer.auc = False
+        self.analyzer.categorical_ll = False
+        self.analyzer.mse = False
+        self.analyzer.cosine_similarity = False
+        self.analyzer.compute_pred_label_mi = False
+
+        with patch(
+            "dendritic_modeling.analysis.core.ablation.evaluate_accuracy",
+            side_effect=RuntimeError("boom"),
+        ):
+            with self.assertRaises(RuntimeError):
+                self.analyzer.ablate_layer_and_evaluate(
+                    test_dataset=self.test_data,
+                    model=self.model,
+                    module=module,
+                    module_name=module_name,
+                    ablation_type="excitation",
+                    ablation_method="lesion",
+                    baseline_dict={"accuracy": 1.0},
+                    results_dict={"excitation": {}},
+                    state_dict=state_dict,
+                    eval_kwargs={},
+                    device="cpu",
+                )
+
+        for key, value in self.model.state_dict().items():
+            torch.testing.assert_close(value, state_dict[key])
+
 
 class TestInformationAnalyzer(unittest.TestCase):
     """Test the Information Analyzer class."""
@@ -316,6 +360,7 @@ class TestActivationAnalyzers(unittest.TestCase):
 
     def test_synaptic_activation_analyzer(self):
         """Test synaptic activation analysis."""
+        self.model.train()
         with tempfile.TemporaryDirectory() as tmpdir:
             results = self.synaptic_analyzer.analyze(
                 model=self.model,
@@ -326,9 +371,11 @@ class TestActivationAnalyzers(unittest.TestCase):
 
             # When save_path is provided, results should be None
             self.assertIsNone(results)
+        self.assertTrue(self.model.training)
 
     def test_branch_activation_analyzer(self):
         """Test branch activation analysis."""
+        self.model.train()
         with tempfile.TemporaryDirectory() as tmpdir:
             results = self.branch_analyzer.analyze(
                 model=self.model,
@@ -339,6 +386,7 @@ class TestActivationAnalyzers(unittest.TestCase):
 
             # When save_path is provided, results should be None
             self.assertIsNone(results)
+        self.assertTrue(self.model.training)
 
 
 class TestAnalysisManager(unittest.TestCase):

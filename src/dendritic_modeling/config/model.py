@@ -152,6 +152,19 @@ class EncoderConfig(BaseConfig):
 
 
 @dataclass
+class SpatialConfig(BaseConfig):
+    """Spatial convolution parameters for dendritic conv cores.
+
+    Used by ``hierarchical_dendritic_conv`` to configure the unfold operation
+    that extracts local patches from spatial feature maps.
+    """
+
+    kernel_size: int = 3
+    stride: int = 1
+    padding: int = 0
+
+
+@dataclass
 class CoreConfig(BaseConfig):
     """Core network configuration."""
 
@@ -167,6 +180,8 @@ class CoreConfig(BaseConfig):
     reactivation: ReactivationConfig = field(default_factory=ReactivationConfig)
     blocklinear: BlockLinearConfig = field(default_factory=BlockLinearConfig)
     implementation: ImplementationConfig = field(default_factory=ImplementationConfig)
+    # Spatial convolution params for hierarchical_dendritic_conv cores.
+    spatial: SpatialConfig = field(default_factory=SpatialConfig)
     # DEPRECATED: Legacy recurrent config. Use unified EI config classes instead.
     recurrent: RecurrentConfig = field(default_factory=RecurrentConfig)
     # Optional config payload for the new unified E-I architecture.
@@ -198,6 +213,74 @@ class DecoderConfig(BaseConfig):
 
 
 @dataclass
+class ReplacementRegionConfig(BaseConfig):
+    """Specifies the contiguous layer range to replace with a core network."""
+
+    start: str = ""  # first replaced layer (inclusive)
+    end: str = ""  # last replaced layer (inclusive)
+
+
+@dataclass
+class SegmentTrainabilityConfig(BaseConfig):
+    """Trainability policy for an encoder or decoder segment.
+
+    ``mode`` must be ``"frozen"`` or ``"trainable"``.
+    Learning rates are controlled via ``training.main.common.param_groups``
+    (``encoder_lr`` for the encoder, ``decoder_lr`` for the decoder).
+    """
+
+    mode: str = "frozen"
+
+
+@dataclass
+class TrainabilityConfig(BaseConfig):
+    """Trainability policies for encoder and decoder segments."""
+
+    encoder: SegmentTrainabilityConfig = field(
+        default_factory=lambda: SegmentTrainabilityConfig(mode="frozen")
+    )
+    decoder: SegmentTrainabilityConfig = field(
+        default_factory=lambda: SegmentTrainabilityConfig(mode="trainable")
+    )
+
+
+@dataclass
+class PretrainedReplacementConfig(BaseConfig):
+    """Single-source config for replacing layers in a pretrained backbone.
+
+    When ``enabled=true``, ``model.encoder`` and ``model.decoder`` are
+    ignored — the encoder and decoder are built from the backbone split.
+
+    Example::
+
+        pretrained_replacement:
+          backbone: "alexnet"
+          weights: "IMAGENET1K_V1"
+          input_shape: [3, 224, 224]
+          replace:
+            start: "classifier.4"
+            end: "classifier.5"
+          omit_layers: ["classifier.0", "classifier.3"]
+          trainability:
+            encoder:
+              mode: "frozen"
+            decoder:
+              mode: "trainable"
+
+    Learning rates are controlled via ``training.main.common.param_groups``
+    (``encoder_lr`` for the encoder, ``decoder_lr`` for the decoder).
+    """
+
+    enabled: bool = False
+    backbone: str = "alexnet"
+    weights: Optional[str] = "IMAGENET1K_V1"
+    input_shape: list[int] = field(default_factory=lambda: [3, 224, 224])
+    replace: ReplacementRegionConfig = field(default_factory=ReplacementRegionConfig)
+    omit_layers: list[str] = field(default_factory=list)
+    trainability: TrainabilityConfig = field(default_factory=TrainabilityConfig)
+
+
+@dataclass
 class ModelConfig(BaseConfig):
     """Complete model configuration."""
 
@@ -206,3 +289,8 @@ class ModelConfig(BaseConfig):
     encoder: EncoderConfig = field(default_factory=EncoderConfig)
     core: CoreConfig = field(default_factory=CoreConfig)
     decoder: DecoderConfig = field(default_factory=DecoderConfig)
+
+    # New unified pretrained replacement config
+    pretrained_replacement: PretrainedReplacementConfig = field(
+        default_factory=PretrainedReplacementConfig
+    )

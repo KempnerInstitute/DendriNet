@@ -83,6 +83,39 @@ class TestAggregation(unittest.TestCase):
         self.assertEqual(result.iloc[1]["network_category"], "dendritic_additive")
         self.assertEqual(result.iloc[2]["network_category"], "unknown")
 
+    def test_extract_network_category_deprecated_aliases(self):
+        """Deprecated aliases should still normalize to canonical categories."""
+        data = pd.DataFrame(
+            {
+                "network_type": [
+                    "matchedtotalparammlp",
+                    "matchedactiveparammlp",
+                    "einet_sh",
+                    "einet_ns",
+                ],
+                "use_shunting": [False, False, True, False],
+            }
+        )
+
+        result = extract_network_category(data)
+
+        self.assertEqual(result.iloc[0]["network_category"], "total_param_mlp")
+        self.assertEqual(result.iloc[1]["network_category"], "active_param_mlp")
+        self.assertEqual(result.iloc[2]["network_category"], "dendritic_shunting")
+        self.assertEqual(result.iloc[3]["network_category"], "dendritic_additive")
+
+    def test_extract_network_category_flat_mlp(self):
+        """flat_mlp should be treated as a first-class canonical category."""
+        data = pd.DataFrame(
+            {
+                "network_type": ["flat_mlp"],
+                "use_shunting": [False],
+            }
+        )
+
+        result = extract_network_category(data)
+        self.assertEqual(result.iloc[0]["network_category"], "flat_mlp")
+
 
 if __name__ == "__main__":
     unittest.main()

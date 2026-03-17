@@ -111,8 +111,18 @@ class BaseModel(nn.Module):
                 self.log_output_scale: nn.Parameter
                 decoder_params.append([self.log_output_scale])
 
+            # Collect trainable encoder params (non-frozen pretrained prefix).
+            encoder_params = []
+            encoder_trainable = [
+                p for p in self.encoder_network.parameters() if p.requires_grad
+            ]
+            if encoder_trainable:
+                encoder_params.append(iter(encoder_trainable))
+
             param_groups = []
             categorized_ids: set[int] = set()
+
+            global_lr = getattr(param_groups_config, "lr", 0.001)
 
             for params_list, lr_key, default_lr in [
                 (topk_params, "topk_lr", 0.001),
@@ -120,16 +130,15 @@ class BaseModel(nn.Module):
                 (reactivation_params, "reactivation_lr", 0.001),
                 (mlp_inh_net_params, "lr", 0.001),
                 (decoder_params, "decoder_lr", 0.001),
+                (encoder_params, "encoder_lr", global_lr),
             ]:
                 if params_list:
                     materialized = list(chain(*params_list))
                     categorized_ids.update(id(p) for p in materialized)
-                    param_groups.append(
-                        {
-                            "params": materialized,
-                            "lr": getattr(param_groups_config, lr_key, default_lr),
-                        }
-                    )
+                    lr = getattr(param_groups_config, lr_key, None)
+                    if lr is None:
+                        lr = default_lr
+                    param_groups.append({"params": materialized, "lr": lr})
 
             # Catch-all: any params not in the above groups
             uncategorized = [

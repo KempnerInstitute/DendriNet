@@ -326,6 +326,13 @@ class TestTransferFunction:
 
 
 class TestSynapseModeMLPNetwork:
+    def test_topk_alias_normalizes_to_standard(self):
+        """Legacy sparsity.type='topk' should build as standard TopK."""
+        config = _minimal_config()
+        config["sparsity"]["type"] = "topk"
+        net = get_architecture("dendritic_shunting", config, input_dim=INPUT_DIM)
+        assert net.topk_type == "standard"
+
     def test_dendritic_mlp_forward_shape(self):
         net = _build_network("dendritic_mlp")
         x = torch.randn(BATCH, INPUT_DIM)

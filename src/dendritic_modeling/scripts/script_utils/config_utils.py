@@ -14,6 +14,14 @@ logger = logging.getLogger(__name__)
 _config_cache = {}
 
 
+def normalize_sparsity_type(sparsity_type: Any) -> str:
+    """Normalize public sparsity aliases to the internal TopK strategy names."""
+    normalized = "standard" if sparsity_type is None else str(sparsity_type).lower()
+    if normalized == "topk":
+        return "standard"
+    return normalized
+
+
 def get_config_value(config: Union[dict, object], key: str, default: Any = None) -> Any:
     """
     Safely get a value from a config object, handling both dict and attribute access.
@@ -144,6 +152,8 @@ def prepare_ei_network_params(
                 params[deepst_key] = deepst_value
         elif key == "gradient_scaling":
             params["topk_strategy"] = value
+        elif key == "type":
+            params["topk_type"] = normalize_sparsity_type(value)
         else:
             params[f"topk_{key}"] = value
 
@@ -218,6 +228,7 @@ def prepare_trainer_config(
         else main_train_config.common
     )
     trainer_config = to_dict(common_config)
+    trainer_config.pop("save_path", None)
     trainer_config["save_path"] = save_path
 
     # Add parameter groups
@@ -265,11 +276,6 @@ def prepare_trainer_config(
         if isinstance(experiment_config, dict)
         else experiment_config.enable_profiling
     )
-    enable_amp = (
-        experiment_config.get("enable_amp", False)
-        if isinstance(experiment_config, dict)
-        else experiment_config.enable_amp
-    )
     enable_hooks = (
         experiment_config.get("enable_hooks", False)
         if isinstance(experiment_config, dict)
@@ -290,7 +296,6 @@ def prepare_trainer_config(
         trainer_config["enable_profiling"] = True
         trainer_config["profiling_output_dir"] = f"{save_path}/profiling"
 
-    trainer_config["enable_amp"] = enable_amp
     trainer_config["enable_hooks"] = enable_hooks
 
     # Add strategy-specific configurations
@@ -303,35 +308,30 @@ def prepare_trainer_config(
 
     if learning_strategy_config is not None:
         trainer_config["local_rule_config"] = to_dict(learning_strategy_config)
-    else:
-        # Fallback to strategies.local_ca (old structure)
-        strategies = (
-            main_train_config.get("strategies")
-            if isinstance(main_train_config, dict)
-            else getattr(main_train_config, "strategies", None)
-        )
 
-        if strategies is not None:
-            strategies_dict = to_dict(strategies)
+    strategies = (
+        main_train_config.get("strategies")
+        if isinstance(main_train_config, dict)
+        else getattr(main_train_config, "strategies", None)
+    )
 
-            # Add local learning config if present (old structure)
-            if "local_ca" in strategies_dict:
-                trainer_config["local_rule_config"] = strategies_dict["local_ca"]
+    if strategies is not None:
+        strategies_dict = to_dict(strategies)
 
-            # Add other strategy configs
-            for strategy_name in [
-                "voltage_stabilization",
-                "homeostatic_control",
-                "freeze_layers",
-                "freeze_branches",
-                "freeze_branch_kl",
-                "multi_stage",
-                "recurrent",
-            ]:
-                if strategy_name in strategies_dict:
-                    trainer_config[f"{strategy_name}_config"] = strategies_dict[
-                        strategy_name
-                    ]
+        # Add other strategy configs
+        for strategy_name in [
+            "voltage_stabilization",
+            "homeostatic_control",
+            "freeze_layers",
+            "freeze_branches",
+            "freeze_branch_kl",
+            "multi_stage",
+            "recurrent",
+        ]:
+            if strategy_name in strategies_dict:
+                trainer_config[f"{strategy_name}_config"] = strategies_dict[
+                    strategy_name
+                ]
 
     return trainer_config
 

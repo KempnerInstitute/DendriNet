@@ -19,16 +19,27 @@ Override parameters from the command line
    python src/dendritic_modeling/scripts/training/train_experiments.py \
      configs/config_exp.yaml --seed 42 --output_dir results/my_run --run_name mnist_seed42
 
-Distributed training with FSDP
-------------------------------
+Distributed training (DDP / FSDP)
+----------------------------------
+
+Set ``distributed.mode`` in your YAML config and use the unified launcher:
 
 .. code-block:: bash
 
-   # Generate and submit a SLURM job
-   python src/dendritic_modeling/scripts/tools/submit_fsdp_job.py configs/config_exp_fsdp.yaml
+   # Auto-selects entrypoint based on distributed.mode in YAML
+   sbatch scripts/train.sh configs/my_config.yaml
 
-   # Or generate the script without submitting
-   python src/dendritic_modeling/scripts/tools/submit_fsdp_job.py configs/config_exp_fsdp.yaml --generate-only
+   # Multi-node (override nodes at submit time)
+   sbatch --nodes=2 scripts/train.sh configs/my_config.yaml
+
+   # Or use dedicated launchers directly
+   sbatch scripts/train_ddp.sh configs/my_config.yaml     # DDP
+   sbatch scripts/train_fsdp.sh configs/my_config.yaml    # FSDP
+
+   # Local (non-SLURM) single-node DDP/FSDP
+   bash scripts/train.sh configs/my_config.yaml
+
+See :doc:`configuration_guide` for details on the ``distributed:`` config block.
 
 Run a parameter sweep
 ---------------------
@@ -37,7 +48,7 @@ Run a parameter sweep
 
    # Generate configs and submit jobs
    python src/dendritic_modeling/scripts/sweeps/sweep_manager.py \
-     --config configs/EI_sweeps_example.yaml
+     --config configs/sweep_config.yaml
 
    # Analyze results
    python src/dendritic_modeling/scripts/sweeps/result_analyzer.py \
@@ -63,9 +74,8 @@ WandB integration
 .. code-block:: yaml
 
    wandb:
-     enabled: true
+     use_wandb: true
      project: dendritic-modeling
-     name: my_experiment
 
 Minimal configuration example
 -----------------------------

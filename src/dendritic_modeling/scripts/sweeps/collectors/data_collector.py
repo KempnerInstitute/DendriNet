@@ -323,76 +323,72 @@ class DataCollector:
         return result
 
     def _load_ablation(self, config_dir: Path) -> dict:
-        """Load ablation analysis metrics."""
-        # ablation_file = config_dir / "ablation_analysis" / "final"
-        # Search recursively for performance/final.json
+        """Load ablation analysis metrics.
+
+        Loads the canonical 3-level ablation schema
+        (method -> target -> module -> metrics) and flattens to sweep-ready
+        columns via :func:`ablation_columns.flatten_ablation_results`.
+        """
+        from dendritic_modeling.scripts.sweeps.utils.ablation_columns import (
+            flatten_ablation_module_results,
+            flatten_ablation_results,
+        )
+
         ablation_files = list(config_dir.rglob("ablation_analysis/final.json"))
-
         if not ablation_files:
-            # Try without .json extension
             ablation_files = list(config_dir.rglob("ablation_analysis/final"))
-
         if ablation_files:
-            ablation_file = ablation_files[0]  # Use first match found
+            ablation_file = ablation_files[0]
         else:
-            # Fallback to original path
             ablation_file = config_dir / "ablation_analysis" / "final"
 
         data = self._load_json_file(ablation_file)
-
         if not data:
             return {}
 
-        result = {}
+        result: dict[str, float] = {}
 
-        # Handle layer ablation format (supports both 3-level and 2-level schemas)
         if "layer" in data and isinstance(data["layer"], dict):
-            flat_layer = self._flatten_ablation_layer(data["layer"])
-            for ablation_type, layer_data in flat_layer.items():
-                if isinstance(layer_data, dict):
-                    for _layer_name, layer_metrics in layer_data.items():
-                        if isinstance(layer_metrics, dict):
-                            depth = layer_metrics.get("depth", 0)
-                            for metric_name, metric_value in layer_metrics.items():
-                                if metric_name not in [
-                                    "depth",
-                                    "layer_name",
-                                    "ablation_method",
-                                ] and isinstance(metric_value, (int, float)):
-                                    safe_ablation = ablation_type.replace(
-                                        " ", "_"
-                                    ).replace("-", "_")
-                                    result[
-                                        f"ablation_{safe_ablation}_{metric_name}_depth{depth}"
-                                    ] = metric_value
+            layer_data = data["layer"]
+            # Detect and convert legacy 2-level schema if needed
+            layer_data = self._ensure_3level(layer_data)
+            result.update(flatten_ablation_results(layer_data))
+            result.update(flatten_ablation_module_results(layer_data))
 
         return result
 
     @staticmethod
-    def _flatten_ablation_layer(layer_dict: dict) -> dict:
-        """Flatten 3-level ablation schema to 2-level if needed.
+    def _ensure_3level(layer_dict: dict) -> dict:
+        """Convert legacy 2-level ablation schema to 3-level if needed.
 
-        3-level: ``{"lesion": {"excitation": {module: metrics}}}``
         2-level: ``{"lesion_excitation": {module: metrics}}``
+        3-level: ``{"lesion": {"excitation": {module: metrics}}}``
 
-        Returns 2-level dict in both cases.
+        Already 3-level dicts are returned unchanged.
         """
         known_targets = {"all_synapses", "excitation", "inhibition", "upstream"}
-        flat: dict = {}
-        for key, value in layer_dict.items():
-            if not isinstance(value, dict):
+        # Convert any legacy 2-level entries while preserving already-canonical
+        # 3-level entries in mixed payloads.
+        nested: dict = {}
+        for key, modules in layer_dict.items():
+            if not isinstance(modules, dict):
                 continue
-            # Detect 3-level: value's keys are target names
-            inner_keys = set(value.keys())
-            if inner_keys & known_targets:
-                # 3-level: method -> target -> modules
-                for target, modules in value.items():
-                    if isinstance(modules, dict):
-                        flat[f"{key}_{target}"] = modules
-            else:
-                # 2-level: already method_target -> modules
-                flat[key] = value
-        return flat
+            if set(modules.keys()) & known_targets:
+                nested[key] = modules
+                continue
+            key_norm = str(key).replace(" ", "_")
+            matched = False
+            for target in known_targets:
+                suffix = f"_{target}"
+                if key_norm.endswith(suffix):
+                    method = key_norm[: -len(suffix)]
+                    if method:
+                        nested.setdefault(method, {})[target] = modules
+                        matched = True
+                        break
+            if not matched:
+                nested[key] = modules
+        return nested
 
     def _load_snr(self, config_dir: Path) -> dict:
         """Load compartment SNR analysis metrics."""

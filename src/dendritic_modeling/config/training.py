@@ -23,6 +23,7 @@ class ParamGroupsConfig(BaseConfig):
     blocklinear_lr: float = 0.0001
     reactivation_lr: float = 0.0001
     decoder_lr: float = 0.001
+    encoder_lr: Optional[float] = None  # None = frozen / use default LR
 
 
 @dataclass
@@ -37,11 +38,12 @@ class CommonTrainerConfig(BaseConfig):
     early_stopping: bool = True
     patience: int = 500
     load_best_state_dict: bool = True
-    save_path: Optional[str] = None
     plot_losses: bool = True
     suppress_prints: bool = False
     print_every: int = 10
     use_amp: bool = False
+    lr_schedule: str = "none"
+    lr_warmup_epochs: int = 0
     enable_nan_checking: bool = False
     enable_adaptive_clipping: bool = False
     weight_decay_rate: float = 0.01
@@ -107,57 +109,6 @@ class MultiStageStrategyConfig(BaseConfig):
 
 
 @dataclass
-class LocalCAStrategyConfig(BaseConfig):
-    """Local credit assignment strategy configuration."""
-
-    rule_variant: str = "4f"
-    error_mode: str = "auto"
-    error_broadcast_mode: str = "scalar"
-    ema_alpha: float = 0.1
-    use_conductance_scaling: bool = True
-    use_driving_force: bool = True
-    dynamics_mode: str = "auto"  # "auto", "conductance", "additive"
-    theta: float = 0.0
-    e_rev_exc: float = 1.0
-    e_rev_inh: float = 0.0
-    clip_grad_value: float = 5.0
-    normalize_by_batch: bool = False
-
-    phi_mode: str = "conditional"
-    phi_ridge_lambda: float = 0.001
-    rho_estimator: str = "ema"
-    phi_estimator: str = "conditional_ema"
-    augment_k: int = 8
-    augment_noise_sigma: float = 0.01
-    rls_forgetting: float = 0.99
-    update_inactive_weights: bool = False
-
-    hsic_enabled: bool = True
-    hsic_weight: float = 0.01
-    hsic_self_weight: float = 0.3
-    hsic_target_weight: float = 0.3
-    hsic_target_source: str = "labels"
-    hsic_kernel: str = "rbf"
-    hsic_sigma: float = 1.0
-    hsic_degree: int = 2
-    hsic_coef0: float = 1.0
-    hsic_grad_clip_value: float = 0.1
-    hsic_warmup_epochs: int = 5
-    hsic_apply_last_layer_only: bool = False
-
-    rho_mode: str = "dot"
-    encoder_update_mode: str = "none"
-    decoder_update_mode: str = "backprop"
-    update_reactivation: bool = True
-    freeze_encoder_epochs: int = 0
-    freeze_reactivation_epochs: int = 20
-    freeze_decoder_epochs: int = 0
-    training_schedule: list = field(default_factory=list)
-    layer_wise_rho_scale: float = 0.0
-    layer_wise_phi_scale: float = 0.0
-
-
-@dataclass
 class VoltageStabilizationStrategyConfig(BaseConfig):
     """Voltage stabilization strategy configuration."""
 
@@ -177,6 +128,16 @@ class HomeostaticControlStrategyConfig(BaseConfig):
     freeze_reactivation: bool = False
     target_voltage: float = 0.5
     loss_metric: str = "mse"
+
+
+@dataclass
+class RecurrentStrategyConfig(BaseConfig):
+    """Recurrent trainer-specific overrides."""
+
+    grad_clip: float = 1.0
+    use_amp: bool = False
+    lr_schedule: str = "none"
+    lr_warmup_epochs: int = 0
 
 
 @dataclass
@@ -218,7 +179,7 @@ class TrainingStrategiesConfig(BaseConfig):
     multi_stage: MultiStageStrategyConfig = field(
         default_factory=MultiStageStrategyConfig
     )
-    local_ca: LocalCAStrategyConfig = field(default_factory=LocalCAStrategyConfig)
+    recurrent: RecurrentStrategyConfig = field(default_factory=RecurrentStrategyConfig)
     voltage_stabilization: VoltageStabilizationStrategyConfig = field(
         default_factory=VoltageStabilizationStrategyConfig
     )
@@ -263,6 +224,9 @@ class EncoderTrainingConfig(BaseConfig):
 
     strategies: TrainingStrategiesConfig = field(
         default_factory=TrainingStrategiesConfig
+    )
+    learning_strategy_config: Optional["LocalRuleConfig"] = field(
+        default_factory=lambda: None
     )
 
 

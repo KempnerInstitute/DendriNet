@@ -37,7 +37,6 @@ base_config:
   experiment:
     seed: 42
     train_valid_split: 0.8
-    enable_amp: false
     enable_profiling: false
     enable_hooks: true
 
@@ -227,7 +226,7 @@ base_config:
         standard: {}
 
   analysis:
-    performance_analysis:
+    performance:
       enabled: true
       training: true
       params:
@@ -236,11 +235,11 @@ base_config:
         categorical_loglikelihood: true
         mse: false
         cosine_similarity: false
-    information_analysis:
+    information:
       enabled: false
-    correlation_analysis:
+    correlation:
       enabled: false
-    ablation_analysis:
+    ablation:
       enabled: true
       training: false
       params:
@@ -263,14 +262,14 @@ base_config:
           - mean_clamp
           shuffle_seed: 0
           clamp_statistic: mean
-    synapse_turnover_analysis:
+    synapse_turnover:
       enabled: true
       training: true
       params:
         snapshot_interval: 1
         synaptic_analysis: true
         save_synaptic_report: true
-    noise_perturbation_analysis:
+    noise_perturbation:
       enabled: true
       training: false
       params:
@@ -284,7 +283,7 @@ base_config:
         categorical_loglikelihood: true
         mse: false
         cosine_similarity: false
-    weight_analysis:
+    weight:
       enabled: true
       training: false
       params:
@@ -304,7 +303,7 @@ base_config:
         compute_min_max: true
         compute_dendritic_strength: true
         weight_threshold: 1.0e-6
-    compartment_statistics_analysis:
+    compartment_statistics:
       enabled: true
       training: false
       params:
@@ -322,7 +321,7 @@ base_config:
         compute_entropy: true
         per_class_analysis: false
         n_samples: 1000
-    compartment_snr_analysis:
+    compartment_snr:
       enabled: false
       training: false
       params:

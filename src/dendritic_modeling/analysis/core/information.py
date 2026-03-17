@@ -14,11 +14,15 @@ from typing import Any, Optional, Union
 
 import numpy as np
 import torch
-from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from dendritic_modeling.analysis.core.base import AbstractAnalyzer
+from dendritic_modeling.analysis.utils.runtime import (
+    get_model_device,
+    materialize_dataset,
+)
 from dendritic_modeling.config import InformationAnalysisParams
+from dendritic_modeling.config.analysis import EvaluationRuntimeConfig
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.networks import (
     DendriticBranchLayer,
@@ -61,7 +65,7 @@ class InformationAnalyzer(AbstractAnalyzer):
         Parameters
         ----------
         config : InformationAnalysisConfig or dict
-            Configuration from the main config system (analysis.information_analysis)
+            Configuration from the main config system (analysis.information)
         """
         super().__init__("InformationAnalyzer")
 
@@ -3021,6 +3025,7 @@ class InformationAnalyzer(AbstractAnalyzer):
         device: str = "cpu",
         save_path: Optional[str] = None,
         filename: str = "final",
+        runtime: Optional[EvaluationRuntimeConfig] = None,
     ):
         """Run integrated information analysis on the model.
 
@@ -3042,6 +3047,9 @@ class InformationAnalyzer(AbstractAnalyzer):
             f"Model: {type(model).__name__}, Dataset size: {len(test_dataset)}, Device: {device}"
         )
 
+        original_device = get_model_device(model)
+        was_training = getattr(model, "training", False)
+        moved = False
         try:
             # Check if model has ExcitationInhibitionNetwork
             if not isinstance(model.core_network, ExcitationInhibitionNetwork):
@@ -3057,54 +3065,21 @@ class InformationAnalyzer(AbstractAnalyzer):
             self.logger.info(f"Preparing data: moving model to {device}")
             model = model.to(device)
             model.eval()
+            moved = True
 
             self.logger.info("Loading test dataset...")
-            try:
-                items = test_dataset[:]
-                inputs, labels = items[0], items[1]
-            except Exception:
-                self.logger.warning(
-                    "Dataset does not support full slicing; materializing via DataLoader."
-                )
-                xs = []
-                ys = []
-                max_samples = self.max_samples if self.max_samples else None
-                total = 0
-
-                for batch in DataLoader(test_dataset, batch_size=1024, shuffle=False):
-                    x_batch, y_batch = batch[0], batch[1]
-                    if max_samples is not None and total >= max_samples:
-                        break
-
-                    if (
-                        max_samples is not None
-                        and total + x_batch.shape[0] > max_samples
-                    ):
-                        keep = max_samples - total
-                        x_batch = x_batch[:keep]
-                        y_batch = y_batch[:keep]
-
-                    xs.append(x_batch)
-                    ys.append(y_batch)
-                    total += x_batch.shape[0]
-
-                inputs = torch.cat(xs, dim=0)
-                labels = torch.cat(ys, dim=0)
+            items = materialize_dataset(
+                test_dataset,
+                runtime,
+                explicit_max_samples=self.max_samples,
+                device=device,
+            )
+            inputs, labels = items[0], items[1]
             inputs: torch.Tensor
             labels: torch.Tensor
             self.logger.info(
                 f"Loaded dataset: {len(inputs)} samples, input shape: {inputs.shape}"
             )
-
-            # Optional: Sample a subset of data for faster computation
-            if self.max_samples and len(inputs) > self.max_samples:
-                self.logger.info(
-                    f"Sampling {self.max_samples} samples from {len(inputs)} for faster computation"
-                )
-                indices = torch.randperm(len(inputs))[: self.max_samples]
-                inputs = inputs[indices]
-                labels = labels[indices]
-                self.logger.info(f"After sampling: {len(inputs)} samples")
 
             self.logger.info(f"Moving data to {device}...")
             inputs = inputs.to(device)
@@ -4223,6 +4198,11 @@ class InformationAnalyzer(AbstractAnalyzer):
         except Exception as e:
             self.logger.error(f"Error in information analysis: {e}")
             traceback.print_exc()
+        finally:
+            if moved:
+                model.to(original_device)
+                if was_training:
+                    model.train()
 
     def compute_class_mi(self, activations, labels):
         return self.estimators[self.method].mutual_information(activations, labels)
@@ -4261,7 +4241,7 @@ class InformationAnalyzer(AbstractAnalyzer):
         from sklearn.metrics import accuracy_score
 
         if device is None:
-            device = next(model.parameters()).device
+            device = get_model_device(model)
 
         # Ensure model is in eval mode (same state used for all comparisons)
         model.eval()

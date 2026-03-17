@@ -21,7 +21,12 @@ import torch
 from scipy.stats import differential_entropy
 
 from dendritic_modeling.analysis.core.base import AbstractAnalyzer
+from dendritic_modeling.analysis.utils.runtime import (
+    analysis_device_context,
+    materialize_dataset,
+)
 from dendritic_modeling.config import CompartmentStatisticsAnalysisParams
+from dendritic_modeling.config.analysis import EvaluationRuntimeConfig
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.networks import (
     DendriticBranchLayer,
@@ -475,6 +480,7 @@ class CompartmentStatisticsAnalyzer(AbstractAnalyzer):
         save_path: Optional[str] = None,
         filename: str = "final",
         training: bool = False,
+        runtime: Optional[EvaluationRuntimeConfig] = None,
     ):
         """
         Perform comprehensive weight analysis including global and hierarchical statistics.
@@ -495,13 +501,20 @@ class CompartmentStatisticsAnalyzer(AbstractAnalyzer):
 
         start_time = time.time()
 
-        model.to(device)
-        items = test_dataset[:]
-        x: torch.Tensor = items[0].to(device)
-        y: torch.Tensor = items[1].to(device) if self.per_class_analysis else None
+        with analysis_device_context(model, device) as analysis_device:
+            items = materialize_dataset(
+                test_dataset,
+                runtime,
+                explicit_max_samples=self.n_samples,
+                device=analysis_device,
+            )
+            x: torch.Tensor = items[0].to(analysis_device)
+            y: torch.Tensor = (
+                items[1].to(analysis_device) if self.per_class_analysis else None
+            )
 
-        self.collect_raw_data(model, x, y)
-        branch_statistics = self._compute_branch_statistics()
+            self.collect_raw_data(model, x, y)
+            branch_statistics = self._compute_branch_statistics()
 
         results = {}
 

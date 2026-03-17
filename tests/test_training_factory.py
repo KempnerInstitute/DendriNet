@@ -204,16 +204,12 @@ class TestGetTrainer:
             assert call_args["device"] == "cpu"
             assert call_args["max_epochs"] == 10
 
-    def test_get_enhanced_trainer_with_warning(
+    def test_get_enhanced_trainer_is_not_supported_legacy_alias(
         self, mock_optimizer, basic_trainer_config
     ):
-        """Test creating enhanced trainer (alias of standard strategy)."""
-        with patch("dendritic_modeling.training.factory.Trainer") as MockTrainer:
-            with patch("dendritic_modeling.training.factory.logger") as mock_logger:
-                get_trainer("enhanced", mock_optimizer, basic_trainer_config)
-
-                mock_logger.warning.assert_not_called()
-                MockTrainer.assert_called_once()
+        """Legacy enhanced alias should now be rejected."""
+        with pytest.raises(ValueError, match="Unknown training strategy"):
+            get_trainer("enhanced", mock_optimizer, basic_trainer_config)
 
     def test_get_layerwise_trainer(self, mock_optimizer, basic_trainer_config):
         """Test creating layer-wise trainer."""
@@ -262,36 +258,19 @@ class TestGetTrainer:
 
             MockTrainer.assert_called_once()
 
-    def test_get_fsdp_trainer(self, mock_optimizer, basic_trainer_config):
-        """Test creating FSDP trainer."""
-        with patch(
-            "dendritic_modeling.training.strategies.fsdp_standard.FSDPTrainer"
-        ) as MockTrainer:
-            with patch(
-                "dendritic_modeling.training.fsdp_utils.get_fsdp_config"
-            ) as mock_fsdp_config:
-                mock_fsdp_config.return_value = {"auto_wrap_policy": None}
+    def test_get_fsdp_trainer_is_not_supported(
+        self, mock_optimizer, basic_trainer_config
+    ):
+        """FSDP should be selected via distributed.mode, not trainer strategy."""
+        with pytest.raises(ValueError, match="Unknown training strategy"):
+            get_trainer("fsdp", mock_optimizer, basic_trainer_config)
 
-                get_trainer("fsdp", mock_optimizer, basic_trainer_config)
-
-                MockTrainer.assert_called_once()
-                mock_fsdp_config.assert_called_once()
-
-    def test_get_fsdp_trainer_with_config(self, mock_optimizer, basic_trainer_config):
-        """Test creating FSDP trainer with existing config."""
-        basic_trainer_config["fsdp_config"] = {"custom_config": True}
-
-        with patch(
-            "dendritic_modeling.training.strategies.fsdp_standard.FSDPTrainer"
-        ) as MockTrainer:
-            with patch(
-                "dendritic_modeling.training.fsdp_utils.get_fsdp_config"
-            ) as mock_fsdp_config:
-                get_trainer("fsdp_standard", mock_optimizer, basic_trainer_config)
-
-                MockTrainer.assert_called_once()
-                # Should not call get_fsdp_config since config already provided
-                mock_fsdp_config.assert_not_called()
+    def test_get_fsdp_standard_trainer_is_not_supported(
+        self, mock_optimizer, basic_trainer_config
+    ):
+        """Legacy fsdp_standard strategy should also be rejected."""
+        with pytest.raises(ValueError, match="Unknown training strategy"):
+            get_trainer("fsdp_standard", mock_optimizer, basic_trainer_config)
 
     def test_get_multi_stage_trainer(self, mock_optimizer, basic_trainer_config):
         """Test creating multi-stage trainer."""
@@ -313,10 +292,10 @@ class TestGetTrainer:
         trainer_config = {
             "task": "classification",
             "grad_clip_value": 5.0,
-            "enable_amp": False,
+            "use_amp": False,
             "recurrent_config": {
                 "grad_clip": 0.25,
-                "enable_amp": True,
+                "use_amp": True,
                 "lr_schedule": "cosine",
                 "lr_warmup_epochs": 3,
             },
@@ -331,9 +310,16 @@ class TestGetTrainer:
             assert call_args["optimizer"] == mock_optimizer
             assert call_args["task"] == "classification"
             assert call_args["grad_clip"] == 0.25
-            assert call_args["enable_amp"] is True
+            assert call_args["use_amp"] is True
             assert call_args["lr_schedule"] == "cosine"
             assert call_args["lr_warmup_epochs"] == 3
+
+    def test_get_enhanced_trainer_is_not_supported(
+        self, mock_optimizer, basic_trainer_config
+    ):
+        """Legacy enhanced alias should be rejected."""
+        with pytest.raises(ValueError, match="Unknown training strategy"):
+            get_trainer("enhanced", mock_optimizer, basic_trainer_config)
 
     def test_get_unknown_trainer_raises(self, mock_optimizer, basic_trainer_config):
         """Test that unknown strategy raises a ValueError."""
@@ -635,21 +621,13 @@ class TestTrainingFactoryEdgeCases:
             assert call_args["max_epochs"] == 100
             assert call_args["optimizer"] == mock_optimizer
 
-    def test_fsdp_trainer_creation_flow(self):
-        """Test FSDP trainer creation flow."""
+    def test_fsdp_trainer_creation_flow_is_rejected(self):
+        """Legacy FSDP trainer strategy path should be rejected."""
         mock_optimizer = Mock()
         trainer_config = {"device": "cuda"}
 
-        with patch(
-            "dendritic_modeling.training.strategies.fsdp_standard.FSDPTrainer"
-        ) as MockTrainer:
-            with patch(
-                "dendritic_modeling.training.fsdp_utils.get_fsdp_config"
-            ) as mock_fsdp_config:
-                mock_fsdp_config.return_value = {"auto_wrap_policy": None}
-
-                get_trainer("fsdp", mock_optimizer, trainer_config)
-                MockTrainer.assert_called_once()
+        with pytest.raises(ValueError, match="Unknown training strategy"):
+            get_trainer("fsdp", mock_optimizer, trainer_config)
 
     def test_logger_usage(self):
         """Test that logger is used appropriately."""
@@ -658,10 +636,11 @@ class TestTrainingFactoryEdgeCases:
 
         with patch("dendritic_modeling.training.factory.Trainer"):
             with patch("dendritic_modeling.training.factory.logger") as mock_logger:
-                # Enhanced is treated as an alias for standard.
-                get_trainer("enhanced", mock_optimizer, trainer_config)
+                get_trainer("standard", mock_optimizer, trainer_config)
                 mock_logger.warning.assert_not_called()
 
-                # Unknown strategies should raise instead of silently falling back.
+                # Removed legacy aliases and unknown strategies should raise.
+                with pytest.raises(ValueError, match="Unknown training strategy"):
+                    get_trainer("enhanced", mock_optimizer, trainer_config)
                 with pytest.raises(ValueError, match="Unknown training strategy"):
                     get_trainer("unknown", mock_optimizer, trainer_config)
