@@ -4,7 +4,6 @@
 experiment:
   seed: 42
   train_valid_split: 0.8
-  enable_amp: false
   enable_profiling: false
   profiling_output_dir: "results/profiling/"
   enable_hooks: true
@@ -196,7 +195,27 @@ training:
         loss_metric: "mse"
 
 analysis:
-  performance_analysis:
+  runtime:
+    # Shared runtime for all analyses. "auto" preserves the old materialized
+    # path on small datasets; switch to "materialize" only when you want the
+    # closest match to the old exact single-GPU execution path.
+    training:
+      mode: "auto"
+      batch_size: 256
+      num_workers: 4
+      pin_memory: true
+      max_batches: null
+      max_samples: null
+      materialize_threshold_mb: 1024
+    final:
+      mode: "auto"
+      batch_size: 256
+      num_workers: 4
+      pin_memory: true
+      max_batches: null
+      max_samples: null
+      materialize_threshold_mb: 1024
+  performance:
     enabled: true
     training: true
     params:
@@ -205,7 +224,7 @@ analysis:
       categorical_loglikelihood: true
       mse: false
       cosine_similarity: false
-  information_analysis:
+  information:
     enabled: true
     training: false
     params:
@@ -262,7 +281,7 @@ analysis:
           n_shuffles: 0
           seed: 0
           components: [basic]
-  correlation_analysis:
+  correlation:
     enabled: false
     training: false
     params:
@@ -282,7 +301,7 @@ analysis:
         sampling_strategy: "stratified"
         stratified_categories: ["within_branch", "within_layer", "across_layer"]
         max_pairs_per_category: 500
-  ablation_analysis:
+  ablation:
     enabled: true
     training: true
     params:
@@ -294,14 +313,14 @@ analysis:
         ablation_methods: [lesion, shuffle, mean_clamp]
         shuffle_seed: 0
         clamp_statistic: mean
-  synapse_turnover_analysis:
+  synapse_turnover:
     enabled: true
     training: true
     params:
       snapshot_interval: 1
       synaptic_analysis: true
       save_synaptic_report: true
-  noise_perturbation_analysis:
+  noise_perturbation:
     enabled: true
     training: false
     params:
@@ -315,7 +334,7 @@ analysis:
       categorical_loglikelihood: true
       mse: false
       cosine_similarity: false
-  weight_analysis:
+  weight:
     enabled: false
     training: false
     params:
@@ -347,7 +366,7 @@ analysis:
       categorical_loglikelihood: true
       mse: true
       cosine_similarity: true
-  synaptic_activation_analysis:
+  synaptic_activation:
     enabled: false
     training: false
     params:
@@ -358,7 +377,7 @@ analysis:
       logspace: false
       downsample: true
       samples: 5
-  branch_activation_analysis:
+  branch_activation:
     enabled: false
     training: false
     params:
@@ -371,7 +390,7 @@ analysis:
       logspace: false
       downsample: true
       samples: 5
-  compartment_statistics_analysis:
+  compartment_statistics:
     enabled: true
     training: false
     params:
@@ -389,7 +408,7 @@ analysis:
       compute_entropy: true
       per_class_analysis: false
       n_samples: 1000
-  compartment_snr_analysis:
+  compartment_snr:
     enabled: true
     training: true
     params:
@@ -399,7 +418,7 @@ analysis:
       global_aggregation: false
       layer_aggregation: true
       branch_aggregation: true
-  multiplicative_gain_analysis:
+  multiplicative_gain:
     enabled: true
     training: true
     params:
@@ -412,7 +431,7 @@ analysis:
       categorical_loglikelihood: true
       mse: true
       cosine_similarity: true
-  receptive_field_analysis:
+  receptive_field:
     enabled: false
     training: false
     params:

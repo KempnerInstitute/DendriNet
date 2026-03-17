@@ -12,6 +12,11 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, TensorDataset
 
+from dendritic_modeling.analysis.utils.runtime import (
+    analysis_device_context,
+    subset_dataset_for_runtime,
+)
+from dendritic_modeling.config.analysis import EvaluationRuntimeConfig
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.utils import save_dict
 
@@ -101,17 +106,27 @@ class AdversarialRobustnessAnalyzer:
         device: str = "cpu",
         save_path: Optional[str] = None,
         filename: str = "final",
+        runtime: Optional[EvaluationRuntimeConfig] = None,
     ) -> dict:
         """Run FGSM at each epsilon, compute accuracy on adversarial examples.
 
         Returns:
             Dict mapping epsilon -> accuracy.
         """
+        if runtime is not None:
+            self.batch_size = runtime.batch_size
+        test_dataset = subset_dataset_for_runtime(test_dataset, runtime)
         results = {}
-        for eps in self.epsilons:
-            acc = self.evaluate_accuracy_under_attack(model, test_dataset, eps, device)
-            results[f"eps_{eps:.3f}"] = {"accuracy": acc}
-            logger.info(f"FGSM eps={eps:.3f}: accuracy={acc:.4f}")
+        with analysis_device_context(model, device) as analysis_device:
+            for eps in self.epsilons:
+                acc = self.evaluate_accuracy_under_attack(
+                    model,
+                    test_dataset,
+                    eps,
+                    str(analysis_device),
+                )
+                results[f"eps_{eps:.3f}"] = {"accuracy": acc}
+                logger.info(f"FGSM eps={eps:.3f}: accuracy={acc:.4f}")
 
         if save_path is not None:
             save_dict(

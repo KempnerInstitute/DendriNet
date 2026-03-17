@@ -258,12 +258,6 @@ def get_trainer(
 
         return Trainer(**trainer_config_dict)
 
-    elif strategy == "enhanced":
-        # Redirect to standard strategy
-        enhanced_configs = _extract_enhanced_configs(trainer_config_dict)
-        trainer_config_dict.update(enhanced_configs)
-        return Trainer(**trainer_config_dict)
-
     elif strategy == "freeze_layers":
         enhanced_configs = _extract_enhanced_configs(trainer_config_dict)
         trainer_config_dict.update(enhanced_configs)
@@ -329,9 +323,7 @@ def get_trainer(
         grad_clip = trainer_config_dict.pop(
             "grad_clip", trainer_config_dict.pop("grad_clip_value", 1.0)
         )
-        enable_amp = trainer_config_dict.pop(
-            "enable_amp", trainer_config_dict.pop("use_amp", False)
-        )
+        use_amp = trainer_config_dict.pop("use_amp", False)
         lr_schedule = trainer_config_dict.pop("lr_schedule", "none")
         lr_warmup_epochs = trainer_config_dict.pop("lr_warmup_epochs", 0)
         enhanced_configs = _extract_enhanced_configs(trainer_config_dict)
@@ -339,7 +331,7 @@ def get_trainer(
         return RecurrentTrainer(
             task=task,
             grad_clip=grad_clip,
-            enable_amp=enable_amp,
+            use_amp=use_amp,
             lr_schedule=lr_schedule,
             lr_warmup_epochs=lr_warmup_epochs,
             **trainer_config_dict,
@@ -358,20 +350,9 @@ def get_trainer(
             base_trainer_config=base_trainer_config,
             analysis_manager=analysis_manager,
         )
-    elif strategy == "fsdp" or strategy == "fsdp_standard":
-        # FSDP requires additional setup (distributed init, special config)
-        from dendritic_modeling.training.fsdp_utils import get_fsdp_config
-        from dendritic_modeling.training.strategies.fsdp_standard import FSDPTrainer
-
-        if "fsdp_config" not in trainer_config_dict:
-            # Generate default FSDP config if not provided
-            trainer_config_dict["fsdp_config"] = get_fsdp_config()
-            logger.info("Generated default FSDP config for trainer")
-        return FSDPTrainer(**trainer_config_dict)
     else:
         supported = [
             "standard",
-            "enhanced",
             "freeze_layers",
             "freeze_branches",
             "fa",
@@ -384,8 +365,6 @@ def get_trainer(
             "homeostatic_control",
             "recurrent",
             "multi_stage",
-            "fsdp",
-            "fsdp_standard",
         ]
         raise ValueError(
             f"Unknown training strategy '{strategy}'. Supported strategies: {supported}"

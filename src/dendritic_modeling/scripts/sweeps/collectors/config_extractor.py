@@ -74,11 +74,16 @@ class ConfigExtractor:
                 core = config.model.core
                 if hasattr(core, "type"):
                     # Canonical architecture selector (preferred over legacy booleans)
-                    core_type = str(core.type)
-                    params["network_type"] = core_type
-
-                if hasattr(core, "type"):
-                    params["network_type"] = str(core.type).lower()
+                    core_type = str(core.type).lower()
+                    canonical_type = {
+                        "matchedtotalparammlp": "total_param_mlp",
+                        "matchedactiveparammlp": "active_param_mlp",
+                        "einet_sh": "dendritic_shunting",
+                        "einet_ns": "dendritic_additive",
+                        "einet_sh_flat": "flat_shunting",
+                        "einet_ns_flat": "flat_additive",
+                    }.get(core_type, core_type)
+                    params["network_type"] = canonical_type
 
                 # Connectivity parameters
                 if hasattr(core, "connectivity"):
@@ -135,6 +140,7 @@ class ConfigExtractor:
                     elif nt in [
                         "dendritic_additive",
                         "dendritic_mlp",
+                        "flat_mlp",
                         "mlp",
                         "point_mlp",
                     ]:
@@ -169,19 +175,12 @@ class ConfigExtractor:
                     if hasattr(common, "batch_size"):
                         params["batch_size"] = common.batch_size
 
-                # Local learning parameters (new structure)
+                # Local learning parameters
                 if (
                     hasattr(main, "learning_strategy_config")
                     and main.learning_strategy_config
                 ):
                     local_cfg = main.learning_strategy_config
-                    params.update(self._extract_local_learning_params(local_cfg))
-
-                # Fallback to old structure
-                elif hasattr(main, "strategies") and hasattr(
-                    main.strategies, "local_ca"
-                ):
-                    local_cfg = main.strategies.local_ca
                     params.update(self._extract_local_learning_params(local_cfg))
 
         except Exception as e:

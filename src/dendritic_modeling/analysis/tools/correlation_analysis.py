@@ -22,7 +22,12 @@ from scipy.stats import pearsonr
 from tqdm import tqdm
 
 from dendritic_modeling.analysis.core.base import AbstractAnalyzer
+from dendritic_modeling.analysis.utils.runtime import (
+    analysis_device_context,
+    materialize_dataset,
+)
 from dendritic_modeling.config import CorrelationAnalysisParams
+from dendritic_modeling.config.analysis import EvaluationRuntimeConfig
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.networks import (
     DendriticBranchLayer,
@@ -843,6 +848,7 @@ class CorrelationAnalyzer(AbstractAnalyzer):
         device: str = "cpu",
         save_path: Optional[str] = None,
         filename: str = "final",
+        runtime: Optional[EvaluationRuntimeConfig] = None,
     ):
         """Run hierarchical correlation analysis."""
         self.logger.info(
@@ -860,28 +866,22 @@ class CorrelationAnalyzer(AbstractAnalyzer):
                 )
                 return
 
-            # Prepare model and data
-            model = model.to(device)
-            model.eval()
-
-            items = test_dataset[:]
-            inputs = items[0].to(device)
-            labels_np = items[1].numpy()
-
-            # Sample data if needed
-            if self.max_samples and len(inputs) > self.max_samples:
-                self.logger.info(
-                    f"Sampling {self.max_samples} samples from {len(inputs)}"
+            with analysis_device_context(model, device) as analysis_device:
+                items = materialize_dataset(
+                    test_dataset,
+                    runtime,
+                    explicit_max_samples=self.max_samples,
+                    device=analysis_device,
                 )
-                indices = torch.randperm(len(inputs))[: self.max_samples]
-                inputs = inputs[indices]
-                labels_np = labels_np[indices]
+                inputs = items[0].to(analysis_device)
+                labels_np = items[1].numpy()
 
-            # Attach hooks and run forward pass
-            handles = self.attach_forward_hooks(model)
-            with torch.no_grad():
-                _ = model(inputs)
-            self.remove_forward_hooks(handles)
+                handles = self.attach_forward_hooks(model)
+                try:
+                    with torch.no_grad():
+                        _ = model(inputs)
+                finally:
+                    self.remove_forward_hooks(handles)
 
             # Initialize results
             results = {

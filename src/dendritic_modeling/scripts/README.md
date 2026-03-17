@@ -13,20 +13,24 @@ modules under `dendritic_modeling.*`, not in these scripts.
 
 ## Main Entry Points
 
-Training:
+Training (single-GPU):
 
 ```bash
 python src/dendritic_modeling/scripts/training/train_experiments.py \
     configs/config_exp.yaml
-python src/dendritic_modeling/scripts/training/train_experiments_fsdp.py \
-    configs/config_exp_fsdp.yaml
+```
+
+Distributed training (DDP / FSDP) — set `distributed.mode` in the YAML:
+
+```bash
+sbatch scripts/train.sh configs/my_config.yaml        # auto-selects from YAML
+sbatch scripts/train_ddp.sh configs/my_config.yaml     # DDP
+sbatch scripts/train_fsdp.sh configs/my_config.yaml    # FSDP
 ```
 
 Tools:
 
 ```bash
-python src/dendritic_modeling/scripts/tools/submit_fsdp_job.py \
-    configs/config_exp_fsdp.yaml --generate-only
 python src/dendritic_modeling/scripts/tools/estimate_gpu_requirements.py \
     configs/config_exp.yaml
 ```
@@ -35,7 +39,7 @@ Sweeps:
 
 ```bash
 python src/dendritic_modeling/scripts/sweeps/sweep_manager.py \
-    --config configs/EI_sweeps_example.yaml --generate-only
+    --config configs/sweep_config.yaml --generate-only
 python src/dendritic_modeling/scripts/sweeps/result_analyzer.py \
     /path/to/sweep/results
 ```

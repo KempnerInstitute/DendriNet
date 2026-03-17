@@ -43,6 +43,26 @@ class AblationPlotter(BasePlotter):
 
         return plot_paths
 
+    def _ordered_categories(self, data: pd.DataFrame) -> list[str]:
+        """Return present network categories in canonical visual order."""
+        canonical_order = [
+            "dendritic_shunting",
+            "flat_shunting",
+            "dendritic_additive",
+            "flat_additive",
+            "dendritic_mlp",
+            "flat_mlp",
+            "point_mlp",
+            "ss_mlp",
+            "ss_mlp_flat",
+            "total_param_mlp",
+            "active_param_mlp",
+        ]
+        if "network_category" not in data.columns:
+            return []
+        present = set(data["network_category"].dropna().astype(str))
+        return [category for category in canonical_order if category in present]
+
     def _generate_ablation_plots(
         self, valid_data: pd.DataFrame, plots_dir: str
     ) -> list[str]:
@@ -60,41 +80,24 @@ class AblationPlotter(BasePlotter):
             print("No ablation columns found")
             return plot_paths
 
-        # Extract methods, targets, metrics, depths from column structure
-        # Column pattern: ablation_{method}_{target}_{metric}_depth{X}_mean
-        methods = []
-        targets = []
-        metrics = []
-        depths = []
+        # Extract methods, targets, metrics, depths using the canonical parser.
+        # This correctly handles multi-word methods (mean_clamp) and
+        # multi-word metrics (categorical_loglikelihood_drop, pred_label_mi_bits_drop).
+        from dendritic_modeling.scripts.sweeps.utils.ablation_columns import (
+            discover_ablation_dimensions,
+            discover_ablation_module_dimensions,
+        )
 
-        for col in ablation_cols:
-            if "_depth" in col and col.endswith("_mean"):
-                parts = col.split("_")
-                if len(parts) >= 5:
-                    method = parts[1]
-                    target = parts[2]
-                    metric = parts[3]
-                    depth_part = parts[4]
-                    if depth_part.startswith("depth"):
-                        try:
-                            depth = int(depth_part.replace("depth", ""))
-                            if method not in methods:
-                                methods.append(method)
-                            if target not in targets:
-                                targets.append(target)
-                            if metric not in metrics:
-                                metrics.append(metric)
-                            if depth not in depths:
-                                depths.append(depth)
-                        except ValueError:
-                            continue
+        methods, targets, metrics, depths = discover_ablation_dimensions(
+            list(valid_data.columns)
+        )
+        module_methods, module_targets, module_metrics, module_names, _module_depths = (
+            discover_ablation_module_dimensions(list(valid_data.columns))
+        )
 
-        if (
-            not valid_data["network_category"]
-            .isin(["dendritic_shunting", "dendritic_additive"])
-            .any()
-        ):
-            print("No dendritic_shunting/dendritic_additive data for ablation analysis")
+        categories = self._ordered_categories(valid_data)
+        if not categories:
+            print("No supported network_category data for ablation analysis")
             return plot_paths
 
         sweep_types = self.detect_sweep_types(valid_data)
@@ -114,6 +117,7 @@ class AblationPlotter(BasePlotter):
                             target=target,
                             metric=metric,
                             depths=depths,
+                            categories=categories,
                         )
                     )
                 except Exception as e:
@@ -135,6 +139,7 @@ class AblationPlotter(BasePlotter):
                             target=target,
                             metric=metric,
                             depths=depths,
+                            categories=categories,
                         )
                     )
                 except Exception as e:
@@ -156,6 +161,7 @@ class AblationPlotter(BasePlotter):
                             target=target,
                             metric=metric,
                             depths=depths,
+                            categories=categories,
                         )
                     )
                 except Exception as e:
@@ -177,6 +183,7 @@ class AblationPlotter(BasePlotter):
                             target=target,
                             metric=metric,
                             depths=depths,
+                            categories=categories,
                         )
                     )
                 except Exception as e:
@@ -198,6 +205,7 @@ class AblationPlotter(BasePlotter):
                             target=target,
                             metric=metric,
                             depths=depths,
+                            categories=categories,
                         )
                     )
                 except Exception as e:
@@ -218,6 +226,7 @@ class AblationPlotter(BasePlotter):
                             depths,
                             "stimulus_duration",
                             "max_gain_factor",
+                            categories,
                         )
                     )
                 except Exception as e:
@@ -238,6 +247,7 @@ class AblationPlotter(BasePlotter):
                             depths,
                             "stimulus_duration",
                             "max_gain_tau_ratio",
+                            categories,
                         )
                     )
                 except Exception as e:
@@ -245,6 +255,115 @@ class AblationPlotter(BasePlotter):
                         f"Error generating stochastic ablation plot for {method}_{target}_{metric}: {e}"
                     )
                     traceback.print_exc()
+
+        if module_names:
+            for method, target, metric in itertools.product(
+                module_methods, module_targets, module_metrics
+            ):
+                if "ei" in sweep_types:
+                    try:
+                        plot_paths.extend(
+                            self._create_module_ablation_plots_1d_sweep(
+                                valid_data=valid_data,
+                                sweep_var="ei_ratio",
+                                var_name="E/I Ratio",
+                                logscale=True,
+                                output_dir=plots_dir,
+                                method=method,
+                                target=target,
+                                metric=metric,
+                                categories=categories,
+                            )
+                        )
+                    except Exception as e:
+                        print(
+                            f"Error generating module E/I ablation plot for {method}_{target}_{metric}: {e}"
+                        )
+                        traceback.print_exc()
+
+                if "stim_duration" in sweep_types:
+                    try:
+                        plot_paths.extend(
+                            self._create_module_ablation_plots_1d_sweep(
+                                valid_data=valid_data,
+                                sweep_var="stimulus_duration",
+                                var_name="Stimulus Duration",
+                                logscale=True,
+                                output_dir=plots_dir,
+                                method=method,
+                                target=target,
+                                metric=metric,
+                                categories=categories,
+                            )
+                        )
+                    except Exception as e:
+                        print(
+                            f"Error generating module stimulus ablation plot for {method}_{target}_{metric}: {e}"
+                        )
+                        traceback.print_exc()
+
+                if "max_gf" in sweep_types:
+                    try:
+                        plot_paths.extend(
+                            self._create_module_ablation_plots_1d_sweep(
+                                valid_data=valid_data,
+                                sweep_var="max_gain_factor",
+                                var_name="Max Gain Factor",
+                                logscale=True,
+                                output_dir=plots_dir,
+                                method=method,
+                                target=target,
+                                metric=metric,
+                                categories=categories,
+                            )
+                        )
+                    except Exception as e:
+                        print(
+                            f"Error generating module max gain ablation plot for {method}_{target}_{metric}: {e}"
+                        )
+                        traceback.print_exc()
+
+                if "fixed_gf" in sweep_types:
+                    try:
+                        plot_paths.extend(
+                            self._create_module_ablation_plots_1d_sweep(
+                                valid_data=valid_data,
+                                sweep_var="fixed_gain_factor",
+                                var_name="Fixed Gain Factor",
+                                logscale=True,
+                                output_dir=plots_dir,
+                                method=method,
+                                target=target,
+                                metric=metric,
+                                categories=categories,
+                            )
+                        )
+                    except Exception as e:
+                        print(
+                            f"Error generating module fixed gain ablation plot for {method}_{target}_{metric}: {e}"
+                        )
+                        traceback.print_exc()
+
+                if "nparams" in sweep_types:
+                    try:
+                        plot_paths.extend(
+                            self._create_module_ablation_plots_1d_sweep(
+                                valid_data=valid_data,
+                                sweep_var="nparams",
+                                var_name="Number of Parameters",
+                                logscale=True,
+                                output_dir=plots_dir,
+                                method=method,
+                                target=target,
+                                metric=metric,
+                                categories=categories,
+                            )
+                        )
+                    except Exception as e:
+                        print(
+                            f"Error generating module nparams ablation plot for {method}_{target}_{metric}: {e}"
+                        )
+                        traceback.print_exc()
 
         print(f"Created {len(plot_paths)} ablation analysis plots")
         return plot_paths
@@ -260,6 +379,7 @@ class AblationPlotter(BasePlotter):
         target: str,
         metric: str,
         depths: list[int],
+        categories: list[str],
     ) -> list[str]:
         """Create ablation vs sweep_var plots by depth"""
         plot_paths = []
@@ -274,17 +394,22 @@ class AblationPlotter(BasePlotter):
         if not ablation_cols_filtered:
             return plot_paths
 
-        # Create separate plots for each network category
-        categories = ["dendritic_shunting", "dendritic_additive"]
-
-        fig, axes = plt.subplots(1, 2, figsize=(15, 6))
+        ncols = min(3, len(categories))
+        nrows = (len(categories) + ncols - 1) // ncols
+        fig, axes = plt.subplots(
+            nrows,
+            ncols,
+            figsize=(6 * ncols, 5 * nrows),
+            squeeze=False,
+        )
         fig.suptitle(
-            f"{method.title()} {target.title()} Ablation: {metric.title()} vs {var_name} by Depth",
+            f"{method.replace('_', ' ').title()} {target.replace('_', ' ').title()} Ablation: "
+            f"{metric.replace('_', ' ').title()} vs {var_name} by Depth",
             fontsize=16,
         )
 
         for idx, category in enumerate(categories):
-            ax = axes[idx]
+            ax = axes[idx // ncols, idx % ncols]
             category_data = valid_data[valid_data["network_category"] == category]
 
             if category_data.empty:
@@ -296,7 +421,7 @@ class AblationPlotter(BasePlotter):
                     va="center",
                     transform=ax.transAxes,
                 )
-                ax.set_title(f"{category.title()}")
+                ax.set_title(f"{category.replace('_', ' ').title()}")
                 continue
 
             # Plot lines for each depth
@@ -336,12 +461,17 @@ class AblationPlotter(BasePlotter):
             self.setup_axes_style(
                 ax=ax,
                 xlabel=var_name,
-                ylabel=f"{metric.title()}",
-                title=f"{category.title()}",
+                ylabel=f"{metric.replace('_', ' ').title()}",
+                title=f"{category.replace('_', ' ').title()}",
                 use_log_x=logscale,
                 grid=True,
             )
-            ax.legend()
+            handles, _labels = ax.get_legend_handles_labels()
+            if handles:
+                ax.legend()
+
+        for idx in range(len(categories), nrows * ncols):
+            axes[idx // ncols, idx % ncols].axis("off")
 
         fig.tight_layout()
 
@@ -360,6 +490,7 @@ class AblationPlotter(BasePlotter):
         depths: list[int],
         colx: str,
         coly: str,
+        categories: list[str],
     ) -> list[str]:
         """Create ablation heatmaps
 
@@ -393,9 +524,6 @@ class AblationPlotter(BasePlotter):
             logger.warning(f"Column {coly} not found in data")
             return plot_paths
 
-        # Create separate plots for each network category
-        categories = ["dendritic_shunting", "dendritic_additive"]
-
         # Filter depths to only those with actual data
         valid_depths = []
         for depth in depths:
@@ -423,10 +551,14 @@ class AblationPlotter(BasePlotter):
 
         # Create subplot layout: len(valid_depths) rows x 2 columns
         fig, axes = plt.subplots(
-            len(valid_depths), 2, figsize=(15, 5 + 6 * len(valid_depths))
+            len(valid_depths),
+            len(categories),
+            figsize=(6 * len(categories), 5 + 4 * len(valid_depths)),
+            squeeze=False,
         )
         fig.suptitle(
-            f"{method.title()} {target.title()} Ablation: {metric.title()} Heatmap ({colx} vs {coly})",
+            f"{method.replace('_', ' ').title()} {target.replace('_', ' ').title()} Ablation: "
+            f"{metric.replace('_', ' ').title()} Heatmap ({colx} vs {coly})",
             fontsize=16,
         )
 
@@ -468,7 +600,9 @@ class AblationPlotter(BasePlotter):
                         va="center",
                         transform=ax.transAxes,
                     )
-                    ax.set_title(f"Depth {depth} - {category.title()}")
+                    ax.set_title(
+                        f"Depth {depth} - {category.replace('_', ' ').title()}"
+                    )
                     continue
 
                 # Prepare data for heatmap
@@ -482,7 +616,9 @@ class AblationPlotter(BasePlotter):
                         va="center",
                         transform=ax.transAxes,
                     )
-                    ax.set_title(f"Depth {depth} - {category.title()}")
+                    ax.set_title(
+                        f"Depth {depth} - {category.replace('_', ' ').title()}"
+                    )
                     continue
 
                 try:
@@ -501,7 +637,9 @@ class AblationPlotter(BasePlotter):
                             va="center",
                             transform=ax.transAxes,
                         )
-                        ax.set_title(f"Depth {depth} - {category.title()}")
+                        ax.set_title(
+                            f"Depth {depth} - {category.replace('_', ' ').title()}"
+                        )
                         continue
 
                     # Create pivot table for heatmap
@@ -521,7 +659,9 @@ class AblationPlotter(BasePlotter):
                             va="center",
                             transform=ax.transAxes,
                         )
-                        ax.set_title(f"Depth {depth} - {category.title()}")
+                        ax.set_title(
+                            f"Depth {depth} - {category.replace('_', ' ').title()}"
+                        )
                         continue
 
                     # Create heatmap
@@ -540,7 +680,10 @@ class AblationPlotter(BasePlotter):
 
                     ax.set_xlabel(colx, fontsize=12)
                     ax.set_ylabel(coly, fontsize=12)
-                    ax.set_title(f"Depth {depth} - {category.title()}", fontsize=12)
+                    ax.set_title(
+                        f"Depth {depth} - {category.replace('_', ' ').title()}",
+                        fontsize=12,
+                    )
 
                 except Exception as e:
                     logger.warning(
@@ -554,7 +697,9 @@ class AblationPlotter(BasePlotter):
                         va="center",
                         transform=ax.transAxes,
                     )
-                    ax.set_title(f"Depth {depth} - {category.title()}")
+                    ax.set_title(
+                        f"Depth {depth} - {category.replace('_', ' ').title()}"
+                    )
                     continue
 
         fig.tight_layout()
@@ -566,4 +711,103 @@ class AblationPlotter(BasePlotter):
         )
         plot_paths.append(self.save_figure(fig, plot_path))
 
+        return plot_paths
+
+    def _create_module_ablation_plots_1d_sweep(
+        self,
+        valid_data: pd.DataFrame,
+        sweep_var: str,
+        var_name: str,
+        logscale: bool,
+        output_dir: str,
+        method: str,
+        target: str,
+        metric: str,
+        categories: list[str],
+    ) -> list[str]:
+        """Create module-specific ablation vs sweep_var plots."""
+        from dendritic_modeling.scripts.sweeps.utils.ablation_columns import (
+            find_ablation_module_columns,
+        )
+
+        plot_paths = []
+        parsed_cols = [
+            p
+            for p in find_ablation_module_columns(list(valid_data.columns), stat="mean")
+            if p.method == method and p.target == target and p.metric == metric
+        ]
+        if not parsed_cols:
+            return plot_paths
+
+        module_cols = {(p.module, p.depth): p.full_col for p in parsed_cols}
+        modules = sorted(module_cols)
+        ncols = min(3, len(categories))
+        nrows = (len(categories) + ncols - 1) // ncols
+        fig, axes = plt.subplots(
+            nrows,
+            ncols,
+            figsize=(6 * ncols, 5 * nrows),
+            squeeze=False,
+        )
+        fig.suptitle(
+            f"{method.replace('_', ' ').title()} {target.replace('_', ' ').title()} Module Ablation: "
+            f"{metric.replace('_', ' ').title()} vs {var_name}",
+            fontsize=16,
+        )
+
+        for idx, category in enumerate(categories):
+            ax = axes[idx // ncols, idx % ncols]
+            category_data = valid_data[valid_data["network_category"] == category]
+            if category_data.empty:
+                ax.text(
+                    0.5,
+                    0.5,
+                    f"No {category} data",
+                    ha="center",
+                    va="center",
+                    transform=ax.transAxes,
+                )
+                ax.set_title(f"{category.replace('_', ' ').title()}")
+                continue
+
+            for module_name, depth in modules:
+                col = module_cols[(module_name, depth)]
+                if col not in category_data.columns:
+                    continue
+                plot_data = category_data[[col, sweep_var]].dropna()
+                if plot_data.empty:
+                    continue
+                y_vals = pd.to_numeric(plot_data[col], errors="coerce").dropna()
+                x_vals = plot_data.loc[y_vals.index, sweep_var]
+                if len(y_vals) == 0:
+                    continue
+                ax.plot(
+                    x_vals,
+                    y_vals,
+                    marker="o",
+                    alpha=0.8,
+                    linewidth=2,
+                    label=f"{module_name.replace('_', ' ')} (d{depth})",
+                )
+
+            self.setup_axes_style(
+                ax=ax,
+                xlabel=var_name,
+                ylabel=f"{metric.replace('_', ' ').title()}",
+                title=f"{category.replace('_', ' ').title()}",
+                use_log_x=logscale,
+                grid=True,
+            )
+            handles, _labels = ax.get_legend_handles_labels()
+            if handles:
+                ax.legend(fontsize=8)
+
+        for idx in range(len(categories), nrows * ncols):
+            axes[idx // ncols, idx % ncols].axis("off")
+
+        fig.tight_layout()
+        plot_path = (
+            output_dir / method / f"{method}_{target}_{metric}_module_ablation.png"
+        )
+        plot_paths.append(self.save_figure(fig, plot_path))
         return plot_paths

@@ -44,8 +44,9 @@ Available Strategies
      - Sequence training for RNN architectures
    * - ``multi_stage``
      - Chain multiple strategies in sequence
-   * - ``fsdp``
-     - Fully Sharded Data Parallel (multi-GPU/node)
+
+Distributed launch mode is configured separately via ``distributed.mode``:
+``none``, ``ddp``, or ``fsdp``.
 
 Standard Training
 -----------------
@@ -229,12 +230,13 @@ For large models across multiple GPUs or nodes. See
 
 .. code-block:: yaml
 
-   fsdp:
-     enabled: true
-     sharding_strategy: "FULL_SHARD"
-     mixed_precision: true
-     cpu_offload: false
-     gradient_checkpointing: false
+   distributed:
+     mode: "fsdp"
+     fsdp:
+       sharding_strategy: "FULL_SHARD"
+       mixed_precision: true
+       cpu_offload: false
+       gradient_checkpointing: false
 
 Parameter Groups
 ----------------

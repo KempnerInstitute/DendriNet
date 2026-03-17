@@ -1,3 +1,4 @@
+import warnings
 from dataclasses import asdict, is_dataclass
 from typing import Any, Optional, Union
 
@@ -39,6 +40,7 @@ _EINET_TYPES: set[str] = {
     "dendritic_mlp",
     "flat_shunting",
     "flat_additive",
+    "flat_mlp",
 }
 
 _UNIFIED_EI_TYPES: set[str] = {
@@ -46,6 +48,22 @@ _UNIFIED_EI_TYPES: set[str] = {
     "unified_ei",
     "ei_net",
     "unified_einet",
+}
+
+# Spatial dendritic cores: flatten encoder spatial output → EINet → project.
+# Tensor-map baseline: flatten → DendriNet → project (no spatial locality).
+_SPATIAL_DENDRITIC_TYPES: set[str] = {
+    "hierarchical_dendritic_tensor_map",
+    "dendritic_tensor_map",
+    "tensor_map",
+}
+
+# Spatial dendritic conv: F.unfold → shared DendriNet on local patches → fold.
+# Preserves spatial structure (B, C_out, H_out, W_out).
+# Canonical name: hierarchical_dendritic_conv
+_SPATIAL_DENDRITIC_CONV_TYPES: set[str] = {
+    "hierarchical_dendritic_conv",
+    "spatial_dendritic_conv",
 }
 
 _BASELINE_RNN_TYPES: dict[str, str] = {
@@ -90,6 +108,14 @@ def _layer_value(
     if value is None:
         return default
     return value
+
+
+def _normalize_sparsity_type(sparsity_type: Any) -> str:
+    """Normalize public sparsity aliases to the internal TopK strategy names."""
+    normalized = "standard" if sparsity_type is None else str(sparsity_type).lower()
+    if normalized == "topk":
+        return "standard"
+    return normalized
 
 
 def _build_recurrent_einet_from_structured_config(
@@ -264,7 +290,7 @@ def _build_recurrent_einet_from_structured_config(
             rec_inhibitory_synapses=int(_layer_value(rec_ie, layer_idx, default=0)),
             topk_init_method=str(sparsity.get("init_method", "xavier_normal")),
             topk_noise_level=float(sparsity.get("noise_level", 0.0)),
-            topk_type=str(sparsity.get("type", "standard")),
+            topk_type=_normalize_sparsity_type(sparsity.get("type", "standard")),
             topk_weight_norm_order=sparsity.get("weight_norm_order"),
             topk_gamma=float(sparsity.get("gamma", 1.0)),
             topk_temperature=float(sparsity.get("temperature", 0.0)),
@@ -428,6 +454,7 @@ def get_architecture(
     type: str,
     parameters: Union[dict[str, Any], DictConfig],
     input_dim: Optional[int] = None,
+    suffix_input_dim: Optional[int] = None,
 ) -> nn.Module:
     """
     Factory method for creating network architectures.
@@ -436,6 +463,10 @@ def get_architecture(
         type: Architecture type name
         parameters: Either flat parameters dict or structured config
         input_dim: Optional input dimension (needed for EINet from config)
+        suffix_input_dim: Optional suffix input dimension. Used by spatial
+            dendritic cores (e.g., ``hierarchical_dendritic_tensor_map``) to
+            add an output projection when the EINet output dim doesn't match
+            the downstream decoder's expected input.
 
     Returns:
         Initialized network module
@@ -533,6 +564,54 @@ def get_architecture(
         )
 
     # ------------------------------------------------------------------
+    # Spatial dendritic cores (flatten → EINet → project)
+    # ------------------------------------------------------------------
+    if type in _SPATIAL_DENDRITIC_TYPES:
+        from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.spatial_dendritic import (
+            HierarchicalDendriticTensorMap,
+        )
+
+        if input_dim is None:
+            raise ValueError(
+                f"input_dim required when creating spatial dendritic core (type='{type}')"
+            )
+
+        return HierarchicalDendriticTensorMap(
+            config=parameters,
+            input_dim=input_dim,
+            suffix_input_dim=suffix_input_dim,
+        )
+
+    # ------------------------------------------------------------------
+    # Spatial dendritic conv (unfold → shared DendriNet → spatial output)
+    # ------------------------------------------------------------------
+    if type in _SPATIAL_DENDRITIC_CONV_TYPES:
+        from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.spatial_dendritic import (
+            HierarchicalDendriticConv,
+        )
+
+        raw_params = _to_plain_mapping(parameters)
+        spatial_cfg = _to_plain_mapping(raw_params.get("spatial", {}))
+        kernel_size = spatial_cfg.get("kernel_size", 3)
+        stride = spatial_cfg.get("stride", 1)
+        padding = spatial_cfg.get("padding", 0)
+
+        if input_dim is None:
+            raise ValueError(
+                f"input_dim required when creating spatial dendritic conv (type='{type}')"
+            )
+
+        # input_dim here is the number of input channels (C_in).
+        # For spatial cores, input_dim = prefix_output_spec.channels.
+        return HierarchicalDendriticConv(
+            config=parameters,
+            in_channels=input_dim,
+            kernel_size=kernel_size,
+            stride=stride,
+            padding=padding,
+        )
+
+    # ------------------------------------------------------------------
     # EINet variants (require structured config)
     # ------------------------------------------------------------------
     if type in _EINET_TYPES:
@@ -613,9 +692,23 @@ def get_architecture(
     # MR-style structured-config MLP baselines
     # ------------------------------------------------------------------
     if type in ["matchedtotalparammlp", "total_param_mlp"]:
+        if type == "matchedtotalparammlp":
+            warnings.warn(
+                "Architecture type 'matchedtotalparammlp' is deprecated; use "
+                "'total_param_mlp' instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
         return MatchedTotalParamMLP(parameters, input_dim)
 
     if type in ["matchedactiveparammlp", "active_param_mlp"]:
+        if type == "matchedactiveparammlp":
+            warnings.warn(
+                "Architecture type 'matchedactiveparammlp' is deprecated; use "
+                "'active_param_mlp' instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
         return MatchedActiveParamMLP(parameters, input_dim)
 
     if type == "ss_mlp":

@@ -12,11 +12,12 @@ from copy import deepcopy
 from typing import Optional
 
 import torch
+import torch.distributed as dist
 import torch.utils.data
 import wandb
 from torch.cuda.amp import GradScaler, autocast
 from torch.nn.utils import clip_grad_value_
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, DistributedSampler, Sampler
 
 from dendritic_modeling.config.training import (
     PruningConfig,
@@ -25,6 +26,9 @@ from dendritic_modeling.config.training import (
 )
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.plotting import plot_loss_curves
+from dendritic_modeling.training.distributed_samplers import (
+    PaddedDistributedEvalSampler,
+)
 from dendritic_modeling.training.loss.functions import LossFunction, get_loss_function
 from dendritic_modeling.training.regularization import RegularizationManager
 
@@ -98,7 +102,7 @@ class Trainer:
         self.enable_nan_checking = kwargs.get("enable_nan_checking", False)
         self.enable_adaptive_clipping = kwargs.get("enable_adaptive_clipping", False)
 
-        self.enable_amp = kwargs.get("enable_amp", torch.cuda.is_available())
+        self.enable_amp = kwargs.get("use_amp", False)
         if self.enable_amp and torch.cuda.is_available():
             try:
                 self.scaler = GradScaler()
@@ -153,8 +157,27 @@ class Trainer:
                     self.enable_profiling = False
 
         self.filename_prefix = "standard_"
+        self._train_sampler: DistributedSampler | None = None
+        self._valid_sampler: Sampler | None = None
         for k, v in kwargs.items():
             setattr(self, k, v)
+
+    # ------------------------------------------------------------------
+    # DDP helpers
+    # ------------------------------------------------------------------
+
+    @property
+    def _is_distributed(self) -> bool:
+        return dist.is_initialized()
+
+    @property
+    def _is_main_process(self) -> bool:
+        return not self._is_distributed or dist.get_rank() == 0
+
+    @staticmethod
+    def _unwrap_model(model):
+        """Return the underlying model, stripping DDP wrapper if present."""
+        return model.module if hasattr(model, "module") else model
 
     def _dataloaders(
         self, train_data: torch.utils.data.Dataset, valid_data: torch.utils.data.Dataset
@@ -173,7 +196,7 @@ class Trainer:
         else:
             if torch.cuda.is_available():
                 # On GPU jobs, cap workers to avoid oversubscription warnings/freezes.
-                num_workers = min(8, available_cpus)
+                num_workers = min(16, available_cpus)
             else:
                 # On CPU-only runs, leave one core for the main process and cap to 8.
                 num_workers = min(8, max(0, available_cpus - 1))
@@ -198,10 +221,35 @@ class Trainer:
         use_pin_memory = torch.cuda.is_available() and num_workers > 0
         use_persistent = num_workers > 0
 
+        # Use distributed samplers for training and validation under DDP.
+        # Validation uses an explicit padding sentinel sampler so every rank
+        # executes the same number of forward passes and metrics can be
+        # reduced exactly without silent sample duplication.
+        if self._is_distributed:
+            world_size = dist.get_world_size()
+            rank = dist.get_rank()
+            self._train_sampler = DistributedSampler(
+                train_data,
+                num_replicas=world_size,
+                rank=rank,
+                shuffle=self.shuffle,
+            )
+            self._valid_sampler = PaddedDistributedEvalSampler(
+                valid_data,
+                num_replicas=world_size,
+                rank=rank,
+            )
+            train_shuffle = False  # sampler handles shuffling
+        else:
+            self._train_sampler = None
+            self._valid_sampler = None
+            train_shuffle = self.shuffle
+
         train_loader = DataLoader(
             train_data,
             batch_size=self.batch_size,
-            shuffle=self.shuffle,
+            shuffle=train_shuffle,
+            sampler=self._train_sampler,
             num_workers=num_workers,
             pin_memory=use_pin_memory,
             persistent_workers=use_persistent,
@@ -210,6 +258,7 @@ class Trainer:
             valid_data,
             batch_size=self.batch_size,
             shuffle=False,
+            sampler=self._valid_sampler,
             num_workers=num_workers,
             pin_memory=use_pin_memory,
             persistent_workers=use_persistent,
@@ -218,7 +267,11 @@ class Trainer:
 
     def _initialize_attributes(self, model: BaseModel, total_epochs: int) -> None:
         if not hasattr(self, "device"):
-            self.device = "cuda" if torch.cuda.is_available() else "cpu"
+            if self._is_distributed:
+                local_rank = int(os.environ.get("LOCAL_RANK", 0))
+                self.device = f"cuda:{local_rank}"
+            else:
+                self.device = "cuda" if torch.cuda.is_available() else "cpu"
             model.to(self.device)
         if not hasattr(self, "best_state_dict"):
             self.best_state_dict = deepcopy(model.state_dict())
@@ -265,12 +318,14 @@ class Trainer:
             )
         )
 
-        logger.info(
-            f"Best epoch: {self.best_epoch}, " f"Best loss: {self.best_loss:.4f}"
-        )
+        if self._is_main_process:
+            logger.info(
+                f"Best epoch: {self.best_epoch}, " f"Best loss: {self.best_loss:.4f}"
+            )
         if self.load_best_state_dict:
-            model.load_state_dict(self.best_state_dict)
-            logger.info("Final model loaded from best checkpoint")
+            self._unwrap_model(model).load_state_dict(self.best_state_dict)
+            if self._is_main_process:
+                logger.info("Final model loaded from best checkpoint")
 
         results = {
             "best_epoch": self.best_epoch,
@@ -339,13 +394,26 @@ class Trainer:
             wandb_info = {}
         self.epoch_counter += 1
 
+        # Tell DistributedSampler which epoch we're in so each rank
+        # sees a different shuffle order per epoch.
+        if self._train_sampler is not None:
+            self._train_sampler.set_epoch(self.epoch_counter)
+
         train_loss_total, train_loss_base, train_loss_reg = self._epoch_train(
             model, train_loader
         )
         train_losses.append(train_loss_total)
         train_losses_base.append(train_loss_base)
         train_losses_reg.append(train_loss_reg)
-        valid_loss = self._epoch_valid(model, valid_loader)
+        # Under DDP, all ranks validate on disjoint shards with equal-length
+        # padded samplers and then all-reduce exact sample-weighted loss.
+        if self._is_distributed:
+            unwrapped = self._unwrap_model(model)
+            valid_loss = self._epoch_valid_distributed(unwrapped, valid_loader)
+        else:
+            valid_loss_sum, valid_n_batches = self._epoch_valid(model, valid_loader)
+            valid_loss = valid_loss_sum / max(valid_n_batches, 1)
+
         valid_losses.append(valid_loss)
 
         self._update_best(model, valid_loss)
@@ -456,26 +524,78 @@ class Trainer:
         train_loss_reg /= len(train_loader)
         return train_loss_total, train_loss_base, train_loss_reg
 
-    def _epoch_valid(self, model: BaseModel, valid_loader: DataLoader) -> float:
+    def _epoch_valid(
+        self, model: BaseModel, valid_loader: DataLoader
+    ) -> tuple[float, int]:
+        """Return (loss_sum, batch_count) for non-distributed validation."""
         model.eval()
-        valid_loss = 0
+        valid_loss = 0.0
+        n_batches = 0
         with torch.no_grad():
             for batch in valid_loader:
                 x_batch: torch.Tensor = batch[0].to(self.device)
                 y_batch: torch.Tensor = batch[1].to(self.device)
                 loss: torch.Tensor = self.loss_function(model, x_batch, y_batch)
                 valid_loss += loss.item()
+                n_batches += 1
+        return valid_loss, n_batches
 
-        valid_loss /= len(valid_loader)
-        return valid_loss
+    def _epoch_valid_distributed(
+        self, model: BaseModel, valid_loader: DataLoader
+    ) -> float:
+        """Return exact global validation loss under DDP.
+
+        All ranks process equal-length validation shards via
+        ``PaddedDistributedEvalSampler``. Padding entries are excluded from the
+        reduced sample-weighted loss.
+        """
+        model.eval()
+        weighted_loss_sum = 0.0
+        total_examples = 0
+        sampler = valid_loader.sampler
+        if isinstance(sampler, PaddedDistributedEvalSampler):
+            real_count = len(sampler.real_indices)
+        else:
+            real_count = None
+
+        seen = 0
+        with torch.no_grad():
+            for batch in valid_loader:
+                x_batch: torch.Tensor = batch[0].to(self.device)
+                y_batch: torch.Tensor = batch[1].to(self.device)
+                batch_size = y_batch.size(0)
+                if real_count is not None:
+                    real_in_batch = min(batch_size, real_count - seen)
+                    if real_in_batch <= 0:
+                        seen += batch_size
+                        continue
+                    if real_in_batch < batch_size:
+                        x_batch = x_batch[:real_in_batch]
+                        y_batch = y_batch[:real_in_batch]
+                        batch_size = real_in_batch
+                    seen += batch_size
+                loss: torch.Tensor = self.loss_function(model, x_batch, y_batch)
+                weighted_loss_sum += loss.item() * batch_size
+                total_examples += batch_size
+        stats = torch.tensor(
+            [weighted_loss_sum, float(total_examples)],
+            device=self.device,
+            dtype=torch.float64,
+        )
+        dist.all_reduce(stats, op=dist.ReduceOp.SUM)
+        return stats[0].item() / max(stats[1].item(), 1.0)
 
     def _update_best(self, model: BaseModel, valid_loss: float) -> None:
         if valid_loss < self.best_loss:
             self.best_loss = valid_loss
             self.best_epoch = self.epoch_counter
-            self.best_state_dict = deepcopy(model.state_dict())
+            self.best_state_dict = deepcopy(self._unwrap_model(model).state_dict())
             self.patience_counter = 0
-            if self.save_path and os.path.exists(self.save_path):
+            if (
+                self._is_main_process
+                and self.save_path
+                and os.path.exists(self.save_path)
+            ):
                 torch.save(
                     self.best_state_dict,
                     os.path.join(
@@ -486,6 +606,8 @@ class Trainer:
             self.patience_counter += 1
 
     def _save_checkpoint(self, model: BaseModel):
+        if not self._is_main_process:
+            return
         if self.checkpointing and (self.epoch_counter % self.checkpoint_interval == 0):
             checkpoint_path = os.path.join(
                 self.save_path, f"{self.filename_prefix}checkpoints"
@@ -493,11 +615,13 @@ class Trainer:
             if not os.path.exists(checkpoint_path):
                 os.makedirs(checkpoint_path, exist_ok=True)
             torch.save(
-                model.state_dict(),
+                self._unwrap_model(model).state_dict(),
                 os.path.join(checkpoint_path, f"epoch_{self.epoch_counter}.pt"),
             )
 
     def _analyze(self):
+        if not self._is_main_process:
+            return
         if self.analysis_manager is not None:
             # Lazy import to avoid circular dependency
             from dendritic_modeling.analysis import AnalysisManager
@@ -566,6 +690,8 @@ class Trainer:
         train_losses_base: Optional[list[float]] = None,
         train_losses_reg: Optional[list[float]] = None,
     ) -> None:
+        if not self._is_main_process:
+            return
         if self.plot_losses and len(train_losses) > 1:
             if self.save_path and os.path.exists(self.save_path):
                 plot_loss_curves(

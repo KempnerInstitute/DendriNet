@@ -11,7 +11,7 @@ This module tests all dataset functionality including:
 import os
 import tempfile
 import unittest
-from unittest.mock import Mock, patch
+from unittest.mock import ANY, Mock, patch
 
 import torch
 from torch.utils.data import TensorDataset
@@ -20,6 +20,7 @@ from dendritic_modeling.datasets import (
     get_data_directory,
     get_unified_datasets,
     load_cifar10_as_datasets,
+    load_imagenet_as_datasets,
     load_mnist_as_datasets,
     load_mnist_modulo10,
 )
@@ -378,6 +379,123 @@ class TestRealDatasets(unittest.TestCase):
 
             # Check that mock was called with correct parameters
             mock_load.assert_called_once()
+
+    @patch("dendritic_modeling.datasets.standard_datasets.datasets.ImageNet")
+    @patch("dendritic_modeling.datasets.standard_datasets.datasets.ImageFolder")
+    def test_load_imagenet_prefers_imagefolder_for_direct_tree(
+        self, mock_imagefolder, mock_imagenet
+    ):
+        """Direct train/val trees should use ImageFolder instead of ImageNet."""
+        os.makedirs(os.path.join(self.temp_dir, "train", "class_a"))
+        os.makedirs(os.path.join(self.temp_dir, "val", "class_a"))
+
+        train_mock = Mock()
+        train_mock.__len__ = Mock(return_value=10)
+        test_mock = Mock()
+        test_mock.__len__ = Mock(return_value=4)
+        mock_imagefolder.side_effect = [train_mock, test_mock]
+
+        train_ds, valid_ds, test_ds = load_imagenet_as_datasets(
+            train_valid_split=0.8,
+            flatten=False,
+            normalize=False,
+            task_data_path=self.temp_dir,
+        )
+
+        mock_imagefolder.assert_any_call(
+            root=os.path.join(self.temp_dir, "train"), transform=ANY
+        )
+        mock_imagefolder.assert_any_call(
+            root=os.path.join(self.temp_dir, "val"), transform=ANY
+        )
+        mock_imagenet.assert_not_called()
+        self.assertEqual(len(train_ds), 8)
+        self.assertEqual(len(valid_ds), 2)
+        self.assertIs(test_ds, test_mock)
+
+    @patch("dendritic_modeling.datasets.standard_datasets.datasets.ImageNet")
+    @patch("dendritic_modeling.datasets.standard_datasets.datasets.ImageFolder")
+    def test_load_imagenet_prefers_official_loader_when_metadata_exists(
+        self, mock_imagefolder, mock_imagenet
+    ):
+        """Official ImageNet roots should use torchvision's ImageNet loader."""
+        os.makedirs(os.path.join(self.temp_dir, "ILSVRC2012_img_train", "class_a"))
+        os.makedirs(os.path.join(self.temp_dir, "val", "class_a"))
+        with open(os.path.join(self.temp_dir, "meta.bin"), "wb") as f:
+            f.write(b"meta")
+
+        train_mock = Mock()
+        train_mock.__len__ = Mock(return_value=10)
+        test_mock = Mock()
+        test_mock.__len__ = Mock(return_value=4)
+        mock_imagenet.side_effect = [train_mock, test_mock]
+
+        train_ds, valid_ds, test_ds = load_imagenet_as_datasets(
+            train_valid_split=0.8,
+            flatten=False,
+            normalize=False,
+            task_data_path=self.temp_dir,
+        )
+
+        mock_imagenet.assert_any_call(root=self.temp_dir, split="train", transform=ANY)
+        mock_imagenet.assert_any_call(root=self.temp_dir, split="val", transform=ANY)
+        mock_imagefolder.assert_not_called()
+        self.assertEqual(len(train_ds), 8)
+        self.assertEqual(len(valid_ds), 2)
+        self.assertIs(test_ds, test_mock)
+
+    @patch(
+        "dendritic_modeling.datasets.standard_datasets.datasets.ImageNet",
+        side_effect=RuntimeError("missing devkit"),
+    )
+    def test_load_imagenet_fallback_is_small(self, _mock_imagenet):
+        """Fallback ImageNet smoke dataset should stay small enough for tests."""
+        train_ds, valid_ds, test_ds = load_imagenet_as_datasets(
+            train_valid_split=0.8,
+            flatten=False,
+            normalize=False,
+            task_data_path=self.temp_dir,
+        )
+
+        self.assertEqual(len(train_ds), 409)
+        self.assertEqual(len(valid_ds), 103)
+        self.assertEqual(len(test_ds), 128)
+
+    @patch("dendritic_modeling.datasets.standard_datasets.datasets.ImageNet")
+    def test_load_imagenet_applies_per_class_subset(self, mock_imagenet):
+        """ImageNet loader should support config-driven per-class smoke subsets."""
+
+        class DummyDataset(torch.utils.data.Dataset):
+            def __init__(self, targets):
+                self.targets = list(targets)
+
+            def __len__(self):
+                return len(self.targets)
+
+            def __getitem__(self, idx):
+                return torch.zeros(3, 224, 224), self.targets[idx]
+
+        train_mock = DummyDataset([0, 0, 1, 1, 2, 2])
+        test_mock = DummyDataset([0, 0, 1, 1, 2, 2])
+        mock_imagenet.side_effect = [train_mock, test_mock]
+
+        with open(os.path.join(self.temp_dir, "meta.bin"), "wb") as f:
+            f.write(b"meta")
+        os.makedirs(os.path.join(self.temp_dir, "ILSVRC2012_img_train", "class_a"))
+        os.makedirs(os.path.join(self.temp_dir, "val", "class_a"))
+
+        train_ds, valid_ds, test_ds = load_imagenet_as_datasets(
+            train_valid_split=0.5,
+            flatten=False,
+            normalize=False,
+            task_data_path=self.temp_dir,
+            train_samples_per_class=1,
+            val_samples_per_class=1,
+        )
+
+        self.assertEqual(len(train_ds), 1)
+        self.assertEqual(len(valid_ds), 2)
+        self.assertEqual(len(test_ds), 3)
 
 
 class TestDatasetUtilities(unittest.TestCase):

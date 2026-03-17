@@ -1,5 +1,11 @@
 # Dendritic Modeling Framework
 
+[![CI Pipeline](https://github.com/KempnerInstitute/dendritic-modeling/actions/workflows/ci-simplified.yml/badge.svg)](https://github.com/KempnerInstitute/dendritic-modeling/actions/workflows/ci-simplified.yml)
+[![codecov](https://codecov.io/gh/KempnerInstitute/dendritic-modeling/graph/badge.svg)](https://codecov.io/gh/KempnerInstitute/dendritic-modeling)
+[![Documentation](https://github.com/KempnerInstitute/dendritic-modeling/actions/workflows/deploy-docs.yml/badge.svg)](https://github.com/KempnerInstitute/dendritic-modeling/actions/workflows/deploy-docs.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://github.com/KempnerInstitute/dendritic-modeling/blob/main/pyproject.toml)
+
 Code for dendritic excitation-inhibition networks, matched MLP baselines,
 recurrent E-I models, training strategies, and analysis utilities.
 
@@ -24,18 +30,26 @@ python src/dendritic_modeling/scripts/training/train_experiments.py \
     configs/config_exp.yaml
 ```
 
-Generate an FSDP SLURM script:
+Distributed training (DDP or FSDP) — set `distributed.mode` in your YAML
+config and use the unified launcher:
 
 ```bash
-python src/dendritic_modeling/scripts/tools/submit_fsdp_job.py \
-    configs/config_exp_fsdp.yaml --generate-only
+# Auto-selects entrypoint based on distributed.mode in YAML
+sbatch scripts/train.sh configs/my_config.yaml
+
+# Multi-node
+sbatch --nodes=2 scripts/train.sh configs/my_config.yaml
+
+# Or use dedicated launchers directly
+sbatch scripts/train_ddp.sh configs/my_config.yaml
+sbatch scripts/train_fsdp.sh configs/my_config.yaml
 ```
 
 Run a sweep from an example config:
 
 ```bash
 python src/dendritic_modeling/scripts/sweeps/sweep_manager.py \
-    --config configs/EI_sweeps_example.yaml --generate-only
+    --config configs/sweep_config.yaml --generate-only
 ```
 
 Analyze an existing sweep:
@@ -44,6 +58,16 @@ Analyze an existing sweep:
 python src/dendritic_modeling/scripts/sweeps/result_analyzer.py \
     /path/to/sweep/results
 ```
+
+Analysis runtime is configured centrally under `analysis.runtime` in YAML.
+Use `mode: "stream"` there for large datasets, and set `max_samples` for
+expensive analyses that should only inspect a bounded subset. Keep
+`mode: "auto"` for the normal default, and use `mode: "materialize"` when you
+want the closest match to the old exact small-dataset single-GPU analysis path.
+If `analysis.runtime` is omitted entirely, non-distributed runs default to that
+backward-compatible materialized behavior automatically.
+Analyzers may temporarily move the model to the requested analysis device, but
+they restore the original device and train/eval mode before returning.
 
 ## Documentation
 
@@ -68,7 +92,16 @@ Feedforward cores:
 - `flat_shunting`
 - `flat_additive`
 - `dendritic_mlp`
+- `flat_mlp`
 - `mlp`
+- `point_mlp`
+- `total_param_mlp`
+- `active_param_mlp`
+
+Pretrained-replacement spatial cores:
+
+- `hierarchical_dendritic_tensor_map`
+- `hierarchical_dendritic_conv`
 
 Unified recurrent-capable E-I core:
 

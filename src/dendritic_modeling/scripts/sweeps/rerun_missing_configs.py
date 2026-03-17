@@ -10,7 +10,7 @@ This script has been adapted for the new unified sweep system structure.
 Usage:
     python src/dendritic_modeling/scripts/sweeps/rerun_missing_configs.py --folder /path/to/unified_TIMESTAMP --output-file rerun_missing.sh
     python src/dendritic_modeling/scripts/sweeps/rerun_missing_configs.py --timestamp TIMESTAMP --output-file rerun_missing.sh
-    python src/dendritic_modeling/scripts/sweeps/rerun_missing_configs.py --timestamp TIMESTAMP --config configs/unified_all_sweeps_example.yaml
+    python src/dendritic_modeling/scripts/sweeps/rerun_missing_configs.py --timestamp TIMESTAMP --config configs/sweep_config.yaml
 """
 
 import argparse
@@ -35,7 +35,7 @@ def parse_args():
     # Add config file parameter
     parser.add_argument(
         "--config",
-        default="configs/unified_all_sweeps_example.yaml",
+        default="configs/sweep_config.yaml",
         help="Path to the sweep configuration file to get output_dir",
     )
 

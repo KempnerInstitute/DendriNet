@@ -172,6 +172,43 @@ class TestConfigLoading(unittest.TestCase):
         )
         self.assertTrue(hasattr(config.model.core, "baseline_rnn"))
 
+    def test_load_config_preserves_recurrent_strategy_config(self):
+        load_config.cache_clear()
+        recurrent_config = {
+            **self.sample_config,
+            "training": {
+                "main": {
+                    "strategy": "recurrent",
+                    "common": {
+                        "epochs": 10,
+                        "batch_size": 16,
+                        "param_groups": {"lr": 0.002},
+                    },
+                    "strategies": {
+                        "recurrent": {
+                            "grad_clip": 0.25,
+                            "use_amp": True,
+                            "lr_schedule": "cosine",
+                            "lr_warmup_epochs": 3,
+                        }
+                    },
+                }
+            },
+        }
+        recurrent_file = os.path.join(self.temp_dir, "recurrent_config.yaml")
+        with open(recurrent_file, "w") as f:
+            yaml.safe_dump(recurrent_config, f)
+
+        config = load_config(recurrent_file)
+
+        self.assertEqual(config.training.main.strategy, "recurrent")
+        self.assertEqual(config.training.main.strategies.recurrent.grad_clip, 0.25)
+        self.assertTrue(config.training.main.strategies.recurrent.use_amp)
+        self.assertEqual(
+            config.training.main.strategies.recurrent.lr_schedule, "cosine"
+        )
+        self.assertEqual(config.training.main.strategies.recurrent.lr_warmup_epochs, 3)
+
     def test_load_config_invalid_file(self):
         load_config.cache_clear()
         with self.assertRaises(FileNotFoundError):

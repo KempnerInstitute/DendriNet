@@ -15,6 +15,7 @@ import wandb
 from omegaconf import OmegaConf
 
 from dendritic_modeling.config import DataConfig, ModelConfig, TrainingConfig
+from dendritic_modeling.config.model import DecoderConfig, EncoderConfig
 from dendritic_modeling.datasets import get_unified_datasets
 from dendritic_modeling.models import Classifier, RecurrentClassifier, Regressor
 from dendritic_modeling.networks import Identity
@@ -66,6 +67,27 @@ def _get_experiment_value(experiment_config, key: str, default):
     if isinstance(experiment_config, dict):
         return experiment_config.get(key, default)
     return getattr(experiment_config, key, default)
+
+
+def _warn_ignored_legacy_model_sections(model_config: ModelConfig) -> None:
+    """Warn when legacy encoder/decoder config is set but ignored."""
+    ignored_sections = []
+
+    if _config_to_plain_dict(getattr(model_config, "encoder", None)) != asdict(
+        EncoderConfig()
+    ):
+        ignored_sections.append("model.encoder")
+
+    if _config_to_plain_dict(getattr(model_config, "decoder", None)) != asdict(
+        DecoderConfig()
+    ):
+        ignored_sections.append("model.decoder")
+
+    if ignored_sections:
+        logger.warning(
+            "%s ignored because model.pretrained_replacement.enabled=true",
+            ", ".join(ignored_sections),
+        )
 
 
 def _is_recurrent_core_config(core_cfg) -> bool:
@@ -192,50 +214,184 @@ def _is_recurrent_core_config(core_cfg) -> bool:
     return _get_recurrent_enabled(core_cfg)
 
 
-def initialize_model(model_config: ModelConfig):
-    """Initialize the model based on configuration."""
-    encoder_config = model_config.encoder
-    core_config = model_config.core
-    decoder_config = model_config.decoder
+def _build_from_pretrained_replacement(model_config: ModelConfig):
+    """Build encoder/core/decoder from a ``pretrained_replacement`` config.
 
-    # Build encoder parameters dict
-    encoder_params = {}
-    if encoder_config.type.lower() == "identity":
-        encoder_params["input_dim"] = encoder_config.params.input_dim or 784
-    else:
-        encoder_params = _config_to_plain_dict(encoder_config.params)
-
-    # Create encoder
-    encoder_network = get_architecture(encoder_config.type, encoder_params)
-    if isinstance(encoder_network, Identity):
-        encoder = encoder_network
-    elif hasattr(encoder_network, "encoder"):
-        encoder = encoder_network.encoder
-    else:
-        encoder = encoder_network
-
-    # Create core network
-    core_params = _config_to_plain_dict(core_config)
-    core_network = get_architecture(
-        core_config.type, core_params, input_dim=encoder.output_dim
+    Loads the backbone once, splits it into prefix and suffix via
+    :func:`build_split_plan`, then creates the core network in between.
+    Returns ``(encoder, core_network, decoder_network, encoder_network)``.
+    """
+    from dendritic_modeling.networks.architectures.classical.pretrained import (
+        build_encoder_decoder_from_plan,
+        build_split_plan,
+    )
+    from dendritic_modeling.networks.architectures.factory import (
+        _SPATIAL_DENDRITIC_CONV_TYPES,
+        _SPATIAL_DENDRITIC_TYPES,
     )
 
-    # Build decoder parameters
-    decoder_params_dict = _config_to_plain_dict(decoder_config.params)
-    # Filter out None values to allow auto-setting
-    decoder_params_dict = {
-        k: v for k, v in decoder_params_dict.items() if v is not None
-    }
-    decoder_params = {
-        **decoder_params_dict,
-        "input_dim": core_network.output_dim,
-    }
+    pr = model_config.pretrained_replacement
+    prefix_freeze = pr.trainability.encoder.mode == "frozen"
+    suffix_freeze = pr.trainability.decoder.mode == "frozen"
 
-    # Create decoder
-    decoder_network = get_architecture(decoder_config.type, decoder_params)
+    # Enable spatial mode when the core is a spatial dendritic type.
+    # This preserves TensorSpec metadata and skips auto-flatten on the encoder.
+    core_type = (getattr(model_config.core, "type", "") or "").lower()
+    is_spatial_conv = core_type in _SPATIAL_DENDRITIC_CONV_TYPES
+    spatial = core_type in _SPATIAL_DENDRITIC_TYPES or is_spatial_conv
+
+    plan = build_split_plan(
+        backbone=pr.backbone,
+        weights=pr.weights,
+        replace_start=pr.replace.start,
+        replace_end=pr.replace.end,
+        omit_layers=list(pr.omit_layers) if pr.omit_layers else None,
+        input_shape=list(pr.input_shape) if pr.input_shape else None,
+        spatial=spatial,
+    )
+
+    encoder, decoder_network = build_encoder_decoder_from_plan(
+        plan,
+        prefix_freeze=prefix_freeze,
+        suffix_freeze=suffix_freeze,
+    )
+
+    # Build the core network.
+    core_params = _config_to_plain_dict(model_config.core)
+
+    if is_spatial_conv:
+        # ----- Validate spatial contract -----
+        if plan.prefix_output_spec is None:
+            raise ValueError(
+                f"Spatial conv core (type={core_type!r}) requires a spatial "
+                f"encoder output, but the prefix does not produce spatial "
+                f"features (prefix_output_spec is None). Either split the "
+                f"backbone earlier so the prefix outputs (B, C, H, W), or "
+                f"use a flat core type (e.g., tensor_map, einet)."
+            )
+        if plan.suffix_input_spec is None:
+            raise ValueError(
+                f"Spatial conv core (type={core_type!r}) produces spatial "
+                f"output (B, C_out, H_out, W_out), but the suffix expects "
+                f"flat input (suffix_input_spec is None). Either split the "
+                f"backbone so the suffix starts with a spatial layer, or "
+                f"use a flat core type (e.g., tensor_map, einet)."
+            )
+
+        # Build the core.
+        core_input_dim = plan.prefix_output_spec.channels
+        core_network = get_architecture(
+            model_config.core.type,
+            core_params,
+            input_dim=core_input_dim,
+        )
+
+        # Validate output channels match suffix expectation.
+        if hasattr(core_network, "out_channels"):
+            if core_network.out_channels != plan.suffix_input_spec.channels:
+                raise ValueError(
+                    f"Spatial conv core out_channels={core_network.out_channels} "
+                    f"does not match suffix expected channels="
+                    f"{plan.suffix_input_spec.channels}. Set "
+                    f"architecture.excitatory_layer_sizes[-1] to "
+                    f"{plan.suffix_input_spec.channels}."
+                )
+
+        # Validate spatial dimensions match suffix expectation.
+        if hasattr(core_network, "compute_output_shape"):
+            H_out, W_out = core_network.compute_output_shape(
+                plan.prefix_output_spec.height,
+                plan.prefix_output_spec.width,
+            )
+            if (
+                H_out != plan.suffix_input_spec.height
+                or W_out != plan.suffix_input_spec.width
+            ):
+                raise ValueError(
+                    f"Spatial conv core output shape ({H_out}, {W_out}) does "
+                    f"not match suffix expected spatial dims "
+                    f"({plan.suffix_input_spec.height}, "
+                    f"{plan.suffix_input_spec.width}). Adjust kernel_size, "
+                    f"stride, and padding in core.spatial."
+                )
+    else:
+        # Tensor map / flat: input_dim = flattened dim, pass suffix_input_dim
+        # for the output projection.
+        core_network = get_architecture(
+            model_config.core.type,
+            core_params,
+            input_dim=encoder.output_dim,
+            suffix_input_dim=plan.suffix_input_dim,
+        )
+
+        if (
+            hasattr(core_network, "output_dim")
+            and core_network.output_dim != plan.suffix_input_dim
+        ):
+            raise ValueError(
+                f"Core output_dim={core_network.output_dim} does not match "
+                f"suffix expected input_dim={plan.suffix_input_dim}. "
+                f"The suffix decoder's first Linear layer expects "
+                f"{plan.suffix_input_dim} features."
+            )
+
+    return encoder, core_network, decoder_network, encoder
+
+
+def initialize_model(model_config: ModelConfig):
+    """Initialize the model based on configuration."""
+
+    # New API: pretrained_replacement takes precedence when enabled
+    pr = getattr(model_config, "pretrained_replacement", None)
+    if pr is not None and getattr(pr, "enabled", False):
+        _warn_ignored_legacy_model_sections(model_config)
+        encoder, core_network, decoder_network, encoder_network = (
+            _build_from_pretrained_replacement(model_config)
+        )
+    else:
+        # Legacy path
+        encoder_config = model_config.encoder
+        core_config = model_config.core
+        decoder_config = model_config.decoder
+
+        # Build encoder parameters dict
+        encoder_params = {}
+        if encoder_config.type.lower() == "identity":
+            encoder_params["input_dim"] = encoder_config.params.input_dim or 784
+        else:
+            encoder_params = _config_to_plain_dict(encoder_config.params)
+
+        # Create encoder
+        encoder_network = get_architecture(encoder_config.type, encoder_params)
+        if isinstance(encoder_network, Identity):
+            encoder = encoder_network
+        elif hasattr(encoder_network, "encoder"):
+            encoder = encoder_network.encoder
+        else:
+            encoder = encoder_network
+
+        # Create core network
+        core_params = _config_to_plain_dict(core_config)
+        core_network = get_architecture(
+            core_config.type, core_params, input_dim=encoder.output_dim
+        )
+
+        # Build decoder parameters
+        decoder_params_dict = _config_to_plain_dict(decoder_config.params)
+        # Filter out None values to allow auto-setting
+        decoder_params_dict = {
+            k: v for k, v in decoder_params_dict.items() if v is not None
+        }
+        decoder_params = {
+            **decoder_params_dict,
+            "input_dim": core_network.output_dim,
+        }
+
+        # Create decoder
+        decoder_network = get_architecture(decoder_config.type, decoder_params)
 
     # Detect recurrent mode (supports dendritic_rnn and ei_unified paths).
-    is_recurrent = _is_recurrent_core_config(core_config)
+    is_recurrent = _is_recurrent_core_config(model_config.core)
 
     # Create model based on task
     if is_recurrent:
@@ -264,8 +420,16 @@ def setup_environment(
     wandb_config,
     outputs_config,
     experiment_config,
+    is_main: bool = True,
 ):
-    """Setup training environment."""
+    """Setup training environment.
+
+    Args:
+        is_main: When False (non-rank-0 DDP processes), skip output
+            directory creation, file-handler setup, and wandb init.
+            The caller is responsible for broadcasting run_save_path
+            from rank 0 to other ranks.
+    """
 
     # Set seed
     seed = experiment_config.seed
@@ -305,43 +469,45 @@ def setup_environment(
         float32_matmul_precision,
     )
 
-    # Setup output directory
+    # Setup output directory — only rank 0 creates dirs and log files.
+    # Non-rank-0 processes get a placeholder run_save_path that will be
+    # overwritten by the broadcast from rank 0 in the caller.
     output_dir = outputs_config.results_dir
     run_name = getattr(outputs_config, "run_name", "run")
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir, exist_ok=True)
-        logger.info(f"Created output directory: {output_dir}")
 
-    # Check if this is part of a sweep (has _sweep_config_id)
-    # If so, output_dir should already point to the correct location
-    # Otherwise, create a timestamped run directory
-    if hasattr(outputs_config, "_sweep_config_id") or (
-        hasattr(outputs_config, "run_name")
-        and "/config_" in str(outputs_config.results_dir)
-    ):
-        # Running as part of a sweep - use output_dir directly
-        run_save_path = output_dir
-        logger.info(f"Sweep mode detected - using directory: {run_save_path}")
+    if is_main:
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir, exist_ok=True)
+            logger.info(f"Created output directory: {output_dir}")
+
+        # Check if this is part of a sweep (has _sweep_config_id)
+        if hasattr(outputs_config, "_sweep_config_id") or (
+            hasattr(outputs_config, "run_name")
+            and "/config_" in str(outputs_config.results_dir)
+        ):
+            run_save_path = output_dir
+            logger.info(f"Sweep mode detected - using directory: {run_save_path}")
+        else:
+            run_id = f"{run_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+            run_save_path = os.path.join(output_dir, run_id)
+            os.makedirs(run_save_path, exist_ok=True)
+            logger.info(f"Created run directory: {run_save_path}")
+
+        logger_manager.set_log_directory(run_save_path)
+
+        log_file = os.path.join(run_save_path, "train.log")
+        file_handler = logging.FileHandler(log_file)
+        file_handler.setFormatter(
+            logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+        )
+        logger.addHandler(file_handler)
+        logger.info(f"Logging to {log_file}")
     else:
-        # Standalone run - create timestamped directory
-        run_id = f"{run_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-        run_save_path = os.path.join(output_dir, run_id)
-        os.makedirs(run_save_path, exist_ok=True)
-        logger.info(f"Created run directory: {run_save_path}")
+        # Placeholder — caller will broadcast the real path from rank 0.
+        run_save_path = output_dir
 
-    # Set the logger manager to use the same directory for the main log file
-    logger_manager.set_log_directory(run_save_path)
-
-    log_file = os.path.join(run_save_path, "train.log")
-    file_handler = logging.FileHandler(log_file)
-    file_handler.setFormatter(
-        logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-    )
-    logger.addHandler(file_handler)
-    logger.info(f"Logging to {log_file}")
-
-    # Setup wandb if enabled
-    if wandb_config.use_wandb:
+    # Setup wandb if enabled (rank 0 only; caller disables on other ranks)
+    if wandb_config.use_wandb and is_main:
         try:
             wandb.init(
                 entity=wandb_config.entity,
@@ -371,9 +537,11 @@ def setup_environment(
         (),
         {
             "dataset": data_config.dataset_name,
-            "data_path": (
-                os.path.join(base_dir, data_config.dataset_name) if base_dir else None
-            ),
+            # Pass the configured base_dir through directly. Dataset loaders decide
+            # whether to treat it as a dataset root (for example ImageNet train/val
+            # trees) or as a parent directory that still needs dataset-specific
+            # subdirectories.
+            "data_path": (base_dir if base_dir else None),
             "train_valid_split": experiment_config.train_valid_split,
             "parameters": {
                 **processing_params,

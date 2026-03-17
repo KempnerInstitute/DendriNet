@@ -85,6 +85,68 @@ class TestDataCollector(unittest.TestCase):
         self.assertIsNotNone(data)
         self.assertIn("basic_mi", data)
 
+    def test_load_ablation_canonical_schema_exports_layer_and_module_columns(self):
+        """Canonical 3-level ablation payload should export both views."""
+        collector = DataCollector(self.results_dir)
+        config_dir = self.results_dir / "results" / "config_0"
+
+        ablation_dir = config_dir / "ablation_analysis"
+        ablation_dir.mkdir()
+        with open(ablation_dir / "final.json", "w") as f:
+            json.dump(
+                {
+                    "layer": {
+                        "lesion": {
+                            "excitation": {
+                                "core.layers.0": {
+                                    "depth": 0,
+                                    "accuracy_drop": 0.1,
+                                },
+                                "core.layers.1": {
+                                    "depth": 1,
+                                    "accuracy_drop": 0.2,
+                                },
+                            }
+                        }
+                    }
+                },
+                f,
+            )
+
+        data = collector._load_ablation(config_dir)
+        self.assertIn("ablation_lesion_excitation_accuracy_drop_depth0", data)
+        self.assertIn(
+            "ablation_module__lesion__excitation__accuracy_drop__core_layers_0__depth0",
+            data,
+        )
+
+    def test_load_ablation_legacy_schema_converts_to_canonical(self):
+        """Legacy 2-level payloads should still flatten correctly."""
+        collector = DataCollector(self.results_dir)
+        config_dir = self.results_dir / "results" / "config_0"
+
+        ablation_dir = config_dir / "ablation_analysis"
+        ablation_dir.mkdir(exist_ok=True)
+        with open(ablation_dir / "final.json", "w") as f:
+            json.dump(
+                {
+                    "layer": {
+                        "mean_clamp_upstream": {
+                            "core.layers.1": {
+                                "depth": 1,
+                                "pred_label_mi_bits_drop": 0.2,
+                            }
+                        }
+                    }
+                },
+                f,
+            )
+
+        data = collector._load_ablation(config_dir)
+        self.assertIn(
+            "ablation_mean_clamp_upstream_pred_label_mi_bits_drop_depth1", data
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

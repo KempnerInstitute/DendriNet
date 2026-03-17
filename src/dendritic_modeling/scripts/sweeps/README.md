@@ -33,14 +33,14 @@ Generate configs only:
 
 ```bash
 python src/dendritic_modeling/scripts/sweeps/sweep_manager.py \
-    --config configs/EI_sweeps_example.yaml --generate-only
+    --config configs/sweep_config.yaml --generate-only
 ```
 
 Dry-run submission:
 
 ```bash
 python src/dendritic_modeling/scripts/sweeps/sweep_manager.py \
-    --config configs/EI_sweeps_example.yaml --dry-run
+    --config configs/sweep_config.yaml --dry-run
 ```
 
 Analyze a completed sweep:

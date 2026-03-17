@@ -62,7 +62,7 @@ def test_prepare_trainer_config_includes_recurrent_strategy_block():
         "strategies": {
             "recurrent": {
                 "grad_clip": 0.5,
-                "enable_amp": True,
+                "use_amp": True,
                 "lr_schedule": "cosine",
                 "lr_warmup_epochs": 2,
             }
@@ -71,12 +71,11 @@ def test_prepare_trainer_config_includes_recurrent_strategy_block():
     experiment_config = {
         "checkpointing": {"enabled": False},
         "enable_profiling": False,
-        "enable_amp": False,
         "enable_hooks": False,
     }
 
     trainer_cfg = prepare_trainer_config(main_train_config, experiment_config, "/tmp")
     assert "recurrent_config" in trainer_cfg
     assert trainer_cfg["recurrent_config"]["grad_clip"] == 0.5
-    assert trainer_cfg["recurrent_config"]["enable_amp"] is True
+    assert trainer_cfg["recurrent_config"]["use_amp"] is True
     assert trainer_cfg["recurrent_config"]["lr_schedule"] == "cosine"

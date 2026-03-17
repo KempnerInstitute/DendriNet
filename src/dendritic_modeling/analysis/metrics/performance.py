@@ -3,8 +3,12 @@ Performance metrics analysis module.
 
 This module contains classes for evaluating model performance including
 accuracy, categorical log-likelihood, and mean squared error.
+
+Supports both in-memory (materialize) and streaming (DataLoader) evaluation,
+selected automatically based on dataset size.
 """
 
+import logging
 import os
 from typing import Callable, Optional
 
@@ -12,9 +16,10 @@ from typing import Callable, Optional
 os.environ["TORCHDYNAMO_DISABLE"] = "1"
 
 import torch
-from torch.utils.data import DataLoader, TensorDataset
 
+from dendritic_modeling.analysis.utils.runtime import evaluation_kwargs_from_runtime
 from dendritic_modeling.config import PerformanceAnalysisParams
+from dendritic_modeling.config.analysis import EvaluationRuntimeConfig
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.training.utils.evaluation import (
     evaluate_accuracy,
@@ -25,6 +30,8 @@ from dendritic_modeling.training.utils.evaluation import (
 )
 from dendritic_modeling.utils import save_dict
 
+logger = logging.getLogger(__name__)
+
 
 class PerformanceAnalyzer:
     """
@@ -32,6 +39,9 @@ class PerformanceAnalyzer:
 
     Supports accuracy, categorical log-likelihood, and MSE evaluation
     on train, validation, and test datasets.
+
+    Uses streaming evaluation for large datasets (e.g., ImageNet) and
+    in-memory evaluation for small datasets (e.g., CIFAR-10).
     """
 
     def __init__(self, params: PerformanceAnalysisParams):
@@ -53,6 +63,8 @@ class PerformanceAnalyzer:
         save_path: Optional[str] = None,
         filename: str = "final",
         training: bool = False,
+        runtime: Optional[EvaluationRuntimeConfig] = None,
+        splits: Optional[list[str]] = None,
     ):
         """
         Analyze model performance on specified datasets.
@@ -65,39 +77,25 @@ class PerformanceAnalyzer:
             device: Device to run evaluation on
             save_path: Path to save results (optional)
             filename: Filename for saved results
-            training: Whether this is being called during training (affects plotting)
+            training: Whether this is being called during training
+            runtime: Shared analysis runtime config for dataset iteration.
+            splits: Dataset splits to evaluate. Defaults to all available splits.
 
         Returns:
             Dictionary containing results if save_path is None, otherwise None
         """
+        if runtime is None:
+            runtime = EvaluationRuntimeConfig()
 
-        def _dataset_to_device(
-            dataset: Optional[torch.utils.data.Dataset], device: str = "cpu"
-        ):
-            if dataset is not None:
-                try:
-                    items = dataset[:]
-                    inputs, labels = items[0], items[1]
-                    seq_lengths = items[2] if len(items) > 2 else None
-                except Exception:
-                    # Some dataset wrappers (e.g., Subset over custom datasets) do not
-                    # support slice/list indexing. Materialize via DataLoader instead.
-                    xs, ys, sls = [], [], []
-                    loader = DataLoader(dataset, batch_size=1024, shuffle=False)
-                    for batch in loader:
-                        xs.append(batch[0])
-                        ys.append(batch[1])
-                        if len(batch) > 2:
-                            sls.append(batch[2])
-                    inputs = torch.cat(xs, dim=0)
-                    labels = torch.cat(ys, dim=0)
-                    seq_lengths = torch.cat(sls, dim=0) if sls else None
-                inputs: torch.Tensor = inputs.to(device)
-                labels: torch.Tensor = labels.to(device)
-                if seq_lengths is not None:
-                    return TensorDataset(inputs, labels, seq_lengths)
-                return TensorDataset(inputs, labels)
-            return None
+        split_map = {"train": train_ds, "valid": valid_ds, "test": test_ds}
+        if splits is None:
+            splits = ["train", "valid", "test"]
+        active_splits = {k: v for k, v in split_map.items() if k in splits}
+        active_train = active_splits.get("train")
+        active_valid = active_splits.get("valid")
+        active_test = active_splits.get("test")
+
+        eval_kwargs = evaluation_kwargs_from_runtime(runtime)
 
         results = {}
 
@@ -105,21 +103,19 @@ class PerformanceAnalyzer:
             results[metric_key] = {}
             train_metric, valid_metric, test_metric = metric_func(
                 model,
-                train_ds=train_ds,
-                valid_ds=valid_ds,
-                test_ds=test_ds,
-                move_device=False,
+                train_ds=active_train,
+                valid_ds=active_valid,
+                test_ds=active_test,
+                move_device=True,
+                device=device,
+                **eval_kwargs,
             )
-            if train_ds is not None:
+            if active_train is not None and train_metric is not None:
                 results[metric_key]["train"] = train_metric
-            if valid_ds is not None:
+            if active_valid is not None and valid_metric is not None:
                 results[metric_key]["valid"] = valid_metric
-            if test_ds is not None:
+            if active_test is not None and test_metric is not None:
                 results[metric_key]["test"] = test_metric
-
-        train_ds = _dataset_to_device(train_ds, device)
-        valid_ds = _dataset_to_device(valid_ds, device)
-        test_ds = _dataset_to_device(test_ds, device)
 
         if self.accuracy:
             _evaluate_metric(metric_func=evaluate_accuracy, metric_key="accuracy")

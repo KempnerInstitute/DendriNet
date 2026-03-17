@@ -18,6 +18,10 @@ import torch.nn as nn
 from torch.utils.data import DataLoader, Dataset
 
 from dendritic_modeling.analysis.core.base import AbstractAnalyzer
+from dendritic_modeling.analysis.utils.runtime import (
+    analysis_device_context,
+    get_model_device,
+)
 from dendritic_modeling.config.base import BaseConfig
 from dendritic_modeling.models.base import BaseModel
 
@@ -62,11 +66,10 @@ class LinearityAnalyzer(AbstractAnalyzer):
         """
         logger.info("Computing linearity index...")
 
-        model.eval()
         if not isinstance(data_loader, DataLoader):
             data_loader = DataLoader(data_loader, batch_size=256, shuffle=False)
 
-        model_device = next(model.parameters()).device
+        model_device = get_model_device(model)
         analysis_device = torch.device(device)
         if analysis_device != model_device:
             analysis_device = model_device
@@ -89,22 +92,21 @@ class LinearityAnalyzer(AbstractAnalyzer):
 
         logger.info(f"Analyzing {len(inputs)} samples, input_dim = {inputs.shape[1]}")
 
-        # Compute linearity metrics
-        linearity_index = self._compute_linearity_index(model, inputs)
-        gradient_norm = self._compute_gradient_norm(model, inputs)
-        hessian_norm = self._compute_hessian_norm(model, inputs)
+        with analysis_device_context(model, analysis_device):
+            linearity_index = self._compute_linearity_index(model, inputs)
+            gradient_norm = self._compute_gradient_norm(model, inputs)
+            hessian_norm = self._compute_hessian_norm(model, inputs)
 
-        # Compute per-class linearity
-        unique_classes = torch.unique(labels)
-        per_class_linearity = {}
+            unique_classes = torch.unique(labels)
+            per_class_linearity = {}
 
-        for c in unique_classes:
-            mask = labels == c
-            if mask.sum() > 0:
-                class_inputs = inputs[mask]
-                per_class_linearity[int(c)] = self._compute_linearity_index(
-                    model, class_inputs
-                )
+            for c in unique_classes:
+                mask = labels == c
+                if mask.sum() > 0:
+                    class_inputs = inputs[mask]
+                    per_class_linearity[int(c)] = self._compute_linearity_index(
+                        model, class_inputs
+                    )
 
         # Store results
         self.results = {

@@ -138,8 +138,8 @@ class TestConfigExtractor(unittest.TestCase):
         self.assertEqual(params["inhibitory_homeostasis_mode"], "r_tot")
         self.assertEqual(params["inhibitory_homeostasis_weight"], 0.05)
 
-    def test_extract_local_learning_params_old_structure(self):
-        """Test extraction of local learning params from old structure."""
+    def test_extract_local_learning_params_old_structure_is_ignored(self):
+        """Deprecated strategies.local_ca should no longer drive extraction."""
         config = OmegaConf.create(
             {
                 "training": {
@@ -159,8 +159,8 @@ class TestConfigExtractor(unittest.TestCase):
 
         params = self.extractor._extract_training_params(config)
 
-        self.assertEqual(params["rule_variant"], "3f")
-        self.assertEqual(params["rho_mode"], "pearson")
+        self.assertNotIn("rule_variant", params)
+        self.assertNotIn("rho_mode", params)
 
     def test_extract_experiment_params(self):
         """Test extraction of experiment parameters."""
@@ -172,6 +172,40 @@ class TestConfigExtractor(unittest.TestCase):
 
         self.assertEqual(params["seed"], 42)
         self.assertEqual(params["dataset"], "cifar10")
+
+    def test_extract_model_params_normalizes_deprecated_network_type(self):
+        """Deprecated network type aliases should extract as canonical names."""
+        config = OmegaConf.create(
+            {
+                "model": {
+                    "core": {
+                        "type": "matchedtotalparammlp",
+                        "morphology": {"use_shunting": False},
+                    }
+                }
+            }
+        )
+
+        params = self.extractor._extract_model_params(config)
+        self.assertEqual(params["network_type"], "total_param_mlp")
+        self.assertEqual(params["use_shunting"], False)
+
+    def test_extract_model_params_flat_mlp(self):
+        """flat_mlp should be extracted as canonical non-shunting network."""
+        config = OmegaConf.create(
+            {
+                "model": {
+                    "core": {
+                        "type": "flat_mlp",
+                        "morphology": {"use_shunting": True},
+                    }
+                }
+            }
+        )
+
+        params = self.extractor._extract_model_params(config)
+        self.assertEqual(params["network_type"], "flat_mlp")
+        self.assertEqual(params["use_shunting"], False)
 
 
 if __name__ == "__main__":

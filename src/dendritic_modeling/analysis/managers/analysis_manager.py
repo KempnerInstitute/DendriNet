@@ -184,6 +184,12 @@ class AnalysisManager:
             filename: Base filename for saving analysis results
             training: Whether this is being called during training (affects which analyses run)
         """
+        runtime = (
+            getattr(self.config.runtime, "training", None)
+            if training
+            else getattr(self.config.runtime, "final", None)
+        )
+
         # Performance Analysis
         if self.config.performance_analysis.enabled and (
             (self.config.performance_analysis.training and training) or not training
@@ -197,6 +203,13 @@ class AnalysisManager:
                 # Save final results in main performance folder
                 save_path = os.path.join(self.save_root, "performance")
 
+            perf_cfg = self.config.performance_analysis
+            splits = (
+                getattr(perf_cfg, "training_splits", None)
+                if training
+                else getattr(perf_cfg, "final_splits", None)
+            )
+
             self.performance_analyzer.analyze(
                 model=self.model,
                 train_ds=self.data["train"],
@@ -206,6 +219,8 @@ class AnalysisManager:
                 save_path=save_path,
                 filename=filename,
                 training=training,
+                runtime=runtime,
+                splits=splits,
             )
 
         # Information Analysis
@@ -219,6 +234,7 @@ class AnalysisManager:
                 device=self.device,
                 save_path=os.path.join(self.save_root, "information_analysis"),
                 filename=filename,
+                runtime=runtime,
             )
             self.logger.info("Information analysis completed successfully")
 
@@ -245,6 +261,7 @@ class AnalysisManager:
                 device=self.device,
                 save_path=os.path.join(self.save_root, "noise_perturbation_analysis"),
                 filename=filename,
+                runtime=runtime,
             )
 
         # Single Layer Contribution Analysis
@@ -258,6 +275,7 @@ class AnalysisManager:
                 device=self.device,
                 save_path=os.path.join(self.save_root, "single_layer_contribution"),
                 filename=filename,
+                runtime=runtime,
             )
 
         # Ablation Analysis
@@ -271,6 +289,7 @@ class AnalysisManager:
                 save_path=os.path.join(self.save_root, "ablation_analysis"),
                 filename=filename,
                 training=training,
+                runtime=runtime,
             )
 
         # Weight Analysis
@@ -298,6 +317,7 @@ class AnalysisManager:
                 ),
                 filename=filename,
                 training=training,
+                runtime=runtime,
             )
 
         # Compartment SNR Analysis
@@ -311,6 +331,7 @@ class AnalysisManager:
                 save_path=os.path.join(self.save_root, "compartment_snr_analysis"),
                 filename=filename,
                 training=training,
+                runtime=runtime,
             )
 
         # Multiplicative Gain Analysis
@@ -325,6 +346,7 @@ class AnalysisManager:
                 save_path=os.path.join(self.save_root, "multiplicative_gain_analysis"),
                 filename=filename,
                 training=training,
+                runtime=runtime,
             )
 
         # Receptive Field Analysis
@@ -348,6 +370,7 @@ class AnalysisManager:
                 device=self.device,
                 save_path=os.path.join(self.save_root, "synaptic_activation_analysis"),
                 filename=filename,
+                runtime=runtime,
             )
 
         # Branch Activation Analysis
@@ -361,6 +384,7 @@ class AnalysisManager:
                 device=self.device,
                 save_path=os.path.join(self.save_root, "branch_activation_analysis"),
                 filename=filename,
+                runtime=runtime,
             )
 
         # Correlation Analysis
@@ -379,6 +403,7 @@ class AnalysisManager:
                 device=self.device,
                 save_path=os.path.join(self.save_root, "correlation_analysis"),
                 filename=filename,
+                runtime=runtime,
             )
             self.logger.info("Correlation analysis completed successfully")
 
@@ -429,5 +454,6 @@ class AnalysisManager:
                     self.save_root, "adversarial_robustness_analysis"
                 ),
                 filename=filename,
+                runtime=runtime,
             )
             self.logger.info("Adversarial robustness analysis completed successfully")

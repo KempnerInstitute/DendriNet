@@ -47,13 +47,7 @@ class AblationSweepAnalyzer(BaseSweepAnalyzer):
 
     def get_groupby_columns(self) -> list[str]:
         """Get columns to group by for ablation sweeps."""
-        return [
-            "ee_value",
-            "ie_value",
-            "use_shunting",
-            "network_category",
-            "ablation_type",
-        ]
+        return ["ee_value", "ie_value", "use_shunting", "network_category"]
 
     def get_plot_types(self) -> list[str]:
         """Get plot types specific to ablation sweeps."""
@@ -102,56 +96,43 @@ class AblationSweepAnalyzer(BaseSweepAnalyzer):
         """Plot contribution of each layer when ablated."""
         plot_paths = []
 
-        # Find layer ablation columns by depth
-        layer_cols = [
-            col
-            for col in data.columns
-            if "ablation_" in col and "_depth" in col and col.endswith("_mean")
-        ]
+        # Find layer ablation columns using the canonical parser
+        from dendritic_modeling.scripts.sweeps.utils.ablation_columns import (
+            discover_ablation_dimensions,
+            find_ablation_columns,
+        )
 
-        if not layer_cols:
+        parsed_cols = find_ablation_columns(list(data.columns), stat="mean")
+        if not parsed_cols:
             return plot_paths
 
-        # Extract depths and ablation types
-        depths = set()
-        ablation_types = set()
-
-        for col in layer_cols:
-            try:
-                # Parse column name: ablation_{type}_{metric}_depth{N}_mean
-                parts = col.split("_")
-                if "depth" in col:
-                    depth_part = next((p for p in parts if p.startswith("depth")), None)
-                    if depth_part:
-                        depth = int(depth_part.replace("depth", ""))
-                    depths.add(depth)
-
-                # Extract ablation type (e.g., "all_synapses", "excitation", "inhibition")
-                ablation_type = parts[1] if len(parts) > 1 else "unknown"
-                ablation_types.add(ablation_type)
-            except (ValueError, IndexError):
-                pass
-
-        depths = sorted(depths)
+        _methods, _targets, _metrics, depths = discover_ablation_dimensions(
+            list(data.columns)
+        )
 
         if not depths:
             return plot_paths
+
+        accuracy_cols = [p for p in parsed_cols if p.metric == "accuracy_drop"]
+        if not accuracy_cols:
+            return plot_paths
+
+        ablation_types = sorted({(p.method, p.target) for p in accuracy_cols})
 
         # Plot accuracy drop per layer for each ablation type
         try:
             fig, ax = plt.subplots(figsize=(12, 6))
 
-            for ablation_type in sorted(ablation_types):
+            for method, target in ablation_types:
                 layer_accuracies = []
 
                 for depth in depths:
-                    # Find accuracy column for this layer and ablation type
                     matching_cols = [
-                        col
-                        for col in layer_cols
-                        if f"ablation_{ablation_type}_" in col
-                        and f"depth{depth}" in col
-                        and "accuracy" in col
+                        p.full_col
+                        for p in accuracy_cols
+                        if p.method == method
+                        and p.target == target
+                        and p.depth == depth
                     ]
 
                     if matching_cols:
@@ -166,7 +147,7 @@ class AblationSweepAnalyzer(BaseSweepAnalyzer):
                         depths,
                         layer_accuracies,
                         marker="o",
-                        label=ablation_type.replace("_", " ").title(),
+                        label=f"{method.replace('_', ' ').title()} {target.replace('_', ' ').title()}",
                         linewidth=2,
                         markersize=6,
                     )
@@ -196,50 +177,52 @@ class AblationSweepAnalyzer(BaseSweepAnalyzer):
         """Plot excitatory vs inhibitory contributions."""
         plot_paths = []
 
-        # Look for excitation and inhibition ablation columns
-        exc_cols = [
-            col
-            for col in data.columns
-            if "ablation_excitation_" in col and col.endswith("_mean")
-        ]
-        inh_cols = [
-            col
-            for col in data.columns
-            if "ablation_inhibition_" in col and col.endswith("_mean")
-        ]
+        from dendritic_modeling.scripts.sweeps.utils.ablation_columns import (
+            find_ablation_columns,
+        )
 
-        if not exc_cols or not inh_cols:
+        parsed_cols = find_ablation_columns(list(data.columns), stat="mean")
+        if not parsed_cols:
             return plot_paths
 
-        try:
-            fig, ax = plt.subplots(figsize=(10, 6))
+        methods = sorted(
+            {p.method for p in parsed_cols if p.target in {"excitation", "inhibition"}}
+        )
+        metrics = sorted(
+            {p.metric for p in parsed_cols if p.target in {"excitation", "inhibition"}}
+        )
 
-            # For each metric (accuracy, auc, etc.)
-            metrics = set()
-            for col in exc_cols:
-                # Extract metric name
-                parts = (
-                    col.replace("ablation_excitation_", "")
-                    .replace("_mean", "")
-                    .split("_depth")[0]
-                )
-                metrics.add(parts)
-
+        for method in methods:
             for metric in metrics:
-                # Find excitation and inhibition columns for this metric
-                exc_pattern = f"ablation_excitation_{metric}"
-                inh_pattern = f"ablation_inhibition_{metric}"
+                exc_cols = {
+                    p.depth: p.full_col
+                    for p in parsed_cols
+                    if p.method == method
+                    and p.target == "excitation"
+                    and p.metric == metric
+                }
+                inh_cols = {
+                    p.depth: p.full_col
+                    for p in parsed_cols
+                    if p.method == method
+                    and p.target == "inhibition"
+                    and p.metric == metric
+                }
+                common_depths = sorted(set(exc_cols) & set(inh_cols))
+                if not common_depths:
+                    continue
 
-                exc_matching = [col for col in exc_cols if exc_pattern in col]
-                inh_matching = [col for col in inh_cols if inh_pattern in col]
+                try:
+                    fig, ax = plt.subplots(figsize=(10, 6))
 
-                if exc_matching and inh_matching:
-                    exc_values = [data[col].mean() for col in exc_matching]
-                    inh_values = [data[col].mean() for col in inh_matching]
-
-                    # Plot comparison
-                    x_pos = range(len(exc_values))
+                    exc_values = [
+                        float(data[exc_cols[d]].mean()) for d in common_depths
+                    ]
+                    inh_values = [
+                        float(data[inh_cols[d]].mean()) for d in common_depths
+                    ]
                     width = 0.35
+                    x_pos = list(range(len(common_depths)))
 
                     ax.bar(
                         [x - width / 2 for x in x_pos],
@@ -256,20 +239,33 @@ class AblationSweepAnalyzer(BaseSweepAnalyzer):
                         alpha=0.8,
                     )
 
-            self.performance_plotter.setup_axes_style(
-                ax=ax,
-                xlabel="Layer Index",
-                ylabel="Performance After Ablation",
-                title="Excitatory vs Inhibitory Contribution",
-                grid=True,
-            )
-            ax.legend(fontsize=10)
+                    self.performance_plotter.setup_axes_style(
+                        ax=ax,
+                        xlabel="Layer Index",
+                        ylabel=metric.replace("_", " ").title(),
+                        title=(
+                            "Excitatory vs Inhibitory Contribution\n"
+                            f"Method: {method.replace('_', ' ').title()}"
+                        ),
+                        grid=True,
+                    )
+                    ax.set_xticks(x_pos)
+                    ax.set_xticklabels(common_depths)
+                    ax.legend(fontsize=10)
 
-            fig.tight_layout()
-            plot_path = output_dir / "excitation_vs_inhibition_contribution.png"
-            plot_paths.append(self.performance_plotter.save_figure(fig, plot_path))
-
-        except Exception as e:
-            logger.error(f"Error generating E/I contribution comparison: {e}")
+                    fig.tight_layout()
+                    plot_path = output_dir / (
+                        "excitation_vs_inhibition_" f"{method}_{metric}.png"
+                    )
+                    plot_paths.append(
+                        self.performance_plotter.save_figure(fig, plot_path)
+                    )
+                except Exception as e:
+                    logger.error(
+                        "Error generating E/I contribution comparison for %s/%s: %s",
+                        method,
+                        metric,
+                        e,
+                    )
 
         return plot_paths

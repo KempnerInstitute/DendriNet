@@ -6,13 +6,21 @@ This module defines the configuration dataclasses for the model, training, task,
 It loads and saves configurations using OmegaConf.
 """
 
+import logging
+from collections.abc import Mapping
 from dataclasses import dataclass, field, fields
 from functools import lru_cache
 from typing import Any, Optional
 
 from omegaconf import OmegaConf
 
-from dendritic_modeling.config.analysis import AnalysisConfig
+from dendritic_modeling.config.analysis import (
+    AnalysisConfig,
+    AnalysisRuntimeConfig,
+    EvaluationRuntimeConfig,
+    PerformanceAnalysisConfig,
+    PerformanceAnalysisParams,
+)
 from dendritic_modeling.config.base import BaseConfig
 from dendritic_modeling.config.model import (
     ArchitectureConfig,
@@ -26,23 +34,42 @@ from dendritic_modeling.config.model import (
     ImplementationConfig,
     ModelConfig,
     MorphologyConfig,
+    PretrainedReplacementConfig,
     ReactivationConfig,
+    ReplacementRegionConfig,
+    SegmentTrainabilityConfig,
     SparsityConfig,
+    SpatialConfig,
+    TrainabilityConfig,
     TransferFunctionConfig,
 )
 from dendritic_modeling.config.recurrent import RecurrentConfig
 from dendritic_modeling.config.training import (
+    CommonTrainerConfig,
     EncoderTrainingConfig,
     FiveFactorConfig,
     FourFactorConfig,
+    FreezeBranchesStrategyConfig,
+    FreezeBranchKLStrategyConfig,
+    FreezeLayersStrategyConfig,
+    HomeostaticControlStrategyConfig,
     HSICConfig,
     InhibitoryHomeostasisConfig,
     LocalRuleConfig,
     MainTrainingConfig,
     MorphologyAwareConfig,
+    MultiStageStrategyConfig,
+    OptimizerConfig,
+    ParamGroupsConfig,
+    RecurrentStrategyConfig,
+    StandardStrategyConfig,
     ThreeFactorConfig,
     TrainingConfig,
+    TrainingStrategiesConfig,
+    VoltageStabilizationStrategyConfig,
 )
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -51,7 +78,6 @@ class ExperimentConfig(BaseConfig):
 
     seed: int = 42
     train_valid_split: float = 0.8
-    enable_amp: bool = False
     fast_mode: bool = False
     deterministic: bool = True
     cudnn_benchmark: bool = False
@@ -120,6 +146,12 @@ class DatasetParamsConfig(BaseConfig):
             "noise_std": 0.1,
         }
     )
+    imagenet: dict[str, Any] = field(
+        default_factory=lambda: {
+            "train_samples_per_class": None,
+            "val_samples_per_class": None,
+        }
+    )
 
 
 @dataclass
@@ -142,7 +174,6 @@ class WandbConfig(BaseConfig):
     project: str = "dendritic-sweeps"
     group: str = "unified_sweep"
     tags: list[str] = field(default_factory=lambda: ["debug"])
-    enabled: bool = True
 
 
 @dataclass
@@ -155,9 +186,11 @@ class OutputsConfig(BaseConfig):
 
 @dataclass
 class FSDPConfig(BaseConfig):
-    """Fully Sharded Data Parallel configuration."""
+    """FSDP-specific tuning knobs.
 
-    use_fsdp: bool = False
+    These only take effect when ``distributed.mode`` is ``"fsdp"``.
+    """
+
     sharding_strategy: str = "FULL_SHARD"
     mixed_precision: bool = True
     cpu_offload: bool = False
@@ -172,6 +205,27 @@ class FSDPConfig(BaseConfig):
 
 
 @dataclass
+class DistributedConfig(BaseConfig):
+    """Distributed training configuration.
+
+    ``mode`` selects the runtime:
+
+        - ``"none"`` — single-GPU, plain ``python`` (default)
+        - ``"ddp"``  — DistributedDataParallel via ``torchrun``
+        - ``"fsdp"`` — FullyShardedDataParallel via ``torchrun``
+
+    ``fsdp`` contains FSDP-specific tuning knobs (only used when mode=fsdp).
+
+    Node and GPU counts are **not** part of training config — they are
+    scheduler/launcher concerns.  Use ``sbatch --nodes=`` and
+    ``--gpus-per-node=`` (or the script's CLI argument) to control resources.
+    """
+
+    mode: str = "none"  # none | ddp | fsdp
+    fsdp: FSDPConfig = field(default_factory=FSDPConfig)
+
+
+@dataclass
 class Config:
     """Main configuration class with clean structure."""
 
@@ -182,7 +236,7 @@ class Config:
     analysis: AnalysisConfig = field(default_factory=AnalysisConfig)
     wandb: WandbConfig = field(default_factory=WandbConfig)
     outputs: OutputsConfig = field(default_factory=OutputsConfig)
-    fsdp: FSDPConfig = field(default_factory=FSDPConfig)
+    distributed: DistributedConfig = field(default_factory=DistributedConfig)
 
 
 def _to_plain_dict(data: Any) -> dict[str, Any]:
@@ -230,6 +284,7 @@ def _build_core_config(core_data: Any) -> CoreConfig:
         implementation=ImplementationConfig(
             **_to_plain_dict(core_dict.get("implementation", {}))
         ),
+        spatial=SpatialConfig(**_to_plain_dict(core_dict.get("spatial", {}))),
         recurrent=RecurrentConfig(**_to_plain_dict(core_dict.get("recurrent", {}))),
         unified_ei=_to_plain_dict(unified_ei),
         recurrent_ei=_to_plain_dict(core_dict.get("recurrent_ei", {})),
@@ -237,11 +292,155 @@ def _build_core_config(core_data: Any) -> CoreConfig:
     )
 
 
+def _build_pretrained_replacement_config(
+    pr_data: Any,
+) -> PretrainedReplacementConfig:
+    """Build a typed PretrainedReplacementConfig from dict/OmegaConf."""
+    pr_dict = _to_plain_dict(pr_data)
+    replace_dict = _to_plain_dict(pr_dict.get("replace", {}))
+    train_dict = _to_plain_dict(pr_dict.get("trainability", {}))
+
+    encoder_dict = _to_plain_dict(train_dict.get("encoder", {}))
+    decoder_dict = _to_plain_dict(train_dict.get("decoder", {}))
+    trainability = TrainabilityConfig(
+        encoder=SegmentTrainabilityConfig(
+            mode=str(encoder_dict.get("mode", "frozen")),
+        ),
+        decoder=SegmentTrainabilityConfig(
+            mode=str(decoder_dict.get("mode", "trainable")),
+        ),
+    )
+
+    return PretrainedReplacementConfig(
+        enabled=bool(pr_dict.get("enabled", False)),
+        backbone=str(pr_dict.get("backbone", "alexnet")),
+        weights=pr_dict.get("weights", "IMAGENET1K_V1"),
+        input_shape=list(pr_dict.get("input_shape", [3, 224, 224])),
+        replace=ReplacementRegionConfig(
+            start=str(replace_dict.get("start", "")),
+            end=str(replace_dict.get("end", "")),
+        ),
+        omit_layers=list(pr_dict.get("omit_layers", [])),
+        trainability=trainability,
+    )
+
+
+def _build_param_groups_config(param_groups_data: Any) -> ParamGroupsConfig:
+    """Build a typed ParamGroupsConfig from dict/OmegaConf payload."""
+    param_groups_dict = _to_plain_dict(param_groups_data)
+    return ParamGroupsConfig(**param_groups_dict)
+
+
+def _build_common_trainer_config(common_data: Any) -> CommonTrainerConfig:
+    """Build a typed CommonTrainerConfig with typed param groups."""
+    common_dict = _to_plain_dict(common_data)
+    param_group_keys = set(ParamGroupsConfig.__dataclass_fields__.keys())
+    param_groups_dict = _to_plain_dict(common_dict.get("param_groups", {}))
+
+    # Backward compatibility: historical configs sometimes put LR knobs
+    # directly under `training.*.common` instead of under `param_groups`.
+    for key in list(common_dict.keys()):
+        if key in param_group_keys:
+            param_groups_dict.setdefault(key, common_dict.pop(key))
+
+    common_dict["param_groups"] = _build_param_groups_config(param_groups_dict)
+    return CommonTrainerConfig(
+        **_filter_dataclass_kwargs(CommonTrainerConfig, common_dict)
+    )
+
+
+def _build_training_strategies_config(strategies_data: Any) -> TrainingStrategiesConfig:
+    """Build typed nested strategy configs from dict/OmegaConf payload."""
+    strategies_dict = _to_plain_dict(strategies_data)
+    strategy_classes = {
+        "standard": StandardStrategyConfig,
+        "multi_stage": MultiStageStrategyConfig,
+        "recurrent": RecurrentStrategyConfig,
+        "voltage_stabilization": VoltageStabilizationStrategyConfig,
+        "homeostatic_control": HomeostaticControlStrategyConfig,
+        "freeze_layers": FreezeLayersStrategyConfig,
+        "freeze_branches": FreezeBranchesStrategyConfig,
+        "freeze_branch_kl": FreezeBranchKLStrategyConfig,
+    }
+
+    built: dict[str, Any] = {}
+    for name, config_cls in strategy_classes.items():
+        raw_value = strategies_dict.get(name)
+        if raw_value is None:
+            continue
+        if isinstance(raw_value, config_cls):
+            built[name] = raw_value
+        else:
+            built[name] = config_cls(**_to_plain_dict(raw_value))
+
+    return TrainingStrategiesConfig(**built)
+
+
+def _build_encoder_training_config(encoder_data: Any) -> EncoderTrainingConfig:
+    """Build a typed EncoderTrainingConfig with typed common config."""
+    encoder_dict = _to_plain_dict(encoder_data)
+    encoder_dict["common"] = _build_common_trainer_config(
+        encoder_dict.get("common", {})
+    )
+    if (
+        "learning_strategy_config" in encoder_dict
+        and encoder_dict["learning_strategy_config"] is not None
+        and not isinstance(encoder_dict["learning_strategy_config"], LocalRuleConfig)
+    ):
+        encoder_dict["learning_strategy_config"] = _build_local_rule_config(
+            _to_plain_dict(encoder_dict["learning_strategy_config"])
+        )
+    strategies_data = encoder_dict.get("strategies")
+    if strategies_data is not None and not isinstance(
+        strategies_data, TrainingStrategiesConfig
+    ):
+        strategies_dict = _to_plain_dict(strategies_data)
+        if "local_ca" in strategies_dict:
+            logger.warning(
+                "training.encoder.strategies.local_ca is no longer supported; "
+                "use training.encoder.learning_strategy_config instead."
+            )
+        encoder_dict["strategies"] = _build_training_strategies_config(strategies_dict)
+    return EncoderTrainingConfig(**encoder_dict)
+
+
+def _build_main_training_config(main_data: Any) -> MainTrainingConfig:
+    """Build a typed MainTrainingConfig with typed common/optimizer config."""
+    main_dict = _to_plain_dict(main_data)
+    main_dict["common"] = _build_common_trainer_config(main_dict.get("common", {}))
+    optimizer_data = main_dict.get("optimizer")
+    if optimizer_data is not None and not isinstance(optimizer_data, OptimizerConfig):
+        main_dict["optimizer"] = OptimizerConfig(**_to_plain_dict(optimizer_data))
+    if (
+        "learning_strategy_config" in main_dict
+        and main_dict["learning_strategy_config"] is not None
+        and not isinstance(main_dict["learning_strategy_config"], LocalRuleConfig)
+    ):
+        main_dict["learning_strategy_config"] = _build_local_rule_config(
+            _to_plain_dict(main_dict["learning_strategy_config"])
+        )
+    strategies_data = main_dict.get("strategies")
+    if strategies_data is not None and not isinstance(
+        strategies_data, TrainingStrategiesConfig
+    ):
+        strategies_dict = _to_plain_dict(strategies_data)
+        if "local_ca" in strategies_dict:
+            logger.warning(
+                "training.main.strategies.local_ca is no longer supported; "
+                "use training.main.learning_strategy_config instead."
+            )
+        main_dict["strategies"] = _build_training_strategies_config(strategies_dict)
+    return MainTrainingConfig(**main_dict)
+
+
 def _build_model_config(model_data: Any) -> ModelConfig:
     """Build a typed ModelConfig from possibly nested dict/OmegaConf payload."""
     model_dict = _to_plain_dict(model_data)
     encoder_dict = _to_plain_dict(model_dict.get("encoder", {}))
     decoder_dict = _to_plain_dict(model_dict.get("decoder", {}))
+
+    pr_data = model_dict.get("pretrained_replacement", {})
+    pr_config = _build_pretrained_replacement_config(pr_data)
 
     return ModelConfig(
         task=str(model_dict.get("task", "classification")),
@@ -261,6 +460,7 @@ def _build_model_config(model_data: Any) -> ModelConfig:
                 **_to_plain_dict(decoder_dict.get("params", {}))
             ),
         ),
+        pretrained_replacement=pr_config,
     )
 
 
@@ -286,7 +486,11 @@ def _build_data_config(data_data: Any) -> DataConfig:
 def _filter_dataclass_kwargs(config_cls: type, raw_data: Any) -> dict[str, Any]:
     """Drop unknown keys when loading historical configs into dataclasses."""
     data = raw_data or {}
-    if not isinstance(data, dict):
+    if isinstance(data, Mapping):
+        pass  # dict, OmegaConf DictConfig, etc.
+    elif hasattr(data, "_metadata"):
+        data = OmegaConf.to_container(data, resolve=True) or {}
+    else:
         return {}
     allowed = {f.name for f in fields(config_cls)}
     return {key: value for key, value in data.items() if key in allowed}
@@ -308,19 +512,29 @@ def load_config(path: Optional[str] = None) -> Config:
 
         # Handle analysis config field mapping
         analysis_data = conf_data.get("analysis", {})
-        mapped_analysis = _map_analysis_config(analysis_data)
+        distributed_config = _build_distributed_config(conf_data)
+        mapped_analysis = _map_analysis_config(
+            analysis_data,
+            distributed_mode=distributed_config.mode,
+        )
 
         # Handle training config field mapping
         training_data = conf_data.get("training", {})
         mapped_training = _map_training_config(training_data)
 
         # Explicitly construct nested training configs
-        encoder_config = EncoderTrainingConfig(**mapped_training.get("encoder", {}))
-        main_config = MainTrainingConfig(**mapped_training.get("main", {}))
+        encoder_config = _build_encoder_training_config(
+            mapped_training.get("encoder", {})
+        )
+        main_config = _build_main_training_config(mapped_training.get("main", {}))
         training_config = TrainingConfig(encoder=encoder_config, main=main_config)
 
         return Config(
-            experiment=ExperimentConfig(**conf_data.get("experiment", {})),
+            experiment=ExperimentConfig(
+                **_filter_dataclass_kwargs(
+                    ExperimentConfig, conf_data.get("experiment", {})
+                )
+            ),
             data=_build_data_config(conf_data.get("data", {})),
             model=_build_model_config(conf_data.get("model", {})),
             training=training_config,
@@ -329,12 +543,61 @@ def load_config(path: Optional[str] = None) -> Config:
                 **_filter_dataclass_kwargs(WandbConfig, conf_data.get("wandb", {}))
             ),
             outputs=OutputsConfig(**conf_data.get("outputs", {})),
-            fsdp=FSDPConfig(**conf_data.get("fsdp", {})),
+            distributed=distributed_config,
         )
     return Config()
 
 
-def _map_analysis_config(analysis_data: dict) -> dict:
+def _build_distributed_config(conf_data: dict) -> DistributedConfig:
+    """Build DistributedConfig from the ``distributed:`` YAML block.
+
+    Expected layout::
+
+        distributed:
+          mode: ddp
+          fsdp:
+            sharding_strategy: FULL_SHARD
+
+    Raises ``ValueError`` if a legacy top-level ``fsdp:`` block is present
+    (it must be nested under ``distributed:`` now).
+    """
+    # Reject legacy top-level fsdp: block.
+    if "fsdp" in conf_data and "distributed" not in conf_data:
+        raise ValueError(
+            "Top-level 'fsdp:' block is no longer supported. "
+            "Move FSDP settings under 'distributed.fsdp:' and set "
+            "'distributed.mode: fsdp'. See docs/configuration_guide.rst."
+        )
+    if "fsdp" in conf_data and "fsdp" not in conf_data.get("distributed", {}):
+        logger.warning(
+            "Ignoring top-level 'fsdp:' block. FSDP settings must be under "
+            "'distributed.fsdp:'. See docs/configuration_guide.rst."
+        )
+
+    dist_raw = dict(conf_data.get("distributed", {}))
+    fsdp_raw = dict(dist_raw.pop("fsdp", {}))
+    fsdp_config = FSDPConfig(**_filter_dataclass_kwargs(FSDPConfig, fsdp_raw))
+    return DistributedConfig(
+        **_filter_dataclass_kwargs(DistributedConfig, dist_raw),
+        fsdp=fsdp_config,
+    )
+
+
+def _default_analysis_runtime_config(distributed_mode: str) -> AnalysisRuntimeConfig:
+    """Return the implicit shared analysis runtime for a distributed mode."""
+    if str(distributed_mode).lower() == "none":
+        default_runtime = EvaluationRuntimeConfig(mode="materialize")
+        return AnalysisRuntimeConfig(
+            training=default_runtime,
+            final=EvaluationRuntimeConfig(mode="materialize"),
+        )
+    return AnalysisRuntimeConfig()
+
+
+def _map_analysis_config(
+    analysis_data: dict,
+    distributed_mode: str = "none",
+) -> dict:
     """Map analysis config fields to expected AnalysisConfig structure."""
     mapped = {}
 
@@ -362,6 +625,75 @@ def _map_analysis_config(analysis_data: dict) -> dict:
             mapped[old_name] = analysis_data[new_name]
         elif old_name in analysis_data:
             mapped[old_name] = analysis_data[old_name]
+
+    if "runtime" in analysis_data and isinstance(analysis_data["runtime"], Mapping):
+        runtime_data = dict(analysis_data["runtime"])
+        default_runtime = _default_analysis_runtime_config(distributed_mode)
+        if "training" in runtime_data and isinstance(runtime_data["training"], Mapping):
+            tr = dict(runtime_data["training"])
+            tr.pop("splits", None)
+            tr.pop("persistent_workers", None)
+            tr.pop("prefetch_factor", None)
+            runtime_data["training"] = EvaluationRuntimeConfig(**tr)
+        elif "training" not in runtime_data:
+            runtime_data["training"] = default_runtime.training
+        if "final" in runtime_data and isinstance(runtime_data["final"], Mapping):
+            fr = dict(runtime_data["final"])
+            fr.pop("splits", None)
+            fr.pop("persistent_workers", None)
+            fr.pop("prefetch_factor", None)
+            runtime_data["final"] = EvaluationRuntimeConfig(**fr)
+        elif "final" not in runtime_data:
+            runtime_data["final"] = default_runtime.final
+        mapped["runtime"] = AnalysisRuntimeConfig(**runtime_data)
+
+    # Instantiate PerformanceAnalysisConfig and migrate legacy performance runtime
+    # config into the shared top-level analysis.runtime surface.
+    if "performance_analysis" in mapped and isinstance(
+        mapped["performance_analysis"], Mapping
+    ):
+        pa = dict(mapped["performance_analysis"])
+        if "params" in pa and isinstance(pa["params"], Mapping):
+            pa["params"] = PerformanceAnalysisParams(**pa["params"])
+
+        legacy_training_runtime = None
+        legacy_final_runtime = None
+        legacy_training_splits = None
+        legacy_final_splits = None
+        if "training_runtime" in pa and isinstance(pa["training_runtime"], Mapping):
+            tr = dict(pa["training_runtime"])
+            legacy_training_splits = tr.pop("splits", None)
+            tr.pop("persistent_workers", None)
+            tr.pop("prefetch_factor", None)
+            legacy_training_runtime = EvaluationRuntimeConfig(**tr)
+        if "final_runtime" in pa and isinstance(pa["final_runtime"], Mapping):
+            fr = dict(pa["final_runtime"])
+            legacy_final_splits = fr.pop("splits", None)
+            fr.pop("persistent_workers", None)
+            fr.pop("prefetch_factor", None)
+            legacy_final_runtime = EvaluationRuntimeConfig(**fr)
+
+        if "runtime" not in mapped and (
+            legacy_training_runtime is not None or legacy_final_runtime is not None
+        ):
+            mapped["runtime"] = AnalysisRuntimeConfig(
+                training=legacy_training_runtime
+                or _default_analysis_runtime_config(distributed_mode).training,
+                final=legacy_final_runtime
+                or _default_analysis_runtime_config(distributed_mode).final,
+            )
+
+        if legacy_training_splits is not None and "training_splits" not in pa:
+            pa["training_splits"] = list(legacy_training_splits)
+        if legacy_final_splits is not None and "final_splits" not in pa:
+            pa["final_splits"] = list(legacy_final_splits)
+
+        pa.pop("training_runtime", None)
+        pa.pop("final_runtime", None)
+        mapped["performance_analysis"] = PerformanceAnalysisConfig(**pa)
+
+    if "runtime" not in mapped:
+        mapped["runtime"] = _default_analysis_runtime_config(distributed_mode)
 
     return mapped
 
@@ -417,6 +749,19 @@ def _map_training_config(training_data: dict) -> dict:
     # Handle nested learning_strategy_config and optimizer in main config
     if "main" in mapped and isinstance(mapped["main"], dict):
         main_data = dict(mapped["main"])
+
+        # Backward compatibility: hoist learning_strategy_config from common
+        # to main if it was placed there by legacy configs.
+        if "common" in main_data and isinstance(main_data["common"], dict):
+            common = main_data["common"]
+            if "learning_strategy_config" in common:
+                main_data.setdefault(
+                    "learning_strategy_config", common.pop("learning_strategy_config")
+                )
+                logger.warning(
+                    "learning_strategy_config found under training.main.common — "
+                    "hoisting to training.main. Please update your config."
+                )
 
         # Build learning_strategy_config if present
         if (

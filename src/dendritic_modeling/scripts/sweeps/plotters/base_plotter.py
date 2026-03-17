@@ -197,6 +197,7 @@ class BasePlotter:
             "dendritic_additive",
             "flat_additive",
             "dendritic_mlp",
+            "flat_mlp",
             "point_mlp",
             "ss_mlp",
             "ss_mlp_flat",
