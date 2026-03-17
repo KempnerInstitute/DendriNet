@@ -51,7 +51,7 @@ class InformationPlotter(BasePlotter):
     @staticmethod
     def _add_legend_if_handles(ax: plt.Axes, **kwargs) -> None:
         """Add a legend only when the axis has labeled artists."""
-        handles, labels = ax.get_legend_handles_labels()
+        handles, _labels = ax.get_legend_handles_labels()
         if handles:
             ax.legend(**kwargs)
 
