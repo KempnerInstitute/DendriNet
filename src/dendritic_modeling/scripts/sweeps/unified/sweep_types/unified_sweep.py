@@ -34,21 +34,37 @@ from dendritic_modeling.scripts.sweeps.unified.base_sweep import (  # noqa: E402
 def expand_ranges(param_value):
     """
     Handle parameter values that are specified as ranges.
-    A range is specified as [start, end, step].
+
+    Ranges must be specified explicitly as a dict with a "range" key:
+        {range: [start, end, step]}
+
+    For example, in a sweep YAML:
+        some_param: {range: [0.0, 1.0, 0.1]}   # expands to [0.0, 0.1, 0.2, ..., 1.0]
+        other_param: {range: [1, 10, 2]}         # expands to [1, 3, 5, 7, 9, 10]
+
+    To sweep over a list of discrete values (including exactly 3 numeric values),
+    just use a plain list:
+        density_param: [0.05, 0.1, 0.2]   # sweeps over exactly these 3 values
+
+    NOTE: The previous implementation detected ranges by checking for a bare
+    3-element list of numbers (e.g. [0.05, 0.1, 0.2]), which made it impossible
+    to sweep over exactly 3 discrete numeric values — any such list would be
+    silently misinterpreted as [start, end, step] and collapsed to fewer values.
+    For example, [0.05, 0.1, 0.2] was read as start=0.05, end=0.1, step=0.2
+    and expanded to only [0.05], skipping the intended sweep. The explicit dict
+    syntax eliminates this ambiguity entirely.
     """
     if hasattr(param_value, "_content"):
         param_value = OmegaConf.to_container(param_value, resolve=True)
 
-    if (
-        isinstance(param_value, list)
-        and len(param_value) == 3
-        and all(isinstance(x, (int, float)) for x in param_value)
-    ):
-        start, end, step = param_value
+    # Range specification must be an explicit dict: {range: [start, end, step]}
+    if isinstance(param_value, dict) and "range" in param_value:
+        start, end, step = param_value["range"]
         if isinstance(start, int) and isinstance(end, int) and isinstance(step, int):
             return list(range(start, end + 1, step))
         else:
             return np.arange(start, end + step / 2, step).tolist()
+
     return param_value
 
 
