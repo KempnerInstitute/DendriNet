@@ -267,4 +267,6 @@ def resolve_analysis_pin_memory(
         pin = getattr(runtime, "pin_memory", True)
     if device is not None and str(device) == "cpu":
         return False
+    if device is None and not torch.cuda.is_available():
+        return False
     return pin

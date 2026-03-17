@@ -48,6 +48,13 @@ class InformationPlotter(BasePlotter):
         },
     }
 
+    @staticmethod
+    def _add_legend_if_handles(ax: plt.Axes, **kwargs) -> None:
+        """Add a legend only when the axis has labeled artists."""
+        handles, labels = ax.get_legend_handles_labels()
+        if handles:
+            ax.legend(**kwargs)
+
     def generate_all(self, data: pd.DataFrame, output_dir: Path) -> list[Path]:
         """
         Generate all information theory plots.
@@ -643,7 +650,7 @@ class InformationPlotter(BasePlotter):
                         use_log_x=logscale,
                         grid=True,
                     )
-                    ax.legend(fontsize=10)
+                    self._add_legend_if_handles(ax, fontsize=10)
 
                 fig.tight_layout()
                 plot_path = output_dir / f"{group_name}.png"
@@ -921,7 +928,12 @@ class InformationPlotter(BasePlotter):
                 use_log_x=logscale,
                 grid=True,
             )
-            ax.legend(bbox_to_anchor=(1.05, 1), loc="upper left", fontsize=8)
+            self._add_legend_if_handles(
+                ax,
+                bbox_to_anchor=(1.05, 1),
+                loc="upper left",
+                fontsize=8,
+            )
 
         fig.suptitle(f"{group_info['title']} - First vs Last Layer", fontsize=16)
         fig.tight_layout()
