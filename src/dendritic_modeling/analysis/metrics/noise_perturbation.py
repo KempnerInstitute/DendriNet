@@ -11,6 +11,7 @@ import torch
 from torch.utils.data import TensorDataset
 
 from dendritic_modeling.analysis.utils.runtime import (
+    analysis_device_context,
     evaluation_kwargs_from_runtime,
     materialize_dataset,
 )
@@ -85,131 +86,129 @@ class NoisePerturbationAnalyzer:
         Returns:
             Dictionary containing noise robustness results if save_path is None, otherwise None
         """
-        model = model.to(device)
         eval_kwargs = evaluation_kwargs_from_runtime(runtime)
-        items = materialize_dataset(test_dataset, runtime)
-        x: torch.Tensor = items[0].to(device)
-        y: torch.Tensor = items[1].to(device)
-        y = y[None, ...].expand(self.n_samples, *y.shape)
+        with analysis_device_context(model, device) as analysis_device:
+            items = materialize_dataset(test_dataset, runtime, device=analysis_device)
+            x: torch.Tensor = items[0].to(analysis_device)
+            y: torch.Tensor = items[1].to(analysis_device)
+            y = y[None, ...].expand(self.n_samples, *y.shape)
 
-        noise_results = {}
+            noise_results = {}
 
-        def _evaluate_metric(
-            noise_type: str,
-            noise_level: float,
-            metric_func: Callable,
-            metric_key: str,
-            noisy_test_ds: torch.utils.data.Dataset,
-        ):
-            metric_result = metric_func(
-                model,
-                test_ds=noisy_test_ds,
-                reduce_dim=1,
-                move_device=False,
-                **eval_kwargs,
-            )[-1]
+            def _evaluate_metric(
+                noise_type: str,
+                noise_level: float,
+                metric_func: Callable,
+                metric_key: str,
+                noisy_test_ds: torch.utils.data.Dataset,
+            ):
+                metric_result = metric_func(
+                    model,
+                    test_ds=noisy_test_ds,
+                    reduce_dim=1,
+                    move_device=False,
+                    **eval_kwargs,
+                )[-1]
 
-            # Handle both tensor and scalar results
-            if isinstance(metric_result, torch.Tensor):
-                metric_list = metric_result.cpu().tolist()
-            else:
-                # Handle scalar (float) results
-                metric_list = float(metric_result)
-            noise_results[noise_type][f"{noise_level}"][metric_key] = metric_list
+                if isinstance(metric_result, torch.Tensor):
+                    metric_list = metric_result.cpu().tolist()
+                else:
+                    metric_list = float(metric_result)
+                noise_results[noise_type][f"{noise_level}"][metric_key] = metric_list
 
-        if self.uniform_noise:
-            noise_results["uniform"] = {}
-            for mag in self.uniform_magnitudes:
-                noise_results["uniform"][f"{mag}"] = {}
-                noisy_x = add_uniform_noise(x, spread=mag, n_samples=self.n_samples)
-                noisy_test_ds = TensorDataset(noisy_x, y)
-                if self.accuracy:
-                    _evaluate_metric(
-                        noise_type="uniform",
-                        noise_level=mag,
-                        metric_func=evaluate_accuracy,
-                        metric_key="accuracy",
-                        noisy_test_ds=noisy_test_ds,
-                    )
-                if self.auc:
-                    _evaluate_metric(
-                        noise_type="uniform",
-                        noise_level=mag,
-                        metric_func=evaluate_auc,
-                        metric_key="auc",
-                        noisy_test_ds=noisy_test_ds,
-                    )
-                if self.categorical_ll:
-                    _evaluate_metric(
-                        noise_type="uniform",
-                        noise_level=mag,
-                        metric_func=evaluate_categorical_loglikelihood,
-                        metric_key="categorical_ll",
-                        noisy_test_ds=noisy_test_ds,
-                    )
-                if self.mse:
-                    _evaluate_metric(
-                        noise_type="uniform",
-                        noise_level=mag,
-                        metric_func=evaluate_mse,
-                        metric_key="mse",
-                        noisy_test_ds=noisy_test_ds,
-                    )
-                if self.cosine_similarity:
-                    _evaluate_metric(
-                        noise_type="uniform",
-                        noise_level=mag,
-                        metric_func=evaluate_cosine_similarity,
-                        metric_key="cosine_similarity",
-                        noisy_test_ds=noisy_test_ds,
-                    )
+            if self.uniform_noise:
+                noise_results["uniform"] = {}
+                for mag in self.uniform_magnitudes:
+                    noise_results["uniform"][f"{mag}"] = {}
+                    noisy_x = add_uniform_noise(x, spread=mag, n_samples=self.n_samples)
+                    noisy_test_ds = TensorDataset(noisy_x, y)
+                    if self.accuracy:
+                        _evaluate_metric(
+                            noise_type="uniform",
+                            noise_level=mag,
+                            metric_func=evaluate_accuracy,
+                            metric_key="accuracy",
+                            noisy_test_ds=noisy_test_ds,
+                        )
+                    if self.auc:
+                        _evaluate_metric(
+                            noise_type="uniform",
+                            noise_level=mag,
+                            metric_func=evaluate_auc,
+                            metric_key="auc",
+                            noisy_test_ds=noisy_test_ds,
+                        )
+                    if self.categorical_ll:
+                        _evaluate_metric(
+                            noise_type="uniform",
+                            noise_level=mag,
+                            metric_func=evaluate_categorical_loglikelihood,
+                            metric_key="categorical_ll",
+                            noisy_test_ds=noisy_test_ds,
+                        )
+                    if self.mse:
+                        _evaluate_metric(
+                            noise_type="uniform",
+                            noise_level=mag,
+                            metric_func=evaluate_mse,
+                            metric_key="mse",
+                            noisy_test_ds=noisy_test_ds,
+                        )
+                    if self.cosine_similarity:
+                        _evaluate_metric(
+                            noise_type="uniform",
+                            noise_level=mag,
+                            metric_func=evaluate_cosine_similarity,
+                            metric_key="cosine_similarity",
+                            noisy_test_ds=noisy_test_ds,
+                        )
 
-        if self.gaussian_noise:
-            noise_results["gaussian"] = {}
-            for sdev in self.gaussian_sdevs:
-                noise_results["gaussian"][f"{sdev}"] = {}
-                noisy_x = add_gaussian_noise(x, std=sdev, n_samples=self.n_samples)
-                noisy_test_ds = TensorDataset(noisy_x, y)
-                if self.accuracy:
-                    _evaluate_metric(
-                        noise_type="gaussian",
-                        noise_level=sdev,
-                        metric_func=evaluate_accuracy,
-                        metric_key="accuracy",
-                        noisy_test_ds=noisy_test_ds,
-                    )
-                if self.auc:
-                    _evaluate_metric(
-                        noise_type="gaussian",
-                        noise_level=sdev,
-                        metric_func=evaluate_auc,
-                        metric_key="auc",
-                        noisy_test_ds=noisy_test_ds,
-                    )
-                if self.categorical_ll:
-                    _evaluate_metric(
-                        noise_type="gaussian",
-                        noise_level=sdev,
-                        metric_func=evaluate_categorical_loglikelihood,
-                        metric_key="categorical_ll",
-                        noisy_test_ds=noisy_test_ds,
-                    )
-                if self.mse:
-                    _evaluate_metric(
-                        noise_type="gaussian",
-                        noise_level=sdev,
-                        metric_func=evaluate_mse,
-                        metric_key="mse",
-                        noisy_test_ds=noisy_test_ds,
-                    )
-                if self.cosine_similarity:
-                    _evaluate_metric(
-                        noise_type="gaussian",
-                        noise_level=sdev,
-                        metric_func=evaluate_cosine_similarity,
-                        metric_key="cosine_similarity",
-                        noisy_test_ds=noisy_test_ds,
-                    )
+            if self.gaussian_noise:
+                noise_results["gaussian"] = {}
+                for sdev in self.gaussian_sdevs:
+                    noise_results["gaussian"][f"{sdev}"] = {}
+                    noisy_x = add_gaussian_noise(x, std=sdev, n_samples=self.n_samples)
+                    noisy_test_ds = TensorDataset(noisy_x, y)
+                    if self.accuracy:
+                        _evaluate_metric(
+                            noise_type="gaussian",
+                            noise_level=sdev,
+                            metric_func=evaluate_accuracy,
+                            metric_key="accuracy",
+                            noisy_test_ds=noisy_test_ds,
+                        )
+                    if self.auc:
+                        _evaluate_metric(
+                            noise_type="gaussian",
+                            noise_level=sdev,
+                            metric_func=evaluate_auc,
+                            metric_key="auc",
+                            noisy_test_ds=noisy_test_ds,
+                        )
+                    if self.categorical_ll:
+                        _evaluate_metric(
+                            noise_type="gaussian",
+                            noise_level=sdev,
+                            metric_func=evaluate_categorical_loglikelihood,
+                            metric_key="categorical_ll",
+                            noisy_test_ds=noisy_test_ds,
+                        )
+                    if self.mse:
+                        _evaluate_metric(
+                            noise_type="gaussian",
+                            noise_level=sdev,
+                            metric_func=evaluate_mse,
+                            metric_key="mse",
+                            noisy_test_ds=noisy_test_ds,
+                        )
+                    if self.cosine_similarity:
+                        _evaluate_metric(
+                            noise_type="gaussian",
+                            noise_level=sdev,
+                            metric_func=evaluate_cosine_similarity,
+                            metric_key="cosine_similarity",
+                            noisy_test_ds=noisy_test_ds,
+                        )
 
         if save_path is not None:
             save_dict(noise_results, save_path, filename)

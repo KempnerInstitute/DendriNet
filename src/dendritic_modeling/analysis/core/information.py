@@ -17,7 +17,10 @@ import torch
 from tqdm import tqdm
 
 from dendritic_modeling.analysis.core.base import AbstractAnalyzer
-from dendritic_modeling.analysis.utils.runtime import materialize_dataset
+from dendritic_modeling.analysis.utils.runtime import (
+    get_model_device,
+    materialize_dataset,
+)
 from dendritic_modeling.config import InformationAnalysisParams
 from dendritic_modeling.config.analysis import EvaluationRuntimeConfig
 from dendritic_modeling.models import BaseModel
@@ -3044,6 +3047,9 @@ class InformationAnalyzer(AbstractAnalyzer):
             f"Model: {type(model).__name__}, Dataset size: {len(test_dataset)}, Device: {device}"
         )
 
+        original_device = get_model_device(model)
+        was_training = getattr(model, "training", False)
+        moved = False
         try:
             # Check if model has ExcitationInhibitionNetwork
             if not isinstance(model.core_network, ExcitationInhibitionNetwork):
@@ -3059,10 +3065,14 @@ class InformationAnalyzer(AbstractAnalyzer):
             self.logger.info(f"Preparing data: moving model to {device}")
             model = model.to(device)
             model.eval()
+            moved = True
 
             self.logger.info("Loading test dataset...")
             items = materialize_dataset(
-                test_dataset, runtime, explicit_max_samples=self.max_samples
+                test_dataset,
+                runtime,
+                explicit_max_samples=self.max_samples,
+                device=device,
             )
             inputs, labels = items[0], items[1]
             inputs: torch.Tensor
@@ -4188,6 +4198,11 @@ class InformationAnalyzer(AbstractAnalyzer):
         except Exception as e:
             self.logger.error(f"Error in information analysis: {e}")
             traceback.print_exc()
+        finally:
+            if moved:
+                model.to(original_device)
+                if was_training:
+                    model.train()
 
     def compute_class_mi(self, activations, labels):
         return self.estimators[self.method].mutual_information(activations, labels)
@@ -4226,7 +4241,7 @@ class InformationAnalyzer(AbstractAnalyzer):
         from sklearn.metrics import accuracy_score
 
         if device is None:
-            device = next(model.parameters()).device
+            device = get_model_device(model)
 
         # Ensure model is in eval mode (same state used for all comparisons)
         model.eval()

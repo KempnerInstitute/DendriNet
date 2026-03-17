@@ -151,7 +151,11 @@ model:
     # Recurrent EI: "recurrent_ei"
     # Baseline RNN: "baseline_rnn" | "gru" | "lstm" | "vanilla_rnn" | "rnn"
     # Point neuron MLP: "mlp" | "point_mlp" | "total_param_mlp" | "active_param_mlp" | "ss_mlp" | "ss_mlp_flat"
-    # Spatial dendritic (pretrained replacement): "hierarchical_dendritic_tensor_map" | "dendritic_tensor_map" | "tensor_map" | "hierarchical_dendritic_conv" | "spatial_dendritic_conv"
+    # Spatial dendritic pretrained-replacement cores:
+    #   "hierarchical_dendritic_tensor_map" | "dendritic_tensor_map" | "tensor_map"
+    #       -> baseline/control: flatten prefix tensor, run EINet, project to flat suffix input
+    #   "hierarchical_dendritic_conv" | "spatial_dendritic_conv"
+    #       -> local spatial dendritic operator for convolutional suffixes
     # Classical: "alexnet" | "cnn" | "cnn_down" | "cnn_up" | "identity" | "none"
     type: "EINet"
 
@@ -237,6 +241,8 @@ model:
       store_routing: false              # bool: Store routing (alpha) info for analysis
 
     # ---- Spatial (for hierarchical_dendritic_conv core type) ----
+    # Used only when the pretrained replacement suffix still expects spatial input.
+    # Geometry is user-specified here; it is not inferred from an arbitrary replaced block.
     spatial:
       kernel_size: 3                    # int: Receptive field size (unfold kernel)
       stride: 1                         # int: Stride for unfold
@@ -334,6 +340,9 @@ model:
     backbone: "alexnet"                 # str: "alexnet" | "resnet18" | "resnet50" | "vgg16" | etc.
     weights: "IMAGENET1K_V1"            # str | null: Pretrained weights identifier
     input_shape: [3, 224, 224]          # list[int]: [C, H, W] expected by backbone
+    # Replacement contract:
+    #   tensor_map core -> use when suffix expects flat input
+    #   dendritic_conv core -> use when suffix expects spatial input
     replace:
       start: ""                         # str: First replaced layer name (inclusive)
       end: ""                           # str: Last replaced layer name (inclusive)
@@ -721,12 +730,14 @@ analysis:
   #   materialize -> closest match to the old exact single-GPU path; hook-based
   #                  analyses use one full batch when dataset slicing is supported.
   #   stream      -> safest choice for large datasets such as ImageNet.
+  # Models may be moved temporarily to the requested analysis device, but the
+  # original device and train/eval mode are restored automatically afterward.
   runtime:
     training:
       mode: "auto"                      # str: "auto" | "materialize" | "stream"
       batch_size: 256                   # int: Analysis batch size
       num_workers: 4                    # int: DataLoader workers
-      pin_memory: true                  # bool: Pin memory for GPU transfer
+      pin_memory: true                  # bool: Pin memory for GPU transfer (auto-disabled on CPU analysis)
       max_batches: null                 # int | null: Optional cheap/training-time cap (null = all batches)
       max_samples: null                 # int | null: Hard cap for expensive analyses that still accumulate CPU tensors
       materialize_threshold_mb: 1024    # int: Auto-mode threshold (MB); keeps small single-GPU datasets materialized
@@ -734,7 +745,7 @@ analysis:
       mode: "auto"                      # str: "auto" | "materialize" | "stream"
       batch_size: 256                   # int: Analysis batch size
       num_workers: 4                    # int: DataLoader workers
-      pin_memory: true                  # bool: Pin memory for GPU transfer
+      pin_memory: true                  # bool: Pin memory for GPU transfer (auto-disabled on CPU analysis)
       max_batches: null                 # int | null: Optional cap (usually leave null for final analysis)
       max_samples: null                 # int | null: Use when heavy analyses must inspect only a bounded subset
       materialize_threshold_mb: 1024    # int: Auto-mode threshold (MB); use materialize for exact old small-dataset behavior

@@ -1,30 +1,51 @@
 # ============================================================================
-# AlexNet Conv Layer Replacement with Hierarchical Dendritic Conv
+# AlexNet K=1: Replace fc7 with a dendritic EI layer (canonical single-GPU config)
 # ============================================================================
 #
-# This config replaces conv layers features.6-8 (the last conv block) inside a
-# pretrained AlexNet with a HierarchicalDendriticConv core. The dendritic conv
-# applies F.unfold to extract local patches, runs a shared DendriNet on all
-# patches, and reshapes back to spatial output.
+# This config replaces ONE fully-connected layer (fc7) inside a pretrained
+# AlexNet with a dendritic excitatory-inhibitory (EI) network, while keeping
+# the convolutional backbone and the final classifier layer from ImageNet.
+#
+# AlexNet layer map (use `list_backbone_layers("alexnet")` to regenerate):
+#
+#   Layer name          Module              Notes
+#   ─────────────────── ─────────────────── ──────────────────────────────
+#   features.0          Conv2d(3→64)        \
+#   features.1          ReLU                 |
+#   features.2          MaxPool2d            |
+#   features.3          Conv2d(64→192)       |  Convolutional backbone
+#   features.4          ReLU                 |  (all frozen in this config)
+#   features.5          MaxPool2d            |
+#   features.6          Conv2d(192→384)      |
+#   features.7          ReLU                 |
+#   features.8          Conv2d(384→256)      |
+#   features.9          ReLU                 |
+#   features.10         Conv2d(256→256)      |
+#   features.11         ReLU                 |
+#   features.12         MaxPool2d           /
+#   avgpool             AdaptiveAvgPool2d   → 256×6×6 = 9216-dim (flattened)
+#   classifier.0        Dropout             omitted (not needed at eval)
+#   classifier.1        Linear(9216→4096)   fc6 — frozen prefix
+#   classifier.2        ReLU                fc6 activation — frozen prefix
+#   classifier.3        Dropout             omitted (not needed at eval)
+#   classifier.4        Linear(4096→4096)   fc7 — REPLACED by EINet core
+#   classifier.5        ReLU                fc7 activation — REPLACED
+#   classifier.6        Linear(4096→1000)   fc8 — trainable suffix (decoder)
 #
 # Pipeline after splitting:
-#   prefix (encoder)  = features.0..5                     -> (B, 192, 13, 13), frozen
-#   core (dendritic)  = shared DendriNet on 3x3 patches   -> (B, 256, 13, 13), trainable
-#   suffix (decoder)  = features.9..12 + avgpool + fc     -> 1000 classes, trainable
+#   prefix (encoder)  = features.* + avgpool + fc6 + ReLU    → 4096-dim, frozen
+#   core (EINet)      = replaces fc7 + ReLU                  → 4096-dim, trainable
+#   suffix (decoder)  = fc8                                  → 1000 classes, trainable
 #
-# The core replaces features.6 (Conv2d 192->384), features.7 (ReLU),
-# features.8 (Conv2d 384->256) with a single dendritic conv layer.
-#
-# NOTE: This is a multi-layer replacement (two convs + activation -> one
-# dendritic operator). The dendritic conv acts as a learned surrogate with
-# user-chosen local geometry (kernel_size, stride, padding), NOT a faithful
-# 1:1 conv replacement. For single-conv replacement, narrow the replace range
-# to a single Conv2d layer.
+# Learning rates:
+#   - encoder (prefix): encoder_lr = 0.0 (frozen, no gradients)
+#   - core EINet:       lr / topk_lr / blocklinear_lr / reactivation_lr
+#   - decoder (suffix): decoder_lr = 0.01
 #
 # Run:
 #   PYTHONPATH=src:$PYTHONPATH python \
 #     src/dendritic_modeling/scripts/training/train_experiments.py \
-#     configs/vision/alexnet_conv_dendritic_conv.yaml
+#     configs/vision/alexnet_k1_einet_single.yaml
 # ============================================================================
 
 experiment:
@@ -49,50 +70,52 @@ data:
 model:
   task: "classification"
 
+  # --- Pretrained replacement config ---
+  # When enabled, this replaces model.encoder / model.decoder entirely.
+  # The backbone is loaded once and split at the layer boundaries below.
   pretrained_replacement:
     enabled: true
-    backbone: "alexnet"
-    weights: "IMAGENET1K_V1"
-    input_shape: [3, 224, 224]
+    backbone: "alexnet"                            # torchvision model name
+    weights: "IMAGENET1K_V1"                       # pretrained weights (null = random)
+    input_shape: [3, 224, 224]                     # expected input tensor shape
 
-    # Replace the middle conv block (features.6 through features.8)
+    # Which layers to replace with the EINet core (inclusive range).
     replace:
-      start: "features.6"                             # Conv2d(192, 384, 3, padding=1)
-      end: "features.8"                               # Conv2d(384, 256, 3, padding=1)
+      start: "classifier.4"                        # fc7 Linear(4096 → 4096)
+      end: "classifier.5"                          # fc7 ReLU
 
-    omit_layers: []
+    # Layers to drop entirely (e.g. Dropout — not useful during training
+    # with EI networks that have their own regularization).
+    omit_layers: ["classifier.0", "classifier.3"]
 
+    # Freeze/train policy for encoder and decoder segments.
+    # LRs are set in training.main.common.param_groups below.
     trainability:
       encoder:
-        mode: "frozen"                                 # freeze early conv layers
+        mode: "frozen"                             # freeze conv backbone + fc6
       decoder:
-        mode: "trainable"                              # train remaining conv + FC
+        mode: "trainable"                          # train fc8 (the final classifier)
 
-  # --- Core network: dendritic conv replacing features.6-8 ---
-  # Input: (B, 192, 13, 13) spatial from encoder
-  # Output: (B, C_out, 13, 13) spatial to suffix
+  # --- Core network: EINet replacing fc7 ---
+  # Input: 4096-dim (from prefix output)
+  # Output: 4096-dim (must match suffix first Linear in_features)
   core:
-    type: "hierarchical_dendritic_conv"
-
-    spatial:
-      kernel_size: 3
-      stride: 1
-      padding: 1                                       # same spatial size
+    type: "einet"
 
     architecture:
-      excitatory_layer_sizes: [256]                    # C_out = 256 (match original)
-      inhibitory_layer_sizes: [64]
-      excitatory_branch_factors: [3, 3]
-      inhibitory_branch_factors: [3, 3]
+      excitatory_layer_sizes: [4096]               # match fc8 input dim
+      inhibitory_layer_sizes: [820]                # ~20% of excitatory
+      excitatory_branch_factors: [2, 2]
+      inhibitory_branch_factors: [2, 2]
       inhibitory_network_type: "dendritic"
       mlp_inhibitory_network_params:
         hidden_dims: []
         activation: "relu"
 
     connectivity:
-      ee_synapses_per_branch_per_layer: [16]           # K out of 192×3×3 = 1728
-      ei_synapses_per_branch_per_layer: [8]
-      ie_synapses_per_branch_per_layer: [8]
+      ee_synapses_per_branch_per_layer: [40]
+      ei_synapses_per_branch_per_layer: [10]
+      ie_synapses_per_branch_per_layer: [10]
       ii_synapses_per_branch_per_layer: [0]
 
     transfer:
@@ -141,7 +164,7 @@ model:
       efficient: false
 
     implementation:
-      adaptive_initialization: true
+      adaptive_initialization: false
       print_hooks: false
 
 training:
@@ -150,10 +173,10 @@ training:
     common:
       lr: 0.0
       loss_function: "log_mse"
-      epochs: 0
+      epochs: 0                                    # no encoder pretraining
       early_stopping: false
       patience: 100
-      batch_size: 128
+      batch_size: 256
       shuffle: false
       grad_clip_value: 5.0
       load_best_state_dict: false
@@ -167,13 +190,13 @@ training:
   main:
     strategy: "standard"
     common:
-      epochs: 500
-      batch_size: 128                                  # smaller batch for memory
+      epochs: 50
+      batch_size: 128
       shuffle: true
       grad_clip_value: 5.0
       loss_function: "cat_nll"
       early_stopping: true
-      patience: 100
+      patience: 50
       load_best_state_dict: true
       plot_losses: true
       suppress_prints: false
@@ -184,13 +207,13 @@ training:
       weight_decay_rate: 0.0
       weight_boosting: false
       param_groups:
-        lr: 0.001
+        lr: 0.001                                  # core EINet default LR
         split_params: true
         topk_lr: 0.001
         blocklinear_lr: 0.0001
         reactivation_lr: 0.0001
-        decoder_lr: 0.01
-        encoder_lr: 0.0
+        decoder_lr: 0.0001                         # suffix (fc8) LR — low to preserve pretrained weights
+        encoder_lr: 0.0                            # prefix frozen, no updates
 
     regularization:
       l1_weight: 0.0
@@ -230,15 +253,27 @@ training:
       standard: {}
 
 analysis:
+  runtime:
+    training:
+      mode: "stream"                               # ImageNet training analysis: stream batches instead of materializing the split
+      batch_size: 256
+      num_workers: 4
+      max_batches: 20                              # cap to ~5K samples per eval
+    final:
+      mode: "stream"                               # safest default for full validation/test runs on ImageNet
+      batch_size: 256
+      num_workers: 4
   performance:
-    enabled: false
-    training: false
+    enabled: true
+    training: false                                # disabled for throughput; keep final validation/test only
     params:
       accuracy: true
-      auc: true
+      auc: false                                   # slow on 1000 classes
       categorical_loglikelihood: true
       mse: false
       cosine_similarity: false
+    training_splits: ["valid"]                     # only validation during training
+    final_splits: ["valid", "test"]
   information: { enabled: false, training: false, params: {} }
   correlation: { enabled: false, training: false, params: {} }
   ablation: { enabled: false, training: false, params: {} }
@@ -255,13 +290,15 @@ wandb:
   use_wandb: false
   entity: ""
   project: "dendritic-sweeps"
-  group: "alexnet_conv_replacement"
-  tags: ["alexnet", "dendritic_conv", "spatial", "imagenet"]
+  group: "alexnet_fc_replacement"
+  tags: ["alexnet", "k1", "einet", "imagenet"]
 
 outputs:
-  run_name: "alexnet_conv_dendritic_conv"
+  run_name: "alexnet_k1_einet_single"
   results_dir: "outputs"
 
+# Distributed training mode: none (single GPU), ddp, or fsdp.
+# Use scripts/train.sh to auto-select the launcher from this setting.
 distributed:
   mode: none
   fsdp:

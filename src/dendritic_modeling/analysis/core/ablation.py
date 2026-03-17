@@ -18,7 +18,9 @@ import torch
 
 from dendritic_modeling.analysis.core.base import AbstractAnalyzer
 from dendritic_modeling.analysis.utils.runtime import (
+    analysis_device_context,
     evaluation_kwargs_from_runtime,
+    get_model_device,
     subset_dataset_for_runtime,
 )
 from dendritic_modeling.config.analysis import (
@@ -273,6 +275,7 @@ class AblationAnalyzer(AbstractAnalyzer):
         results_dict: dict,
         state_dict: dict,
         eval_kwargs: Optional[dict] = None,
+        device: Optional[str] = None,
     ):
         """Ablate a single layer and evaluate its impact.
 
@@ -289,6 +292,8 @@ class AblationAnalyzer(AbstractAnalyzer):
         results_dict[ablation_type][module_name]["ablation_method"] = ablation_method
         if eval_kwargs is None:
             eval_kwargs = {}
+        if device is None:
+            device = str(get_model_device(model))
 
         # Allow ablation_type keys to be namespaced, e.g. "lesion_excitation".
         target_type = ablation_type
@@ -326,77 +331,81 @@ class AblationAnalyzer(AbstractAnalyzer):
             if self.compute_pred_label_mi:
                 _set_zero_metric("pred_label_mi_bits")
         else:
-            if ablation_method == "lesion":
-                # Structural lesion: remove the relevant connection weights.
-                if target_type_norm in {"all_synapses", "excitation"}:
-                    if module.branch_excitation is not None and hasattr(
-                        module.branch_excitation, "pre_w"
-                    ):
-                        module.branch_excitation.pre_w.data.fill_(-1000)
-                if target_type_norm in {"all_synapses", "inhibition"}:
-                    if module.branch_inhibition is not None and hasattr(
-                        module.branch_inhibition, "pre_w"
-                    ):
-                        module.branch_inhibition.pre_w.data.fill_(-1000)
-                if target_type_norm == "upstream":
-                    if hasattr(module, "branches_to_output") and hasattr(
-                        module.branches_to_output, "log_weight"
-                    ):
-                        module.branches_to_output.log_weight.data.fill_(-1000)
+            try:
+                if ablation_method == "lesion":
+                    # Structural lesion: remove the relevant connection weights.
+                    if target_type_norm in {"all_synapses", "excitation"}:
+                        if module.branch_excitation is not None and hasattr(
+                            module.branch_excitation, "pre_w"
+                        ):
+                            module.branch_excitation.pre_w.data.fill_(-1000)
+                    if target_type_norm in {"all_synapses", "inhibition"}:
+                        if module.branch_inhibition is not None and hasattr(
+                            module.branch_inhibition, "pre_w"
+                        ):
+                            module.branch_inhibition.pre_w.data.fill_(-1000)
+                    if target_type_norm == "upstream":
+                        if hasattr(module, "branches_to_output") and hasattr(
+                            module.branches_to_output, "log_weight"
+                        ):
+                            module.branches_to_output.log_weight.data.fill_(-1000)
 
-            elif ablation_method in {"shuffle", "mean_clamp"}:
-                # Signal-level intervention: manipulate the input signals, not weights.
-                # Hooks are registered *per metric* so all metrics see the same
-                # deterministic intervention sequence.
-                pass
-            else:
-                raise ValueError(f"Unknown ablation_method: {ablation_method}")
+                elif ablation_method in {"shuffle", "mean_clamp"}:
+                    # Signal-level intervention: manipulate the input signals, not weights.
+                    # Hooks are registered *per metric* so all metrics see the same
+                    # deterministic intervention sequence.
+                    pass
+                else:
+                    raise ValueError(f"Unknown ablation_method: {ablation_method}")
 
-            def _evaluate_metric(metric_func: Callable, metric_key: str):
-                local_hook = None
-                try:
-                    if ablation_method in {"shuffle", "mean_clamp"}:
-                        pre_hook = self._make_signal_intervention_pre_hook(
-                            ablation_type=target_type_norm, method=ablation_method
-                        )
-                        local_hook = module.register_forward_pre_hook(pre_hook)
+                def _evaluate_metric(metric_func: Callable, metric_key: str):
+                    local_hook = None
+                    try:
+                        if ablation_method in {"shuffle", "mean_clamp"}:
+                            pre_hook = self._make_signal_intervention_pre_hook(
+                                ablation_type=target_type_norm, method=ablation_method
+                            )
+                            local_hook = module.register_forward_pre_hook(pre_hook)
 
-                    metric_score = metric_func(
-                        model,
-                        test_ds=test_dataset,
-                        move_device=False,
-                        **eval_kwargs,
-                    )[-1]
-                finally:
-                    if local_hook is not None:
-                        local_hook.remove()
+                        metric_score = metric_func(
+                            model,
+                            test_ds=test_dataset,
+                            device=device,
+                            **eval_kwargs,
+                        )[-1]
+                    finally:
+                        if local_hook is not None:
+                            local_hook.remove()
 
-                results_dict[ablation_type][module_name][f"{metric_key}_drop"] = (
-                    baseline_dict[metric_key] - metric_score
-                )
+                    results_dict[ablation_type][module_name][f"{metric_key}_drop"] = (
+                        baseline_dict[metric_key] - metric_score
+                    )
 
-            if self.accuracy:
-                _evaluate_metric(metric_func=evaluate_accuracy, metric_key="accuracy")
-            if self.auc:
-                _evaluate_metric(metric_func=evaluate_auc, metric_key="auc")
-            if self.categorical_ll:
-                _evaluate_metric(
-                    metric_func=evaluate_categorical_loglikelihood,
-                    metric_key="categorical_loglikelihood",
-                )
-            if self.mse:
-                _evaluate_metric(metric_func=evaluate_mse, metric_key="mse")
-            if self.cosine_similarity:
-                _evaluate_metric(
-                    metric_func=evaluate_cosine_similarity,
-                    metric_key="cosine_similarity",
-                )
-            if self.compute_pred_label_mi:
-                _evaluate_metric(
-                    metric_func=evaluate_pred_label_mi, metric_key="pred_label_mi_bits"
-                )
-
-        model.load_state_dict(state_dict)
+                if self.accuracy:
+                    _evaluate_metric(
+                        metric_func=evaluate_accuracy, metric_key="accuracy"
+                    )
+                if self.auc:
+                    _evaluate_metric(metric_func=evaluate_auc, metric_key="auc")
+                if self.categorical_ll:
+                    _evaluate_metric(
+                        metric_func=evaluate_categorical_loglikelihood,
+                        metric_key="categorical_loglikelihood",
+                    )
+                if self.mse:
+                    _evaluate_metric(metric_func=evaluate_mse, metric_key="mse")
+                if self.cosine_similarity:
+                    _evaluate_metric(
+                        metric_func=evaluate_cosine_similarity,
+                        metric_key="cosine_similarity",
+                    )
+                if self.compute_pred_label_mi:
+                    _evaluate_metric(
+                        metric_func=evaluate_pred_label_mi,
+                        metric_key="pred_label_mi_bits",
+                    )
+            finally:
+                model.load_state_dict(state_dict)
 
         return results_dict
 
@@ -412,10 +421,13 @@ class AblationAnalyzer(AbstractAnalyzer):
         results_dict: dict,
         state_dict: dict,
         eval_kwargs: Optional[dict] = None,
+        device: Optional[str] = None,
     ):
         """Ablate a single compartment and evaluate its impact."""
         if eval_kwargs is None:
             eval_kwargs = {}
+        if device is None:
+            device = str(get_model_device(model))
         results_dict[ablation_type][module_name] = {}
         results_dict[ablation_type][module_name]["depth"] = module.layer_idx
         results_dict[ablation_type][module_name]["ablation_method"] = ablation_method
@@ -453,47 +465,48 @@ class AblationAnalyzer(AbstractAnalyzer):
             metric_score = metric_func(
                 model,
                 test_ds=test_dataset,
-                move_device=False,
+                device=device,
                 **eval_kwargs,
             )[-1]
             metric_list.append(baseline_dict[metric_key] - metric_score)
 
         for branch_ix in range(n_branches):
-            if target_type_norm in {"all_synapses", "excitation"}:
-                module.branch_excitation.pre_w.data[branch_ix, :] = -1000
-            if target_type_norm in {"all_synapses", "inhibition"}:
-                module.branch_inhibition.pre_w.data[branch_ix, :] = -1000
-            if target_type_norm == "upstream":
-                module.branches_to_output.log_weight.data[branch_ix, :] = -1000
+            try:
+                if target_type_norm in {"all_synapses", "excitation"}:
+                    module.branch_excitation.pre_w.data[branch_ix, :] = -1000
+                if target_type_norm in {"all_synapses", "inhibition"}:
+                    module.branch_inhibition.pre_w.data[branch_ix, :] = -1000
+                if target_type_norm == "upstream":
+                    module.branches_to_output.log_weight.data[branch_ix, :] = -1000
 
-            if self.accuracy:
-                _evaluate_metric(
-                    metric_func=evaluate_accuracy,
-                    metric_key="accuracy",
-                    metric_list=accuracy_list,
-                )
-            if self.auc:
-                _evaluate_metric(
-                    metric_func=evaluate_auc, metric_key="auc", metric_list=auc_list
-                )
-            if self.categorical_ll:
-                _evaluate_metric(
-                    metric_func=evaluate_categorical_loglikelihood,
-                    metric_key="categorical_loglikelihood",
-                    metric_list=loglikelihood_list,
-                )
-            if self.mse:
-                _evaluate_metric(
-                    metric_func=evaluate_mse, metric_key="mse", metric_list=mse_list
-                )
-            if self.cosine_similarity:
-                _evaluate_metric(
-                    metric_func=evaluate_cosine_similarity,
-                    metric_key="cosine_similarity",
-                    metric_list=cosine_similarity_list,
-                )
-
-            model.load_state_dict(state_dict)
+                if self.accuracy:
+                    _evaluate_metric(
+                        metric_func=evaluate_accuracy,
+                        metric_key="accuracy",
+                        metric_list=accuracy_list,
+                    )
+                if self.auc:
+                    _evaluate_metric(
+                        metric_func=evaluate_auc, metric_key="auc", metric_list=auc_list
+                    )
+                if self.categorical_ll:
+                    _evaluate_metric(
+                        metric_func=evaluate_categorical_loglikelihood,
+                        metric_key="categorical_loglikelihood",
+                        metric_list=loglikelihood_list,
+                    )
+                if self.mse:
+                    _evaluate_metric(
+                        metric_func=evaluate_mse, metric_key="mse", metric_list=mse_list
+                    )
+                if self.cosine_similarity:
+                    _evaluate_metric(
+                        metric_func=evaluate_cosine_similarity,
+                        metric_key="cosine_similarity",
+                        metric_list=cosine_similarity_list,
+                    )
+            finally:
+                model.load_state_dict(state_dict)
 
         if self.accuracy:
             results_dict[ablation_type][module_name]["accuracy_drop"] = accuracy_list
@@ -569,338 +582,325 @@ class AblationAnalyzer(AbstractAnalyzer):
 
         eval_kwargs = evaluation_kwargs_from_runtime(runtime)
         test_dataset = subset_dataset_for_runtime(test_dataset, runtime)
-        model = model.to(device)
-        model.eval()
+        with analysis_device_context(model, device) as analysis_device:
+            state_dict = deepcopy(model.state_dict())
 
-        state_dict = deepcopy(model.state_dict())
-
-        # Calculate baseline performance using correct function signatures
-        baselines = {}
-        if self.accuracy:
-            if isinstance(model, Classifier):
-                baselines["accuracy"] = evaluate_accuracy(
-                    classifier=model,
-                    test_ds=test_dataset,
-                    move_device=False,
-                    **eval_kwargs,
-                )[-1]
-            else:
-                self.accuracy = False
-
-        if self.auc:
-            if isinstance(model, Classifier):
-                baselines["auc"] = evaluate_auc(
-                    classifier=model,
-                    test_ds=test_dataset,
-                    move_device=False,
-                    **eval_kwargs,
-                )[-1]
-            else:
-                self.auc = False
-
-        if self.categorical_ll:
-            if isinstance(model, Classifier):
-                baselines["categorical_loglikelihood"] = (
-                    evaluate_categorical_loglikelihood(
+            baselines = {}
+            if self.accuracy:
+                if isinstance(model, Classifier):
+                    baselines["accuracy"] = evaluate_accuracy(
                         classifier=model,
                         test_ds=test_dataset,
-                        move_device=False,
+                        device=analysis_device,
                         **eval_kwargs,
                     )[-1]
-                )
-            else:
-                self.categorical_ll = False
+                else:
+                    self.accuracy = False
 
-        if self.mse:
-            if isinstance(model, Regressor):
-                baselines["mse"] = evaluate_mse(
-                    regressor=model,
-                    test_ds=test_dataset,
-                    move_device=False,
-                    **eval_kwargs,
-                )[-1]
-            else:
-                self.mse = False
+            if self.auc:
+                if isinstance(model, Classifier):
+                    baselines["auc"] = evaluate_auc(
+                        classifier=model,
+                        test_ds=test_dataset,
+                        device=analysis_device,
+                        **eval_kwargs,
+                    )[-1]
+                else:
+                    self.auc = False
 
-        if self.cosine_similarity:
-            if isinstance(model, Regressor):
-                baselines["cosine_similarity"] = evaluate_cosine_similarity(
-                    regressor=model,
-                    test_ds=test_dataset,
-                    move_device=False,
-                    **eval_kwargs,
-                )[-1]
-            else:
-                self.cosine_similarity = False
+            if self.categorical_ll:
+                if isinstance(model, Classifier):
+                    baselines["categorical_loglikelihood"] = (
+                        evaluate_categorical_loglikelihood(
+                            classifier=model,
+                            test_ds=test_dataset,
+                            device=analysis_device,
+                            **eval_kwargs,
+                        )[-1]
+                    )
+                else:
+                    self.categorical_ll = False
 
-        if self.compute_pred_label_mi:
-            if isinstance(model, Classifier):
-                baselines["pred_label_mi_bits"] = evaluate_pred_label_mi(
-                    classifier=model,
-                    test_ds=test_dataset,
-                    move_device=False,
-                    **eval_kwargs,
-                )[-1]
-            else:
-                self.compute_pred_label_mi = False
+            if self.mse:
+                if isinstance(model, Regressor):
+                    baselines["mse"] = evaluate_mse(
+                        regressor=model,
+                        test_ds=test_dataset,
+                        device=analysis_device,
+                        **eval_kwargs,
+                    )[-1]
+                else:
+                    self.mse = False
 
-        # Build canonical 3-level schema: method -> target -> modules
-        # Internal 2-level keys (method_target) are kept as aliases for the
-        # evaluation functions, but the top-level containers are 3-level.
-        if self.layer_ablation:
-            layer_results: dict[str, dict] = {}
-            for method in self.ablation_methods:
-                layer_results.setdefault(method, {})
-                if self.ablate_all_synapses:
-                    layer_results[method]["all_synapses"] = {}
-                if self.ablate_excitation:
-                    layer_results[method]["excitation"] = {}
-                if self.ablate_inhibition:
-                    layer_results[method]["inhibition"] = {}
-                if self.ablate_upstream:
-                    layer_results[method]["upstream"] = {}
+            if self.cosine_similarity:
+                if isinstance(model, Regressor):
+                    baselines["cosine_similarity"] = evaluate_cosine_similarity(
+                        regressor=model,
+                        test_ds=test_dataset,
+                        device=analysis_device,
+                        **eval_kwargs,
+                    )[-1]
+                else:
+                    self.cosine_similarity = False
 
-        if self.compartment_ablation:
-            compartment_results: dict[str, dict] = {}
-            for method in self.ablation_methods:
-                if method != "lesion":
-                    continue
-                compartment_results.setdefault(method, {})
-                if self.ablate_all_synapses:
-                    compartment_results[method]["all_synapses"] = {}
-                if self.ablate_excitation:
-                    compartment_results[method]["excitation"] = {}
-                if self.ablate_inhibition:
-                    compartment_results[method]["inhibition"] = {}
-                if self.ablate_upstream:
-                    compartment_results[method]["upstream"] = {}
+            if self.compute_pred_label_mi:
+                if isinstance(model, Classifier):
+                    baselines["pred_label_mi_bits"] = evaluate_pred_label_mi(
+                        classifier=model,
+                        test_ds=test_dataset,
+                        device=analysis_device,
+                        **eval_kwargs,
+                    )[-1]
+                else:
+                    self.compute_pred_label_mi = False
 
-        for _name, module in model.named_modules():
-            if not (
-                isinstance(module, DendriticBranchLayer)
-                and module.branch_excitation is not None
-                and module.branch_inhibition is not None
-            ):
-                continue
+            if self.layer_ablation:
+                layer_results: dict[str, dict] = {}
+                for method in self.ablation_methods:
+                    layer_results.setdefault(method, {})
+                    if self.ablate_all_synapses:
+                        layer_results[method]["all_synapses"] = {}
+                    if self.ablate_excitation:
+                        layer_results[method]["excitation"] = {}
+                    if self.ablate_inhibition:
+                        layer_results[method]["inhibition"] = {}
+                    if self.ablate_upstream:
+                        layer_results[method]["upstream"] = {}
 
-            for method in self.ablation_methods:
-                if self.ablate_all_synapses:
-                    target = "all_synapses"
-                    if self.layer_ablation:
-                        self.ablate_layer_and_evaluate(
-                            test_dataset=test_dataset,
-                            model=model,
-                            module=module,
-                            module_name=_name,
-                            ablation_type=target,
-                            ablation_method=method,
-                            baseline_dict=baselines,
-                            results_dict=layer_results[method],
-                            state_dict=state_dict,
-                            eval_kwargs=eval_kwargs,
-                        )
-                    if self.compartment_ablation and method == "lesion":
-                        self.ablate_compartment_and_evaluate(
-                            test_dataset=test_dataset,
-                            model=model,
-                            module=module,
-                            module_name=_name,
-                            ablation_type=target,
-                            ablation_method=method,
-                            baseline_dict=baselines,
-                            results_dict=compartment_results[method],
-                            state_dict=state_dict,
-                            eval_kwargs=eval_kwargs,
-                        )
+            if self.compartment_ablation:
+                compartment_results: dict[str, dict] = {}
+                for method in self.ablation_methods:
+                    if method != "lesion":
+                        continue
+                    compartment_results.setdefault(method, {})
+                    if self.ablate_all_synapses:
+                        compartment_results[method]["all_synapses"] = {}
+                    if self.ablate_excitation:
+                        compartment_results[method]["excitation"] = {}
+                    if self.ablate_inhibition:
+                        compartment_results[method]["inhibition"] = {}
+                    if self.ablate_upstream:
+                        compartment_results[method]["upstream"] = {}
 
-                if self.ablate_excitation:
-                    target = "excitation"
-                    if self.layer_ablation:
-                        self.ablate_layer_and_evaluate(
-                            test_dataset=test_dataset,
-                            model=model,
-                            module=module,
-                            module_name=_name,
-                            ablation_type=target,
-                            ablation_method=method,
-                            baseline_dict=baselines,
-                            results_dict=layer_results[method],
-                            state_dict=state_dict,
-                            eval_kwargs=eval_kwargs,
-                        )
-                    if self.compartment_ablation and method == "lesion":
-                        self.ablate_compartment_and_evaluate(
-                            test_dataset=test_dataset,
-                            model=model,
-                            module=module,
-                            module_name=_name,
-                            ablation_type=target,
-                            ablation_method=method,
-                            baseline_dict=baselines,
-                            results_dict=compartment_results[method],
-                            state_dict=state_dict,
-                            eval_kwargs=eval_kwargs,
-                        )
-
-                if self.ablate_inhibition:
-                    target = "inhibition"
-                    if self.layer_ablation:
-                        self.ablate_layer_and_evaluate(
-                            test_dataset=test_dataset,
-                            model=model,
-                            module=module,
-                            module_name=_name,
-                            ablation_type=target,
-                            ablation_method=method,
-                            baseline_dict=baselines,
-                            results_dict=layer_results[method],
-                            state_dict=state_dict,
-                            eval_kwargs=eval_kwargs,
-                        )
-                    if self.compartment_ablation and method == "lesion":
-                        self.ablate_compartment_and_evaluate(
-                            test_dataset=test_dataset,
-                            model=model,
-                            module=module,
-                            module_name=_name,
-                            ablation_type=target,
-                            ablation_method=method,
-                            baseline_dict=baselines,
-                            results_dict=compartment_results[method],
-                            state_dict=state_dict,
-                            eval_kwargs=eval_kwargs,
-                        )
-
-                if self.ablate_upstream and hasattr(module, "branches_to_output"):
-                    target = "upstream"
-                    if self.layer_ablation:
-                        self.ablate_layer_and_evaluate(
-                            test_dataset=test_dataset,
-                            model=model,
-                            module=module,
-                            module_name=_name,
-                            ablation_type=target,
-                            ablation_method=method,
-                            baseline_dict=baselines,
-                            results_dict=layer_results[method],
-                            state_dict=state_dict,
-                            eval_kwargs=eval_kwargs,
-                        )
-                    if self.compartment_ablation and method == "lesion":
-                        self.ablate_compartment_and_evaluate(
-                            test_dataset=test_dataset,
-                            model=model,
-                            module=module,
-                            module_name=_name,
-                            ablation_type=target,
-                            ablation_method=method,
-                            baseline_dict=baselines,
-                            results_dict=compartment_results[method],
-                            state_dict=state_dict,
-                            eval_kwargs=eval_kwargs,
-                        )
-
-        # ------------------------------------------------------------------
-        # Ensure upstream (branch input / branches_to_output) is evaluated at the
-        # soma even when somatic_synapses=False.
-        #
-        # When somatic synapses are disabled, the soma DendriticBranchLayer exists
-        # (layer_idx==0) but has no E/I synapse modules, so it is excluded by the
-        # main loop filter above. Upstream, however, is still meaningful at soma
-        # (it is the only remaining input pathway there), so we compute it here.
-        # ------------------------------------------------------------------
-        somatic_synapses_enabled = getattr(model.core_network, "somatic_synapses", True)
-        if self.ablate_upstream and not somatic_synapses_enabled:
             for _name, module in model.named_modules():
-                if not isinstance(module, DendriticBranchLayer):
-                    continue
-                if getattr(module, "layer_idx", None) != 0:
-                    continue
-                if not hasattr(module, "branches_to_output"):
+                if not (
+                    isinstance(module, DendriticBranchLayer)
+                    and module.branch_excitation is not None
+                    and module.branch_inhibition is not None
+                ):
                     continue
 
                 for method in self.ablation_methods:
-                    if self.layer_ablation:
-                        # Avoid duplicate entries if somehow already computed.
-                        if _name in layer_results.get(method, {}).get("upstream", {}):
-                            continue
-                        self.ablate_layer_and_evaluate(
-                            test_dataset=test_dataset,
-                            model=model,
-                            module=module,
-                            module_name=_name,
-                            ablation_type="upstream",
-                            ablation_method=method,
-                            baseline_dict=baselines,
-                            results_dict=layer_results[method],
-                            state_dict=state_dict,
-                            eval_kwargs=eval_kwargs,
-                        )
+                    if self.ablate_all_synapses:
+                        target = "all_synapses"
+                        if self.layer_ablation:
+                            self.ablate_layer_and_evaluate(
+                                test_dataset=test_dataset,
+                                model=model,
+                                module=module,
+                                module_name=_name,
+                                ablation_type=target,
+                                ablation_method=method,
+                                baseline_dict=baselines,
+                                results_dict=layer_results[method],
+                                state_dict=state_dict,
+                                eval_kwargs=eval_kwargs,
+                                device=analysis_device,
+                            )
+                        if self.compartment_ablation and method == "lesion":
+                            self.ablate_compartment_and_evaluate(
+                                test_dataset=test_dataset,
+                                model=model,
+                                module=module,
+                                module_name=_name,
+                                ablation_type=target,
+                                ablation_method=method,
+                                baseline_dict=baselines,
+                                results_dict=compartment_results[method],
+                                state_dict=state_dict,
+                                eval_kwargs=eval_kwargs,
+                                device=analysis_device,
+                            )
 
-                    if self.compartment_ablation and method == "lesion":
-                        if _name in compartment_results.get(method, {}).get(
-                            "upstream", {}
-                        ):
-                            continue
-                        self.ablate_compartment_and_evaluate(
-                            test_dataset=test_dataset,
-                            model=model,
-                            module=module,
-                            module_name=_name,
-                            ablation_type="upstream",
-                            ablation_method=method,
-                            baseline_dict=baselines,
-                            results_dict=compartment_results[method],
-                            state_dict=state_dict,
-                            eval_kwargs=eval_kwargs,
-                        )
+                    if self.ablate_excitation:
+                        target = "excitation"
+                        if self.layer_ablation:
+                            self.ablate_layer_and_evaluate(
+                                test_dataset=test_dataset,
+                                model=model,
+                                module=module,
+                                module_name=_name,
+                                ablation_type=target,
+                                ablation_method=method,
+                                baseline_dict=baselines,
+                                results_dict=layer_results[method],
+                                state_dict=state_dict,
+                                eval_kwargs=eval_kwargs,
+                                device=analysis_device,
+                            )
+                        if self.compartment_ablation and method == "lesion":
+                            self.ablate_compartment_and_evaluate(
+                                test_dataset=test_dataset,
+                                model=model,
+                                module=module,
+                                module_name=_name,
+                                ablation_type=target,
+                                ablation_method=method,
+                                baseline_dict=baselines,
+                                results_dict=compartment_results[method],
+                                state_dict=state_dict,
+                                eval_kwargs=eval_kwargs,
+                                device=analysis_device,
+                            )
 
-        results = {"baseline": baselines}
-        if self.layer_ablation:
-            results["layer"] = layer_results
-        if self.compartment_ablation:
-            results["compartment"] = compartment_results
+                    if self.ablate_inhibition:
+                        target = "inhibition"
+                        if self.layer_ablation:
+                            self.ablate_layer_and_evaluate(
+                                test_dataset=test_dataset,
+                                model=model,
+                                module=module,
+                                module_name=_name,
+                                ablation_type=target,
+                                ablation_method=method,
+                                baseline_dict=baselines,
+                                results_dict=layer_results[method],
+                                state_dict=state_dict,
+                                eval_kwargs=eval_kwargs,
+                                device=analysis_device,
+                            )
+                        if self.compartment_ablation and method == "lesion":
+                            self.ablate_compartment_and_evaluate(
+                                test_dataset=test_dataset,
+                                model=model,
+                                module=module,
+                                module_name=_name,
+                                ablation_type=target,
+                                ablation_method=method,
+                                baseline_dict=baselines,
+                                results_dict=compartment_results[method],
+                                state_dict=state_dict,
+                                eval_kwargs=eval_kwargs,
+                                device=analysis_device,
+                            )
 
-        # Add synthetic soma entry when somatic_synapses=False for uniform plotting.
-        #
-        # IMPORTANT: We only add placeholders for synapse-based ablations when soma
-        # has no E/I synapses. Upstream is computed explicitly above and must NOT be
-        # forced to zero by a placeholder.
-        if not somatic_synapses_enabled and "layer" in results:
-            for _method, targets in results["layer"].items():
-                if not isinstance(targets, dict):
-                    continue
-                for target_name, modules in targets.items():
-                    if target_name == "upstream":
+                    if self.ablate_upstream and hasattr(module, "branches_to_output"):
+                        target = "upstream"
+                        if self.layer_ablation:
+                            self.ablate_layer_and_evaluate(
+                                test_dataset=test_dataset,
+                                model=model,
+                                module=module,
+                                module_name=_name,
+                                ablation_type=target,
+                                ablation_method=method,
+                                baseline_dict=baselines,
+                                results_dict=layer_results[method],
+                                state_dict=state_dict,
+                                eval_kwargs=eval_kwargs,
+                                device=analysis_device,
+                            )
+                        if self.compartment_ablation and method == "lesion":
+                            self.ablate_compartment_and_evaluate(
+                                test_dataset=test_dataset,
+                                model=model,
+                                module=module,
+                                module_name=_name,
+                                ablation_type=target,
+                                ablation_method=method,
+                                baseline_dict=baselines,
+                                results_dict=compartment_results[method],
+                                state_dict=state_dict,
+                                eval_kwargs=eval_kwargs,
+                                device=analysis_device,
+                            )
+
+            somatic_synapses_enabled = getattr(
+                model.core_network, "somatic_synapses", True
+            )
+            if self.ablate_upstream and not somatic_synapses_enabled:
+                for _name, module in model.named_modules():
+                    if not isinstance(module, DendriticBranchLayer):
                         continue
-                    if not isinstance(modules, dict):
+                    if getattr(module, "layer_idx", None) != 0:
                         continue
-                    soma_entry: dict = {"depth": 0}
-                    if self.accuracy:
-                        soma_entry["accuracy_drop"] = 0.0
-                    if self.auc:
-                        soma_entry["auc_drop"] = 0.0
-                    if self.categorical_ll:
-                        soma_entry["categorical_loglikelihood_drop"] = 0.0
-                    if self.mse:
-                        soma_entry["mse_drop"] = 0.0
-                    if self.cosine_similarity:
-                        soma_entry["cosine_similarity_drop"] = 0.0
-                    if self.compute_pred_label_mi:
-                        soma_entry["pred_label_mi_bits_drop"] = 0.0
-                    modules["synthetic_soma"] = soma_entry
+                    if not hasattr(module, "branches_to_output"):
+                        continue
+
+                    for method in self.ablation_methods:
+                        if self.layer_ablation:
+                            if _name in layer_results.get(method, {}).get(
+                                "upstream", {}
+                            ):
+                                continue
+                            self.ablate_layer_and_evaluate(
+                                test_dataset=test_dataset,
+                                model=model,
+                                module=module,
+                                module_name=_name,
+                                ablation_type="upstream",
+                                ablation_method=method,
+                                baseline_dict=baselines,
+                                results_dict=layer_results[method],
+                                state_dict=state_dict,
+                                eval_kwargs=eval_kwargs,
+                                device=analysis_device,
+                            )
+
+                        if self.compartment_ablation and method == "lesion":
+                            if _name in compartment_results.get(method, {}).get(
+                                "upstream", {}
+                            ):
+                                continue
+                            self.ablate_compartment_and_evaluate(
+                                test_dataset=test_dataset,
+                                model=model,
+                                module=module,
+                                module_name=_name,
+                                ablation_type="upstream",
+                                ablation_method=method,
+                                baseline_dict=baselines,
+                                results_dict=compartment_results[method],
+                                state_dict=state_dict,
+                                eval_kwargs=eval_kwargs,
+                                device=analysis_device,
+                            )
+
+            results = {"baseline": baselines}
+            if self.layer_ablation:
+                results["layer"] = layer_results
+            if self.compartment_ablation:
+                results["compartment"] = compartment_results
+
+            if not somatic_synapses_enabled and "layer" in results:
+                for _method, targets in results["layer"].items():
+                    if not isinstance(targets, dict):
+                        continue
+                    for target_name, modules in targets.items():
+                        if target_name == "upstream" or not isinstance(modules, dict):
+                            continue
+                        soma_entry: dict = {"depth": 0}
+                        if self.accuracy:
+                            soma_entry["accuracy_drop"] = 0.0
+                        if self.auc:
+                            soma_entry["auc_drop"] = 0.0
+                        if self.categorical_ll:
+                            soma_entry["categorical_loglikelihood_drop"] = 0.0
+                        if self.mse:
+                            soma_entry["mse_drop"] = 0.0
+                        if self.cosine_similarity:
+                            soma_entry["cosine_similarity_drop"] = 0.0
+                        if self.compute_pred_label_mi:
+                            soma_entry["pred_label_mi_bits_drop"] = 0.0
+                        modules["synthetic_soma"] = soma_entry
 
         if save_path is not None:
             if training:
                 save_path = os.path.join(save_path, "epochs")
 
-            # Results are already in canonical 3-level schema
-            # (method -> target -> modules). Save directly.
             save_dict(results, save_path, f"{filename}.json")
 
             if not training:
-                # Plotting functions expect 2-level keys (method_target).
-                # Flatten from 3-level for backward-compatible plotting.
                 plot_results = dict(results)
                 if "layer" in plot_results:
                     plot_results["layer"] = flatten_3level_ablation(

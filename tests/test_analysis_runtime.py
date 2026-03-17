@@ -1,9 +1,13 @@
+import warnings
+
 import torch
 import yaml
+from torch import nn
 from torch.utils.data import Dataset, TensorDataset
 
 from dendritic_modeling.analysis.metrics.performance import PerformanceAnalyzer
 from dendritic_modeling.analysis.utils.runtime import (
+    analysis_device_context,
     iter_analysis_batches,
     materialize_dataset,
 )
@@ -195,6 +199,62 @@ def test_performance_analyzer_stream_matches_materialize():
         lhs = res_materialize[metric_name]["test"]
         rhs = res_stream[metric_name]["test"]
         assert abs(float(lhs) - float(rhs)) < 1e-6
+
+
+def test_analysis_device_context_supports_parameterless_models():
+    class EmptyModule(nn.Module):
+        def forward(self, x):
+            return x
+
+    model = EmptyModule()
+    model.train()
+
+    with analysis_device_context(model, "cpu") as analysis_device:
+        assert str(analysis_device) == "cpu"
+        assert not model.training
+
+    assert model.training
+
+
+def test_performance_stream_on_cpu_emits_no_pin_memory_warning():
+    x = torch.randn(32, 3)
+    y = x.argmax(dim=-1)
+    dataset = TensorDataset(x, y)
+    model = Classifier(
+        encoder_network=Identity(3),
+        core_network=Identity(3),
+        decoder_network=Identity(3),
+    )
+
+    analyzer = PerformanceAnalyzer(
+        type(
+            "Params",
+            (),
+            {
+                "accuracy": True,
+                "auc": False,
+                "categorical_loglikelihood": False,
+                "mse": False,
+                "cosine_similarity": False,
+            },
+        )()
+    )
+
+    runtime = EvaluationRuntimeConfig(mode="stream", batch_size=8, num_workers=0)
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        analyzer.analyze(
+            model=model,
+            test_ds=dataset,
+            device="cpu",
+            runtime=runtime,
+            splits=["test"],
+        )
+
+    pin_memory_warnings = [
+        str(w.message) for w in caught if "pin_memory" in str(w.message)
+    ]
+    assert not pin_memory_warnings
 
 
 def test_iter_analysis_batches_materialize_yields_single_full_batch():

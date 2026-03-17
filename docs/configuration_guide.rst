@@ -156,11 +156,16 @@ materialized on the device, and use ``max_samples`` for expensive analyses
 that still accumulate tensors on CPU. If you want older small-dataset
 single-GPU behavior for hook-based analyses, set ``mode: "materialize"``:
 the runtime will use one full batch again when the dataset supports slicing.
+Analyzers may temporarily move the model to the requested analysis device, but
+the original device and train/eval mode are restored automatically after the
+analysis finishes.
 For most runs, keep the default ``mode: "auto"``: it behaves like the old path
 on small datasets and switches to streaming only when the dataset estimate is large.
 If you omit ``analysis.runtime`` entirely, non-distributed runs default to the
 old ``materialize`` behavior for backward compatibility, while DDP/FSDP runs
 keep the generic ``auto`` default.
+The ``pin_memory`` flag is also interpreted per device: CPU analysis disables
+it automatically even if the shared runtime block leaves it set to ``true``.
 
 Preferred short names are ``performance``, ``information``, ``ablation``, and
 ``correlation``. The longer ``*_analysis`` aliases are still accepted for
@@ -225,6 +230,26 @@ When ``model.pretrained_replacement.enabled`` is ``true``, the legacy
          excitatory_layer_sizes: [4096]       # must match suffix input dim
          # ... rest of EINet config ...
 
+Alternative pretrained-replacement cores:
+
+- ``hierarchical_dendritic_tensor_map``
+  Flattens the prefix tensor, runs an EINet-style hierarchical dendritic core,
+  then projects to the suffix input dimension. Use this as the baseline/control
+  for late classifier-adjacent replacements where the suffix expects flat input.
+- ``hierarchical_dendritic_conv``
+  Uses local spatial patches (``core.spatial.kernel_size/stride/padding``) and
+  a shared hierarchical dendritic core to produce a spatial feature map for the
+  suffix. Use this for convolutional suffixes that still expect spatial input.
+
+Current spatial-replacement scope:
+
+- ``hierarchical_dendritic_tensor_map`` is intended for flat suffixes or small
+  spatial maps that can be flattened safely.
+- ``hierarchical_dendritic_conv`` preserves the prefix/suffix spatial contract,
+  but its local geometry is set by ``core.spatial.*``; it does not infer the
+  effective receptive field of an arbitrary multi-layer CNN block automatically.
+- Sequential backbones such as AlexNet and VGG are the primary supported cases.
+
 Learning rates for the prefix and suffix are controlled in the training config::
 
    training.main.common.param_groups.encoder_lr    # prefix LR (0.0 = frozen)
@@ -248,9 +273,12 @@ backend (planned).
 
 Example configs:
 
-- ``configs/vision/alexnet_k1_einet.yaml`` — replace fc7 only (K=1)
+- ``configs/vision/alexnet_k1_einet_single.yaml`` — replace fc7 only (K=1), single-GPU / non-DDP
+- ``configs/vision/alexnet_k1_einet_ddp.yaml`` — same K=1 replacement configured for DDP launch
 - ``configs/vision/alexnet_k2_einet.yaml`` — replace fc6 + fc7 (K=2)
-- ``configs/vision/alexnet_k1_einet_smoke.yaml`` — 1-epoch smoke test
+- ``configs/vision/alexnet_k2_tensor_map.yaml`` — tensor-map dendritic baseline
+- ``configs/vision/alexnet_conv_dendritic_conv.yaml`` — spatial dendritic conv replacement
+- ``scripts/test_pretrained_training.sh`` — generates a temporary 1-epoch AlexNet smoke config
 
 Recurrent Networks
 ------------------

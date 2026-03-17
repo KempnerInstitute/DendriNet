@@ -26,6 +26,7 @@ from torch.distributions import Categorical
 from torch.utils.data import DataLoader
 
 from dendritic_modeling.analysis.utils.runtime import (
+    analysis_device_context,
     estimate_dataset_size_mb,
     make_analysis_loader,
     should_materialize_dataset,
@@ -213,14 +214,20 @@ def _compute_metric_score(
         print(f"Skipping {computation_func.__name__} for Classifier model")
         return torch.tensor(float("nan"))
 
-    if move_device:
-        model = model.to(device)
-        inputs = inputs.to(device)
-        labels = labels.to(device)
-        if seq_lengths is not None:
-            seq_lengths = seq_lengths.to(device)
     try:
         with torch.no_grad():
+            if move_device:
+                with analysis_device_context(model, device) as analysis_device:
+                    inputs = inputs.to(analysis_device)
+                    labels = labels.to(analysis_device)
+                    if seq_lengths is not None:
+                        seq_lengths = seq_lengths.to(analysis_device)
+                    sig = inspect.signature(computation_func)
+                    if "seq_lengths" in sig.parameters:
+                        return computation_func(
+                            model, inputs, labels, reduce_dim, seq_lengths=seq_lengths
+                        )
+                    return computation_func(model, inputs, labels, reduce_dim)
             # Pass seq_lengths to classification metrics that support it
             sig = inspect.signature(computation_func)
             if "seq_lengths" in sig.parameters:
@@ -268,40 +275,34 @@ def _stream_model_outputs(
     ``all_inputs_placeholder`` is a dummy since we only need labels+outputs
     for metrics.  We actually return (all_outputs, all_labels, seq_lengths).
     """
-    model_was_training = model.training
-    model.eval()
-    model.to(device)
-
     all_outputs: list[torch.Tensor] = []
     all_labels: list[torch.Tensor] = []
     all_seq_lengths: list[torch.Tensor] = []
     batches_seen = 0
 
-    with torch.no_grad():
-        for batch in loader:
-            if max_batches is not None and batches_seen >= max_batches:
-                break
-            inputs = batch[0].to(device)
-            labels = batch[1]
-            seq_lengths = batch[2] if len(batch) > 2 else None
+    with analysis_device_context(model, device) as analysis_device:
+        with torch.no_grad():
+            for batch in loader:
+                if max_batches is not None and batches_seen >= max_batches:
+                    break
+                inputs = batch[0].to(analysis_device)
+                labels = batch[1]
+                seq_lengths = batch[2] if len(batch) > 2 else None
 
-            outputs = model(
-                inputs,
-                **(
-                    {"seq_lengths": seq_lengths.to(device)}
-                    if seq_lengths is not None
-                    and "seq_lengths" in inspect.signature(model.forward).parameters
-                    else {}
-                ),
-            )
-            all_outputs.append(outputs.cpu())
-            all_labels.append(labels.cpu())
-            if seq_lengths is not None:
-                all_seq_lengths.append(seq_lengths.cpu())
-            batches_seen += 1
-
-    if model_was_training:
-        model.train()
+                outputs = model(
+                    inputs,
+                    **(
+                        {"seq_lengths": seq_lengths.to(analysis_device)}
+                        if seq_lengths is not None
+                        and "seq_lengths" in inspect.signature(model.forward).parameters
+                        else {}
+                    ),
+                )
+                all_outputs.append(outputs.cpu())
+                all_labels.append(labels.cpu())
+                if seq_lengths is not None:
+                    all_seq_lengths.append(seq_lengths.cpu())
+                batches_seen += 1
 
     if not all_outputs:
         return torch.tensor([]), torch.tensor([]), None
@@ -317,6 +318,7 @@ def _make_eval_loader(
     batch_size: int = 256,
     num_workers: int = 4,
     pin_memory: bool = True,
+    device: str = "cpu",
     persistent_workers: bool = False,
     prefetch_factor: int = 2,
     **_extra,
@@ -334,6 +336,7 @@ def _make_eval_loader(
     return make_analysis_loader(
         dataset=dataset,
         runtime=_Runtime(),
+        device=device,
     )
 
 
@@ -505,6 +508,7 @@ def _evaluate_metric_generic(
             batch_size=eval_batch_size,
             num_workers=eval_num_workers,
             pin_memory=eval_pin_memory,
+            device=device,
             persistent_workers=eval_persistent_workers,
             prefetch_factor=eval_prefetch_factor,
         )
@@ -934,8 +938,8 @@ def _compute_pred_label_mi(
     reduce_dim: int = 0,
 ) -> torch.Tensor:
     yhat = classifier.predict(inputs)
-    y_true = labels.long().numpy()
-    y_pred = yhat.long().numpy()
+    y_true = labels.long().cpu().numpy()
+    y_pred = yhat.long().cpu().numpy()
     mi = _pred_label_mi_bits(y_true, y_pred)
     return torch.tensor(mi, dtype=torch.float32, device=labels.device)
 

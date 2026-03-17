@@ -11,6 +11,7 @@ from torch.utils.data import TensorDataset
 
 from dendritic_modeling.analysis.core.base import AbstractAnalyzer
 from dendritic_modeling.analysis.utils.runtime import (
+    analysis_device_context,
     evaluation_kwargs_from_runtime,
     materialize_dataset,
 )
@@ -63,6 +64,7 @@ class MultiplicativeGainAnalyzer(AbstractAnalyzer):
         gain_factor: float,
         runtime: Optional[EvaluationRuntimeConfig] = None,
         base_inputs: Optional[torch.Tensor] = None,
+        device: str | torch.device | None = None,
     ) -> torch.Tensor:
         if isinstance(dataset, PoissonGeneratorDataset):
             if self.uniform_gain:
@@ -70,14 +72,14 @@ class MultiplicativeGainAnalyzer(AbstractAnalyzer):
             else:
                 dataset._set_max_gain_factor(gain_factor)
 
-            inputs = materialize_dataset(dataset, runtime)[0]
+            inputs = materialize_dataset(dataset, runtime, device=device)[0]
             return inputs
 
         else:
             inputs = (
                 base_inputs
                 if base_inputs is not None
-                else materialize_dataset(dataset, runtime)[0]
+                else materialize_dataset(dataset, runtime, device=device)[0]
             )
 
             if not self.uniform_gain:
@@ -137,59 +139,67 @@ class MultiplicativeGainAnalyzer(AbstractAnalyzer):
         if self.cosine_similarity:
             data_dict["cosine_similarity"] = []
 
-        model = model.to(device)
-        model.eval()
         eval_kwargs = evaluation_kwargs_from_runtime(runtime)
-
-        base_items = materialize_dataset(test_dataset, runtime)
-        base_inputs = base_items[0]
-        test_labels: torch.Tensor = base_items[1].to(device)
-
-        def _evaluate_metric(
-            metric_func: Callable, metric_key: str, dataset: torch.utils.data.Dataset
-        ):
-            metric_score = metric_func(
-                model, test_ds=dataset, move_device=False, **eval_kwargs
-            )[-1]
-            data_dict[metric_key].append(metric_score)
-
-        for gain_factor in data_dict["gain_factors"]:
-            scaled_test_inputs = self._apply_gain_to_inputs(
-                test_dataset, gain_factor, runtime, base_inputs
+        with analysis_device_context(model, device) as analysis_device:
+            base_items = materialize_dataset(
+                test_dataset,
+                runtime,
+                device=analysis_device,
             )
-            scaled_test_inputs = scaled_test_inputs.to(device)
-            scaled_test_dataset = TensorDataset(scaled_test_inputs, test_labels)
+            base_inputs = base_items[0]
+            test_labels: torch.Tensor = base_items[1].to(analysis_device)
 
-            if self.accuracy:
-                _evaluate_metric(
-                    metric_func=evaluate_accuracy,
-                    metric_key="accuracy",
-                    dataset=scaled_test_dataset,
+            def _evaluate_metric(
+                metric_func: Callable,
+                metric_key: str,
+                dataset: torch.utils.data.Dataset,
+            ):
+                metric_score = metric_func(
+                    model, test_ds=dataset, move_device=False, **eval_kwargs
+                )[-1]
+                data_dict[metric_key].append(metric_score)
+
+            for gain_factor in data_dict["gain_factors"]:
+                scaled_test_inputs = self._apply_gain_to_inputs(
+                    test_dataset,
+                    gain_factor,
+                    runtime,
+                    base_inputs,
+                    device=analysis_device,
                 )
-            if self.auc:
-                _evaluate_metric(
-                    metric_func=evaluate_auc,
-                    metric_key="auc",
-                    dataset=scaled_test_dataset,
-                )
-            if self.categorical_loglikelihood:
-                _evaluate_metric(
-                    metric_func=evaluate_categorical_loglikelihood,
-                    metric_key="categorical_loglikelihood",
-                    dataset=scaled_test_dataset,
-                )
-            if self.mse:
-                _evaluate_metric(
-                    metric_func=evaluate_mse,
-                    metric_key="mse",
-                    dataset=scaled_test_dataset,
-                )
-            if self.cosine_similarity:
-                _evaluate_metric(
-                    metric_func=evaluate_cosine_similarity,
-                    metric_key="cosine_similarity",
-                    dataset=scaled_test_dataset,
-                )
+                scaled_test_inputs = scaled_test_inputs.to(analysis_device)
+                scaled_test_dataset = TensorDataset(scaled_test_inputs, test_labels)
+
+                if self.accuracy:
+                    _evaluate_metric(
+                        metric_func=evaluate_accuracy,
+                        metric_key="accuracy",
+                        dataset=scaled_test_dataset,
+                    )
+                if self.auc:
+                    _evaluate_metric(
+                        metric_func=evaluate_auc,
+                        metric_key="auc",
+                        dataset=scaled_test_dataset,
+                    )
+                if self.categorical_loglikelihood:
+                    _evaluate_metric(
+                        metric_func=evaluate_categorical_loglikelihood,
+                        metric_key="categorical_loglikelihood",
+                        dataset=scaled_test_dataset,
+                    )
+                if self.mse:
+                    _evaluate_metric(
+                        metric_func=evaluate_mse,
+                        metric_key="mse",
+                        dataset=scaled_test_dataset,
+                    )
+                if self.cosine_similarity:
+                    _evaluate_metric(
+                        metric_func=evaluate_cosine_similarity,
+                        metric_key="cosine_similarity",
+                        dataset=scaled_test_dataset,
+                    )
 
         if save_path is not None:
             if training:

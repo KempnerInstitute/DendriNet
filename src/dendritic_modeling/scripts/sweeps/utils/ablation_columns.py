@@ -62,6 +62,7 @@ KNOWN_METRICS = frozenset(
 # handled correctly.
 _ABLATION_COL_RE = re.compile(
     r"^ablation_"
+    r"(?!module__)"  # reject module-level columns
     r"(?P<method>.+?)"
     r"_(?P<target>" + "|".join(sorted(KNOWN_TARGETS)) + r")"
     r"_(?P<metric>.+?)"

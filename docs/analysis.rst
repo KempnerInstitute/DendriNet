@@ -34,6 +34,9 @@ ImageNet, ``mode: "stream"`` avoids materializing the full dataset on the
 device. For expensive analyses that still accumulate tensors on CPU
 (``information``, ``correlation``, some compartment analyses), use
 ``max_samples`` to bound total analysis memory explicitly.
+Analyzers may temporarily move the model to the requested analysis device,
+but they restore the original device and train/eval mode before returning, so
+post-training analysis does not leave the model in a different execution state.
 When ``mode: "materialize"`` is selected and the dataset supports slicing,
 hook-based analyses also use a single full batch again, matching the old
 single-pass behavior on small single-GPU runs.
@@ -304,3 +307,6 @@ If ``analysis.runtime`` is omitted entirely:
   single-process analysis.
 - ``distributed.mode: ddp`` and ``distributed.mode: fsdp`` keep the shared
   ``auto`` default.
+- CPU analysis automatically disables ``pin_memory`` even if the runtime block
+  leaves it enabled, so the YAML can keep one shared setting for CPU and GPU
+  analysis.

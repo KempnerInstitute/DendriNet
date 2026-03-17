@@ -20,7 +20,10 @@ import seaborn as sns
 import torch
 
 from dendritic_modeling.analysis.core.base import AbstractAnalyzer
-from dendritic_modeling.analysis.utils.runtime import materialize_dataset
+from dendritic_modeling.analysis.utils.runtime import (
+    analysis_device_context,
+    materialize_dataset,
+)
 from dendritic_modeling.config import CompartmentSNRAnalysisParams
 from dendritic_modeling.config.analysis import EvaluationRuntimeConfig
 from dendritic_modeling.models import BaseModel, Classifier
@@ -444,12 +447,16 @@ class CompartmentSNRAnalyzer(AbstractAnalyzer):
 
         start_time = time.time()
 
-        model.to(device)
-        items = materialize_dataset(test_dataset, runtime)
-        x: torch.Tensor = items[0].to(device)
-        labels: torch.Tensor = items[1].cpu()
+        with analysis_device_context(model, device) as analysis_device:
+            items = materialize_dataset(
+                test_dataset,
+                runtime,
+                device=analysis_device,
+            )
+            x: torch.Tensor = items[0].to(analysis_device)
+            labels: torch.Tensor = items[1].cpu()
 
-        self.collect_raw_data(model, x)
+            self.collect_raw_data(model, x)
 
         results = {}
 

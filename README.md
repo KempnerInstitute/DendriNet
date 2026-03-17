@@ -66,6 +66,8 @@ expensive analyses that should only inspect a bounded subset. Keep
 want the closest match to the old exact small-dataset single-GPU analysis path.
 If `analysis.runtime` is omitted entirely, non-distributed runs default to that
 backward-compatible materialized behavior automatically.
+Analyzers may temporarily move the model to the requested analysis device, but
+they restore the original device and train/eval mode before returning.
 
 ## Documentation
 
@@ -90,7 +92,16 @@ Feedforward cores:
 - `flat_shunting`
 - `flat_additive`
 - `dendritic_mlp`
+- `flat_mlp`
 - `mlp`
+- `point_mlp`
+- `total_param_mlp`
+- `active_param_mlp`
+
+Pretrained-replacement spatial cores:
+
+- `hierarchical_dendritic_tensor_map`
+- `hierarchical_dendritic_conv`
 
 Unified recurrent-capable E-I core:
 

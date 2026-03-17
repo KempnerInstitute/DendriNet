@@ -6,7 +6,6 @@ for scaling to very large models across multiple GPUs and nodes.
 """
 
 import logging
-import math
 import os
 import time
 from typing import Any, Optional
@@ -14,9 +13,12 @@ from typing import Any, Optional
 import torch
 import torch.distributed as dist
 from torch.cuda.amp import GradScaler, autocast
-from torch.utils.data import DataLoader, Dataset, Sampler
+from torch.utils.data import DataLoader, Dataset
 
 from dendritic_modeling.models import BaseModel
+from dendritic_modeling.training.distributed_samplers import (
+    PaddedDistributedEvalSampler,
+)
 from dendritic_modeling.training.fsdp_utils import (
     get_fsdp_config,
     save_fsdp_checkpoint,
@@ -25,38 +27,6 @@ from dendritic_modeling.training.fsdp_utils import (
 from dendritic_modeling.training.strategies.standard import Trainer
 
 logger = logging.getLogger(__name__)
-
-
-class PaddedDistributedEvalSampler(Sampler):
-    """Distributed sampler that pads to equal length but marks padding indices.
-
-    Unlike ``DistributedSampler(drop_last=False)`` which silently duplicates
-    samples, this sampler:
-    1. Pads each rank to ``ceil(N / world_size)`` using a sentinel index (-1).
-    2. Exposes ``num_padding`` so the consumer can ignore those entries in
-       the reduction.
-
-    All ranks yield the same number of indices, which is required by FSDP
-    (the all-gather in forward must execute on every rank for every batch).
-    """
-
-    def __init__(self, dataset: Dataset, num_replicas: int, rank: int):
-        self.dataset = dataset
-        self.num_replicas = num_replicas
-        self.rank = rank
-        n = len(dataset)
-        self.samples_per_rank = math.ceil(n / num_replicas)
-        # Interleaved assignment: rank gets indices rank, rank+ws, rank+2*ws, …
-        self.real_indices = list(range(rank, n, num_replicas))
-        # Pad to samples_per_rank with -1 sentinels
-        self.num_padding = self.samples_per_rank - len(self.real_indices)
-        self._indices = self.real_indices + ([-1] * self.num_padding)
-
-    def __iter__(self):
-        return iter(self._indices)
-
-    def __len__(self):
-        return self.samples_per_rank
 
 
 class FSDPTrainer(Trainer):

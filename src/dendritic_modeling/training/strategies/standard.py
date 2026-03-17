@@ -17,7 +17,7 @@ import torch.utils.data
 import wandb
 from torch.cuda.amp import GradScaler, autocast
 from torch.nn.utils import clip_grad_value_
-from torch.utils.data import DataLoader, DistributedSampler
+from torch.utils.data import DataLoader, DistributedSampler, Sampler
 
 from dendritic_modeling.config.training import (
     PruningConfig,
@@ -26,6 +26,9 @@ from dendritic_modeling.config.training import (
 )
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.plotting import plot_loss_curves
+from dendritic_modeling.training.distributed_samplers import (
+    PaddedDistributedEvalSampler,
+)
 from dendritic_modeling.training.loss.functions import LossFunction, get_loss_function
 from dendritic_modeling.training.regularization import RegularizationManager
 
@@ -155,6 +158,7 @@ class Trainer:
 
         self.filename_prefix = "standard_"
         self._train_sampler: DistributedSampler | None = None
+        self._valid_sampler: Sampler | None = None
         for k, v in kwargs.items():
             setattr(self, k, v)
 
@@ -217,14 +221,28 @@ class Trainer:
         use_pin_memory = torch.cuda.is_available() and num_workers > 0
         use_persistent = num_workers > 0
 
-        # Use DistributedSampler for training when running under DDP.
-        # Validation is run only on rank 0 with a normal loader to avoid
-        # the padding bias introduced by DistributedSampler.
+        # Use distributed samplers for training and validation under DDP.
+        # Validation uses an explicit padding sentinel sampler so every rank
+        # executes the same number of forward passes and metrics can be
+        # reduced exactly without silent sample duplication.
         if self._is_distributed:
-            self._train_sampler = DistributedSampler(train_data, shuffle=self.shuffle)
+            world_size = dist.get_world_size()
+            rank = dist.get_rank()
+            self._train_sampler = DistributedSampler(
+                train_data,
+                num_replicas=world_size,
+                rank=rank,
+                shuffle=self.shuffle,
+            )
+            self._valid_sampler = PaddedDistributedEvalSampler(
+                valid_data,
+                num_replicas=world_size,
+                rank=rank,
+            )
             train_shuffle = False  # sampler handles shuffling
         else:
             self._train_sampler = None
+            self._valid_sampler = None
             train_shuffle = self.shuffle
 
         train_loader = DataLoader(
@@ -240,6 +258,7 @@ class Trainer:
             valid_data,
             batch_size=self.batch_size,
             shuffle=False,
+            sampler=self._valid_sampler,
             num_workers=num_workers,
             pin_memory=use_pin_memory,
             persistent_workers=use_persistent,
@@ -386,22 +405,11 @@ class Trainer:
         train_losses.append(train_loss_total)
         train_losses_base.append(train_loss_base)
         train_losses_reg.append(train_loss_reg)
-        # Rank 0 runs validation on the full (unsharded) dataset using
-        # the unwrapped model.  This avoids both the padding bias from
-        # DistributedSampler and any distributed forward behaviour
-        # (broadcast_buffers) from the DDP wrapper.
+        # Under DDP, all ranks validate on disjoint shards with equal-length
+        # padded samplers and then all-reduce exact sample-weighted loss.
         if self._is_distributed:
-            if self._is_main_process:
-                unwrapped = self._unwrap_model(model)
-                valid_loss_sum, valid_n_batches = self._epoch_valid(
-                    unwrapped, valid_loader
-                )
-                valid_loss = valid_loss_sum / max(valid_n_batches, 1)
-            else:
-                valid_loss = 0.0
-            vl = torch.tensor([valid_loss], device=self.device)
-            dist.broadcast(vl, src=0)
-            valid_loss = vl.item()
+            unwrapped = self._unwrap_model(model)
+            valid_loss = self._epoch_valid_distributed(unwrapped, valid_loader)
         else:
             valid_loss_sum, valid_n_batches = self._epoch_valid(model, valid_loader)
             valid_loss = valid_loss_sum / max(valid_n_batches, 1)
@@ -519,7 +527,7 @@ class Trainer:
     def _epoch_valid(
         self, model: BaseModel, valid_loader: DataLoader
     ) -> tuple[float, int]:
-        """Return (loss_sum, batch_count) so callers can reduce correctly."""
+        """Return (loss_sum, batch_count) for non-distributed validation."""
         model.eval()
         valid_loss = 0.0
         n_batches = 0
@@ -531,6 +539,51 @@ class Trainer:
                 valid_loss += loss.item()
                 n_batches += 1
         return valid_loss, n_batches
+
+    def _epoch_valid_distributed(
+        self, model: BaseModel, valid_loader: DataLoader
+    ) -> float:
+        """Return exact global validation loss under DDP.
+
+        All ranks process equal-length validation shards via
+        ``PaddedDistributedEvalSampler``. Padding entries are excluded from the
+        reduced sample-weighted loss.
+        """
+        model.eval()
+        weighted_loss_sum = 0.0
+        total_examples = 0
+        sampler = valid_loader.sampler
+        if isinstance(sampler, PaddedDistributedEvalSampler):
+            real_count = len(sampler.real_indices)
+        else:
+            real_count = None
+
+        seen = 0
+        with torch.no_grad():
+            for batch in valid_loader:
+                x_batch: torch.Tensor = batch[0].to(self.device)
+                y_batch: torch.Tensor = batch[1].to(self.device)
+                batch_size = y_batch.size(0)
+                if real_count is not None:
+                    real_in_batch = min(batch_size, real_count - seen)
+                    if real_in_batch <= 0:
+                        seen += batch_size
+                        continue
+                    if real_in_batch < batch_size:
+                        x_batch = x_batch[:real_in_batch]
+                        y_batch = y_batch[:real_in_batch]
+                        batch_size = real_in_batch
+                    seen += batch_size
+                loss: torch.Tensor = self.loss_function(model, x_batch, y_batch)
+                weighted_loss_sum += loss.item() * batch_size
+                total_examples += batch_size
+        stats = torch.tensor(
+            [weighted_loss_sum, float(total_examples)],
+            device=self.device,
+            dtype=torch.float64,
+        )
+        dist.all_reduce(stats, op=dist.ReduceOp.SUM)
+        return stats[0].item() / max(stats[1].item(), 1.0)
 
     def _update_best(self, model: BaseModel, valid_loss: float) -> None:
         if valid_loss < self.best_loss:

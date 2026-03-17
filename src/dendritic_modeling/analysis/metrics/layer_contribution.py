@@ -15,6 +15,7 @@ import numpy as np
 import torch
 
 from dendritic_modeling.analysis.utils.runtime import (
+    analysis_device_context,
     evaluation_kwargs_from_runtime,
     subset_dataset_for_runtime,
 )
@@ -127,63 +128,60 @@ class SingleLayerContributionAnalyzer:
         except AssertionError:
             return
 
-        # Ensure model is on the correct device
         eval_kwargs = evaluation_kwargs_from_runtime(runtime)
         test_dataset = subset_dataset_for_runtime(test_dataset, runtime)
-        model = model.to(device)
-        model.eval()
+        with analysis_device_context(model, device):
+            state_dict = deepcopy(model.state_dict())
 
-        state_dict = deepcopy(model.state_dict())
+            results = {}
+            if self.excitation_contribution:
+                results["excitation"] = {}
+            if self.inhibition_contribution:
+                results["inhibition"] = {}
+            if self.both_contribution:
+                results["both"] = {}
 
-        results = {}
-        if self.excitation_contribution:
-            results["excitation"] = {}
-        if self.inhibition_contribution:
-            results["inhibition"] = {}
-        if self.both_contribution:
-            results["both"] = {}
+            for name, module in model.named_modules():
+                if (
+                    isinstance(module, DendriticBranchLayer)
+                    and module.branch_excitation is not None
+                    and module.branch_inhibition is not None
+                ):
+                    if self.both_contribution:
+                        results = self.evaluate_layer_contribution(
+                            model=model,
+                            test_dataset=test_dataset,
+                            module=module,
+                            module_name=name,
+                            contribution_type="both",
+                            results_dict=results,
+                            state_dict=state_dict,
+                            eval_kwargs=eval_kwargs,
+                        )
 
-        for name, module in model.named_modules():
-            if (
-                isinstance(module, DendriticBranchLayer)
-                and module.branch_excitation is not None
-                and module.branch_inhibition is not None
-            ):
-                if self.both_contribution:
-                    results = self.evaluate_layer_contribution(
-                        model=model,
-                        test_dataset=test_dataset,
-                        module=module,
-                        module_name=name,
-                        contribution_type="both",
-                        results_dict=results,
-                        state_dict=state_dict,
-                        eval_kwargs=eval_kwargs,
-                    )
+                    if self.excitation_contribution:
+                        results = self.evaluate_layer_contribution(
+                            model=model,
+                            test_dataset=test_dataset,
+                            module=module,
+                            module_name=name,
+                            contribution_type="excitation",
+                            results_dict=results,
+                            state_dict=state_dict,
+                            eval_kwargs=eval_kwargs,
+                        )
 
-                if self.excitation_contribution:
-                    results = self.evaluate_layer_contribution(
-                        model=model,
-                        test_dataset=test_dataset,
-                        module=module,
-                        module_name=name,
-                        contribution_type="excitation",
-                        results_dict=results,
-                        state_dict=state_dict,
-                        eval_kwargs=eval_kwargs,
-                    )
-
-                if self.inhibition_contribution:
-                    results = self.evaluate_layer_contribution(
-                        model=model,
-                        test_dataset=test_dataset,
-                        module=module,
-                        module_name=name,
-                        contribution_type="inhibition",
-                        results_dict=results,
-                        state_dict=state_dict,
-                        eval_kwargs=eval_kwargs,
-                    )
+                    if self.inhibition_contribution:
+                        results = self.evaluate_layer_contribution(
+                            model=model,
+                            test_dataset=test_dataset,
+                            module=module,
+                            module_name=name,
+                            contribution_type="inhibition",
+                            results_dict=results,
+                            state_dict=state_dict,
+                            eval_kwargs=eval_kwargs,
+                        )
 
         if save_path is not None:
             save_dict(results, save_path, filename)

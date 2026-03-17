@@ -41,9 +41,9 @@ Core Network Types
    * - ``ss_mlp_flat``
      - Flattened sparse structured MLP baseline
    * - ``hierarchical_dendritic_tensor_map``
-     - Spatial-pretrained replacement baseline: flatten spatial tensor, run EINet, then project
+     - Pretrained-replacement baseline: flatten the prefix tensor, run an EINet-style hierarchical dendritic core, then project to a flat suffix input
    * - ``hierarchical_dendritic_conv``
-     - Spatial dendritic convolutional core over local patches
+     - Spatial dendritic convolutional core over local patches; preserves the prefix/suffix spatial tensor contract for convolutional replacement
    * - ``baseline_rnn``
      - Wrapper for simple RNN cores with a shared baseline interface
    * - ``gru``

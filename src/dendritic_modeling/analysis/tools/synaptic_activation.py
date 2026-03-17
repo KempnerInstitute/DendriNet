@@ -9,7 +9,10 @@ from typing import Optional
 
 import torch
 
-from dendritic_modeling.analysis.utils.runtime import iter_analysis_batches
+from dendritic_modeling.analysis.utils.runtime import (
+    analysis_device_context,
+    iter_analysis_batches,
+)
 from dendritic_modeling.config import SynapticActivationAnalysisParams
 from dendritic_modeling.config.analysis import EvaluationRuntimeConfig
 from dendritic_modeling.models import BaseModel
@@ -142,14 +145,21 @@ class SynapticActivationAnalyzer:
 
         self.data_dict = {}
 
-        model = model.to(device)
-        model.eval()
-
-        handles = self.attach_forward_hooks(model)
         sample_cap = self.samples if self.downsample else None
-        with torch.no_grad():
-            for batch in iter_analysis_batches(test_dataset, runtime, sample_cap):
-                _ = model(batch[0].to(device))
+        handles = []
+        with analysis_device_context(model, device) as analysis_device:
+            handles = self.attach_forward_hooks(model)
+            try:
+                with torch.no_grad():
+                    for batch in iter_analysis_batches(
+                        test_dataset,
+                        runtime,
+                        sample_cap,
+                        device=analysis_device,
+                    ):
+                        _ = model(batch[0].to(analysis_device))
+            finally:
+                self.remove_forward_hooks(handles)
 
         for module_dict in self.data_dict.values():
             for key, value in list(module_dict.items()):
@@ -255,8 +265,6 @@ class SynapticActivationAnalyzer:
 
         if self.raw_summary:
             results["raw_summary"] = self.data_dict
-
-        self.remove_forward_hooks(handles)
 
         if save_path is not None:
             save_dict(results, save_path, filename)

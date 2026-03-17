@@ -2,12 +2,17 @@
 
 from __future__ import annotations
 
+import contextlib
+import logging
 from collections.abc import Iterable
 
 import torch
+import torch.nn as nn
 from torch.utils.data import DataLoader, Dataset, Subset
 
 from dendritic_modeling.config.analysis import EvaluationRuntimeConfig
+
+logger = logging.getLogger(__name__)
 
 
 def estimate_dataset_size_mb(dataset: Dataset) -> float:
@@ -88,17 +93,19 @@ def make_analysis_loader(
     dataset: Dataset,
     runtime: EvaluationRuntimeConfig | None,
     explicit_max_samples: int | None = None,
+    device: str | torch.device | None = None,
 ) -> DataLoader:
     """Build a deterministic evaluation loader for analysis."""
     if runtime is None:
         runtime = EvaluationRuntimeConfig()
     dataset_view = subset_dataset_for_runtime(dataset, runtime, explicit_max_samples)
+    pin = resolve_analysis_pin_memory(runtime, device)
     return DataLoader(
         dataset_view,
         batch_size=runtime.batch_size,
         shuffle=False,
         num_workers=runtime.num_workers,
-        pin_memory=runtime.pin_memory,
+        pin_memory=pin,
     )
 
 
@@ -106,6 +113,7 @@ def materialize_dataset(
     dataset: Dataset,
     runtime: EvaluationRuntimeConfig | None,
     explicit_max_samples: int | None = None,
+    device: str | torch.device | None = None,
 ) -> tuple[torch.Tensor, ...]:
     """Return dataset tensors on CPU using either slicing or streaming."""
     if runtime is None:
@@ -121,7 +129,12 @@ def materialize_dataset(
         except Exception:
             pass
 
-    loader = make_analysis_loader(dataset, runtime, explicit_max_samples)
+    loader = make_analysis_loader(
+        dataset,
+        runtime,
+        explicit_max_samples,
+        device=device,
+    )
     accumulated: list[list[torch.Tensor]] = []
     for batch in loader:
         if isinstance(batch, torch.Tensor):
@@ -158,6 +171,7 @@ def iter_analysis_batches(
     dataset: Dataset,
     runtime: EvaluationRuntimeConfig | None,
     explicit_max_samples: int | None = None,
+    device: str | torch.device | None = None,
 ) -> Iterable[tuple[torch.Tensor, ...]]:
     """Yield dataset batches under the shared runtime policy.
 
@@ -180,9 +194,77 @@ def iter_analysis_batches(
         except Exception:
             pass
 
-    loader = make_analysis_loader(dataset, runtime, explicit_max_samples)
+    loader = make_analysis_loader(
+        dataset,
+        runtime,
+        explicit_max_samples,
+        device=device,
+    )
     for batch in loader:
         if isinstance(batch, torch.Tensor):
             yield (batch,)
         else:
             yield tuple(batch)
+
+
+# ---------------------------------------------------------------------------
+# Analysis device context manager
+# ---------------------------------------------------------------------------
+
+
+def get_model_device(model: nn.Module) -> torch.device:
+    """Best-effort device inference for modules with parameters or buffers."""
+    try:
+        return next(model.parameters()).device
+    except (StopIteration, TypeError):
+        pass
+    try:
+        return next(model.buffers()).device
+    except (StopIteration, TypeError):
+        return torch.device("cpu")
+
+
+@contextlib.contextmanager
+def analysis_device_context(
+    model: nn.Module,
+    device: str | torch.device,
+):
+    """Context manager that moves a model to *device* for analysis and restores
+    it to the original device and train/eval state afterward.
+
+    Usage::
+
+        with analysis_device_context(model, "cpu") as dev:
+            # model is on dev, in eval mode
+            out = model(inputs.to(dev))
+        # model is back on the original device and in its original mode
+
+    This prevents the common bug where an analyzer moves a model to the
+    analysis device in-place and never moves it back, breaking subsequent
+    training or analysis steps that expect the model on the training device.
+    """
+    original_device = get_model_device(model)
+    was_training = getattr(model, "training", False)
+    target = torch.device(device)
+
+    try:
+        model.to(target)
+        model.eval()
+        yield target
+    finally:
+        model.to(original_device)
+        model.train(was_training)
+
+
+def resolve_analysis_pin_memory(
+    runtime: EvaluationRuntimeConfig | None,
+    device: str | torch.device | None = None,
+) -> bool:
+    """Return the effective pin_memory setting, auto-disabling on CPU."""
+    if runtime is None:
+        pin = True
+    else:
+        pin = getattr(runtime, "pin_memory", True)
+    if device is not None and str(device) == "cpu":
+        return False
+    return pin
