@@ -936,6 +936,7 @@ def _compute_pred_label_mi(
     inputs: torch.Tensor,
     labels: torch.Tensor,
     reduce_dim: int = 0,
+    seq_lengths: torch.Tensor | None = None,
 ) -> torch.Tensor:
     yhat = classifier.predict(inputs)
     y_true = labels.long().cpu().numpy()
