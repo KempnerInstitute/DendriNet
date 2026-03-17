@@ -51,6 +51,7 @@
 experiment:
   seed: 42
   train_valid_split: 0.8
+  fast_mode: true                                  # enables TF32, cudnn_benchmark, high matmul precision
   enable_profiling: false
   profiling_output_dir: "results/profiling/"
   enable_hooks: false
@@ -191,7 +192,7 @@ training:
     strategy: "standard"
     common:
       epochs: 50
-      batch_size: 128
+      batch_size: 256                               # larger batch for throughput (fits in 80GB with AMP)
       shuffle: true
       grad_clip_value: 5.0
       loss_function: "cat_nll"
@@ -200,8 +201,8 @@ training:
       load_best_state_dict: true
       plot_losses: true
       suppress_prints: false
-      print_every: 10
-      use_amp: false
+      print_every: 1                                # log every epoch for visibility
+      use_amp: true                                 # ~2x speedup on H100
       enable_nan_checking: false
       enable_adaptive_clipping: false
       weight_decay_rate: 0.0
