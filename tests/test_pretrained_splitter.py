@@ -102,7 +102,7 @@ class TestFlattenModelLayers:
 class TestExtractLayers:
     def test_split_after(self):
         model = _MiniAlexNet()
-        modules, names = _extract_layers(model, split_after="classifier.2")
+        _modules, names = _extract_layers(model, split_after="classifier.2")
 
         assert "classifier.2" in names
         assert "classifier.4" not in names
@@ -117,7 +117,7 @@ class TestExtractLayers:
 
     def test_drop_layers(self):
         model = _MiniAlexNet()
-        modules, names = _extract_layers(
+        _modules, names = _extract_layers(
             model,
             split_after="classifier.2",
             drop_layers=["classifier.0"],
@@ -145,7 +145,7 @@ class TestExtractLayers:
 
     def test_split_after_avgpool(self):
         model = _MiniAlexNet()
-        modules, names = _extract_layers(model, split_after="avgpool")
+        _modules, names = _extract_layers(model, split_after="avgpool")
 
         assert names[-1] == "avgpool"
         assert "classifier.0" not in names
@@ -461,7 +461,7 @@ class TestBuildEncoderDecoderFromPlan:
             omit_layers=["classifier.0", "classifier.3"],
         )
 
-        encoder, decoder = build_encoder_decoder_from_plan(
+        encoder, _decoder = build_encoder_decoder_from_plan(
             plan,
             prefix_freeze=True,
             suffix_freeze=False,

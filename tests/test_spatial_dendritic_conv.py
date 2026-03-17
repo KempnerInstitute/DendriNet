@@ -335,7 +335,7 @@ class TestSpatialDecoderSupport:
         )
 
         if plan.suffix_input_spec is not None:
-            encoder, decoder = build_encoder_decoder_from_plan(plan)
+            _encoder, decoder = build_encoder_decoder_from_plan(plan)
             spec = plan.suffix_input_spec
 
             # Decoder should work with spatial input

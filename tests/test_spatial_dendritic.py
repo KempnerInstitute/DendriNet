@@ -122,7 +122,7 @@ class TestSpatialSplit:
             spatial=True,
         )
 
-        encoder, decoder = build_encoder_decoder_from_plan(plan, prefix_freeze=True)
+        encoder, _decoder = build_encoder_decoder_from_plan(plan, prefix_freeze=True)
 
         assert encoder.output_spec is not None
         assert encoder.output_spec.channels == 256
