@@ -220,8 +220,10 @@ class RecurrentTrainer(Trainer):
         self._build_scheduler(self.epochs)
         return super().train(model, train_data, valid_data)
 
-    def _epoch_valid(self, model: BaseModel, valid_loader: DataLoader) -> float:
-        """Override parent -- uses same sequence-aware loss as training."""
+    def _epoch_valid(
+        self, model: BaseModel, valid_loader: DataLoader
+    ) -> tuple[float, int]:
+        """Override parent -- return loss sum and batch count like Trainer."""
         model.eval()
         total_loss = 0.0
         n_batches = 0
@@ -240,4 +242,4 @@ class RecurrentTrainer(Trainer):
                 total_loss += loss.item()
                 n_batches += 1
 
-        return total_loss / max(n_batches, 1)
+        return total_loss, n_batches
