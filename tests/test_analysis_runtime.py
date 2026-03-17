@@ -145,9 +145,9 @@ def test_materialize_dataset_streams_without_slice_support():
     dataset = NoSliceDataset(x, y)
     runtime = EvaluationRuntimeConfig(mode="stream", batch_size=3, num_workers=0)
 
-    materialized_x, materialized_y = materialize_dataset(
-        dataset, runtime, explicit_max_samples=5
-    )
+    result = materialize_dataset(dataset, runtime, explicit_max_samples=5)
+    assert len(result) == 2
+    materialized_x, materialized_y = result
 
     torch.testing.assert_close(materialized_x, x[:5])
     torch.testing.assert_close(materialized_y, y[:5])
