@@ -339,12 +339,12 @@ class DeepstLinear(nn.Module):
 
             # Apply transformations for log/presigmoid if needed
             if self.param_space == "log":
-                #     value = abs(value)
-                #     value = max(value, 1e-6)
-                #     value = math.log(value)
-
-                ### EXPERIMENTAL
-                value = math.log(self.weight_threshold)
+                # New connections are born at weight_init in weight space,
+                # which is log(weight_init) in pre_w space.
+                # Previously this incorrectly used weight_threshold here,
+                # causing new connections to be born at exactly the death
+                # threshold and immediately re-pruned.
+                value = math.log(max(self.weight_init, 1e-8))
             elif self.param_space == "presigmoid":
                 value = max(min(value, 1 - 1e-6), 1e-6)
                 value = math.log(value / (1 - value))
