@@ -62,7 +62,6 @@ def _make_layer(
         weight_init=weight_init,
         target_density=target_density,
         rewiring_mode="global",
-        rewire_frequency=1,
         use_noise=False,
         init_method="xavier_normal",
         freeze_connectivity=False,
