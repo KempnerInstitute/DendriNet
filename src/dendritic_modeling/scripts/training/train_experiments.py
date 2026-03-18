@@ -558,17 +558,7 @@ def main(config_path: str, args=None):
             ]
         )
 
-        if any_analysis_enabled and strategy != "multi_stage":
-            run_analysis(
-                train_ds=train_ds,
-                valid_ds=valid_ds,
-                test_ds=test_ds,
-                run_save_path=run_save_path,
-                analysis_manager=analysis_manager,
-                training_config=training_config,
-                training=False,
-            )
-        elif strategy == "multi_stage":
+        if strategy == "multi_stage":
             if analysis_config.performance_analysis.training:
                 performance_dir = os.path.join(run_save_path, "performance", "epochs")
                 if os.path.exists(performance_dir):
@@ -622,6 +612,18 @@ def main(config_path: str, args=None):
             unwrapped_model.state_dict(),
             os.path.join(run_save_path, "final_model.pt"),
         )
+
+        if any_analysis_enabled and strategy != "multi_stage":
+            run_analysis(
+                train_ds=train_ds,
+                valid_ds=valid_ds,
+                test_ds=test_ds,
+                run_save_path=run_save_path,
+                analysis_manager=analysis_manager,
+                training_config=training_config,
+                training=False,
+                training_results=training_results,
+            )
 
     if (
         hasattr(wandb_config, "use_wandb")

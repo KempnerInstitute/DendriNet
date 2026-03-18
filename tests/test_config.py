@@ -3,7 +3,9 @@
 import os
 import tempfile
 import unittest
+from unittest.mock import patch
 
+import torch
 import yaml
 
 from dendritic_modeling.config import (
@@ -295,6 +297,165 @@ class TestConfigSerialization(unittest.TestCase):
             [16, 8],
         )
         self.assertEqual(restored.data.dataset_name, "cifar10")
+
+
+class TestStrategyPrecedence(unittest.TestCase):
+    """Verify that strategy config merging follows the correct precedence.
+
+    Rules:
+    - Omitted strategy fields must NOT override common values.
+    - Explicit non-default strategy fields MUST override common values.
+    - Explicit default-valued strategy fields MUST still override common values
+      (user intentionally chose the default).
+    """
+
+    def setUp(self):
+        self.temp_dir = tempfile.mkdtemp()
+
+    def tearDown(self):
+        import shutil
+
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+    def _make_config_and_prepare(self, common_overrides, strategy_overrides=None):
+        """Write a YAML, load it, and return the prepared trainer config dict."""
+        from dendritic_modeling.scripts.script_utils.config_utils import (
+            prepare_trainer_config,
+        )
+
+        common = {
+            "epochs": 10,
+            "batch_size": 16,
+            "param_groups": {"lr": 0.001},
+        }
+        common.update(common_overrides)
+        training_main = {
+            "strategy": "recurrent",
+            "common": common,
+        }
+        if strategy_overrides is not None:
+            training_main["strategies"] = {"recurrent": strategy_overrides}
+
+        payload = {
+            "experiment": {"seed": 1},
+            "data": {"dataset_name": "lorenz"},
+            "model": {"task": "regression"},
+            "training": {"main": training_main},
+        }
+        config_path = os.path.join(self.temp_dir, "precedence_test.yaml")
+        with open(config_path, "w") as f:
+            yaml.safe_dump(payload, f)
+
+        load_config.cache_clear()
+        config = load_config(config_path)
+        return prepare_trainer_config(
+            config.training.main, config.experiment, "/tmp/test"
+        )
+
+    def _make_recurrent_trainer(self, common_overrides, strategy_overrides=None):
+        """Construct a recurrent trainer from the loaded YAML config."""
+        from dendritic_modeling.training.factory import get_trainer
+
+        trainer_cfg = self._make_config_and_prepare(
+            common_overrides=common_overrides,
+            strategy_overrides=strategy_overrides,
+        )
+        optimizer = torch.optim.Adam([torch.nn.Parameter(torch.zeros(()))], lr=1e-3)
+        with patch("torch.cuda.is_available", return_value=True):
+            trainer = get_trainer("recurrent", optimizer, dict(trainer_cfg))
+        return trainer
+
+    def test_omitted_strategy_does_not_override_common(self):
+        """Common sets use_amp=True; strategy block omitted entirely."""
+        trainer_cfg = self._make_config_and_prepare(
+            common_overrides={"use_amp": True, "lr_schedule": "cosine"},
+            strategy_overrides=None,
+        )
+        recurrent_cfg = trainer_cfg.get("recurrent_config", {})
+        # Recurrent defaults (use_amp=False) must not be present
+        self.assertNotIn("use_amp", recurrent_cfg)
+        # Common values must survive into the trainer config
+        self.assertTrue(trainer_cfg.get("use_amp", False))
+        self.assertEqual(trainer_cfg.get("lr_schedule"), "cosine")
+
+    def test_explicit_nondefault_override(self):
+        """Common sets use_amp=False; strategy explicitly sets use_amp=True."""
+        trainer_cfg = self._make_config_and_prepare(
+            common_overrides={"use_amp": False},
+            strategy_overrides={"use_amp": True, "lr_schedule": "cosine"},
+        )
+        recurrent_cfg = trainer_cfg.get("recurrent_config", {})
+        # Explicit strategy overrides must be forwarded
+        self.assertIn("use_amp", recurrent_cfg)
+        self.assertTrue(recurrent_cfg["use_amp"])
+        self.assertEqual(recurrent_cfg.get("lr_schedule"), "cosine")
+
+    def test_explicit_default_valued_override(self):
+        """Common sets grad_clip=5.0; strategy explicitly sets grad_clip=1.0 (the default).
+
+        The user intentionally chose 1.0 in the strategy block.  Even though
+        1.0 equals the dataclass default, the explicit override path must
+        still forward it so it can override the common value.
+        """
+        trainer_cfg = self._make_config_and_prepare(
+            common_overrides={"grad_clip_value": 5.0},
+            strategy_overrides={"grad_clip": 1.0},
+        )
+        recurrent_cfg = trainer_cfg.get("recurrent_config", {})
+        # The explicit-override path reads the raw YAML, so grad_clip=1.0
+        # should be forwarded even though it matches the dataclass default.
+        self.assertIn("grad_clip", recurrent_cfg)
+        self.assertEqual(recurrent_cfg["grad_clip"], 1.0)
+
+    def test_explicit_default_runtime_fields_are_preserved(self):
+        """Explicit default-valued recurrent fields must override common values.
+
+        This covers the exact fields from the recent regression bug:
+        use_amp=False, lr_schedule='none', and lr_warmup_epochs=0.
+        """
+        trainer_cfg = self._make_config_and_prepare(
+            common_overrides={
+                "use_amp": True,
+                "lr_schedule": "cosine",
+                "lr_warmup_epochs": 5,
+            },
+            strategy_overrides={
+                "use_amp": False,
+                "lr_schedule": "none",
+                "lr_warmup_epochs": 0,
+            },
+        )
+        recurrent_cfg = trainer_cfg.get("recurrent_config", {})
+        self.assertEqual(
+            recurrent_cfg,
+            {
+                "use_amp": False,
+                "lr_schedule": "none",
+                "lr_warmup_epochs": 0,
+            },
+        )
+
+    def test_end_to_end_recurrent_trainer_respects_explicit_defaults(self):
+        """End-to-end check through get_trainer() for explicit default-valued overrides."""
+        trainer = self._make_recurrent_trainer(
+            common_overrides={
+                "use_amp": True,
+                "lr_schedule": "cosine",
+                "lr_warmup_epochs": 5,
+                "grad_clip_value": 5.0,
+            },
+            strategy_overrides={
+                "use_amp": False,
+                "lr_schedule": "none",
+                "lr_warmup_epochs": 0,
+                "grad_clip": 1.0,
+            },
+        )
+        self.assertEqual(type(trainer).__name__, "RecurrentTrainer")
+        self.assertFalse(trainer.recurrent_amp)
+        self.assertEqual(trainer.lr_schedule, "none")
+        self.assertEqual(trainer.lr_warmup_epochs, 0)
+        self.assertEqual(trainer.grad_clip, 1.0)
 
 
 class TestConfigIntegration(unittest.TestCase):
