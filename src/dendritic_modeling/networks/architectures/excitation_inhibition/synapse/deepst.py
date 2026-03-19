@@ -310,10 +310,56 @@ class DeepstLinear(nn.Module):
             # Count total pruned connections
             num_pruned = pruned_mask.sum().item()
 
-            # Get all potential connections globally
+            if num_pruned == 0:
+                return
+
+            # Potential slots available for new connections (post-prune mask).
+            # Use a mutable copy so we can mark slots as claimed during the
+            # per-branch guarantee phase without double-assigning them.
             potential_connections = ~self.mask
 
-            if potential_connections.sum() > 0 and num_pruned > 0:
+            if potential_connections.sum() == 0:
+                return
+
+            # ------------------------------------------------------------------
+            # Zero-synapse guard: guarantee ≥ 1 active synapse per branch.
+            #
+            # After global pruning, some branches may be left with zero active
+            # connections.  At high EE:IE ratios, inhibitory branches that start
+            # sparse can reach zero, causing a division-by-zero or degenerate
+            # output in the shunting computation in branch_layer.py.
+            #
+            # Strategy: before distributing remaining replacements globally,
+            # assign at least one new connection to each empty branch, consuming
+            # one slot from num_pruned per branch rescued.
+            # ------------------------------------------------------------------
+            branch_counts = self.mask.sum(dim=1)          # (out_features,)
+            empty_branches = (branch_counts == 0).nonzero(as_tuple=False).squeeze(1)
+
+            for branch_idx in empty_branches:
+                if num_pruned <= 0:
+                    break
+                candidate_inputs = potential_connections[branch_idx].nonzero(
+                    as_tuple=False
+                ).squeeze(1)
+                if len(candidate_inputs) == 0:
+                    # Entire row is already occupied — cannot rescue this branch
+                    continue
+                chosen_col = candidate_inputs[
+                    torch.randint(len(candidate_inputs), (1,), device=candidate_inputs.device)
+                ].item()
+                self.mask[branch_idx, chosen_col] = True
+                self.pre_w.data[branch_idx, chosen_col] = self._initialize_new_weight()
+                # Mark slot as claimed so it is not selected again in the
+                # global distribution pass below.
+                potential_connections[branch_idx, chosen_col] = False
+                num_pruned -= 1
+
+            # ------------------------------------------------------------------
+            # Distribute remaining replacement connections globally (original
+            # behaviour).
+            # ------------------------------------------------------------------
+            if num_pruned > 0 and potential_connections.sum() > 0:
                 flat_indices = torch.nonzero(potential_connections, as_tuple=False)
 
                 # Randomly select indices to add

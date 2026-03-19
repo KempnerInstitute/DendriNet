@@ -462,13 +462,44 @@ class DeepstNet(nn.Module):
                 
             # Add new connections (new_connections_mask is now always defined)
             deepst_layer.mask[new_connections_mask] = True
-            
+
             # Initialize new weights in batch using vectorized operations
             if new_connections_mask.sum() > 0:
                 new_weights = self._initialize_new_weights_batch(
                     deepst_layer, new_connections_mask.sum().item()
                 )
                 deepst_layer.pre_w.data[new_connections_mask] = new_weights
+
+        # ------------------------------------------------------------------
+        # Zero-synapse guard: guarantee ≥ 1 active synapse per branch.
+        #
+        # After global rewiring, the random slot selection may leave some
+        # branches (rows) with zero active connections.  This is especially
+        # likely for inhibitory branches at high EE:IE density ratios, where
+        # inhibitory branches start sparse and a single pruning step can empty
+        # them entirely.  An empty branch causes division-by-zero / degenerate
+        # output in the shunting computation in branch_layer.py.
+        #
+        # This pass runs after the main loop so it does not interfere with the
+        # global slot accounting — it is a safety net, not a rewrite.
+        # ------------------------------------------------------------------
+        for deepst_layer in all_layers:
+            branch_counts = deepst_layer.mask.sum(dim=1)   # (out_features,)
+            empty_branches = (branch_counts == 0).nonzero(as_tuple=False).squeeze(1)
+
+            for branch_idx in empty_branches:
+                available = (~deepst_layer.mask[branch_idx]).nonzero(
+                    as_tuple=False
+                ).squeeze(1)
+                if len(available) == 0:
+                    # Every input slot is already occupied — cannot rescue.
+                    continue
+                chosen_col = available[
+                    torch.randint(len(available), (1,), device=available.device)
+                ].item()
+                deepst_layer.mask[branch_idx, chosen_col] = True
+                new_weight = self._initialize_new_weights_batch(deepst_layer, 1)
+                deepst_layer.pre_w.data[branch_idx, chosen_col] = new_weight
 
     def _apply_local_network_rewiring(self):
         """Apply local rewiring within each neuron."""
