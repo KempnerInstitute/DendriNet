@@ -160,6 +160,10 @@ class LocalCreditAssignment(Trainer):
                 "target_r_tot",
                 "target_voltage",
             ],
+            "voltage_homeostasis": [
+                "weight",
+                "target_voltage",
+            ],
         }
 
         for section_name, field_names in legacy_group_fields.items():
@@ -204,11 +208,43 @@ class LocalCreditAssignment(Trainer):
             FourFactorConfig,
             HSICConfig,
             InhibitoryHomeostasisConfig,
+            LocalVoltageHomeostasisConfig,
             MorphologyAwareConfig,
             ThreeFactorConfig,
         )
 
         cfg_kwargs = self._coerce_legacy_local_rule_config(dict(config_dict))
+
+        # Convenience aliases: allow readable shorthand like "5f_vh" while
+        # keeping the actual implementation as ordinary LocalCA + a strictly
+        # local voltage-homeostasis modifier.
+        raw_rule_variant = str(cfg_kwargs.get("rule_variant", "3f")).lower()
+        vh_alias_map = {
+            "3f_vh": "3f",
+            "3f+vh": "3f",
+            "3f-vh": "3f",
+            "4f_vh": "4f",
+            "4f+vh": "4f",
+            "4f-vh": "4f",
+            "5f_vh": "5f",
+            "5f+vh": "5f",
+            "5f-vh": "5f",
+        }
+        if raw_rule_variant in vh_alias_map:
+            cfg_kwargs["rule_variant"] = vh_alias_map[raw_rule_variant]
+            vh_cfg = cfg_kwargs.get("voltage_homeostasis")
+            if isinstance(vh_cfg, dict):
+                vh_cfg = dict(vh_cfg)
+                vh_cfg.setdefault("enabled", True)
+                vh_cfg.setdefault("weight", 0.02)
+                vh_cfg.setdefault("target_voltage", 0.5)
+                cfg_kwargs["voltage_homeostasis"] = vh_cfg
+            elif vh_cfg is None:
+                cfg_kwargs["voltage_homeostasis"] = {
+                    "enabled": True,
+                    "weight": 0.02,
+                    "target_voltage": 0.5,
+                }
 
         # Handle nested configs - convert dicts to proper config objects
         if "three_factor" in cfg_kwargs and isinstance(
@@ -237,6 +273,13 @@ class LocalCreditAssignment(Trainer):
         ):
             cfg_kwargs["inhibitory_homeostasis"] = InhibitoryHomeostasisConfig(
                 **cfg_kwargs["inhibitory_homeostasis"]
+            )
+
+        if "voltage_homeostasis" in cfg_kwargs and isinstance(
+            cfg_kwargs["voltage_homeostasis"], dict
+        ):
+            cfg_kwargs["voltage_homeostasis"] = LocalVoltageHomeostasisConfig(
+                **cfg_kwargs["voltage_homeostasis"]
             )
 
         return LocalRuleConfig(**cfg_kwargs)
@@ -1278,6 +1321,23 @@ class LocalCreditAssignment(Trainer):
         )
         return None
 
+    def _compute_voltage_homeostasis_error(
+        self, v_n: torch.Tensor
+    ) -> Optional[torch.Tensor]:
+        """Return a local voltage-centering error signal.
+
+        This term is intentionally local: it depends only on the compartment
+        voltage and a fixed target midpoint, and it is applied through the
+        same local sensitivity factors used by the task-driven updates.
+        """
+        cfg = getattr(self.local_cfg, "voltage_homeostasis", None)
+        if cfg is None or not getattr(cfg, "enabled", False) or cfg.weight <= 0.0:
+            return None
+
+        target_v = float(getattr(cfg, "target_voltage", 0.5))
+        weight = float(cfg.weight)
+        return weight * (target_v - v_n)
+
     def _resolve_layer_dynamics_mode(self, rec: dict[str, Any]) -> str:
         """Resolve local update dynamics for the current layer.
 
@@ -1698,6 +1758,20 @@ class LocalCreditAssignment(Trainer):
                 grad_g = post_factor.t() @ x_exc
                 if self.local_cfg.normalize_by_batch:
                     grad_g = grad_g / float(batch_size)
+                voltage_homeo_error = self._compute_voltage_homeostasis_error(v_n)
+                if voltage_homeo_error is not None:
+                    if layer_dynamics_mode == "conductance":
+                        exc_homeo_factor = (
+                            voltage_homeo_error
+                            * R_tot
+                            * (self.local_cfg.three_factor.e_rev_exc - v_n)
+                        )
+                    else:
+                        exc_homeo_factor = voltage_homeo_error
+                    grad_homeo_exc = exc_homeo_factor.t() @ x_exc
+                    if self.local_cfg.normalize_by_batch:
+                        grad_homeo_exc = grad_homeo_exc / float(batch_size)
+                    grad_g = grad_g + grad_homeo_exc
                 if (
                     isinstance(role_synaptic_alignment, torch.Tensor)
                     and role_synaptic_alignment.size() == grad_g.size()
@@ -1782,6 +1856,20 @@ class LocalCreditAssignment(Trainer):
                     grad_g_inh = grad_g_inh * role_synaptic_alignment.to(
                         device=grad_g_inh.device, dtype=grad_g_inh.dtype
                     )
+                voltage_homeo_error = self._compute_voltage_homeostasis_error(v_n)
+                if voltage_homeo_error is not None:
+                    if layer_dynamics_mode == "conductance":
+                        inh_homeo_factor = (
+                            voltage_homeo_error
+                            * R_tot
+                            * (self.local_cfg.three_factor.e_rev_inh - v_n)
+                        )
+                    else:
+                        inh_homeo_factor = -voltage_homeo_error
+                    grad_homeo_inh = inh_homeo_factor.t() @ x_inh
+                    if self.local_cfg.normalize_by_batch:
+                        grad_homeo_inh = grad_homeo_inh / float(batch_size)
+                    grad_g_inh = grad_g_inh + grad_homeo_inh
                 homeo_factor = self._compute_inhibitory_homeostasis_factor(
                     rec=rec, R_tot=R_tot, v_n=v_n
                 )
@@ -1869,6 +1957,23 @@ class LocalCreditAssignment(Trainer):
                 grad_g_den = den_factor.mean(dim=0)  # [out, block]
                 if not self.local_cfg.normalize_by_batch:
                     grad_g_den = grad_g_den * float(batch_size)
+                voltage_homeo_error = self._compute_voltage_homeostasis_error(v_n)
+                if voltage_homeo_error is not None:
+                    if layer_dynamics_mode == "conductance":
+                        diff_homeo = x_blk - v_n.unsqueeze(-1)
+                        if isinstance(R_tot, torch.Tensor):
+                            R_homeo = R_tot.unsqueeze(-1)
+                        else:
+                            R_homeo = torch.ones_like(v_n).unsqueeze(-1) * float(R_tot)
+                        den_homeo_factor = (
+                            voltage_homeo_error.unsqueeze(-1) * R_homeo * diff_homeo
+                        )
+                    else:
+                        den_homeo_factor = voltage_homeo_error.unsqueeze(-1) * x_blk
+                    grad_homeo_den = den_homeo_factor.mean(dim=0)
+                    if not self.local_cfg.normalize_by_batch:
+                        grad_homeo_den = grad_homeo_den * float(batch_size)
+                    grad_g_den = grad_g_den + grad_homeo_den
                 if (
                     isinstance(role_block_alignment, torch.Tensor)
                     and role_block_alignment.size() == grad_g_den.size()

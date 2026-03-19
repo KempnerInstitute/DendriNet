@@ -252,6 +252,173 @@ class VariableDelayDMSDataset(Dataset):
         return self.inputs[idx], self.targets[idx], seq_len
 
 
+class OculomotorDelayedResponseDataset(Dataset):
+    """Delayed-response task with a remembered angular cue.
+
+    A brief cue indicates one of ``n_targets`` angular locations. The network
+    must retain that location over a silent delay and report it after a go cue.
+    This is a simple delayed-response benchmark motivated by oculomotor memory
+    tasks used in systems neuroscience.
+    """
+
+    def __init__(
+        self,
+        n_samples: int = 20000,
+        n_targets: int = 8,
+        input_tuning_dim: int = 16,
+        fixation_duration: int = 6,
+        cue_duration: int = 8,
+        min_delay: int = 10,
+        max_delay: int = 100,
+        go_duration: int = 8,
+        tuning_kappa: float = 2.0,
+        cue_noise_std: float = 0.05,
+    ):
+        super().__init__()
+        self.n_samples = n_samples
+        self.n_targets = n_targets
+        self.input_tuning_dim = input_tuning_dim
+        self.fixation_duration = fixation_duration
+        self.cue_duration = cue_duration
+        self.min_delay = min_delay
+        self.max_delay = max_delay
+        self.go_duration = go_duration
+        self.input_dim = input_tuning_dim + 2
+        self.max_total_len = fixation_duration + cue_duration + max_delay + go_duration
+
+        self.inputs = torch.zeros(n_samples, self.max_total_len, self.input_dim)
+        self.targets = torch.zeros(n_samples, dtype=torch.long)
+        self.delays = torch.zeros(n_samples, dtype=torch.long)
+
+        pref_angles = torch.linspace(
+            0.0, 2.0 * math.pi, steps=input_tuning_dim + 1, dtype=torch.float32
+        )[:-1]
+        target_angles = torch.linspace(
+            0.0, 2.0 * math.pi, steps=n_targets + 1, dtype=torch.float32
+        )[:-1]
+
+        for i in range(n_samples):
+            target_idx = torch.randint(0, n_targets, (1,)).item()
+            delay = torch.randint(min_delay, max_delay + 1, (1,)).item()
+            total_len = fixation_duration + cue_duration + delay + go_duration
+
+            angle = target_angles[target_idx]
+            cue_pattern = torch.exp(tuning_kappa * torch.cos(pref_angles - angle))
+            cue_pattern = cue_pattern / cue_pattern.max().clamp(min=1e-8)
+
+            self.targets[i] = target_idx
+            self.delays[i] = delay
+
+            # Fixation stays on through the silent memory period.
+            self.inputs[
+                i, : fixation_duration + cue_duration + delay, input_tuning_dim
+            ] = 1.0
+
+            cue_start = fixation_duration
+            cue_end = fixation_duration + cue_duration
+            self.inputs[i, cue_start:cue_end, :input_tuning_dim] = (
+                cue_pattern.unsqueeze(0)
+            )
+            self.inputs[
+                i, cue_start:cue_end, :input_tuning_dim
+            ] += cue_noise_std * torch.randn(cue_duration, input_tuning_dim)
+
+            go_start = fixation_duration + cue_duration + delay
+            self.inputs[i, go_start:total_len, input_tuning_dim + 1] = 1.0
+
+        self.seq_lengths = (
+            self.fixation_duration + self.cue_duration + self.delays + self.go_duration
+        )
+
+    def __len__(self):
+        return self.n_samples
+
+    def __getitem__(self, idx):
+        seq_lengths = self.seq_lengths[idx]
+        if torch.is_tensor(seq_lengths) and seq_lengths.dim() == 0:
+            seq_lengths = int(seq_lengths.item())
+        return self.inputs[idx], self.targets[idx], seq_lengths
+
+
+class RomoDelayComparisonDataset(Dataset):
+    """Delayed comparison of two vibrotactile frequencies.
+
+    The first stimulus frequency must be retained over a silent delay and then
+    compared against a second frequency. The target is binary: whether the
+    second frequency is higher than the first.
+    """
+
+    def __init__(
+        self,
+        n_samples: int = 20000,
+        frequency_values: tuple[float, ...] = (2.0, 3.0, 4.0, 5.0, 6.0, 7.0),
+        stimulus_duration: int = 20,
+        min_delay: int = 10,
+        max_delay: int = 100,
+        response_duration: int = 8,
+        noise_std: float = 0.08,
+    ):
+        super().__init__()
+        self.n_samples = n_samples
+        self.frequency_values = tuple(float(v) for v in frequency_values)
+        self.stimulus_duration = stimulus_duration
+        self.min_delay = min_delay
+        self.max_delay = max_delay
+        self.response_duration = response_duration
+        self.input_dim = 4
+        self.max_total_len = 2 * stimulus_duration + max_delay + response_duration
+
+        self.inputs = torch.zeros(n_samples, self.max_total_len, self.input_dim)
+        self.targets = torch.zeros(n_samples, dtype=torch.long)
+        self.delays = torch.zeros(n_samples, dtype=torch.long)
+
+        phase_grid = torch.arange(stimulus_duration, dtype=torch.float32)
+
+        for i in range(n_samples):
+            f1_idx = torch.randint(0, len(self.frequency_values), (1,)).item()
+            f2_idx = torch.randint(0, len(self.frequency_values), (1,)).item()
+            while f2_idx == f1_idx:
+                f2_idx = torch.randint(0, len(self.frequency_values), (1,)).item()
+
+            f1 = self.frequency_values[f1_idx]
+            f2 = self.frequency_values[f2_idx]
+            delay = torch.randint(min_delay, max_delay + 1, (1,)).item()
+            total_len = 2 * stimulus_duration + delay + response_duration
+
+            sig1 = torch.sin(2.0 * math.pi * f1 * phase_grid / stimulus_duration)
+            sig2 = torch.sin(2.0 * math.pi * f2 * phase_grid / stimulus_duration)
+            sig1 = sig1 + noise_std * torch.randn_like(sig1)
+            sig2 = sig2 + noise_std * torch.randn_like(sig2)
+
+            self.targets[i] = int(f2 > f1)
+            self.delays[i] = delay
+
+            s1_start = 0
+            s1_end = stimulus_duration
+            s2_start = stimulus_duration + delay
+            s2_end = s2_start + stimulus_duration
+            rsp_start = s2_end
+
+            self.inputs[i, s1_start:s1_end, 0] = sig1
+            self.inputs[i, s1_start:s1_end, 1] = 1.0
+            self.inputs[i, s2_start:s2_end, 0] = sig2
+            self.inputs[i, s2_start:s2_end, 2] = 1.0
+            self.inputs[i, rsp_start:total_len, 3] = 1.0
+
+        self.seq_lengths = (
+            2 * self.stimulus_duration + self.delays + self.response_duration
+        )
+
+    def __len__(self):
+        return self.n_samples
+
+    def __getitem__(self, idx):
+        seq_lengths = self.seq_lengths[idx]
+        if torch.is_tensor(seq_lengths) and seq_lengths.dim() == 0:
+            seq_lengths = int(seq_lengths.item())
+        return self.inputs[idx], self.targets[idx], seq_lengths
+
+
 class MultiFrequencyDataset(Dataset):
     """Multi-frequency classification task.
 
@@ -300,6 +467,157 @@ class MultiFrequencyDataset(Dataset):
 
             signal += noise_std * torch.randn(1, seq_len)
             self.inputs[i, :, 0] = signal.squeeze()
+
+    def __len__(self):
+        return self.n_samples
+
+    def __getitem__(self, idx):
+        return self.inputs[idx], self.targets[idx]
+
+
+class MultiSineForecastDataset(Dataset):
+    """Forecast a quasi-periodic 1D signal built from multiple sinusoids.
+
+    Each sample is a smooth mixture of frequencies drawn from a shared bank,
+    optionally modulated by a slow envelope. The task is next-step prediction
+    from a context window, with autonomous rollout evaluated by feeding model
+    predictions back as the next observation.
+
+    Args:
+        n_samples: Number of sequences.
+        seq_len: Length of the context window given to the model.
+        rollout_horizon: Number of future steps reserved for autonomous rollout.
+        prediction_mode: "all" for per-timestep next-step targets or "last"
+            for only the next sample after the full context.
+        n_components: Number of sinusoidal components in each sequence.
+        frequency_bank: Frequencies (cycles over the full normalized interval).
+        amplitude_min: Minimum component amplitude.
+        amplitude_max: Maximum component amplitude.
+        envelope_scale: Strength of a slow multiplicative modulation.
+        envelope_freq_min: Minimum envelope frequency.
+        envelope_freq_max: Maximum envelope frequency.
+        observation_noise_std: Noise level added to observations.
+        seed: RNG seed for sample generation.
+        normalize_signal: Whether to z-score signals using dataset statistics.
+    """
+
+    def __init__(
+        self,
+        n_samples: int = 12000,
+        seq_len: int = 160,
+        rollout_horizon: int = 160,
+        prediction_mode: str = "all",
+        n_components: int = 3,
+        frequency_bank: Optional[list[float]] = None,
+        amplitude_min: float = 0.3,
+        amplitude_max: float = 1.0,
+        envelope_scale: float = 0.15,
+        envelope_freq_min: float = 0.15,
+        envelope_freq_max: float = 0.6,
+        observation_noise_std: float = 0.02,
+        seed: int = 42,
+        normalize_signal: bool = True,
+    ):
+        super().__init__()
+
+        if prediction_mode not in {"all", "last"}:
+            raise ValueError(
+                f"prediction_mode must be 'all' or 'last', got {prediction_mode}"
+            )
+        if n_components < 1:
+            raise ValueError("n_components must be >= 1")
+
+        self.n_samples = n_samples
+        self.seq_len = seq_len
+        self.rollout_horizon = rollout_horizon
+        self.prediction_mode = prediction_mode
+        self.observation_noise_std = observation_noise_std
+        self.state_dim = 1
+        self.observation_dim = 1
+
+        if frequency_bank is None:
+            frequency_bank = [1.0, 2.5, 5.5, 9.0, 14.0]
+        if len(frequency_bank) < n_components:
+            raise ValueError(
+                "frequency_bank must contain at least n_components entries"
+            )
+        self.frequency_bank = tuple(float(f) for f in frequency_bank)
+
+        total_steps = seq_len + rollout_horizon + 1
+        self.total_steps = total_steps
+        time = np.linspace(0.0, 1.0, total_steps, dtype=np.float32)
+        rng = np.random.default_rng(seed)
+
+        signals = np.zeros((n_samples, total_steps), dtype=np.float32)
+        for sample_idx in range(n_samples):
+            chosen = rng.choice(
+                np.asarray(self.frequency_bank),
+                size=n_components,
+                replace=False,
+            )
+            amplitudes = rng.uniform(amplitude_min, amplitude_max, size=n_components)
+            phases = rng.uniform(0.0, 2.0 * math.pi, size=n_components)
+
+            signal = np.zeros_like(time)
+            for freq, amp, phase in zip(chosen, amplitudes, phases):
+                signal += amp * np.sin(2.0 * math.pi * freq * time + phase)
+
+            if envelope_scale > 0.0:
+                env_freq = rng.uniform(envelope_freq_min, envelope_freq_max)
+                env_phase = rng.uniform(0.0, 2.0 * math.pi)
+                envelope = 1.0 + envelope_scale * np.sin(
+                    2.0 * math.pi * env_freq * time + env_phase
+                )
+                signal *= envelope
+
+            # Small smooth bias term broadens the family without making the task
+            # chaotic or unstable.
+            bias = rng.uniform(-0.15, 0.15)
+            signal += bias
+            signals[sample_idx] = signal.astype(np.float32)
+
+        states_raw = torch.from_numpy(signals).unsqueeze(-1)  # [N, T, 1]
+        if normalize_signal:
+            mean = states_raw.mean(dim=(0, 1), keepdim=True)
+            std = states_raw.std(dim=(0, 1), keepdim=True).clamp_min(1e-6)
+        else:
+            mean = torch.zeros(1, 1, 1, dtype=states_raw.dtype)
+            std = torch.ones(1, 1, 1, dtype=states_raw.dtype)
+
+        states = (states_raw - mean) / std
+        observations = states.clone()
+        if observation_noise_std > 0.0:
+            observations = observations + observation_noise_std * torch.randn_like(
+                observations
+            )
+
+        self.state_mean = mean
+        self.state_std = std
+        self.full_states_raw = states_raw
+        self.full_states = states
+        self.full_observations = observations
+        self.inputs = observations[:, :seq_len]
+        if prediction_mode == "all":
+            self.targets = states[:, 1 : seq_len + 1]
+        else:
+            self.targets = states[:, seq_len]
+
+    def denormalize_state_tensor(self, value: torch.Tensor) -> torch.Tensor:
+        return value * self.state_std.to(value.device) + self.state_mean.to(
+            value.device
+        )
+
+    def states_to_observations(
+        self, states_raw: torch.Tensor, add_noise: bool = False
+    ) -> torch.Tensor:
+        observations = (
+            states_raw - self.state_mean.to(states_raw.device)
+        ) / self.state_std.to(states_raw.device)
+        if add_noise and self.observation_noise_std > 0.0:
+            observations = observations + self.observation_noise_std * torch.randn_like(
+                observations
+            )
+        return observations
 
     def __len__(self):
         return self.n_samples
@@ -1814,6 +2132,119 @@ def get_sequence_datasets(
         )
         test_ds = TimescaleGeneralizationDataset(
             n_samples=max(n_train // 5, 2000), **common_defaults
+        )
+    elif dataset_name == "odr_generalization":
+        n_train = kwargs.get("n_samples", 20000)
+        common_defaults = {
+            "n_targets": kwargs.get("n_targets", 8),
+            "input_tuning_dim": kwargs.get("input_tuning_dim", 16),
+            "fixation_duration": kwargs.get("fixation_duration", 6),
+            "cue_duration": kwargs.get("cue_duration", 8),
+            "min_delay": kwargs.get("min_delay", 10),
+            "max_delay": kwargs.get("max_delay", 100),
+            "go_duration": kwargs.get("go_duration", 8),
+            "tuning_kappa": kwargs.get("tuning_kappa", 2.0),
+            "cue_noise_std": kwargs.get("cue_noise_std", 0.05),
+        }
+        explicit_splits = any(
+            isinstance(kwargs.get(split_name), dict)
+            for split_name in ("train", "valid", "test")
+        )
+        if explicit_splits:
+
+            def _build_split(split_name: str, default_n_samples: int):
+                split_kwargs = dict(kwargs.get(split_name, {}))
+                split_params = {
+                    **common_defaults,
+                    **{
+                        key: value
+                        for key, value in split_kwargs.items()
+                        if key != "n_samples"
+                    },
+                }
+                split_n = split_kwargs.get("n_samples", default_n_samples)
+                return OculomotorDelayedResponseDataset(
+                    n_samples=split_n, **split_params
+                )
+
+            train_ds = _build_split("train", n_train)
+            valid_ds = _build_split("valid", max(n_train // 5, 2000))
+            test_ds = _build_split("test", max(n_train // 5, 2000))
+            return train_ds, valid_ds, test_ds
+
+        train_full = OculomotorDelayedResponseDataset(
+            n_samples=n_train, **common_defaults
+        )
+        test_ds = OculomotorDelayedResponseDataset(
+            n_samples=max(n_train // 5, 2000), **common_defaults
+        )
+    elif dataset_name == "romo_delay_comparison":
+        n_train = kwargs.get("n_samples", 20000)
+        common_defaults = {
+            "frequency_values": tuple(
+                kwargs.get("frequency_values", (2.0, 3.0, 4.0, 5.0, 6.0, 7.0))
+            ),
+            "stimulus_duration": kwargs.get("stimulus_duration", 20),
+            "min_delay": kwargs.get("min_delay", 10),
+            "max_delay": kwargs.get("max_delay", 100),
+            "response_duration": kwargs.get("response_duration", 8),
+            "noise_std": kwargs.get("noise_std", 0.08),
+        }
+        explicit_splits = any(
+            isinstance(kwargs.get(split_name), dict)
+            for split_name in ("train", "valid", "test")
+        )
+        if explicit_splits:
+
+            def _build_split(split_name: str, default_n_samples: int):
+                split_kwargs = dict(kwargs.get(split_name, {}))
+                split_params = {
+                    **common_defaults,
+                    **{
+                        key: value
+                        for key, value in split_kwargs.items()
+                        if key != "n_samples"
+                    },
+                }
+                split_n = split_kwargs.get("n_samples", default_n_samples)
+                return RomoDelayComparisonDataset(n_samples=split_n, **split_params)
+
+            train_ds = _build_split("train", n_train)
+            valid_ds = _build_split("valid", max(n_train // 5, 2000))
+            test_ds = _build_split("test", max(n_train // 5, 2000))
+            return train_ds, valid_ds, test_ds
+
+        train_full = RomoDelayComparisonDataset(n_samples=n_train, **common_defaults)
+        test_ds = RomoDelayComparisonDataset(
+            n_samples=max(n_train // 5, 2000), **common_defaults
+        )
+    elif dataset_name == "multi_sine_forecast":
+        n_train = kwargs.get("n_samples", 12000)
+        common = {
+            "seq_len": kwargs.get("seq_len", 160),
+            "rollout_horizon": kwargs.get("rollout_horizon", 160),
+            "prediction_mode": kwargs.get("prediction_mode", "all"),
+            "n_components": kwargs.get("n_components", 3),
+            "frequency_bank": kwargs.get("frequency_bank", [1.0, 2.5, 5.5, 9.0, 14.0]),
+            "amplitude_min": kwargs.get("amplitude_min", 0.3),
+            "amplitude_max": kwargs.get("amplitude_max", 1.0),
+            "envelope_scale": kwargs.get("envelope_scale", 0.15),
+            "envelope_freq_min": kwargs.get("envelope_freq_min", 0.15),
+            "envelope_freq_max": kwargs.get("envelope_freq_max", 0.6),
+            "observation_noise_std": kwargs.get("observation_noise_std", 0.02),
+            "seed": kwargs.get("seed", 42),
+            "normalize_signal": kwargs.get("normalize_signal", True),
+        }
+        train_full = MultiSineForecastDataset(
+            n_samples=n_train,
+            **common,
+        )
+        test_ds = MultiSineForecastDataset(
+            n_samples=max(n_train // 5, 1000),
+            **{
+                **common,
+                "seed": kwargs.get("test_seed", common["seed"] + 1),
+            },
         )
     elif dataset_name in {"lorenz", "lorenz_sequence"}:
         n_train = kwargs.get("n_samples", 10000)

@@ -115,6 +115,23 @@ class DatasetParamsConfig(BaseConfig):
     mnist_modulo10: dict[str, Any] = field(
         default_factory=lambda: {"shuffle_iterations": 2}
     )
+    cifar10_modulo10: dict[str, Any] = field(
+        default_factory=lambda: {"shuffle_iterations": 1, "pair_seed": 0}
+    )
+    double_mnist_contextual_mod10: dict[str, Any] = field(
+        default_factory=lambda: {
+            "shuffle_iterations": 1,
+            "pair_seed": 0,
+            "context_seed": 123,
+        }
+    )
+    double_cifar10_contextual_mod10: dict[str, Any] = field(
+        default_factory=lambda: {
+            "shuffle_iterations": 1,
+            "pair_seed": 0,
+            "context_seed": 123,
+        }
+    )
     random_flip_mnist: dict[str, Any] = field(
         default_factory=lambda: {"flip_probability": 0.5}
     )

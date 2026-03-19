@@ -41,6 +41,23 @@ def _compute_input_branch_factors(branch_factors: list[int]) -> list[Optional[in
     return [None, *rev_bf]
 
 
+def _resolve_synapses_by_level(
+    *,
+    per_level: list[int],
+    fallback: int,
+    n_levels: int,
+    field_name: str,
+) -> list[int]:
+    if not per_level:
+        return [int(fallback)] * n_levels
+    if len(per_level) != n_levels:
+        raise ValueError(
+            f"{field_name} length must match number of dendritic levels "
+            f"({n_levels}), got {len(per_level)}"
+        )
+    return [int(v) for v in per_level]
+
+
 class StatefulDendriNet(nn.Module):
     """Dendritic population module for feedforward and recurrent operation.
 
@@ -114,6 +131,30 @@ class StatefulDendriNet(nn.Module):
         # Build branch layers (distal to soma)
         self.branch_layers = nn.ModuleList()
         input_branch_factors = _compute_input_branch_factors(pop_config.branch_factors)
+        ff_exc_by_level = _resolve_synapses_by_level(
+            per_level=pop_config.ff_excitatory_synapses_by_level,
+            fallback=pop_config.ff_excitatory_synapses,
+            n_levels=self.n_levels,
+            field_name="ff_excitatory_synapses_by_level",
+        )
+        ff_inh_by_level = _resolve_synapses_by_level(
+            per_level=pop_config.ff_inhibitory_synapses_by_level,
+            fallback=pop_config.ff_inhibitory_synapses,
+            n_levels=self.n_levels,
+            field_name="ff_inhibitory_synapses_by_level",
+        )
+        rec_exc_by_level = _resolve_synapses_by_level(
+            per_level=pop_config.rec_excitatory_synapses_by_level,
+            fallback=pop_config.rec_excitatory_synapses,
+            n_levels=self.n_levels,
+            field_name="rec_excitatory_synapses_by_level",
+        )
+        rec_inh_by_level = _resolve_synapses_by_level(
+            per_level=pop_config.rec_inhibitory_synapses_by_level,
+            fallback=pop_config.rec_inhibitory_synapses,
+            n_levels=self.n_levels,
+            field_name="rec_inhibitory_synapses_by_level",
+        )
 
         # Common DendriticBranchLayer kwargs from PopulationConfig
         common_kwargs = {
@@ -180,25 +221,20 @@ class StatefulDendriNet(nn.Module):
                 rec_inh_in = None
                 rec_inh_syn = None
             else:
-                exc_in = _exc_dim(pop_config.ff_excitatory_synapses)
-                exc_syn = _exc_syn(pop_config.ff_excitatory_synapses)
-                inh_in = _inh_dim(
-                    inhibitory_input_dim, pop_config.ff_inhibitory_synapses
-                )
-                inh_syn = _inh_syn(
-                    inhibitory_input_dim, pop_config.ff_inhibitory_synapses
-                )
-                rec_in = _inh_dim(
-                    recurrent_excitatory_input_dim, pop_config.rec_excitatory_synapses
-                )
-                rec_syn = _inh_syn(
-                    recurrent_excitatory_input_dim, pop_config.rec_excitatory_synapses
-                )
-                rec_inh_in = _inh_dim(
-                    recurrent_inhibitory_input_dim, pop_config.rec_inhibitory_synapses
-                )
+                ff_exc_syn = ff_exc_by_level[level_idx]
+                ff_inh_syn_count = ff_inh_by_level[level_idx]
+                rec_exc_syn_count = rec_exc_by_level[level_idx]
+                rec_inh_syn_count = rec_inh_by_level[level_idx]
+
+                exc_in = _exc_dim(ff_exc_syn)
+                exc_syn = _exc_syn(ff_exc_syn)
+                inh_in = _inh_dim(inhibitory_input_dim, ff_inh_syn_count)
+                inh_syn = _inh_syn(inhibitory_input_dim, ff_inh_syn_count)
+                rec_in = _inh_dim(recurrent_excitatory_input_dim, rec_exc_syn_count)
+                rec_syn = _inh_syn(recurrent_excitatory_input_dim, rec_exc_syn_count)
+                rec_inh_in = _inh_dim(recurrent_inhibitory_input_dim, rec_inh_syn_count)
                 rec_inh_syn = _inh_syn(
-                    recurrent_inhibitory_input_dim, pop_config.rec_inhibitory_synapses
+                    recurrent_inhibitory_input_dim, rec_inh_syn_count
                 )
 
             branch_layer = DendriticBranchLayer(
