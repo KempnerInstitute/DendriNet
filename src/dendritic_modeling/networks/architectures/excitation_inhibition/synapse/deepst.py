@@ -150,22 +150,39 @@ class DeepstLinear(nn.Module):
                 for input_idx in input_indices:
                     self.mask[neuron_idx, input_idx] = True
         else:
-            # Standard random initialization for global or local modes
+            # Initialization for global or local modes.
+            #
+            # Guarantee ≥ 1 active synapse per branch by giving each branch one
+            # randomly-chosen connection first, then distribute the remaining
+            # (target_connections - out_features) connections uniformly at random.
+            #
+            # Without this guarantee, a pure random placement (uniform over all
+            # out_features × in_features slots) can leave some branches empty,
+            # especially at low density.  An empty branch causes
+            # division-by-zero / degenerate output in branch_layer.py's shunting
+            # computation, and forces the zero-synapse guard in
+            # _create_new_connections to add connections outside the normal
+            # num_pruned budget.
             connections_to_activate = self.target_connections
 
-            # Flatten indices for uniform sampling
-            all_indices = torch.nonzero(torch.ones_like(self.pre_w), as_tuple=False)
-
-            # Randomly select indices to activate
-            selected_indices = torch.randperm(len(all_indices))[
-                :connections_to_activate
-            ]
-            selected_connections = all_indices[selected_indices]
-
-            # Activate connections
             with torch.no_grad():
-                for i, j in selected_connections:
-                    self.mask[i, j] = True
+                # Phase 1: one random connection per branch (guaranteed minimum).
+                branches_to_seed = min(self.out_features, connections_to_activate)
+                for neuron_idx in range(branches_to_seed):
+                    col = torch.randint(self.in_features, (1,)).item()
+                    self.mask[neuron_idx, col] = True
+
+                # Phase 2: distribute remaining connections uniformly at random
+                # over all unoccupied slots.
+                remaining = connections_to_activate - branches_to_seed
+                if remaining > 0:
+                    available = (~self.mask).nonzero(as_tuple=False)  # (N, 2)
+                    n_available = len(available)
+                    if n_available > 0:
+                        chosen = torch.randperm(n_available)[:remaining]
+                        for idx in chosen:
+                            i, j = available[idx]
+                            self.mask[i, j] = True
 
     def weight(self):
         """Return the actual weight values (after transformation)"""
@@ -316,22 +333,25 @@ class DeepstLinear(nn.Module):
             # Potential slots available for new connections (post-prune mask).
             # Use a mutable copy so we can mark slots as claimed during the
             # per-branch guarantee phase without double-assigning them.
-            potential_connections = ~self.mask
+            potential_connections = (~self.mask).clone()
 
             if potential_connections.sum() == 0:
                 return
 
             # ------------------------------------------------------------------
-            # Zero-synapse guard: guarantee ≥ 1 active synapse per branch.
+            # Zero-synapse guard (phase 1): guarantee ≥ 1 active synapse per
+            # branch BEFORE the global distribution runs.
             #
-            # After global pruning, some branches may be left with zero active
-            # connections.  At high EE:IE ratios, inhibitory branches that start
-            # sparse can reach zero, causing a division-by-zero or degenerate
-            # output in the shunting computation in branch_layer.py.
+            # This covers two cases:
+            #   (a) branches that were active and got pruned to zero
+            #   (b) branches that were ALREADY empty before pruning (possible in
+            #       global mode at low density, where random initialization may
+            #       leave some branches with 0 connections)
             #
-            # Strategy: before distributing remaining replacements globally,
-            # assign at least one new connection to each empty branch, consuming
-            # one slot from num_pruned per branch rescued.
+            # Each rescued branch consumes one slot from num_pruned so the total
+            # connection count stays equal to the pruned count.  When empty
+            # branches outnumber num_pruned (very sparse layers), any remaining
+            # empty branches are caught by the post-processing pass below.
             # ------------------------------------------------------------------
             branch_counts = self.mask.sum(dim=1)          # (out_features,)
             empty_branches = (branch_counts == 0).nonzero(as_tuple=False).squeeze(1)
@@ -343,15 +363,12 @@ class DeepstLinear(nn.Module):
                     as_tuple=False
                 ).squeeze(1)
                 if len(candidate_inputs) == 0:
-                    # Entire row is already occupied — cannot rescue this branch
                     continue
                 chosen_col = candidate_inputs[
                     torch.randint(len(candidate_inputs), (1,), device=candidate_inputs.device)
                 ].item()
                 self.mask[branch_idx, chosen_col] = True
                 self.pre_w.data[branch_idx, chosen_col] = self._initialize_new_weight()
-                # Mark slot as claimed so it is not selected again in the
-                # global distribution pass below.
                 potential_connections[branch_idx, chosen_col] = False
                 num_pruned -= 1
 
@@ -372,6 +389,31 @@ class DeepstLinear(nn.Module):
                     for i, j in selected_connections:
                         self.mask[i, j] = True
                         self.pre_w.data[i, j] = self._initialize_new_weight()
+
+            # ------------------------------------------------------------------
+            # Zero-synapse guard (phase 2): final post-processing pass.
+            #
+            # Runs AFTER all distribution.  Catches any branches still empty
+            # (e.g. when num_pruned was exhausted before all empty branches were
+            # rescued above, or when global distribution happens to leave a branch
+            # empty).  Matches the approach in deepstnet.py.
+            #
+            # This pass may add connections beyond num_pruned in degenerate cases
+            # (very low density, many initially-empty branches).
+            # ------------------------------------------------------------------
+            for branch_idx in range(self.out_features):
+                if self.mask[branch_idx].sum() > 0:
+                    continue  # healthy — no action needed
+                available = (~self.mask[branch_idx]).nonzero(
+                    as_tuple=False
+                ).squeeze(1)
+                if len(available) == 0:
+                    continue  # every slot occupied — cannot rescue
+                chosen_col = available[
+                    torch.randint(len(available), (1,), device=available.device)
+                ].item()
+                self.mask[branch_idx, chosen_col] = True
+                self.pre_w.data[branch_idx, chosen_col] = self._initialize_new_weight()
 
     def _initialize_new_weight(self):
         """Helper method to initialize a new weight according to the chosen method"""
