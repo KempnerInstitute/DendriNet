@@ -1319,6 +1319,7 @@ def get_unified_datasets(task_cfg):
         "nonlinear_separable",
         "block_correlated",
         "balanced_information",
+        "contextual_stream_gain_shift",
     ]:
         # Handle synthetic datasets for theoretical validation
         dataset_config = p.copy()

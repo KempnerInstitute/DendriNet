@@ -163,6 +163,24 @@ class DatasetParamsConfig(BaseConfig):
             "noise_std": 0.1,
         }
     )
+    contextual_stream_gain_shift: dict[str, Any] = field(
+        default_factory=lambda: {
+            "n_samples": 4000,
+            "stream_dim": 64,
+            "n_classes": 2,
+            "signal_strength": 0.35,
+            "relevant_noise_std": 0.08,
+            "irrelevant_noise_std": 0.18,
+            "train_gain_relevant_min": 0.9,
+            "train_gain_relevant_max": 1.1,
+            "train_gain_irrelevant_min": 0.8,
+            "train_gain_irrelevant_max": 1.2,
+            "test_gain_relevant": 1.0,
+            "test_gain_irrelevant": 3.0,
+            "ood_mode": "irrelevant",
+            "context_signal_scale": 1.0,
+        }
+    )
     imagenet: dict[str, Any] = field(
         default_factory=lambda: {
             "train_samples_per_class": None,
