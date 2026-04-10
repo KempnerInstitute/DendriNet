@@ -301,10 +301,14 @@ def _build_recurrent_einet_from_structured_config(
             use_additive_normalization=bool(
                 morphology.get("use_additive_normalization", False)
             ),
+            allow_self_recurrence=bool(morphology.get("allow_self_recurrence", True)),
             reactivate=bool(reactivation.get("enabled", True)),
             reactivation_type=str(reactivation.get("type", "param_tanh")),
             reactivation_init_m=float(reactivation.get("init_m", 1.5)),
             reactivation_init_b=float(reactivation.get("init_b", 0.5)),
+            reactivation_match_additive_init_to_shunting=bool(
+                reactivation.get("match_additive_init_to_shunting", False)
+            ),
             reactivation_strategy=str(reactivation.get("gradient_scaling", "none")),
             blocklinear_strategy=str(blocklinear.get("gradient_scaling", "none")),
             level_taus=list(recurrent_cfg.get("level_taus", [])),
@@ -376,10 +380,12 @@ def _build_recurrent_einet_from_structured_config(
                 weight_transform=exc_cfg.weight_transform,
                 use_shunting=exc_cfg.use_shunting,
                 use_additive_normalization=exc_cfg.use_additive_normalization,
+                allow_self_recurrence=exc_cfg.allow_self_recurrence,
                 reactivate=exc_cfg.reactivate,
                 reactivation_type=exc_cfg.reactivation_type,
                 reactivation_init_m=exc_cfg.reactivation_init_m,
                 reactivation_init_b=exc_cfg.reactivation_init_b,
+                reactivation_match_additive_init_to_shunting=exc_cfg.reactivation_match_additive_init_to_shunting,
                 reactivation_strategy=exc_cfg.reactivation_strategy,
                 blocklinear_strategy=exc_cfg.blocklinear_strategy,
                 level_taus=exc_cfg.level_taus,

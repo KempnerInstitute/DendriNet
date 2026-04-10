@@ -45,21 +45,45 @@ def test_linear_decoder_maps_output_error_to_core_soma_error():
     torch.testing.assert_close(delta_local, expected_delta)
 
 
-def test_nonlinear_decoder_falls_back_to_output_space():
-    """Multi-layer decoder should keep legacy output-space local signals."""
+def test_nonlinear_decoder_maps_output_error_via_decoder_jacobian():
+    """Multi-layer decoder should map error back to decoder input when cached."""
     torch.manual_seed(1)
     decoder = nn.Sequential(nn.Linear(3, 4), nn.ReLU(), nn.Linear(4, 2))
     model = _DummyModel(decoder)
     trainer = _make_trainer()
 
-    y_hat = torch.randn(4, 2)
+    h_in = torch.randn(4, 3, requires_grad=True)
+    y_hat = decoder(h_in)
+    delta_out = torch.randn(4, 2)
+    trainer._decoder_cache["decoder_input"] = h_in
+
+    v0_local, delta_local = trainer._resolve_local_soma_signals(model, y_hat, delta_out)
+
+    expected_delta = torch.autograd.grad(
+        outputs=y_hat,
+        inputs=h_in,
+        grad_outputs=delta_out,
+        retain_graph=True,
+    )[0]
+    torch.testing.assert_close(v0_local, h_in.detach())
+    torch.testing.assert_close(delta_local, expected_delta.detach())
+
+
+def test_nonlinear_decoder_without_decoder_input_falls_back_to_output_space():
+    """Multi-layer decoder should keep legacy output-space behavior without cache."""
+    torch.manual_seed(1)
+    decoder = nn.Sequential(nn.Linear(3, 4), nn.ReLU(), nn.Linear(4, 2))
+    model = _DummyModel(decoder)
+    trainer = _make_trainer()
+
+    y_hat = torch.randn(4, 2, requires_grad=True)
     delta_out = torch.randn(4, 2)
     trainer._decoder_cache["module"] = decoder[-1]
     trainer._decoder_cache["input"] = torch.randn(4, 4)
 
     v0_local, delta_local = trainer._resolve_local_soma_signals(model, y_hat, delta_out)
 
-    torch.testing.assert_close(v0_local, y_hat)
+    torch.testing.assert_close(v0_local, y_hat.detach())
     torch.testing.assert_close(delta_local, delta_out)
 
 

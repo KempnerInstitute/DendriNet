@@ -171,6 +171,22 @@ class TestDefaultInit:
         if hasattr(layer.reactivation, "log_m"):
             assert torch.isfinite(layer.reactivation.log_m).all()
 
+    def test_additive_can_match_shunting_reactivation_init(self):
+        layer = DendriticBranchLayer(
+            output_dim=8,
+            excitatory_input_dim=20,
+            excitatory_synapses_per_branch=5,
+            use_shunting=False,
+            reactivate=True,
+            reactivation_type="param_tanh",
+            reactivation_init_m=1.5,
+            reactivation_init_b=0.5,
+            reactivation_match_additive_init_to_shunting=True,
+            dbl_init_method="analytical_expectation",
+        )
+        assert layer.reactivation.log_m.exp()[0].item() == pytest.approx(1.5, rel=1e-6)
+        assert layer.reactivation.b[0].item() == pytest.approx(0.5, rel=1e-6)
+
 
 # ---------------------------------------------------------------------------
 # naive init

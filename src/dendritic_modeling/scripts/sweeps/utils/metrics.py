@@ -29,6 +29,9 @@ METRIC_MAPPING: dict[str, str] = {
     "mi_I_V_given_C": "I(I;V|C)",
     "mi_E_Vout_given_C": "I(E;Vout|C)",
     "mi_I_Vout_given_C": "I(I;Vout|C)",
+    "mi_V_C_given_E": "I(V;C|E)",
+    "mi_V_C_given_I": "I(V;C|I)",
+    "mi_V_C_given_E,I": "I(V;C|E,I)",
 }
 
 # Metric categories for organization

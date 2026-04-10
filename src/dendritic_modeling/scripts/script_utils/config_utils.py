@@ -1,12 +1,19 @@
 """Utilities for configuration handling and transformation."""
 
 import logging
-from dataclasses import asdict as dataclass_asdict, is_dataclass
+from dataclasses import (
+    asdict as dataclass_asdict,
+    fields as dataclass_fields,
+    is_dataclass,
+)
 from typing import Any, Union
 
 from omegaconf import DictConfig, OmegaConf
 
-from dendritic_modeling.config.training import ParamGroupsConfig
+from dendritic_modeling.config.training import (
+    ParamGroupsConfig,
+    TrainingStrategiesConfig,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -189,6 +196,65 @@ def prepare_ei_network_params(
     return params
 
 
+def _strip_strategy_defaults(
+    strategy_name: str, strategy_dict: dict[str, Any]
+) -> dict[str, Any]:
+    """Fallback: keep only fields that differ from dataclass defaults.
+
+    This is only used when the raw user-provided strategy block is unavailable.
+    It cannot distinguish "explicitly set to the default value" from "omitted",
+    so callers should prefer raw override tracking when possible.
+
+    If no matching dataclass is found (e.g. raw dict from YAML), the full dict
+    is returned unchanged so we don't accidentally drop fields.
+    """
+    strategies_cfg = TrainingStrategiesConfig()
+    default_instance = getattr(strategies_cfg, strategy_name, None)
+    if default_instance is None or not is_dataclass(default_instance):
+        return strategy_dict
+
+    defaults = {
+        f.name: getattr(default_instance, f.name)
+        for f in dataclass_fields(default_instance)
+    }
+    return {
+        k: v for k, v in strategy_dict.items() if k not in defaults or v != defaults[k]
+    }
+
+
+def _get_explicit_strategy_overrides(
+    main_train_config, strategy_name: str
+) -> dict[str, Any]:
+    """Return raw user-provided overrides for the selected strategy when available."""
+
+    def _to_dict_local(config):
+        if isinstance(config, DictConfig):
+            return OmegaConf.to_container(config, resolve=True)
+        if is_dataclass(config):
+            return dataclass_asdict(config)
+        if hasattr(config, "asdict") and callable(config.asdict):
+            return config.asdict()
+        if hasattr(config, "__dict__") and not isinstance(config, dict):
+            return {
+                key: value
+                for key, value in vars(config).items()
+                if not key.startswith("_")
+            }
+        return config if isinstance(config, dict) else {}
+
+    explicit_overrides = (
+        main_train_config.get("_explicit_strategy_overrides")
+        if isinstance(main_train_config, dict)
+        else getattr(main_train_config, "_explicit_strategy_overrides", None)
+    )
+    if not explicit_overrides:
+        return {}
+
+    explicit_dict = _to_dict_local(explicit_overrides)
+    selected = explicit_dict.get(strategy_name, {})
+    return _to_dict_local(selected) if selected is not None else {}
+
+
 def prepare_trainer_config(
     main_train_config: DictConfig,
     experiment_config: DictConfig,
@@ -317,21 +383,37 @@ def prepare_trainer_config(
 
     if strategies is not None:
         strategies_dict = to_dict(strategies)
+        selected_strategy = (
+            main_train_config.get("strategy")
+            if isinstance(main_train_config, dict)
+            else getattr(main_train_config, "strategy", None)
+        )
 
-        # Add other strategy configs
-        for strategy_name in [
-            "voltage_stabilization",
-            "homeostatic_control",
-            "freeze_layers",
-            "freeze_branches",
-            "freeze_branch_kl",
-            "multi_stage",
-            "recurrent",
-        ]:
-            if strategy_name in strategies_dict:
-                trainer_config[f"{strategy_name}_config"] = strategies_dict[
-                    strategy_name
-                ]
+        # Only pass the config for the active strategy. Typed configs carry
+        # default strategy blocks for every trainer; forwarding all of them can
+        # accidentally overwrite explicit common settings with default values.
+        if (
+            selected_strategy
+            in {
+                "voltage_stabilization",
+                "homeostatic_control",
+                "freeze_layers",
+                "freeze_branches",
+                "freeze_branch_kl",
+                "multi_stage",
+                "recurrent",
+            }
+            and selected_strategy in strategies_dict
+        ):
+            strategy_dict = _get_explicit_strategy_overrides(
+                main_train_config, selected_strategy
+            )
+            if not strategy_dict:
+                strategy_dict = _strip_strategy_defaults(
+                    selected_strategy, strategies_dict[selected_strategy]
+                )
+            if strategy_dict:
+                trainer_config[f"{selected_strategy}_config"] = strategy_dict
 
     return trainer_config
 

@@ -69,6 +69,7 @@ class TopKLinear(nn.Module):
         weight_transform: WeightTransformType = "exp",
         weight_norm_order: Optional[int] = None,
         gamma: float = 1.0,
+        forbidden_input_index_per_output: Optional[torch.Tensor] = None,
     ):
         super().__init__()
 
@@ -102,6 +103,27 @@ class TopKLinear(nn.Module):
         self.param_scale_vec = None  # may be used for gradient scaling
         self.cache_mask = False
         self._last_forward_weight_mask: Optional[torch.Tensor] = None
+
+        if forbidden_input_index_per_output is None:
+            forbidden = torch.empty(0, dtype=torch.long)
+        else:
+            forbidden = torch.as_tensor(
+                forbidden_input_index_per_output, dtype=torch.long
+            ).view(-1)
+            if forbidden.numel() != out_features:
+                raise ValueError(
+                    "forbidden_input_index_per_output must have one index per "
+                    f"output feature ({out_features}), got {forbidden.numel()}"
+                )
+            valid = (forbidden >= -1) & (forbidden < in_features)
+            if not bool(valid.all()):
+                raise ValueError(
+                    "forbidden_input_index_per_output entries must be -1 or in "
+                    f"[0, {in_features - 1}]"
+                )
+        self.register_buffer(
+            "_forbidden_input_index_per_output", forbidden, persistent=False
+        )
 
     def initialize(self):
         """Initialize the layer weights using the specified method."""
@@ -150,6 +172,37 @@ class TopKLinear(nn.Module):
                     boost = torch.where(inv_weight_mask > 0, 1 + weight_decay, 1.0)
                     self.pre_w.data *= boost
 
+    def _has_forbidden_inputs(self) -> bool:
+        return self._forbidden_input_index_per_output.numel() > 0
+
+    def _apply_forbidden_scores(
+        self, scores: torch.Tensor, fill_value: float = float("-inf")
+    ) -> torch.Tensor:
+        if not self._has_forbidden_inputs():
+            return scores
+        adjusted = scores.clone()
+        row_idx = torch.arange(
+            adjusted.shape[0], device=adjusted.device, dtype=torch.long
+        )
+        col_idx = self._forbidden_input_index_per_output.to(adjusted.device)
+        valid = col_idx >= 0
+        if bool(valid.any()):
+            adjusted[row_idx[valid], col_idx[valid]] = fill_value
+        return adjusted
+
+    def _apply_forbidden_mask(self, mask: torch.Tensor) -> torch.Tensor:
+        if not self._has_forbidden_inputs():
+            return mask
+        adjusted = mask.clone()
+        row_idx = torch.arange(
+            adjusted.shape[0], device=adjusted.device, dtype=torch.long
+        )
+        col_idx = self._forbidden_input_index_per_output.to(adjusted.device)
+        valid = col_idx >= 0
+        if bool(valid.any()):
+            adjusted[row_idx[valid], col_idx[valid]] = 0
+        return adjusted
+
     def forward(self, x):
         """Forward pass through the TopK linear layer."""
         # Ensure x is a 2D tensor for matrix multiplication
@@ -197,6 +250,8 @@ class TopKLinear(nn.Module):
         if self.weight_transform == "identity":
             weights_for_topk = weights_for_topk.abs()
 
+        weights_for_topk = self._apply_forbidden_scores(weights_for_topk)
+
         topK_indices = torch.topk(
             weights_for_topk, self.K, dim=-1, largest=True, sorted=False
         )[1]
@@ -208,7 +263,7 @@ class TopKLinear(nn.Module):
             dtype=self.pre_w.dtype,
         )
         mask[torch.arange(self.pre_w.shape[0])[:, None], topK_indices] = 1
-        return mask
+        return self._apply_forbidden_mask(mask)
 
     def pruned_weight(self):
         """Return the pruned synaptic weights after applying the mask."""

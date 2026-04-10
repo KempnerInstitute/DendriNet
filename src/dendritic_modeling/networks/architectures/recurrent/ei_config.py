@@ -19,6 +19,10 @@ class PopulationConfig(BaseConfig):
     ff_inhibitory_synapses: int = 4
     rec_excitatory_synapses: int = 0
     rec_inhibitory_synapses: int = 0
+    ff_excitatory_synapses_by_level: list[int] = field(default_factory=list)
+    ff_inhibitory_synapses_by_level: list[int] = field(default_factory=list)
+    rec_excitatory_synapses_by_level: list[int] = field(default_factory=list)
+    rec_inhibitory_synapses_by_level: list[int] = field(default_factory=list)
 
     topk_init_method: str = "xavier_normal"
     topk_noise_level: float = 0.0
@@ -35,6 +39,7 @@ class PopulationConfig(BaseConfig):
     reactivation_type: str = "param_tanh"
     reactivation_init_m: float = 1.0
     reactivation_init_b: float = 0.5
+    reactivation_match_additive_init_to_shunting: bool = False
     reactivation_strategy: str = "none"
     blocklinear_strategy: str = "none"
 
@@ -43,6 +48,7 @@ class PopulationConfig(BaseConfig):
     tau_base: float = 50.0
     tau_ratio: float = 3.0  # Geometric ratio between adjacent dendritic levels
     learnable_tau: bool = False  # If True, tau values are learned during training
+    allow_self_recurrence: bool = True
     epsilon: float = 1e-8
 
     # Additional DendriticBranchLayer parameters
@@ -82,6 +88,15 @@ class PopulationConfig(BaseConfig):
         ):
             if getattr(self, name) < 0:
                 raise ValueError(f"{name} must be >= 0, got {getattr(self, name)}")
+        for name in (
+            "ff_excitatory_synapses_by_level",
+            "ff_inhibitory_synapses_by_level",
+            "rec_excitatory_synapses_by_level",
+            "rec_inhibitory_synapses_by_level",
+        ):
+            values = getattr(self, name)
+            if any(v < 0 for v in values):
+                raise ValueError(f"{name} must contain only >= 0 values, got {values}")
         if self.tau_base <= 0:
             raise ValueError(f"tau_base must be > 0, got {self.tau_base}")
         if self.tau_ratio <= 0:

@@ -401,6 +401,21 @@ class InhibitoryHomeostasisConfig(BaseConfig):
 
 
 @dataclass
+class LocalVoltageHomeostasisConfig(BaseConfig):
+    """Parameters for strictly local voltage-centering updates.
+
+    These auxiliary updates use only branch-local voltages and the local
+    sensitivity terms already available to LocalCA. They are intended as a
+    local counterpart to the separate voltage-stabilization pretraining
+    strategy, not as a replacement for the task-driven credit signal.
+    """
+
+    enabled: bool = False
+    weight: float = 0.0
+    target_voltage: float = 0.5
+
+
+@dataclass
 class LocalRuleConfig(BaseConfig):
     """Configuration for local learning rules.
 
@@ -409,7 +424,7 @@ class LocalRuleConfig(BaseConfig):
     """
 
     # ========== CORE CONFIGURATION ==========
-    rule_variant: str = "3f"  # "3f", "4f", "5f"
+    rule_variant: str = "3f"  # "3f", "4f", "5f" (also accepts *_vh aliases)
 
     # ========== ERROR SIGNAL ==========
     error_mode: str = "auto"  # "auto", "mse", "ce", "bce"
@@ -455,6 +470,11 @@ class LocalRuleConfig(BaseConfig):
     # Local inhibitory homeostasis
     inhibitory_homeostasis: InhibitoryHomeostasisConfig = field(
         default_factory=InhibitoryHomeostasisConfig
+    )
+
+    # Strictly local voltage-centering auxiliary
+    voltage_homeostasis: LocalVoltageHomeostasisConfig = field(
+        default_factory=LocalVoltageHomeostasisConfig
     )
 
     # ========== PARAMETER UPDATE CONTROL ==========

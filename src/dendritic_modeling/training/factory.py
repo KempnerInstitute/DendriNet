@@ -317,6 +317,9 @@ def get_trainer(
                     if not key.startswith("_")
                 }
         if isinstance(recurrent_cfg, dict):
+            # recurrent_cfg should only contain fields the user explicitly set
+            # (default-valued fields are stripped by config_utils).  Explicit
+            # strategy overrides take precedence over common settings.
             trainer_config_dict.update(recurrent_cfg)
 
         task = trainer_config_dict.pop("task", "classification")

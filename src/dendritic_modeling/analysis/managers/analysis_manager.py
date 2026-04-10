@@ -40,7 +40,7 @@ from dendritic_modeling.analysis.tools.synaptic_activation import (
 from dendritic_modeling.analysis.tools.synaptic_turnover import SynapticTurnoverAnalyzer
 from dendritic_modeling.analysis.tools.weight import WeightAnalyzer
 from dendritic_modeling.config import AnalysisConfig
-from dendritic_modeling.models import BaseModel
+from dendritic_modeling.models import BaseModel, Regressor
 
 
 class AnalysisManager:
@@ -68,6 +68,8 @@ class AnalysisManager:
         os.makedirs(self.save_root, exist_ok=True)
         # Logging should be configured externally at the application startup
         self.logger = logging.getLogger(__name__)
+
+        self._sanitize_performance_metrics_for_task()
 
         # Initialize Performance Analysis
         if self.config.performance_analysis.enabled:
@@ -171,6 +173,33 @@ class AnalysisManager:
             self.adversarial_robustness_analyzer = AdversarialRobustnessAnalyzer(
                 self.config.adversarial_robustness_analysis.params
             )
+
+    def _sanitize_performance_metrics_for_task(self) -> None:
+        """Disable incompatible default metrics for regression models."""
+        perf_cfg = getattr(self.config, "performance_analysis", None)
+        params = getattr(perf_cfg, "params", None) if perf_cfg is not None else None
+        if params is None:
+            return
+
+        is_regression = (
+            isinstance(self.model, Regressor)
+            or getattr(self.model, "task", None) == "regression"
+        )
+        if is_regression:
+            changed = []
+            for name in ("accuracy", "auc", "categorical_loglikelihood"):
+                if getattr(params, name, False):
+                    setattr(params, name, False)
+                    changed.append(name)
+            if changed:
+                for name in ("mse", "cosine_similarity"):
+                    if not getattr(params, name, False):
+                        setattr(params, name, True)
+                self.logger.info(
+                    "Regression model detected; disabled incompatible performance "
+                    "metrics %s and enabled mse/cosine_similarity",
+                    changed,
+                )
 
     def set_pruning_results(self, pruning_results: dict):
         """Set pruning results for inclusion in performance plots."""

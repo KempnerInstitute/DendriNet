@@ -2,8 +2,9 @@ import unittest
 
 import torch
 from torch.optim import Adam
-from torch.utils.data import TensorDataset
+from torch.utils.data import DataLoader, TensorDataset
 
+from dendritic_modeling.config.training import RegularizationConfig
 from dendritic_modeling.training.strategies.standard import Trainer
 
 
@@ -65,6 +66,46 @@ class TestTrainer(unittest.TestCase):
         # Loss should generally decrease (though may not be monotonic)
         self.assertGreater(len(train_losses), 0)
         self.assertTrue(all(isinstance(loss, (int, float)) for loss in train_losses))
+
+    def test_split_param_regularization_is_applied_during_epoch_train(self):
+        """Split-group regularization should contribute nonzero loss during training."""
+        model = torch.nn.Sequential(
+            torch.nn.Linear(10, 5), torch.nn.ReLU(), torch.nn.Linear(5, 2)
+        )
+        optimizer = Adam(
+            [
+                {"params": list(model[0].parameters()), "lr": 0.01},
+                {"params": list(model[2].parameters()), "lr": 0.01},
+            ]
+        )
+        trainer = Trainer(
+            optimizer=optimizer,
+            loss_function="cross_entropy",
+            epochs=1,
+            batch_size=8,
+            suppress_prints=True,
+            regularization_config=RegularizationConfig(
+                l1_weight=0.0,
+                l2_weight=0.0,
+                split_params=True,
+                param_group_weights={
+                    "topk": {"l1_weight": 0.05, "l2_weight": 0.0},
+                    "blocklinear": {"l1_weight": 0.05, "l2_weight": 0.0},
+                    "reactivation": {"l1_weight": 0.0, "l2_weight": 0.0},
+                    "decoder": {"l1_weight": 0.0, "l2_weight": 0.0},
+                },
+            ),
+        )
+        trainer.device = torch.device("cpu")
+        train_loader = DataLoader(
+            TensorDataset(torch.randn(32, 10), torch.randint(0, 2, (32,))),
+            batch_size=8,
+            shuffle=False,
+        )
+
+        _, _, train_loss_reg = trainer._epoch_train(model, train_loader)
+
+        self.assertGreater(train_loss_reg, 0.0)
 
 
 if __name__ == "__main__":

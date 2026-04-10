@@ -6,7 +6,8 @@
 # dendritic core and the final classifier layer are trained.
 #
 # This is the "tensor map" variant (Variant 1): flatten spatial/FC output,
-# run through ConfigurableEINetwork, project to suffix dim.
+# run through a newly initialized ConfigurableEINetwork core, then project to
+# the suffix dim when the core output size does not already match it.
 #
 # Run:
 #   PYTHONPATH=src:$PYTHONPATH python \
@@ -51,7 +52,7 @@ model:
   core:
     type: "hierarchical_dendritic_tensor_map"
     architecture:
-      excitatory_layer_sizes: [256]
+      excitatory_layer_sizes: [256]     # can be smaller than 4096; tensor_map inserts a learned projection to suffix dim
       inhibitory_layer_sizes: [64]
       excitatory_branch_factors: [3, 3]
       inhibitory_branch_factors: [1]

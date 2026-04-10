@@ -470,7 +470,7 @@ TopK sparsity:
 
 Dendritic computation:
    ``weight_transform`` (``"exp"``, ``"relu"``, ``"softplus"``, ``"identity"``),
-   ``use_shunting``, ``use_additive_normalization``,
+   ``use_shunting``, ``use_additive_normalization``, ``allow_self_recurrence``,
    ``somatic_synapses``, ``dbl_init_method``, ``efficient_blocklinear``,
    ``blocklinear_strategy``.
 
@@ -481,6 +481,12 @@ Reactivation:
 
 Temporal:
    ``tau_base``, ``tau_ratio``, ``level_taus``, ``epsilon``.
+
+Recurrent structure:
+   ``allow_self_recurrence`` controls whether same-population recurrent synapses
+   may read from the previous-timestep soma/output state of the same neuron.
+   When set to ``False``, self-feedback is masked for E->E and I->I recurrent
+   synapses while cross-population recurrence remains unchanged.
 
 Implementation:
    ``print_hooks``, ``adaptive_initialization``.
@@ -553,13 +559,17 @@ feedforward E, feedforward I, recurrent E, recurrent I, and branch aggregation.
                ff_inhibitory_synapses: 6
                rec_excitatory_synapses: 8
                rec_inhibitory_synapses: 4
+               allow_self_recurrence: false
                tau_base: 50.0
                tau_ratio: 3.0
              inhibitory:
                n_neurons: 16
-               branch_factors: [1]
+               branch_factors: [3, 3]
                ff_excitatory_synapses: 8
                ff_inhibitory_synapses: 4
+               rec_excitatory_synapses: 4
+               rec_inhibitory_synapses: 2
+               allow_self_recurrence: false
 
 Baseline RNN Cores
 ------------------

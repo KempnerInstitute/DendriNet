@@ -49,6 +49,7 @@ def test_connectivity_config_defaults():
 def test_morphology_config_defaults():
     cfg = MorphologyConfig()
     assert cfg.use_shunting is True
+    assert cfg.allow_self_recurrence is True
     assert cfg.weight_transform == "softplus"
     assert cfg.dbl_init_method == "analytical_expectation"
     assert cfg.somatic_synapses is False
@@ -69,6 +70,7 @@ def test_reactivation_config_defaults():
     assert cfg.type == "param_tanh"
     assert cfg.init_m == 1.5
     assert cfg.init_b == 0.5
+    assert cfg.match_additive_init_to_shunting is False
 
 
 def test_transfer_function_config_defaults():

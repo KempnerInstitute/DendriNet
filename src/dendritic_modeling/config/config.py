@@ -115,6 +115,23 @@ class DatasetParamsConfig(BaseConfig):
     mnist_modulo10: dict[str, Any] = field(
         default_factory=lambda: {"shuffle_iterations": 2}
     )
+    cifar10_modulo10: dict[str, Any] = field(
+        default_factory=lambda: {"shuffle_iterations": 1, "pair_seed": 0}
+    )
+    double_mnist_contextual_mod10: dict[str, Any] = field(
+        default_factory=lambda: {
+            "shuffle_iterations": 1,
+            "pair_seed": 0,
+            "context_seed": 123,
+        }
+    )
+    double_cifar10_contextual_mod10: dict[str, Any] = field(
+        default_factory=lambda: {
+            "shuffle_iterations": 1,
+            "pair_seed": 0,
+            "context_seed": 123,
+        }
+    )
     random_flip_mnist: dict[str, Any] = field(
         default_factory=lambda: {"flip_probability": 0.5}
     )
@@ -144,6 +161,26 @@ class DatasetParamsConfig(BaseConfig):
             "nonlinearity": "sigmoid",
             "repeat_layers": False,
             "noise_std": 0.1,
+        }
+    )
+    contextual_stream_gain_shift: dict[str, Any] = field(
+        default_factory=lambda: {
+            "n_samples": 4000,
+            "stream_dim": 64,
+            "n_classes": 2,
+            "signal_strength": 0.35,
+            "relevant_noise_std": 0.08,
+            "irrelevant_noise_std": 0.18,
+            "train_gain_relevant_min": 0.9,
+            "train_gain_relevant_max": 1.1,
+            "train_gain_irrelevant_min": 0.8,
+            "train_gain_irrelevant_max": 1.2,
+            "test_gain_relevant": 1.0,
+            "test_gain_irrelevant": 3.0,
+            "test_irrelevant_alignment_alpha": 1.0,
+            "ood_mode": "irrelevant",
+            "valid_split_mode": "ood",
+            "context_signal_scale": 1.0,
         }
     )
     imagenet: dict[str, Any] = field(
@@ -407,6 +444,7 @@ def _build_encoder_training_config(encoder_data: Any) -> EncoderTrainingConfig:
 def _build_main_training_config(main_data: Any) -> MainTrainingConfig:
     """Build a typed MainTrainingConfig with typed common/optimizer config."""
     main_dict = _to_plain_dict(main_data)
+    explicit_strategy_overrides = _to_plain_dict(main_dict.get("strategies", {}))
     main_dict["common"] = _build_common_trainer_config(main_dict.get("common", {}))
     optimizer_data = main_dict.get("optimizer")
     if optimizer_data is not None and not isinstance(optimizer_data, OptimizerConfig):
@@ -430,7 +468,12 @@ def _build_main_training_config(main_data: Any) -> MainTrainingConfig:
                 "use training.main.learning_strategy_config instead."
             )
         main_dict["strategies"] = _build_training_strategies_config(strategies_dict)
-    return MainTrainingConfig(**main_dict)
+    main_config = MainTrainingConfig(**main_dict)
+    # Preserve the raw user-provided strategy block so downstream config
+    # preparation can distinguish "explicitly set to the default value" from
+    # "not specified at all".
+    main_config._explicit_strategy_overrides = explicit_strategy_overrides
+    return main_config
 
 
 def _build_model_config(model_data: Any) -> ModelConfig:

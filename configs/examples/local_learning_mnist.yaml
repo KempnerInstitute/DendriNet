@@ -84,9 +84,11 @@ training:
         decoder_lr: 0.001
     optimizer:
       name: "adam"
-    # Canonical local rule config for training.main.strategy = "local_ca"
+    # Canonical local rule config for training.main.strategy = "local_ca".
+    # You can also use the readable shorthand "3f_vh" / "4f_vh" / "5f_vh"
+    # to enable the strictly local voltage-homeostasis modifier.
     learning_strategy_config:
-      rule_variant: "4f"
+      rule_variant: "4f_vh"
       error_mode: "auto"
       error_broadcast_mode: "per_soma"
       broadcast_bandwidth: "full"       # "full" | "sign_only" | "quantized" | "sparse_topk"
@@ -98,6 +100,10 @@ training:
         rho_mode: "dot"
         rho_estimator: "ema"
         ema_alpha: 0.05
+      voltage_homeostasis:
+        enabled: true
+        weight: 0.02
+        target_voltage: 0.5
       hsic:
         enabled: true
         weight: 0.01

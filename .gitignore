@@ -225,3 +225,4 @@ figures/
 outputs_smoke/
 outputs_sweep_smoke/
 tmp/
+analysis/

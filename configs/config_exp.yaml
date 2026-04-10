@@ -146,14 +146,15 @@ model:
 
   # ---------- Core network ----------
   core:
-    # Legacy EI (feedforward): "EINet" | "dendritic_shunting" | "dendritic_additive" | "flat_shunting" | "flat_additive" | "dendritic_mlp" | "flat_mlp"
+    # Legacy EI (feedforward / recurrent-capable via core.recurrent_ei or connectivity.rec_*):
+    #   "EINet" | "dendritic_shunting" | "dendritic_additive" | "flat_shunting" | "flat_additive" | "dendritic_mlp" | "flat_mlp"
     # Unified EI (recommended): "unified_ei" | "ei_unified" | "ei_net" | "unified_einet"
-    # Recurrent EI: "recurrent_ei"
-    # Baseline RNN: "baseline_rnn" | "gru" | "lstm" | "vanilla_rnn" | "rnn"
+    # Baseline RNN: "gru" | "lstm" | "vanilla_rnn" | "rnn"
     # Point neuron MLP: "mlp" | "point_mlp" | "total_param_mlp" | "active_param_mlp" | "ss_mlp" | "ss_mlp_flat"
     # Spatial dendritic pretrained-replacement cores:
     #   "hierarchical_dendritic_tensor_map" | "dendritic_tensor_map" | "tensor_map"
-    #       -> baseline/control: flatten prefix tensor, run EINet, project to flat suffix input
+    #       -> pretrained-replacement baseline/control: use pretrained prefix/suffix, but initialize a new dendritic core;
+    #          flatten prefix tensor, run EINet, and optionally project core_dim -> flat suffix input dim
     #   "hierarchical_dendritic_conv" | "spatial_dendritic_conv"
     #       -> local spatial dendritic operator for convolutional suffixes
     # Classical: "alexnet" | "cnn" | "cnn_down" | "cnn_up" | "identity" | "none"
@@ -436,6 +437,9 @@ training:
         freeze_reactivation: true       # bool: Freeze reactivation during stabilization
         target_voltage: 0.5             # float: Target voltage
         loss_metric: "mse"              # str: "mse" | "mae"
+        # NOTE: this is the older autograd-based warm-up trainer.
+        # For the strictly local counterpart, use local_ca with
+        # learning_strategy_config.rule_variant = "3f_vh" / "4f_vh" / "5f_vh".
 
       homeostatic_control:
         pretrain_epochs: 100            # int: Pre-training epochs
@@ -630,7 +634,7 @@ training:
 
     # ---- Learning strategy config (for local_ca rules) ----
     learning_strategy_config:
-      rule_variant: "3f"                # str: "3f" | "4f" | "5f"
+      rule_variant: "3f"                # str: "3f" | "4f" | "5f" | "3f_vh" | "4f_vh" | "5f_vh"
       error_mode: "auto"               # str: "auto" | "mse" | "ce" | "bce"
       error_broadcast_mode: "scalar"    # str: "scalar" | "per_soma" | "local_mismatch" | "low_rank" | "path_transport" | "pathway_vector"
       error_noise_sigma: 0.0           # float: Additive Gaussian noise on broadcast error (0 = off)
@@ -707,6 +711,13 @@ training:
         weight: 0.0                     # float: Homeostasis loss weight
         target_r_tot: 0.35              # float: Target total resistance
         target_voltage: 0.15            # float: Target voltage
+
+      voltage_homeostasis:
+        enabled: false                  # bool: Enable strictly local voltage-centering
+        weight: 0.0                     # float: Local voltage-homeostasis weight
+        target_voltage: 0.5             # float: Midpoint target voltage
+        # NOTE: *_vh rule aliases auto-enable this block with a conservative
+        # default (weight=0.02, target_voltage=0.5) unless you override it here.
 
       update_inactive_weights: false    # bool: Update inactive weights
       update_reactivation: true         # bool: Update reactivation params

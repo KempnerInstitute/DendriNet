@@ -784,6 +784,28 @@ class InformationAnalyzer(AbstractAnalyzer):
         estimator = self.estimators[self.method]
         C_col = C.reshape(-1, 1)
 
+        if self.compute_ablation_aligned_mi:
+            # One-sided conditional class information in the dendritic output.
+            # These are useful for interaction-information identities such as
+            # I(Vout;C) - I(Vout;C|E) = I(E;Vout) - I(E;Vout|C).
+            self.logger.debug("  Computing I(Vout;C|E)...")
+            start_time = time.time()
+            metrics["I(Vout;C|E)"] = estimator.conditional_mutual_information(
+                Vout, C_col, E
+            )
+            self.logger.debug(
+                f"  I(Vout;C|E) = {metrics['I(Vout;C|E)']:.4f} (took {time.time() - start_time:.1f}s)"
+            )
+
+            self.logger.debug("  Computing I(Vout;C|I)...")
+            start_time = time.time()
+            metrics["I(Vout;C|I)"] = estimator.conditional_mutual_information(
+                Vout, C_col, I_var
+            )
+            self.logger.debug(
+                f"  I(Vout;C|I) = {metrics['I(Vout;C|I)']:.4f} (took {time.time() - start_time:.1f}s)"
+            )
+
         if self.compute_ablation_aligned_mi and Vb is not None:
             # How much class info is present in the layer output beyond upstream input
             self.logger.debug("  Computing I(Vout;C|Vb)...")

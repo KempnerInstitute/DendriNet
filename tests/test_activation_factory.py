@@ -166,6 +166,13 @@ def test_parametric_tanh_only_m_fixed_b():
     assert act.log_m.requires_grad
 
 
+def test_parametric_tanh_only_m_initialize():
+    act = ParametricTanhOnlyM(output_dim=3, fixed_b=0.7)
+    act.initialize(2.5, 0.4)
+    torch.testing.assert_close(act.log_m.data, torch.full((3,), math.log(2.5)))
+    assert act.fixed_b == pytest.approx(0.4)
+
+
 # ---------------------------------------------------------------------------
 # ParametricLinearSigmoid tests
 # ---------------------------------------------------------------------------
@@ -182,6 +189,13 @@ def test_linear_sigmoid_forward_shape():
     x = torch.randn(4, 5)
     out = act(x)
     assert out.shape == (4, 5)
+
+
+def test_linear_sigmoid_initialize():
+    act = ParametricLinearSigmoid(output_dim=4)
+    act.initialize(3.0, -0.2)
+    torch.testing.assert_close(act.log_m.data, torch.full((4,), math.log(3.0)))
+    assert act.fixed_b == pytest.approx(-0.2)
 
 
 # ---------------------------------------------------------------------------
@@ -243,3 +257,17 @@ def test_transition_non_trainable_buffers():
     # Buffers should still be tensors
     assert isinstance(act.threshold, torch.Tensor)
     assert isinstance(act.transition_slope, torch.Tensor)
+
+
+def test_linear_tanh_initialize():
+    act = ParametricLinearTanh(output_dim=4)
+    act.initialize(1.7, 0.25)
+    torch.testing.assert_close(act.log_m.data, torch.full((4,), math.log(1.7)))
+    assert act.fixed_b == pytest.approx(0.25)
+
+
+def test_transition_initialize():
+    act = ParametricLinearTanhTransition(output_dim=3, linear_slope=1.0)
+    act.initialize(2.2, 0.35)
+    torch.testing.assert_close(act.transition_slope.data, torch.full((3,), 2.2))
+    torch.testing.assert_close(act.threshold.data, torch.full((3,), 0.35))

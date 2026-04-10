@@ -93,6 +93,20 @@ class Trainer:
             logger.info(
                 f"L1/L2 regularization enabled: l1_weight={self.regularization_config.l1_weight}, l2_weight={self.regularization_config.l2_weight}"
             )
+        if self.regularization_config.split_params and any(
+            group_cfg.get("l1_weight", 0) > 0 or group_cfg.get("l2_weight", 0) > 0
+            for group_cfg in self.regularization_config.param_group_weights.values()
+            if isinstance(group_cfg, dict)
+        ):
+            logger.info(
+                "Split-parameter regularization enabled for groups: %s",
+                {
+                    name: cfg
+                    for name, cfg in self.regularization_config.param_group_weights.items()
+                    if isinstance(cfg, dict)
+                    and (cfg.get("l1_weight", 0) > 0 or cfg.get("l2_weight", 0) > 0)
+                },
+            )
         if self.regularization_config.enforce_ei_weight_ratio:
             logger.info(
                 f"E/I weight ratio regularization enabled: target_ratio={self.regularization_config.target_ei_weight_ratio}, loss_weight={self.regularization_config.ei_ratio_loss_weight}"
@@ -452,7 +466,10 @@ class Trainer:
                     if has_regularization:
                         reg_loss = (
                             self.regularization_manager.compute_regularization_loss(
-                                model, x_batch, y_batch
+                                model,
+                                x_batch,
+                                y_batch,
+                                param_groups=self.optimizer.param_groups,
                             )
                         )
                         total_loss = base_loss + reg_loss
@@ -490,7 +507,10 @@ class Trainer:
                 # Add all regularization losses only if regularization is enabled
                 if has_regularization:
                     reg_loss = self.regularization_manager.compute_regularization_loss(
-                        model, x_batch, y_batch
+                        model,
+                        x_batch,
+                        y_batch,
+                        param_groups=self.optimizer.param_groups,
                     )
                     total_loss = base_loss + reg_loss
                     reg_loss_item = reg_loss.item()

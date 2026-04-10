@@ -57,6 +57,7 @@ class MorphologyConfig(BaseConfig):
     somatic_synapses: bool = False
     use_shunting: bool = True
     use_additive_normalization: bool = False  # Normalize voltage in additive mode
+    allow_self_recurrence: bool = True
     weight_transform: str = "softplus"
     dbl_init_method: str = "analytical_expectation"
 
@@ -98,6 +99,7 @@ class ReactivationConfig(BaseConfig):
     type: str = "param_tanh"
     init_m: float = 1.5
     init_b: float = 0.5
+    match_additive_init_to_shunting: bool = False
     gradient_scaling: str = "none"
 
 

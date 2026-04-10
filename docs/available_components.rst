@@ -28,8 +28,6 @@ Core Network Types
      - Generic E-I; reads use_shunting from config
    * - ``ei_unified``
      - Unified E-I (feedforward + recurrent capable)
-   * - ``recurrent_ei``
-     - Recurrent E-I network built from the structured recurrent config
    * - ``point_mlp``
      - Plain point-neuron MLP baseline
    * - ``total_param_mlp``
@@ -41,11 +39,9 @@ Core Network Types
    * - ``ss_mlp_flat``
      - Flattened sparse structured MLP baseline
    * - ``hierarchical_dendritic_tensor_map``
-     - Pretrained-replacement baseline: flatten the prefix tensor, run an EINet-style hierarchical dendritic core, then project to a flat suffix input
+     - Pretrained-replacement baseline: keep the pretrained prefix/suffix around a newly initialized dendritic core, flatten the prefix tensor, run an EINet-style hierarchical dendritic core, then optionally project to a flat suffix input
    * - ``hierarchical_dendritic_conv``
      - Spatial dendritic convolutional core over local patches; preserves the prefix/suffix spatial tensor contract for convolutional replacement
-   * - ``baseline_rnn``
-     - Wrapper for simple RNN cores with a shared baseline interface
    * - ``gru``
      - Gated Recurrent Unit
    * - ``lstm``
@@ -108,10 +104,14 @@ Weight Transforms
 
 Set via ``model.core.morphology.weight_transform``:
 
-``exp`` -- always positive (default for shunting).
+``exp`` -- always positive, sharp exponential parameterization (default recurrent paper setting).
 ``softplus`` -- always positive, smoother gradient.
 ``relu`` -- non-negative, can be exactly zero.
 ``identity`` -- signed weights (for dendritic_mlp).
+
+For biologically constrained recurrent runs, pair a positive transform
+(``exp`` or ``softplus``) with ``allow_self_recurrence: false`` in the
+population config to remove same-population autaptic feedback.
 
 Activation Types
 ----------------
@@ -170,6 +170,48 @@ Available modules: ``performance``, ``information``, ``ablation``,
 ``compartment_statistics``, ``compartment_snr``, ``multiplicative_gain``,
 ``routing``, ``receptive_field``, ``adversarial_robustness``,
 ``single_layer_contribution``, ``synaptic_activation``, ``branch_activation``.
+
+Information Analysis Components
+-------------------------------
+
+Set via ``analysis.information.params.selection.components``.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 25 75
+
+   * - Component
+     - Implemented metrics and notes
+   * - ``basic``
+     - ``I(E; C)``, ``I(I; C)``, ``I(Vb; C)``, ``I(Vout; C)``,
+       ``I(E, I; C)``, and ``I(Vinf; C)`` when ``include_vinf`` is enabled
+   * - ``pairwise``
+     - ``I(E; I)``, ``I(E; Vout)``, ``I(I; Vout)``, ``I(E; Vb)``,
+       ``I(I; Vb)``, ``I(Vb; Vout)``, plus analogous ``Vinf`` pairwise terms
+       when enabled
+   * - ``conditional``
+     - ``I(E; I | C)``, ``I(E; Vout | C)``, ``I(I; Vout | C)``,
+       ``I(E; Vb | C)``, ``I(I; Vb | C)``, ``I(Vb; Vout | C)``, and
+       ``Vinf`` variants when enabled
+   * - ``ablation_aligned``
+     - Adds ablation-mirroring CMI terms including ``I(Vout; C | E)``,
+       ``I(Vout; C | I)``, ``I(Vout; C | Vb)``, ``I(Vout; C | E, I)``,
+       ``I(E; C | I, Vb)``, ``I(I; C | E, Vb)``, ``I(E, I; C | Vb)``, and
+       no-``Vb`` fallbacks such as ``I(E; C | I)`` and ``I(I; C | E)``
+   * - ``upstream_unique_cmi``
+     - Adds ``I(Vb; C | E, I)`` when ``Vb`` exists
+   * - ``gaussian_fisher``
+     - Fisher or Gaussian proxy metrics such as ``I(Vout; C)_fisher`` and
+       ``I(Vb; C | E, I)_fisher``
+   * - ``layer_proxies``
+     - Layer-level derived summaries such as ``_sum``, ``_union``, and
+       ``topK_sum`` built from single-branch metrics
+   * - ``pid``
+     - Partial information decomposition. Present in config, but currently
+       reserved or disabled
+
+For ``Vout`` specifically, the analyzer currently emits ``I(Vout; C)``,
+``I(Vout; C | E)``, ``I(Vout; C | I)``, and ``I(Vout; C | E, I)``.
 
 Initialization Methods
 ----------------------
