@@ -70,6 +70,7 @@
 <li class="toctree-l2"><a class="reference internal" href="#loss-functions">Loss Functions</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#datasets">Datasets</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#analysis-modules">Analysis Modules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#information-analysis-components">Information Analysis Components</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#initialization-methods">Initialization Methods</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#blocklinear-initialization">BlockLinear Initialization</a></li>
 </ul>
@@ -141,32 +142,26 @@
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">ei_unified</span></code></p></td>
 <td><p>Unified E-I (feedforward + recurrent capable)</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">recurrent_ei</span></code></p></td>
-<td><p>Recurrent E-I network built from the structured recurrent config</p></td>
-</tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">point_mlp</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">point_mlp</span></code></p></td>
 <td><p>Plain point-neuron MLP baseline</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">total_param_mlp</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">total_param_mlp</span></code></p></td>
 <td><p>MLP baseline matched by total parameter count</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">active_param_mlp</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">active_param_mlp</span></code></p></td>
 <td><p>MLP baseline matched by active parameter count</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">ss_mlp</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">ss_mlp</span></code></p></td>
 <td><p>Sparse structured MLP baseline</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">ss_mlp_flat</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">ss_mlp_flat</span></code></p></td>
 <td><p>Flattened sparse structured MLP baseline</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">hierarchical_dendritic_tensor_map</span></code></p></td>
-<td><p>Pretrained-replacement baseline: flatten the prefix tensor, run an EINet-style hierarchical dendritic core, then project to a flat suffix input</p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">hierarchical_dendritic_tensor_map</span></code></p></td>
+<td><p>Pretrained-replacement baseline: keep the pretrained prefix/suffix around a newly initialized dendritic core, flatten the prefix tensor, run an EINet-style hierarchical dendritic core, then optionally project to a flat suffix input</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">hierarchical_dendritic_conv</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">hierarchical_dendritic_conv</span></code></p></td>
 <td><p>Spatial dendritic convolutional core over local patches; preserves the prefix/suffix spatial tensor contract for convolutional replacement</p></td>
-</tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">baseline_rnn</span></code></p></td>
-<td><p>Wrapper for simple RNN cores with a shared baseline interface</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">gru</span></code></p></td>
 <td><p>Gated Recurrent Unit</p></td>
@@ -256,10 +251,13 @@
 <section id="weight-transforms">
 <h2>Weight Transforms<a class="headerlink" href="#weight-transforms" title="Link to this heading"></a></h2>
 <p>Set via <code class="docutils literal notranslate"><span class="pre">model.core.morphology.weight_transform</span></code>:</p>
-<p><code class="docutils literal notranslate"><span class="pre">exp</span></code> – always positive (default for shunting).
+<p><code class="docutils literal notranslate"><span class="pre">exp</span></code> – always positive, sharp exponential parameterization (default recurrent paper setting).
 <code class="docutils literal notranslate"><span class="pre">softplus</span></code> – always positive, smoother gradient.
 <code class="docutils literal notranslate"><span class="pre">relu</span></code> – non-negative, can be exactly zero.
 <code class="docutils literal notranslate"><span class="pre">identity</span></code> – signed weights (for dendritic_mlp).</p>
+<p>For biologically constrained recurrent runs, pair a positive transform
+(<code class="docutils literal notranslate"><span class="pre">exp</span></code> or <code class="docutils literal notranslate"><span class="pre">softplus</span></code>) with <code class="docutils literal notranslate"><span class="pre">allow_self_recurrence:</span> <span class="pre">false</span></code> in the
+population config to remove same-population autaptic feedback.</p>
 </section>
 <section id="activation-types">
 <h2>Activation Types<a class="headerlink" href="#activation-types" title="Link to this heading"></a></h2>
@@ -305,6 +303,60 @@ accepted for backward compatibility.</p>
 <code class="docutils literal notranslate"><span class="pre">compartment_statistics</span></code>, <code class="docutils literal notranslate"><span class="pre">compartment_snr</span></code>, <code class="docutils literal notranslate"><span class="pre">multiplicative_gain</span></code>,
 <code class="docutils literal notranslate"><span class="pre">routing</span></code>, <code class="docutils literal notranslate"><span class="pre">receptive_field</span></code>, <code class="docutils literal notranslate"><span class="pre">adversarial_robustness</span></code>,
 <code class="docutils literal notranslate"><span class="pre">single_layer_contribution</span></code>, <code class="docutils literal notranslate"><span class="pre">synaptic_activation</span></code>, <code class="docutils literal notranslate"><span class="pre">branch_activation</span></code>.</p>
+</section>
+<section id="information-analysis-components">
+<h2>Information Analysis Components<a class="headerlink" href="#information-analysis-components" title="Link to this heading"></a></h2>
+<p>Set via <code class="docutils literal notranslate"><span class="pre">analysis.information.params.selection.components</span></code>.</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 25.0%" />
+<col style="width: 75.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Component</p></th>
+<th class="head"><p>Implemented metrics and notes</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">basic</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">I(E;</span> <span class="pre">C)</span></code>, <code class="docutils literal notranslate"><span class="pre">I(I;</span> <span class="pre">C)</span></code>, <code class="docutils literal notranslate"><span class="pre">I(Vb;</span> <span class="pre">C)</span></code>, <code class="docutils literal notranslate"><span class="pre">I(Vout;</span> <span class="pre">C)</span></code>,
+<code class="docutils literal notranslate"><span class="pre">I(E,</span> <span class="pre">I;</span> <span class="pre">C)</span></code>, and <code class="docutils literal notranslate"><span class="pre">I(Vinf;</span> <span class="pre">C)</span></code> when <code class="docutils literal notranslate"><span class="pre">include_vinf</span></code> is enabled</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">pairwise</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">I(E;</span> <span class="pre">I)</span></code>, <code class="docutils literal notranslate"><span class="pre">I(E;</span> <span class="pre">Vout)</span></code>, <code class="docutils literal notranslate"><span class="pre">I(I;</span> <span class="pre">Vout)</span></code>, <code class="docutils literal notranslate"><span class="pre">I(E;</span> <span class="pre">Vb)</span></code>,
+<code class="docutils literal notranslate"><span class="pre">I(I;</span> <span class="pre">Vb)</span></code>, <code class="docutils literal notranslate"><span class="pre">I(Vb;</span> <span class="pre">Vout)</span></code>, plus analogous <code class="docutils literal notranslate"><span class="pre">Vinf</span></code> pairwise terms
+when enabled</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">conditional</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">I(E;</span> <span class="pre">I</span> <span class="pre">|</span> <span class="pre">C)</span></code>, <code class="docutils literal notranslate"><span class="pre">I(E;</span> <span class="pre">Vout</span> <span class="pre">|</span> <span class="pre">C)</span></code>, <code class="docutils literal notranslate"><span class="pre">I(I;</span> <span class="pre">Vout</span> <span class="pre">|</span> <span class="pre">C)</span></code>,
+<code class="docutils literal notranslate"><span class="pre">I(E;</span> <span class="pre">Vb</span> <span class="pre">|</span> <span class="pre">C)</span></code>, <code class="docutils literal notranslate"><span class="pre">I(I;</span> <span class="pre">Vb</span> <span class="pre">|</span> <span class="pre">C)</span></code>, <code class="docutils literal notranslate"><span class="pre">I(Vb;</span> <span class="pre">Vout</span> <span class="pre">|</span> <span class="pre">C)</span></code>, and
+<code class="docutils literal notranslate"><span class="pre">Vinf</span></code> variants when enabled</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">ablation_aligned</span></code></p></td>
+<td><p>Adds ablation-mirroring CMI terms including <code class="docutils literal notranslate"><span class="pre">I(Vout;</span> <span class="pre">C</span> <span class="pre">|</span> <span class="pre">E)</span></code>,
+<code class="docutils literal notranslate"><span class="pre">I(Vout;</span> <span class="pre">C</span> <span class="pre">|</span> <span class="pre">I)</span></code>, <code class="docutils literal notranslate"><span class="pre">I(Vout;</span> <span class="pre">C</span> <span class="pre">|</span> <span class="pre">Vb)</span></code>, <code class="docutils literal notranslate"><span class="pre">I(Vout;</span> <span class="pre">C</span> <span class="pre">|</span> <span class="pre">E,</span> <span class="pre">I)</span></code>,
+<code class="docutils literal notranslate"><span class="pre">I(E;</span> <span class="pre">C</span> <span class="pre">|</span> <span class="pre">I,</span> <span class="pre">Vb)</span></code>, <code class="docutils literal notranslate"><span class="pre">I(I;</span> <span class="pre">C</span> <span class="pre">|</span> <span class="pre">E,</span> <span class="pre">Vb)</span></code>, <code class="docutils literal notranslate"><span class="pre">I(E,</span> <span class="pre">I;</span> <span class="pre">C</span> <span class="pre">|</span> <span class="pre">Vb)</span></code>, and
+no-<code class="docutils literal notranslate"><span class="pre">Vb</span></code> fallbacks such as <code class="docutils literal notranslate"><span class="pre">I(E;</span> <span class="pre">C</span> <span class="pre">|</span> <span class="pre">I)</span></code> and <code class="docutils literal notranslate"><span class="pre">I(I;</span> <span class="pre">C</span> <span class="pre">|</span> <span class="pre">E)</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">upstream_unique_cmi</span></code></p></td>
+<td><p>Adds <code class="docutils literal notranslate"><span class="pre">I(Vb;</span> <span class="pre">C</span> <span class="pre">|</span> <span class="pre">E,</span> <span class="pre">I)</span></code> when <code class="docutils literal notranslate"><span class="pre">Vb</span></code> exists</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">gaussian_fisher</span></code></p></td>
+<td><p>Fisher or Gaussian proxy metrics such as <code class="docutils literal notranslate"><span class="pre">I(Vout;</span> <span class="pre">C)_fisher</span></code> and
+<code class="docutils literal notranslate"><span class="pre">I(Vb;</span> <span class="pre">C</span> <span class="pre">|</span> <span class="pre">E,</span> <span class="pre">I)_fisher</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">layer_proxies</span></code></p></td>
+<td><p>Layer-level derived summaries such as <code class="docutils literal notranslate"><span class="pre">_sum</span></code>, <code class="docutils literal notranslate"><span class="pre">_union</span></code>, and
+<code class="docutils literal notranslate"><span class="pre">topK_sum</span></code> built from single-branch metrics</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">pid</span></code></p></td>
+<td><p>Partial information decomposition. Present in config, but currently
+reserved or disabled</p></td>
+</tr>
+</tbody>
+</table>
+<p>For <code class="docutils literal notranslate"><span class="pre">Vout</span></code> specifically, the analyzer currently emits <code class="docutils literal notranslate"><span class="pre">I(Vout;</span> <span class="pre">C)</span></code>,
+<code class="docutils literal notranslate"><span class="pre">I(Vout;</span> <span class="pre">C</span> <span class="pre">|</span> <span class="pre">E)</span></code>, <code class="docutils literal notranslate"><span class="pre">I(Vout;</span> <span class="pre">C</span> <span class="pre">|</span> <span class="pre">I)</span></code>, and <code class="docutils literal notranslate"><span class="pre">I(Vout;</span> <span class="pre">C</span> <span class="pre">|</span> <span class="pre">E,</span> <span class="pre">I)</span></code>.</p>
 </section>
 <section id="initialization-methods">
 <h2>Initialization Methods<a class="headerlink" href="#initialization-methods" title="Link to this heading"></a></h2>

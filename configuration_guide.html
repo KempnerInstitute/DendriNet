@@ -188,7 +188,11 @@ python<span class="w"> </span>src/dendritic_modeling/scripts/training/train_expe
 </tr>
 </tbody>
 </table>
-<p>See <a class="reference internal" href="network_architectures.html"><span class="doc">Network Architectures</span></a> for architecture details.</p>
+<p>See <a class="reference internal" href="network_architectures.html"><span class="doc">Network Architectures</span></a> for architecture details. For recurrent
+<code class="docutils literal notranslate"><span class="pre">ei_unified</span></code> models, the biology-facing configuration now also supports
+<code class="docutils literal notranslate"><span class="pre">allow_self_recurrence:</span> <span class="pre">false</span></code> inside each population block to disable
+same-population E-&gt;E and I-&gt;I self-feedback while keeping cross-population
+recurrence intact.</p>
 </section>
 <section id="training-strategies">
 <h2>Training Strategies<a class="headerlink" href="#training-strategies" title="Link to this heading"></a></h2>
@@ -335,9 +339,11 @@ segments:</p>
 <p>Alternative pretrained-replacement cores:</p>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">hierarchical_dendritic_tensor_map</span></code>
-Flattens the prefix tensor, runs an EINet-style hierarchical dendritic core,
-then projects to the suffix input dimension. Use this as the baseline/control
-for late classifier-adjacent replacements where the suffix expects flat input.</p></li>
+Flattens the prefix tensor, runs a newly initialized EINet-style hierarchical
+dendritic core, then projects to the suffix input dimension when needed. Use
+this as the baseline/control for late classifier-adjacent replacements where
+the suffix expects flat input. The pretrained part is the surrounding
+backbone split, not the tensor-map core itself.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">hierarchical_dendritic_conv</span></code>
 Uses local spatial patches (<code class="docutils literal notranslate"><span class="pre">core.spatial.kernel_size/stride/padding</span></code>) and
 a shared hierarchical dendritic core to produce a spatial feature map for the

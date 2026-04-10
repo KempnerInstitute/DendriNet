@@ -71,7 +71,11 @@ Set ``model.core.type`` to one of:
    * - ``mlp``
      - MLP baseline
 
-See :doc:`network_architectures` for architecture details.
+See :doc:`network_architectures` for architecture details. For recurrent
+``ei_unified`` models, the biology-facing configuration now also supports
+``allow_self_recurrence: false`` inside each population block to disable
+same-population E->E and I->I self-feedback while keeping cross-population
+recurrence intact.
 
 Training Strategies
 -------------------
@@ -233,9 +237,11 @@ When ``model.pretrained_replacement.enabled`` is ``true``, the legacy
 Alternative pretrained-replacement cores:
 
 - ``hierarchical_dendritic_tensor_map``
-  Flattens the prefix tensor, runs an EINet-style hierarchical dendritic core,
-  then projects to the suffix input dimension. Use this as the baseline/control
-  for late classifier-adjacent replacements where the suffix expects flat input.
+  Flattens the prefix tensor, runs a newly initialized EINet-style hierarchical
+  dendritic core, then projects to the suffix input dimension when needed. Use
+  this as the baseline/control for late classifier-adjacent replacements where
+  the suffix expects flat input. The pretrained part is the surrounding
+  backbone split, not the tensor-map core itself.
 - ``hierarchical_dendritic_conv``
   Uses local spatial patches (``core.spatial.kernel_size/stride/padding``) and
   a shared hierarchical dendritic core to produce a spatial feature map for the

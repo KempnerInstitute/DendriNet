@@ -606,7 +606,7 @@ with the <code class="docutils literal notranslate"><span class="pre">unified_ei
 <code class="docutils literal notranslate"><span class="pre">topk_ultrafast</span></code>, <code class="docutils literal notranslate"><span class="pre">topk_strategy</span></code> (<code class="docutils literal notranslate"><span class="pre">&quot;none&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;conductance_dynamic&quot;</span></code>).</p>
 </dd>
 <dt>Dendritic computation:</dt><dd><p><code class="docutils literal notranslate"><span class="pre">weight_transform</span></code> (<code class="docutils literal notranslate"><span class="pre">&quot;exp&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;relu&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;softplus&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;identity&quot;</span></code>),
-<code class="docutils literal notranslate"><span class="pre">use_shunting</span></code>, <code class="docutils literal notranslate"><span class="pre">use_additive_normalization</span></code>,
+<code class="docutils literal notranslate"><span class="pre">use_shunting</span></code>, <code class="docutils literal notranslate"><span class="pre">use_additive_normalization</span></code>, <code class="docutils literal notranslate"><span class="pre">allow_self_recurrence</span></code>,
 <code class="docutils literal notranslate"><span class="pre">somatic_synapses</span></code>, <code class="docutils literal notranslate"><span class="pre">dbl_init_method</span></code>, <code class="docutils literal notranslate"><span class="pre">efficient_blocklinear</span></code>,
 <code class="docutils literal notranslate"><span class="pre">blocklinear_strategy</span></code>.</p>
 </dd>
@@ -615,6 +615,11 @@ with the <code class="docutils literal notranslate"><span class="pre">unified_ei
 <code class="docutils literal notranslate"><span class="pre">reactivation_strategy</span></code>.</p>
 </dd>
 <dt>Temporal:</dt><dd><p><code class="docutils literal notranslate"><span class="pre">tau_base</span></code>, <code class="docutils literal notranslate"><span class="pre">tau_ratio</span></code>, <code class="docutils literal notranslate"><span class="pre">level_taus</span></code>, <code class="docutils literal notranslate"><span class="pre">epsilon</span></code>.</p>
+</dd>
+<dt>Recurrent structure:</dt><dd><p><code class="docutils literal notranslate"><span class="pre">allow_self_recurrence</span></code> controls whether same-population recurrent synapses
+may read from the previous-timestep soma/output state of the same neuron.
+When set to <code class="docutils literal notranslate"><span class="pre">False</span></code>, self-feedback is masked for E-&gt;E and I-&gt;I recurrent
+synapses while cross-population recurrence remains unchanged.</p>
 </dd>
 <dt>Implementation:</dt><dd><p><code class="docutils literal notranslate"><span class="pre">print_hooks</span></code>, <code class="docutils literal notranslate"><span class="pre">adaptive_initialization</span></code>.</p>
 </dd>
@@ -677,13 +682,17 @@ feedforward E, feedforward I, recurrent E, recurrent I, and branch aggregation.<
 <span class="w">            </span><span class="nt">ff_inhibitory_synapses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">6</span>
 <span class="w">            </span><span class="nt">rec_excitatory_synapses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8</span>
 <span class="w">            </span><span class="nt">rec_inhibitory_synapses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">4</span>
+<span class="w">            </span><span class="nt">allow_self_recurrence</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
 <span class="w">            </span><span class="nt">tau_base</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">50.0</span>
 <span class="w">            </span><span class="nt">tau_ratio</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3.0</span>
 <span class="w">          </span><span class="nt">inhibitory</span><span class="p">:</span>
 <span class="w">            </span><span class="nt">n_neurons</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">16</span>
-<span class="w">            </span><span class="nt">branch_factors</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">1</span><span class="p p-Indicator">]</span>
+<span class="w">            </span><span class="nt">branch_factors</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">3</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">3</span><span class="p p-Indicator">]</span>
 <span class="w">            </span><span class="nt">ff_excitatory_synapses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8</span>
 <span class="w">            </span><span class="nt">ff_inhibitory_synapses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">4</span>
+<span class="w">            </span><span class="nt">rec_excitatory_synapses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">4</span>
+<span class="w">            </span><span class="nt">rec_inhibitory_synapses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2</span>
+<span class="w">            </span><span class="nt">allow_self_recurrence</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
 </pre></div>
 </div>
 </section>
