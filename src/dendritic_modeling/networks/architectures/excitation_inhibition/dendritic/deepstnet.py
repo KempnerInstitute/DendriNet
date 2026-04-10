@@ -11,6 +11,7 @@ from copy import deepcopy
 
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_layer import DendriticBranchLayer
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.topk import TOPK_INIT_METHODS
+from dendritic_modeling.networks.utils.weight_transforms import inverse_weight_transform
 
 
 class DeepstNet(nn.Module):
@@ -821,18 +822,22 @@ class DeepstNet(nn.Module):
         
         return new_connections_mask
 
-    def _initialize_new_weights_batch(self, deepst_layer, num_weights): #TODO: use weight threshold or change topk_init_methods, make consistent regardless
-        """Initialize new weights in batch using vectorized operations."""
-        if deepst_layer.weight_transform == 'exp':
-            values = torch.exp(torch.tensor(deepst_layer.weight_init))
-        elif deepst_layer.weight_transform == 'relu':
-            values = torch.relu(torch.tensor(deepst_layer.weight_init))
-        elif deepst_layer.weight_transform == 'softplus':
-            values = torch.nn.functional.softplus(torch.tensor(deepst_layer.weight_init))
-        else:
-            raise ValueError(f"Unsupported weight transform type: {deepst_layer.weight_transform}")
-        
-        return values
+    def _initialize_new_weights_batch(self, deepst_layer, num_weights):
+        """Initialize new weights in batch using vectorized operations.
+
+        New connections are born at ``weight_init`` in weight space.  We store
+        the *inverse-transformed* value in ``pre_w`` so that the forward pass
+        (which applies the transform) recovers exactly ``weight_init``.
+
+        Previously this method applied the forward transform to ``weight_init``
+        and stored that in ``pre_w``, causing the transform to be applied twice
+        and new connections to be born at transform(weight_init) instead of
+        weight_init (e.g. softplus(softplus(0.01)) ≈ 1.003 instead of 0.01).
+        """
+        return inverse_weight_transform(
+            torch.tensor(float(deepst_layer.weight_init)),
+            deepst_layer.weight_transform,
+        )
 
     def decay_weights(self, weight_decay, weight_boosting=False):
         for branch_layer in self.branch_layers:
