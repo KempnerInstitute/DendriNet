@@ -397,7 +397,12 @@ def analytical_expectation_dbl_init(dbl, adaptive=True, branch_factors=None):
                 m = 0.1
 
         if not isinstance(dbl.reactivation, torch.nn.Identity):
-            dbl.reactivation.initialize(m, E_Vinf)
+            if dbl.reactivation_match_additive_init_to_shunting:
+                dbl.reactivation.initialize(
+                    dbl.reactivation_init_m, dbl.reactivation_init_b
+                )
+            else:
+                dbl.reactivation.initialize(m, E_Vinf)
 
 
 def ei_equivalence_dbl_init(dbl):
@@ -504,7 +509,12 @@ def ei_equivalence_dbl_init(dbl):
                 m = 0.1
 
         if not isinstance(dbl.reactivation, torch.nn.Identity):
-            dbl.reactivation.initialize(m, E_Vinf)
+            if dbl.reactivation_match_additive_init_to_shunting:
+                dbl.reactivation.initialize(
+                    dbl.reactivation_init_m, dbl.reactivation_init_b
+                )
+            else:
+                dbl.reactivation.initialize(m, E_Vinf)
 
 
 def naive_dbl_init(dbl):
@@ -570,7 +580,12 @@ def naive_dbl_init(dbl):
                 m = 0.1
 
         if not isinstance(dbl.reactivation, torch.nn.Identity):
-            dbl.reactivation.initialize(m, E_Vinf)
+            if dbl.reactivation_match_additive_init_to_shunting:
+                dbl.reactivation.initialize(
+                    dbl.reactivation_init_m, dbl.reactivation_init_b
+                )
+            else:
+                dbl.reactivation.initialize(m, E_Vinf)
 
 
 def default_dbl_init(dbl):
@@ -626,6 +641,18 @@ def default_dbl_init(dbl):
             dbl.branches_to_output.initialize(g_branch=g_branch)
 
         if not isinstance(dbl.reactivation, torch.nn.Identity):
+            slope_val = dbl.reactivation_init_m
+            mid_val = dbl.reactivation_init_b
+            if (
+                dbl.use_shunting
+                and not dbl.reactivation_match_additive_init_to_shunting
+            ):
+                slope_val = 1.5
+                mid_val = 0.5
+            elif not dbl.reactivation_match_additive_init_to_shunting:
+                slope_val = 0.1
+                mid_val = 0.0
             dbl.reactivation.initialize(
-                1.5 if dbl.use_shunting else 0.1, 0.5 if dbl.use_shunting else 0.0
+                slope_val,
+                mid_val,
             )

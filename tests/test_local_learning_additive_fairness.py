@@ -34,6 +34,17 @@ class _SingleBranchModel(nn.Module):
         return self.branch(x, inhibitory_input=x, branch_input=x)
 
 
+class _DummyBlock:
+    """Minimal block module for path-factor unit tests."""
+
+    def __init__(self, weight: torch.Tensor, block_size: int):
+        self._weight = weight
+        self.block_size = block_size
+
+    def weight(self) -> torch.Tensor:
+        return self._weight
+
+
 def _make_trainer(
     *,
     dynamics_mode: str,
@@ -349,3 +360,105 @@ def test_inhibitory_homeostasis_pushes_toward_target_rtot() -> None:
     torch.testing.assert_close(exc_grad, torch.zeros_like(exc_grad))
     torch.testing.assert_close(den_grad, torch.zeros_like(den_grad))
     assert inh_grad.mean().item() < -1e-6
+
+
+def test_additive_local_rule_uses_activation_derivative() -> None:
+    """Voltage-space local updates should include the branch activation slope."""
+    torch.manual_seed(11)
+    model = _SingleBranchModel(use_shunting=False)
+    model.branch.reactivation = nn.Tanh()
+    trainer = _make_trainer(
+        dynamics_mode="auto",
+        use_conductance_scaling=False,
+        use_driving_force=False,
+    )
+
+    x_batch = torch.tensor(
+        [
+            [0.2, 0.5, 0.9, 0.1],
+            [0.7, 0.1, 0.3, 0.6],
+            [0.4, 0.8, 0.6, 0.2],
+            [0.9, 0.2, 0.1, 0.7],
+        ],
+        dtype=torch.float32,
+    )
+    rec = _capture_record(trainer, model, x_batch)
+    delta = torch.tensor(
+        [
+            [0.1, -0.2],
+            [-0.4, 0.3],
+            [0.2, 0.1],
+            [-0.1, 0.4],
+        ],
+        dtype=torch.float32,
+    )
+
+    exc_grad, inh_grad, den_grad = _run_local_update(trainer, model, rec, delta)
+
+    v_n = rec["v_n"]
+    act_deriv = 1.0 - torch.tanh(v_n).square()
+    effective_error = delta * act_deriv
+    x_exc = rec["x_exc"]
+    x_inh = rec["x_inh"]
+    blk = model.branch.branches_to_output
+    x_blk = rec["x_blk_raw"].view(
+        rec["x_blk_raw"].size(0), blk.out_features, blk.block_size
+    )
+
+    expected_exc = effective_error.t() @ x_exc / float(delta.size(0))
+    expected_inh = (-effective_error).t() @ x_inh / float(delta.size(0))
+    expected_den = (effective_error.unsqueeze(-1) * x_blk).mean(dim=0)
+
+    torch.testing.assert_close(exc_grad, expected_exc, atol=1e-6, rtol=1e-6)
+    torch.testing.assert_close(inh_grad, expected_inh, atol=1e-6, rtol=1e-6)
+    torch.testing.assert_close(den_grad, expected_den, atol=1e-6, rtol=1e-6)
+
+
+def test_path_transport_includes_parent_activation_derivative() -> None:
+    """Recursive transport should include the proximal activation slope."""
+    trainer = _make_trainer(
+        dynamics_mode="conductance",
+        error_broadcast_mode="path_transport",
+    )
+
+    child_v = torch.zeros(1, 4)
+    parent_v = torch.tensor([[0.5, -0.4]], dtype=torch.float32)
+    parent_layer = type("Layer", (), {"reactivation": nn.Tanh()})()
+    blk = _DummyBlock(
+        weight=torch.tensor([[0.2, 0.4], [0.6, 0.8]], dtype=torch.float32),
+        block_size=2,
+    )
+
+    layer_records = [
+        {"v_n": child_v},
+        {
+            "v_n": parent_v,
+            "v_out": torch.tanh(parent_v),
+            "blk_module": blk,
+            "layer": parent_layer,
+        },
+    ]
+    delta = torch.tensor([[1.0, 2.0]], dtype=torch.float32)
+    delta_scalar = trainer._reduce_error_to_scalar(delta)
+
+    transported = trainer._precompute_path_transport_errors(
+        layer_records=layer_records,
+        delta=delta,
+        delta_scalar=delta_scalar,
+    )
+
+    parent_act = 1.0 - torch.tanh(parent_v).square()
+    expected_child = torch.tensor(
+        [
+            [
+                1.0 * parent_act[0, 0] * 0.2,
+                1.0 * parent_act[0, 0] * 0.4,
+                2.0 * parent_act[0, 1] * 0.6,
+                2.0 * parent_act[0, 1] * 0.8,
+            ]
+        ],
+        dtype=torch.float32,
+    )
+
+    torch.testing.assert_close(transported[1], delta, atol=1e-6, rtol=1e-6)
+    torch.testing.assert_close(transported[0], expected_child, atol=1e-6, rtol=1e-6)

@@ -40,6 +40,8 @@ class EILayer(nn.Module):
                 inhibitory_input_dim=config.inhibitory_input_dim,
                 recurrent_excitatory_input_dim=rec_e_dim,
                 recurrent_inhibitory_input_dim=rec_i_dim,
+                recurrent_excitatory_is_self_population=False,
+                recurrent_inhibitory_is_self_population=True,
                 dt=config.dt,
             )
         else:
@@ -61,6 +63,8 @@ class EILayer(nn.Module):
             inhibitory_input_dim=e_ff_inhibitory_dim,
             recurrent_excitatory_input_dim=rec_e_dim,
             recurrent_inhibitory_input_dim=rec_i_dim,
+            recurrent_excitatory_is_self_population=True,
+            recurrent_inhibitory_is_self_population=False,
             dt=config.dt,
         )
 

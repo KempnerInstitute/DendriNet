@@ -5,6 +5,7 @@ This module implements the ExcitationInhibitionNetwork which uses separate
 excitatory and inhibitory pathways with dendritic computation.
 """
 
+import logging
 from copy import deepcopy
 from typing import Any, Optional, Union
 
@@ -25,6 +26,11 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.input_trans
     TransferLayer,
 )
 from dendritic_modeling.networks.base import BaseNetwork
+
+logger = logging.getLogger(__name__)
+
+POSITIVE_WEIGHT_TRANSFORMS = {"exp", "softplus", "relu"}
+NONNEGATIVE_TRANSFER_ACTIVATIONS = {"relu", "softplus", "sigmoid"}
 
 
 class ExcitationInhibitionNetwork(BaseNetwork):
@@ -80,6 +86,7 @@ class ExcitationInhibitionNetwork(BaseNetwork):
         reactivate: bool = True,
         reactivation_init_m: float = 1.5,
         reactivation_init_b: float = 0.5,
+        reactivation_match_additive_init_to_shunting: bool = False,
         dbl_init_method: str = "analytical_expectation",
         somatic_synapses: bool = True,
         ee_synapses_per_branch_per_layer: Optional[list[int]] = None,
@@ -126,6 +133,9 @@ class ExcitationInhibitionNetwork(BaseNetwork):
         self.reactivate = reactivate
         self.reactivation_init_m = reactivation_init_m
         self.reactivation_init_b = reactivation_init_b
+        self.reactivation_match_additive_init_to_shunting = (
+            reactivation_match_additive_init_to_shunting
+        )
         self.dbl_init_method = dbl_init_method
         self.somatic_synapses = somatic_synapses
         self.inhibitory_network_type = inhibitory_network_type
@@ -175,6 +185,30 @@ class ExcitationInhibitionNetwork(BaseNetwork):
         self.setup_network_layers(**kwargs)
 
     def setup_transfer_function(self):
+        transfer_params = deepcopy(self.transfer_params)
+        output_activation = transfer_params.get("output_activation", None)
+        output_activation_norm = (
+            None if output_activation is None else str(output_activation).lower()
+        )
+        weight_transform_norm = str(self.weight_transform).lower()
+
+        # Positive conductance weights should not receive explicitly signed
+        # presynaptic drive. We keep the runtime behavior config-driven rather
+        # than silently mutating the transfer function here, so unrelated
+        # backprop experiments are not changed behind the scenes. The paper
+        # configs that require nonnegative first-layer drive set
+        # transfer.output_activation explicitly.
+        if weight_transform_norm in POSITIVE_WEIGHT_TRANSFORMS:
+            if (
+                output_activation_norm not in (None, "none")
+                and output_activation_norm not in NONNEGATIVE_TRANSFER_ACTIVATIONS
+            ):
+                raise ValueError(
+                    "Positive-conductance EI network requires nonnegative transfer "
+                    f"output, but got output_activation={output_activation!r}."
+                )
+
+        self.transfer_params = transfer_params
         self.transfer_fn = TransferLayer(
             input_dim=self.input_dim, transfer_params=self.transfer_params
         )
@@ -329,6 +363,7 @@ class ExcitationInhibitionNetwork(BaseNetwork):
                 reactivate=self.reactivate,
                 reactivation_init_m=self.reactivation_init_m,
                 reactivation_init_b=self.reactivation_init_b,
+                reactivation_match_additive_init_to_shunting=self.reactivation_match_additive_init_to_shunting,
                 dbl_init_method=self.dbl_init_method,
                 somatic_synapses=self.somatic_synapses,
                 topk_init_method=self.topk_init_method,

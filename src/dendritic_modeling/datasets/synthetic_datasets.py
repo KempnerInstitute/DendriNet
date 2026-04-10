@@ -1126,7 +1126,9 @@ def create_contextual_stream_gain_shift_dataset(
     train_gain_irrelevant_max: float = 1.2,
     test_gain_relevant: float = 1.0,
     test_gain_irrelevant: float = 3.0,
+    test_irrelevant_alignment_alpha: float = 1.0,
     ood_mode: str = "irrelevant",
+    valid_split_mode: str = "ood",
     context_signal_scale: float = 1.0,
     seed: Optional[int] = None,
 ) -> tuple[TensorDataset, TensorDataset, TensorDataset]:
@@ -1170,14 +1172,53 @@ def create_contextual_stream_gain_shift_dataset(
             1.0,
         )
 
+    def _unit_vector(vec: torch.Tensor) -> torch.Tensor:
+        return vec / torch.clamp(torch.linalg.norm(vec), min=1e-8)
+
     def _make_class_means(
         generator: torch.Generator,
-    ) -> tuple[torch.Tensor, torch.Tensor]:
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         direction = torch.sign(torch.randn(stream_dim, generator=generator))
         direction = torch.where(direction == 0, torch.ones_like(direction), direction)
+        direction = _unit_vector(direction)
         mean0 = torch.clamp(midpoint - 0.5 * signal_strength * direction, 0.0, 1.0)
         mean1 = torch.clamp(midpoint + 0.5 * signal_strength * direction, 0.0, 1.0)
-        return mean0, mean1
+        return mean0, mean1, direction
+
+    def _orthogonal_direction(
+        reference: torch.Tensor,
+        generator: torch.Generator,
+    ) -> torch.Tensor:
+        candidate = torch.randn(stream_dim, generator=generator)
+        candidate = candidate - torch.dot(candidate, reference) * reference
+        if float(torch.linalg.norm(candidate)) < 1e-8:
+            candidate = torch.zeros_like(reference)
+            candidate[0] = 1.0
+            candidate = candidate - torch.dot(candidate, reference) * reference
+        return _unit_vector(candidate)
+
+    def _apply_rotated_test_shift(
+        x: torch.Tensor,
+        gains: torch.Tensor,
+        signal_dir: torch.Tensor,
+        orth_dir: torch.Tensor,
+        alignment_alpha: float,
+    ) -> torch.Tensor:
+        aligned_target = _apply_midpoint_gain(x, gains)
+        aligned_delta = aligned_target - x
+
+        alpha = float(np.clip(alignment_alpha, 0.0, 1.0))
+        if alpha >= 1.0 - 1e-8:
+            return aligned_target
+
+        delta_norm = torch.linalg.norm(aligned_delta, dim=1, keepdim=True)
+        signal_proj = (aligned_delta * signal_dir.unsqueeze(0)).sum(dim=1, keepdim=True)
+        sign = torch.where(signal_proj >= 0.0, 1.0, -1.0)
+        orth_delta = sign * orth_dir.unsqueeze(0) * delta_norm
+        mixed_delta = (
+            alpha * aligned_delta + np.sqrt(max(1.0 - alpha**2, 0.0)) * orth_delta
+        )
+        return torch.clamp(x + mixed_delta, 0.0, 1.0)
 
     def _draw_stream(
         labels: torch.Tensor,
@@ -1195,8 +1236,10 @@ def create_contextual_stream_gain_shift_dataset(
 
     base_seed = int(seed or 0)
     mean_generator = torch.Generator().manual_seed(base_seed)
-    mean_a0, mean_a1 = _make_class_means(mean_generator)
-    mean_b0, mean_b1 = _make_class_means(mean_generator)
+    mean_a0, mean_a1, signal_dir_a = _make_class_means(mean_generator)
+    mean_b0, mean_b1, signal_dir_b = _make_class_means(mean_generator)
+    orth_dir_a = _orthogonal_direction(signal_dir_a, mean_generator)
+    orth_dir_b = _orthogonal_direction(signal_dir_b, mean_generator)
 
     def _generate_split(
         split_seed: int,
@@ -1269,8 +1312,36 @@ def create_contextual_stream_gain_shift_dataset(
             else:
                 raise ValueError(f"Unknown ood_mode: {ood_mode}")
 
-        x_a = _apply_midpoint_gain(x_a, gain_a)
-        x_b = _apply_midpoint_gain(x_b, gain_b)
+        if split == "train":
+            x_a = _apply_midpoint_gain(x_a, gain_a)
+            x_b = _apply_midpoint_gain(x_b, gain_b)
+        else:
+            x_a_shifted = _apply_midpoint_gain(x_a, gain_a)
+            x_b_shifted = _apply_midpoint_gain(x_b, gain_b)
+            if (
+                ood_mode in {"irrelevant", "both"}
+                and test_irrelevant_alignment_alpha < 1.0
+            ):
+                if (~relevant_a).any():
+                    irr_mask_a = ~relevant_a
+                    x_a_shifted[irr_mask_a] = _apply_rotated_test_shift(
+                        x_a[irr_mask_a],
+                        gain_a[irr_mask_a],
+                        signal_dir_a,
+                        orth_dir_a,
+                        test_irrelevant_alignment_alpha,
+                    )
+                if (~relevant_b).any():
+                    irr_mask_b = ~relevant_b
+                    x_b_shifted[irr_mask_b] = _apply_rotated_test_shift(
+                        x_b[irr_mask_b],
+                        gain_b[irr_mask_b],
+                        signal_dir_b,
+                        orth_dir_b,
+                        test_irrelevant_alignment_alpha,
+                    )
+            x_a = x_a_shifted
+            x_b = x_b_shifted
 
         noise_a_std = torch.where(
             relevant_a,
@@ -1307,8 +1378,17 @@ def create_contextual_stream_gain_shift_dataset(
         perm = torch.randperm(len(data), generator=generator)
         return data[perm], targets[perm]
 
+    if valid_split_mode not in {"ood", "train"}:
+        raise ValueError(
+            "valid_split_mode must be either 'ood' or 'train' for "
+            "contextual_stream_gain_shift."
+        )
+
     train_data, train_labels = _generate_split(base_seed, "train")
-    valid_data, valid_labels = _generate_split(base_seed + 1, "test")
+    valid_data, valid_labels = _generate_split(
+        base_seed + 1,
+        "train" if valid_split_mode == "train" else "test",
+    )
     test_data, test_labels = _generate_split(base_seed + 2, "test")
 
     return (
@@ -1652,7 +1732,11 @@ def get_synthetic_datasets(
             ),
             test_gain_relevant=dataset_config.get("test_gain_relevant", 1.0),
             test_gain_irrelevant=dataset_config.get("test_gain_irrelevant", 3.0),
+            test_irrelevant_alignment_alpha=dataset_config.get(
+                "test_irrelevant_alignment_alpha", 1.0
+            ),
             ood_mode=dataset_config.get("ood_mode", "irrelevant"),
+            valid_split_mode=dataset_config.get("valid_split_mode", "ood"),
             context_signal_scale=dataset_config.get("context_signal_scale", 1.0),
             seed=dataset_config.get("seed", None),
         )

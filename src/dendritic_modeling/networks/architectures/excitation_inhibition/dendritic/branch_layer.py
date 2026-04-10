@@ -78,8 +78,10 @@ class DendriticBranchLayer(nn.Module):
         input_branch_factor=None,
         recurrent_input_dim=None,
         recurrent_synapses_per_branch=None,
+        recurrent_forbidden_input_index_per_output=None,
         rec_inhibitory_input_dim=None,
         rec_inhibitory_synapses_per_branch=None,
+        rec_inhibitory_forbidden_input_index_per_output=None,
         topk_init_method="xavier_normal",
         topk_noise_level=0.0,
         topk_type="standard",  # New parameter
@@ -93,6 +95,7 @@ class DendriticBranchLayer(nn.Module):
         reactivation_type="param_tanh",
         reactivation_init_m=1,
         reactivation_init_b=0.5,
+        reactivation_match_additive_init_to_shunting=False,
         dbl_init_method="analytical_expectation",
         reactivation_strategy="none",
         blocklinear_strategy="none",
@@ -220,6 +223,7 @@ class DendriticBranchLayer(nn.Module):
                 init_method=topk_init_method,
                 noise_level=topk_noise_level,
                 synapse_type="exc",
+                forbidden_input_index_per_output=recurrent_forbidden_input_index_per_output,
             )
             gradient_scaler.register_topk_dynamic(self.branch_recurrent)
             self.recurrent_input_dim = recurrent_input_dim
@@ -242,6 +246,7 @@ class DendriticBranchLayer(nn.Module):
                 init_method=topk_init_method,
                 noise_level=topk_noise_level,
                 synapse_type="inh",
+                forbidden_input_index_per_output=rec_inhibitory_forbidden_input_index_per_output,
             )
             gradient_scaler.register_topk_dynamic(self.branch_rec_inhibition)
             self.rec_inhibitory_input_dim = rec_inhibitory_input_dim
@@ -260,13 +265,23 @@ class DendriticBranchLayer(nn.Module):
             )
             gradient_scaler.register_block_linear_dynamic(self.branches_to_output)
         self.input_branch_factor = input_branch_factor
+        self.reactivation_init_m = reactivation_init_m
+        self.reactivation_init_b = reactivation_init_b
+        self.reactivation_match_additive_init_to_shunting = (
+            reactivation_match_additive_init_to_shunting
+        )
 
         if reactivate:
+            init_m = reactivation_init_m
+            init_b = reactivation_init_b
+            if not use_shunting and not reactivation_match_additive_init_to_shunting:
+                init_m = 0.1
+                init_b = 0.1
             self.reactivation = ActivationFactory.create(
                 act_type=reactivation_type,
                 output_dim=output_dim,
-                init_m=reactivation_init_m if use_shunting else 0.1,
-                init_b=reactivation_init_b if use_shunting else 0.1,
+                init_m=init_m,
+                init_b=init_b,
                 **kwargs,
             )
             if use_shunting:
@@ -286,6 +301,7 @@ class DendriticBranchLayer(nn.Module):
         init_method,
         noise_level,
         synapse_type="exc",
+        forbidden_input_index_per_output=None,
     ):
         """Helper function that picks which topk class to use based on strategy."""
         # Keep invalid sweep configs runnable by capping requested synapse count to
@@ -307,6 +323,7 @@ class DendriticBranchLayer(nn.Module):
                 weight_transform=self.weight_transform,
                 weight_norm_order=self.topk_weight_norm_order,
                 gamma=self.topk_gamma if synapse_type == "inh" else 1.0,
+                forbidden_input_index_per_output=forbidden_input_index_per_output,
             )
             return topk_layer
 
@@ -327,6 +344,7 @@ class DendriticBranchLayer(nn.Module):
                 temperature=temperature,
                 ultrafast=ultrafast,
                 weight_transform=self.weight_transform,
+                forbidden_input_index_per_output=forbidden_input_index_per_output,
             )
         elif self.topk_type == "variance":
             return VarianceTopKLinear(
@@ -337,6 +355,7 @@ class DendriticBranchLayer(nn.Module):
                 init_method=init_method,
                 noise_level=noise_level,
                 weight_transform=self.weight_transform,
+                forbidden_input_index_per_output=forbidden_input_index_per_output,
             )
         elif self.topk_type == "deepst":
             self.step_counter = 0
@@ -361,6 +380,7 @@ class DendriticBranchLayer(nn.Module):
                 ),
                 weight_threshold=self.weight_threshold,
                 weight_transform=self.weight_transform,
+                forbidden_input_index_per_output=forbidden_input_index_per_output,
             )
         else:
             # Fallback for any unknown strategy - use standard
@@ -374,6 +394,7 @@ class DendriticBranchLayer(nn.Module):
                 weight_transform=self.weight_transform,
                 weight_norm_order=self.topk_weight_norm_order,
                 gamma=self.topk_gamma if synapse_type == "inh" else 1.0,
+                forbidden_input_index_per_output=forbidden_input_index_per_output,
             )
 
     def initialize(self):

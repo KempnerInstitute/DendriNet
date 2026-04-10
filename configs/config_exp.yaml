@@ -146,14 +146,15 @@ model:
 
   # ---------- Core network ----------
   core:
-    # Legacy EI (feedforward): "EINet" | "dendritic_shunting" | "dendritic_additive" | "flat_shunting" | "flat_additive" | "dendritic_mlp" | "flat_mlp"
+    # Legacy EI (feedforward / recurrent-capable via core.recurrent_ei or connectivity.rec_*):
+    #   "EINet" | "dendritic_shunting" | "dendritic_additive" | "flat_shunting" | "flat_additive" | "dendritic_mlp" | "flat_mlp"
     # Unified EI (recommended): "unified_ei" | "ei_unified" | "ei_net" | "unified_einet"
-    # Recurrent EI: "recurrent_ei"
-    # Baseline RNN: "baseline_rnn" | "gru" | "lstm" | "vanilla_rnn" | "rnn"
+    # Baseline RNN: "gru" | "lstm" | "vanilla_rnn" | "rnn"
     # Point neuron MLP: "mlp" | "point_mlp" | "total_param_mlp" | "active_param_mlp" | "ss_mlp" | "ss_mlp_flat"
     # Spatial dendritic pretrained-replacement cores:
     #   "hierarchical_dendritic_tensor_map" | "dendritic_tensor_map" | "tensor_map"
-    #       -> baseline/control: flatten prefix tensor, run EINet, project to flat suffix input
+    #       -> pretrained-replacement baseline/control: use pretrained prefix/suffix, but initialize a new dendritic core;
+    #          flatten prefix tensor, run EINet, and optionally project core_dim -> flat suffix input dim
     #   "hierarchical_dendritic_conv" | "spatial_dendritic_conv"
     #       -> local spatial dendritic operator for convolutional suffixes
     # Classical: "alexnet" | "cnn" | "cnn_down" | "cnn_up" | "identity" | "none"

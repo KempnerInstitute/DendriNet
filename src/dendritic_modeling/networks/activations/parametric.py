@@ -82,6 +82,11 @@ class ParametricTanhOnlyM(ParametricActivation):
         b = self.fixed_b  # fixed midpoint
         return (torch.tanh(m * (V - b)) + 1) / 2
 
+    def initialize(self, slope_val, mid_val):
+        safe_slope = max(float(slope_val), 1e-8)
+        self.log_m.data.fill_(math.log(safe_slope))
+        self.fixed_b = float(mid_val)
+
 
 class ParametricLinearSigmoid(ParametricActivation):
     """
@@ -129,6 +134,11 @@ class ParametricLinearSigmoid(ParametricActivation):
         # Combine using the interpolation formula
         return h_x * g_x + f_x * (1 - g_x)
 
+    def initialize(self, slope_val, mid_val):
+        safe_slope = max(float(slope_val), 1e-8)
+        self.log_m.data.fill_(math.log(safe_slope))
+        self.fixed_b = float(mid_val)
+
 
 class ParametricLinearTanh(ParametricActivation):
     """
@@ -174,6 +184,11 @@ class ParametricLinearTanh(ParametricActivation):
         f_x = (torch.tanh(m * x + self.fixed_b) + 1) / 2  # tanh
         # Combine using the interpolation formula
         return h_x * g_x + f_x * (1 - g_x)
+
+    def initialize(self, slope_val, mid_val):
+        safe_slope = max(float(slope_val), 1e-8)
+        self.log_m.data.fill_(math.log(safe_slope))
+        self.fixed_b = float(mid_val)
 
 
 class ParametricLinearTanhTransition(ParametricActivation):
@@ -308,6 +323,13 @@ class ParametricLinearTanhTransition(ParametricActivation):
             f"threshold=Parameter(shape={tuple(self.threshold.shape)}, trainable={is_thresh_trainable}), "
             f"transition_slope=Parameter(shape={tuple(self.transition_slope.shape)}, trainable={is_slope_trainable})"
         )
+
+    def initialize(self, slope_val, mid_val):
+        max_threshold = (1.0 / self.linear_slope) - 1e-6
+        threshold_val = min(float(mid_val), max_threshold)
+        safe_slope = max(float(slope_val), 1e-8)
+        self.threshold.data.fill_(threshold_val)
+        self.transition_slope.data.fill_(safe_slope)
 
 
 __all__ = [

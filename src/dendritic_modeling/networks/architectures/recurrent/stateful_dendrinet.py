@@ -41,6 +41,23 @@ def _compute_input_branch_factors(branch_factors: list[int]) -> list[Optional[in
     return [None, *rev_bf]
 
 
+def _compute_output_owner_index_per_level(
+    level_dims: list[int], n_soma: int
+) -> list[torch.Tensor]:
+    """Map each branch output at a level to its parent soma-neuron index."""
+    owner_indices = []
+    for level_dim in level_dims:
+        if level_dim % n_soma != 0:
+            raise ValueError(
+                f"Level dimension {level_dim} must be divisible by soma count {n_soma}"
+            )
+        repeats_per_soma = level_dim // n_soma
+        owner_indices.append(
+            torch.arange(level_dim, dtype=torch.long) // repeats_per_soma
+        )
+    return owner_indices
+
+
 def _resolve_synapses_by_level(
     *,
     per_level: list[int],
@@ -77,6 +94,8 @@ class StatefulDendriNet(nn.Module):
         inhibitory_input_dim: Optional[int] = None,
         recurrent_excitatory_input_dim: Optional[int] = None,
         recurrent_inhibitory_input_dim: Optional[int] = None,
+        recurrent_excitatory_is_self_population: bool = False,
+        recurrent_inhibitory_is_self_population: bool = False,
         dt: float = 1.0,
     ):
         super().__init__()
@@ -91,6 +110,9 @@ class StatefulDendriNet(nn.Module):
         self._level_dims = _compute_level_sizes(
             n_soma=pop_config.n_neurons,
             branch_factors=pop_config.branch_factors,
+        )
+        self._output_owner_index_per_level = _compute_output_owner_index_per_level(
+            self._level_dims, self._n_soma
         )
         self.n_levels = len(self._level_dims)
 
@@ -172,6 +194,7 @@ class StatefulDendriNet(nn.Module):
             "reactivation_type": pop_config.reactivation_type,
             "reactivation_init_m": pop_config.reactivation_init_m,
             "reactivation_init_b": pop_config.reactivation_init_b,
+            "reactivation_match_additive_init_to_shunting": pop_config.reactivation_match_additive_init_to_shunting,
             "reactivation_strategy": pop_config.reactivation_strategy,
             "blocklinear_strategy": pop_config.blocklinear_strategy,
             "weight_transform": pop_config.weight_transform,
@@ -210,6 +233,14 @@ class StatefulDendriNet(nn.Module):
         is_soma_level = self.n_levels - 1  # last index
 
         for level_idx, out_dim in enumerate(self._level_dims):
+            recurrent_self_forbidden = None
+            rec_inhibitory_self_forbidden = None
+            if not pop_config.allow_self_recurrence:
+                owner_idx = self._output_owner_index_per_level[level_idx]
+                if recurrent_excitatory_is_self_population:
+                    recurrent_self_forbidden = owner_idx
+                if recurrent_inhibitory_is_self_population:
+                    rec_inhibitory_self_forbidden = owner_idx
             # Soma level: optionally skip direct synaptic input
             if level_idx == is_soma_level and not pop_config.somatic_synapses:
                 exc_in = None
@@ -246,8 +277,10 @@ class StatefulDendriNet(nn.Module):
                 input_branch_factor=input_branch_factors[level_idx],
                 recurrent_input_dim=rec_in,
                 recurrent_synapses_per_branch=rec_syn,
+                recurrent_forbidden_input_index_per_output=recurrent_self_forbidden,
                 rec_inhibitory_input_dim=rec_inh_in,
                 rec_inhibitory_synapses_per_branch=rec_inh_syn,
+                rec_inhibitory_forbidden_input_index_per_output=rec_inhibitory_self_forbidden,
                 layer_idx=self.n_levels - level_idx,
                 **common_kwargs,
             )

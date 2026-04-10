@@ -527,8 +527,27 @@ def test_compute_class_mi(sample_analyzer, sample_data):
 
 
 def test_compute_conditional_mi(sample_analyzer, sample_data):
-    # Similar, with condition
-    pass
+    params = InformationAnalysisParams(method="binned")
+    analyzer = InformationAnalyzer(params)
+
+    rng = np.random.default_rng(0)
+    n = 64
+    E = rng.normal(size=(n, 1))
+    I_var = rng.normal(size=(n, 1))
+    Vout = 0.8 * E - 0.3 * I_var + 0.1 * rng.normal(size=(n, 1))
+    Vb = 0.5 * E + 0.2 * rng.normal(size=(n, 1))
+    C = (E[:, 0] + 0.25 * rng.normal(size=n) > 0).astype(int)
+
+    with_vb = analyzer._compute_conditional_mi(E, I_var, Vout, C, Vinf=None, Vb=Vb)
+    without_vb = analyzer._compute_conditional_mi(E, I_var, Vout, C, Vinf=None, Vb=None)
+
+    for results in (with_vb, without_vb):
+        assert "I(Vout;C|E)" in results
+        assert "I(Vout;C|I)" in results
+        assert "I(Vout;C|E,I)" in results
+        assert np.isfinite(results["I(Vout;C|E)"])
+        assert np.isfinite(results["I(Vout;C|I)"])
+        assert np.isfinite(results["I(Vout;C|E,I)"])
 
 
 def test_compute_pid_per_branch(sample_analyzer, sample_data):

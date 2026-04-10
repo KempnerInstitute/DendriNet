@@ -6,6 +6,7 @@ with Brownian motion-like weight evolution and dynamic rewiring.
 """
 
 import math
+from typing import Optional
 
 import torch
 import torch.nn as nn
@@ -35,6 +36,7 @@ class DeepstLinear(nn.Module):
         freeze_connectivity=False,  # New: flag to freeze synapse locations
         weight_threshold=1e-6,  # New: threshold for weight pruning
         weight_transform: WeightTransformType = "exp",
+        forbidden_input_index_per_output: Optional[torch.Tensor] = None,
     ):
         super().__init__()
 
@@ -47,6 +49,23 @@ class DeepstLinear(nn.Module):
         self.param_space = param_space
         self.init_method = init_method
         self.weight_transform = weight_transform
+        if forbidden_input_index_per_output is None:
+            forbidden = torch.empty(0, dtype=torch.long)
+        else:
+            forbidden = torch.as_tensor(
+                forbidden_input_index_per_output, dtype=torch.long
+            ).view(-1)
+            if forbidden.numel() != out_features:
+                raise ValueError(
+                    "forbidden_input_index_per_output must have one index per "
+                    f"output feature ({out_features}), got {forbidden.numel()}"
+                )
+            valid = (forbidden >= -1) & (forbidden < in_features)
+            if not bool(valid.all()):
+                raise ValueError(
+                    "forbidden_input_index_per_output entries must be -1 or in "
+                    f"[0, {in_features - 1}]"
+                )
 
         # Add K attribute for compatibility with initialize_dendritic_branch_layer
         self.K = int(target_density * in_features) if in_features else None
@@ -125,6 +144,20 @@ class DeepstLinear(nn.Module):
         # Register it as a buffer to ensure it moves with the model
         self.mask: torch.Tensor
         self.register_buffer("mask", mask)
+        self.register_buffer(
+            "_forbidden_input_index_per_output", forbidden, persistent=False
+        )
+        forbidden_connection_mask = torch.zeros(
+            out_features, in_features, dtype=torch.bool
+        )
+        if forbidden.numel() > 0:
+            row_idx = torch.arange(out_features, dtype=torch.long)
+            valid = forbidden >= 0
+            if bool(valid.any()):
+                forbidden_connection_mask[row_idx[valid], forbidden[valid]] = True
+        self.register_buffer(
+            "_forbidden_connection_mask", forbidden_connection_mask, persistent=False
+        )
 
         # Initialize connectivity
         self._initialize_connectivity()
@@ -140,17 +173,20 @@ class DeepstLinear(nn.Module):
             # Initialize with constant number of connections per branch
             for neuron_idx in range(self.out_features):
                 # Randomly select synapses_per_branch input connections
-                input_indices = torch.randperm(self.in_features)[
-                    : self.synapses_per_branch
+                available_inputs = torch.nonzero(
+                    ~self._forbidden_connection_mask[neuron_idx], as_tuple=False
+                ).squeeze(1)
+                input_indices = available_inputs[
+                    torch.randperm(len(available_inputs))[: self.synapses_per_branch]
                 ]
                 for input_idx in input_indices:
                     self.mask[neuron_idx, input_idx] = True
         else:
             # Standard random initialization for global or local modes
-            connections_to_activate = self.target_connections
-
-            # Flatten indices for uniform sampling
-            all_indices = torch.nonzero(torch.ones_like(self.pre_w), as_tuple=False)
+            all_indices = torch.nonzero(
+                ~self._forbidden_connection_mask, as_tuple=False
+            )
+            connections_to_activate = min(self.target_connections, len(all_indices))
 
             # Randomly select indices to activate
             selected_indices = torch.randperm(len(all_indices))[
@@ -249,7 +285,9 @@ class DeepstLinear(nn.Module):
 
                 if to_add > 0:
                     # Get potential input neurons for new connections
-                    potential_inputs = ~self.mask[neuron_idx]
+                    potential_inputs = (~self.mask[neuron_idx]) & (
+                        ~self._forbidden_connection_mask[neuron_idx]
+                    )
                     potential_indices = torch.nonzero(
                         potential_inputs, as_tuple=False
                     ).squeeze(1)
@@ -276,7 +314,9 @@ class DeepstLinear(nn.Module):
 
                 if pruned_for_neuron > 0:
                     # Get potential new connections for this neuron
-                    potential_connections = ~self.mask[neuron_idx]
+                    potential_connections = (~self.mask[neuron_idx]) & (
+                        ~self._forbidden_connection_mask[neuron_idx]
+                    )
 
                     if potential_connections.sum() > 0:
                         # Get indices of potential connections
@@ -304,7 +344,7 @@ class DeepstLinear(nn.Module):
             num_pruned = pruned_mask.sum().item()
 
             # Get all potential connections globally
-            potential_connections = ~self.mask
+            potential_connections = (~self.mask) & (~self._forbidden_connection_mask)
 
             if potential_connections.sum() > 0 and num_pruned > 0:
                 flat_indices = torch.nonzero(potential_connections, as_tuple=False)

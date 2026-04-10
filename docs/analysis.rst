@@ -90,18 +90,30 @@ Set via ``params.selection.components``:
 
 ``"basic"``
    ``I(X; C)`` -- mutual information between each signal and class labels.
+   Implemented examples include ``I(E; C)``, ``I(I; C)``, ``I(Vb; C)``,
+   ``I(Vout; C)``, ``I(Vinf; C)`` when ``include_vinf`` is enabled, and the
+   joint term ``I(E, I; C)``.
 
 ``"pairwise"``
    ``I(X; Y)`` -- MI between pairs of signals (E, I, Vb, Vout).
+   Implemented examples include ``I(E; I)``, ``I(E; Vout)``,
+   ``I(I; Vout)``, ``I(E; Vb)``, ``I(I; Vb)``, ``I(Vb; Vout)``, and the
+   analogous ``Vinf`` pairwise terms when enabled.
 
 ``"conditional"``
    ``I(X; Y | C)`` -- conditional MI given class.
+   Implemented examples include ``I(E; I | C)``, ``I(E; Vout | C)``,
+   ``I(I; Vout | C)``, ``I(E; Vb | C)``, ``I(I; Vb | C)``,
+   ``I(Vb; Vout | C)``, and ``Vinf`` variants when enabled.
 
 ``"gaussian_fisher"``
    Fast Gaussian MI proxy from class-conditional means and variances.
    Config under ``params.compute.gaussian_fisher``: ``aggregation``
    (``"sum"``/``"mean"``/``"max"``), ``mi_transform``
    (``"half_log1p"``/``"log1p"``/``"none"``), ``eps``.
+   Implemented examples include ``I(E; C)_fisher``, ``I(I; C)_fisher``,
+   ``I(Vb; C)_fisher``, ``I(Vout; C)_fisher``, ``I(Vinf; C)_fisher``, and
+   the Fisher-style increment ``I(Vb; C | E, I)_fisher`` when ``Vb`` exists.
 
 ``"pid"``
    Synergy/redundancy decomposition (requires external PID library).
@@ -109,9 +121,33 @@ Set via ``params.selection.components``:
 ``"ablation_aligned"``
    Conditional-MI terms aligned to ablation interventions, e.g.,
    ``I(E; C | I, Vb)`` and ``I(Vout; C | Vb)``.
+   Implemented terms depend on signal availability:
+
+   - Always when enabled: ``I(Vout; C | E)`` and ``I(Vout; C | I)``.
+   - With ``Vb`` present: ``I(Vout; C | Vb)``, ``I(Vb; C | Vout)``,
+     ``I(Vout; C | E, I)``, ``I(E; Vout | I, Vb)``,
+     ``I(I; Vout | E, Vb)``, ``I(Vb; Vout | E, I)``, ``I(E; C | Vb)``,
+     ``I(I; C | Vb)``, ``I(E, I; C | Vb)``, ``I(E; C | I, Vb)``, and
+     ``I(I; C | E, Vb)``.
+   - Without ``Vb``: ``I(E; C | I)``, ``I(I; C | E)``,
+     ``I(E; Vout | I)``, ``I(I; Vout | E)``, and ``I(Vout; C | E, I)``.
+   - With ``Vinf`` enabled: ``I(Vinf; C | Vout)`` and ``I(Vout; C | Vinf)``.
+
+``"upstream_unique_cmi"``
+   Adds the extra conditional term ``I(Vb; C | E, I)`` when ``Vb`` exists.
+   This can be expensive when ``E`` and ``I`` are high-dimensional.
 
 ``"layer_proxies"``
    Aggregate per-branch MI into layer-level proxies: sum, union, topK_sum.
+   This derives layer-level metrics such as ``I(Vout; C)_sum``,
+   ``I(Vout; C | E, I)_union``, and corresponding ``topK_sum`` summaries
+   from single-branch results.
+
+Implemented Metric Notes
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+The information analyzer currently emits ``I(Vout; C)`` and
+``I(Vout; C | E)``, ``I(Vout; C | I)``, and ``I(Vout; C | E, I)``.
 
 Signal Variants
 ~~~~~~~~~~~~~~~

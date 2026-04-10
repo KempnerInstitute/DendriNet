@@ -39,6 +39,7 @@ class PopulationConfig(BaseConfig):
     reactivation_type: str = "param_tanh"
     reactivation_init_m: float = 1.0
     reactivation_init_b: float = 0.5
+    reactivation_match_additive_init_to_shunting: bool = False
     reactivation_strategy: str = "none"
     blocklinear_strategy: str = "none"
 
@@ -47,6 +48,7 @@ class PopulationConfig(BaseConfig):
     tau_base: float = 50.0
     tau_ratio: float = 3.0  # Geometric ratio between adjacent dendritic levels
     learnable_tau: bool = False  # If True, tau values are learned during training
+    allow_self_recurrence: bool = True
     epsilon: float = 1e-8
 
     # Additional DendriticBranchLayer parameters

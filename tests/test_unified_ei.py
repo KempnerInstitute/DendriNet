@@ -79,6 +79,73 @@ def test_stateful_dendrinet_recurrent_step_shape():
     assert new_state.trace_E[2].shape == (2, 8)
 
 
+def test_stateful_dendrinet_can_mask_same_population_self_recurrence():
+    pop = PopulationConfig(
+        n_neurons=4,
+        branch_factors=[2],
+        ff_excitatory_synapses=4,
+        rec_excitatory_synapses=3,
+        allow_self_recurrence=False,
+    )
+    net = StatefulDendriNet(
+        pop_config=pop,
+        excitatory_input_dim=6,
+        recurrent_excitatory_input_dim=4,
+        recurrent_excitatory_is_self_population=True,
+        dt=1.0,
+    )
+
+    for level_idx, layer in enumerate(net.branch_layers):
+        mask = layer.branch_recurrent.weight_mask()
+        owner_idx = net._output_owner_index_per_level[level_idx]
+        for out_idx, forbidden_in_idx in enumerate(owner_idx.tolist()):
+            assert mask[out_idx, forbidden_in_idx].item() == 0
+
+
+def test_unified_ei_layer_masks_only_same_population_self_recurrence():
+    cfg = EILayerConfig(
+        excitatory=PopulationConfig(
+            n_neurons=6,
+            branch_factors=[2],
+            ff_excitatory_synapses=4,
+            ff_inhibitory_synapses=2,
+            rec_excitatory_synapses=3,
+            rec_inhibitory_synapses=2,
+            allow_self_recurrence=False,
+        ),
+        inhibitory=PopulationConfig(
+            n_neurons=3,
+            branch_factors=[2],
+            ff_excitatory_synapses=3,
+            ff_inhibitory_synapses=2,
+            rec_excitatory_synapses=2,
+            rec_inhibitory_synapses=2,
+            allow_self_recurrence=False,
+        ),
+        excitatory_input_dim=8,
+        inhibitory_input_dim=4,
+        recurrent=True,
+        dt=1.0,
+    )
+    layer = EILayer(cfg)
+
+    e_self_mask = layer.e_population.branch_layers[-1].branch_recurrent.weight_mask()
+    assert torch.all(e_self_mask.diag() == 0)
+
+    e_cross_mask = layer.e_population.branch_layers[
+        -1
+    ].branch_rec_inhibition.weight_mask()
+    assert torch.all(e_cross_mask.sum(dim=-1) > 0)
+
+    i_self_mask = layer.i_population.branch_layers[
+        -1
+    ].branch_rec_inhibition.weight_mask()
+    assert torch.all(i_self_mask.diag() == 0)
+
+    i_cross_mask = layer.i_population.branch_layers[-1].branch_recurrent.weight_mask()
+    assert torch.all(i_cross_mask.sum(dim=-1) > 0)
+
+
 # ---------------------------------------------------------------------------
 # EILayer tests
 # ---------------------------------------------------------------------------

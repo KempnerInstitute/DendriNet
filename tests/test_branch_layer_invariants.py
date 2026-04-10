@@ -20,6 +20,7 @@ def _make_layer(
     reactivate=False,
     dbl_init_method="analytical_expectation",
     weight_transform="exp",
+    **kwargs,
 ):
     return DendriticBranchLayer(
         output_dim=output_dim,
@@ -32,6 +33,7 @@ def _make_layer(
         reactivate=reactivate,
         dbl_init_method=dbl_init_method,
         weight_transform=weight_transform,
+        **kwargs,
     )
 
 
@@ -119,6 +121,30 @@ class TestReactivation:
         out = layer(x)
         assert (out >= 0).all()
         assert (out <= 1).all()
+
+    def test_additive_default_reactivation_init_is_legacy(self):
+        layer = _make_layer(
+            use_shunting=False,
+            reactivate=True,
+            reactivation_type="param_tanh",
+        )
+        assert pytest.approx(layer.reactivation.log_m.exp()[0].item(), rel=1e-6) == 0.1
+        assert pytest.approx(layer.reactivation.b[0].item(), rel=1e-6) == 0.0
+
+    def test_additive_can_match_shunting_reactivation_init(self):
+        layer = DendriticBranchLayer(
+            output_dim=8,
+            excitatory_input_dim=20,
+            excitatory_synapses_per_branch=5,
+            use_shunting=False,
+            reactivate=True,
+            reactivation_type="param_tanh",
+            reactivation_init_m=1.5,
+            reactivation_init_b=0.5,
+            reactivation_match_additive_init_to_shunting=True,
+        )
+        assert pytest.approx(layer.reactivation.log_m.exp()[0].item(), rel=1e-6) == 1.5
+        assert pytest.approx(layer.reactivation.b[0].item(), rel=1e-6) == 0.5
 
 
 # ---------------------------------------------------------------------------

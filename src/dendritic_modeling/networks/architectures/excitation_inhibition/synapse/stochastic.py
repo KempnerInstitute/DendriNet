@@ -36,6 +36,7 @@ class StochasticTopKLinear(TopKLinear):
         weight_transform: WeightTransformType = "exp",
         weight_norm_order: Optional[int] = None,
         gamma: float = 1.0,
+        forbidden_input_index_per_output: Optional[torch.Tensor] = None,
         temperature=0.5,  # extra hyperparam for sharper or flatter gating
         ultrafast=False,  # Set to True for much faster but approximate implementation
     ):
@@ -50,6 +51,7 @@ class StochasticTopKLinear(TopKLinear):
             weight_transform=weight_transform,
             weight_norm_order=weight_norm_order,
             gamma=gamma,
+            forbidden_input_index_per_output=forbidden_input_index_per_output,
         )
         self.temperature = temperature
         self.ultrafast = ultrafast
@@ -75,6 +77,7 @@ class StochasticTopKLinear(TopKLinear):
 
         # Simply add noise to weights - simpler but still effective approach
         noisy_weights = w_for_topk + noise
+        noisy_weights = self._apply_forbidden_scores(noisy_weights)
 
         # Perform standard TopK selection on the noisy weights
         topK_indices = torch.topk(
@@ -93,6 +96,7 @@ class StochasticTopKLinear(TopKLinear):
             .expand(-1, k_value)
         )
         mask[batch_indices, topK_indices] = 1
+        mask = self._apply_forbidden_mask(mask)
 
         return mask
 

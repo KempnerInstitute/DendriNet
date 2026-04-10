@@ -7,6 +7,7 @@ This module contains various synthetic and real dataset classes and utilities.
 from .sequence_datasets import (
     AddingProblemDataset,
     CopyTaskDataset,
+    GainModulatedContextualComparisonDataset,
     LorenzSequenceDataset,
     MultiFrequencyDataset,
     OculomotorDelayedResponseDataset,
@@ -32,6 +33,7 @@ from .standard_datasets import (
 __all__ = [
     "AddingProblemDataset",
     "CopyTaskDataset",
+    "GainModulatedContextualComparisonDataset",
     "LorenzSequenceDataset",
     "MultiFrequencyDataset",
     "OculomotorDelayedResponseDataset",

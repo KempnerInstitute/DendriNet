@@ -24,6 +24,10 @@ from dendritic_modeling.networks import (
     ParametricActivation,
     PathwayRouter,
 )
+from dendritic_modeling.networks.activations.parametric import (
+    ParametricTanh,
+    ParametricTanhOnlyM,
+)
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.topk import (
     TopKLinear,
 )
@@ -373,7 +377,7 @@ class LocalCreditAssignment(Trainer):
             delta_out: torch.Tensor = self._compute_soma_error(y_hat, y_batch)
             v0_local, delta_local = self._resolve_local_soma_signals(
                 model=model,
-                y_hat=y_hat.detach(),
+                y_hat=y_hat,
                 delta_out=delta_out.detach(),
             )
 
@@ -537,18 +541,36 @@ class LocalCreditAssignment(Trainer):
         """Resolve soma-space signals for local rules.
 
         Local dendritic rules ideally use error at the core soma output (pre-decoder).
-        If decoder is a single linear layer, map output-space error back to core space:
-            delta_core = delta_out @ W_dec
-        and use the cached decoder input as v0.
+        When the decoder input is cached with graph information intact, we can map
+        output-space error back to core space through the exact decoder Jacobian:
 
-        Otherwise fall back to output-space behavior for backward compatibility.
+            delta_core = J_decoder(h_core)^T delta_out
+
+        This keeps per-soma and path-transport modes meaningful even when the
+        decoder is nonlinear. If that mapping is unavailable, we fall back to the
+        legacy output-space behavior for backward compatibility.
         """
         # Backward-compatible fallback
-        v0_local = y_hat
-        delta_local = delta_out
+        v0_local = y_hat.detach()
+        delta_local = delta_out.detach()
 
         if not hasattr(model, "decoder_network"):
             return v0_local, delta_local
+
+        decoder_input = self._decoder_cache.get("decoder_input")
+        if isinstance(decoder_input, torch.Tensor):
+            try:
+                delta_core = torch.autograd.grad(
+                    outputs=y_hat,
+                    inputs=decoder_input,
+                    grad_outputs=delta_out,
+                    retain_graph=True,
+                    allow_unused=True,
+                )[0]
+            except RuntimeError:
+                delta_core = None
+            if isinstance(delta_core, torch.Tensor):
+                return decoder_input.detach(), delta_core.detach()
 
         try:
             linear_layers = [
@@ -676,6 +698,95 @@ class LocalCreditAssignment(Trainer):
             f"Unknown weight transform '{transform_type}', falling back to exp derivative."
         )
         return raw_param.exp()
+
+    def _compute_reactivation_derivative(
+        self,
+        react_module: Optional[nn.Module],
+        v_n: torch.Tensor,
+        v_out: Optional[torch.Tensor] = None,
+    ) -> torch.Tensor:
+        """Return the elementwise local slope d a / d V for a branch reactivation."""
+        if react_module is None or isinstance(react_module, nn.Identity):
+            return torch.ones_like(v_n)
+
+        if isinstance(react_module, nn.ReLU):
+            return (v_n > 0).to(device=v_n.device, dtype=v_n.dtype)
+
+        if isinstance(react_module, nn.Sigmoid):
+            y = (
+                v_out.to(device=v_n.device, dtype=v_n.dtype)
+                if isinstance(v_out, torch.Tensor)
+                else torch.sigmoid(v_n)
+            )
+            return y * (1.0 - y)
+
+        if isinstance(react_module, nn.Tanh):
+            y = (
+                v_out.to(device=v_n.device, dtype=v_n.dtype)
+                if isinstance(v_out, torch.Tensor)
+                else torch.tanh(v_n)
+            )
+            return 1.0 - y.square()
+
+        if isinstance(react_module, ParametricTanh):
+            y = (
+                v_out.to(device=v_n.device, dtype=v_n.dtype)
+                if isinstance(v_out, torch.Tensor)
+                else react_module(v_n)
+            )
+            m = react_module.log_m.detach().exp().to(device=v_n.device, dtype=v_n.dtype)
+            return 0.5 * m.unsqueeze(0) * (1.0 - (2.0 * y - 1.0).square())
+
+        if isinstance(react_module, ParametricTanhOnlyM):
+            y = (
+                v_out.to(device=v_n.device, dtype=v_n.dtype)
+                if isinstance(v_out, torch.Tensor)
+                else react_module(v_n)
+            )
+            m = react_module.log_m.detach().exp().to(device=v_n.device, dtype=v_n.dtype)
+            return 0.5 * m.unsqueeze(0) * (1.0 - (2.0 * y - 1.0).square())
+
+        try:
+            with torch.enable_grad():
+                x = v_n.detach().clone().requires_grad_(True)
+                y = react_module(x)
+                grad = torch.autograd.grad(
+                    y,
+                    x,
+                    grad_outputs=torch.ones_like(y),
+                    retain_graph=False,
+                    create_graph=False,
+                    allow_unused=False,
+                )[0]
+            return grad.detach().to(device=v_n.device, dtype=v_n.dtype)
+        except Exception:
+            logger.warning(
+                "Falling back to unit reactivation derivative for module %s.",
+                react_module.__class__.__name__,
+            )
+            return torch.ones_like(v_n)
+
+    def _get_layer_activation_derivative(
+        self,
+        rec: dict[str, Any],
+        v_n: Optional[torch.Tensor] = None,
+        v_out: Optional[torch.Tensor] = None,
+    ) -> Optional[torch.Tensor]:
+        cached = rec.get("_activation_derivative")
+        if isinstance(cached, torch.Tensor):
+            return cached
+        if v_n is None:
+            v_n = rec.get("v_n")
+        if not isinstance(v_n, torch.Tensor):
+            return None
+        if v_out is None:
+            v_out = rec.get("v_out")
+        react_module = getattr(rec.get("layer"), "reactivation", None)
+        deriv = self._compute_reactivation_derivative(
+            react_module=react_module, v_n=v_n, v_out=v_out
+        )
+        rec["_activation_derivative"] = deriv
+        return deriv
 
     def _apply_broadcast_bandwidth(
         self, e_n: torch.Tensor, bandwidth: str
@@ -1028,7 +1139,9 @@ class LocalCreditAssignment(Trainer):
         return (delta.to(dtype=dtype, device=device) @ left @ right) * scale
 
     def _precompute_path_propagation_factors(
-        self, layer_records: list[dict[str, Any]]
+        self,
+        layer_records: list[dict[str, Any]],
+        include_parent_activation_derivative: bool = False,
     ) -> list[torch.Tensor | float]:
         """Approximate path attenuation from each compartment to the soma.
 
@@ -1085,6 +1198,16 @@ class LocalCreditAssignment(Trainer):
             elif parent_path.size(1) == 1 and parent_v.size(1) > 1:
                 parent_path = parent_path.expand(-1, parent_v.size(1))
 
+            parent_act_deriv = torch.ones_like(parent_v)
+            if include_parent_activation_derivative:
+                parent_act_deriv_candidate = self._get_layer_activation_derivative(
+                    parent_rec, parent_v
+                )
+                if isinstance(parent_act_deriv_candidate, torch.Tensor):
+                    parent_act_deriv = parent_act_deriv_candidate.to(
+                        device=parent_v.device, dtype=parent_v.dtype
+                    )
+
             parent_g_tot = self._compute_layer_total_conductance(parent_rec, parent_v)
             parent_r_tot = 1.0 / (parent_g_tot + 1e-8)
 
@@ -1102,22 +1225,28 @@ class LocalCreditAssignment(Trainer):
                     child_v.size(1),
                     expected_child_out,
                 )
-                scalar_factor = (
-                    parent_path.mean(dim=1, keepdim=True)
-                    * parent_r_tot.mean(dim=1, keepdim=True)
-                    * edge_weights.mean()
-                )
+                scalar_factor = (parent_path * parent_act_deriv * parent_r_tot).mean(
+                    dim=1, keepdim=True
+                ) * edge_weights.mean()
                 path_factors[layer_idx] = scalar_factor
                 continue
 
             expanded_parent_path = self._expand_parent_signal_to_children(
                 parent_path, block_size, child_v.size(1)
             )
+            expanded_parent_act = self._expand_parent_signal_to_children(
+                parent_act_deriv, block_size, child_v.size(1)
+            )
             expanded_parent_r_tot = self._expand_parent_signal_to_children(
                 parent_r_tot, block_size, child_v.size(1)
             )
             edge_gain = edge_weights.reshape(1, -1)
-            branch_factor = expanded_parent_path * expanded_parent_r_tot * edge_gain
+            branch_factor = (
+                expanded_parent_path
+                * expanded_parent_act
+                * expanded_parent_r_tot
+                * edge_gain
+            )
             if mode == "scalar_mean":
                 branch_factor = branch_factor.mean(dim=1, keepdim=True)
             path_factors[layer_idx] = branch_factor
@@ -1130,14 +1259,16 @@ class LocalCreditAssignment(Trainer):
         delta: torch.Tensor,
         delta_scalar: torch.Tensor,
     ) -> list[Optional[torch.Tensor]]:
-        """Recursively transport soma-space errors through the dendritic tree.
+        """Recursively transport soma-space activation errors through the tree.
 
         This is the operational form of the tree recursion:
 
-            dL/dV_child = dL/dV_parent * R_parent_tot * g_child->parent
+            dL/da_child = dL/da_parent * f'_parent(V_parent) * R_parent_tot * g_child->parent
 
         It preserves vector-valued soma errors where dimensions remain aligned,
-        rather than collapsing transport to a scalar gain.
+        rather than collapsing transport to a scalar gain. The resulting tensor
+        approximates activation-space error at each layer; conductance updates
+        convert it locally to voltage-space by multiplying by f'(V_n).
         """
         if not layer_records:
             return []
@@ -1191,22 +1322,36 @@ class LocalCreditAssignment(Trainer):
                     child_v.size(1),
                     expected_child_out,
                 )
+                parent_act_deriv = self._get_layer_activation_derivative(
+                    parent_rec, parent_v
+                )
+                if not isinstance(parent_act_deriv, torch.Tensor):
+                    parent_act_deriv = torch.ones_like(parent_v)
                 parent_r_tot = 1.0 / (
                     self._compute_layer_total_conductance(parent_rec, parent_v) + 1e-8
                 )
                 transported[layer_idx] = (
-                    parent_error.mean(dim=1, keepdim=True)
-                    * parent_r_tot.mean(dim=1, keepdim=True)
+                    (parent_error * parent_act_deriv * parent_r_tot).mean(
+                        dim=1, keepdim=True
+                    )
                     * edge_weights.mean()
                 ).expand(-1, child_v.size(1))
                 continue
 
             block_size = int(getattr(blk_module, "block_size", 1))
+            parent_act_deriv = self._get_layer_activation_derivative(
+                parent_rec, parent_v
+            )
+            if not isinstance(parent_act_deriv, torch.Tensor):
+                parent_act_deriv = torch.ones_like(parent_v)
             parent_r_tot = 1.0 / (
                 self._compute_layer_total_conductance(parent_rec, parent_v) + 1e-8
             )
             expanded_parent_error = self._expand_parent_signal_to_children(
-                parent_error.to(device=child_v.device, dtype=child_v.dtype),
+                (
+                    parent_error.to(device=child_v.device, dtype=child_v.dtype)
+                    * parent_act_deriv.to(device=child_v.device, dtype=child_v.dtype)
+                ),
                 block_size,
                 child_v.size(1),
             )
@@ -1407,9 +1552,21 @@ class LocalCreditAssignment(Trainer):
         records: list[dict[str, Any]] = []
         handles: list[torch.utils.hooks.RemovableHandle] = []
 
-        # Hook decoder input for local mode (capture input to last Linear)
+        # Cache the decoder input so local rules can map output error back to
+        # soma space through the decoder Jacobian when the decoder is nonlinear.
         self._decoder_cache.clear()
         if hasattr(model, "decoder_network"):
+
+            def _decoder_pre_hook(mod, inputs):
+                if inputs and isinstance(inputs[0], torch.Tensor):
+                    self._decoder_cache["decoder_input"] = inputs[0]
+
+            handles.append(
+                model.decoder_network.register_forward_pre_hook(_decoder_pre_hook)
+            )
+
+            # Hook decoder input for local decoder updates (capture input to
+            # the last Linear specifically).
             for m in model.decoder_network.modules():
                 if isinstance(m, nn.Linear):
 
@@ -1516,7 +1673,10 @@ class LocalCreditAssignment(Trainer):
             self._initialize_branch_morphology(model, layer_records)
 
         if self.local_cfg.morphology_aware.use_path_propagation:
-            path_factors = self._precompute_path_propagation_factors(layer_records)
+            path_factors = self._precompute_path_propagation_factors(
+                layer_records,
+                include_parent_activation_derivative=True,
+            )
             for rec, path_factor in zip(layer_records, path_factors):
                 rec["path_factor"] = path_factor
 
@@ -1700,13 +1860,25 @@ class LocalCreditAssignment(Trainer):
                 branch_scale = self._get_branch_type_scale(rec)
                 dendritic_branch_scale = branch_scale
 
+            activation_derivative = self._get_layer_activation_derivative(
+                rec=rec,
+                v_n=v_n,
+                v_out=rec.get("v_out"),
+            )
+            if not isinstance(activation_derivative, torch.Tensor):
+                activation_derivative = torch.ones_like(v_n)
+            activation_derivative = activation_derivative.to(
+                device=v_n.device, dtype=v_n.dtype
+            )
+            e_v = e_n * activation_derivative
+
             # Post-synaptic modulation per-sample, per-neuron.
             if layer_dynamics_mode == "conductance":
                 if self.local_cfg.three_factor.use_driving_force:
                     post_mod = self.local_cfg.three_factor.e_rev_exc - v_n  # [B, out]
                 else:
                     post_mod = v_n - self.local_cfg.three_factor.theta
-                post_factor = e_n * R_tot * post_mod  # [B, out]
+                post_factor = e_v * R_tot * post_mod  # [B, out]
             else:
                 # Additive rule -- with optional gain control modes.
                 additive_mode = getattr(
@@ -1717,17 +1889,17 @@ class LocalCreditAssignment(Trainer):
                         v_n.size(1), v_n.device
                     )
                     gain_n = torch.sigmoid(gain_params)  # [out]
-                    post_factor = e_n * gain_n.unsqueeze(0)  # [B, out]
+                    post_factor = e_v * gain_n.unsqueeze(0)  # [B, out]
                 elif additive_mode == "input_dependent":
                     pseudo_R, pseudo_drive = self._compute_additive_pseudo_signals(
                         rec, v_n
                     )
-                    post_factor = e_n * pseudo_R * pseudo_drive  # [B, out]
+                    post_factor = e_v * pseudo_R * pseudo_drive  # [B, out]
                 elif additive_mode == "running_stats":
                     inv_std = self._get_additive_running_inv_std(layer_idx, v_n)
-                    post_factor = e_n * inv_std  # [B, out]
+                    post_factor = e_v * inv_std  # [B, out]
                 else:
-                    post_factor = e_n  # Original behavior
+                    post_factor = e_v  # Original behavior
 
             # Save raw post_factor before morphology scaling so inhibitory/dendritic
             # sections can reuse it without double-applying rho/phi/branch_scale.
@@ -1803,7 +1975,7 @@ class LocalCreditAssignment(Trainer):
                         inh_post = self.local_cfg.three_factor.e_rev_inh - v_n
                     else:
                         inh_post = self.local_cfg.three_factor.theta - v_n
-                    inh_factor = e_n * R_tot * inh_post  # [B, out]
+                    inh_factor = e_v * R_tot * inh_post  # [B, out]
                 else:
                     # Additive inhibitory rule -- with optional gain control.
                     additive_mode = getattr(
@@ -1812,13 +1984,13 @@ class LocalCreditAssignment(Trainer):
                     if additive_mode == "input_dependent":
                         pseudo_R, _ = self._compute_additive_pseudo_signals(rec, v_n)
                         inh_post = self.local_cfg.three_factor.theta - v_n
-                        inh_factor = e_n * pseudo_R * inh_post  # [B, out]
+                        inh_factor = e_v * pseudo_R * inh_post  # [B, out]
                     elif additive_mode in ("learned_gain", "running_stats"):
                         # Reuse raw (pre-morphology) post_factor, negate for inhibitory.
                         # Morphology factors (rho, phi, branch_scale) are applied below.
                         inh_factor = -post_factor_raw
                     else:
-                        inh_factor = -e_n  # Original behavior
+                        inh_factor = -e_v  # Original behavior
 
                 # Apply morphology/information factors (same as excitatory)
                 if isinstance(rho, torch.Tensor):
@@ -1909,7 +2081,7 @@ class LocalCreditAssignment(Trainer):
                         R_exp = R_tot.unsqueeze(-1)
                     else:
                         R_exp = torch.ones_like(v_n).unsqueeze(-1) * float(R_tot)
-                    den_factor = e_n.unsqueeze(-1) * R_exp * diff
+                    den_factor = e_v.unsqueeze(-1) * R_exp * diff
                 else:
                     # Additive dendritic rule -- with optional gain control.
                     additive_mode = getattr(
@@ -1920,13 +2092,13 @@ class LocalCreditAssignment(Trainer):
                             rec, v_n
                         )
                         diff = x_blk - v_n.unsqueeze(-1)
-                        den_factor = e_n.unsqueeze(-1) * pseudo_R.unsqueeze(-1) * diff
+                        den_factor = e_v.unsqueeze(-1) * pseudo_R.unsqueeze(-1) * diff
                     elif additive_mode in ("learned_gain", "running_stats"):
                         # Use raw (pre-morphology) post_factor; rho/phi/branch_scale
                         # are applied below to avoid double-counting.
                         den_factor = post_factor_raw.unsqueeze(-1) * x_blk
                     else:
-                        den_factor = e_n.unsqueeze(-1) * x_blk
+                        den_factor = e_v.unsqueeze(-1) * x_blk
 
                 # Apply rho (may be tensor if using depth modulation)
                 if self.local_cfg.rule_variant in {"4f", "5f"}:

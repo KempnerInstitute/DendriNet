@@ -89,10 +89,11 @@ class InformationSelectionParams(BaseConfig):
     - components: metric families to compute
       - "basic": I(E;C), I(I;C), I(Vb;C), I(Vout;C), I(E,I;C), ...
       - "pairwise": I(E;I), I(E;Vout), I(Vb;Vout), ...
-      - "conditional": conditional MI terms like I(E;Vout|C) or I(Vout;C|E,I)
+      - "conditional": conditional MI terms like I(E;Vout|C)
       - "gaussian_fisher": Gaussian/Fisher MI proxy metrics (fast; theory-inspired)
       - "pid": partial information decomposition (currently disabled; reserved)
-      - "ablation_aligned": extra CMI terms designed to mirror ablations
+      - "ablation_aligned": extra CMI terms designed to mirror ablations,
+        such as I(Vout;C|E), I(Vout;C|I), or I(Vout;C|E,I)
       - "layer_proxies": layer-total proxies derived from single-branch metrics
       - "upstream_unique_cmi": adds I(Vb;C|E,I) (can be expensive)
     - scopes: extra summaries/breakdowns to run
@@ -343,7 +344,8 @@ class InformationAnalysisParams(BaseConfig):
       - "pairwise": I(E;I), I(E;Vout), I(I;Vout)
       - "conditional": conditional MI terms like I(E;C|I,Vb)
       - "pid": partial information decomposition (if available)
-      - "ablation_aligned": extra conditional terms designed to mirror ablations
+      - "ablation_aligned": extra conditional terms designed to mirror ablations,
+        such as I(Vout;C|E), I(Vout;C|I), or I(Vout;C|E,I)
       - "layer_proxies": layer-total proxies derived from single-branch metrics
       - "upstream_unique_cmi": adds I(Vb;C|E,I) (can be expensive)
     - selection.scopes: which additional breakdowns to run

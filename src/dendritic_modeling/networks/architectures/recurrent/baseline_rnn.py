@@ -22,6 +22,7 @@ class BaselineRNNConfig:
     dropout: float = 0.0
     output_mode: str = "last"  # "last", "mean", "all"
     input_projection_dims: list[int] = field(default_factory=list)
+    use_layernorm: bool = False
 
 
 class BaselineRNN(BaseNetwork):
@@ -37,6 +38,7 @@ class BaselineRNN(BaseNetwork):
         super().__init__()
         self.config = config
         self._output_mode = config.output_mode
+        self._use_layernorm = bool(config.use_layernorm)
 
         proj_layers = []
         prev_dim = config.input_dim
@@ -46,6 +48,9 @@ class BaselineRNN(BaseNetwork):
             prev_dim = hidden_dim
         self.input_projection = (
             nn.Sequential(*proj_layers) if proj_layers else nn.Identity()
+        )
+        self.input_layernorm = (
+            nn.LayerNorm(prev_dim) if self._use_layernorm else nn.Identity()
         )
 
         rnn_cls = {
@@ -66,6 +71,9 @@ class BaselineRNN(BaseNetwork):
             num_layers=config.num_layers,
             batch_first=True,
             dropout=config.dropout if config.num_layers > 1 else 0.0,
+        )
+        self.output_layernorm = (
+            nn.LayerNorm(config.hidden_dim) if self._use_layernorm else nn.Identity()
         )
         self.output_dim = config.hidden_dim
 
@@ -116,8 +124,12 @@ class BaselineRNN(BaseNetwork):
             x = x.reshape(B * T, D)
             x = self.input_projection(x)
             x = x.reshape(B, T, -1)
+        if not isinstance(self.input_layernorm, nn.Identity):
+            x = self.input_layernorm(x)
 
         rnn_out, hidden_out = self.rnn(x, hidden)
+        if not isinstance(self.output_layernorm, nn.Identity):
+            rnn_out = self.output_layernorm(rnn_out)
         out = self._reduce_outputs(rnn_out, seq_lengths=seq_lengths)
 
         if return_hidden:

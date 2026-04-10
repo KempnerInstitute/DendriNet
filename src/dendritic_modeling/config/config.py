@@ -177,7 +177,9 @@ class DatasetParamsConfig(BaseConfig):
             "train_gain_irrelevant_max": 1.2,
             "test_gain_relevant": 1.0,
             "test_gain_irrelevant": 3.0,
+            "test_irrelevant_alignment_alpha": 1.0,
             "ood_mode": "irrelevant",
+            "valid_split_mode": "ood",
             "context_signal_scale": 1.0,
         }
     )

@@ -273,6 +273,7 @@ class OculomotorDelayedResponseDataset(Dataset):
         go_duration: int = 8,
         tuning_kappa: float = 2.0,
         cue_noise_std: float = 0.05,
+        positive_input_encoding: bool = False,
     ):
         super().__init__()
         self.n_samples = n_samples
@@ -283,6 +284,7 @@ class OculomotorDelayedResponseDataset(Dataset):
         self.min_delay = min_delay
         self.max_delay = max_delay
         self.go_duration = go_duration
+        self.positive_input_encoding = bool(positive_input_encoding)
         self.input_dim = input_tuning_dim + 2
         self.max_total_len = fixation_duration + cue_duration + max_delay + go_duration
 
@@ -322,6 +324,8 @@ class OculomotorDelayedResponseDataset(Dataset):
             self.inputs[
                 i, cue_start:cue_end, :input_tuning_dim
             ] += cue_noise_std * torch.randn(cue_duration, input_tuning_dim)
+            if self.positive_input_encoding:
+                self.inputs[i, cue_start:cue_end, :input_tuning_dim].clamp_(min=0.0)
 
             go_start = fixation_duration + cue_duration + delay
             self.inputs[i, go_start:total_len, input_tuning_dim + 1] = 1.0
@@ -357,6 +361,9 @@ class RomoDelayComparisonDataset(Dataset):
         max_delay: int = 100,
         response_duration: int = 8,
         noise_std: float = 0.08,
+        positive_input_encoding: bool = False,
+        tuning_dim: int = 8,
+        tuning_sigma: Optional[float] = None,
     ):
         super().__init__()
         self.n_samples = n_samples
@@ -365,7 +372,9 @@ class RomoDelayComparisonDataset(Dataset):
         self.min_delay = min_delay
         self.max_delay = max_delay
         self.response_duration = response_duration
-        self.input_dim = 4
+        self.positive_input_encoding = bool(positive_input_encoding)
+        self.tuning_dim = int(tuning_dim)
+        self.input_dim = (self.tuning_dim if self.positive_input_encoding else 1) + 3
         self.max_total_len = 2 * stimulus_duration + max_delay + response_duration
 
         self.inputs = torch.zeros(n_samples, self.max_total_len, self.input_dim)
@@ -373,6 +382,20 @@ class RomoDelayComparisonDataset(Dataset):
         self.delays = torch.zeros(n_samples, dtype=torch.long)
 
         phase_grid = torch.arange(stimulus_duration, dtype=torch.float32)
+        if self.positive_input_encoding:
+            freq_min = min(self.frequency_values)
+            freq_max = max(self.frequency_values)
+            self.frequency_pref = torch.linspace(
+                float(freq_min), float(freq_max), steps=self.tuning_dim
+            )
+            spacing = (
+                float(freq_max - freq_min) / max(self.tuning_dim - 1, 1)
+                if self.tuning_dim > 1
+                else 1.0
+            )
+            self.tuning_sigma = (
+                float(tuning_sigma) if tuning_sigma is not None else spacing
+            )
 
         for i in range(n_samples):
             f1_idx = torch.randint(0, len(self.frequency_values), (1,)).item()
@@ -385,10 +408,14 @@ class RomoDelayComparisonDataset(Dataset):
             delay = torch.randint(min_delay, max_delay + 1, (1,)).item()
             total_len = 2 * stimulus_duration + delay + response_duration
 
-            sig1 = torch.sin(2.0 * math.pi * f1 * phase_grid / stimulus_duration)
-            sig2 = torch.sin(2.0 * math.pi * f2 * phase_grid / stimulus_duration)
-            sig1 = sig1 + noise_std * torch.randn_like(sig1)
-            sig2 = sig2 + noise_std * torch.randn_like(sig2)
+            if self.positive_input_encoding:
+                sig1 = self._positive_frequency_code(f1, noise_std)
+                sig2 = self._positive_frequency_code(f2, noise_std)
+            else:
+                sig1 = torch.sin(2.0 * math.pi * f1 * phase_grid / stimulus_duration)
+                sig2 = torch.sin(2.0 * math.pi * f2 * phase_grid / stimulus_duration)
+                sig1 = sig1 + noise_std * torch.randn_like(sig1)
+                sig2 = sig2 + noise_std * torch.randn_like(sig2)
 
             self.targets[i] = int(f2 > f1)
             self.delays[i] = delay
@@ -399,14 +426,336 @@ class RomoDelayComparisonDataset(Dataset):
             s2_end = s2_start + stimulus_duration
             rsp_start = s2_end
 
-            self.inputs[i, s1_start:s1_end, 0] = sig1
-            self.inputs[i, s1_start:s1_end, 1] = 1.0
-            self.inputs[i, s2_start:s2_end, 0] = sig2
-            self.inputs[i, s2_start:s2_end, 2] = 1.0
-            self.inputs[i, rsp_start:total_len, 3] = 1.0
+            stim_dim = self.tuning_dim if self.positive_input_encoding else 1
+            self.inputs[i, s1_start:s1_end, :stim_dim] = sig1
+            self.inputs[i, s1_start:s1_end, stim_dim] = 1.0
+            self.inputs[i, s2_start:s2_end, :stim_dim] = sig2
+            self.inputs[i, s2_start:s2_end, stim_dim + 1] = 1.0
+            self.inputs[i, rsp_start:total_len, stim_dim + 2] = 1.0
 
         self.seq_lengths = (
             2 * self.stimulus_duration + self.delays + self.response_duration
+        )
+
+    def __len__(self):
+        return self.n_samples
+
+    def __getitem__(self, idx):
+        seq_lengths = self.seq_lengths[idx]
+        if torch.is_tensor(seq_lengths) and seq_lengths.dim() == 0:
+            seq_lengths = int(seq_lengths.item())
+        return self.inputs[idx], self.targets[idx], seq_lengths
+
+    def _positive_frequency_code(
+        self, frequency: float, noise_std: float
+    ) -> torch.Tensor:
+        tuning = torch.exp(
+            -0.5
+            * ((self.frequency_pref - float(frequency)) / max(self.tuning_sigma, 1e-6))
+            ** 2
+        )
+        tuning = tuning / tuning.max().clamp(min=1e-8)
+        signal = tuning.unsqueeze(0).repeat(self.stimulus_duration, 1)
+        if noise_std > 0:
+            signal = signal + noise_std * torch.randn_like(signal)
+        return signal.clamp_min(0.0)
+
+
+class GainModulatedContextualComparisonDataset(Dataset):
+    """Context-cued delayed comparison under multiplicative nuisance gain.
+
+    Each trial contains:
+    1. a brief cue selecting one relevant pathway,
+    2. a first short stimulus on every pathway,
+    3. a silent delay with optional distractor bursts,
+    4. a second short stimulus on every pathway,
+    5. a response window.
+
+    The target is binary: whether the relevant pathway's second latent value is
+    larger than its first. All pathways are corrupted by a trial-global gain and
+    pathway-specific gains, making the task a sequence-level nuisance-robust
+    delayed comparison problem rather than a pure memory benchmark.
+
+    Inputs are arranged as:
+        [context one-hot (n_pathways) |
+         pathway features (n_pathways * pathway_dim) |
+         phase markers (sample1, sample2, response)]
+
+    The contiguous pathway blocks are intentional so configs can test explicit
+    clustered vs. dispersed pathway routing with the ``PathwayRouter`` encoder.
+    """
+
+    def __init__(
+        self,
+        n_samples: int = 20000,
+        n_pathways: int = 4,
+        pathway_dim: int = 4,
+        cue_duration: int = 8,
+        stimulus_duration: int = 16,
+        min_delay: int = 20,
+        max_delay: int = 80,
+        response_duration: int = 8,
+        amplitude_values: tuple[float, ...] = (0.45, 0.6, 0.75, 0.9, 1.05, 1.2),
+        comparison_margin: float = 0.15,
+        global_gain_min: float = 0.85,
+        global_gain_max: float = 1.15,
+        pathway_gain_min: float = 0.8,
+        pathway_gain_max: float = 1.2,
+        gain_drift_std: float = 0.03,
+        noise_std: float = 0.08,
+        cue_noise_std: float = 0.02,
+        distractor_burst_prob: float = 0.35,
+        distractor_burst_scale: float = 1.5,
+        distractor_burst_duration: int = 4,
+        positive_input_encoding: bool = False,
+    ):
+        super().__init__()
+        if n_pathways < 2:
+            raise ValueError("n_pathways must be >= 2")
+        if pathway_dim < 1:
+            raise ValueError("pathway_dim must be >= 1")
+        if min_delay < 0 or max_delay < min_delay:
+            raise ValueError(
+                f"Expected 0 <= min_delay <= max_delay, got {min_delay}, {max_delay}"
+            )
+        if len(amplitude_values) < 2:
+            raise ValueError("amplitude_values must contain at least two entries")
+        if global_gain_min <= 0 or pathway_gain_min <= 0:
+            raise ValueError("Gain ranges must be positive")
+
+        self.n_samples = int(n_samples)
+        self.n_pathways = int(n_pathways)
+        self.pathway_dim = int(pathway_dim)
+        self.cue_duration = int(cue_duration)
+        self.stimulus_duration = int(stimulus_duration)
+        self.min_delay = int(min_delay)
+        self.max_delay = int(max_delay)
+        self.response_duration = int(response_duration)
+        self.comparison_margin = float(comparison_margin)
+        self.global_gain_min = float(global_gain_min)
+        self.global_gain_max = float(global_gain_max)
+        self.pathway_gain_min = float(pathway_gain_min)
+        self.pathway_gain_max = float(pathway_gain_max)
+        self.gain_drift_std = float(gain_drift_std)
+        self.noise_std = float(noise_std)
+        self.cue_noise_std = float(cue_noise_std)
+        self.distractor_burst_prob = float(distractor_burst_prob)
+        self.distractor_burst_scale = float(distractor_burst_scale)
+        self.distractor_burst_duration = max(1, int(distractor_burst_duration))
+        self.positive_input_encoding = bool(positive_input_encoding)
+
+        self.context_dim = self.n_pathways
+        self.phase_marker_dim = 3
+        self.pathway_feature_start = self.context_dim
+        self.pathway_feature_end = self.context_dim + self.n_pathways * self.pathway_dim
+        self.phase_marker_start = self.pathway_feature_end
+        self.input_dim = self.phase_marker_start + self.phase_marker_dim
+        self.max_total_len = (
+            self.cue_duration
+            + 2 * self.stimulus_duration
+            + self.max_delay
+            + self.response_duration
+        )
+
+        amplitude_tensor = torch.tensor(amplitude_values, dtype=torch.float32)
+        if amplitude_tensor.numel() < 2:
+            raise ValueError("Need at least two amplitude values for comparison")
+        self.amplitude_values = amplitude_tensor
+
+        self.inputs = torch.zeros(self.n_samples, self.max_total_len, self.input_dim)
+        self.targets = torch.zeros(self.n_samples, dtype=torch.long)
+        self.delays = torch.zeros(self.n_samples, dtype=torch.long)
+        self.relevant_pathways = torch.zeros(self.n_samples, dtype=torch.long)
+        self.seq_lengths = torch.zeros(self.n_samples, dtype=torch.long)
+        self.sample1_values = torch.zeros(self.n_samples, self.n_pathways)
+        self.sample2_values = torch.zeros(self.n_samples, self.n_pathways)
+        self.global_gains = torch.zeros(self.n_samples, dtype=torch.float32)
+        self.pathway_gain_sample1 = torch.zeros(self.n_samples, self.n_pathways)
+        self.pathway_gain_sample2 = torch.zeros(self.n_samples, self.n_pathways)
+        self.delay_burst_flags = torch.zeros(self.n_samples, dtype=torch.bool)
+
+        self.pathway_templates = self._build_pathway_templates()
+        self.pathway_slices = [
+            slice(
+                self.pathway_feature_start + pathway_idx * self.pathway_dim,
+                self.pathway_feature_start + (pathway_idx + 1) * self.pathway_dim,
+            )
+            for pathway_idx in range(self.n_pathways)
+        ]
+
+        for i in range(self.n_samples):
+            relevant = torch.randint(0, self.n_pathways, (1,)).item()
+            delay = torch.randint(self.min_delay, self.max_delay + 1, (1,)).item()
+            total_len = (
+                self.cue_duration
+                + 2 * self.stimulus_duration
+                + delay
+                + self.response_duration
+            )
+            cue_end = self.cue_duration
+            s1_end = cue_end + self.stimulus_duration
+            s2_start = s1_end + delay
+            s2_end = s2_start + self.stimulus_duration
+            response_start = s2_end
+
+            global_gain = torch.empty(1).uniform_(
+                self.global_gain_min, self.global_gain_max
+            )[0]
+            pathway_gain_base = torch.empty(self.n_pathways).uniform_(
+                self.pathway_gain_min, self.pathway_gain_max
+            )
+            sample2_drift = torch.exp(
+                0.25 * torch.randn(self.n_pathways, dtype=torch.float32)
+            )
+            pathway_gain_s1 = pathway_gain_base
+            pathway_gain_s2 = torch.clamp(
+                pathway_gain_base * sample2_drift,
+                min=self.pathway_gain_min,
+                max=self.pathway_gain_max,
+            )
+
+            target = int(torch.rand(1).item() > 0.5)
+            relevant_v1, relevant_v2 = self._sample_relevant_pair(target)
+
+            values1 = self._sample_pathway_values()
+            values2 = self._sample_pathway_values()
+            values1[relevant] = relevant_v1
+            values2[relevant] = relevant_v2
+
+            self.targets[i] = target
+            self.delays[i] = delay
+            self.relevant_pathways[i] = relevant
+            self.seq_lengths[i] = total_len
+            self.sample1_values[i] = values1
+            self.sample2_values[i] = values2
+            self.global_gains[i] = global_gain
+            self.pathway_gain_sample1[i] = pathway_gain_s1
+            self.pathway_gain_sample2[i] = pathway_gain_s2
+
+            cue = torch.zeros(self.cue_duration, self.context_dim)
+            cue[:, relevant] = 1.0
+            cue = cue + self.cue_noise_std * torch.randn_like(cue)
+            if self.positive_input_encoding:
+                cue = cue.clamp_min(0.0)
+            self.inputs[i, :cue_end, : self.context_dim] = cue
+
+            self.inputs[i, cue_end:s1_end, self.phase_marker_start] = 1.0
+            self.inputs[i, s2_start:s2_end, self.phase_marker_start + 1] = 1.0
+            self.inputs[i, response_start:total_len, self.phase_marker_start + 2] = 1.0
+
+            for pathway_idx in range(self.n_pathways):
+                template = self.pathway_templates[pathway_idx]
+                gain_trace1 = self._build_gain_trace(pathway_gain_s1[pathway_idx])
+                gain_trace2 = self._build_gain_trace(pathway_gain_s2[pathway_idx])
+
+                seg1 = (
+                    global_gain
+                    * gain_trace1.unsqueeze(-1)
+                    * values1[pathway_idx]
+                    * template
+                )
+                seg2 = (
+                    global_gain
+                    * gain_trace2.unsqueeze(-1)
+                    * values2[pathway_idx]
+                    * template
+                )
+                seg1 = seg1 + self.noise_std * torch.randn_like(seg1)
+                seg2 = seg2 + self.noise_std * torch.randn_like(seg2)
+                if self.positive_input_encoding:
+                    seg1 = seg1.clamp_min(0.0)
+                    seg2 = seg2.clamp_min(0.0)
+
+                block = self.pathway_slices[pathway_idx]
+                self.inputs[i, cue_end:s1_end, block] = seg1
+                self.inputs[i, s2_start:s2_end, block] = seg2
+
+            if (
+                delay >= self.distractor_burst_duration
+                and torch.rand(1).item() < self.distractor_burst_prob
+            ):
+                burst_rel = torch.randint(0, self.n_pathways - 1, (1,)).item()
+                burst_pathway = burst_rel if burst_rel < relevant else burst_rel + 1
+                burst_start = torch.randint(
+                    0, delay - self.distractor_burst_duration + 1, (1,)
+                ).item()
+                burst_end = burst_start + self.distractor_burst_duration
+                delay_start = s1_end + burst_start
+                delay_end = s1_end + burst_end
+                burst_template = self.pathway_templates[burst_pathway][
+                    : self.distractor_burst_duration
+                ]
+                burst_gain = self._build_gain_trace(
+                    pathway_gain_s2[burst_pathway],
+                    length=self.distractor_burst_duration,
+                )
+                burst = (
+                    global_gain
+                    * burst_gain.unsqueeze(-1)
+                    * self.distractor_burst_scale
+                    * burst_template
+                )
+                burst = burst + self.noise_std * torch.randn_like(burst)
+                if self.positive_input_encoding:
+                    burst = burst.clamp_min(0.0)
+                self.inputs[
+                    i, delay_start:delay_end, self.pathway_slices[burst_pathway]
+                ] += burst
+                self.delay_burst_flags[i] = True
+
+    def _build_pathway_templates(self) -> torch.Tensor:
+        time = torch.linspace(0.0, 1.0, self.stimulus_duration)
+        templates = torch.zeros(
+            self.n_pathways, self.stimulus_duration, self.pathway_dim
+        )
+        for pathway_idx in range(self.n_pathways):
+            base_phase = 2.0 * math.pi * pathway_idx / self.n_pathways
+            for feature_idx in range(self.pathway_dim):
+                freq = 1.0 + 0.35 * feature_idx
+                waveform = torch.sin(2.0 * math.pi * freq * time + base_phase)
+                waveform = waveform + 0.35 * torch.cos(
+                    2.0 * math.pi * (0.5 + 0.2 * pathway_idx) * time + 0.7 * feature_idx
+                )
+                if self.positive_input_encoding:
+                    waveform = waveform - waveform.min()
+                    waveform = waveform / waveform.max().clamp(min=1e-6)
+                else:
+                    waveform = waveform / waveform.std().clamp(min=1e-6)
+                templates[pathway_idx, :, feature_idx] = waveform
+        return templates
+
+    def _sample_pathway_values(self) -> torch.Tensor:
+        indices = torch.randint(
+            0, len(self.amplitude_values), (self.n_pathways,), dtype=torch.long
+        )
+        return self.amplitude_values.index_select(0, indices).clone()
+
+    def _sample_relevant_pair(self, target: int) -> tuple[float, float]:
+        valid_pairs: list[tuple[float, float]] = []
+        values = self.amplitude_values.tolist()
+        for v1 in values:
+            for v2 in values:
+                if abs(v2 - v1) < self.comparison_margin:
+                    continue
+                if int(v2 > v1) == int(target):
+                    valid_pairs.append((float(v1), float(v2)))
+        if not valid_pairs:
+            raise ValueError(
+                "No valid amplitude pairs satisfy the requested comparison_margin"
+            )
+        pair_idx = torch.randint(0, len(valid_pairs), (1,)).item()
+        return valid_pairs[pair_idx]
+
+    def _build_gain_trace(self, base_gain: torch.Tensor, length: Optional[int] = None):
+        length = self.stimulus_duration if length is None else int(length)
+        if self.gain_drift_std <= 0.0 or length <= 1:
+            return torch.full((length,), float(base_gain), dtype=torch.float32)
+
+        log_drift = self.gain_drift_std * torch.randn(length, dtype=torch.float32)
+        trace = float(base_gain) * torch.exp(torch.cumsum(log_drift, dim=0) / length)
+        return trace.clamp(
+            min=0.5 * self.pathway_gain_min,
+            max=1.5 * self.pathway_gain_max,
         )
 
     def __len__(self):
@@ -1525,11 +1874,13 @@ class ContextDependentDecisionDataset(Dataset):
         late_context_switch_prob: float = 0.0,
         context_signal_scale: float = 1.0,
         return_seq_lengths: bool = False,
+        positive_input_encoding: bool = False,
     ):
         super().__init__()
         self.n_samples = n_samples
         self.signal_dim = signal_dim
-        self.input_dim = 2 + 2 * signal_dim
+        self.positive_input_encoding = bool(positive_input_encoding)
+        self.input_dim = 2 + (4 if self.positive_input_encoding else 2) * signal_dim
         self.context_duration = context_duration
         self.integration_duration = integration_duration
         self.variable_integration = bool(variable_delay)
@@ -1660,8 +2011,22 @@ class ContextDependentDecisionDataset(Dataset):
                         a_signal = a_signal + burst
 
                 abs_t = context_duration + t
-                self.inputs[i, abs_t, 2 : 2 + signal_dim] = a_signal
-                self.inputs[i, abs_t, 2 + signal_dim :] = b_signal
+                if self.positive_input_encoding:
+                    a_pos = torch.relu(a_signal)
+                    a_neg = torch.relu(-a_signal)
+                    b_pos = torch.relu(b_signal)
+                    b_neg = torch.relu(-b_signal)
+                    self.inputs[i, abs_t, 2 : 2 + signal_dim] = a_pos
+                    self.inputs[i, abs_t, 2 + signal_dim : 2 + 2 * signal_dim] = a_neg
+                    self.inputs[
+                        i,
+                        abs_t,
+                        2 + 2 * signal_dim : 2 + 3 * signal_dim,
+                    ] = b_pos
+                    self.inputs[i, abs_t, 2 + 3 * signal_dim :] = b_neg
+                else:
+                    self.inputs[i, abs_t, 2 : 2 + signal_dim] = a_signal
+                    self.inputs[i, abs_t, 2 + signal_dim :] = b_signal
 
                 if active_context == 0:
                     relevant_score += sign_a * coh_a
@@ -1721,6 +2086,7 @@ class SwitchingContextDecisionDataset(Dataset):
         context_signal_scale: float = 1.0,
         switch_signal_scale: float = 0.35,
         min_blocks: int = 2,
+        positive_input_encoding: bool = False,
     ):
         super().__init__()
         self.n_samples = n_samples
@@ -1729,7 +2095,8 @@ class SwitchingContextDecisionDataset(Dataset):
         self.trial_duration = max(1, trial_duration)
         self.min_context_duration = max(self.trial_duration, min_context_duration)
         self.max_context_duration = max(self.min_context_duration, max_context_duration)
-        self.input_dim = 2 + 2 * signal_dim
+        self.positive_input_encoding = bool(positive_input_encoding)
+        self.input_dim = 2 + (4 if self.positive_input_encoding else 2) * signal_dim
 
         coherence_tensor = torch.tensor(coherence_levels, dtype=torch.float32)
         context_cue_duration = max(1, context_cue_duration)
@@ -1841,8 +2208,22 @@ class SwitchingContextDecisionDataset(Dataset):
                             else:
                                 a_signal = a_signal + burst
 
-                        self.inputs[i, abs_t, 2 : 2 + signal_dim] = a_signal
-                        self.inputs[i, abs_t, 2 + signal_dim :] = b_signal
+                        if self.positive_input_encoding:
+                            a_pos = torch.relu(a_signal)
+                            a_neg = torch.relu(-a_signal)
+                            b_pos = torch.relu(b_signal)
+                            b_neg = torch.relu(-b_signal)
+                            self.inputs[i, abs_t, 2 : 2 + signal_dim] = a_pos
+                            self.inputs[
+                                i, abs_t, 2 + signal_dim : 2 + 2 * signal_dim
+                            ] = a_neg
+                            self.inputs[
+                                i, abs_t, 2 + 2 * signal_dim : 2 + 3 * signal_dim
+                            ] = b_pos
+                            self.inputs[i, abs_t, 2 + 3 * signal_dim :] = b_neg
+                        else:
+                            self.inputs[i, abs_t, 2 : 2 + signal_dim] = a_signal
+                            self.inputs[i, abs_t, 2 + signal_dim :] = b_signal
                         self.conflict_mask[i, abs_t] = conflict
 
                         if current_context == 0:
@@ -1890,9 +2271,12 @@ class TimescaleGeneralizationDataset(Dataset):
         min_delay: int = 10,
         max_delay: int = 100,
         probe_duration: int = 10,
+        positive_input_encoding: bool = False,
+        noise_std: float = 0.3,
     ):
         super().__init__()
         self.n_samples = n_samples
+        self.positive_input_encoding = bool(positive_input_encoding)
         max_seq_len = stimulus_duration + max_delay + probe_duration
         self.max_seq_len = max_seq_len
 
@@ -1903,18 +2287,30 @@ class TimescaleGeneralizationDataset(Dataset):
         matches = torch.randint(0, 2, (n_samples,))
 
         # Generate all templates and probes at once
-        templates = torch.randn(n_samples, stimulus_dim)
-        templates = templates / templates.norm(dim=1, keepdim=True) * 2.0
-        alt_probes = torch.randn(n_samples, stimulus_dim)
-        alt_probes = alt_probes / alt_probes.norm(dim=1, keepdim=True) * 2.0
+        if self.positive_input_encoding:
+            templates = torch.rand(n_samples, stimulus_dim)
+            templates = (
+                templates / templates.norm(dim=1, keepdim=True).clamp_min(1e-6) * 2.0
+            )
+            alt_probes = torch.rand(n_samples, stimulus_dim)
+            alt_probes = (
+                alt_probes / alt_probes.norm(dim=1, keepdim=True).clamp_min(1e-6) * 2.0
+            )
+        else:
+            templates = torch.randn(n_samples, stimulus_dim)
+            templates = templates / templates.norm(dim=1, keepdim=True) * 2.0
+            alt_probes = torch.randn(n_samples, stimulus_dim)
+            alt_probes = alt_probes / alt_probes.norm(dim=1, keepdim=True) * 2.0
         probes = torch.where(matches.unsqueeze(1).bool(), templates, alt_probes)
 
         # Stimulus noise and probe noise
-        stim_noise = 0.3 * torch.randn(n_samples, stimulus_duration, stimulus_dim)
-        probe_noise = 0.3 * torch.randn(n_samples, probe_duration, stimulus_dim)
+        stim_noise = noise_std * torch.randn(n_samples, stimulus_duration, stimulus_dim)
+        probe_noise = noise_std * torch.randn(n_samples, probe_duration, stimulus_dim)
 
         # Fill stimulus phase (same for all samples)
         inputs[:, :stimulus_duration] = templates.unsqueeze(1) + stim_noise
+        if self.positive_input_encoding:
+            inputs[:, :stimulus_duration].clamp_(min=0.0)
 
         # Fill probe phase (varies by delay)
         for i in range(n_samples):
@@ -1922,6 +2318,8 @@ class TimescaleGeneralizationDataset(Dataset):
             total_len = stimulus_duration + d + probe_duration
             probe_start = stimulus_duration + d
             inputs[i, probe_start:total_len] = probes[i].unsqueeze(0) + probe_noise[i]
+            if self.positive_input_encoding:
+                inputs[i, probe_start:total_len].clamp_(min=0.0)
             seq_lengths[i] = total_len
 
         targets = matches
@@ -2038,8 +2436,13 @@ def get_sequence_datasets(
     elif dataset_name in {
         "context_dependent_decision",
         "context_dependent_decision_hard",
+        "context_dependent_decision_positive",
+        "context_dependent_decision_hard_positive",
     }:
         n_train = kwargs.get("n_samples", 20000)
+        positive_input_encoding = dataset_name.endswith("_positive") or kwargs.get(
+            "positive_input_encoding", False
+        )
         common = {
             "signal_dim": kwargs.get("signal_dim", 8),
             "context_duration": kwargs.get("context_duration", 10),
@@ -2063,13 +2466,20 @@ def get_sequence_datasets(
             "late_context_switch_prob": kwargs.get("late_context_switch_prob", 0.0),
             "context_signal_scale": kwargs.get("context_signal_scale", 1.0),
             "return_seq_lengths": kwargs.get("return_seq_lengths", False),
+            "positive_input_encoding": positive_input_encoding,
         }
         train_full = ContextDependentDecisionDataset(n_samples=n_train, **common)
         test_ds = ContextDependentDecisionDataset(
             n_samples=max(n_train // 5, 2000), **common
         )
-    elif dataset_name == "switching_context_decision":
+    elif dataset_name in {
+        "switching_context_decision",
+        "switching_context_decision_positive",
+    }:
         n_train = kwargs.get("n_samples", 16000)
+        positive_input_encoding = dataset_name.endswith("_positive") or kwargs.get(
+            "positive_input_encoding", False
+        )
         common = {
             "signal_dim": kwargs.get("signal_dim", 8),
             "seq_len": kwargs.get("seq_len", 360),
@@ -2089,19 +2499,28 @@ def get_sequence_datasets(
             "context_signal_scale": kwargs.get("context_signal_scale", 1.0),
             "switch_signal_scale": kwargs.get("switch_signal_scale", 0.35),
             "min_blocks": kwargs.get("min_blocks", 2),
+            "positive_input_encoding": positive_input_encoding,
         }
         train_full = SwitchingContextDecisionDataset(n_samples=n_train, **common)
         test_ds = SwitchingContextDecisionDataset(
             n_samples=max(n_train // 5, 2000), **common
         )
-    elif dataset_name == "timescale_generalization":
+    elif dataset_name in {
+        "timescale_generalization",
+        "timescale_generalization_positive",
+    }:
         n_train = kwargs.get("n_samples", 20000)
+        positive_input_encoding = dataset_name.endswith("_positive") or kwargs.get(
+            "positive_input_encoding", False
+        )
         common_defaults = {
             "stimulus_dim": kwargs.get("stimulus_dim", 16),
             "stimulus_duration": kwargs.get("stimulus_duration", 10),
             "min_delay": kwargs.get("min_delay", 10),
             "max_delay": kwargs.get("max_delay", 100),
             "probe_duration": kwargs.get("probe_duration", 10),
+            "positive_input_encoding": positive_input_encoding,
+            "noise_std": kwargs.get("noise_std", 0.3),
         }
         explicit_splits = any(
             isinstance(kwargs.get(split_name), dict)
@@ -2133,8 +2552,14 @@ def get_sequence_datasets(
         test_ds = TimescaleGeneralizationDataset(
             n_samples=max(n_train // 5, 2000), **common_defaults
         )
-    elif dataset_name == "odr_generalization":
+    elif dataset_name in {
+        "odr_generalization",
+        "odr_generalization_positive",
+    }:
         n_train = kwargs.get("n_samples", 20000)
+        positive_input_encoding = dataset_name.endswith("_positive") or kwargs.get(
+            "positive_input_encoding", False
+        )
         common_defaults = {
             "n_targets": kwargs.get("n_targets", 8),
             "input_tuning_dim": kwargs.get("input_tuning_dim", 16),
@@ -2145,6 +2570,7 @@ def get_sequence_datasets(
             "go_duration": kwargs.get("go_duration", 8),
             "tuning_kappa": kwargs.get("tuning_kappa", 2.0),
             "cue_noise_std": kwargs.get("cue_noise_std", 0.05),
+            "positive_input_encoding": positive_input_encoding,
         }
         explicit_splits = any(
             isinstance(kwargs.get(split_name), dict)
@@ -2178,8 +2604,14 @@ def get_sequence_datasets(
         test_ds = OculomotorDelayedResponseDataset(
             n_samples=max(n_train // 5, 2000), **common_defaults
         )
-    elif dataset_name == "romo_delay_comparison":
+    elif dataset_name in {
+        "romo_delay_comparison",
+        "romo_delay_comparison_positive",
+    }:
         n_train = kwargs.get("n_samples", 20000)
+        positive_input_encoding = dataset_name.endswith("_positive") or kwargs.get(
+            "positive_input_encoding", False
+        )
         common_defaults = {
             "frequency_values": tuple(
                 kwargs.get("frequency_values", (2.0, 3.0, 4.0, 5.0, 6.0, 7.0))
@@ -2189,6 +2621,9 @@ def get_sequence_datasets(
             "max_delay": kwargs.get("max_delay", 100),
             "response_duration": kwargs.get("response_duration", 8),
             "noise_std": kwargs.get("noise_std", 0.08),
+            "positive_input_encoding": positive_input_encoding,
+            "tuning_dim": kwargs.get("tuning_dim", 8),
+            "tuning_sigma": kwargs.get("tuning_sigma", None),
         }
         explicit_splits = any(
             isinstance(kwargs.get(split_name), dict)
@@ -2216,6 +2651,73 @@ def get_sequence_datasets(
 
         train_full = RomoDelayComparisonDataset(n_samples=n_train, **common_defaults)
         test_ds = RomoDelayComparisonDataset(
+            n_samples=max(n_train // 5, 2000), **common_defaults
+        )
+    elif dataset_name in {
+        "gain_modulated_contextual_comparison",
+        "gain_modulated_contextual_comparison_positive",
+    }:
+        n_train = kwargs.get("n_samples", 24000)
+        positive_input_encoding = dataset_name.endswith("_positive") or kwargs.get(
+            "positive_input_encoding", False
+        )
+        common_defaults = {
+            "n_pathways": kwargs.get("n_pathways", 4),
+            "pathway_dim": kwargs.get("pathway_dim", 4),
+            "cue_duration": kwargs.get("cue_duration", 8),
+            "stimulus_duration": kwargs.get("stimulus_duration", 16),
+            "min_delay": kwargs.get("min_delay", 20),
+            "max_delay": kwargs.get("max_delay", 80),
+            "response_duration": kwargs.get("response_duration", 8),
+            "amplitude_values": tuple(
+                kwargs.get(
+                    "amplitude_values",
+                    (0.45, 0.6, 0.75, 0.9, 1.05, 1.2),
+                )
+            ),
+            "comparison_margin": kwargs.get("comparison_margin", 0.15),
+            "global_gain_min": kwargs.get("global_gain_min", 0.85),
+            "global_gain_max": kwargs.get("global_gain_max", 1.15),
+            "pathway_gain_min": kwargs.get("pathway_gain_min", 0.8),
+            "pathway_gain_max": kwargs.get("pathway_gain_max", 1.2),
+            "gain_drift_std": kwargs.get("gain_drift_std", 0.03),
+            "noise_std": kwargs.get("noise_std", 0.08),
+            "cue_noise_std": kwargs.get("cue_noise_std", 0.02),
+            "distractor_burst_prob": kwargs.get("distractor_burst_prob", 0.35),
+            "distractor_burst_scale": kwargs.get("distractor_burst_scale", 1.5),
+            "distractor_burst_duration": kwargs.get("distractor_burst_duration", 4),
+            "positive_input_encoding": positive_input_encoding,
+        }
+        explicit_splits = any(
+            isinstance(kwargs.get(split_name), dict)
+            for split_name in ("train", "valid", "test")
+        )
+        if explicit_splits:
+
+            def _build_split(split_name: str, default_n_samples: int):
+                split_kwargs = dict(kwargs.get(split_name, {}))
+                split_params = {
+                    **common_defaults,
+                    **{
+                        key: value
+                        for key, value in split_kwargs.items()
+                        if key != "n_samples"
+                    },
+                }
+                split_n = split_kwargs.get("n_samples", default_n_samples)
+                return GainModulatedContextualComparisonDataset(
+                    n_samples=split_n, **split_params
+                )
+
+            train_ds = _build_split("train", n_train)
+            valid_ds = _build_split("valid", max(n_train // 5, 2000))
+            test_ds = _build_split("test", max(n_train // 5, 2000))
+            return train_ds, valid_ds, test_ds
+
+        train_full = GainModulatedContextualComparisonDataset(
+            n_samples=n_train, **common_defaults
+        )
+        test_ds = GainModulatedContextualComparisonDataset(
             n_samples=max(n_train // 5, 2000), **common_defaults
         )
     elif dataset_name == "multi_sine_forecast":

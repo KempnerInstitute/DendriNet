@@ -37,6 +37,7 @@ class VarianceTopKLinear(TopKLinear):
         init_method="xavier_normal",
         init_gain=1.0,
         noise_level=0.0,
+        forbidden_input_index_per_output=None,
         momentum=0.9,  # EMA momentum for tracking statistics
     ):
         super().__init__(
@@ -48,6 +49,7 @@ class VarianceTopKLinear(TopKLinear):
             init_method=init_method,
             init_gain=init_gain,
             noise_level=noise_level,
+            forbidden_input_index_per_output=forbidden_input_index_per_output,
         )
         self.momentum = momentum
 
@@ -127,6 +129,7 @@ class VarianceTopKLinear(TopKLinear):
         importance_scores = (
             apply_weight_transform(w_for_topk, self.weight_transform) * var_expanded
         )
+        importance_scores = self._apply_forbidden_scores(importance_scores)
 
         # Perform topk selection per neuron
         topk_indices = torch.topk(
@@ -136,6 +139,7 @@ class VarianceTopKLinear(TopKLinear):
         # Create mask based on selected indices
         mask = torch.zeros_like(self.pre_w)
         mask[torch.arange(self.pre_w.shape[0])[:, None], topk_indices] = 1
+        mask = self._apply_forbidden_mask(mask)
 
         return mask
 

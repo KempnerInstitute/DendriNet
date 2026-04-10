@@ -51,6 +51,7 @@ class DendriNet(nn.Module):
         print_hooks=False,
         reactivation_init_m=1,
         reactivation_init_b=0.5,
+        reactivation_match_additive_init_to_shunting=False,
         dbl_init_method="analytical_expectation",
         # DEEPST specific parameters, clean up later
         excitatory_target_density=0.1,
@@ -133,6 +134,7 @@ class DendriNet(nn.Module):
                 reactivate=reactivate,
                 reactivation_init_m=reactivation_init_m,
                 reactivation_init_b=reactivation_init_b,
+                reactivation_match_additive_init_to_shunting=reactivation_match_additive_init_to_shunting,
                 dbl_init_method=dbl_init_method,
                 reactivation_type=reactivation_type,
                 reactivation_strategy=reactivation_strategy,
