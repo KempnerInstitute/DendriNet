@@ -94,7 +94,7 @@ class AblationPlotter(BasePlotter):
 
         if (
             not valid_data["network_category"]
-            .isin(["dendritic_shunting", "dendritic_additive"])
+            .isin(["dendritic_shunting", "dendritic_additive", "dendritic_signed"])
             .any()
         ):
             print("No shunting/no_shunting data for ablation analysis")
@@ -152,7 +152,7 @@ class AblationPlotter(BasePlotter):
                         self._create_ablation_plots_1d_sweep(
                             valid_data=valid_data,
                             sweep_var="max_gain_factor",
-                            var_name="Max Gain Factor",
+                            var_name="Maximum Gain",
                             logscale=True,
                             output_dir=plots_dir,
                             method=method,
@@ -278,13 +278,16 @@ class AblationPlotter(BasePlotter):
             return plot_paths
 
         # Create separate plots for each network category
-        categories = ["dendritic_shunting", "dendritic_additive"]
+        categories = ["dendritic_shunting", "dendritic_additive", "dendritic_signed"]
 
-        fig, axes = plt.subplots(1, 2, figsize=(15, 6))
+        fig, axes = plt.subplots(1, 3, figsize=(21, 6))
         fig.suptitle(
             f"{method.title()} {target.title()} Ablation: {metric.title()} vs {var_name} by Depth",
             fontsize=16,
         )
+
+        cmap = plt.get_cmap("tab10")
+        depth_colors = {d: cmap(d / 9.0) for d in depths}
 
         for idx, category in enumerate(categories):
             ax = axes[idx]
@@ -329,6 +332,7 @@ class AblationPlotter(BasePlotter):
                             y_vals,
                             marker="o",
                             label=f"Depth {depth}",
+                            color=depth_colors[depth],
                             alpha=0.8,
                             linewidth=2,
                         )
