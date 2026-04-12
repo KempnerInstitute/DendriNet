@@ -230,17 +230,17 @@ class AblationAnalyzer(AbstractAnalyzer):
                     if module.branch_excitation is not None and hasattr(
                         module.branch_excitation, "pre_w"
                     ):
-                        module.branch_excitation.pre_w.data.fill_(-1000)
+                        module.branch_excitation.pre_w.data.fill_(self.lesion_value)
                 if target_type_norm in {"all_synapses", "inhibition"}:
                     if module.branch_inhibition is not None and hasattr(
                         module.branch_inhibition, "pre_w"
                     ):
-                        module.branch_inhibition.pre_w.data.fill_(-1000)
+                        module.branch_inhibition.pre_w.data.fill_(self.lesion_value)
                 if target_type_norm == "upstream":
                     if hasattr(module, "branches_to_output") and hasattr(
                         module.branches_to_output, "log_weight"
                     ):
-                        module.branches_to_output.log_weight.data.fill_(-1000)
+                        module.branches_to_output.log_weight.data.fill_(self.lesion_value)
 
             elif ablation_method in {"shuffle", "mean_clamp"}:
                 # Signal-level intervention: manipulate the input signals, not weights.
@@ -345,11 +345,11 @@ class AblationAnalyzer(AbstractAnalyzer):
 
         for branch_ix in range(n_branches):
             if target_type_norm in {"all_synapses", "excitation"}:
-                module.branch_excitation.pre_w.data[branch_ix, :] = -1000
+                module.branch_excitation.pre_w.data[branch_ix, :] = self.lesion_value
             if target_type_norm in {"all_synapses", "inhibition"}:
-                module.branch_inhibition.pre_w.data[branch_ix, :] = -1000
+                module.branch_inhibition.pre_w.data[branch_ix, :] = self.lesion_value
             if target_type_norm == "upstream":
-                module.branches_to_output.log_weight.data[branch_ix, :] = -1000
+                module.branches_to_output.log_weight.data[branch_ix, :] = self.lesion_value
 
             if self.accuracy:
                 _evaluate_metric(
@@ -455,6 +455,10 @@ class AblationAnalyzer(AbstractAnalyzer):
             assert isinstance(model.core_network, ExcitationInhibitionNetwork)
         except AssertionError:
             return
+        
+        self.lesion_value = -1000.0
+        if model.core_network.weight_transform in ["identity", "relu"]:
+            self.lesion_value = 0.0
 
         model = model.to(device)
         model.eval()
