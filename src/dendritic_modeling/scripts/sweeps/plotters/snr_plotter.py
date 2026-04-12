@@ -119,7 +119,7 @@ class SNRPlotter(BasePlotter):
 
         if (
             not valid_data["network_category"]
-            .isin(["dendritic_shunting", "dendritic_additive"])
+            .isin(["dendritic_shunting", "dendritic_additive", "dendritic_signed"])
             .any()
         ):
             print("No shunting/no_shunting data for ablation analysis")
@@ -173,7 +173,7 @@ class SNRPlotter(BasePlotter):
                     self._create_snr_plots_1d_sweep(
                         valid_data=valid_data,
                         sweep_var="max_gain_factor",
-                        var_name="Max Gain Factor",
+                        var_name="Maximum Gain",
                         logscale=True,
                         output_dir=plots_dir,
                         input_prefixes=input_prefixes,
@@ -310,6 +310,18 @@ class SNRPlotter(BasePlotter):
                     depths=depths,
                 )
             )
+        
+        for act_metric in act_metrics:
+            plot_paths.extend(
+                self._create_soma_snr_plots_1d_sweep(
+                    valid_data=valid_data,
+                    sweep_var=sweep_var,
+                    var_name=var_name,
+                    logscale=logscale,
+                    output_dir=output_dir,
+                    act_metric=act_metric
+                )
+            )
 
         return plot_paths
 
@@ -327,86 +339,107 @@ class SNRPlotter(BasePlotter):
         plot_paths = []
 
         # Create separate plots for each network category
-        categories = ["dendritic_shunting", "dendritic_additive"]
-
-        # Choose a colormap (viridis, plasma, inferno, tab10, etc.)
-        # cmap = plt.get_cmap("gnuplot2")
-
-        # # Create depth -> color mapping
-        # depth_colors = {
-        #     depth: cmap(norm_val) for depth, norm_val in zip(depths, normalized_depths)
-        # }
-
-        color_mapping = {"exc_inputs": "m", "inh_inputs": "g"}
-
-        fig, axes = plt.subplots(1, 2, figsize=(15, 6))
+        categories = [
+            "dendritic_shunting", 
+            "flat_shunting",
+            "dendritic_additive",
+            "flat_additive",
+            "dendritic_signed",
+            "flat_signed",
+            "dendritic_mlp",
+            "flat_mlp",
+        ]
+        
+        fig, ax = plt.subplots(1, 1, figsize=(8, 6))
         fig.suptitle(
             "Input Disciminability: " + f"{METRIC_MAPPING[input_metric]} vs {var_name}",
             fontsize=16,
         )
 
+
+        def _plot_data(
+            category_data: pd.DataFrame,
+            category: str,
+            input_prefix: str,
+            input_metric: str,
+            label: str,
+            color: str,
+            linestyle: str,
+            marker: str,
+        ):
+            field_name = f"{input_prefix}_inputs_{input_metric}"
+            mean_col = f"snr_{field_name}_mean"
+            std_col = f"snr_{field_name}_std"
+
+            sorted_data = category_data.sort_values(sweep_var)
+
+            # Filter out non-numeric or missing values
+            plot_data = sorted_data[[mean_col, std_col, sweep_var]].dropna()
+            if plot_data.empty:
+                return
+
+            try:
+                # Convert to numeric if needed
+                mean_vals = pd.to_numeric(
+                    plot_data[mean_col], errors="coerce"
+                ).dropna()
+                std_vals = pd.to_numeric(
+                    plot_data[std_col], errors="coerce"
+                ).dropna()
+                x_vals = plot_data.loc[mean_vals.index, sweep_var]
+
+                if len(mean_vals) > 0:
+                    ax.errorbar(
+                        x_vals,
+                        mean_vals,
+                        yerr=std_vals,
+                        marker=marker,
+                        label=label,
+                        color=color,
+                        linestyle=linestyle,
+                        alpha=0.8,
+                        linewidth=2,
+                        capsize=3,
+                    )
+            except Exception as e:
+                print(f"Warning: Could not plot {input_prefix} for {category}: {e}", flush=True)
+                traceback.print_exc()
+
+
         for idx, category in enumerate(categories):
-            ax = axes[idx]
             category_data = valid_data[valid_data["network_category"] == category]
 
-            if category_data.empty:
-                ax.text(
-                    0.5,
-                    0.5,
-                    f"No {category} data",
-                    ha="center",
-                    va="center",
-                    transform=ax.transAxes,
+            if idx == 0:
+                _plot_data(
+                    category_data=category_data,
+                    category=category,
+                    input_prefix="exc",
+                    input_metric=input_metric,
+                    label="exc inputs",
+                    color="k",
+                    linestyle="-",
+                    marker="o"
                 )
-                ax.set_title(f"{category.title()}")
-                continue
-
-            for input_prefix in input_prefixes:
-                mean_col = f"snr_{input_prefix}_{input_metric}_mean"
-                std_col = f"snr_{input_prefix}_{input_metric}_std"
-
-                sorted_data = category_data.sort_values(sweep_var)
-
-                # Filter out non-numeric or missing values
-                plot_data = sorted_data[[mean_col, std_col, sweep_var]].dropna()
-                if plot_data.empty:
-                    continue
-
-                try:
-                    # Convert to numeric if needed
-                    mean_vals = pd.to_numeric(
-                        plot_data[mean_col], errors="coerce"
-                    ).dropna()
-                    std_vals = pd.to_numeric(
-                        plot_data[std_col], errors="coerce"
-                    ).dropna()
-                    x_vals = plot_data.loc[mean_vals.index, sweep_var]
-
-                    if len(mean_vals) > 0:
-                        ax.errorbar(
-                            x_vals,
-                            mean_vals,
-                            yerr=std_vals,
-                            marker="o",
-                            label=f"{SNR_PREFIX_MAP[input_prefix]}",
-                            color=color_mapping[input_prefix],
-                            alpha=0.8,
-                            linewidth=2,
-                            capsize=3,
-                        )
-                except Exception as e:
-                    print(f"Warning: Could not plot {input_prefix} for {category}: {e}")
-                    continue
-
-            self.setup_axes_style(
-                ax=ax,
-                xlabel=var_name,
-                ylabel=f"{METRIC_MAPPING[input_metric]}",
-                title=f"{category.title()}",
-                use_log_x=logscale,
-                grid=True,
+            
+            _plot_data(
+                category_data=category_data,
+                category=category,
+                input_prefix="inh",
+                input_metric=input_metric,
+                label=f"{category} inh inputs",
+                color=self.category_colors.get(category, "black"),
+                linestyle=self.category_linestyles.get(category, "-"),
+                marker=self.category_markers.get(category, "o")
             )
-            ax.legend()
+
+        self.setup_axes_style(
+            ax=ax,
+            xlabel=var_name,
+            ylabel=f"{METRIC_MAPPING[input_metric]}",
+            use_log_x=logscale,
+            grid=True,
+        )
+        ax.legend()
 
         fig.tight_layout()
 
@@ -430,13 +463,13 @@ class SNRPlotter(BasePlotter):
         plot_paths = []
 
         # Create separate plots for each network category
-        categories = ["dendritic_shunting", "dendritic_additive"]
+        categories = ["dendritic_shunting", "dendritic_additive", "dendritic_signed"]
 
         # Create color mapping for depths using a colormap
         cmap = plt.get_cmap("tab10")
         depth_colors = {depth: cmap(depth / 9.0) for depth in depths}
 
-        fig, axes = plt.subplots(1, 2, figsize=(15, 6))
+        fig, axes = plt.subplots(1, 3, figsize=(21, 6))
         fig.suptitle(
             f"{SNR_PREFIX_MAP[act_prefix]} Disciminability: "
             + f"{METRIC_MAPPING[act_metric]} vs {var_name} by Depth",
@@ -512,6 +545,51 @@ class SNRPlotter(BasePlotter):
         plot_paths.append(self.save_figure(fig, plot_path))
 
         return plot_paths
+    
+    def _create_soma_snr_plots_1d_sweep(
+        self,
+        valid_data: pd.DataFrame,
+        sweep_var: str,
+        var_name: str,
+        logscale: bool,
+        output_dir: str,
+        act_metric: str
+    ):
+        """Create soma SNR vs sweep_var plots"""
+        plot_paths = []
+
+        y_col = f"snr_vout_{act_metric}_depth0"
+
+        if f"{y_col}_mean" not in valid_data.columns:
+            return plot_paths
+
+        fig, ax = plt.subplots(1, 1, figsize=(8, 6))
+        fig.suptitle(
+            f"Soma Disciminability: {METRIC_MAPPING[act_metric]} vs {var_name}",
+            fontsize=16,
+        )
+        self.plot_by_category(
+            ax=ax,
+            data=valid_data,
+            x_col=sweep_var,
+            y_col=y_col,
+            category_col="network_category",
+            show_error=True
+        )
+        self.setup_axes_style(
+            ax=ax,
+            xlabel=var_name,
+            ylabel=f"{METRIC_MAPPING[act_metric]}",
+            use_log_x=logscale,
+            grid=True
+        )
+        ax.legend(fontsize=10)
+        fig.tight_layout()
+        
+        plot_path = output_dir / f"soma_act" / f"soma_act_{act_metric}_vs_{sweep_var}.png"
+        plot_paths.append(self.save_figure(fig, plot_path))
+
+        return plot_paths
 
     def _create_snr_heatmaps(
         self,
@@ -554,12 +632,12 @@ class SNRPlotter(BasePlotter):
             return plot_paths
 
         # Create separate plots for each network category
-        categories = ["dendritic_shunting", "dendritic_additive"]
+        categories = ["dendritic_shunting", "dendritic_additive", "dendritic_signed"]
 
         d_prime_sq_str = r"d'$^2$"
 
         # Create subplot layout: len(depths) rows x 2 columns
-        fig, axes = plt.subplots(len(depths), 2, figsize=(15, 3 + 6 * len(depths)))
+        fig, axes = plt.subplots(len(depths), 3, figsize=(21, 3 + 6 * len(depths)))
         fig.suptitle(
             f"{SNR_PREFIX_MAP[prefix]} Disciminality: {d_prime_sq_str} Heatmap ({colx} vs {coly})",
             fontsize=16,
