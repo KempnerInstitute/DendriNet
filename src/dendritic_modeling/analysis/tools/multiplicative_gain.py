@@ -101,6 +101,19 @@ class MultiplicativeGainAnalyzer(AbstractAnalyzer):
             self.mse = False
             self.cosine_similarity = False
         
+
+        train_g_min = 1.0
+        train_g_max = 1.0
+
+        if isinstance(test_dataset, PoissonGeneratorDataset):
+            if test_dataset.multiplicative_gain:
+                if test_dataset.fixed_gain_factor is not None:
+                    train_g_min = test_dataset.fixed_gain_factor
+                    train_g_max = test_dataset.fixed_gain_factor
+                else:
+                    train_g_max = test_dataset.max_gain_factor
+
+        
         if self.logspace:
             log_gain_max = log(self.gain_max)
 
@@ -114,20 +127,20 @@ class MultiplicativeGainAnalyzer(AbstractAnalyzer):
         else:
             gain_factors = torch.linspace(self.gain_min, self.gain_max, self.n_steps)
         
-        data_dict = {
-            "gain_factors": gain_factors.tolist()
-        }
+        gain_factors_list = gain_factors.tolist()
+
+        raw_dict: dict[str, list[float]] = {}
 
         if self.accuracy:
-            data_dict["accuracy"] = []
+            raw_dict["accuracy"] = []
         if self.auc:
-            data_dict["auc"] = []
+            raw_dict["auc"] = []
         if self.categorical_loglikelihood:
-            data_dict["categorical_loglikelihood"] = []
+            raw_dict["categorical_loglikelihood"] = []
         if self.mse:
-            data_dict["mse"] = []
+            raw_dict["mse"] = []
         if self.cosine_similarity:
-            data_dict["cosine_similarity"] = []
+            raw_dict["cosine_similarity"] = []
         
         model = model.to(device)
         model.eval()
@@ -143,9 +156,9 @@ class MultiplicativeGainAnalyzer(AbstractAnalyzer):
             metric_score = metric_func(
                 model, test_ds=dataset, move_device=False
             )[-1]
-            data_dict[metric_key].append(metric_score)
+            raw_dict[metric_key].append(metric_score)
 
-        for gain_factor in data_dict["gain_factors"]:
+        for gain_factor in gain_factors_list:
             scaled_test_inputs = self._apply_gain_to_inputs(test_dataset, gain_factor)
             scaled_test_inputs = scaled_test_inputs.to(device)
             scaled_test_dataset = TensorDataset(scaled_test_inputs, test_labels)
@@ -180,17 +193,95 @@ class MultiplicativeGainAnalyzer(AbstractAnalyzer):
                     metric_key="cosine_similarity",
                     dataset=scaled_test_dataset
                 )
+        
+        ### Evaluate ID generalization
+        id_dict = {}
+        if train_g_min == train_g_max:
+            # normal TensorDataset or PoissonGeneratorDataset with fixed gain factor
+            scaled_test_inputs = self._apply_gain_to_inputs(test_dataset, train_g_min)
+            scaled_test_inputs = scaled_test_inputs.to(device)
+            scaled_test_dataset = TensorDataset(scaled_test_inputs, test_labels)
             
+            if self.accuracy:
+                id_dict["accuracy"] = evaluate_accuracy(
+                    model, test_ds=scaled_test_dataset, move_device=False
+                )[-1]
+            if self.auc:
+                id_dict["auc"] = evaluate_auc(
+                    model, test_ds=scaled_test_dataset, move_device=False
+                )[-1]
+            if self.categorical_loglikelihood:
+                id_dict["categorical_loglikelihood"] = evaluate_categorical_loglikelihood(
+                    model, test_ds=scaled_test_dataset, move_device=False
+                )[-1]
+            if self.mse:
+                id_dict["mse"] = evaluate_mse(
+                    model, test_ds=scaled_test_dataset, move_device=False
+                )[-1]
+            if self.cosine_similarity:
+                id_dict["cosine_similarity"] = evaluate_cosine_similarity(
+                    model, test_ds=scaled_test_dataset, move_device=False
+                )[-1]
+        
+        else:
+            # PoissonGeneratorDataset with variable gain factor
+            id_mask = (gain_factors >= train_g_min) & (gain_factors <= train_g_max)
+            # id_gain_factors = gain_factors[id_mask]
+            # id_pdf = 1 / (id_gain_factors * log(train_g_max / train_g_min))
+            # id_probs = id_pdf / id_pdf.sum()
+
+            for metric, scores in raw_dict.items():
+                scores_tensor = torch.tensor(scores)
+                id_scores = scores_tensor[id_mask]
+                id_mean = id_scores.mean()
+                # id_mean = (id_scores * id_probs).sum()
+                #id_var = ((id_scores - id_mean) ** 2 * id_probs).sum()
+                id_dict[metric] = id_mean.item()
+        
+
+        def _evaluate_ood(
+            ood_mask: torch.Tensor,
+            ood_dict: dict,
+        ):
+            for metric, scores in raw_dict.items():
+                scores_tensor = torch.tensor(scores)
+                ood_scores = scores_tensor[ood_mask]
+                ood_mean = ood_scores.mean()
+                #ood_var = ((ood_scores - ood_mean) ** 2).mean()
+                ood_dict[metric] = ood_mean.item()
+        
+        ### Evaluate OOD generalization on the interval [eval_g_min, train_g_min]
+        ood_lower_dict = {}
+        if self.gain_min < train_g_min:
+            ood_lower_mask = (gain_factors >= self.gain_min) & (gain_factors < train_g_min)
+            _evaluate_ood(ood_mask=ood_lower_mask, ood_dict=ood_lower_dict)
+        
+        ### Evaluate OOD generalization on the interval [train_g_max, eval_g_max]
+        ood_upper_dict = {}
+        if self.gain_max > train_g_max:
+            ood_upper_mask = (gain_factors > train_g_max) & (gain_factors <= self.gain_max)
+            _evaluate_ood(ood_mask=ood_upper_mask, ood_dict=ood_upper_dict)
+        
+
+        ret_dict = {
+            "ID": id_dict,
+            "OOD_lower": ood_lower_dict,
+            "OOD_upper": ood_upper_dict,
+            "gain_factors": gain_factors_list,
+            "raw_scores": raw_dict,
+        }
+        
+        
         if save_path is not None:
             if training:
                 save_path = os.path.join(save_path, "epochs")
             else:
-                metrics = list(data_dict.keys())
-                metrics.remove("gain_factors")
+                metrics = list(raw_dict.keys())
                 
                 for metric in metrics:
                     plot_performance_vs_gain_final(
-                        data_dict=data_dict,
+                        gain_factors=gain_factors_list,
+                        data_dict=raw_dict,
                         metric=metric,
                         logspace=self.logspace,
                         save_path=save_path
@@ -207,9 +298,9 @@ class MultiplicativeGainAnalyzer(AbstractAnalyzer):
                             save_path=save_path
                         )
                 
-            save_dict(data_dict, save_path, f"{filename}.json")
+            save_dict(ret_dict, save_path, f"{filename}.json")
         else:
-            return data_dict
+            return ret_dict
 
     def _initialize_agg_structure(self, data: dict) -> dict:
         """
@@ -298,6 +389,7 @@ class MultiplicativeGainAnalyzer(AbstractAnalyzer):
 
 
 def plot_performance_vs_gain_final(
+    gain_factors: list[float],
     data_dict: dict,
     metric: str,
     logspace: bool,
@@ -312,7 +404,6 @@ def plot_performance_vs_gain_final(
         logspace: Whether to plot the gain factors on a log scale
         save_path: Optional path to save the figure
     """
-    gain_factors = data_dict["gain_factors"]
     metric_values = data_dict[metric]
     
     plt.figure(figsize=(10, 6))
@@ -355,7 +446,7 @@ def plot_performance_vs_gain_training(
         save_path: Path to save the video
     """
     gain_factors = epochs_data["gain_factors"]
-    metric_values_list = epochs_data[metric]
+    metric_values_list = epochs_data["raw_scores"][metric]
     
     # Calculate global y-axis limits across all epochs
     all_metric_values = [val for epoch_values in metric_values_list for val in epoch_values]
