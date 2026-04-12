@@ -23,7 +23,9 @@ from dendritic_modeling.analysis.core.base import AbstractAnalyzer
 from dendritic_modeling.config import CompartmentSNRAnalysisParams
 from dendritic_modeling.models import BaseModel, Classifier
 from dendritic_modeling.networks import (
+    DendriNet,
     DendriticBranchLayer,
+    ExcitationInhibitionLayer,
     ExcitationInhibitionNetwork,
     ParametricActivation,
     TopKLinear,
@@ -68,7 +70,25 @@ class CompartmentSNRAnalyzer(AbstractAnalyzer):
         self.raw_dict = {}
         handles = []
 
-        exc_dendrinet = model.core_network.layers[-1].excitatory_cells
+        core_network: ExcitationInhibitionNetwork = model.core_network
+
+        if self.input_analysis:
+            handle = core_network.register_forward_hook(
+                lambda module, input, output: self.input_forward_hook(
+                    module, input, output
+                )
+            )
+            handles.append(handle)
+
+            if isinstance(core_network.layers[-1].inhibitory_cells, DendriNet):
+                handle = core_network.layers[-1].inhibitory_cells.register_forward_hook(
+                    lambda module, input, output: self.input_forward_hook(
+                        module, input, output
+                    )
+                )
+                handles.append(handle)
+
+        exc_dendrinet = core_network.layers[-1].excitatory_cells
 
         for key, module in exc_dendrinet.named_modules():
             if isinstance(module, DendriticBranchLayer):
@@ -123,6 +143,24 @@ class CompartmentSNRAnalyzer(AbstractAnalyzer):
         for handle in handles:
             handle.remove()
 
+    def input_forward_hook(
+        self,
+        module: Union[ExcitationInhibitionNetwork, DendriNet],
+        input: tuple[torch.Tensor, ...],
+        output: torch.Tensor
+    ):
+        """Forward hook to collect input data."""
+        if (
+            isinstance(module, ExcitationInhibitionNetwork)
+            and not hasattr(self, "excitatory_inputs")
+        ):
+            self.excitatory_inputs = input[0].detach().cpu()
+        elif (
+            isinstance(module, DendriNet)
+            and not hasattr(self, "inhibitory_inputs")
+        ):
+            self.inhibitory_inputs = output.detach().cpu()
+
     def forward_hook(
         self,
         module: Union[TopKLinear, ParametricActivation, torch.nn.Identity],
@@ -131,11 +169,11 @@ class CompartmentSNRAnalyzer(AbstractAnalyzer):
         key: str,
         activation_type: str,
     ):
-        if self.input_analysis:
-            if activation_type == "exc" and not hasattr(self, "excitatory_inputs"):
-                self.excitatory_inputs = input[0].detach().cpu()
-            elif activation_type == "inh" and not hasattr(self, "inhibitory_inputs"):
-                self.inhibitory_inputs = input[0].detach().cpu()
+        # if self.input_analysis:
+        #     if activation_type == "exc" and not hasattr(self, "excitatory_inputs"):
+        #         self.excitatory_inputs = input[0].detach().cpu()
+        #     elif activation_type == "inh" and not hasattr(self, "inhibitory_inputs"):
+        #         self.inhibitory_inputs = input[0].detach().cpu()
 
         for branch_idx in range(output.shape[-1]):
             if activation_type == "vinf":
