@@ -262,10 +262,18 @@ class DataCollector:
 
         # Layer statistics
         if "layer_statistics" in data and isinstance(data["layer_statistics"], dict):
-            for layer_name, layer_data in data["layer_statistics"].items():
+            layer_names: list[str] = [
+                name for name in data["layer_statistics"].keys() 
+                if "inhibitory_cells" not in name
+            ]
+            depths: list[int] = list(range(len(layer_names)))
+            depths.reverse()
+            for i, layer_name in enumerate(layer_names):
+                layer_data: dict[str, float] = data["layer_statistics"][layer_name]
                 if isinstance(layer_data, dict):
                     # Extract depth from layer name
-                    depth = self._extract_depth(layer_name)
+                    # depth = self._extract_depth(layer_name)
+                    depth = depths[i]
                     for mi_key, mi_value in layer_data.items():
                         if isinstance(mi_value, (int, float)):
                             base_key = (
@@ -441,14 +449,28 @@ class DataCollector:
 
         result = {}
 
-        gain_factors = data["gain_factors"]
+        gain_factors: list[float] = data["gain_factors"]
+        
+        raw_scores: dict[str, list[float]] = data["raw_scores"]
+        
+        id_scores: dict[str, float] = data["ID"]
+        ood_lower_scores: dict[str, float] = data["OOD_lower"]
+        ood_upper_scores: dict[str, float] = data["OOD_upper"]
 
-        metrics = list(data.keys())
-        metrics.remove("gain_factors")
-
+        metrics = list(raw_scores.keys())
         for metric in metrics:
+            # collect raw scores
             for i, gain_factor in enumerate(gain_factors):
-                result[f"mult_gain_{metric}_gf{gain_factor}"] = data[metric][i]
+                result[f"mult_gain_{metric}_gf{gain_factor}"] = raw_scores[metric][i]
+            
+            # collect id scores
+            result[f"mult_gain_{metric}_id"] = id_scores[metric]
+
+            # collect ood lower scores
+            result[f"mult_gain_{metric}_ood_lower"] = ood_lower_scores[metric]
+
+            # collect ood upper scores
+            result[f"mult_gain_{metric}_ood_upper"] = ood_upper_scores[metric]
 
         return result
 
