@@ -871,14 +871,9 @@ class SingleLayerContributionAnalysisConfig(BaseConfig):
 class ReceptiveFieldAnalysisParams(BaseConfig):
     """Parameters for receptive field visualization.
 
-    - n_rows / n_cols: grid size for plotting receptive fields.
-    - exc_rf_shape / inh_rf_shape: optional (H, W) receptive field shapes if known.
+    - rf_shape: optional (H, W) receptive field shape if known.
     """
-
-    n_rows: int = 2
-    n_cols: int = 2
-    exc_rf_shape: Optional[tuple[int, int]] = None
-    inh_rf_shape: Optional[tuple[int, int]] = None
+    rf_shape: Optional[tuple[int, int]] = None
 
 
 @dataclass
