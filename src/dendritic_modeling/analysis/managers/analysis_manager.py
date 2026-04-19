@@ -32,6 +32,9 @@ from dendritic_modeling.analysis.tools.correlation_analysis import CorrelationAn
 from dendritic_modeling.analysis.tools.multiplicative_gain import (
     MultiplicativeGainAnalyzer,
 )
+from dendritic_modeling.analysis.tools.reactivation_dynamics import (
+    ReactivationDynamicsAnalyzer,
+)
 from dendritic_modeling.analysis.tools.receptive_fields import ReceptiveFieldAnalyzer
 from dendritic_modeling.analysis.tools.routing_analysis import RoutingAnalyzer
 from dendritic_modeling.analysis.tools.synaptic_activation import (
@@ -132,6 +135,15 @@ class AnalysisManager:
         if self.config.receptive_field_analysis.enabled:
             self.receptive_field_analyzer = ReceptiveFieldAnalyzer(
                 self.config.receptive_field_analysis.params
+            )
+
+        # Initialize Reactivation Dynamics Analysis
+        if (
+            getattr(self.config, "reactivation_dynamics_analysis", None)
+            and self.config.reactivation_dynamics_analysis.enabled
+        ):
+            self.reactivation_dynamics_analyzer = ReactivationDynamicsAnalyzer(
+                self.config.reactivation_dynamics_analysis.params
             )
 
         # Initialize Synaptic Activation Analysis
@@ -330,6 +342,25 @@ class AnalysisManager:
                 save_path=os.path.join(self.save_root, "weight_analysis"),
                 filename=filename,
                 training=training,
+            )
+
+        # Reactivation Dynamics Analysis
+        rd_cfg = getattr(self.config, "reactivation_dynamics_analysis", None)
+        if (
+            rd_cfg is not None
+            and rd_cfg.enabled
+            and ((rd_cfg.training and training) or not training)
+        ):
+            self.reactivation_dynamics_analyzer.analyze(
+                model=self.model,
+                train_ds=self.data.get("train"),
+                valid_ds=self.data.get("valid"),
+                test_ds=self.data.get("test"),
+                device=self.device,
+                save_path=os.path.join(self.save_root, "reactivation_dynamics"),
+                filename=filename,
+                training=training,
+                runtime=runtime,
             )
 
         # Compartment Statistics Analysis

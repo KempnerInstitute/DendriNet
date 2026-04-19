@@ -88,7 +88,7 @@ class TestHierarchicalDendriticConv:
             input_dim=16,
         )
 
-        x = torch.randn(2, 16, 8, 8)
+        x = torch.rand(2, 16, 8, 8)
         out = core(x)
         assert out.shape == (2, 32, 8, 8)  # C_out = excitatory_layer_sizes[-1]
 
@@ -113,7 +113,7 @@ class TestHierarchicalDendriticConv:
             input_dim=16,
         )
 
-        x = torch.randn(2, 16, 8, 8)
+        x = torch.rand(2, 16, 8, 8)
         out = core(x)
         # H_out = (8 + 2*1 - 3) // 2 + 1 = 4
         assert out.shape == (2, 32, 4, 4)
@@ -128,7 +128,7 @@ class TestHierarchicalDendriticConv:
             input_dim=16,
         )
 
-        x = torch.randn(2, 16, 8, 8)
+        x = torch.rand(2, 16, 8, 8)
         out = core(x)
         # H_out = (8 + 0 - 3) // 1 + 1 = 6
         assert out.shape == (2, 32, 6, 6)
@@ -147,7 +147,7 @@ class TestHierarchicalDendriticConv:
         assert isinstance(core, HierarchicalDendriticConv)
 
         H_out, W_out = core.compute_output_shape(8, 8)
-        x = torch.randn(1, 16, 8, 8)
+        x = torch.rand(1, 16, 8, 8)
         out = core(x)
         assert out.shape[2] == H_out
         assert out.shape[3] == W_out
@@ -160,7 +160,7 @@ class TestHierarchicalDendriticConv:
             input_dim=16,
         )
 
-        x = torch.randn(2, 16, 6, 10)
+        x = torch.rand(2, 16, 6, 10)
         out = core(x)
         assert out.shape == (2, 32, 6, 10)  # padding=1, kernel=3 → same size
 
@@ -196,7 +196,7 @@ class TestGradientFlow:
             input_dim=16,
         )
 
-        x = torch.randn(2, 16, 4, 4)
+        x = torch.rand(2, 16, 4, 4)
         out = core(x)
         loss = out.sum()
         loss.backward()
@@ -339,7 +339,7 @@ class TestSpatialDecoderSupport:
             spec = plan.suffix_input_spec
 
             # Decoder should work with spatial input
-            x = torch.randn(2, spec.channels, spec.height, spec.width)
+            x = torch.rand(2, spec.channels, spec.height, spec.width)
             with torch.no_grad():
                 out = decoder(x)
             assert out.dim() == 2  # should flatten to (B, num_classes)
@@ -357,7 +357,7 @@ class TestInputGuard:
             input_dim=16,
         )
 
-        x = torch.randn(2, 144)  # patch_dim = 16*3*3 = 144
+        x = torch.rand(2, 144)  # patch_dim = 16*3*3 = 144
         with pytest.raises(ValueError, match="requires 4D input"):
             core(x)
 
@@ -369,7 +369,7 @@ class TestInputGuard:
             input_dim=16,
         )
 
-        x = torch.randn(2, 16, 8)
+        x = torch.rand(2, 16, 8)
         with pytest.raises(ValueError, match="requires 4D input"):
             core(x)
 
@@ -632,7 +632,7 @@ class TestSpatialContractValidation:
         assert W_out == plan.suffix_input_spec.width
 
         # Full forward pass
-        x = torch.randn(1, 3, 224, 224)
+        x = torch.rand(1, 3, 224, 224)
         with torch.no_grad():
             encoded = encoder(x)
         assert encoded.dim() == 4

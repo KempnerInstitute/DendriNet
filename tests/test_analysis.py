@@ -92,7 +92,7 @@ class TestPerformanceAnalyzer(unittest.TestCase):
 
         # Create test data
         self.test_data = torch.utils.data.TensorDataset(
-            torch.randn(100, 10), torch.randint(0, 4, (100,))
+            torch.rand(100, 10), torch.randint(0, 4, (100,))
         )
 
     def test_analyzer_initialization(self):
@@ -186,7 +186,7 @@ class TestAblationAnalyzer(unittest.TestCase):
 
         # Create test dataset
         self.test_data = torch.utils.data.TensorDataset(
-            torch.randn(50, 10), torch.randint(0, 4, (50,))
+            torch.rand(50, 10), torch.randint(0, 4, (50,))
         )
 
     def test_analyzer_initialization(self):
@@ -293,7 +293,7 @@ class TestInformationAnalyzer(unittest.TestCase):
 
         # Create test data
         self.test_data = torch.utils.data.TensorDataset(
-            torch.randn(30, 8), torch.randint(0, 4, (30,))
+            torch.rand(30, 8), torch.randint(0, 4, (30,))
         )
 
     def test_analyzer_initialization(self):
@@ -355,7 +355,7 @@ class TestActivationAnalyzers(unittest.TestCase):
 
         # Create test data
         self.test_data = torch.utils.data.TensorDataset(
-            torch.randn(30, 8), torch.randint(0, 4, (30,))
+            torch.rand(30, 8), torch.randint(0, 4, (30,))
         )
 
     def test_synaptic_activation_analyzer(self):
@@ -415,13 +415,13 @@ class TestAnalysisManager(unittest.TestCase):
 
         # Create test data
         train_data = torch.utils.data.TensorDataset(
-            torch.randn(30, 8), torch.randint(0, 4, (30,))
+            torch.rand(30, 8), torch.randint(0, 4, (30,))
         )
         valid_data = torch.utils.data.TensorDataset(
-            torch.randn(20, 8), torch.randint(0, 4, (20,))
+            torch.rand(20, 8), torch.randint(0, 4, (20,))
         )
         test_data = torch.utils.data.TensorDataset(
-            torch.randn(25, 8), torch.randint(0, 4, (25,))
+            torch.rand(25, 8), torch.randint(0, 4, (25,))
         )
 
         self.data = {"train": train_data, "valid": valid_data, "test": test_data}

@@ -167,10 +167,38 @@ class LogAdjustedNegativeCosineSimilarityLoss(NegativeCosineSimilarityLoss):
 
 
 class VoltageStabilizationLoss(LossFunction):
+    """Voltage / gate-occupancy stabilization loss.
+
+    Modes:
+
+    ``vinf``, ``vout``, ``both``
+        Legacy raw-voltage modes.  Drive V (input to the reactivation) or r
+        (output) toward a fixed ``target_voltage``.  Works well for shunting
+        morphology where V ∈ [0, 1] and 0.5 is a natural center, but poorly
+        for additive where the raw-voltage scale is architecture-dependent.
+
+    ``gate_occupancy`` **(recommended general mode)**
+        Stabilize in gate-relative coordinates instead of raw voltages.
+        Operates on the *post-gate output* ``r = (tanh(m*(V-b))+1)/2`` and
+        drives it toward a healthy occupancy regime:
+
+        * **Centering:** ``median(r) → 0.5`` (gate is centered).
+        * **Spread:** ``sat_lo + sat_hi → target_saturation`` where
+          ``sat_lo = mean(r < 0.1)`` and ``sat_hi = mean(r > 0.9)``
+          (default ``target_saturation = 0.2``, i.e. ~10% at each rail).
+
+        This is morphology-invariant by construction: it asks each branch to
+        reach the same *gate-output* operating regime regardless of whether
+        the underlying voltage is bounded (shunting) or unbounded (additive).
+        The mode is defined only for real parametric gates, so it hooks only
+        layers whose reactivation is a ``ParametricActivation``.
+    """
+
     def __init__(
         self,
         stabilize_mode: str = "vinf",
         target_voltage: float = 0.5,
+        target_saturation: float = 0.2,
         loss_metric: str = "mse",
         reduction: str = "mean",
     ):
@@ -178,15 +206,24 @@ class VoltageStabilizationLoss(LossFunction):
         self._loss_name = "Voltage Stabilization"
         self.stabilize_mode = stabilize_mode
         self.target_voltage = target_voltage
+        self.target_saturation = target_saturation
+        self.eps = torch.finfo(torch.float32).eps
+
+        valid_modes = {"vinf", "vout", "both", "gate_occupancy"}
+        if self.stabilize_mode not in valid_modes:
+            raise ValueError(
+                f"Invalid stabilize mode: {stabilize_mode}. "
+                f"Expected one of {sorted(valid_modes)}"
+            )
 
         self.save_inputs = False
         self.save_outputs = False
-        if self.stabilize_mode not in ["vinf", "vout", "both"]:
-            raise ValueError(f"Invalid stabilize mode: {stabilize_mode}")
-
-        if self.stabilize_mode in ["vinf", "both"]:
+        if self.stabilize_mode in ("vinf", "both"):
             self.save_inputs = True
-        if self.stabilize_mode in ["vout", "both"]:
+        if self.stabilize_mode in ("vout", "both"):
+            self.save_outputs = True
+        if self.stabilize_mode == "gate_occupancy":
+            # gate_occupancy hooks on the reactivation output (r)
             self.save_outputs = True
 
         if self.reduction == "mean":
@@ -223,12 +260,14 @@ class VoltageStabilizationLoss(LossFunction):
         else:
             raise ValueError(f"Invalid metric for voltage stabilization: {loss_metric}")
 
-        self.eps = torch.finfo(torch.float32).eps
-
     def attach_forward_hooks(self, model: BaseModel):
         handles = []
         for module in model.modules():
             if isinstance(module, DendriticBranchLayer):
+                if self.stabilize_mode == "gate_occupancy" and not isinstance(
+                    module.reactivation, ParametricActivation
+                ):
+                    continue
                 handle = module.reactivation.register_forward_hook(self.forward_hook)
                 handles.append(handle)
         return handles
@@ -251,6 +290,48 @@ class VoltageStabilizationLoss(LossFunction):
     def reset_activation_lists(self):
         self.voltages = []
 
+    def _gate_occupancy_loss(self, x: torch.Tensor) -> torch.Tensor:
+        """Compute loss in gate-output coordinates.
+
+        Drives: median(r) → 0.5 and total saturation → target_saturation.
+        """
+        if not self.voltages:
+            return torch.tensor(
+                0.0, dtype=x.dtype, device=x.device, requires_grad=x.requires_grad
+            )
+
+        total_loss = torch.tensor(
+            0.0, dtype=x.dtype, device=x.device, requires_grad=x.requires_grad
+        )
+
+        for r in self.voltages:
+            # r is the gate output, shape [B, D] or [B, ...].
+            r_flat = r.reshape(-1)
+
+            # Centering: drive median(r) toward 0.5.
+            # Use a differentiable proxy: mean(r) → 0.5.
+            # (median is not differentiable; mean tracks it for unimodal
+            # distributions, which r approximately is.)
+            center_loss = (r_flat.mean() - 0.5) ** 2
+
+            # Spread: drive saturation toward target.
+            # sat_lo = fraction with r < 0.1, sat_hi = fraction with r > 0.9.
+            # Use soft thresholds for differentiability:
+            #   soft_sat_lo = mean(sigmoid(k * (0.1 - r)))
+            #   soft_sat_hi = mean(sigmoid(k * (r - 0.9)))
+            # with k = 20 (sharp enough to approximate the indicator).
+            k = 20.0
+            sat_lo = torch.sigmoid(k * (0.1 - r_flat)).mean()
+            sat_hi = torch.sigmoid(k * (r_flat - 0.9)).mean()
+            total_sat = sat_lo + sat_hi
+            sat_target = self.target_saturation
+            spread_loss = (total_sat - sat_target) ** 2
+
+            total_loss = total_loss + center_loss + spread_loss
+
+        self.voltages = []
+        return total_loss
+
     def compute_loss(self, x: torch.Tensor):
         if self.voltages:
             voltages = torch.cat(self.voltages, dim=-1)
@@ -268,6 +349,8 @@ class VoltageStabilizationLoss(LossFunction):
     ) -> torch.Tensor:
         self.reset_activation_lists()
         model(x)
+        if self.stabilize_mode == "gate_occupancy":
+            return self._gate_occupancy_loss(x)
         return self.compute_loss(x)
 
 
@@ -385,6 +468,7 @@ class HomeostaticControlLoss(LossFunction):
         self,
         stabilize_mode: str = "vinf",
         target_voltage: float = 0.5,
+        target_saturation: float = 0.2,
         loss_metric: str = "mse",
         reduction: str = "mean",
     ):
@@ -393,6 +477,7 @@ class HomeostaticControlLoss(LossFunction):
         self.voltage_stabilization = VoltageStabilizationLoss(
             stabilize_mode=stabilize_mode,
             target_voltage=target_voltage,
+            target_saturation=target_saturation,
             loss_metric=loss_metric,
             reduction=reduction,
         )

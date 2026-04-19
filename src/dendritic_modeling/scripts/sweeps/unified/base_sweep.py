@@ -288,6 +288,7 @@ class SweepJobManager:
         repo_root = Path(__file__).resolve().parents[5]
         account = self.slurm_config.get("account")
         partition = self.slurm_config.get("partition")
+        qos = self.slurm_config.get("qos")
         if not account:
             raise ValueError(
                 "SLURM account not set. Provide 'account' in slurm_config."
@@ -303,6 +304,8 @@ class SweepJobManager:
             )
             f.write(f"#SBATCH --account={account}\n")
             f.write(f"#SBATCH --partition={partition}\n")
+            if qos:
+                f.write(f"#SBATCH --qos={qos}\n")
             f.write(f"#SBATCH --chdir={repo_root}\n")
             constraint = self.slurm_config.get("constraint", None)
             if constraint:
@@ -405,6 +408,7 @@ class SweepJobManager:
         else:
             formatted_time = time_value
 
+        qos = self.slurm_config.get("qos")
         with open(script_path, "w") as f:
             f.write("#!/bin/bash\n")
             f.write(
@@ -412,6 +416,8 @@ class SweepJobManager:
             )
             f.write(f"#SBATCH --account={account}\n")
             f.write(f"#SBATCH --partition={partition}\n")
+            if qos:
+                f.write(f"#SBATCH --qos={qos}\n")
             f.write(f"#SBATCH --chdir={repo_root}\n")
             f.write(f"#SBATCH --time={formatted_time}\n")
             f.write(f"#SBATCH --nodes={self.slurm_config.get('nodes', 1)}\n")

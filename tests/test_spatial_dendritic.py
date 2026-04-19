@@ -127,7 +127,7 @@ class TestSpatialSplit:
         assert encoder.output_spec is not None
         assert encoder.output_spec.channels == 256
 
-        x = torch.randn(2, 3, 224, 224)
+        x = torch.rand(2, 3, 224, 224)
         with torch.no_grad():
             out = encoder(x)
         assert out.dim() == 4
@@ -148,7 +148,7 @@ class TestSpatialSplit:
 
         assert encoder.output_spec is None
 
-        x = torch.randn(2, 3, 224, 224)
+        x = torch.rand(2, 3, 224, 224)
         with torch.no_grad():
             out = encoder(x)
         assert out.dim() == 2
@@ -243,7 +243,7 @@ class TestHierarchicalDendriticTensorMap:
             suffix_input_dim=64,
         )
 
-        x = torch.randn(4, 128)
+        x = torch.rand(4, 128)
         out = core(x)
         assert out.shape == (4, 64)
         assert core.output_dim == 64
@@ -258,7 +258,7 @@ class TestHierarchicalDendriticTensorMap:
             suffix_input_dim=64,
         )
 
-        x = torch.randn(4, 8, 4, 4)
+        x = torch.rand(4, 8, 4, 4)
         out = core(x)
         assert out.shape == (4, 64)
 
@@ -296,7 +296,7 @@ class TestHierarchicalDendriticTensorMap:
         assert core.projection is not None
         assert core.output_dim == 100
 
-        x = torch.randn(4, 128)
+        x = torch.rand(4, 128)
         out = core(x)
         assert out.shape == (4, 100)
 
@@ -344,7 +344,7 @@ class TestHierarchicalDendriticTensorMap:
             suffix_input_dim=32,
         )
 
-        x = torch.randn(4, 128)
+        x = torch.rand(4, 128)
         out = core(x)
         loss = out.sum()
         loss.backward()
@@ -555,7 +555,7 @@ class TestSpatialEndToEnd:
         assert core.output_dim == plan.suffix_input_dim
 
         # Full forward pass
-        x = torch.randn(2, 3, 224, 224)
+        x = torch.rand(2, 3, 224, 224)
         with torch.no_grad():
             encoded = encoder(x)  # (2, 256, 6, 6) — spatial!
         assert encoded.dim() == 4

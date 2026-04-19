@@ -53,7 +53,7 @@ class TestDendriticBranchLayer(unittest.TestCase):
             self.excitatory_input_dim,
             self.excitatory_synapses_per_branch,
         )
-        x = torch.randn(2, self.excitatory_input_dim)  # Batch size of 2
+        x = torch.rand(2, self.excitatory_input_dim)  # Batch size of 2
         output = layer(x)
         self.assertEqual(output.shape, (2, self.output_dim))
 
@@ -67,9 +67,9 @@ class TestDendriticBranchLayer(unittest.TestCase):
             self.inhibitory_synapses_per_branch,
             self.input_branch_factor,
         )
-        x = torch.randn(2, self.excitatory_input_dim)  # Batch size of 2
-        inhibitory_input = torch.randn(2, self.inhibitory_input_dim)
-        branch_input = torch.randn(2, self.output_dim * self.input_branch_factor)
+        x = torch.rand(2, self.excitatory_input_dim)  # Batch size of 2
+        inhibitory_input = torch.rand(2, self.inhibitory_input_dim)
+        branch_input = torch.rand(2, self.output_dim * self.input_branch_factor)
         output = layer(x, inhibitory_input, branch_input)
         self.assertEqual(output.shape, (2, self.output_dim))
 
@@ -81,7 +81,7 @@ class TestDendriticBranchLayer(unittest.TestCase):
             self.excitatory_synapses_per_branch,
             reactivate=True,
         )
-        x = torch.randn(2, self.excitatory_input_dim)  # Batch size of 2
+        x = torch.rand(2, self.excitatory_input_dim)  # Batch size of 2
         output = layer(x)
         self.assertEqual(output.shape, (2, self.output_dim))
         # Check if reactivation threshold applied
@@ -156,7 +156,7 @@ class TestDendriticBranchLayer(unittest.TestCase):
 def sample_inputs():
     batch_size = 2
     in_features = 4
-    x = torch.randn(batch_size, in_features)
+    x = torch.rand(batch_size, in_features)
     return x
 
 
@@ -188,12 +188,19 @@ class TestDendriticBranchLayerAdditional:
         assert output.dtype == torch.float32
 
     def test_forward_with_negative_input(self, sample_branch_layer):
-        """Test forward pass with negative input values."""
+        """DendriticBranchLayer accepts negative inputs directly.
+
+        The nonneg-input validation for shunting lives at the network
+        boundary (``ExcitationInhibitionNetwork``), not inside the branch
+        layer itself. A raw DBL call with signed input does not raise —
+        although the shunting forward may produce unbounded voltages, the
+        layer itself does not guard against this when instantiated directly.
+        """
         batch_size = 2
         excitatory_input_dim = 10
         x = torch.full((batch_size, excitatory_input_dim), -1.0)
         output = sample_branch_layer(x)
-        expected_output_dim = 5  # From our fixture
+        expected_output_dim = 5
         assert output.shape == (batch_size, expected_output_dim)
         assert output.dtype == torch.float32
 
@@ -237,8 +244,8 @@ class TestDendriticBranchLayerAdditional:
 
         # Test forward pass
         batch_size = 2
-        x_exc = torch.randn(batch_size, 8)
-        x_inh = torch.randn(batch_size, 6)
+        x_exc = torch.rand(batch_size, 8)
+        x_inh = torch.rand(batch_size, 6)
         output = layer(x_exc, x_inh)
         assert output.shape == (batch_size, 3)
 

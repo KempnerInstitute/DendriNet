@@ -1,5 +1,6 @@
 """Utilities for configuration handling and transformation."""
 
+import copy
 import logging
 from dataclasses import (
     asdict as dataclass_asdict,
@@ -19,6 +20,61 @@ logger = logging.getLogger(__name__)
 
 # Cache for converted configs to avoid repeated conversions
 _config_cache = {}
+
+
+def canonicalize_model_core_flags(
+    config: Union[dict, DictConfig, object]
+) -> dict[str, Any]:
+    """Return a plain config dict with type-implied core flags normalized.
+
+    The architecture factory treats ``model.core.type`` as authoritative for
+    shunting/additive variants. Historically, some saved sweep configs retained
+    ``morphology.use_shunting=True`` even when ``type='dendritic_additive'``.
+    That mismatch is harmless during model construction because the factory
+    overrides the flag, but it makes raw ``config.json`` files look mislabeled.
+
+    This helper mirrors the factory's effective behavior in the serialized
+    config so saved runs are easier to audit and downstream tools see a
+    self-consistent payload.
+    """
+    if isinstance(config, DictConfig):
+        result = OmegaConf.to_container(config, resolve=True)
+    elif is_dataclass(config):
+        result = dataclass_asdict(config)
+    else:
+        result = copy.deepcopy(config)
+
+    if not isinstance(result, dict):
+        return {}
+
+    model_cfg = result.get("model")
+    if not isinstance(model_cfg, dict):
+        return result
+
+    core_cfg = model_cfg.get("core")
+    if not isinstance(core_cfg, dict):
+        return result
+
+    core_type = str(core_cfg.get("type", "")).lower()
+    morphology_cfg = core_cfg.setdefault("morphology", {})
+    if not isinstance(morphology_cfg, dict):
+        morphology_cfg = {}
+        core_cfg["morphology"] = morphology_cfg
+
+    type_overrides = {
+        "dendritic_shunting": True,
+        "flat_shunting": True,
+        "dendritic_additive": False,
+        "flat_additive": False,
+        "dendritic_mlp": False,
+        "flat_mlp": False,
+        "point_mlp": False,
+        "mlp": False,
+    }
+    if core_type in type_overrides:
+        morphology_cfg["use_shunting"] = type_overrides[core_type]
+
+    return result
 
 
 def normalize_sparsity_type(sparsity_type: Any) -> str:

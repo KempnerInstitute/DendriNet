@@ -126,25 +126,44 @@ class ConfigExtractor:
                             )
 
                 # Morphology parameters
+                saved_use_shunting = None
                 if hasattr(core, "morphology"):
                     morph = core.morphology
                     if hasattr(morph, "use_shunting"):
-                        params["use_shunting"] = morph.use_shunting
+                        saved_use_shunting = bool(morph.use_shunting)
+                        params["use_shunting"] = saved_use_shunting
 
                 # If core.type explicitly specifies the network variant, make sure the
                 # extracted `use_shunting` matches the *actual* instantiated behavior.
                 if "network_type" in params:
                     nt = str(params["network_type"]).lower()
-                    if nt == "dendritic_shunting":
-                        params["use_shunting"] = True
+                    inferred_use_shunting = None
+                    if nt in ["dendritic_shunting", "flat_shunting"]:
+                        inferred_use_shunting = True
                     elif nt in [
                         "dendritic_additive",
+                        "flat_additive",
                         "dendritic_mlp",
                         "flat_mlp",
                         "mlp",
                         "point_mlp",
                     ]:
-                        params["use_shunting"] = False
+                        inferred_use_shunting = False
+
+                    if inferred_use_shunting is not None:
+                        if (
+                            saved_use_shunting is not None
+                            and saved_use_shunting != inferred_use_shunting
+                        ):
+                            logger.warning(
+                                "Config mismatch: network_type='%s' implies "
+                                "use_shunting=%s but saved morphology.use_shunting=%s. "
+                                "Using network_type for sweep extraction.",
+                                nt,
+                                inferred_use_shunting,
+                                saved_use_shunting,
+                            )
+                        params["use_shunting"] = inferred_use_shunting
 
         except Exception as e:
             logger.warning(f"Error extracting model params: {e}")
