@@ -77,6 +77,90 @@ def canonicalize_model_core_flags(
     return result
 
 
+# Type-alias implied overrides for the recurrent / unified-EI path.
+# Mirrors the `_UNIFIED_EI_ALIAS_OVERRIDES` in the factory; this helper
+# rewrites a raw config dict so saved configs are self-consistent with
+# the alias they declare.
+_RNN_CORE_ALIAS_OVERRIDES: dict[str, dict[str, object]] = {
+    "rnn_dendritic_shunting": {
+        "use_shunting": True,
+    },
+    "rnn_dendritic_additive": {
+        "use_shunting": False,
+        "use_additive_normalization": True,
+    },
+    "rnn_flat_shunting": {
+        "use_shunting": True,
+        "branch_factors": [1],
+    },
+    "rnn_flat_additive": {
+        "use_shunting": False,
+        "use_additive_normalization": True,
+        "branch_factors": [1],
+    },
+}
+
+
+def canonicalize_rnn_core_flags(
+    config: Union[dict, DictConfig, object]
+) -> dict[str, Any]:
+    """Return a plain config dict with recurrent unified-EI core aliases
+    resolved to explicit excitatory-population flags.
+
+    When ``model.core.type`` is one of the recurrent aliases
+    (``rnn_dendritic_shunting``, ``rnn_dendritic_additive``,
+    ``rnn_flat_shunting``, ``rnn_flat_additive``), this helper rewrites
+    ``use_shunting`` / ``use_additive_normalization`` (and in the flat
+    case, ``branch_factors``) on every excitatory population so the saved
+    payload is self-describing. ``ei_unified`` / ``unified_ei`` / ``ei_net``
+    are treated as no-ops: the explicit population-level flags are the
+    source of truth.
+    """
+    if isinstance(config, DictConfig):
+        result = OmegaConf.to_container(config, resolve=True)
+    elif is_dataclass(config):
+        result = dataclass_asdict(config)
+    else:
+        result = copy.deepcopy(config)
+
+    if not isinstance(result, dict):
+        return {}
+
+    model_cfg = result.get("model")
+    if not isinstance(model_cfg, dict):
+        return result
+
+    core_cfg = model_cfg.get("core")
+    if not isinstance(core_cfg, dict):
+        return result
+
+    core_type = str(core_cfg.get("type", "")).lower()
+    overrides = _RNN_CORE_ALIAS_OVERRIDES.get(core_type)
+    if overrides is None:
+        return result
+
+    unified_cfg = core_cfg.get("unified_ei") or core_cfg.get("ei_unified")
+    if not isinstance(unified_cfg, dict):
+        return result
+    layers = unified_cfg.get("layers")
+    if not isinstance(layers, list):
+        return result
+
+    for layer in layers:
+        if not isinstance(layer, dict):
+            continue
+        exc = layer.get("excitatory")
+        if not isinstance(exc, dict):
+            continue
+        for k, v in overrides.items():
+            if k == "branch_factors" and exc.get("branch_factors"):
+                # Preserve explicit dendritic trees even under flat aliases.
+                continue
+            exc[k] = v
+
+    return result
+
+
 def normalize_sparsity_type(sparsity_type: Any) -> str:
     """Normalize public sparsity aliases to the internal TopK strategy names."""
     normalized = "standard" if sparsity_type is None else str(sparsity_type).lower()

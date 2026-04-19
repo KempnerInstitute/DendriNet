@@ -48,6 +48,39 @@ _UNIFIED_EI_TYPES: set[str] = {
     "unified_ei",
     "ei_net",
     "unified_einet",
+    # Parallel aliases that mirror the BP / feedforward vocabulary
+    # (`dendritic_shunting`, `dendritic_additive`, `flat_shunting`,
+    # `flat_additive`). An `rnn_` prefix disambiguates them from the
+    # non-recurrent BP types. The factory below canonicalizes each alias
+    # to the appropriate `use_shunting` / `use_additive_normalization`
+    # pair on every excitatory population, leaving the `ei_unified` path
+    # unchanged for backward compatibility.
+    "rnn_dendritic_shunting",
+    "rnn_dendritic_additive",
+    "rnn_flat_shunting",
+    "rnn_flat_additive",
+}
+
+# Type-alias implied overrides on each excitatory population.
+# The alias is resolved at build time; `ei_unified` is a no-op (explicit
+# config wins). The BP `canonicalize_model_core_flags` uses the same idea.
+_UNIFIED_EI_ALIAS_OVERRIDES: dict[str, dict[str, object]] = {
+    "rnn_dendritic_shunting": {
+        "use_shunting": True,
+    },
+    "rnn_dendritic_additive": {
+        "use_shunting": False,
+        "use_additive_normalization": True,
+    },
+    "rnn_flat_shunting": {
+        "use_shunting": True,
+        "branch_factors": [1],
+    },
+    "rnn_flat_additive": {
+        "use_shunting": False,
+        "use_additive_normalization": True,
+        "branch_factors": [1],
+    },
 }
 
 # Spatial dendritic cores: flatten encoder spatial output → EINet → project.
@@ -530,6 +563,15 @@ def get_architecture(
         unified_cfg = dict(unified_cfg)
         unified_cfg["input_dim"] = input_dim
 
+        # Resolve recurrent-type aliases to explicit population flags. When
+        # `type` is `ei_unified` / `unified_ei` / `ei_net`, this is a no-op;
+        # otherwise it sets use_shunting / use_additive_normalization / flat
+        # branch_factors to match the alias. Explicit values in the YAML
+        # are preserved unless they conflict with the alias, in which case
+        # the alias wins (matching the BP `canonicalize_model_core_flags`
+        # contract and producing a self-consistent config).
+        alias_overrides = _UNIFIED_EI_ALIAS_OVERRIDES.get(type, {})
+
         layers_cfg = []
         for layer in unified_cfg.get("layers", []):
             if isinstance(layer, EILayerConfig):
@@ -543,6 +585,15 @@ def get_architecture(
             exc = layer.get("excitatory")
             inh = layer.get("inhibitory")
             if isinstance(exc, dict):
+                if alias_overrides:
+                    exc = dict(exc)
+                    for k, v in alias_overrides.items():
+                        # `branch_factors` override only applies when the
+                        # config did not specify its own tree (otherwise we
+                        # would silently erase a user-provided hierarchy).
+                        if k == "branch_factors" and exc.get("branch_factors"):
+                            continue
+                        exc[k] = v
                 layer["excitatory"] = PopulationConfig(**exc)
             if isinstance(inh, dict):
                 layer["inhibitory"] = PopulationConfig(**inh)
