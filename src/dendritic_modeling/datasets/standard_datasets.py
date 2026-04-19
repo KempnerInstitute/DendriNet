@@ -8,7 +8,10 @@ like MNIST, CIFAR-10, and ImageNet, as well as synthetic datasets for theoretica
 import importlib
 import logging
 import os
+import pickle
+import shutil
 from collections.abc import Sequence
+from contextlib import contextmanager
 from typing import Any, Optional, Union
 
 import numpy as np
@@ -19,6 +22,11 @@ from torchvision import datasets, transforms
 from .synthetic_datasets import get_synthetic_datasets
 
 _ds_logger = logging.getLogger(__name__)
+
+try:
+    import fcntl
+except ImportError:  # pragma: no cover - only relevant on non-POSIX systems
+    fcntl = None
 
 
 def _apply_label_noise(
@@ -83,6 +91,96 @@ def _get_config_value(
         return config.get(key, default)
     else:
         return getattr(config, key, default)
+
+
+@contextmanager
+def _dataset_download_lock(root: str):
+    """Serialize dataset repair/download work for a shared cache root."""
+    if fcntl is None:
+        yield
+        return
+
+    os.makedirs(root, exist_ok=True)
+    lock_path = os.path.join(root, ".download.lock")
+    fd = os.open(lock_path, os.O_CREAT | os.O_RDWR)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        yield
+    finally:
+        fcntl.flock(fd, fcntl.LOCK_UN)
+        os.close(fd)
+
+
+def _is_recoverable_torchvision_error(exc: BaseException) -> bool:
+    """Return True for missing/corrupted-cache errors that merit a clean redownload."""
+    if isinstance(exc, (AssertionError, EOFError, pickle.UnpicklingError)):
+        return True
+
+    if not isinstance(exc, (RuntimeError, OSError, ValueError)):
+        return False
+
+    message = str(exc).lower()
+    recoverable_patterns = (
+        "dataset not found",
+        "file not found or corrupted",
+        "pickle data was truncated",
+        "truncated",
+        "corrupt",
+        "corrupted",
+        "invalid magic number",
+        "pascalvincent",
+        "no such file",
+    )
+    return any(pattern in message for pattern in recoverable_patterns)
+
+
+def _clear_dataset_cache(root: str) -> None:
+    """Remove cached dataset payload while preserving the download lock file."""
+    if not os.path.isdir(root):
+        return
+
+    for entry in os.listdir(root):
+        if entry == ".download.lock":
+            continue
+        entry_path = os.path.join(root, entry)
+        try:
+            if os.path.isdir(entry_path):
+                shutil.rmtree(entry_path)
+            else:
+                os.remove(entry_path)
+        except FileNotFoundError:
+            continue
+
+
+def _load_torchvision_train_test_pair(dataset_cls, *, root, transform, dataset_name):
+    """Load a torchvision dataset pair with cache repair and serialized download."""
+    with _dataset_download_lock(root):
+        try:
+            train_dataset = dataset_cls(
+                root=root, train=True, download=False, transform=transform
+            )
+            test_dataset = dataset_cls(
+                root=root, train=False, download=False, transform=transform
+            )
+            return train_dataset, test_dataset
+        except Exception as exc:
+            if not _is_recoverable_torchvision_error(exc):
+                raise
+
+            _ds_logger.warning(
+                "Recovering %s cache at %s after load failure: %s",
+                dataset_name,
+                root,
+                exc,
+            )
+            _clear_dataset_cache(root)
+            train_dataset = dataset_cls(
+                root=root, train=True, download=True, transform=transform
+            )
+            test_dataset = dataset_cls(
+                root=root, train=False, download=True, transform=transform
+            )
+            return train_dataset, test_dataset
 
 
 def _normalize_dataset_index(idx: Any, length: int) -> tuple[Any, bool]:
@@ -370,11 +468,11 @@ def load_mnist_as_datasets(
         tf_list.append(transforms.Normalize((0.1307,), (0.3081,)))
     transform = transforms.Compose(tf_list)
 
-    train_dataset = datasets.MNIST(
-        root=mnist_dir, train=True, download=True, transform=transform
-    )
-    test_dataset = datasets.MNIST(
-        root=mnist_dir, train=False, download=True, transform=transform
+    train_dataset, test_dataset = _load_torchvision_train_test_pair(
+        datasets.MNIST,
+        root=mnist_dir,
+        transform=transform,
+        dataset_name="MNIST",
     )
 
     train_size = int(len(train_dataset) * train_valid_split)
@@ -440,11 +538,11 @@ def load_fashion_mnist_as_datasets(
         tf_list.append(transforms.Normalize((0.2860,), (0.3530,)))
     transform = transforms.Compose(tf_list)
 
-    train_dataset = datasets.FashionMNIST(
-        root=fmnist_dir, train=True, download=True, transform=transform
-    )
-    test_dataset = datasets.FashionMNIST(
-        root=fmnist_dir, train=False, download=True, transform=transform
+    train_dataset, test_dataset = _load_torchvision_train_test_pair(
+        datasets.FashionMNIST,
+        root=fmnist_dir,
+        transform=transform,
+        dataset_name="FashionMNIST",
     )
 
     train_size = int(len(train_dataset) * train_valid_split)
@@ -569,14 +667,11 @@ def load_cifar10_as_datasets(
     transform = transforms.Compose(tf_list)
 
     cifar_dir = get_data_directory("cifar", task_data_path)
-    need_download = not os.path.isdir(os.path.join(cifar_dir, "cifar-10-batches-py"))
-
-    train_dataset = datasets.CIFAR10(
-        root=cifar_dir, train=True, download=need_download, transform=transform
-    )
-
-    test_dataset = datasets.CIFAR10(
-        root=cifar_dir, train=False, download=need_download, transform=transform
+    train_dataset, test_dataset = _load_torchvision_train_test_pair(
+        datasets.CIFAR10,
+        root=cifar_dir,
+        transform=transform,
+        dataset_name="CIFAR10",
     )
 
     def convert_to_tensor(dataset):

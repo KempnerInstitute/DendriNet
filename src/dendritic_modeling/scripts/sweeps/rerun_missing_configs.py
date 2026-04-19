@@ -424,6 +424,8 @@ def generate_rerun_script(
         lines.append(f"#SBATCH --mem={mem_value}MB")
 
     lines.append(f"#SBATCH --partition={slurm_config['partition']}")
+    if slurm_config.get("qos"):
+        lines.append(f"#SBATCH --qos={slurm_config['qos']}")
 
     # Handle array job configuration
     if len(missing_ids) > 1:

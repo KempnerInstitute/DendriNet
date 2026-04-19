@@ -306,9 +306,27 @@ def _build_recurrent_einet_from_structured_config(
             reactivation_type=str(reactivation.get("type", "param_tanh")),
             reactivation_init_m=float(reactivation.get("init_m", 1.5)),
             reactivation_init_b=float(reactivation.get("init_b", 0.5)),
-            reactivation_match_additive_init_to_shunting=bool(
-                reactivation.get("match_additive_init_to_shunting", False)
+            reactivation_init_policy=str(reactivation.get("init_policy", "analytical")),
+            reactivation_occupancy_quantile_low=reactivation.get(
+                "occupancy_quantile_low"
             ),
+            reactivation_occupancy_quantile_high=reactivation.get(
+                "occupancy_quantile_high"
+            ),
+            reactivation_occupancy_target_low=reactivation.get("occupancy_target_low"),
+            reactivation_occupancy_target_high=reactivation.get(
+                "occupancy_target_high"
+            ),
+            reactivation_calibration_min_quantile_width=float(
+                reactivation.get("calibration_min_quantile_width", 1e-3)
+            ),
+            reactivation_calibration_max_m=float(
+                reactivation.get("calibration_max_m", 50.0)
+            ),
+            reactivation_calibration_revert_on_invalid=bool(
+                reactivation.get("calibration_revert_on_invalid", True)
+            ),
+            reactivation_sigma_aware_k=float(reactivation.get("sigma_aware_k", 0.25)),
             reactivation_strategy=str(reactivation.get("gradient_scaling", "none")),
             blocklinear_strategy=str(blocklinear.get("gradient_scaling", "none")),
             level_taus=list(recurrent_cfg.get("level_taus", [])),
@@ -344,6 +362,7 @@ def _build_recurrent_einet_from_structured_config(
             adaptive_initialization=bool(
                 implementation.get("adaptive_initialization", False)
             ),
+            compile_forward=bool(implementation.get("compile_forward", False)),
         )
 
         inh_cfg = None
@@ -385,7 +404,8 @@ def _build_recurrent_einet_from_structured_config(
                 reactivation_type=exc_cfg.reactivation_type,
                 reactivation_init_m=exc_cfg.reactivation_init_m,
                 reactivation_init_b=exc_cfg.reactivation_init_b,
-                reactivation_match_additive_init_to_shunting=exc_cfg.reactivation_match_additive_init_to_shunting,
+                reactivation_init_policy=exc_cfg.reactivation_init_policy,
+                reactivation_sigma_aware_k=exc_cfg.reactivation_sigma_aware_k,
                 reactivation_strategy=exc_cfg.reactivation_strategy,
                 blocklinear_strategy=exc_cfg.blocklinear_strategy,
                 level_taus=exc_cfg.level_taus,

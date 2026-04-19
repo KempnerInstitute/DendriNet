@@ -92,7 +92,7 @@ class TestDeterministicForward:
         net = _build_network(net_type, seed=seed)
         net.eval()
         torch.manual_seed(seed)
-        x = torch.randn(BATCH, INPUT_DIM)
+        x = torch.rand(BATCH, INPUT_DIM)
         with torch.no_grad():
             return net(x)
 
@@ -134,7 +134,7 @@ class TestDeterministicBackward:
             net = _build_network("dendritic_shunting", seed=42)
             net.train()
             torch.manual_seed(42)
-            x = torch.randn(BATCH, INPUT_DIM)
+            x = torch.rand(BATCH, INPUT_DIM)
             out = net(x)
             out.sum().backward()
             grads = []
@@ -167,7 +167,7 @@ class TestOutputShape:
     )
     def test_output_shape(self, net_type):
         net = _build_network(net_type)
-        x = torch.randn(BATCH, INPUT_DIM)
+        x = torch.rand(BATCH, INPUT_DIM)
         out = net(x)
         assert out.shape == (BATCH, OUTPUT_DIM)
 
@@ -208,7 +208,7 @@ class TestFactoryDispatch:
         config = _minimal_config()
         net = get_architecture(net_type, config, input_dim=INPUT_DIM)
         assert net is not None
-        x = torch.randn(1, INPUT_DIM)
+        x = torch.rand(1, INPUT_DIM)
         out = net(x)
         assert out.shape[1] == OUTPUT_DIM
 
@@ -232,7 +232,7 @@ class TestConfigurableEINetwork:
     def test_builds_from_dict(self):
         config = _minimal_config()
         net = ConfigurableEINetwork(config=config, input_dim=INPUT_DIM)
-        x = torch.randn(2, INPUT_DIM)
+        x = torch.rand(2, INPUT_DIM)
         out = net(x)
         assert out.shape == (2, OUTPUT_DIM)
 
@@ -241,7 +241,7 @@ class TestConfigurableEINetwork:
         net = ConfigurableEINetwork(
             config=config, input_dim=INPUT_DIM, flatten_dendrites=True
         )
-        x = torch.randn(2, INPUT_DIM)
+        x = torch.rand(2, INPUT_DIM)
         out = net(x)
         assert out.shape == (2, OUTPUT_DIM)
 
@@ -281,7 +281,7 @@ class TestMultiLayerNetwork:
         config["connectivity"]["ii_synapses_per_branch_per_layer"] = [0, 0]
         torch.manual_seed(42)
         net = get_architecture("dendritic_shunting", config, input_dim=INPUT_DIM)
-        x = torch.randn(BATCH, INPUT_DIM)
+        x = torch.rand(BATCH, INPUT_DIM)
         out = net(x)
         assert out.shape == (BATCH, OUTPUT_DIM)
         assert len(net.layers) == 2
@@ -301,7 +301,7 @@ class TestWithInhibitoryNeurons:
         config["connectivity"]["ii_synapses_per_branch_per_layer"] = [2]
         torch.manual_seed(42)
         net = get_architecture("dendritic_shunting", config, input_dim=INPUT_DIM)
-        x = torch.randn(BATCH, INPUT_DIM)
+        x = torch.rand(BATCH, INPUT_DIM)
         out = net(x)
         assert out.shape == (BATCH, OUTPUT_DIM)
 
@@ -315,7 +315,7 @@ class TestTransferFunction:
     def test_transfer_fn_present(self):
         net = _build_network("dendritic_shunting")
         assert hasattr(net, "transfer_fn")
-        x = torch.randn(2, INPUT_DIM)
+        x = torch.rand(2, INPUT_DIM)
         exc, _inh = net.transfer_fn(x)
         assert exc.shape[-1] == INPUT_DIM
 
@@ -335,7 +335,7 @@ class TestSynapseModeMLPNetwork:
 
     def test_dendritic_mlp_forward_shape(self):
         net = _build_network("dendritic_mlp")
-        x = torch.randn(BATCH, INPUT_DIM)
+        x = torch.rand(BATCH, INPUT_DIM)
         out = net(x)
         assert out.shape == (BATCH, OUTPUT_DIM)
 
@@ -350,7 +350,7 @@ class TestSynapseModeMLPNetwork:
 
     def test_dendritic_mlp_gradient_flow(self):
         net = _build_network("dendritic_mlp")
-        x = torch.randn(2, INPUT_DIM)
+        x = torch.rand(2, INPUT_DIM)
         out = net(x)
         out.sum().backward()
         has_grad = any(p.grad is not None for p in net.parameters())
@@ -366,7 +366,7 @@ class TestSynapseModeMLPNetwork:
         config["connectivity"]["ii_synapses_per_branch_per_layer"] = [2]
         torch.manual_seed(42)
         net = get_architecture("dendritic_mlp", config, input_dim=INPUT_DIM)
-        x = torch.randn(BATCH, INPUT_DIM)
+        x = torch.rand(BATCH, INPUT_DIM)
         out = net(x)
         assert out.shape == (BATCH, OUTPUT_DIM)
 
@@ -407,13 +407,13 @@ class TestFactoryClassicalArchitectures:
             "mlp",
             {"input_dim": 20, "hidden_dims": [32], "output_dim": 10},
         )
-        x = torch.randn(2, 20)
+        x = torch.rand(2, 20)
         out = net(x)
         assert out.shape == (2, 10)
 
     def test_identity(self):
         net = get_architecture("identity", {"input_dim": 20, "output_dim": 20})
-        x = torch.randn(2, 20)
+        x = torch.rand(2, 20)
         out = net(x)
         assert out.shape == (2, 20)
 
@@ -451,3 +451,71 @@ class TestNetworkProperties:
     def test_apply_rewiring_no_error(self):
         net = _build_network("dendritic_shunting")
         net.apply_rewiring()  # Should not raise
+
+
+# ---------------------------------------------------------------------------
+# Nonneg input validation (data-boundary guard)
+# ---------------------------------------------------------------------------
+
+
+class TestShuntingNonnegInputCheck:
+    """Runtime guard: shunting + positive-conductance weights require non-negative inputs.
+
+    The check lives on ``ExcitationInhibitionNetwork.forward`` (not on
+    ``DendriticBranchLayer``) because that's the data boundary — raw input
+    enters there and the check should fire exactly once at the edge of the
+    compute graph. Downstream DBLs at layer ≥ 2 receive reactivation outputs
+    already bounded in ``[0, 1]`` so their inputs are non-negative by
+    construction.
+    """
+
+    def test_shunting_softplus_errors_on_signed_input(self):
+        config = _minimal_config()
+        config["morphology"]["weight_transform"] = "softplus"
+        net = get_architecture("dendritic_shunting", config, input_dim=INPUT_DIM)
+        x_signed = torch.randn(BATCH, INPUT_DIM)  # includes negatives
+        with pytest.raises(ValueError, match="non-negative"):
+            _ = net(x_signed)
+
+    def test_shunting_exp_errors_on_signed_input(self):
+        config = _minimal_config()
+        config["morphology"]["weight_transform"] = "exp"
+        net = get_architecture("dendritic_shunting", config, input_dim=INPUT_DIM)
+        with pytest.raises(ValueError, match="non-negative"):
+            _ = net(torch.randn(BATCH, INPUT_DIM))
+
+    def test_shunting_softplus_accepts_nonneg_input(self):
+        config = _minimal_config()
+        config["morphology"]["weight_transform"] = "softplus"
+        net = get_architecture("dendritic_shunting", config, input_dim=INPUT_DIM)
+        out = net(torch.rand(BATCH, INPUT_DIM))
+        assert out.shape == (BATCH, OUTPUT_DIM)
+        assert torch.isfinite(out).all()
+
+    def test_additive_accepts_signed_input(self):
+        """Additive morphology has no shunting denominator; signed input is fine."""
+        config = _minimal_config()
+        config["morphology"]["weight_transform"] = "softplus"
+        net = get_architecture("dendritic_additive", config, input_dim=INPUT_DIM)
+        out = net(torch.randn(BATCH, INPUT_DIM))
+        assert out.shape == (BATCH, OUTPUT_DIM)
+        assert torch.isfinite(out).all()
+
+    def test_shunting_identity_transform_accepts_signed_input(self):
+        """identity weight_transform produces signed weights, so the
+        'positive conductance' assumption does not apply and the check
+        must not fire."""
+        config = _minimal_config()
+        config["morphology"]["weight_transform"] = "identity"
+        net = get_architecture("dendritic_shunting", config, input_dim=INPUT_DIM)
+        out = net(torch.randn(BATCH, INPUT_DIM))
+        assert out.shape == (BATCH, OUTPUT_DIM)
+
+    def test_check_is_once_per_instance(self):
+        """After one successful call, the check caches and doesn't rerun."""
+        config = _minimal_config()
+        config["morphology"]["weight_transform"] = "softplus"
+        net = get_architecture("dendritic_shunting", config, input_dim=INPUT_DIM)
+        assert net._nonneg_input_checked is False  # not yet validated
+        _ = net(torch.rand(BATCH, INPUT_DIM))
+        assert net._nonneg_input_checked is True

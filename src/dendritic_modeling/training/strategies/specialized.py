@@ -34,6 +34,7 @@ class VoltageStabilizationTrainer(Trainer):
     stabilize_mode: str = "vinf"
     freeze_reactivation: bool = False
     target_voltage: float = 0.5
+    target_saturation: float = 0.2
     loss_metric: str = "mse"
 
     def train(
@@ -56,6 +57,7 @@ class VoltageStabilizationTrainer(Trainer):
         voltage_stabilization_loss = VoltageStabilizationLoss(
             stabilize_mode=self.stabilize_mode,
             target_voltage=self.target_voltage,
+            target_saturation=self.target_saturation,
             loss_metric=self.loss_metric,
             reduction=self.loss_function.reduction,
         )
@@ -203,6 +205,7 @@ class HomeostaticControlTrainer(Trainer):
     stabilize_mode: str = "vinf"
     freeze_reactivation: bool = False
     target_voltage: float = 0.5
+    target_saturation: float = 0.2
     loss_metric: str = "mse"
 
     def train(
@@ -225,6 +228,7 @@ class HomeostaticControlTrainer(Trainer):
         homeostatic_control_loss = HomeostaticControlLoss(
             stabilize_mode=self.stabilize_mode,
             target_voltage=self.target_voltage,
+            target_saturation=self.target_saturation,
             loss_metric=self.loss_metric,
             reduction=self.loss_function.reduction,
         )

@@ -42,8 +42,8 @@ def test_stateful_dendrinet_feedforward_shape():
         recurrent_inhibitory_input_dim=None,
         dt=1.0,
     )
-    x = torch.randn(3, 16)
-    inh = torch.randn(3, 5)
+    x = torch.rand(3, 16)
+    inh = torch.rand(3, 5)
     y = net(x, inh)
     assert y.shape == (3, 8)
 
@@ -66,10 +66,10 @@ def test_stateful_dendrinet_recurrent_step_shape():
         dt=1.0,
     )
     state = net.init_state(batch_size=2, device=torch.device("cpu"))
-    x = torch.randn(2, 12)
-    inh = torch.randn(2, 4)
-    rec_e = torch.randn(2, 8)
-    rec_i = torch.randn(2, 4)
+    x = torch.rand(2, 12)
+    inh = torch.rand(2, 4)
+    rec_e = torch.rand(2, 8)
+    rec_i = torch.rand(2, 4)
     y, new_state = net.step(x, inh, rec_e, rec_i, state)
 
     assert y.shape == (2, 8)
@@ -171,8 +171,8 @@ def test_unified_ei_layer_feedforward():
         dt=1.0,
     )
     layer = EILayer(cfg)
-    x = torch.randn(3, 12)
-    ff_i = torch.randn(3, 5)
+    x = torch.rand(3, 12)
+    ff_i = torch.rand(3, 5)
     s_e, h_i, state = layer(x, ff_i)
     assert s_e.shape == (3, 10)
     assert h_i.shape == (3, 4)
@@ -204,8 +204,8 @@ def test_unified_ei_layer_recurrent():
     )
     layer = EILayer(cfg)
     state = layer.init_state(batch_size=3, device=torch.device("cpu"))
-    x = torch.randn(3, 12)
-    ff_i = torch.randn(3, 5)
+    x = torch.rand(3, 12)
+    ff_i = torch.rand(3, 5)
 
     s_e, h_i, new_state = layer(x, ff_i, state)
     assert s_e.shape == (3, 10)
@@ -246,7 +246,7 @@ def test_unified_ei_network_feedforward():
         ],
     )
     net = EINetwork(cfg)
-    x = torch.randn(5, 12)
+    x = torch.rand(5, 12)
     y = net(x)
     assert y.shape == (5, 6)
 
@@ -283,7 +283,7 @@ def test_unified_ei_network_transfer_input_mode0_first_layer_gets_transfer_inhib
         captured["ff_inhibitory"] = args[1] if len(args) > 1 else None
 
     handle = net.layers[0].register_forward_pre_hook(_capture_ff_inhibitory)
-    x = torch.randn(4, 6)
+    x = torch.rand(4, 6)
     y = net(x)
     handle.remove()
 
@@ -329,7 +329,7 @@ def test_unified_ei_network_recurrent_transfer_input_mode0_first_step_gets_trans
             seen_ff_inhibitory.append(ff_inhibitory.detach().clone())
 
     handle = net.layers[0].register_forward_pre_hook(_capture_ff_inhibitory)
-    x = torch.randn(2, 3, 6)
+    x = torch.rand(2, 3, 6)
     y = net(x)
     handle.remove()
 
@@ -364,7 +364,7 @@ def test_unified_ei_network_recurrent_all_mode():
         ],
     )
     net = EINetwork(cfg)
-    x = torch.randn(3, 7, 12)
+    x = torch.rand(3, 7, 12)
     y = net(x)
     assert y.shape == (3, 7, 10)
 
@@ -388,7 +388,7 @@ def test_unified_ei_network_recurrent_last_mode():
         ],
     )
     net = EINetwork(cfg)
-    x = torch.randn(3, 5, 12)
+    x = torch.rand(3, 5, 12)
     y = net(x)
     assert y.shape == (3, 10)
 
@@ -413,7 +413,7 @@ def test_unified_ei_network_return_hidden():
         ],
     )
     net = EINetwork(cfg)
-    x = torch.randn(2, 5, 8)
+    x = torch.rand(2, 5, 8)
 
     # Without return_hidden
     y = net(x)
@@ -453,7 +453,7 @@ def test_factory_builds_unified_ei_feedforward():
     )
     net = get_architecture("ei_unified", params, input_dim=9)
     assert isinstance(net, EINetwork)
-    y = net(torch.randn(4, 9))
+    y = net(torch.rand(4, 9))
     assert y.shape == (4, 7)
 
 
@@ -480,7 +480,7 @@ def test_factory_builds_unified_ei_recurrent():
     )
     net = get_architecture("ei_unified", params, input_dim=8)
     assert isinstance(net, EINetwork)
-    y = net(torch.randn(2, 5, 8))
+    y = net(torch.rand(2, 5, 8))
     assert y.shape == (2, 6)
 
 
@@ -553,7 +553,7 @@ def test_factory_builds_einet_recurrent_option_with_transfer():
     assert isinstance(net, EINetwork)
     assert net.is_recurrent
     assert net.layers[0].config.direct_ff_inhibitory_to_excitatory is True
-    y = net(torch.randn(2, 4, 8))
+    y = net(torch.rand(2, 4, 8))
     assert y.shape == (2, 6)
 
 
@@ -610,7 +610,7 @@ def test_factory_recurrent_einet_input_mode0_uses_transfer_by_default():
     net = get_architecture("EINet", params, input_dim=6)
     assert isinstance(net, EINetwork)
     assert net.transfer_fn is not None
-    y = net(torch.randn(2, 3, 6))
+    y = net(torch.rand(2, 3, 6))
     assert y.shape == (2, 3, 5)
 
 
@@ -664,7 +664,7 @@ def test_factory_builds_einet_recurrent_old_style_backward_compat():
     net = get_architecture("EINet", params, input_dim=8)
     assert isinstance(net, EINetwork)
     assert net.is_recurrent
-    y = net(torch.randn(2, 4, 8))
+    y = net(torch.rand(2, 4, 8))
     assert y.shape == (2, 6)
 
 
@@ -720,7 +720,7 @@ def test_factory_einet_without_recurrent_option_stays_legacy():
     )
     net = get_architecture("einet", params, input_dim=8)
     assert isinstance(net, ConfigurableEINetwork)
-    y = net(torch.randn(3, 8))
+    y = net(torch.rand(3, 8))
     assert y.shape == (3, 7)
 
 
@@ -799,7 +799,7 @@ def test_factory_einet_recurrent_per_layer_tau():
     assert net.layers[1].config.excitatory.tau_base == 30.0
     assert net.layers[0].config.excitatory.tau_ratio == 3.0
     assert net.layers[1].config.excitatory.tau_ratio == 2.0
-    y = net(torch.randn(2, 4, 8))
+    y = net(torch.rand(2, 4, 8))
     assert y.shape == (2, 4)
 
 
@@ -879,7 +879,7 @@ def test_inhibitory_mode_none_blocks_transfer():
 
     net.layers[0].register_forward_pre_hook(_hook("layer_0"))
     net.layers[1].register_forward_pre_hook(_hook("layer_1"))
-    net(torch.randn(2, 4, 8))
+    net(torch.rand(2, 4, 8))
     # Both layers should receive None inhibitory
     assert captured["layer_0"] is None
     assert captured["layer_1"] is None
@@ -903,7 +903,7 @@ def test_inhibitory_mode_first_only_layer0():
 
     net.layers[0].register_forward_pre_hook(_hook("layer_0"))
     net.layers[1].register_forward_pre_hook(_hook("layer_1"))
-    net(torch.randn(2, 4, 8))
+    net(torch.rand(2, 4, 8))
     assert captured["layer_0"] is not None
     assert captured["layer_1"] is None
 
@@ -926,7 +926,7 @@ def test_inhibitory_mode_all_every_layer():
 
     net.layers[0].register_forward_pre_hook(_hook("layer_0"))
     net.layers[1].register_forward_pre_hook(_hook("layer_1"))
-    net(torch.randn(2, 4, 8))
+    net(torch.rand(2, 4, 8))
     assert captured["layer_0"] is not None
     assert captured["layer_1"] is not None
 
@@ -965,7 +965,7 @@ def test_gradient_flow_recurrent():
         ],
     )
     net = EINetwork(cfg)
-    x = torch.randn(2, 4, 8)
+    x = torch.rand(2, 4, 8)
     y = net(x)
     loss = y.sum()
     loss.backward()
@@ -1002,7 +1002,7 @@ def test_gradient_flow_feedforward():
         ],
     )
     net = EINetwork(cfg)
-    x = torch.randn(2, 8)
+    x = torch.rand(2, 8)
     y = net(x)
     loss = y.sum()
     loss.backward()
@@ -1040,8 +1040,8 @@ def test_trace_accumulation_over_steps():
     )
     state = net.init_state(batch_size=2, device=torch.device("cpu"))
 
-    x = torch.randn(2, 6)
-    rec = torch.randn(2, 4)
+    x = torch.rand(2, 6)
+    rec = torch.rand(2, 4)
 
     # Step 1
     y1, state = net.step(x, recurrent_input=rec, state=state)
@@ -1074,8 +1074,8 @@ def test_state_detach():
         pop_config=pop, excitatory_input_dim=6, recurrent_excitatory_input_dim=4
     )
     state = net.init_state(batch_size=2, device=torch.device("cpu"))
-    x = torch.randn(2, 6, requires_grad=True)
-    rec = torch.randn(2, 4)
+    x = torch.rand(2, 6, requires_grad=True)
+    rec = torch.rand(2, 4)
 
     _, state = net.step(x, recurrent_input=rec, state=state)
     detached = state.detach()
@@ -1169,7 +1169,7 @@ def test_routing_info_populated():
         ],
     )
     net = EINetwork(cfg)
-    x = torch.randn(4, 5, 8)
+    x = torch.rand(4, 5, 8)
     net(x)
 
     # Check routing info exists
@@ -1213,7 +1213,7 @@ def test_routing_info_ff_ratio_starts_at_one():
         ],
     )
     net = EINetwork(cfg)
-    x = torch.randn(2, 3, 8)
+    x = torch.rand(2, 3, 8)
     net(x)
 
     # At t=0 with zero initial state, recurrent compartments contribute nothing
@@ -1243,7 +1243,7 @@ def test_routing_store_toggle():
         ],
     )
     net = EINetwork(cfg)
-    x = torch.randn(2, 3, 8)
+    x = torch.rand(2, 3, 8)
 
     # Initially off
     net(x)
@@ -1274,7 +1274,7 @@ def test_baseline_rnn_gru():
     assert net.is_recurrent
     assert net.output_dim == 16
 
-    x = torch.randn(3, 10, 8)
+    x = torch.rand(3, 10, 8)
     y = net(x)
     assert y.shape == (3, 16)
 
@@ -1285,7 +1285,7 @@ def test_baseline_rnn_lstm():
         cell_type="lstm", input_dim=8, hidden_dim=32, output_mode="mean"
     )
     net = BaselineRNN(cfg)
-    x = torch.randn(3, 10, 8)
+    x = torch.rand(3, 10, 8)
     y = net(x)
     assert y.shape == (3, 32)
 
@@ -1296,7 +1296,7 @@ def test_baseline_rnn_vanilla():
         cell_type="vanilla", input_dim=8, hidden_dim=24, output_mode="all"
     )
     net = BaselineRNN(cfg)
-    x = torch.randn(3, 10, 8)
+    x = torch.rand(3, 10, 8)
     y = net(x)
     assert y.shape == (3, 10, 24)
 
@@ -1307,7 +1307,7 @@ def test_baseline_rnn_return_hidden():
         cell_type="gru", input_dim=8, hidden_dim=16, output_mode="last"
     )
     net = BaselineRNN(cfg)
-    x = torch.randn(2, 5, 8)
+    x = torch.rand(2, 5, 8)
     y, h = net(x, return_hidden=True)
     assert y.shape == (2, 16)
     assert h.shape == (1, 2, 16)  # [num_layers, batch, hidden]
@@ -1319,7 +1319,7 @@ def test_baseline_rnn_gradient_flow():
         cell_type="gru", input_dim=8, hidden_dim=16, output_mode="last"
     )
     net = BaselineRNN(cfg)
-    x = torch.randn(2, 5, 8)
+    x = torch.rand(2, 5, 8)
     y = net(x)
     loss = y.sum()
     loss.backward()
@@ -1339,7 +1339,7 @@ def test_factory_builds_baseline_rnn():
         )
         assert isinstance(net, BaselineRNN)
         assert net.is_recurrent
-        x = torch.randn(2, 5, 8)
+        x = torch.rand(2, 5, 8)
         y = net(x)
         assert y.shape == (2, 16)
 
@@ -1406,7 +1406,7 @@ def test_learnable_tau_gradient_flow():
         recurrent_excitatory_input_dim=4,
         dt=1.0,
     )
-    x = torch.randn(2, 8)
+    x = torch.rand(2, 8)
     state = None
     # Run 5 recurrent steps to accumulate tau-dependent dynamics
     for _ in range(5):
@@ -1474,7 +1474,7 @@ def test_tau_stability_extreme_ratios():
             recurrent_excitatory_input_dim=4,
             dt=1.0,
         )
-        x = torch.randn(2, 8)
+        x = torch.rand(2, 8)
         state = None
         for _ in range(10):
             out, state = net.step(x, state=state)
@@ -1504,7 +1504,7 @@ def test_learnable_tau_stability_after_optimization():
         dt=1.0,
     )
     opt = torch.optim.SGD(net.parameters(), lr=0.1)
-    x = torch.randn(2, 8)
+    x = torch.rand(2, 8)
     for _ in range(20):
         opt.zero_grad()
         state = None
@@ -1542,7 +1542,7 @@ def test_recurrent_off_matches_feedforward():
     )
     net = EINetwork(cfg)
     torch.manual_seed(0)
-    x_single = torch.randn(2, 16)  # single step
+    x_single = torch.rand(2, 16)  # single step
     x_seq = x_single.unsqueeze(1)  # [2, 1, 16] — 1-step sequence
 
     # FF path

@@ -9,11 +9,13 @@ import torch
 import torch.nn as nn
 
 from dendritic_modeling.config.training import (
+    HomeostaticControlStrategyConfig,
     OptimizerConfig,
     ParamGroupsConfig,
     PruningConfig,
     RegularizationConfig,
     ReportingConfig,
+    VoltageStabilizationStrategyConfig,
 )
 from dendritic_modeling.training.factory import (
     _extract_enhanced_configs,
@@ -175,6 +177,36 @@ class TestExtractEnhancedConfigs:
         assert "pruning" not in trainer_config
         assert "regularization" not in trainer_config
 
+    def test_extract_voltage_stabilization_config_preserves_target_saturation(self):
+        """Nested voltage-stabilization config should flatten target_saturation."""
+        trainer_config = {
+            "voltage_stabilization_config": {
+                "stabilize_mode": "gate_occupancy",
+                "target_saturation": 0.35,
+            }
+        }
+
+        result = _extract_enhanced_configs(trainer_config)
+
+        assert result["stabilize_mode"] == "gate_occupancy"
+        assert result["target_saturation"] == 0.35
+        assert "voltage_stabilization_config" not in trainer_config
+
+    def test_extract_homeostatic_control_config_preserves_target_saturation(self):
+        """Nested homeostatic-control config should flatten target_saturation."""
+        trainer_config = {
+            "homeostatic_control_config": {
+                "stabilize_mode": "gate_occupancy",
+                "target_saturation": 0.15,
+            }
+        }
+
+        result = _extract_enhanced_configs(trainer_config)
+
+        assert result["stabilize_mode"] == "gate_occupancy"
+        assert result["target_saturation"] == 0.15
+        assert "homeostatic_control_config" not in trainer_config
+
 
 class TestGetTrainer:
     """Test get_trainer factory function."""
@@ -251,12 +283,39 @@ class TestGetTrainer:
         self, mock_optimizer, basic_trainer_config
     ):
         """Test creating voltage stabilization trainer."""
+        trainer_config = dict(basic_trainer_config)
+        trainer_config["voltage_stabilization_config"] = {
+            "stabilize_mode": "gate_occupancy",
+            "target_saturation": 0.3,
+        }
         with patch(
             "dendritic_modeling.training.factory.VoltageStabilizationTrainer"
         ) as MockTrainer:
-            get_trainer("voltage_stabilization", mock_optimizer, basic_trainer_config)
+            get_trainer("voltage_stabilization", mock_optimizer, trainer_config)
 
             MockTrainer.assert_called_once()
+            call_args = MockTrainer.call_args[1]
+            assert call_args["stabilize_mode"] == "gate_occupancy"
+            assert call_args["target_saturation"] == 0.3
+
+    def test_get_homeostatic_control_trainer(
+        self, mock_optimizer, basic_trainer_config
+    ):
+        """Test creating homeostatic control trainer."""
+        trainer_config = dict(basic_trainer_config)
+        trainer_config["homeostatic_control_config"] = {
+            "stabilize_mode": "gate_occupancy",
+            "target_saturation": 0.25,
+        }
+        with patch(
+            "dendritic_modeling.training.factory.HomeostaticControlTrainer"
+        ) as MockTrainer:
+            get_trainer("homeostatic_control", mock_optimizer, trainer_config)
+
+            MockTrainer.assert_called_once()
+            call_args = MockTrainer.call_args[1]
+            assert call_args["stabilize_mode"] == "gate_occupancy"
+            assert call_args["target_saturation"] == 0.25
 
     def test_get_fsdp_trainer_is_not_supported(
         self, mock_optimizer, basic_trainer_config
@@ -360,6 +419,18 @@ class TestGetTrainer:
             assert "pruning_config" in call_args
             assert call_args["optimizer"] == mock_optimizer
             assert isinstance(call_args["pruning_config"], PruningConfig)
+
+
+class TestStrategyConfigDefaults:
+    """Test specialized strategy config defaults."""
+
+    def test_voltage_stabilization_default_target_saturation(self):
+        cfg = VoltageStabilizationStrategyConfig()
+        assert cfg.target_saturation == 0.2
+
+    def test_homeostatic_control_default_target_saturation(self):
+        cfg = HomeostaticControlStrategyConfig()
+        assert cfg.target_saturation == 0.2
 
 
 class TestTransferMLPWeights:

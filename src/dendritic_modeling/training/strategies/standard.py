@@ -25,6 +25,7 @@ from dendritic_modeling.config.training import (
     ReportingConfig,
 )
 from dendritic_modeling.models import BaseModel
+from dendritic_modeling.networks import ParametricActivation
 from dendritic_modeling.plotting import plot_loss_curves
 from dendritic_modeling.training.distributed_samplers import (
     PaddedDistributedEvalSampler,
@@ -300,6 +301,142 @@ class Trainer:
         self.epoch_counter = 0
         self.total_epochs = total_epochs
         self.patience_counter = 0
+        self._capture_reactivation_param_states(model)
+        self._configure_reactivation_update_mode(model)
+
+    def _iter_reactivation_params(
+        self, model: BaseModel
+    ) -> list[tuple[torch.nn.Parameter, bool]]:
+        """Return reactivation params with their original trainability."""
+        params: list[tuple[torch.nn.Parameter, bool]] = []
+        for module in self._unwrap_model(model).modules():
+            if not isinstance(module, ParametricActivation):
+                continue
+            for param in module.parameters(recurse=False):
+                params.append((param, bool(param.requires_grad)))
+        return params
+
+    def _capture_reactivation_param_states(self, model: BaseModel) -> None:
+        """Cache the original trainability of reactivation parameters."""
+        model_id = id(self._unwrap_model(model))
+        if getattr(self, "_reactivation_state_model_id", None) == model_id:
+            return
+        self._reactivation_state_model_id = model_id
+        self._reactivation_param_states = self._iter_reactivation_params(model)
+
+    def _normalize_reactivation_update_mode(self) -> str:
+        mode = (
+            str(getattr(self, "reactivation_update_mode", "backprop") or "backprop")
+            .strip()
+            .lower()
+        )
+        aliases = {
+            "bp": "backprop",
+            "backprop": "backprop",
+            "backpropagation": "backprop",
+            "quantile": "quantile",
+            "quantile_only": "quantile",
+            "quantile-rule": "quantile",
+            "quantile_rule": "quantile",
+            "frozen": "frozen",
+            "freeze": "frozen",
+        }
+        normalized = aliases.get(mode)
+        if normalized is None:
+            raise ValueError(
+                "Unknown reactivation_update_mode "
+                f"{mode!r} (expected 'backprop', 'quantile', or 'frozen')"
+            )
+        return normalized
+
+    def _set_reactivation_trainability(self, requires_grad: bool) -> None:
+        """Apply trainability while preserving originally fixed parameters."""
+        for param, original_requires_grad in getattr(
+            self, "_reactivation_param_states", []
+        ):
+            target_requires_grad = original_requires_grad if requires_grad else False
+            param.requires_grad_(target_requires_grad)
+            if not target_requires_grad:
+                param.grad = None
+
+    def _configure_reactivation_update_mode(self, model: BaseModel) -> None:
+        """Freeze/unfreeze reactivation params according to the training mode."""
+        self._capture_reactivation_param_states(model)
+        mode = self._normalize_reactivation_update_mode()
+        self.reactivation_update_mode = mode
+        if mode == "backprop":
+            self._set_reactivation_trainability(True)
+            return
+
+        self._set_reactivation_trainability(False)
+        if (
+            mode == "quantile"
+            and getattr(self, "recalibrate_reactivation_every", 0) <= 0
+            and self._is_main_process
+        ):
+            logger.warning(
+                "%sreactivation_update_mode='quantile' but "
+                "recalibrate_reactivation_every<=0, so (m, b) will stay frozen.",
+                getattr(self, "logger_info_prefix", "[Standard] "),
+            )
+
+    def _normalize_reactivation_recalibration_mode(self) -> str:
+        mode = (
+            str(
+                getattr(
+                    self,
+                    "reactivation_recalibration_mode",
+                    "from_init_policy",
+                )
+                or "from_init_policy"
+            )
+            .strip()
+            .lower()
+        )
+        aliases = {
+            "auto": "from_init_policy",
+            "from_init_policy": "from_init_policy",
+            "init_policy": "from_init_policy",
+            "quantile": "occupancy_quantile",
+            "occupancy_quantile": "occupancy_quantile",
+            "empirical": "median_mad",
+            "median_mad": "median_mad",
+            "mean_std": "mean_std",
+        }
+        normalized = aliases.get(mode)
+        if normalized is None:
+            raise ValueError(
+                "Unknown reactivation_recalibration_mode "
+                f"{mode!r} (expected 'from_init_policy', 'occupancy_quantile', "
+                "'median_mad', or 'mean_std')"
+            )
+        return normalized
+
+    def _resolve_reactivation_recalibration_mode(self, model: BaseModel) -> str:
+        """Resolve the calibration rule used for periodic (m, b) refreshes."""
+        explicit_mode = self._normalize_reactivation_recalibration_mode()
+        if explicit_mode != "from_init_policy":
+            return explicit_mode
+
+        if self._normalize_reactivation_update_mode() == "quantile":
+            return "occupancy_quantile"
+
+        from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.initialize import (
+            normalize_reactivation_init_policy,
+            reactivation_policy_to_calibration_mode,
+        )
+
+        for module in self._unwrap_model(model).modules():
+            policy = getattr(module, "reactivation_init_policy", None)
+            if policy is None:
+                continue
+            policy = normalize_reactivation_init_policy(policy)
+            mode = reactivation_policy_to_calibration_mode(policy)
+            if mode is not None:
+                return mode
+            break
+
+        return "occupancy_quantile"
 
     def train(
         self,
@@ -413,6 +550,21 @@ class Trainer:
         if self._train_sampler is not None:
             self._train_sampler.set_epoch(self.epoch_counter)
 
+        # Periodic reactivation recalibration: recompute (m, b) from the
+        # current voltage distribution every N epochs using the same
+        # quantile formula as the init calibration. This keeps the gate
+        # matched to the evolving V distribution and eliminates drift.
+        recalib_every = getattr(self, "recalibrate_reactivation_every", 0)
+        recalib_start = max(
+            1, int(getattr(self, "reactivation_recalibration_start_epoch", 1))
+        )
+        if (
+            recalib_every > 0
+            and self.epoch_counter >= recalib_start
+            and (self.epoch_counter - recalib_start) % recalib_every == 0
+        ):
+            self._recalibrate_reactivation(model, train_loader)
+
         train_loss_total, train_loss_base, train_loss_reg = self._epoch_train(
             model, train_loader
         )
@@ -442,6 +594,56 @@ class Trainer:
             train_loss_reg=train_loss_reg,
         )
         return train_losses, valid_losses, train_losses_base, train_losses_reg
+
+    def _recalibrate_reactivation(
+        self, model: BaseModel, train_loader: DataLoader
+    ) -> None:
+        """Recompute (m, b) from the current voltage distribution.
+
+        Uses the same calibration function as the init-time calibration
+        but runs it on live training data with the current weights. This
+        keeps the gate matched to the evolving V distribution.
+        """
+        from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.initialize import (
+            calibrate_reactivation_from_data,
+        )
+
+        mode = self._resolve_reactivation_recalibration_mode(model)
+        n_batches = max(
+            1, int(getattr(self, "reactivation_recalibration_num_batches", 3))
+        )
+        ema_alpha = float(getattr(self, "reactivation_recalibration_ema_alpha", 1.0))
+
+        # Collect a few batches from the current train loader
+        batches = []
+        for i, batch in enumerate(train_loader):
+            if i >= n_batches:
+                break
+            x = batch[0] if isinstance(batch, (list, tuple)) else batch
+            batches.append(x.to(self.device))
+
+        if not batches:
+            return
+
+        diag = calibrate_reactivation_from_data(
+            model,
+            batches,
+            k=None,
+            device=self.device,
+            mode=mode,
+            ema_alpha=ema_alpha,
+        )
+
+        if self._is_main_process and diag:
+            m_values = [d["m"] for d in diag.values()]
+            applied_m_values = [d.get("m_applied", d["m"]) for d in diag.values()]
+            logger.info(
+                f"{self.logger_info_prefix}Recalibrated reactivation at epoch "
+                f"{self.epoch_counter}: {len(diag)} layers, "
+                f"m target range [{min(m_values):.3f}, {max(m_values):.3f}], "
+                f"applied m range [{min(applied_m_values):.3f}, {max(applied_m_values):.3f}], "
+                f"batches={n_batches}, ema_alpha={max(0.0, min(1.0, ema_alpha)):.3f}"
+            )
 
     def _epoch_train(
         self, model: BaseModel, train_loader: DataLoader

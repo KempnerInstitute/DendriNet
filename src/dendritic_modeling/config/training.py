@@ -48,6 +48,32 @@ class CommonTrainerConfig(BaseConfig):
     enable_adaptive_clipping: bool = False
     weight_decay_rate: float = 0.01
     weight_boosting: bool = False
+    # Periodic reactivation recalibration during training.
+    # 0 = disabled (default). N > 0 = recompute (m, b) from the current
+    # voltage distribution every N epochs using the same calibration rule
+    # as the configured reactivation init policy.
+    recalibrate_reactivation_every: int = 0
+    # How reactivation parameters are updated during standard training.
+    # "backprop" = train via the optimizer (default, historical behavior).
+    # "quantile" = freeze BP updates and refresh (m, b) with the data-driven
+    # quantile calibration rule during training.
+    reactivation_update_mode: str = "backprop"
+    # Calibration rule used by periodic reactivation refreshes.
+    # "from_init_policy" preserves historical behavior. When
+    # reactivation_update_mode="quantile", this defaults to the occupancy
+    # quantile rule unless explicitly overridden.
+    reactivation_recalibration_mode: str = "from_init_policy"
+    # First epoch at which periodic reactivation refreshes are allowed.
+    # This lets experiments preserve the chosen initialization through epoch 1
+    # before switching to quantile-rule updates.
+    reactivation_recalibration_start_epoch: int = 1
+    # Number of training batches used to estimate the live voltage
+    # distribution for a periodic (m, b) refresh.
+    reactivation_recalibration_num_batches: int = 3
+    # EMA-style blend factor for periodic reactivation refreshes.
+    # 1.0 = hard overwrite with the freshly calibrated (m, b).
+    # 0 < alpha < 1 = blend the current parameters toward the calibrated target.
+    reactivation_recalibration_ema_alpha: float = 1.0
 
     param_groups: ParamGroupsConfig = field(default_factory=ParamGroupsConfig)
 
@@ -116,6 +142,7 @@ class VoltageStabilizationStrategyConfig(BaseConfig):
     stabilize_mode: str = "vout"
     freeze_reactivation: bool = True
     target_voltage: float = 0.5
+    target_saturation: float = 0.2
     loss_metric: str = "mse"
 
 
@@ -127,6 +154,7 @@ class HomeostaticControlStrategyConfig(BaseConfig):
     stabilize_mode: str = "vinf"
     freeze_reactivation: bool = False
     target_voltage: float = 0.5
+    target_saturation: float = 0.2
     loss_metric: str = "mse"
 
 
@@ -416,6 +444,25 @@ class LocalVoltageHomeostasisConfig(BaseConfig):
 
 
 @dataclass
+class LocalGateHomeostasisConfig(BaseConfig):
+    """Parameters for strictly local gate-occupancy updates.
+
+    These updates act only on reactivation parameters and use only each
+    layer's own gate outputs plus local activation derivatives. This is the
+    local-learning counterpart to the global gate-occupancy warmup strategy.
+    """
+
+    enabled: bool = False
+    center_weight: float = 0.0
+    saturation_weight: float = 0.0
+    target_mean: float = 0.5
+    target_saturation: float = 0.2
+    low_threshold: float = 0.1
+    high_threshold: float = 0.9
+    saturation_slope: float = 20.0
+
+
+@dataclass
 class LocalRuleConfig(BaseConfig):
     """Configuration for local learning rules.
 
@@ -475,6 +522,11 @@ class LocalRuleConfig(BaseConfig):
     # Strictly local voltage-centering auxiliary
     voltage_homeostasis: LocalVoltageHomeostasisConfig = field(
         default_factory=LocalVoltageHomeostasisConfig
+    )
+
+    # Strictly local gate-occupancy auxiliary
+    gate_homeostasis: LocalGateHomeostasisConfig = field(
+        default_factory=LocalGateHomeostasisConfig
     )
 
     # ========== PARAMETER UPDATE CONTROL ==========

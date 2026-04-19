@@ -32,7 +32,7 @@ class TestCoreModels(unittest.TestCase):
         )
 
         # Test forward pass
-        x = torch.randn(32, 10)
+        x = torch.rand(32, 10)
         output = classifier(x)
 
         self.assertEqual(output.shape, (32, 2))
@@ -50,7 +50,7 @@ class TestCoreModels(unittest.TestCase):
             decoder_network=nn.Identity(),
         )
 
-        x = torch.randn(32, 10)
+        x = torch.rand(32, 10)
         predictions = classifier.predict(x)
 
         self.assertEqual(predictions.shape, (32,))
@@ -103,7 +103,7 @@ class TestEINetworkIntegration(unittest.TestCase):
         )
 
         # Test forward pass
-        x = torch.randn(16, 8)
+        x = torch.rand(16, 8)
         output = classifier(x)
 
         # Output should have correct shape
@@ -195,7 +195,7 @@ class TestModelSaving(unittest.TestCase):
         new_classifier.load_state_dict(state_dict)
 
         # Test that they produce the same output
-        x = torch.randn(16, 10)
+        x = torch.rand(16, 10)
         with torch.no_grad():
             output1 = classifier(x)
             output2 = new_classifier(x)
