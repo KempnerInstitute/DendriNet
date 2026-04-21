@@ -1,4 +1,4 @@
-"""Post-build init diagnostics for dendritic recurrent models.
+"""Post-build gate diagnostics for models with learnable reactivation gates.
 
 Captures a summary of reactivation gate parameters (m, b) for each dendritic
 layer immediately after the model is built and before training begins. The
@@ -6,10 +6,10 @@ output is written to ``<run_dir>/init_gate_stats.json`` so every training run
 automatically records whether calibration produced a healthy or pathological
 initialization.
 
-This is a minimal diagnostic meant to catch regressions like the
-``paperclean_v3`` quantile-calibration failure, where the stored per-neuron
-``(m, b)`` tensors had the right shape but every entry was identical and
-saturated. Checking per-layer ``n_unique`` catches that pattern immediately.
+This is intentionally lightweight: it does not depend on experiment-specific
+task logic, and it only inspects modules that already exist in the built model.
+The main goal is to catch suspicious gate states early, before a long training
+run silently fails because the reactivation gates started saturated or clipped.
 """
 
 from __future__ import annotations
@@ -89,10 +89,10 @@ def collect_reactivation_stats(model: nn.Module) -> dict[str, Any]:
 def _flag_suspicious(stats: dict[str, Any], m_clip_warn: float = 40.0) -> list[str]:
     """Return a list of human-readable warnings about suspicious init patterns.
 
-    Warnings fire only when two signals coincide, because legacy-default
-    initialization produces identical (m, b) across neurons at epoch 0
-    by design (training diversifies them). The regression signature is
-    ``identical (m, b) AND the gate is saturated or m is at the clip``.
+    Warnings are intentionally conservative. Identical values alone are not
+    automatically bad, because some fixed or analytical init rules legitimately
+    start every neuron in a layer from the same gate state. We only flag them
+    when they coincide with clear saturation or clipping signals.
     """
     warnings: list[str] = []
     for name, entry in stats.items():
@@ -103,15 +103,21 @@ def _flag_suspicious(stats: dict[str, Any], m_clip_warn: float = 40.0) -> list[s
         m_unique = m.get("n_unique", 0)
         b_unique = b.get("n_unique", 0)
         m_max = float(m.get("max", 0.0))
+        m_mean = float(m.get("mean", 0.0))
         bmean = float(b.get("mean", 0.0))
 
         identical_m = m_n > 1 and m_unique == 1
         identical_b = b_n > 1 and b_unique == 1
         m_clipped = m_max >= m_clip_warn
-        b_saturated = bmean >= 0.95 or bmean <= 0.05
+        # Upper-edge (b >= 0.95) saturates regardless of m, because
+        # shunting voltages are bounded in (0,1). Lower-edge (b <= 0.05)
+        # only saturates when combined with a sharp slope; a gentle gate
+        # (m ~= 0.1) centered at 0 is the additive-safe default and is
+        # healthy, not pathological.
+        b_saturated = bmean >= 0.95 or (bmean <= 0.05 and m_mean >= 1.0)
 
-        # Always flag a clipped slope regardless of variance — this is the
-        # direct regression pattern from paperclean_v3.
+        # Always flag a clipped slope regardless of variance. Even when a run
+        # recovers later, starting from a clipped gate is usually worth review.
         if m_clipped:
             warnings.append(
                 f"{name}: m.max={m_max:.2f} is near or at the calibration "
@@ -119,12 +125,11 @@ def _flag_suspicious(stats: dict[str, Any], m_clip_warn: float = 40.0) -> list[s
             )
 
         # Flag identical-value init only if combined with saturation or clip,
-        # since identical values alone are the expected legacy starting point.
+        # since identical values alone can be a healthy fixed-init baseline.
         if (identical_m or identical_b) and (m_clipped or b_saturated):
             warnings.append(
                 f"{name}: identical (m, b) across {max(m_n, b_n)} entries "
-                f"combined with m_max={m_max:.2f}, b.mean={bmean:.3f} "
-                "(pathological-calibration pattern)"
+                f"combined with m_max={m_max:.2f}, b.mean={bmean:.3f}"
             )
 
         # Flag bare saturation.

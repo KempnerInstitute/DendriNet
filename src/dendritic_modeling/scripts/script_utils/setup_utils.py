@@ -200,7 +200,18 @@ def _is_recurrent_core_config(core_cfg) -> bool:
     core_type = _get_type(core_cfg)
     if core_type in {"gru", "lstm", "vanilla_rnn", "rnn"}:
         return True
-    if core_type in {"ei_unified", "unified_ei", "ei_net", "unified_einet"}:
+    # Recurrent / unified-EI path: the canonical `ei_unified` family plus
+    # the `rnn_*` aliases that dispatch through the same factory branch.
+    if core_type in {
+        "ei_unified",
+        "unified_ei",
+        "ei_net",
+        "unified_einet",
+        "rnn_dendritic_shunting",
+        "rnn_dendritic_additive",
+        "rnn_flat_shunting",
+        "rnn_flat_additive",
+    }:
         return _has_unified_recurrent_layers(core_cfg)
     if core_type in {
         "einet",
