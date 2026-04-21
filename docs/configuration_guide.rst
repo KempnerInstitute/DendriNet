@@ -66,8 +66,12 @@ Set ``model.core.type`` to one of:
      - Single-branch additive variant
    * - ``ei_unified``
      - Unified E-I, supports feedforward and recurrent
+   * - ``rnn_dendritic_shunting``, ``rnn_dendritic_additive``
+     - Unified recurrent E-I aliases with shunting/additive defaults applied
    * - ``gru``, ``lstm``
      - Baseline RNNs
+   * - ``vanilla_rnn``
+     - Plain point-RNN baseline
    * - ``mlp``
      - MLP baseline
 
@@ -75,7 +79,14 @@ See :doc:`network_architectures` for architecture details. For recurrent
 ``ei_unified`` models, the biology-facing configuration now also supports
 ``allow_self_recurrence: false`` inside each population block to disable
 same-population E->E and I->I self-feedback while keeping cross-population
-recurrence intact.
+recurrence intact. Structured feedforward EINet configs and recurrent
+PopulationConfig blocks now share the same positive-weight default
+(``weight_transform: exp``).
+
+When you use a data-driven gate init policy (``quantile``,
+``occupancy_quantile``, or ``empirical``), each run also writes
+``init_gate_stats.json`` into its run directory. Use that artifact to confirm
+that reactivation gates were initialized sensibly before trusting the run.
 
 Training Strategies
 -------------------

@@ -1,6 +1,11 @@
 # Recurrent Architectures
 
 This package contains recurrent-capable network cores and baseline RNN wrappers.
+The recurrent unified-EI path is intentionally built on top of the same
+``DendriticBranchLayer`` and ``initialize.py`` logic used by the feedforward
+EI stack, so synapse semantics, reactivation policies, and initialization
+rules stay aligned unless recurrence genuinely requires something extra
+(temporal traces, recurrent synapse banks, or sequence reduction).
 
 ## Modules
 
@@ -18,6 +23,8 @@ Unified E-I:
 
 - `ei_unified`
 - aliases: `unified_ei`, `ei_net`, `unified_einet`
+- recurrent-default aliases: `rnn_dendritic_shunting`, `rnn_dendritic_additive`,
+  `rnn_flat_shunting`, `rnn_flat_additive`
 
 Baseline recurrent models:
 
@@ -47,3 +54,7 @@ Unified E-I configuration lives under `model.core.unified_ei`.
   `networks/architectures/excitation_inhibition/`.
 - Output reduction is controlled by the recurrent core config
   (`last`, `mean`, or `all`).
+- For biology-facing recurrent runs, the common paper recipe is a positive
+  weight transform (`exp`), `allow_self_recurrence: false`, and review of the
+  post-build `init_gate_stats.json` artifact when using data-driven gate
+  initialization.

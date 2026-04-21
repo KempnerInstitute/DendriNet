@@ -300,7 +300,7 @@ def _build_core_config(core_data: Any) -> CoreConfig:
     core_dict = _to_plain_dict(core_data)
     unified_ei = core_dict.get("unified_ei", core_dict.get("ei_unified", {}))
     return CoreConfig(
-        type=str(core_dict.get("type", "EINet")),
+        type=str(core_dict.get("type", "einet")),
         architecture=ArchitectureConfig(
             **_to_plain_dict(core_dict.get("architecture", {}))
         ),

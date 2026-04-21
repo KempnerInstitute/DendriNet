@@ -1,4 +1,3 @@
-import warnings
 from dataclasses import asdict, is_dataclass
 from typing import Any, Optional, Union
 
@@ -347,7 +346,7 @@ def _build_recurrent_einet_from_structured_config(
             topk_temperature=float(sparsity.get("temperature", 0.0)),
             topk_ultrafast=bool(sparsity.get("ultrafast", False)),
             topk_strategy=str(sparsity.get("gradient_scaling", "none")),
-            weight_transform=str(morphology.get("weight_transform", "softplus")),
+            weight_transform=str(morphology.get("weight_transform", "exp")),
             use_shunting=use_shunting,
             use_additive_normalization=bool(
                 morphology.get("use_additive_normalization", False)
@@ -413,7 +412,6 @@ def _build_recurrent_einet_from_structured_config(
             adaptive_initialization=bool(
                 implementation.get("adaptive_initialization", False)
             ),
-            compile_forward=bool(implementation.get("compile_forward", False)),
         )
 
         inh_cfg = None
@@ -612,6 +610,35 @@ def get_architecture(
                         if k == "branch_factors" and exc.get("branch_factors"):
                             continue
                         exc[k] = v
+                # Warn about the additive-init-bug trap: `use_shunting=False`
+                # combined with the analytical init policy hits the buggy
+                # `E_Vinf = E_g_exc - E_g_inh + 0.5` branch on non-leaf
+                # layers and places the gate center above the useful
+                # voltage range. Users should switch to the
+                # `rnn_dendritic_additive` alias (which sets a safe
+                # fixed-init) or explicitly set `reactivation_init_policy`
+                # to "fixed" with a sensible `reactivation_init_b`.
+                if not bool(exc.get("use_shunting", True)):
+                    policy = str(
+                        exc.get("reactivation_init_policy", "analytical")
+                    ).lower()
+                    if policy in {
+                        "analytical",
+                        "auto",
+                        "quantile",
+                        "occupancy_quantile",
+                    }:
+                        import warnings
+
+                        warnings.warn(
+                            "Additive-integration ablation with "
+                            f"reactivation_init_policy='{policy}' triggers a known "
+                            "non-leaf gate-center bug (E[V_inf] ~ 1.02). Prefer "
+                            "core.type='rnn_dendritic_additive' (or 'fixed' policy "
+                            "with b=0.0) for a correctly-initialised additive path.",
+                            RuntimeWarning,
+                            stacklevel=2,
+                        )
                 layer["excitatory"] = PopulationConfig(**exc)
             if isinstance(inh, dict):
                 layer["inhibitory"] = PopulationConfig(**inh)

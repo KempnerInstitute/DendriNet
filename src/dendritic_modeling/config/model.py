@@ -55,10 +55,14 @@ class MorphologyConfig(BaseConfig):
     """Morphological features configuration."""
 
     somatic_synapses: bool = False
-    use_shunting: bool = True  # Legacy fallback for core.type == "EINet"
+    use_shunting: bool = True  # Legacy fallback for core.type == "einet"
     use_additive_normalization: bool = False  # Normalize voltage in additive mode
+    # Only used when an EINet-style config is translated into the recurrent
+    # unified E-I path. Feedforward models ignore this flag.
     allow_self_recurrence: bool = True
-    weight_transform: str = "softplus"
+    # Keep the structured-config default aligned with ExcitationInhibitionNetwork,
+    # PopulationConfig, and the biology-facing paper settings.
+    weight_transform: str = "exp"
     dbl_init_method: str = "analytical_expectation"
 
 
@@ -190,7 +194,7 @@ class SpatialConfig(BaseConfig):
 class CoreConfig(BaseConfig):
     """Core network configuration."""
 
-    type: str = "EINet"
+    type: str = "einet"
 
     architecture: ArchitectureConfig = field(default_factory=ArchitectureConfig)
     connectivity: ConnectivityConfig = field(default_factory=ConnectivityConfig)

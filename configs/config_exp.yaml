@@ -147,8 +147,10 @@ model:
   # ---------- Core network ----------
   core:
     # Legacy EI (feedforward / recurrent-capable via core.recurrent_ei or connectivity.rec_*):
-    #   "EINet" | "dendritic_shunting" | "dendritic_additive" | "flat_shunting" | "flat_additive" | "dendritic_mlp" | "flat_mlp"
+    #   "einet" | "dendritic_shunting" | "dendritic_additive" | "flat_shunting" | "flat_additive" | "dendritic_mlp" | "flat_mlp"
     # Unified EI (recommended): "unified_ei" | "ei_unified" | "ei_net" | "unified_einet"
+    # Recurrent unified-EI aliases:
+    #   "rnn_dendritic_shunting" | "rnn_dendritic_additive" | "rnn_flat_shunting" | "rnn_flat_additive"
     # Baseline RNN: "gru" | "lstm" | "vanilla_rnn" | "rnn"
     # Point neuron MLP: "mlp" | "point_mlp" | "total_param_mlp" | "active_param_mlp" | "ss_mlp" | "ss_mlp_flat"
     # Spatial dendritic pretrained-replacement cores:
@@ -158,7 +160,7 @@ model:
     #   "hierarchical_dendritic_conv" | "spatial_dendritic_conv"
     #       -> local spatial dendritic operator for convolutional suffixes
     # Classical: "alexnet" | "cnn" | "cnn_down" | "cnn_up" | "identity" | "none"
-    type: "EINet"
+    type: "einet"
 
     # ---- Architecture ----
     architecture:
@@ -197,7 +199,7 @@ model:
       somatic_synapses: false           # bool: Direct somatic synapses
       use_shunting: true                # bool: Shunting inhibition
       use_additive_normalization: false  # bool: Normalize voltage in additive mode
-      weight_transform: "softplus"      # str: "softplus" | "exp" | "abs" | "none"
+      weight_transform: "exp"           # str: "exp" | "softplus" | "relu" | "identity"
       dbl_init_method: "analytical_expectation"  # str: "analytical_expectation" | "uniform" | "ones"
 
     # ---- Sparsity ----
@@ -272,7 +274,7 @@ model:
           reactivation_init_b: 0.5      # float: Reactivation bias init
           topk_init_method: "xavier_normal"  # str: Init method for topk
           epsilon: 0.00000001           # float: Numerical epsilon
-          weight_transform: "exp"       # str: "exp" | "softplus" | "abs" | "none"
+          weight_transform: "exp"       # str: "exp" | "softplus" | "relu" | "identity"
         - tau: 50.0
           ff_synapses: 6
           rec_synapses: 6

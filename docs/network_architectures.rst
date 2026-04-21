@@ -50,7 +50,7 @@ Core Network Types
      -
    * - ``ei_unified``
      - Unified E-I, supports feedforward and recurrent
-     - ``unified_ei``, ``ei_net``, ``unified_einet``
+     - ``unified_ei``, ``ei_net``, ``unified_einet``, ``rnn_dendritic_shunting``, ``rnn_dendritic_additive``, ``rnn_flat_shunting``, ``rnn_flat_additive``
    * - ``gru``
      - Gated Recurrent Unit
      -
@@ -130,7 +130,7 @@ E-I Network Configuration
        morphology:
          somatic_synapses: false
          use_shunting: true
-         weight_transform: "softplus"
+         weight_transform: "exp"
          dbl_init_method: "analytical_expectation"
        sparsity:
          init_method: "xavier_normal"
@@ -347,7 +347,7 @@ keeps the same interface usable across shunting and additive morphologies.
 
 ``init_policy`` selects the initialization strategy:
 
-``quantile`` **(recommended for backprop)**
+``quantile`` **(backprop starting point; validate with init diagnostics)**
    Post-init calibration using quantile-occupancy. After the model is built,
    a few training batches are run through it. For each reactivation layer,
    the 10th and 90th percentiles of the pre-reactivation voltage ``V`` are
@@ -369,6 +369,12 @@ keeps the same interface usable across shunting and additive morphologies.
    bulk of the observed voltage mass into the gate's sensitive region while
    keeping the tails as margin.
 
+   Quantile-based calibration now includes safeguards for ill-conditioned
+   upper-layer fits. If the observed quantile span is too small or the fitted
+   slope would have to exceed the configured ``calibration_max_m``, the layer
+   falls back to its pre-calibration gate state instead of forcing a saturated
+   occupancy fit.
+
    The fitted ``(m, b)`` are layer-specific by design. Different dendritic
    depths see different voltage statistics, so forcing one shared gate slope
    across depth is usually a worse calibration. For depth analysis, compare
@@ -376,7 +382,9 @@ keeps the same interface usable across shunting and additive morphologies.
    voltages across layers.
 
    Pair with a small ``reactivation_lr`` (``1e-4`` or ``1e-5``) to keep gate
-   slope drift under control.
+   slope drift under control. For data-driven init policies, check the
+   automatically written ``init_gate_stats.json`` artifact in the run
+   directory before treating a run as healthy.
 
 ``occupancy_quantile`` **(recommended for local learning)**
    Generalized quantile-occupancy calibration with configurable quantile and
@@ -418,6 +426,21 @@ Recommended default choices are:
      - ``q_low=0.05, q_high=0.95, r_low=0.2, r_high=0.8``; ``reactivation_lr = 1e-3``
 
 No morphology-specific defaults are needed.
+
+Init diagnostics
+^^^^^^^^^^^^^^^^
+
+When a model contains learnable reactivation gates, the training script writes
+``init_gate_stats.json`` into the run directory immediately after model build.
+This summarizes the initial ``m`` and ``b`` distributions per reactivation
+module and flags suspicious patterns such as:
+
+- slopes near the calibration clip
+- repeated identical values across a full layer combined with saturation
+- gate centers pushed to the voltage-range edge
+
+This diagnostic is especially useful when using ``quantile`` or
+``occupancy_quantile`` policies on new datasets or new recurrent settings.
 
 **Standard backprop** (both morphologies):
 
@@ -638,6 +661,11 @@ For full per-layer, per-population control, use ``core.type: ei_unified``
 with the ``unified_ei`` config. Each layer is an ``EILayerConfig`` containing
 ``excitatory`` and ``inhibitory`` ``PopulationConfig`` objects.
 
+The recurrent unified-EI path reuses the same ``DendriticBranchLayer`` and
+``initialize.py`` logic as the feedforward EI stack. The main difference is
+that recurrent populations wrap those branch layers with per-level temporal
+traces and optional recurrent synapse banks.
+
 PopulationConfig fields
 ^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -672,7 +700,8 @@ Recurrent structure:
    ``allow_self_recurrence`` controls whether same-population recurrent synapses
    may read from the previous-timestep soma/output state of the same neuron.
    When set to ``False``, self-feedback is masked for E->E and I->I recurrent
-   synapses while cross-population recurrence remains unchanged.
+   synapses while cross-population recurrence remains unchanged. This flag is
+   only meaningful when the corresponding recurrent synapse count is nonzero.
 
 Implementation:
    ``print_hooks``, ``adaptive_initialization``.
