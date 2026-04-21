@@ -509,10 +509,10 @@ def main(config_path: str, args=None):
     # Use the unwrapped model for summary and param group extraction.
     unwrapped_model = model.module if hasattr(model, "module") else model
 
-    # Post-build init diagnostic: record per-layer (m, b) statistics to
-    # init_gate_stats.json in the run directory. This catches regressions
-    # like paperclean_v3 where calibration stored identical (m, b) across
-    # all neurons in a layer and m hit the calibration clip.
+    # Post-build gate diagnostic: record per-layer (m, b) statistics to
+    # init_gate_stats.json in the run directory. This is a generic health
+    # check for runs that use learnable reactivation gates, especially when
+    # data-driven calibration is enabled.
     if is_main:
         try:
             dump_init_gate_stats(unwrapped_model, run_save_path)

@@ -80,7 +80,9 @@ def canonicalize_model_core_flags(
 # Type-alias implied overrides for the recurrent / unified-EI path.
 # Mirrors the `_UNIFIED_EI_ALIAS_OVERRIDES` in the factory; this helper
 # rewrites a raw config dict so saved configs are self-consistent with
-# the alias they declare.
+# the alias they declare. The `*_additive` aliases also pin the gate-init
+# to `(m=0.1, b=0.0, policy="fixed")`, bypassing the analytical init rule
+# which on non-leaf additive layers computes an out-of-range gate center.
 _RNN_CORE_ALIAS_OVERRIDES: dict[str, dict[str, object]] = {
     "rnn_dendritic_shunting": {
         "use_shunting": True,
@@ -88,6 +90,9 @@ _RNN_CORE_ALIAS_OVERRIDES: dict[str, dict[str, object]] = {
     "rnn_dendritic_additive": {
         "use_shunting": False,
         "use_additive_normalization": True,
+        "reactivation_init_m": 0.1,
+        "reactivation_init_b": 0.0,
+        "reactivation_init_policy": "fixed",
     },
     "rnn_flat_shunting": {
         "use_shunting": True,
@@ -96,6 +101,9 @@ _RNN_CORE_ALIAS_OVERRIDES: dict[str, dict[str, object]] = {
     "rnn_flat_additive": {
         "use_shunting": False,
         "use_additive_normalization": True,
+        "reactivation_init_m": 0.1,
+        "reactivation_init_b": 0.0,
+        "reactivation_init_policy": "fixed",
         "branch_factors": [1],
     },
 }
