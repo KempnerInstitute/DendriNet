@@ -11,6 +11,7 @@ import pandas as pd
 import seaborn as sns
 import torch
 import torch.nn.functional as F
+from sklearn.decomposition import NMF
 
 from dendritic_modeling.analysis.core.base import AbstractAnalyzer
 from dendritic_modeling.config import ReceptiveFieldAnalysisParams
@@ -116,44 +117,120 @@ class ReceptiveFieldAnalyzer(AbstractAnalyzer):
             v_prev = v_next
         
         return v_prev.squeeze(1)
+    
+    @staticmethod
+    def _nmf(
+        inputs: torch.Tensor,
+        n_components: int,
+        max_iter: int = 1000,
+        tol: float = 1e-6
+    ):
+        """Extract NMF components from the input data."""
+        device = inputs.device
+        dtype = inputs.dtype
+        
+        X = inputs.detach().cpu().numpy()
+
+        nmf = NMF(n_components=n_components, init="nndsvd", max_iter=max_iter, tol=tol)
+        nmf.fit(X)
+
+        components = torch.from_numpy(nmf.components_).to(device, dtype)
+        return components
 
     def _compute_receptive_field_metrics(
         self,
+        soma_idx: int,
         weights: torch.Tensor,
         weight_mask: torch.Tensor,
         inputs: torch.Tensor,
-        input_mask: torch.Tensor,
+        labels: torch.Tensor,
         branch_data: dict[str, float | tuple[int, int, int]],
-        prefix: str = "exc_pref"
+        prefix: str = "exc"
     ):
-        # syn = weights[weight_mask]
-        # x = inputs[input_mask][:,weight_mask]
-        syn = weights
-        x = inputs[input_mask]
+        syn = weights[weight_mask]
+        # syn = weights
 
-        x_mean = x.mean(dim=0)
-        x_sim_mean = F.cosine_similarity(x_mean, syn, dim=0)
+        unique_classes = torch.unique(labels)
+        n_classes = len(unique_classes)
 
-        cov = torch.cov(x.T, correction=0)
-        L, V = torch.linalg.eigh(cov)
-        eig_mask = L > 1e-6
-        L : torch.Tensor = L[eig_mask]
-        V : torch.Tensor = V[:,eig_mask]
+        pref_sim_mean = 0
+        unpref_sim_mean = 0
         
-        cos_sim = F.cosine_similarity(syn[None,:], V.T, dim=1)
+        pref_sim_max_rq = 0
+        unpref_sim_max_rq = 0
         
-        # max_rq_pc = self._max_rq_optimization(cov, V[:,-1])
-        max_rq_pc = self._max_rq_power_iteration(cov)
-        max_rq_sim = F.cosine_similarity(max_rq_pc, syn, dim=0)
+        pref_active = 0
+        unpref_active = 0
 
-        branch_data[f"{prefix}_sim_mean"] = x_sim_mean.item()
-        branch_data[f"{prefix}_sim_max_rq"] = max_rq_sim.item()
-        branch_data[f"{prefix}_sim_pc_1"] = cos_sim[-1].item()
-        branch_data[f"{prefix}_sim_pc_all"] = ((L / L.sum()) * cos_sim).sum().item()
-        # branch_data[f"{prefix}_active"] = (x_mean > 0).float().mean().item()
-        branch_data[f"{prefix}_active"] = (
-            (x_mean > 0).float() * weight_mask.float()
-        ).sum() / weight_mask.float().sum().item()
+        pref_sim_nmf_mean = 0
+        unpref_sim_nmf_mean = 0
+        pref_sim_nmf_max = 0
+        unpref_sim_nmf_max = 0
+        pref_sim_sum_nmf = 0
+        unpref_sim_sum_nmf = 0
+
+        for label in unique_classes:
+            input_mask = labels == label
+            # x = inputs[input_mask]
+            x = inputs[input_mask][:,weight_mask]
+
+            x_mean = x.mean(dim=0)
+            x_sim_mean = F.cosine_similarity(x_mean, syn, dim=0).item()
+
+            cov = torch.cov(x.T, correction=0)
+
+            # max_rq_pc = self._max_rq_optimization(cov, V[:,-1])
+            max_rq_pc = self._max_rq_power_iteration(cov)
+            max_rq_sim = F.cosine_similarity(max_rq_pc, syn, dim=0).item()
+
+            nmf_components = self._nmf(x, n_components=5)
+            nmf_sim = F.cosine_similarity(nmf_components, syn[None,:], dim=1)
+            nmf_sim_mean = nmf_sim.mean().item()
+            nmf_sim_max = nmf_sim.max().item()
+            nmf_sum_sim = F.cosine_similarity(nmf_components.sum(dim=0), syn, dim=0).item()
+
+            # active = (
+            #     (x_mean > 0).float() * weight_mask.float()
+            # ).sum() / weight_mask.float().sum().item()
+            active = (x_mean > 0).float().mean().item()
+            
+            if label == soma_idx:
+                pref_sim_mean += x_sim_mean
+                pref_sim_max_rq += max_rq_sim
+                pref_active += active
+
+                pref_sim_nmf_mean += nmf_sim_mean
+                pref_sim_nmf_max += nmf_sim_max
+                pref_sim_sum_nmf += nmf_sum_sim
+            else:
+                unpref_sim_mean += x_sim_mean
+                unpref_sim_max_rq += max_rq_sim
+                unpref_active += active
+
+                unpref_sim_nmf_mean += nmf_sim_mean
+                unpref_sim_nmf_max += nmf_sim_max
+                unpref_sim_sum_nmf += nmf_sum_sim
+        
+        unpref_sim_mean /= n_classes
+        unpref_sim_max_rq /= n_classes
+        unpref_active /= n_classes
+
+        unpref_sim_nmf_mean /= n_classes
+        unpref_sim_nmf_max /= n_classes
+        unpref_sim_sum_nmf /= n_classes
+
+        branch_data[f"{prefix}_pref_sim_mean"] = pref_sim_mean
+        branch_data[f"{prefix}_pref_sim_max_rq"] = pref_sim_max_rq
+        branch_data[f"{prefix}_pref_active"] = pref_active
+        branch_data[f"{prefix}_pref_sim_nmf_mean"] = pref_sim_nmf_mean
+        branch_data[f"{prefix}_pref_sim_nmf_max"] = pref_sim_nmf_max
+        branch_data[f"{prefix}_pref_sim_sum_nmf"] = pref_sim_sum_nmf
+        branch_data[f"{prefix}_unpref_sim_mean"] = unpref_sim_mean
+        branch_data[f"{prefix}_unpref_sim_max_rq"] = unpref_sim_max_rq
+        branch_data[f"{prefix}_unpref_active"] = unpref_active
+        branch_data[f"{prefix}_unpref_sim_nmf_mean"] = unpref_sim_nmf_mean
+        branch_data[f"{prefix}_unpref_sim_nmf_max"] = unpref_sim_nmf_max
+        branch_data[f"{prefix}_unpref_sim_sum_nmf"] = unpref_sim_sum_nmf
         return branch_data
 
     def forward_hook(
@@ -183,41 +260,26 @@ class ReceptiveFieldAnalyzer(AbstractAnalyzer):
             branch_location = (soma_idx, depth, branch_idx)
             
             branch_data = {"location": branch_location}
-            input_mask = labels == soma_idx
 
             branch_data = self._compute_receptive_field_metrics(
+                soma_idx=soma_idx,
                 weights=exc_weight[b],
                 weight_mask=exc_mask[b],
                 inputs=excitatory_input,
-                input_mask=input_mask,
+                labels=labels,
                 branch_data=branch_data,
-                prefix="exc_pref"
-            )
-            branch_data = self._compute_receptive_field_metrics(
-                weights=exc_weight[b],
-                weight_mask=exc_mask[b],
-                inputs=excitatory_input,
-                input_mask=~input_mask,
-                branch_data=branch_data,
-                prefix="exc_unpref"
+                prefix="exc"
             )
 
             if module.branch_inhibition is not None:
                 branch_data = self._compute_receptive_field_metrics(
+                    soma_idx=soma_idx,
                     weights=inh_weight[b],
                     weight_mask=inh_mask[b],
                     inputs=inhibitory_input,
-                    input_mask=input_mask,
+                    labels=labels,
                     branch_data=branch_data,
-                    prefix="inh_pref"
-                )
-                branch_data = self._compute_receptive_field_metrics(
-                    weights=inh_weight[b],
-                    weight_mask=inh_mask[b],
-                    inputs=inhibitory_input,
-                    input_mask=~input_mask,
-                    branch_data=branch_data,
-                    prefix="inh_unpref"
+                    prefix="inh"
                 )
 
             data_dict[len(data_dict)] = branch_data
@@ -409,9 +471,9 @@ class ReceptiveFieldAnalyzer(AbstractAnalyzer):
 
         if not training:
             rfs_dict = self.collect_receptive_fields(ei_layer)
-            _plot_receptive_fields(rfs_dict, "exc", "exc", save_path)
-            _plot_receptive_fields(rfs_dict, "exc", "inh", save_path)
-            _plot_receptive_fields(rfs_dict, "inh", "exc", save_path)
+            # _plot_receptive_fields(rfs_dict, "exc", "exc", save_path)
+            # _plot_receptive_fields(rfs_dict, "exc", "inh", save_path)
+            # _plot_receptive_fields(rfs_dict, "inh", "exc", save_path)
 
             # for mkey in (
             #     "sim_mean", "sim_max_rq", "sim_pc_1", "sim_pc_all", "silent"
@@ -596,21 +658,32 @@ def _plot_receptive_fields_layer_metric_ratios(
     save_path: str,
 ) -> None:
     """
-    2×2 figure: top row — preferred-only similarities (max RQ, mean, active); bottom row —
-    preferred/unpreferred ratios (same hues), with a grey line at y=1 on the bottom row only.
+    2×2 figure: top row — preferred-only similarities on y in [0, 1] (max RQ, NMF metrics,
+    mean, active); bottom row — pref/unpref ratios (same hues), grey line at y=1 on bottom only.
     """
     if cell_type not in ("exc", "inh"):
         logger.warning("cell_type must be 'exc' or 'inh', got %s", cell_type)
         return
 
-    metrics = ("sim_max_rq", "sim_mean", "active")
-    # Display labels and colors must match what we store in the ``metric`` column (for seaborn palette).
+    metrics = (
+        "sim_max_rq",
+        "sim_nmf_mean",
+        "sim_nmf_max",
+        "sim_sum_nmf",
+        "sim_mean",
+        "active",
+    )
+    # Display labels and colors must match the ``metric`` column (palette + hue_order).
     _metric_plot_meta: dict[str, tuple[str, str]] = {
         "sim_max_rq": ("Max RQ similarity", "#2E7D9A"),
+        "sim_nmf_mean": ("NMF mean sim", "#348A98"),
+        "sim_nmf_max": ("NMF max sim", "#4A7F90"),
+        "sim_sum_nmf": ("NMF sum sim", "#587489"),
         "sim_mean": ("Mean similarity", "#6A4C93"),
         "active": ("Active", "#C97C2E"),
     }
     synapse_types = ("exc", "inh")
+    hue_order = [_metric_plot_meta[m][0] for m in metrics]
 
     def _depth_sort_key(k: str) -> tuple[int, str]:
         m = re.match(r"depth_(\d+)$", k)
@@ -720,7 +793,7 @@ def _plot_receptive_fields_layer_metric_ratios(
     fig, axes = plt.subplots(
         2,
         2,
-        figsize=(max(10, 1.4 * len(depth_order) * 2), 10),
+        figsize=(max(14, 1.6 * len(depth_order) * 2), 10),
         sharex=True,
         sharey="row",
     )
@@ -744,19 +817,22 @@ def _plot_receptive_fields_layer_metric_ratios(
                 x="depth_label",
                 y="value",
                 hue="metric",
+                hue_order=hue_order,
                 ax=ax_top,
                 palette=palette,
                 dodge=True,
                 linewidth=1.0,
                 showfliers=False,
             )
+            ax_top.set_ylim(0.0, 1.0)
             ax_top.legend(title=None, loc="best")
         else:
             ax_top.text(0.5, 0.5, "no data", ha="center", va="center", transform=ax_top.transAxes)
 
+        ax_top.set_ylim(0.0, 1.0)
         ax_top.set_title(row0_titles[col])
         if col == 0:
-            ax_top.set_ylabel("Preferred")
+            ax_top.set_ylabel("Preferred Similarity")
         ax_top.set_xlabel("")
 
         ratio_rows = ratio_rows_by_syn[syn_type]
@@ -770,6 +846,7 @@ def _plot_receptive_fields_layer_metric_ratios(
                 x="depth_label",
                 y="value",
                 hue="metric",
+                hue_order=hue_order,
                 ax=ax_bot,
                 palette=palette,
                 dodge=True,
@@ -787,8 +864,8 @@ def _plot_receptive_fields_layer_metric_ratios(
 
     cell_label = "Excitatory" if cell_type == "exc" else "Inhibitory"
     fig.suptitle(
-        f"{cell_label} cells — preferred (top) and pref/unpref ratio "
-        f"(max RQ sim, mean sim, & active; bottom), exc vs inh synapses",
+        f"{cell_label} cells — preferred similarity [0,1] (top) and pref/unpref ratio "
+        f"(max RQ, NMF, mean, active; bottom), exc vs inh synapses",
         y=1.01,
     )
     fig.tight_layout()
