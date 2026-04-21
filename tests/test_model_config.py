@@ -50,7 +50,7 @@ def test_morphology_config_defaults():
     cfg = MorphologyConfig()
     assert cfg.use_shunting is True
     assert cfg.allow_self_recurrence is True
-    assert cfg.weight_transform == "softplus"
+    assert cfg.weight_transform == "exp"
     assert cfg.dbl_init_method == "analytical_expectation"
     assert cfg.somatic_synapses is False
 
@@ -104,7 +104,7 @@ def test_decoder_config_defaults():
 
 def test_core_config_nested():
     cfg = CoreConfig()
-    assert cfg.type == "EINet"
+    assert cfg.type == "einet"
     assert isinstance(cfg.architecture, ArchitectureConfig)
     assert isinstance(cfg.connectivity, ConnectivityConfig)
     assert isinstance(cfg.transfer, TransferFunctionConfig)
