@@ -47,8 +47,8 @@
 # combination x seed becomes one element of a SLURM job array.
 
 slurm_config:
-  account: "kempner_dev"                     # SLURM account
-  partition: "kempner_h100"                  # SLURM partition
+  account: ""                                # SLURM account (set locally for your cluster)
+  partition: ""                              # SLURM partition / queue (set locally)
   time: "12:00:00"                           # Wall-clock time limit (HH:MM:SS)
   nodes: 1                                   # Nodes per job
   ntasks_per_node: 1                         # Tasks per node
@@ -56,10 +56,7 @@ slurm_config:
   mem: 200GB                                 # Memory per node
   max_concurrent_jobs: 32                    # Max simultaneous array elements
   exclude_nodes: []                          # Nodes to exclude (e.g., ["holygpu8a10101"])
-  modules_to_load:                           # Environment modules to load
-    - python/3.12.5-fasrc01
-    - cuda/12.4.1-fasrc01
-    - cudnn/8.9.2.26_cuda12-fasrc01
+  modules_to_load: []                        # Optional environment modules to load
   conda_env_path: ""                         # Conda env path (empty = current env)
   training_script: "src/dendritic_modeling/scripts/training/train_experiments.py"
 

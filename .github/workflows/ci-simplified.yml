@@ -137,7 +137,7 @@ jobs:
     - name: Generate repo-hosted coverage badge
       if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
       run: |
-        python scripts/ci/generate_coverage_badge.py \
+        python docs/scripts/generate_coverage_badge.py \
           --coverage-xml coverage.xml \
           --output docs/_static/badges/coverage.svg
 
