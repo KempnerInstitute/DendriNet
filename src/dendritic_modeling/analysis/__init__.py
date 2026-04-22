@@ -1,28 +1,4 @@
-"""
-Analysis Module
-===============
-
-This module provides comprehensive analysis tools for dendritic networks, including:
-
-Core Analysis:
-- Ablation studies
-- Branch activation analysis
-- Information-theoretic analysis
-
-Metrics:
-- Performance metrics
-- Layer contribution analysis
-- Noise perturbation analysis
-- Visual neuron metrics
-
-Tools:
-- Correlation analysis
-- Weight analysis
-- Synaptic analysis
-
-Classifiers:
-- MLP classifiers for activation decoding
-"""
+"""Public analysis API for reusable analyzers and helper metrics."""
 
 # Core analyzers
 # Classifiers
@@ -45,6 +21,10 @@ from .metrics import (
 # Tools
 from .tools import (
     CorrelationAnalyzer,
+    DendriticTimetracesAnalyzer,
+    InhibitorySpecializationAnalyzer,
+    JacobianSpectrumAnalyzer,
+    ReactivationDynamicsAnalyzer,
     SynapticActivationAnalyzer,
     SynapticTurnoverAnalyzer,
     WeightAnalyzer,
@@ -55,9 +35,13 @@ __all__ = [
     "AnalysisManager",
     "BranchActivationAnalyzer",
     "CorrelationAnalyzer",
+    "DendriticTimetracesAnalyzer",
     "InformationAnalyzer",
+    "InhibitorySpecializationAnalyzer",
+    "JacobianSpectrumAnalyzer",
     "NoisePerturbationAnalyzer",
     "PerformanceAnalyzer",
+    "ReactivationDynamicsAnalyzer",
     "SingleLayerContributionAnalyzer",
     "SynapticActivationAnalyzer",
     "SynapticTurnoverAnalyzer",

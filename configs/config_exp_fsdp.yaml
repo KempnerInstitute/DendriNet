@@ -342,7 +342,7 @@ model:
       inhibitory_dim: null
       input_mode: 1
       output_activation: null
-    type: EINet
+    type: einet
   decoder:
     params: {}
     type: MLP
