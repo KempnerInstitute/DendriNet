@@ -23,7 +23,7 @@ _config_cache = {}
 
 
 def canonicalize_model_core_flags(
-    config: Union[dict, DictConfig, object]
+    config: Union[dict, DictConfig, object],
 ) -> dict[str, Any]:
     """Return a plain config dict with type-implied core flags normalized.
 
@@ -130,7 +130,7 @@ _RNN_CORE_ALIAS_OVERRIDES: dict[str, dict[str, object]] = {
 
 
 def canonicalize_rnn_core_flags(
-    config: Union[dict, DictConfig, object]
+    config: Union[dict, DictConfig, object],
 ) -> dict[str, Any]:
     """Return a plain config dict with recurrent unified-EI core aliases
     resolved to explicit excitatory-population flags.
