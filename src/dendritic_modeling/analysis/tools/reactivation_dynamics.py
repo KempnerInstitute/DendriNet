@@ -22,7 +22,6 @@ trajectories.
 
 from __future__ import annotations
 
-import logging
 import os
 from typing import Any
 
@@ -38,8 +37,6 @@ from dendritic_modeling.config.analysis import (
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.networks.activations.parametric import ParametricTanh
 from dendritic_modeling.utils import save_dict
-
-logger = logging.getLogger(__name__)
 
 
 def _quantile_stats(v: torch.Tensor) -> dict[str, float]:
@@ -242,9 +239,6 @@ class ReactivationDynamicsAnalyzer(AbstractAnalyzer):
         (``training=False``), we use the test split so the last snapshot
         reflects held-out voltages.
         """
-        if runtime is None:
-            runtime = EvaluationRuntimeConfig()
-
         layers = self._list_parametric_tanh_layers(model)
         if not layers:
             self.logger.debug("No ParametricTanh reactivations found; skipping")
