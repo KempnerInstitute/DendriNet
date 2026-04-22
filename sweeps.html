@@ -131,8 +131,8 @@ python<span class="w"> </span>src/dendritic_modeling/scripts/sweeps/result_analy
 <span class="w">  </span><span class="nt">base_seed</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">42</span>
 
 <span class="nt">slurm_config</span><span class="p">:</span>
-<span class="w">  </span><span class="nt">account</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;kempner_dev&quot;</span>
-<span class="w">  </span><span class="nt">partition</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;kempner&quot;</span>
+<span class="w">  </span><span class="nt">account</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;&quot;</span>
+<span class="w">  </span><span class="nt">partition</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;&quot;</span>
 <span class="w">  </span><span class="nt">time</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;02:00:00&quot;</span>
 <span class="w">  </span><span class="nt">gpus_per_node</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
 </pre></div>
@@ -163,8 +163,9 @@ python<span class="w"> </span>src/dendritic_modeling/scripts/sweeps/result_analy
 </section>
 <section id="examples">
 <h2>Examples<a class="headerlink" href="#examples" title="Link to this heading"></a></h2>
-<p>See example configurations in <code class="docutils literal notranslate"><span class="pre">configs/sweep_config.yaml</span></code> and the
-specialized examples under <code class="docutils literal notranslate"><span class="pre">configs/sweeps/</span></code>.</p>
+<p>Use <code class="docutils literal notranslate"><span class="pre">configs/sweep_config.yaml</span></code> as the maintained generic sweep template.
+Project-specific sweep packs should live outside the main config tree
+(for example under <code class="docutils literal notranslate"><span class="pre">drafts/*/configs/sweeps/</span></code> or local ignored folders).</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>src/dendritic_modeling/scripts/sweeps/sweep_manager.py<span class="w"> </span>--help
 python<span class="w"> </span>src/dendritic_modeling/scripts/sweeps/result_analyzer.py<span class="w"> </span>--help
 </pre></div>

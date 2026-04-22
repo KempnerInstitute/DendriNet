@@ -127,7 +127,7 @@ python<span class="w"> </span>src/dendritic_modeling/scripts/training/train_expe
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">configs/config_exp.yaml</span></code> – single-GPU training (complete reference)</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">configs/config_exp_fsdp.yaml</span></code> – FSDP multi-GPU training</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">configs/sweep_config.yaml</span></code> – parameter sweeps</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">configs/sweep_config.yaml</span></code> – generic parameter-sweep template</p></li>
 </ul>
 </section>
 <section id="top-level-structure">
@@ -411,9 +411,8 @@ backend (planned).</p>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">configs/vision/alexnet_k1_einet_single.yaml</span></code> — replace fc7 only (K=1), single-GPU / non-DDP</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">configs/vision/alexnet_k1_einet_ddp.yaml</span></code> — same K=1 replacement configured for DDP launch</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">configs/vision/alexnet_k2_einet.yaml</span></code> — replace fc6 + fc7 (K=2)</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">configs/vision/alexnet_k2_tensor_map.yaml</span></code> — tensor-map dendritic baseline</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">configs/vision/alexnet_conv_dendritic_conv.yaml</span></code> — spatial dendritic conv replacement</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">configs/examples/pretrained_alexnet_fc.yaml</span></code> — tensor-map pretrained replacement around AlexNet FC layers</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">configs/examples/pretrained_alexnet_conv.yaml</span></code> — spatial pretrained replacement example for AlexNet conv/feature maps</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">scripts/test_pretrained_training.sh</span></code> — generates a temporary 1-epoch AlexNet smoke config</p></li>
 </ul>
 </section>
