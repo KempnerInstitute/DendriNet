@@ -69,7 +69,16 @@
 </ul>
 </li>
 <li class="toctree-l2"><a class="reference internal" href="#blocklinear">BlockLinear</a></li>
-<li class="toctree-l2"><a class="reference internal" href="#activation-functions">Activation Functions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#activation-functions">Activation Functions</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#reactivation-gate-initialization">Reactivation Gate Initialization</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#strategy-specific-recommendations">Strategy-Specific Recommendations</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#init-diagnostics">Init diagnostics</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#recommended-defaults">Recommended defaults</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#training-time-gate-maintenance">Training-Time Gate Maintenance</a></li>
+</ul>
+</li>
+</ul>
+</li>
 <li class="toctree-l2"><a class="reference internal" href="#recurrent-e-i-network">Recurrent E-I Network</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#making-an-e-i-core-recurrent">Making an E-I core recurrent</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#recurrent-connectivity-parameters">Recurrent connectivity parameters</a></li>
@@ -100,6 +109,7 @@
 <li class="toctree-l1"><a class="reference internal" href="training_strategies.html">Training Strategies</a></li>
 <li class="toctree-l1"><a class="reference internal" href="datasets.html">Datasets</a></li>
 <li class="toctree-l1"><a class="reference internal" href="analysis.html">Analysis</a></li>
+<li class="toctree-l1"><a class="reference internal" href="engineering_architecture.html">Engineering Architecture</a></li>
 <li class="toctree-l1"><a class="reference internal" href="configuration_guide.html">Configuration Guide</a></li>
 <li class="toctree-l1"><a class="reference internal" href="sweeps.html">Parameter Sweeps</a></li>
 <li class="toctree-l1"><a class="reference internal" href="fsdp_troubleshooting.html">Distributed Training Guide</a></li>
@@ -165,27 +175,31 @@ documents all core network types and their configuration.</p>
 </ul>
 </li>
 <li><p><a class="reference internal" href="#blocklinear" id="id13">BlockLinear</a></p></li>
-<li><p><a class="reference internal" href="#activation-functions" id="id14">Activation Functions</a></p></li>
-<li><p><a class="reference internal" href="#recurrent-e-i-network" id="id15">Recurrent E-I Network</a></p>
+<li><p><a class="reference internal" href="#activation-functions" id="id14">Activation Functions</a></p>
 <ul>
-<li><p><a class="reference internal" href="#making-an-e-i-core-recurrent" id="id16">Making an E-I core recurrent</a></p></li>
-<li><p><a class="reference internal" href="#recurrent-connectivity-parameters" id="id17">Recurrent connectivity parameters</a></p></li>
-<li><p><a class="reference internal" href="#temporal-parameters-recurrent-ei" id="id18">Temporal parameters (<code class="docutils literal notranslate"><span class="pre">recurrent_ei</span></code>)</a></p></li>
-<li><p><a class="reference internal" href="#other-parameters" id="id19">Other parameters</a></p></li>
-<li><p><a class="reference internal" href="#using-ei-unified-directly" id="id20">Using <code class="docutils literal notranslate"><span class="pre">ei_unified</span></code> directly</a></p></li>
+<li><p><a class="reference internal" href="#reactivation-gate-initialization" id="id15">Reactivation Gate Initialization</a></p></li>
 </ul>
 </li>
-<li><p><a class="reference internal" href="#baseline-rnn-cores" id="id21">Baseline RNN Cores</a></p></li>
-<li><p><a class="reference internal" href="#mlp-baseline" id="id22">MLP Baseline</a></p></li>
-<li><p><a class="reference internal" href="#configuration-reference" id="id23">Configuration Reference</a></p>
+<li><p><a class="reference internal" href="#recurrent-e-i-network" id="id16">Recurrent E-I Network</a></p>
 <ul>
-<li><p><a class="reference internal" href="#architectureconfig" id="id24">ArchitectureConfig</a></p></li>
-<li><p><a class="reference internal" href="#connectivityconfig" id="id25">ConnectivityConfig</a></p></li>
-<li><p><a class="reference internal" href="#morphologyconfig" id="id26">MorphologyConfig</a></p></li>
-<li><p><a class="reference internal" href="#sparsityconfig" id="id27">SparsityConfig</a></p></li>
-<li><p><a class="reference internal" href="#reactivationconfig" id="id28">ReactivationConfig</a></p></li>
-<li><p><a class="reference internal" href="#transferfunctionconfig" id="id29">TransferFunctionConfig</a></p></li>
-<li><p><a class="reference internal" href="#implementationconfig" id="id30">ImplementationConfig</a></p></li>
+<li><p><a class="reference internal" href="#making-an-e-i-core-recurrent" id="id17">Making an E-I core recurrent</a></p></li>
+<li><p><a class="reference internal" href="#recurrent-connectivity-parameters" id="id18">Recurrent connectivity parameters</a></p></li>
+<li><p><a class="reference internal" href="#temporal-parameters-recurrent-ei" id="id19">Temporal parameters (<code class="docutils literal notranslate"><span class="pre">recurrent_ei</span></code>)</a></p></li>
+<li><p><a class="reference internal" href="#other-parameters" id="id20">Other parameters</a></p></li>
+<li><p><a class="reference internal" href="#using-ei-unified-directly" id="id21">Using <code class="docutils literal notranslate"><span class="pre">ei_unified</span></code> directly</a></p></li>
+</ul>
+</li>
+<li><p><a class="reference internal" href="#baseline-rnn-cores" id="id22">Baseline RNN Cores</a></p></li>
+<li><p><a class="reference internal" href="#mlp-baseline" id="id23">MLP Baseline</a></p></li>
+<li><p><a class="reference internal" href="#configuration-reference" id="id24">Configuration Reference</a></p>
+<ul>
+<li><p><a class="reference internal" href="#architectureconfig" id="id25">ArchitectureConfig</a></p></li>
+<li><p><a class="reference internal" href="#connectivityconfig" id="id26">ConnectivityConfig</a></p></li>
+<li><p><a class="reference internal" href="#morphologyconfig" id="id27">MorphologyConfig</a></p></li>
+<li><p><a class="reference internal" href="#sparsityconfig" id="id28">SparsityConfig</a></p></li>
+<li><p><a class="reference internal" href="#reactivationconfig" id="id29">ReactivationConfig</a></p></li>
+<li><p><a class="reference internal" href="#transferfunctionconfig" id="id30">TransferFunctionConfig</a></p></li>
+<li><p><a class="reference internal" href="#implementationconfig" id="id31">ImplementationConfig</a></p></li>
 </ul>
 </li>
 </ul>
@@ -241,7 +255,7 @@ documents all core network types and their configuration.</p>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">ei_unified</span></code></p></td>
 <td><p>Unified E-I, supports feedforward and recurrent</p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">unified_ei</span></code>, <code class="docutils literal notranslate"><span class="pre">ei_net</span></code>, <code class="docutils literal notranslate"><span class="pre">unified_einet</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">unified_ei</span></code>, <code class="docutils literal notranslate"><span class="pre">ei_net</span></code>, <code class="docutils literal notranslate"><span class="pre">unified_einet</span></code>, <code class="docutils literal notranslate"><span class="pre">rnn_dendritic_shunting</span></code>, <code class="docutils literal notranslate"><span class="pre">rnn_dendritic_additive</span></code>, <code class="docutils literal notranslate"><span class="pre">rnn_flat_shunting</span></code>, <code class="docutils literal notranslate"><span class="pre">rnn_flat_additive</span></code></p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">gru</span></code></p></td>
 <td><p>Gated Recurrent Unit</p></td>
@@ -275,7 +289,7 @@ output is the network output.</p>
 <section id="transferlayer">
 <h3><a class="toc-backref" href="#id4" role="doc-backlink">TransferLayer</a><a class="headerlink" href="#transferlayer" title="Link to this heading"></a></h3>
 <p>Controls how input is routed to the E and I pathways.</p>
-<dl class="simple">
+<dl>
 <dt><code class="docutils literal notranslate"><span class="pre">input_mode</span></code></dt><dd><p>0 – both pathways receive the full input.
 1 – E gets full input; I gets an independent pathway (if <code class="docutils literal notranslate"><span class="pre">independent_pathways=True</span></code>).</p>
 </dd>
@@ -286,6 +300,9 @@ If <code class="docutils literal notranslate"><span class="pre">False</span></co
 </dd>
 <dt><code class="docutils literal notranslate"><span class="pre">output_activation</span></code></dt><dd><p>Optional nonlinearity on the split outputs: <code class="docutils literal notranslate"><span class="pre">&quot;sigmoid&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;relu&quot;</span></code>,
 <code class="docutils literal notranslate"><span class="pre">&quot;tanh&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;softplus&quot;</span></code>, or <code class="docutils literal notranslate"><span class="pre">None</span></code>.</p>
+<p>For shunting E-I models with positive weight transforms, this is also the
+recommended place to clamp normalized raw inputs back to a nonnegative
+range, e.g. <code class="docutils literal notranslate"><span class="pre">output_activation:</span> <span class="pre">&quot;relu&quot;</span></code>.</p>
 </dd>
 </dl>
 <p>Config path: <code class="docutils literal notranslate"><span class="pre">model.core.transfer</span></code>.</p>
@@ -487,9 +504,201 @@ operations instead of a sparse matrix. Same API and behavior.</p>
 <span class="w">      </span><span class="nt">init_b</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.5</span>
 </pre></div>
 </div>
+<section id="reactivation-gate-initialization">
+<h3><a class="toc-backref" href="#id15" role="doc-backlink">Reactivation Gate Initialization</a><a class="headerlink" href="#reactivation-gate-initialization" title="Link to this heading"></a></h3>
+<p>The reactivation gate <code class="docutils literal notranslate"><span class="pre">(tanh(m</span> <span class="pre">*</span> <span class="pre">(V</span> <span class="pre">-</span> <span class="pre">b))</span> <span class="pre">+</span> <span class="pre">1)</span> <span class="pre">/</span> <span class="pre">2</span></code> has two learnable
+parameters: the slope <code class="docutils literal notranslate"><span class="pre">m</span></code> and the midpoint <code class="docutils literal notranslate"><span class="pre">b</span></code>. How these are initialized
+determines the gate’s operating point at the start of training.</p>
+<p>Reactivation policies can initialize the gate either from analytical branch
+statistics or from sampled branch-voltage statistics. The data-driven
+policies place the gate using the observed voltage distribution <code class="docutils literal notranslate"><span class="pre">V</span></code>, which
+keeps the same interface usable across shunting and additive morphologies.</p>
+<p><code class="docutils literal notranslate"><span class="pre">init_policy</span></code> selects the initialization strategy:</p>
+<dl>
+<dt><code class="docutils literal notranslate"><span class="pre">quantile</span></code> <strong>(backprop starting point; validate with init diagnostics)</strong></dt><dd><p>Post-init calibration using quantile-occupancy. After the model is built,
+a few training batches are run through it. For each reactivation layer,
+the 10th and 90th percentiles of the pre-reactivation voltage <code class="docutils literal notranslate"><span class="pre">V</span></code> are
+measured, and <code class="docutils literal notranslate"><span class="pre">(m,</span> <span class="pre">b)</span></code> are set to pin those quantiles to the [0.1, 0.9]
+gate-output interval:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">b</span> <span class="pre">=</span> <span class="pre">(q10</span> <span class="pre">+</span> <span class="pre">q90)</span> <span class="pre">/</span> <span class="pre">2</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">m</span> <span class="pre">=</span> <span class="pre">atanh(0.8)</span> <span class="pre">/</span> <span class="pre">((q90</span> <span class="pre">-</span> <span class="pre">q10)</span> <span class="pre">/</span> <span class="pre">2)</span></code></p></li>
+</ul>
+<p>This is morphology-invariant by construction: it places the gate’s active
+region around the observed voltage distribution regardless of whether the
+network uses shunting (V bounded in [0, 1]) or additive (V unbounded)
+morphology. All data-driven modes use iterative calibration
+(<code class="docutils literal notranslate"><span class="pre">n_iterations=3</span></code>) because updating upstream layers reshapes downstream
+voltage distributions.</p>
+<p>The outer tails are allowed to saturate on purpose. <code class="docutils literal notranslate"><span class="pre">quantile</span></code> is not
+trying to use the entire gate range uniformly; it is trying to place the
+bulk of the observed voltage mass into the gate’s sensitive region while
+keeping the tails as margin.</p>
+<p>Quantile-based calibration now includes safeguards for ill-conditioned
+upper-layer fits. If the observed quantile span is too small or the fitted
+slope would have to exceed the configured <code class="docutils literal notranslate"><span class="pre">calibration_max_m</span></code>, the layer
+falls back to its pre-calibration gate state instead of forcing a saturated
+occupancy fit.</p>
+<p>The fitted <code class="docutils literal notranslate"><span class="pre">(m,</span> <span class="pre">b)</span></code> are layer-specific by design. Different dendritic
+depths see different voltage statistics, so forcing one shared gate slope
+across depth is usually a worse calibration. For depth analysis, compare
+normalized gate coordinates or occupancy statistics rather than raw
+voltages across layers.</p>
+<p>Pair with a small <code class="docutils literal notranslate"><span class="pre">reactivation_lr</span></code> (<code class="docutils literal notranslate"><span class="pre">1e-4</span></code> or <code class="docutils literal notranslate"><span class="pre">1e-5</span></code>) to keep gate
+slope drift under control. For data-driven init policies, check the
+automatically written <code class="docutils literal notranslate"><span class="pre">init_gate_stats.json</span></code> artifact in the run
+directory before treating a run as healthy.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">occupancy_quantile</span></code> <strong>(recommended for local learning)</strong></dt><dd><p>Generalized quantile-occupancy calibration with configurable quantile and
+target pairs. For local learning, use <code class="docutils literal notranslate"><span class="pre">q_low=0.05,</span> <span class="pre">q_high=0.95</span></code> mapping
+to gate outputs <code class="docutils literal notranslate"><span class="pre">r_low=0.2,</span> <span class="pre">r_high=0.8</span></code>. This gives the gate a wider
+active region than <code class="docutils literal notranslate"><span class="pre">quantile</span></code>, which gives the gate room to self-organize
+under noisier local credit signals. This is the recommended local-learning
+default for both shunting and additive.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">empirical</span></code></dt><dd><p>Robust median/MAD calibration from sampled voltages.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">analytical</span></code> (default)</dt><dd><p>Analytical initialization derived from the weight-init statistics by the
+chosen <code class="docutils literal notranslate"><span class="pre">dbl_init_method</span></code>. No data is required. Uses <code class="docutils literal notranslate"><span class="pre">init_m</span></code> and
+<code class="docutils literal notranslate"><span class="pre">init_b</span></code> as starting values.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">fixed</span></code></dt><dd><p>Uses the YAML-supplied <code class="docutils literal notranslate"><span class="pre">init_m</span></code> and <code class="docutils literal notranslate"><span class="pre">init_b</span></code> verbatim, ignoring all
+calibration.</p>
+</dd>
+</dl>
+<section id="strategy-specific-recommendations">
+<h4>Strategy-Specific Recommendations<a class="headerlink" href="#strategy-specific-recommendations" title="Link to this heading"></a></h4>
+<p>Recommended default choices are:</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 15.0%" />
+<col style="width: 25.0%" />
+<col style="width: 60.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Regime</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Settings</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><strong>Backprop</strong></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">quantile</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">reactivation_lr</span> <span class="pre">=</span> <span class="pre">1e-4</span></code> or <code class="docutils literal notranslate"><span class="pre">1e-5</span></code>; standard optimizer recipe</p></td>
+</tr>
+<tr class="row-odd"><td><p><strong>Local CA</strong></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">occupancy_quantile</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">q_low=0.05,</span> <span class="pre">q_high=0.95,</span> <span class="pre">r_low=0.2,</span> <span class="pre">r_high=0.8</span></code>; <code class="docutils literal notranslate"><span class="pre">reactivation_lr</span> <span class="pre">=</span> <span class="pre">1e-3</span></code></p></td>
+</tr>
+</tbody>
+</table>
+<p>No morphology-specific defaults are needed.</p>
+</section>
+<section id="init-diagnostics">
+<h4>Init diagnostics<a class="headerlink" href="#init-diagnostics" title="Link to this heading"></a></h4>
+<p>When a model contains learnable reactivation gates, the training script writes
+<code class="docutils literal notranslate"><span class="pre">init_gate_stats.json</span></code> into the run directory immediately after model build.
+This summarizes the initial <code class="docutils literal notranslate"><span class="pre">m</span></code> and <code class="docutils literal notranslate"><span class="pre">b</span></code> distributions per reactivation
+module and flags suspicious patterns such as:</p>
+<ul class="simple">
+<li><p>slopes near the calibration clip</p></li>
+<li><p>repeated identical values across a full layer combined with saturation</p></li>
+<li><p>gate centers pushed to the voltage-range edge</p></li>
+</ul>
+<p>This diagnostic is especially useful when using <code class="docutils literal notranslate"><span class="pre">quantile</span></code> or
+<code class="docutils literal notranslate"><span class="pre">occupancy_quantile</span></code> policies on new datasets or new recurrent settings.</p>
+<p><strong>Standard backprop</strong> (both morphologies):</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">model</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">core</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">reactivation</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">init_policy</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;quantile&quot;</span>
+<span class="nt">training</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">main</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">common</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">param_groups</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">reactivation_lr</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.0001</span>
+</pre></div>
+</div>
+<p><strong>Local learning</strong> (both morphologies):</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">model</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">core</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">reactivation</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">init_policy</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;occupancy_quantile&quot;</span>
+<span class="w">      </span><span class="nt">occupancy_quantile_low</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.05</span>
+<span class="w">      </span><span class="nt">occupancy_quantile_high</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.95</span>
+<span class="w">      </span><span class="nt">occupancy_target_low</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.2</span>
+<span class="w">      </span><span class="nt">occupancy_target_high</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.8</span>
+<span class="nt">training</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">main</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">common</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">param_groups</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">reactivation_lr</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.001</span>
+</pre></div>
+</div>
+<p>Gate-occupancy warmup in a <code class="docutils literal notranslate"><span class="pre">multi_stage</span></code> pipeline is available when a staged
+training setup is desired, but it is separate from the default local-learning
+configuration shown above.</p>
+</section>
+<section id="recommended-defaults">
+<h4>Recommended defaults<a class="headerlink" href="#recommended-defaults" title="Link to this heading"></a></h4>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">quantile</span></code> for backprop, with a small <code class="docutils literal notranslate"><span class="pre">reactivation_lr</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">occupancy_quantile</span></code> for local CA, using q05/q95 -&gt; 0.2/0.8</p></li>
+</ul>
+<p>These defaults apply across both shunting and additive settings.</p>
+</section>
+<section id="training-time-gate-maintenance">
+<h4>Training-Time Gate Maintenance<a class="headerlink" href="#training-time-gate-maintenance" title="Link to this heading"></a></h4>
+<p>Initialization and training-time gate updates are separate controls.</p>
+<p>For the paper-facing backprop settings, the recommended default is:</p>
+<ul class="simple">
+<li><p>use <code class="docutils literal notranslate"><span class="pre">init_policy:</span> <span class="pre">&quot;quantile&quot;</span></code> once at the start of training</p></li>
+<li><p>keep <code class="docutils literal notranslate"><span class="pre">reactivation_update_mode:</span> <span class="pre">&quot;backprop&quot;</span></code></p></li>
+<li><p>leave <code class="docutils literal notranslate"><span class="pre">recalibrate_reactivation_every:</span> <span class="pre">0</span></code></p></li>
+</ul>
+<p>This uses quantile only to place the gate initially. After that, <code class="docutils literal notranslate"><span class="pre">(m,</span> <span class="pre">b)</span></code>
+continue to learn through the optimizer like the rest of the model.</p>
+<p>For local learning, the recommended default is:</p>
+<ul class="simple">
+<li><p>use <code class="docutils literal notranslate"><span class="pre">init_policy:</span> <span class="pre">&quot;occupancy_quantile&quot;</span></code></p></li>
+<li><p>keep Local CA updates enabled for <code class="docutils literal notranslate"><span class="pre">(m,</span> <span class="pre">b)</span></code></p></li>
+<li><p>do not enable periodic quantile refresh unless the experiment is explicitly
+about comparing local gate updates against quantile-maintained gates</p></li>
+</ul>
+<p>Optional periodic quantile maintenance is available for controlled ablations
+and diagnostics. The relevant trainer fields live under
+<code class="docutils literal notranslate"><span class="pre">training.&lt;strategy&gt;.common</span></code>:</p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">reactivation_update_mode</span></code></dt><dd><p><code class="docutils literal notranslate"><span class="pre">&quot;backprop&quot;</span></code> keeps optimizer or local-rule learning of <code class="docutils literal notranslate"><span class="pre">(m,</span> <span class="pre">b)</span></code>.
+<code class="docutils literal notranslate"><span class="pre">&quot;quantile&quot;</span></code> freezes those direct updates and refreshes <code class="docutils literal notranslate"><span class="pre">(m,</span> <span class="pre">b)</span></code>
+from the observed voltage distribution during training.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">recalibrate_reactivation_every</span></code></dt><dd><p>Refresh period in epochs. <code class="docutils literal notranslate"><span class="pre">0</span></code> disables training-time refresh.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">reactivation_recalibration_mode</span></code></dt><dd><p>Calibration rule used for periodic refresh. <code class="docutils literal notranslate"><span class="pre">&quot;from_init_policy&quot;</span></code>
+reuses the configured initialization rule; <code class="docutils literal notranslate"><span class="pre">&quot;occupancy_quantile&quot;</span></code>
+is the most common explicit choice for quantile-maintained gates.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">reactivation_recalibration_start_epoch</span></code></dt><dd><p>First epoch at which periodic refresh is allowed. Setting this to <code class="docutils literal notranslate"><span class="pre">2</span></code>
+or later preserves the chosen initialization through the first training
+epoch.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">reactivation_recalibration_num_batches</span></code></dt><dd><p>Number of training batches used to estimate the live voltage distribution
+for each refresh.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">reactivation_recalibration_ema_alpha</span></code></dt><dd><p>Blend factor for periodic refresh. <code class="docutils literal notranslate"><span class="pre">1.0</span></code> means hard overwrite with the
+newly calibrated <code class="docutils literal notranslate"><span class="pre">(m,</span> <span class="pre">b)</span></code>. Values in <code class="docutils literal notranslate"><span class="pre">(0,</span> <span class="pre">1)</span></code> apply an EMA-style
+update toward the calibrated target.</p>
+</dd>
+</dl>
+<p>In short: quantile initialization is the default paper recipe for backprop,
+while periodic quantile maintenance is a supported experimental option for
+studying simplified gate learning.</p>
+</section>
+</section>
 </section>
 <section id="recurrent-e-i-network">
-<h2><a class="toc-backref" href="#id15" role="doc-backlink">Recurrent E-I Network</a><a class="headerlink" href="#recurrent-e-i-network" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id16" role="doc-backlink">Recurrent E-I Network</a><a class="headerlink" href="#recurrent-e-i-network" title="Link to this heading"></a></h2>
 <p>Any E-I architecture (<code class="docutils literal notranslate"><span class="pre">dendritic_shunting</span></code>, <code class="docutils literal notranslate"><span class="pre">dendritic_additive</span></code>,
 <code class="docutils literal notranslate"><span class="pre">einet</span></code>) becomes recurrent when <code class="docutils literal notranslate"><span class="pre">connectivity.rec_*</span></code> synapse counts are
 nonzero.  Recurrence is controlled <strong>solely</strong> by these synapse counts;
@@ -501,7 +710,7 @@ The factory translates this to an <code class="docutils literal notranslate"><sp
 <p>Alternatively, use <code class="docutils literal notranslate"><span class="pre">core.type:</span> <span class="pre">ei_unified</span></code> with the <code class="docutils literal notranslate"><span class="pre">unified_ei</span></code> config
 for full per-layer, per-population control.</p>
 <section id="making-an-e-i-core-recurrent">
-<h3><a class="toc-backref" href="#id16" role="doc-backlink">Making an E-I core recurrent</a><a class="headerlink" href="#making-an-e-i-core-recurrent" title="Link to this heading"></a></h3>
+<h3><a class="toc-backref" href="#id17" role="doc-backlink">Making an E-I core recurrent</a><a class="headerlink" href="#making-an-e-i-core-recurrent" title="Link to this heading"></a></h3>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">model</span><span class="p">:</span>
 <span class="w">  </span><span class="nt">core</span><span class="p">:</span>
 <span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dendritic_shunting</span><span class="w">          </span><span class="c1"># same type as feedforward</span>
@@ -539,7 +748,7 @@ for legacy parity, so a TransferLayer is built for both <code class="docutils li
 Set <code class="docutils literal notranslate"><span class="pre">recurrent_ei.use_transfer:</span> <span class="pre">false</span></code> to disable it explicitly.</p>
 </section>
 <section id="recurrent-connectivity-parameters">
-<h3><a class="toc-backref" href="#id17" role="doc-backlink">Recurrent connectivity parameters</a><a class="headerlink" href="#recurrent-connectivity-parameters" title="Link to this heading"></a></h3>
+<h3><a class="toc-backref" href="#id18" role="doc-backlink">Recurrent connectivity parameters</a><a class="headerlink" href="#recurrent-connectivity-parameters" title="Link to this heading"></a></h3>
 <p>These go in the <code class="docutils literal notranslate"><span class="pre">connectivity:</span></code> section alongside the feedforward synapse
 counts, as per-layer lists (repeat-last semantics):</p>
 <dl class="simple">
@@ -555,7 +764,7 @@ counts, as per-layer lists (repeat-last semantics):</p>
 <p>A layer is recurrent if any of its rec synapse counts are &gt; 0.</p>
 </section>
 <section id="temporal-parameters-recurrent-ei">
-<h3><a class="toc-backref" href="#id18" role="doc-backlink">Temporal parameters (<code class="docutils literal notranslate"><span class="pre">recurrent_ei</span></code>)</a><a class="headerlink" href="#temporal-parameters-recurrent-ei" title="Link to this heading"></a></h3>
+<h3><a class="toc-backref" href="#id19" role="doc-backlink">Temporal parameters (<code class="docutils literal notranslate"><span class="pre">recurrent_ei</span></code>)</a><a class="headerlink" href="#temporal-parameters-recurrent-ei" title="Link to this heading"></a></h3>
 <dl class="simple">
 <dt><code class="docutils literal notranslate"><span class="pre">output_mode</span></code></dt><dd><p><code class="docutils literal notranslate"><span class="pre">&quot;last&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;mean&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;all&quot;</span></code> (default: <code class="docutils literal notranslate"><span class="pre">&quot;last&quot;</span></code>).</p>
 </dd>
@@ -573,7 +782,7 @@ Scalar or per-layer list. Distal levels get longer time constants:
 </dl>
 </section>
 <section id="other-parameters">
-<h3><a class="toc-backref" href="#id19" role="doc-backlink">Other parameters</a><a class="headerlink" href="#other-parameters" title="Link to this heading"></a></h3>
+<h3><a class="toc-backref" href="#id20" role="doc-backlink">Other parameters</a><a class="headerlink" href="#other-parameters" title="Link to this heading"></a></h3>
 <dl class="simple">
 <dt><code class="docutils literal notranslate"><span class="pre">transfer.inhibitory_mode</span></code></dt><dd><p>Controls which layers receive the transfer layer’s inhibitory stream
 when <code class="docutils literal notranslate"><span class="pre">input_mode=1</span></code>.  <code class="docutils literal notranslate"><span class="pre">&quot;none&quot;</span></code> - no layer receives it.
@@ -588,10 +797,14 @@ inhibitory input.</p>
 </dl>
 </section>
 <section id="using-ei-unified-directly">
-<h3><a class="toc-backref" href="#id20" role="doc-backlink">Using <code class="docutils literal notranslate"><span class="pre">ei_unified</span></code> directly</a><a class="headerlink" href="#using-ei-unified-directly" title="Link to this heading"></a></h3>
+<h3><a class="toc-backref" href="#id21" role="doc-backlink">Using <code class="docutils literal notranslate"><span class="pre">ei_unified</span></code> directly</a><a class="headerlink" href="#using-ei-unified-directly" title="Link to this heading"></a></h3>
 <p>For full per-layer, per-population control, use <code class="docutils literal notranslate"><span class="pre">core.type:</span> <span class="pre">ei_unified</span></code>
 with the <code class="docutils literal notranslate"><span class="pre">unified_ei</span></code> config. Each layer is an <code class="docutils literal notranslate"><span class="pre">EILayerConfig</span></code> containing
 <code class="docutils literal notranslate"><span class="pre">excitatory</span></code> and <code class="docutils literal notranslate"><span class="pre">inhibitory</span></code> <code class="docutils literal notranslate"><span class="pre">PopulationConfig</span></code> objects.</p>
+<p>The recurrent unified-EI path reuses the same <code class="docutils literal notranslate"><span class="pre">DendriticBranchLayer</span></code> and
+<code class="docutils literal notranslate"><span class="pre">initialize.py</span></code> logic as the feedforward EI stack. The main difference is
+that recurrent populations wrap those branch layers with per-level temporal
+traces and optional recurrent synapse banks.</p>
 <section id="populationconfig-fields">
 <h4>PopulationConfig fields<a class="headerlink" href="#populationconfig-fields" title="Link to this heading"></a></h4>
 <dl class="simple">
@@ -619,7 +832,8 @@ with the <code class="docutils literal notranslate"><span class="pre">unified_ei
 <dt>Recurrent structure:</dt><dd><p><code class="docutils literal notranslate"><span class="pre">allow_self_recurrence</span></code> controls whether same-population recurrent synapses
 may read from the previous-timestep soma/output state of the same neuron.
 When set to <code class="docutils literal notranslate"><span class="pre">False</span></code>, self-feedback is masked for E-&gt;E and I-&gt;I recurrent
-synapses while cross-population recurrence remains unchanged.</p>
+synapses while cross-population recurrence remains unchanged. This flag is
+only meaningful when the corresponding recurrent synapse count is nonzero.</p>
 </dd>
 <dt>Implementation:</dt><dd><p><code class="docutils literal notranslate"><span class="pre">print_hooks</span></code>, <code class="docutils literal notranslate"><span class="pre">adaptive_initialization</span></code>.</p>
 </dd>
@@ -699,7 +913,7 @@ feedforward E, feedforward I, recurrent E, recurrent I, and branch aggregation.<
 </section>
 </section>
 <section id="baseline-rnn-cores">
-<h2><a class="toc-backref" href="#id21" role="doc-backlink">Baseline RNN Cores</a><a class="headerlink" href="#baseline-rnn-cores" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id22" role="doc-backlink">Baseline RNN Cores</a><a class="headerlink" href="#baseline-rnn-cores" title="Link to this heading"></a></h2>
 <p>Standard recurrent architectures for comparison: <code class="docutils literal notranslate"><span class="pre">gru</span></code>, <code class="docutils literal notranslate"><span class="pre">lstm</span></code>,
 <code class="docutils literal notranslate"><span class="pre">vanilla_rnn</span></code>.</p>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">model</span><span class="p">:</span>
@@ -715,7 +929,7 @@ feedforward E, feedforward I, recurrent E, recurrent I, and branch aggregation.<
 </div>
 </section>
 <section id="mlp-baseline">
-<h2><a class="toc-backref" href="#id22" role="doc-backlink">MLP Baseline</a><a class="headerlink" href="#mlp-baseline" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id23" role="doc-backlink">MLP Baseline</a><a class="headerlink" href="#mlp-baseline" title="Link to this heading"></a></h2>
 <p>Standard multi-layer perceptron. Variants include <code class="docutils literal notranslate"><span class="pre">PointMatchedParamMLP</span></code>,
 <code class="docutils literal notranslate"><span class="pre">MatchedTotalParamMLP</span></code>, <code class="docutils literal notranslate"><span class="pre">MatchedActiveParamMLP</span></code>, and
 <code class="docutils literal notranslate"><span class="pre">SparseStructuredMLP</span></code> for controlled parameter-count comparisons.</p>
@@ -729,9 +943,9 @@ feedforward E, feedforward I, recurrent E, recurrent I, and branch aggregation.<
 </div>
 </section>
 <section id="configuration-reference">
-<h2><a class="toc-backref" href="#id23" role="doc-backlink">Configuration Reference</a><a class="headerlink" href="#configuration-reference" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id24" role="doc-backlink">Configuration Reference</a><a class="headerlink" href="#configuration-reference" title="Link to this heading"></a></h2>
 <section id="architectureconfig">
-<h3><a class="toc-backref" href="#id24" role="doc-backlink">ArchitectureConfig</a><a class="headerlink" href="#architectureconfig" title="Link to this heading"></a></h3>
+<h3><a class="toc-backref" href="#id25" role="doc-backlink">ArchitectureConfig</a><a class="headerlink" href="#architectureconfig" title="Link to this heading"></a></h3>
 <table class="docutils align-default">
 <colgroup>
 <col style="width: 35.0%" />
@@ -781,7 +995,7 @@ feedforward E, feedforward I, recurrent E, recurrent I, and branch aggregation.<
 </table>
 </section>
 <section id="connectivityconfig">
-<h3><a class="toc-backref" href="#id25" role="doc-backlink">ConnectivityConfig</a><a class="headerlink" href="#connectivityconfig" title="Link to this heading"></a></h3>
+<h3><a class="toc-backref" href="#id26" role="doc-backlink">ConnectivityConfig</a><a class="headerlink" href="#connectivityconfig" title="Link to this heading"></a></h3>
 <table class="docutils align-default">
 <colgroup>
 <col style="width: 40.0%" />
@@ -841,7 +1055,7 @@ feedforward E, feedforward I, recurrent E, recurrent I, and branch aggregation.<
 </table>
 </section>
 <section id="morphologyconfig">
-<h3><a class="toc-backref" href="#id26" role="doc-backlink">MorphologyConfig</a><a class="headerlink" href="#morphologyconfig" title="Link to this heading"></a></h3>
+<h3><a class="toc-backref" href="#id27" role="doc-backlink">MorphologyConfig</a><a class="headerlink" href="#morphologyconfig" title="Link to this heading"></a></h3>
 <table class="docutils align-default">
 <colgroup>
 <col style="width: 35.0%" />
@@ -886,7 +1100,7 @@ feedforward E, feedforward I, recurrent E, recurrent I, and branch aggregation.<
 </table>
 </section>
 <section id="sparsityconfig">
-<h3><a class="toc-backref" href="#id27" role="doc-backlink">SparsityConfig</a><a class="headerlink" href="#sparsityconfig" title="Link to this heading"></a></h3>
+<h3><a class="toc-backref" href="#id28" role="doc-backlink">SparsityConfig</a><a class="headerlink" href="#sparsityconfig" title="Link to this heading"></a></h3>
 <table class="docutils align-default">
 <colgroup>
 <col style="width: 30.0%" />
@@ -936,7 +1150,7 @@ feedforward E, feedforward I, recurrent E, recurrent I, and branch aggregation.<
 </table>
 </section>
 <section id="reactivationconfig">
-<h3><a class="toc-backref" href="#id28" role="doc-backlink">ReactivationConfig</a><a class="headerlink" href="#reactivationconfig" title="Link to this heading"></a></h3>
+<h3><a class="toc-backref" href="#id29" role="doc-backlink">ReactivationConfig</a><a class="headerlink" href="#reactivationconfig" title="Link to this heading"></a></h3>
 <table class="docutils align-default">
 <colgroup>
 <col style="width: 30.0%" />
@@ -976,7 +1190,7 @@ feedforward E, feedforward I, recurrent E, recurrent I, and branch aggregation.<
 </table>
 </section>
 <section id="transferfunctionconfig">
-<h3><a class="toc-backref" href="#id29" role="doc-backlink">TransferFunctionConfig</a><a class="headerlink" href="#transferfunctionconfig" title="Link to this heading"></a></h3>
+<h3><a class="toc-backref" href="#id30" role="doc-backlink">TransferFunctionConfig</a><a class="headerlink" href="#transferfunctionconfig" title="Link to this heading"></a></h3>
 <table class="docutils align-default">
 <colgroup>
 <col style="width: 30.0%" />
@@ -1026,7 +1240,7 @@ feedforward E, feedforward I, recurrent E, recurrent I, and branch aggregation.<
 </table>
 </section>
 <section id="implementationconfig">
-<h3><a class="toc-backref" href="#id30" role="doc-backlink">ImplementationConfig</a><a class="headerlink" href="#implementationconfig" title="Link to this heading"></a></h3>
+<h3><a class="toc-backref" href="#id31" role="doc-backlink">ImplementationConfig</a><a class="headerlink" href="#implementationconfig" title="Link to this heading"></a></h3>
 <table class="docutils align-default">
 <colgroup>
 <col style="width: 35.0%" />
@@ -1056,6 +1270,13 @@ feedforward E, feedforward I, recurrent E, recurrent I, and branch aggregation.<
 <td><p>bool</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">False</span></code></p></td>
 <td><p>Store per-timestep routing info for analysis</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">compile_forward</span></code></p></td>
+<td><p>bool</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">True</span></code></p></td>
+<td><p>Opt-in/out <code class="docutils literal notranslate"><span class="pre">torch.compile</span></code> on the E-I core forward path; enabled by
+default for parity with the historical BP path and can be disabled
+explicitly for debugging or platform-specific reliability issues</p></td>
 </tr>
 </tbody>
 </table>

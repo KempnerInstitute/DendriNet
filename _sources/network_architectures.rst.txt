@@ -50,7 +50,7 @@ Core Network Types
      -
    * - ``ei_unified``
      - Unified E-I, supports feedforward and recurrent
-     - ``unified_ei``, ``ei_net``, ``unified_einet``
+     - ``unified_ei``, ``ei_net``, ``unified_einet``, ``rnn_dendritic_shunting``, ``rnn_dendritic_additive``, ``rnn_flat_shunting``, ``rnn_flat_additive``
    * - ``gru``
      - Gated Recurrent Unit
      -
@@ -96,6 +96,10 @@ Controls how input is routed to the E and I pathways.
 ``output_activation``
    Optional nonlinearity on the split outputs: ``"sigmoid"``, ``"relu"``,
    ``"tanh"``, ``"softplus"``, or ``None``.
+
+   For shunting E-I models with positive weight transforms, this is also the
+   recommended place to clamp normalized raw inputs back to a nonnegative
+   range, e.g. ``output_activation: "relu"``.
 
 Config path: ``model.core.transfer``.
 
@@ -333,6 +337,215 @@ Post-voltage nonlinearities applied at each branch layer. Set via
          init_m: 1.5
          init_b: 0.5
 
+Reactivation Gate Initialization
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The reactivation gate ``(tanh(m * (V - b)) + 1) / 2`` has two learnable
+parameters: the slope ``m`` and the midpoint ``b``. How these are initialized
+determines the gate's operating point at the start of training.
+
+Reactivation policies can initialize the gate either from analytical branch
+statistics or from sampled branch-voltage statistics. The data-driven
+policies place the gate using the observed voltage distribution ``V``, which
+keeps the same interface usable across shunting and additive morphologies.
+
+``init_policy`` selects the initialization strategy:
+
+``quantile`` **(backprop starting point; validate with init diagnostics)**
+   Post-init calibration using quantile-occupancy. After the model is built,
+   a few training batches are run through it. For each reactivation layer,
+   the 10th and 90th percentiles of the pre-reactivation voltage ``V`` are
+   measured, and ``(m, b)`` are set to pin those quantiles to the [0.1, 0.9]
+   gate-output interval:
+
+   - ``b = (q10 + q90) / 2``
+   - ``m = atanh(0.8) / ((q90 - q10) / 2)``
+
+   This is morphology-invariant by construction: it places the gate's active
+   region around the observed voltage distribution regardless of whether the
+   network uses shunting (V bounded in [0, 1]) or additive (V unbounded)
+   morphology. All data-driven modes use iterative calibration
+   (``n_iterations=3``) because updating upstream layers reshapes downstream
+   voltage distributions.
+
+   The outer tails are allowed to saturate on purpose. ``quantile`` is not
+   trying to use the entire gate range uniformly; it is trying to place the
+   bulk of the observed voltage mass into the gate's sensitive region while
+   keeping the tails as margin.
+
+   Quantile-based calibration now includes safeguards for ill-conditioned
+   upper-layer fits. If the observed quantile span is too small or the fitted
+   slope would have to exceed the configured ``calibration_max_m``, the layer
+   falls back to its pre-calibration gate state instead of forcing a saturated
+   occupancy fit.
+
+   The fitted ``(m, b)`` are layer-specific by design. Different dendritic
+   depths see different voltage statistics, so forcing one shared gate slope
+   across depth is usually a worse calibration. For depth analysis, compare
+   normalized gate coordinates or occupancy statistics rather than raw
+   voltages across layers.
+
+   Pair with a small ``reactivation_lr`` (``1e-4`` or ``1e-5``) to keep gate
+   slope drift under control. For data-driven init policies, check the
+   automatically written ``init_gate_stats.json`` artifact in the run
+   directory before treating a run as healthy.
+
+``occupancy_quantile`` **(recommended for local learning)**
+   Generalized quantile-occupancy calibration with configurable quantile and
+   target pairs. For local learning, use ``q_low=0.05, q_high=0.95`` mapping
+   to gate outputs ``r_low=0.2, r_high=0.8``. This gives the gate a wider
+   active region than ``quantile``, which gives the gate room to self-organize
+   under noisier local credit signals. This is the recommended local-learning
+   default for both shunting and additive.
+
+``empirical``
+   Robust median/MAD calibration from sampled voltages.
+
+``analytical`` (default)
+   Analytical initialization derived from the weight-init statistics by the
+   chosen ``dbl_init_method``. No data is required. Uses ``init_m`` and
+   ``init_b`` as starting values.
+
+``fixed``
+   Uses the YAML-supplied ``init_m`` and ``init_b`` verbatim, ignoring all
+   calibration.
+
+Strategy-Specific Recommendations
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Recommended default choices are:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 15 25 60
+
+   * - Regime
+     - Default
+     - Settings
+   * - **Backprop**
+     - ``quantile``
+     - ``reactivation_lr = 1e-4`` or ``1e-5``; standard optimizer recipe
+   * - **Local CA**
+     - ``occupancy_quantile``
+     - ``q_low=0.05, q_high=0.95, r_low=0.2, r_high=0.8``; ``reactivation_lr = 1e-3``
+
+No morphology-specific defaults are needed.
+
+Init diagnostics
+^^^^^^^^^^^^^^^^
+
+When a model contains learnable reactivation gates, the training script writes
+``init_gate_stats.json`` into the run directory immediately after model build.
+This summarizes the initial ``m`` and ``b`` distributions per reactivation
+module and flags suspicious patterns such as:
+
+- slopes near the calibration clip
+- repeated identical values across a full layer combined with saturation
+- gate centers pushed to the voltage-range edge
+
+This diagnostic is especially useful when using ``quantile`` or
+``occupancy_quantile`` policies on new datasets or new recurrent settings.
+
+**Standard backprop** (both morphologies):
+
+.. code-block:: yaml
+
+   model:
+     core:
+       reactivation:
+         init_policy: "quantile"
+   training:
+     main:
+       common:
+         param_groups:
+           reactivation_lr: 0.0001
+
+**Local learning** (both morphologies):
+
+.. code-block:: yaml
+
+   model:
+     core:
+       reactivation:
+         init_policy: "occupancy_quantile"
+         occupancy_quantile_low: 0.05
+         occupancy_quantile_high: 0.95
+         occupancy_target_low: 0.2
+         occupancy_target_high: 0.8
+   training:
+     main:
+       common:
+         param_groups:
+           reactivation_lr: 0.001
+
+Gate-occupancy warmup in a ``multi_stage`` pipeline is available when a staged
+training setup is desired, but it is separate from the default local-learning
+configuration shown above.
+
+Recommended defaults
+^^^^^^^^^^^^^^^^^^^^
+
+- ``quantile`` for backprop, with a small ``reactivation_lr``
+- ``occupancy_quantile`` for local CA, using q05/q95 -> 0.2/0.8
+
+These defaults apply across both shunting and additive settings.
+
+Training-Time Gate Maintenance
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Initialization and training-time gate updates are separate controls.
+
+For the paper-facing backprop settings, the recommended default is:
+
+- use ``init_policy: "quantile"`` once at the start of training
+- keep ``reactivation_update_mode: "backprop"``
+- leave ``recalibrate_reactivation_every: 0``
+
+This uses quantile only to place the gate initially. After that, ``(m, b)``
+continue to learn through the optimizer like the rest of the model.
+
+For local learning, the recommended default is:
+
+- use ``init_policy: "occupancy_quantile"``
+- keep Local CA updates enabled for ``(m, b)``
+- do not enable periodic quantile refresh unless the experiment is explicitly
+  about comparing local gate updates against quantile-maintained gates
+
+Optional periodic quantile maintenance is available for controlled ablations
+and diagnostics. The relevant trainer fields live under
+``training.<strategy>.common``:
+
+``reactivation_update_mode``
+   ``"backprop"`` keeps optimizer or local-rule learning of ``(m, b)``.
+   ``"quantile"`` freezes those direct updates and refreshes ``(m, b)``
+   from the observed voltage distribution during training.
+
+``recalibrate_reactivation_every``
+   Refresh period in epochs. ``0`` disables training-time refresh.
+
+``reactivation_recalibration_mode``
+   Calibration rule used for periodic refresh. ``"from_init_policy"``
+   reuses the configured initialization rule; ``"occupancy_quantile"``
+   is the most common explicit choice for quantile-maintained gates.
+
+``reactivation_recalibration_start_epoch``
+   First epoch at which periodic refresh is allowed. Setting this to ``2``
+   or later preserves the chosen initialization through the first training
+   epoch.
+
+``reactivation_recalibration_num_batches``
+   Number of training batches used to estimate the live voltage distribution
+   for each refresh.
+
+``reactivation_recalibration_ema_alpha``
+   Blend factor for periodic refresh. ``1.0`` means hard overwrite with the
+   newly calibrated ``(m, b)``. Values in ``(0, 1)`` apply an EMA-style
+   update toward the calibrated target.
+
+In short: quantile initialization is the default paper recipe for backprop,
+while periodic quantile maintenance is a supported experimental option for
+studying simplified gate learning.
+
 Recurrent E-I Network
 ---------------------
 
@@ -452,6 +665,11 @@ For full per-layer, per-population control, use ``core.type: ei_unified``
 with the ``unified_ei`` config. Each layer is an ``EILayerConfig`` containing
 ``excitatory`` and ``inhibitory`` ``PopulationConfig`` objects.
 
+The recurrent unified-EI path reuses the same ``DendriticBranchLayer`` and
+``initialize.py`` logic as the feedforward EI stack. The main difference is
+that recurrent populations wrap those branch layers with per-level temporal
+traces and optional recurrent synapse banks.
+
 PopulationConfig fields
 ^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -486,7 +704,8 @@ Recurrent structure:
    ``allow_self_recurrence`` controls whether same-population recurrent synapses
    may read from the previous-timestep soma/output state of the same neuron.
    When set to ``False``, self-feedback is masked for E->E and I->I recurrent
-   synapses while cross-population recurrence remains unchanged.
+   synapses while cross-population recurrence remains unchanged. This flag is
+   only meaningful when the corresponding recurrent synapse count is nonzero.
 
 Implementation:
    ``print_hooks``, ``adaptive_initialization``.
@@ -843,3 +1062,9 @@ ImplementationConfig
      - bool
      - ``False``
      - Store per-timestep routing info for analysis
+   * - ``compile_forward``
+     - bool
+     - ``True``
+     - Opt-in/out ``torch.compile`` on the E-I core forward path; enabled by
+       default for parity with the historical BP path and can be disabled
+       explicitly for debugging or platform-specific reliability issues

@@ -19,7 +19,7 @@
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-    <link rel="next" title="Configuration Guide" href="configuration_guide.html" />
+    <link rel="next" title="Engineering Architecture" href="engineering_architecture.html" />
     <link rel="prev" title="Datasets" href="datasets.html" /> 
 </head>
 
@@ -70,6 +70,7 @@
 <li class="toctree-l2"><a class="reference internal" href="#compatibility-notes">Compatibility Notes</a></li>
 </ul>
 </li>
+<li class="toctree-l1"><a class="reference internal" href="engineering_architecture.html">Engineering Architecture</a></li>
 <li class="toctree-l1"><a class="reference internal" href="configuration_guide.html">Configuration Guide</a></li>
 <li class="toctree-l1"><a class="reference internal" href="sweeps.html">Parameter Sweeps</a></li>
 <li class="toctree-l1"><a class="reference internal" href="fsdp_troubleshooting.html">Distributed Training Guide</a></li>
@@ -382,7 +383,7 @@ configurable granularity.</p>
 <section id="other-analysis-modules">
 <h2><a class="toc-backref" href="#id12" role="doc-backlink">Other Analysis Modules</a><a class="headerlink" href="#other-analysis-modules" title="Link to this heading"></a></h2>
 <p>Each module follows the same <code class="docutils literal notranslate"><span class="pre">enabled</span></code>/<code class="docutils literal notranslate"><span class="pre">training</span></code>/<code class="docutils literal notranslate"><span class="pre">params</span></code> pattern.</p>
-<dl class="simple">
+<dl>
 <dt><code class="docutils literal notranslate"><span class="pre">weight</span></code></dt><dd><p>Weight distribution statistics and parameter counts.</p>
 </dd>
 <dt><code class="docutils literal notranslate"><span class="pre">synapse_turnover</span></code></dt><dd><p>Tracks active synapse changes over training. Parameters:
@@ -403,6 +404,23 @@ configurable granularity.</p>
 <dt><code class="docutils literal notranslate"><span class="pre">adversarial_robustness</span></code></dt><dd><p>FGSM attack evaluation at configurable epsilon values.</p>
 </dd>
 <dt><code class="docutils literal notranslate"><span class="pre">single_layer_contribution</span></code></dt><dd><p>Measures each layer’s contribution to the network output.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">reactivation_dynamics</span></code></dt><dd><p>Per-epoch trajectory tracker for parametric reactivation gates. For every
+<code class="docutils literal notranslate"><span class="pre">ParametricTanh</span></code> layer in the model, snapshots the pre-reactivation
+voltage distribution (mean, std, median, MAD, quantiles), the current
+learnable <code class="docutils literal notranslate"><span class="pre">(m,</span> <span class="pre">b)</span></code> parameters, and the post-gate saturation fractions
+(<code class="docutils literal notranslate"><span class="pre">sat_lo</span> <span class="pre">=</span> <span class="pre">P(output</span> <span class="pre">&lt;</span> <span class="pre">0.05)</span></code>, <code class="docutils literal notranslate"><span class="pre">sat_hi</span> <span class="pre">=</span> <span class="pre">P(output</span> <span class="pre">&gt;</span> <span class="pre">0.95)</span></code>). Saves
+one JSON file per epoch under <code class="docutils literal notranslate"><span class="pre">&lt;run&gt;/reactivation_dynamics/epochs/</span></code>.
+Useful for diagnosing gate-slope drift, init-calibration quality, and
+voltage-distribution stationarity during training.</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">analysis</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">reactivation_dynamics_analysis</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">training</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">params</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">max_samples</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1024</span>
+</pre></div>
+</div>
 </dd>
 </dl>
 </section>
@@ -435,7 +453,7 @@ analysis.</p></li>
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
         <a href="datasets.html" class="btn btn-neutral float-left" title="Datasets" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-        <a href="configuration_guide.html" class="btn btn-neutral float-right" title="Configuration Guide" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="engineering_architecture.html" class="btn btn-neutral float-right" title="Engineering Architecture" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>

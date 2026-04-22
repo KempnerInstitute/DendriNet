@@ -53,6 +53,7 @@
 <li class="toctree-l1"><a class="reference internal" href="training_strategies.html">Training Strategies</a></li>
 <li class="toctree-l1"><a class="reference internal" href="datasets.html">Datasets</a></li>
 <li class="toctree-l1"><a class="reference internal" href="analysis.html">Analysis</a></li>
+<li class="toctree-l1"><a class="reference internal" href="engineering_architecture.html">Engineering Architecture</a></li>
 <li class="toctree-l1"><a class="reference internal" href="configuration_guide.html">Configuration Guide</a></li>
 <li class="toctree-l1"><a class="reference internal" href="sweeps.html">Parameter Sweeps</a></li>
 <li class="toctree-l1"><a class="reference internal" href="fsdp_troubleshooting.html">Distributed Training Guide</a></li>
@@ -142,52 +143,55 @@
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">ei_unified</span></code></p></td>
 <td><p>Unified E-I (feedforward + recurrent capable)</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">point_mlp</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">rnn_dendritic_shunting</span></code>, <code class="docutils literal notranslate"><span class="pre">rnn_dendritic_additive</span></code></p></td>
+<td><p>Unified recurrent-EI aliases with type-implied shunting/additive defaults</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">point_mlp</span></code></p></td>
 <td><p>Plain point-neuron MLP baseline</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">total_param_mlp</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">total_param_mlp</span></code></p></td>
 <td><p>MLP baseline matched by total parameter count</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">active_param_mlp</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">active_param_mlp</span></code></p></td>
 <td><p>MLP baseline matched by active parameter count</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">ss_mlp</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">ss_mlp</span></code></p></td>
 <td><p>Sparse structured MLP baseline</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">ss_mlp_flat</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">ss_mlp_flat</span></code></p></td>
 <td><p>Flattened sparse structured MLP baseline</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">hierarchical_dendritic_tensor_map</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">hierarchical_dendritic_tensor_map</span></code></p></td>
 <td><p>Pretrained-replacement baseline: keep the pretrained prefix/suffix around a newly initialized dendritic core, flatten the prefix tensor, run an EINet-style hierarchical dendritic core, then optionally project to a flat suffix input</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">hierarchical_dendritic_conv</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">hierarchical_dendritic_conv</span></code></p></td>
 <td><p>Spatial dendritic convolutional core over local patches; preserves the prefix/suffix spatial tensor contract for convolutional replacement</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">gru</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">gru</span></code></p></td>
 <td><p>Gated Recurrent Unit</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">lstm</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">lstm</span></code></p></td>
 <td><p>Long Short-Term Memory</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">vanilla_rnn</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">vanilla_rnn</span></code></p></td>
 <td><p>Standard RNN</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">mlp</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">mlp</span></code></p></td>
 <td><p>Multi-layer perceptron</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">alexnet</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">alexnet</span></code></p></td>
 <td><p>AlexNet-style classical CNN backbone</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">cnn</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">cnn</span></code></p></td>
 <td><p>Small classical CNN</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">cnn_down</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">cnn_down</span></code></p></td>
 <td><p>Downsampling CNN decoder/encoder helper</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">cnn_up</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">cnn_up</span></code></p></td>
 <td><p>Upsampling CNN decoder helper</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">identity</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">identity</span></code></p></td>
 <td><p>Identity core / pass-through</p></td>
 </tr>
 </tbody>
@@ -251,8 +255,8 @@
 <section id="weight-transforms">
 <h2>Weight Transforms<a class="headerlink" href="#weight-transforms" title="Link to this heading"></a></h2>
 <p>Set via <code class="docutils literal notranslate"><span class="pre">model.core.morphology.weight_transform</span></code>:</p>
-<p><code class="docutils literal notranslate"><span class="pre">exp</span></code> – always positive, sharp exponential parameterization (default recurrent paper setting).
-<code class="docutils literal notranslate"><span class="pre">softplus</span></code> – always positive, smoother gradient.
+<p><code class="docutils literal notranslate"><span class="pre">softplus</span></code> – always positive, smoother gradient (default structured EI / recurrent setting).
+<code class="docutils literal notranslate"><span class="pre">exp</span></code> – always positive, sharp exponential parameterization.
 <code class="docutils literal notranslate"><span class="pre">relu</span></code> – non-negative, can be exactly zero.
 <code class="docutils literal notranslate"><span class="pre">identity</span></code> – signed weights (for dendritic_mlp).</p>
 <p>For biologically constrained recurrent runs, pair a positive transform

@@ -20,7 +20,7 @@
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
     <link rel="next" title="Parameter Sweeps" href="sweeps.html" />
-    <link rel="prev" title="Analysis" href="analysis.html" /> 
+    <link rel="prev" title="Engineering Architecture" href="engineering_architecture.html" /> 
 </head>
 
 <body class="wy-body-for-nav"> 
@@ -53,6 +53,7 @@
 <li class="toctree-l1"><a class="reference internal" href="training_strategies.html">Training Strategies</a></li>
 <li class="toctree-l1"><a class="reference internal" href="datasets.html">Datasets</a></li>
 <li class="toctree-l1"><a class="reference internal" href="analysis.html">Analysis</a></li>
+<li class="toctree-l1"><a class="reference internal" href="engineering_architecture.html">Engineering Architecture</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Configuration Guide</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#quick-start">Quick Start</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#top-level-structure">Top-Level Structure</a></li>
@@ -180,8 +181,14 @@ python<span class="w"> </span>src/dendritic_modeling/scripts/training/train_expe
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">ei_unified</span></code></p></td>
 <td><p>Unified E-I, supports feedforward and recurrent</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">gru</span></code>, <code class="docutils literal notranslate"><span class="pre">lstm</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">rnn_dendritic_shunting</span></code>, <code class="docutils literal notranslate"><span class="pre">rnn_dendritic_additive</span></code></p></td>
+<td><p>Unified recurrent E-I aliases with shunting/additive defaults applied</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">gru</span></code>, <code class="docutils literal notranslate"><span class="pre">lstm</span></code></p></td>
 <td><p>Baseline RNNs</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">vanilla_rnn</span></code></p></td>
+<td><p>Plain point-RNN baseline</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">mlp</span></code></p></td>
 <td><p>MLP baseline</p></td>
@@ -192,7 +199,14 @@ python<span class="w"> </span>src/dendritic_modeling/scripts/training/train_expe
 <code class="docutils literal notranslate"><span class="pre">ei_unified</span></code> models, the biology-facing configuration now also supports
 <code class="docutils literal notranslate"><span class="pre">allow_self_recurrence:</span> <span class="pre">false</span></code> inside each population block to disable
 same-population E-&gt;E and I-&gt;I self-feedback while keeping cross-population
-recurrence intact.</p>
+recurrence intact. Structured feedforward EINet configs and recurrent
+PopulationConfig blocks now share the same positive-weight default
+(<code class="docutils literal notranslate"><span class="pre">weight_transform:</span> <span class="pre">softplus</span></code>). Use <code class="docutils literal notranslate"><span class="pre">weight_transform:</span> <span class="pre">exp</span></code> explicitly
+when you want the sharper positive-conductance parameterization.</p>
+<p>When you use a data-driven gate init policy (<code class="docutils literal notranslate"><span class="pre">quantile</span></code>,
+<code class="docutils literal notranslate"><span class="pre">occupancy_quantile</span></code>, or <code class="docutils literal notranslate"><span class="pre">empirical</span></code>), each run also writes
+<code class="docutils literal notranslate"><span class="pre">init_gate_stats.json</span></code> into its run directory. Use that artifact to confirm
+that reactivation gates were initialized sensibly before trusting the run.</p>
 </section>
 <section id="training-strategies">
 <h2>Training Strategies<a class="headerlink" href="#training-strategies" title="Link to this heading"></a></h2>
@@ -229,6 +243,11 @@ path <code class="docutils literal notranslate"><span class="pre">training.main.
 </ul>
 <p>Dataset-specific parameters go under <code class="docutils literal notranslate"><span class="pre">data.dataset_params.&lt;name&gt;</span></code>.
 See <a class="reference internal" href="datasets.html"><span class="doc">Datasets</span></a> for details.</p>
+<p>For shunting E-I models with positive weight transforms, keep the tensors that
+enter the first shunting layer non-negative. If preprocessing uses
+<code class="docutils literal notranslate"><span class="pre">normalize:</span> <span class="pre">true</span></code>, either disable normalization for that run or set
+<code class="docutils literal notranslate"><span class="pre">model.core.transfer.output_activation</span></code> to a nonnegative activation such as
+<code class="docutils literal notranslate"><span class="pre">&quot;relu&quot;</span></code> so the transfer-layer outputs remain non-negative.</p>
 </section>
 <section id="analysis-modules">
 <h2>Analysis Modules<a class="headerlink" href="#analysis-modules" title="Link to this heading"></a></h2>
@@ -504,7 +523,7 @@ options is in <code class="docutils literal notranslate"><span class="pre">confi
            </div>
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
-        <a href="analysis.html" class="btn btn-neutral float-left" title="Analysis" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="engineering_architecture.html" class="btn btn-neutral float-left" title="Engineering Architecture" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
         <a href="sweeps.html" class="btn btn-neutral float-right" title="Parameter Sweeps" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
