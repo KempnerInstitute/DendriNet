@@ -220,9 +220,13 @@ scripts_backup/
 drafts/
 external/
 /scripts/
+!/scripts/ci/
+!/scripts/ci/**
 scratch/
 figures/
 outputs_smoke/
 outputs_sweep_smoke/
 tmp/
 analysis/
+!src/dendritic_modeling/analysis/
+!src/dendritic_modeling/analysis/**

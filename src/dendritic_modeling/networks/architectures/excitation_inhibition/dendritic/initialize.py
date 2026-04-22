@@ -770,7 +770,6 @@ def calibrate_reactivation_from_data(
             occ_fit = _fit_occupancy_quantile()
             b_emp = float(occ_fit["b"])
             m_emp = float(occ_fit["m"])
-            sigma_emp = float(occ_fit["sigma"])
             occ_q_low = float(occ_fit["q_low_prob"])
             occ_q_high = float(occ_fit["q_high_prob"])
             occ_r_low = float(occ_fit["r_low"])
@@ -781,7 +780,6 @@ def calibrate_reactivation_from_data(
             occ_m_clamped = bool(occ_fit["m_clamped"])
             calibration_reverted = bool(occ_fit["reverted"])
         elif active_mode == "median_mad":
-            sigma_emp = sigma_mad_std
             b_emp = median
             m_emp = robust_m
         elif active_mode == "mean_std":

@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="760" viewBox="0 0 1200 760">
+  <defs>
+    <style>
+      .title { font: 700 34px "DejaVu Sans", Arial, sans-serif; fill: #16324f; }
+      .label { font: 600 22px "DejaVu Sans", Arial, sans-serif; fill: #16324f; }
+      .body { font: 400 18px "DejaVu Sans", Arial, sans-serif; fill: #284b63; }
+      .small { font: 400 16px "DejaVu Sans", Arial, sans-serif; fill: #3c5666; }
+      .box { fill: #f8fbfd; stroke: #89a9bf; stroke-width: 2.5; rx: 22; }
+      .exc { fill: #eef7ec; stroke: #6aa56a; stroke-width: 2.5; rx: 22; }
+      .inh { fill: #fff3f1; stroke: #c06a5b; stroke-width: 2.5; rx: 22; }
+      .accent { fill: #e8f3f8; stroke: #4b8aa8; stroke-width: 2.5; rx: 22; }
+      .arrow { stroke: #4b6f88; stroke-width: 4; fill: none; marker-end: url(#arrowhead); }
+      .dashed { stroke-dasharray: 12 10; }
+    </style>
+    <marker id="arrowhead" markerWidth="14" markerHeight="10" refX="10" refY="5" orient="auto">
+      <polygon points="0 0, 10 5, 0 10" fill="#4b6f88"/>
+    </marker>
+  </defs>
+  <rect width="1200" height="760" fill="#ffffff"/>
+  <text x="60" y="70" class="title">Recurrent Unified E/I Design</text>
+
+  <rect x="70" y="130" width="250" height="120" class="accent"/>
+  <text x="100" y="175" class="label">Input / Encoder</text>
+  <text x="100" y="208" class="body">transfer.output_activation</text>
+  <text x="100" y="234" class="body">guards shunting inputs</text>
+
+  <rect x="390" y="120" width="320" height="150" class="box"/>
+  <text x="420" y="165" class="label">EILayerConfig</text>
+  <text x="420" y="198" class="body">excitatory: PopulationConfig</text>
+  <text x="420" y="224" class="body">inhibitory: PopulationConfig</text>
+  <text x="420" y="250" class="body">per-layer recurrent structure</text>
+
+  <rect x="120" y="350" width="360" height="180" class="exc"/>
+  <text x="150" y="395" class="label">Excitatory Population</text>
+  <text x="150" y="428" class="body">StatefulDendriNet</text>
+  <text x="150" y="454" class="body">shared branch-layer + init logic</text>
+  <text x="150" y="480" class="body">per-level tau traces</text>
+  <text x="150" y="506" class="body">FF + recurrent synapse banks</text>
+
+  <rect x="620" y="350" width="360" height="180" class="inh"/>
+  <text x="650" y="395" class="label">Inhibitory Population</text>
+  <text x="650" y="428" class="body">matching PopulationConfig surface</text>
+  <text x="650" y="454" class="body">recurrent / feedforward routing</text>
+  <text x="650" y="480" class="body">same branch semantics as feedforward EI</text>
+
+  <rect x="430" y="610" width="340" height="90" class="accent"/>
+  <text x="460" y="653" class="label">Decoder / Readout</text>
+  <text x="460" y="680" class="body">final population outputs -&gt; task head</text>
+
+  <path d="M320 190 L390 190" class="arrow"/>
+  <path d="M550 270 L300 350" class="arrow"/>
+  <path d="M550 270 L800 350" class="arrow"/>
+  <path d="M480 440 L620 440" class="arrow"/>
+  <path d="M620 460 L480 460" class="arrow"/>
+  <path d="M300 530 L300 590 L520 590 L520 610" class="arrow"/>
+  <path d="M800 530 L800 590 L680 590 L680 610" class="arrow"/>
+
+  <path d="M240 350 C240 280, 240 260, 180 250" class="arrow dashed"/>
+  <path d="M740 350 C740 280, 740 260, 880 250" class="arrow dashed"/>
+
+  <text x="85" y="290" class="small">shared feedforward/recurrent branch semantics</text>
+  <text x="835" y="290" class="small">recurrent inputs from previous-step outputs</text>
+  <text x="420" y="735" class="small">allow_self_recurrence masks same-population self-feedback without changing cross-population recurrence</text>
+</svg>

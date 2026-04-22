@@ -531,7 +531,10 @@ def main(config_path):
             if is_data_driven_reactivation_policy(init_policy):
                 requested_policies.add(init_policy)
         except AttributeError:
-            pass
+            logger.debug(
+                "Reactivation config path missing (config.model.core.reactivation); "
+                "skipping config-level data-driven init policy detection."
+            )
 
         for module in model.modules():
             layer_policy = getattr(module, "reactivation_init_policy", None)
