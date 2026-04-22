@@ -9,6 +9,9 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+POSITIVE_WEIGHT_TRANSFORMS = {"softplus", "exp", "relu"}
+NONNEGATIVE_TRANSFER_ACTIVATIONS = {"relu", "sigmoid", "softplus"}
+
 
 def _cfg_get(node, key: str, default=None):
     """Get value from dict-like or attribute-based config nodes."""
@@ -34,6 +37,27 @@ def _first_present(node, paths: list[list[str]], default=None):
         if value is not None:
             return value
     return default
+
+
+def _effective_use_shunting(core_type: str, morphology_use_shunting: bool) -> bool:
+    """Resolve the effective shunting flag from type aliases plus morphology."""
+    core_type = (core_type or "").strip().lower()
+    if core_type in {
+        "dendritic_additive",
+        "flat_additive",
+        "dendritic_mlp",
+        "flat_mlp",
+        "point_mlp",
+        "mlp",
+        "rnn_dendritic_additive",
+        "rnn_flat_additive",
+    }:
+        return False
+    if "shunting" in core_type:
+        return True
+    if core_type in {"einet", "ei_unified", "unified_ei", "ei_net", "unified_einet"}:
+        return bool(morphology_use_shunting)
+    return False
 
 
 def validate_training_stability(config) -> bool:
@@ -68,9 +92,13 @@ def validate_training_stability(config) -> bool:
 
     # Model configuration (support both current and legacy paths).
     architecture_cfg = _cfg_path(config, ["model", "core", "architecture"], {})
+    core_cfg = _cfg_path(config, ["model", "core"], {})
     sparsity_cfg = _cfg_path(config, ["model", "core", "sparsity"], {})
     blocklinear_cfg = _cfg_path(config, ["model", "core", "blocklinear"], {})
     reactivation_cfg = _cfg_path(config, ["model", "core", "reactivation"], {})
+    morphology_cfg = _cfg_path(config, ["model", "core", "morphology"], {})
+    transfer_cfg = _cfg_path(config, ["model", "core", "transfer"], {})
+    data_processing_cfg = _cfg_path(config, ["data", "processing"], {})
     legacy_params = _cfg_path(config, ["model", "core_network", "parameters"], {})
 
     topk_ultrafast = bool(
@@ -99,6 +127,23 @@ def validate_training_stability(config) -> bool:
         or _cfg_get(legacy_params, "blocklinear_strategy", None)
         or _cfg_get(blocklinear_cfg, "gradient_scaling", "none")
     )
+    core_type = str(_cfg_get(core_cfg, "type", "einet"))
+    morphology_use_shunting = bool(_cfg_get(morphology_cfg, "use_shunting", True))
+    effective_use_shunting = _effective_use_shunting(core_type, morphology_use_shunting)
+    weight_transform = str(
+        _cfg_get(
+            morphology_cfg,
+            "weight_transform",
+            _cfg_get(legacy_params, "weight_transform", "softplus"),
+        )
+    ).lower()
+    transfer_output_activation = _cfg_get(transfer_cfg, "output_activation", None)
+    transfer_output_activation = (
+        None
+        if transfer_output_activation is None
+        else str(transfer_output_activation).strip().lower()
+    )
+    normalize_inputs = bool(_cfg_get(data_processing_cfg, "normalize", False))
 
     trainer_params = _cfg_path(config, ["training", "main", "common"], {})
     learning_rate = float(
@@ -127,6 +172,22 @@ def validate_training_stability(config) -> bool:
         warnings.append(
             "AMP + Gradient Hooks: Mixed precision with gradient scaling hooks may cause dtype conflicts. "
             "Consider setting 'disable_hooks_with_amp: true' in trainer config if you encounter errors."
+        )
+
+    # 1b. Signed-input shunting guard
+    if (
+        effective_use_shunting
+        and weight_transform in POSITIVE_WEIGHT_TRANSFORMS
+        and normalize_inputs
+        and transfer_output_activation not in NONNEGATIVE_TRANSFER_ACTIVATIONS
+    ):
+        errors.append(
+            "Signed shunting input: data.processing.normalize=true produces "
+            "signed inputs, but this model uses shunting with a positive "
+            f"weight transform ({weight_transform!r}) and no nonnegative "
+            "transfer.output_activation. Use normalize=false, set "
+            "transfer.output_activation to a nonnegative activation such as "
+            "'relu', or switch to an additive morphology."
         )
 
     # 2. Aggressive Optimization Combinations (NaN Risk)

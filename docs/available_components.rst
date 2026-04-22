@@ -106,8 +106,8 @@ Weight Transforms
 
 Set via ``model.core.morphology.weight_transform``:
 
-``exp`` -- always positive, sharp exponential parameterization (default structured EI / recurrent setting).
-``softplus`` -- always positive, smoother gradient.
+``softplus`` -- always positive, smoother gradient (default structured EI / recurrent setting).
+``exp`` -- always positive, sharp exponential parameterization.
 ``relu`` -- non-negative, can be exactly zero.
 ``identity`` -- signed weights (for dendritic_mlp).
 

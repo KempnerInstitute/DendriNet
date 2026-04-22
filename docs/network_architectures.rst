@@ -97,6 +97,10 @@ Controls how input is routed to the E and I pathways.
    Optional nonlinearity on the split outputs: ``"sigmoid"``, ``"relu"``,
    ``"tanh"``, ``"softplus"``, or ``None``.
 
+   For shunting E-I models with positive weight transforms, this is also the
+   recommended place to clamp normalized raw inputs back to a nonnegative
+   range, e.g. ``output_activation: "relu"``.
+
 Config path: ``model.core.transfer``.
 
 .. code-block:: yaml
@@ -130,7 +134,7 @@ E-I Network Configuration
        morphology:
          somatic_synapses: false
          use_shunting: true
-         weight_transform: "exp"
+         weight_transform: "softplus"
          dbl_init_method: "analytical_expectation"
        sparsity:
          init_method: "xavier_normal"
@@ -1060,6 +1064,7 @@ ImplementationConfig
      - Store per-timestep routing info for analysis
    * - ``compile_forward``
      - bool
-     - ``False``
-     - Opt-in ``torch.compile`` on the E-I core forward path; disabled by
-       default for reliability on shared filesystems and in tests
+     - ``True``
+     - Opt-in/out ``torch.compile`` on the E-I core forward path; enabled by
+       default for parity with the historical BP path and can be disabled
+       explicitly for debugging or platform-specific reliability issues

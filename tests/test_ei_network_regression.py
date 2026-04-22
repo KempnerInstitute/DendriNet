@@ -459,14 +459,14 @@ class TestNetworkProperties:
 
 
 class TestShuntingNonnegInputCheck:
-    """Runtime guard: shunting + positive-conductance weights require non-negative inputs.
+    """Runtime guard: shunting + positive-conductance weights require non-negative
+    conductance-driving inputs after the transfer layer.
 
-    The check lives on ``ExcitationInhibitionNetwork.forward`` (not on
-    ``DendriticBranchLayer``) because that's the data boundary — raw input
-    enters there and the check should fire exactly once at the edge of the
-    compute graph. Downstream DBLs at layer ≥ 2 receive reactivation outputs
-    already bounded in ``[0, 1]`` so their inputs are non-negative by
-    construction.
+    The check lives on ``ExcitationInhibitionNetwork.forward`` because that is
+    where the transfer layer defines the actual tensors that feed the first
+    shunting DBL. Raw inputs may be signed if the transfer layer clamps them
+    (e.g. ``output_activation='relu'``), but signed conductance drive itself
+    should never pass unnoticed.
     """
 
     def test_shunting_softplus_errors_on_signed_input(self):
@@ -492,6 +492,15 @@ class TestShuntingNonnegInputCheck:
         assert out.shape == (BATCH, OUTPUT_DIM)
         assert torch.isfinite(out).all()
 
+    def test_shunting_softplus_allows_signed_raw_input_when_transfer_relu(self):
+        config = _minimal_config()
+        config["morphology"]["weight_transform"] = "softplus"
+        config["transfer"]["output_activation"] = "relu"
+        net = get_architecture("dendritic_shunting", config, input_dim=INPUT_DIM)
+        out = net(torch.randn(BATCH, INPUT_DIM))
+        assert out.shape == (BATCH, OUTPUT_DIM)
+        assert torch.isfinite(out).all()
+
     def test_additive_accepts_signed_input(self):
         """Additive morphology has no shunting denominator; signed input is fine."""
         config = _minimal_config()
@@ -500,6 +509,15 @@ class TestShuntingNonnegInputCheck:
         out = net(torch.randn(BATCH, INPUT_DIM))
         assert out.shape == (BATCH, OUTPUT_DIM)
         assert torch.isfinite(out).all()
+
+    def test_additive_alias_canonicalizes_safe_gate_init(self):
+        config = _minimal_config()
+        net = get_architecture("dendritic_additive", config, input_dim=INPUT_DIM)
+        layer = net.layers[0].excitatory_cells.branch_layers[0]
+        assert layer.use_shunting is False
+        assert layer.reactivation_init_policy == "fixed"
+        assert layer.reactivation_init_m == 0.1
+        assert layer.reactivation_init_b == 0.0
 
     def test_shunting_identity_transform_accepts_signed_input(self):
         """identity weight_transform produces signed weights, so the

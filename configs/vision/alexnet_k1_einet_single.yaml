@@ -124,7 +124,7 @@ model:
       independent_pathways: false
       excitatory_dim: null
       inhibitory_dim: null
-      output_activation: null
+      output_activation: "relu"
 
     morphology:
       somatic_synapses: false

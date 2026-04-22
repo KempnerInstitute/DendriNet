@@ -30,7 +30,9 @@ model:
   encoder:
     type: "identity"
   core:
-    type: "EINet"
+    type: "einet"
+    transfer:
+      output_activation: "relu"
     architecture:
       excitatory_layer_sizes: [256]
       inhibitory_layer_sizes: [64]

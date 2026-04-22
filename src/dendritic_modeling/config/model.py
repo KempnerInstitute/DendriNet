@@ -60,9 +60,10 @@ class MorphologyConfig(BaseConfig):
     # Only used when an EINet-style config is translated into the recurrent
     # unified E-I path. Feedforward models ignore this flag.
     allow_self_recurrence: bool = True
-    # Keep the structured-config default aligned with ExcitationInhibitionNetwork,
-    # PopulationConfig, and the biology-facing paper settings.
-    weight_transform: str = "exp"
+    # Keep the structured-config default aligned with develop-era BP configs.
+    # Experiments that need a stricter positive-conductance regime can still
+    # request "exp" explicitly.
+    weight_transform: str = "softplus"
     dbl_init_method: str = "analytical_expectation"
 
 
@@ -141,7 +142,7 @@ class ImplementationConfig(BaseConfig):
     adaptive_initialization: bool = False
     print_hooks: bool = False
     store_routing: bool = False
-    compile_forward: bool = False
+    compile_forward: bool = True
 
 
 @dataclass

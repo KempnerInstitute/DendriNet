@@ -54,7 +54,8 @@ Unified E-I configuration lives under `model.core.unified_ei`.
   `networks/architectures/excitation_inhibition/`.
 - Output reduction is controlled by the recurrent core config
   (`last`, `mean`, or `all`).
-- For biology-facing recurrent runs, the common paper recipe is a positive
-  weight transform (`exp`), `allow_self_recurrence: false`, and review of the
-  post-build `init_gate_stats.json` artifact when using data-driven gate
-  initialization.
+- Structured EI defaults stay on the smoother positive transform (`softplus`);
+  biology-facing recurrent runs can opt into `exp` explicitly when needed.
+- For paper-style recurrent runs, a common recipe is `weight_transform: exp`,
+  `allow_self_recurrence: false`, and review of the post-build
+  `init_gate_stats.json` artifact when using data-driven gate initialization.
