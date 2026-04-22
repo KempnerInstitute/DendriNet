@@ -1,6 +1,7 @@
-"""Weight, synaptic activation/pruning/turnover, and correlation analysis tools."""
+"""Reusable analysis tools for weights, routing, dynamics, and E/I motifs."""
 
 from .correlation_analysis import CorrelationAnalyzer
+from .dendritic_timetraces import DendriticTimetracesAnalyzer
 from .ei_connectivity_motifs import (
     LOCAL_RECURRENT_ROUTE_KEYS,
     ROUTE_SPECS,
@@ -10,6 +11,9 @@ from .ei_connectivity_motifs import (
     pair_stats_by_class,
     summarize_compartment_targeting_from_compartment_weights,
 )
+from .inhibitory_specialization import InhibitorySpecializationAnalyzer
+from .jacobian_spectrum import JacobianSpectrumAnalyzer
+from .reactivation_dynamics import ReactivationDynamicsAnalyzer
 from .synaptic_activation import SynapticActivationAnalyzer
 from .synaptic_pruning import (
     SynapticPruningAnalyzer,
@@ -23,6 +27,10 @@ __all__ = [
     "ROUTE_SPECS",
     "TARGETING_CLASS_ORDER",
     "CorrelationAnalyzer",
+    "DendriticTimetracesAnalyzer",
+    "InhibitorySpecializationAnalyzer",
+    "JacobianSpectrumAnalyzer",
+    "ReactivationDynamicsAnalyzer",
     "SynapticActivationAnalyzer",
     "SynapticPruningAnalyzer",
     "SynapticTurnoverAnalyzer",

@@ -344,6 +344,53 @@ Each module follows the same ``enabled``/``training``/``params`` pattern.
           params:
             max_samples: 1024
 
+``inhibitory_specialization``
+   Structural targeting analysis for recurrent inhibitory populations. For each
+   local recurrent I->E route, computes soma-vs-distal targeting indices per
+   ``(I, E)`` pair and summarizes inhibitory neurons into targeting motifs such
+   as ``mixed-conditional`` and ``context-specialist``.
+
+   .. code-block:: yaml
+
+      analysis:
+        inhibitory_specialization_analysis:
+          enabled: true
+          training: false
+          params:
+            gate_threshold: 0.1
+            mixed_std_threshold: 0.15
+
+``jacobian_spectrum``
+   Static recurrent-weight spectrum snapshot for dendritic recurrent models.
+   Reports the top singular values and spectral radii of recurrent excitation
+   and recurrent inhibition at each dendritic level, together with per-level
+   ``tau`` when available.
+
+   .. code-block:: yaml
+
+      analysis:
+        jacobian_spectrum_analysis:
+          enabled: true
+          training: false
+          params:
+            top_k: 5
+            save_figures: true
+
+``dendritic_timetraces``
+   Synthetic time-trace simulator that uses the trained per-level ``tau`` and
+   reactivation parameters to illustrate how a learned dendritic cascade
+   responds to a configurable input protocol.
+
+   .. code-block:: yaml
+
+      analysis:
+        dendritic_timetraces_analysis:
+          enabled: true
+          training: false
+          params:
+            n_timesteps: 80
+            save_figures: true
+
 Compatibility Notes
 -------------------
 

@@ -34,7 +34,7 @@ Top-Level Structure
    data:         # dataset, processing, dataset-specific params
    model:        # encoder, core network, decoder, pretrained_replacement
    training:     # encoder + main training, strategies, regularization, pruning, AMP
-   analysis:     # 16 analysis modules
+   analysis:     # 20 analysis modules
    wandb:        # Weights & Biases logging
    outputs:      # run_name, results_dir
    distributed:  # mode (none/ddp/fsdp), FSDP tuning knobs
@@ -118,15 +118,25 @@ Datasets
 Set ``data.dataset_name`` to one of:
 
 - **Standard**: ``mnist``, ``fashion_mnist``, ``cifar10``, ``imagenet``,
-  ``mnist_modulo10``
+  ``mnist_modulo10``, ``cifar10_modulo10``,
+  ``double_cifar10_contextual_mod10``, ``double_mnist_contextual_mod10``
 - **Synthetic**: ``correlated_gaussian``, ``nonlinear_interaction``,
   ``linear_separable``, ``nonlinear_separable``, ``block_correlated``,
-  ``balanced_information``, ``poisson_generator``, ``multixor``,
-  ``orientation_bars``, ``orthonet``
+  ``balanced_information``, ``contextual_stream_gain_shift``,
+  ``poisson_generator``, ``multixor``, ``orientation_bars``, ``orthonet``
 - **Sequence**: ``sequential_mnist``, ``copy_task``, ``adding_problem``,
   ``variable_delay_dms``, ``multi_frequency``, ``hierarchical_temporal``,
-  ``context_dependent_decision``, ``switching_context_decision``,
-  ``timescale_generalization``, ``lorenz``, ``stringer_v1``
+  ``context_dependent_decision``, ``context_dependent_decision_hard``,
+  ``context_dependent_decision_positive``,
+  ``context_dependent_decision_hard_positive``,
+  ``switching_context_decision``, ``switching_context_decision_positive``,
+  ``timescale_generalization``, ``timescale_generalization_positive``,
+  ``odr_generalization``, ``odr_generalization_positive``,
+  ``romo_delay_comparison``, ``romo_delay_comparison_positive``,
+  ``gain_modulated_contextual_comparison``,
+  ``gain_modulated_contextual_comparison_positive``, ``lorenz``,
+  ``lorenz_sequence``, ``switching_lds``, ``multi_sine_forecast``,
+  ``stringer_v1``
 
 Dataset-specific parameters go under ``data.dataset_params.<name>``.
 See :doc:`datasets` for details.
@@ -197,7 +207,9 @@ Available modules: ``performance``, ``information``, ``correlation``,
 ``ablation``, ``synapse_turnover``, ``noise_perturbation``, ``weight``,
 ``single_layer_contribution``, ``synaptic_activation``, ``branch_activation``,
 ``compartment_statistics``, ``compartment_snr``, ``multiplicative_gain``,
-``receptive_field``, ``adversarial_robustness``, ``routing``.
+``receptive_field``, ``adversarial_robustness``, ``routing``,
+``reactivation_dynamics``, ``inhibitory_specialization``,
+``jacobian_spectrum``, ``dendritic_timetraces``.
 
 See :doc:`analysis` for per-module parameter details.
 
