@@ -220,6 +220,8 @@ scripts_backup/
 drafts/
 external/
 /scripts/
+!/scripts/ci/
+!/scripts/ci/**
 scratch/
 figures/
 outputs_smoke/
