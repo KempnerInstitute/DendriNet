@@ -346,7 +346,7 @@ def _build_recurrent_einet_from_structured_config(
             topk_temperature=float(sparsity.get("temperature", 0.0)),
             topk_ultrafast=bool(sparsity.get("ultrafast", False)),
             topk_strategy=str(sparsity.get("gradient_scaling", "none")),
-            weight_transform=str(morphology.get("weight_transform", "exp")),
+            weight_transform=str(morphology.get("weight_transform", "softplus")),
             use_shunting=use_shunting,
             use_additive_normalization=bool(
                 morphology.get("use_additive_normalization", False)
@@ -780,8 +780,11 @@ def get_architecture(
             weight_transform = "identity"
             use_shunting = False
 
+        params_for_build = _to_plain_mapping(parameters)
+        params_for_build.setdefault("type", type)
+
         return ConfigurableEINetwork(
-            config=parameters,
+            config=params_for_build,
             input_dim=input_dim,
             synapse_mode=synapse_mode,
             use_shunting=use_shunting,

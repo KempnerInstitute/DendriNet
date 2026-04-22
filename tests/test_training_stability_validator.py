@@ -30,6 +30,11 @@ def _build_config(
     reactivation_strategy="none",
     topk_strategy="none",
     blocklinear_strategy="none",
+    core_type="einet",
+    morphology_use_shunting=True,
+    weight_transform="softplus",
+    normalize_inputs=False,
+    transfer_output_activation=None,
 ):
     architecture = ConfigNode(
         topk_ultrafast=topk_ultrafast,
@@ -62,9 +67,18 @@ def _build_config(
             fsdp=fsdp_config or ConfigNode(),
         ),
         model=ConfigNode(
-            core=ConfigNode(architecture=architecture),
+            core=ConfigNode(
+                type=core_type,
+                architecture=architecture,
+                morphology=ConfigNode(
+                    use_shunting=morphology_use_shunting,
+                    weight_transform=weight_transform,
+                ),
+                transfer=ConfigNode(output_activation=transfer_output_activation),
+            ),
             core_network=ConfigNode(parameters=core_network_params),
         ),
+        data=ConfigNode(processing=ConfigNode(normalize=normalize_inputs)),
     )
 
 
@@ -118,6 +132,36 @@ def test_validate_training_stability_warns_on_memory_optimization_without_amp(
 def test_validate_training_stability_handles_missing_sections_gracefully():
     config = ConfigNode()
     assert validate_training_stability(config) is True
+
+
+def test_validate_training_stability_rejects_signed_shunting_input(monkeypatch):
+    config = _build_config(
+        core_type="dendritic_shunting",
+        normalize_inputs=True,
+        weight_transform="softplus",
+        transfer_output_activation=None,
+    )
+
+    errors = []
+    monkeypatch.setattr(tsv.logger, "error", lambda message: errors.append(message))
+
+    assert validate_training_stability(config) is False
+    assert "Signed shunting input" in "\n".join(errors)
+
+
+def test_validate_training_stability_allows_relu_clamped_shunting_input(monkeypatch):
+    config = _build_config(
+        core_type="dendritic_shunting",
+        normalize_inputs=True,
+        weight_transform="softplus",
+        transfer_output_activation="relu",
+    )
+
+    errors = []
+    monkeypatch.setattr(tsv.logger, "error", lambda message: errors.append(message))
+
+    assert validate_training_stability(config) is True
+    assert errors == []
 
 
 def test_suggest_optimal_config_for_model_size_ranges():

@@ -48,11 +48,12 @@ def canonicalize_model_core_flags(
         return {}
 
     model_cfg = result.get("model")
-    if not isinstance(model_cfg, dict):
-        return result
-
-    core_cfg = model_cfg.get("core")
-    if not isinstance(core_cfg, dict):
+    if isinstance(model_cfg, dict) and isinstance(model_cfg.get("core"), dict):
+        core_cfg = model_cfg["core"]
+    elif {"architecture", "connectivity"} <= set(result.keys()):
+        # Also support direct core-config dicts passed straight to the factory.
+        core_cfg = result
+    else:
         return result
 
     core_type = str(core_cfg.get("type", "")).lower()
@@ -61,18 +62,37 @@ def canonicalize_model_core_flags(
         morphology_cfg = {}
         core_cfg["morphology"] = morphology_cfg
 
-    type_overrides = {
-        "dendritic_shunting": True,
-        "flat_shunting": True,
-        "dendritic_additive": False,
-        "flat_additive": False,
-        "dendritic_mlp": False,
-        "flat_mlp": False,
-        "point_mlp": False,
-        "mlp": False,
+    type_overrides: dict[str, dict[str, Any]] = {
+        "dendritic_shunting": {"use_shunting": True},
+        "flat_shunting": {"use_shunting": True},
+        "dendritic_additive": {
+            "use_shunting": False,
+            "use_additive_normalization": True,
+        },
+        "flat_additive": {
+            "use_shunting": False,
+            "use_additive_normalization": True,
+        },
+        "dendritic_mlp": {"use_shunting": False},
+        "flat_mlp": {"use_shunting": False},
+        "point_mlp": {"use_shunting": False},
+        "mlp": {"use_shunting": False},
     }
-    if core_type in type_overrides:
-        morphology_cfg["use_shunting"] = type_overrides[core_type]
+    overrides = type_overrides.get(core_type)
+    if overrides is not None:
+        morphology_cfg.update(overrides)
+
+    # Feedforward additive aliases need the same safe gate bootstrap as the
+    # recurrent additive aliases. Without this, the analytical rule can place
+    # non-leaf additive gate centres above the useful voltage range.
+    if core_type in {"dendritic_additive", "flat_additive"}:
+        reactivation_cfg = core_cfg.setdefault("reactivation", {})
+        if not isinstance(reactivation_cfg, dict):
+            reactivation_cfg = {}
+            core_cfg["reactivation"] = reactivation_cfg
+        reactivation_cfg["init_m"] = 0.1
+        reactivation_cfg["init_b"] = 0.0
+        reactivation_cfg["init_policy"] = "fixed"
 
     return result
 

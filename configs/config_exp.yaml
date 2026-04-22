@@ -199,7 +199,7 @@ model:
       somatic_synapses: false           # bool: Direct somatic synapses
       use_shunting: true                # bool: Shunting inhibition
       use_additive_normalization: false  # bool: Normalize voltage in additive mode
-      weight_transform: "exp"           # str: "exp" | "softplus" | "relu" | "identity"
+      weight_transform: "softplus"      # str: "exp" | "softplus" | "relu" | "identity"
       dbl_init_method: "analytical_expectation"  # str: "analytical_expectation" | "uniform" | "ones"
 
     # ---- Sparsity ----

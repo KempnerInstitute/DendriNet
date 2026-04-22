@@ -28,7 +28,7 @@ model:
   encoder:
     type: "identity"                    # no encoder; raw pixels go to core
   core:
-    type: "EINet"                       # dendritic shunting EI network
+    type: "einet"                       # dendritic shunting EI network
     architecture:
       excitatory_layer_sizes: [128]     # number of excitatory neurons per EI layer
       inhibitory_layer_sizes: [32]      # number of inhibitory neurons per EI layer
@@ -42,6 +42,7 @@ model:
       ii_synapses_per_branch_per_layer: [0]    # inhibitory -> inhibitory (0 = no I->I)
     transfer:
       input_mode: 1                     # 1 = input goes to all branches equally
+      output_activation: "relu"         # clamp normalized pixels before shunting
     morphology:
       use_shunting: true                # shunting (divisive) inhibition
       weight_transform: "softplus"      # ensure positive weights: softplus(w)

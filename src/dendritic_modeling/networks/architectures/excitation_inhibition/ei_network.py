@@ -126,7 +126,7 @@ class ExcitationInhibitionNetwork(BaseNetwork):
         init_method="xavier_normal",
         weight_threshold=1e-6,
         adaptive_initialization=True,
-        compile_forward: bool = False,
+        compile_forward: bool = True,
         **kwargs,
     ):
         super().__init__()
@@ -185,9 +185,9 @@ class ExcitationInhibitionNetwork(BaseNetwork):
         self.adaptive_initialization = adaptive_initialization
         self.compile_forward = compile_forward
 
-        # Flag for the one-shot nonneg-input validation (see
-        # _check_nonneg_network_input). False until the first successful
-        # forward pass validates the input sign.
+        # Flag for the one-shot nonnegative conductance-input validation.
+        # False until the first successful forward pass validates the sign of
+        # the transfer-layer outputs that feed the first dendritic layer.
         self._nonneg_input_checked = False
 
         # Set up transfer function
@@ -438,26 +438,14 @@ class ExcitationInhibitionNetwork(BaseNetwork):
             layer.apply_rewiring()
 
     @_dynamo_disable
-    def _check_nonneg_network_input(self, x: torch.Tensor) -> None:
-        """One-time sanity check on the raw network input ``x``.
+    def _check_nonneg_network_input(self, excitatory_x, inhibitory_x=None) -> None:
+        """One-time sanity check on the conductance-driving inputs.
 
-        Shunting (``V = num / (1 + g_exc + g_inh)``) combined with a
-        non-negative weight transform (``softplus``/``exp``/``relu``) assumes
-        inputs are non-negative firing rates. If the user feeds a
-        zero-mean-normalized dataset (e.g. ``data.processing.normalize: true``
-        on MNIST / CIFAR10) into a shunting network, the conductance
-        contributions ``softplus(w) * x`` become signed and the shunting
-        denominator can drift to zero, producing diverging voltages.
-
-        Only the raw input ``x`` is checked: every downstream activation is
-        produced by the parametric reactivation ``(tanh(m*(V-b)) + 1) / 2``
-        and is therefore bounded in ``[0, 1]`` by construction. The
-        inhibitory pathway is derived from the same ``x`` by the TransferLayer
-        at layer 1 and from reactivation outputs at layers ≥ 2, so checking
-        ``x`` alone is sufficient.
-
-        Runs once per instance: after the first forward pass,
-        ``self._nonneg_input_checked`` is set so subsequent forwards short-circuit.
+        Positive-conductance shunting requires the *transfer-layer outputs* that
+        feed the first dendritic layer to be non-negative. This allows configs
+        to clamp a signed raw input via ``transfer.output_activation='relu'``
+        while still rejecting silent signed conductance drive at the actual
+        shunting boundary.
         """
         if self._nonneg_input_checked:
             return
@@ -468,22 +456,28 @@ class ExcitationInhibitionNetwork(BaseNetwork):
             self._nonneg_input_checked = True
             return
 
-        x_min = float(x.detach().min().item())
+        mins = []
+        for tensor in (excitatory_x, inhibitory_x):
+            if torch.is_tensor(tensor):
+                mins.append(float(tensor.detach().min().item()))
+        x_min = min(mins) if mins else 0.0
         if x_min < -1e-5:  # small tolerance for float-precision negatives
             raise ValueError(
-                "ExcitationInhibitionNetwork received a signed input tensor "
-                f"(x.min={x_min:.4g}) while configured for shunting with "
+                "ExcitationInhibitionNetwork received signed conductance-driving "
+                "inputs after the transfer layer "
+                f"(min={x_min:.4g}) while configured for shunting with "
                 f"weight_transform={self.weight_transform!r}. A positive-"
                 "conductance shunting network requires non-negative inputs "
-                "(firing rates) so the shunting denominator "
+                "(firing rates / conductances) so the shunting denominator "
                 "(1 + g_exc + g_inh) stays bounded away from zero. Common "
                 "cause: `data.processing.normalize: true` on an image dataset "
-                "produces zero-mean pixel values.\n"
+                "or a signed transfer output feeding the first dendritic "
+                "layer.\n"
                 "Fix options:\n"
                 "  1. data.processing.normalize: false   "
                 "(keep pixels in [0, 1])\n"
                 '  2. model.core.transfer.output_activation: "relu"   '
-                "(clamp at transfer layer)\n"
+                "(clamp transfer outputs before shunting)\n"
                 '  3. model.core.type: "dendritic_additive"   '
                 "(use additive morphology, which handles signed inputs)"
             )
@@ -497,8 +491,8 @@ class ExcitationInhibitionNetwork(BaseNetwork):
         - First layer's inhibitory cells receive the same input as excitatory cells
         - Subsequent layers receive outputs from previous layers
         """
-        self._check_nonneg_network_input(x)
         excitatory_x, inhibitory_x = self.transfer_fn(x)
+        self._check_nonneg_network_input(excitatory_x, inhibitory_x)
 
         # Optimized: Use direct iteration over ModuleList
         for layer in self.layers:
@@ -657,10 +651,13 @@ class ConfigurableEINetwork(ExcitationInhibitionNetwork):
             weight_transform: Override weight transform (e.g., "exp", "identity").
         """
         from dendritic_modeling.scripts.script_utils.config_utils import (
+            canonicalize_model_core_flags,
             prepare_ei_network_params,
         )
 
-        params = prepare_ei_network_params(config, input_dim)
+        params = prepare_ei_network_params(
+            canonicalize_model_core_flags(config), input_dim
+        )
 
         if synapse_mode is not None:
             params["synapse_mode"] = synapse_mode

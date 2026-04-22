@@ -81,7 +81,8 @@ See :doc:`network_architectures` for architecture details. For recurrent
 same-population E->E and I->I self-feedback while keeping cross-population
 recurrence intact. Structured feedforward EINet configs and recurrent
 PopulationConfig blocks now share the same positive-weight default
-(``weight_transform: exp``).
+(``weight_transform: softplus``). Use ``weight_transform: exp`` explicitly
+when you want the sharper positive-conductance parameterization.
 
 When you use a data-driven gate init policy (``quantile``,
 ``occupancy_quantile``, or ``empirical``), each run also writes
@@ -129,6 +130,12 @@ Set ``data.dataset_name`` to one of:
 
 Dataset-specific parameters go under ``data.dataset_params.<name>``.
 See :doc:`datasets` for details.
+
+For shunting E-I models with positive weight transforms, keep the tensors that
+enter the first shunting layer non-negative. If preprocessing uses
+``normalize: true``, either disable normalization for that run or set
+``model.core.transfer.output_activation`` to a nonnegative activation such as
+``"relu"`` so the transfer-layer outputs remain non-negative.
 
 Analysis Modules
 ----------------

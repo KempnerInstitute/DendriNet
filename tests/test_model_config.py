@@ -50,7 +50,7 @@ def test_morphology_config_defaults():
     cfg = MorphologyConfig()
     assert cfg.use_shunting is True
     assert cfg.allow_self_recurrence is True
-    assert cfg.weight_transform == "exp"
+    assert cfg.weight_transform == "softplus"
     assert cfg.dbl_init_method == "analytical_expectation"
     assert cfg.somatic_synapses is False
 
