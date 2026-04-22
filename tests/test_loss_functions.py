@@ -13,6 +13,7 @@ import pytest
 import torch
 import torch.nn as nn
 
+from dendritic_modeling.networks import DendriticBranchLayer
 from dendritic_modeling.networks.architectures.classical.autoencoder.vae import (
     BaseVariationalAutoencoder,
 )
@@ -427,6 +428,29 @@ class TestLogAdjustedNegativeCosineSimilarityLoss:
 class TestVoltageStabilizationLoss:
     """Test the VoltageStabilizationLoss class."""
 
+    class TinyDendriticModel(nn.Module):
+        """Minimal model with one parametric and one identity reactivation."""
+
+        def __init__(self):
+            super().__init__()
+            self.parametric = DendriticBranchLayer(
+                output_dim=2,
+                excitatory_input_dim=3,
+                excitatory_synapses_per_branch=1,
+                reactivate=True,
+                reactivation_type="param_tanh",
+            )
+            self.identity = DendriticBranchLayer(
+                output_dim=2,
+                excitatory_input_dim=2,
+                excitatory_synapses_per_branch=1,
+                reactivate=False,
+            )
+
+        def forward(self, x):
+            x = self.parametric(x)
+            return self.identity(x)
+
     @pytest.fixture
     def voltage_loss(self):
         """Create VoltageStabilizationLoss for testing."""
@@ -504,6 +528,38 @@ class TestVoltageStabilizationLoss:
             loss = loss_fn(dendritic_model, x)
             assert isinstance(loss, torch.Tensor)
             assert loss >= 0
+
+    def test_gate_occupancy_only_hooks_parametric_reactivations(self):
+        """gate_occupancy should ignore identity/non-parametric reactivations."""
+        model = self.TinyDendriticModel()
+        loss_fn = VoltageStabilizationLoss(stabilize_mode="gate_occupancy")
+
+        handles = loss_fn.attach_forward_hooks(model)
+        try:
+            assert len(handles) == 1
+            assert isinstance(model.parametric.reactivation, nn.Module)
+            assert isinstance(model.identity.reactivation, nn.Identity)
+        finally:
+            loss_fn.remove_forward_hooks(handles)
+
+    def test_gate_occupancy_target_saturation_changes_loss(self):
+        """The occupancy target should change the spread penalty."""
+        activations = torch.tensor([0.0, 0.05, 0.95, 1.0], dtype=torch.float32)
+        x = torch.randn(1, 1)
+
+        loss_high_target = VoltageStabilizationLoss(
+            stabilize_mode="gate_occupancy", target_saturation=1.0
+        )
+        loss_high_target.voltages = [activations]
+        high_val = loss_high_target._gate_occupancy_loss(x)
+
+        loss_low_target = VoltageStabilizationLoss(
+            stabilize_mode="gate_occupancy", target_saturation=0.0
+        )
+        loss_low_target.voltages = [activations]
+        low_val = loss_low_target._gate_occupancy_loss(x)
+
+        assert high_val < low_val
 
 
 class TestGetLossFunction:

@@ -49,6 +49,9 @@ from dendritic_modeling.plotting.visualizations.performance_plots import (
     PerformancePlotter,
 )
 from dendritic_modeling.scripts.script_utils import config_utils as _config_utils
+from dendritic_modeling.scripts.script_utils.init_diagnostics import (
+    dump_init_gate_stats,
+)
 from dendritic_modeling.scripts.script_utils.setup_utils import setup_environment
 from dendritic_modeling.scripts.training.train_encoder_network import (
     load_train_encoder_network,
@@ -67,6 +70,9 @@ logger = logging.getLogger(__name__)
 prepare_trainer_config = _config_utils.prepare_trainer_config
 normalize_param_groups_config = getattr(
     _config_utils, "normalize_param_groups_config", None
+)
+canonicalize_model_core_flags = getattr(
+    _config_utils, "canonicalize_model_core_flags", None
 )
 
 
@@ -97,6 +103,188 @@ if normalize_param_groups_config is None:
         allowed_fields = set(ParamGroupsConfig.__dataclass_fields__.keys())
         sanitized = {k: v for k, v in param_groups.items() if k in allowed_fields}
         return ParamGroupsConfig(**sanitized)
+
+
+def _maybe_calibrate_data_driven_reactivation(
+    config,
+    model,
+    train_dataset,
+    is_main: bool = True,
+    n_batches: int = 3,
+    batch_size: int = 256,
+    n_iterations: int = 3,
+):
+    """Run data-driven reactivation calibration when requested by init_policy."""
+    from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.initialize import (
+        calibrate_reactivation_from_data,
+        is_data_driven_reactivation_policy,
+        normalize_reactivation_init_policy,
+        reactivation_policy_to_calibration_mode,
+    )
+
+    requested_policies = set()
+
+    try:
+        reactivation_cfg = config.model.core.reactivation
+        init_policy = normalize_reactivation_init_policy(
+            getattr(reactivation_cfg, "init_policy", "analytical")
+        )
+        if is_data_driven_reactivation_policy(init_policy):
+            requested_policies.add(init_policy)
+    except AttributeError:
+        # The reactivation config path is optional; fall back to collecting
+        # any per-layer policies directly from the built modules below.
+        pass
+
+    for module in model.modules():
+        layer_policy = getattr(module, "reactivation_init_policy", None)
+        if layer_policy is None:
+            continue
+        layer_policy = normalize_reactivation_init_policy(layer_policy)
+        if is_data_driven_reactivation_policy(layer_policy):
+            requested_policies.add(layer_policy)
+
+    if not requested_policies:
+        return
+
+    if len(requested_policies) == 1:
+        init_policy = next(iter(requested_policies))
+        mode = reactivation_policy_to_calibration_mode(init_policy)
+        policy_msg = init_policy
+    else:
+        mode = None
+        policy_msg = ", ".join(sorted(requested_policies))
+
+    print(f"[reactivation-calibration] init_policy={policy_msg}", flush=True)
+
+    from torch.utils.data import DataLoader
+
+    device = next(model.parameters()).device
+    # Don't pass a global k — let each layer use its own
+    # reactivation_sigma_aware_k (threaded by the factory from config).
+    # This respects per-population overrides in unified_ei / recurrent configs.
+
+    loader = DataLoader(
+        train_dataset, batch_size=batch_size, shuffle=True, drop_last=True
+    )
+    is_recurrent = getattr(model, "_is_recurrent_core", False)
+    batches = []
+    it = iter(loader)
+    for _ in range(n_batches):
+        try:
+            sample = next(it)
+        except StopIteration:
+            break
+        if isinstance(sample, (list, tuple)):
+            x = sample[0]
+            x = x.to(device) if torch.is_tensor(x) else x
+            if is_recurrent and len(sample) > 2:
+                seq_lengths = sample[2]
+                seq_lengths = (
+                    seq_lengths.to(device)
+                    if torch.is_tensor(seq_lengths)
+                    else seq_lengths
+                )
+                batches.append((x, seq_lengths))
+            else:
+                batches.append(x)
+        else:
+            batches.append(sample.to(device))
+
+    if not batches:
+        if is_main:
+            logger.warning(
+                "reactivation calibration skipped: no training batches available"
+            )
+        return
+
+    # Recurrent models expect [B, T, D]. Preserve full sequence inputs when the
+    # dataset already provides them, and only synthesize a length-1 time axis
+    # for flat [B, D] batches.
+    if is_recurrent:
+        normalized_batches = []
+        added_time_axis = False
+        for batch in batches:
+            if isinstance(batch, (list, tuple)):
+                x = batch[0]
+                rest = list(batch[1:])
+            else:
+                x = batch
+                rest = []
+
+            if torch.is_tensor(x) and x.dim() == 2:
+                x = x.unsqueeze(1)
+                added_time_axis = True
+
+            normalized_batches.append((x, *rest) if rest else x)
+
+        batches = normalized_batches
+        if is_main:
+            shape_msg = "[B, 1, D]" if added_time_axis else "native [B, T, D]"
+            print(
+                f"[reactivation-calibration] recurrent model detected — using {shape_msg} batches",
+                flush=True,
+            )
+
+    # Iterate: writing new (m, b) at layer i reshapes the V distribution at
+    # every downstream layer, so a single-pass calibration is only
+    # self-consistent at layer 0. Repeating 2-3 times converges the chain.
+    # Median/MAD mode is fairly stable; quantile mode is very sensitive and
+    # diverges without this iteration.
+    diag = None
+    quantile_aggregation = "chunk_median" if is_recurrent else "global"
+    for iteration in range(max(1, int(n_iterations))):
+        diag = calibrate_reactivation_from_data(
+            model,
+            batches,
+            k=None,
+            device=device,
+            mode=mode,
+            quantile_aggregation=quantile_aggregation,
+        )
+        if is_main:
+            if not diag:
+                print(
+                    "[reactivation-calibration] found no DendriticBranchLayers with a non-Identity reactivation",
+                    flush=True,
+                )
+                break
+            m_values = [d["m"] for d in diag.values()]
+            b_values = [d["b"] for d in diag.values()]
+            sig_values = [d["V_std"] for d in diag.values()]
+            print(
+                f"[reactivation-calibration] iter {iteration + 1}/{n_iterations} "
+                f"| mode={(mode if mode is not None else 'per-layer')} "
+                f"| {len(diag)} layers calibrated "
+                f"| m range [{min(m_values):.4f}, {max(m_values):.4f}] "
+                f"| b range [{min(b_values):.4f}, {max(b_values):.4f}] "
+                f"| sigma range [{min(sig_values):.4f}, {max(sig_values):.4f}] "
+                f"| aggregation={quantile_aggregation} "
+                f"| k=per-layer n_batches={n_batches}",
+                flush=True,
+            )
+    if is_main and diag:
+        for name, d in diag.items():
+            extra = ""
+            if d.get("occupancy_m_was_clamped"):
+                extra += (
+                    f" occ[dq_raw={d.get('occupancy_delta_q_raw', float('nan')):.3g}"
+                    f" dq_used={d.get('occupancy_delta_q_used', float('nan')):.3g}"
+                    f" m_raw={d.get('occupancy_m_raw', float('nan')):.3g} CLAMPED]"
+                )
+            if d.get("calibration_reverted"):
+                extra += " REVERTED"
+            print(
+                f"[reactivation-calibration]   {name}: "
+                f"m={d['m']:.4f} b={d['b']:.4f} "
+                f"V[mean={d['V_mean']:.4f} std={d['V_std']:.4f} "
+                f"mad_std={d.get('V_mad_std', float('nan')):.4f} "
+                f"q10={d.get('V_q10', float('nan')):.3g} "
+                f"q90={d.get('V_q90', float('nan')):.3g} "
+                f"min={d.get('V_min', float('nan')):.3g} "
+                f"max={d.get('V_max', float('nan')):.3g}] n={d['n']}{extra}",
+                flush=True,
+            )
 
 
 def setup_distributed() -> tuple[int, int, int]:
@@ -321,6 +509,16 @@ def main(config_path: str, args=None):
         logger.info("Network architecture summary before training:")
     # Use the unwrapped model for summary and param group extraction.
     unwrapped_model = model.module if hasattr(model, "module") else model
+
+    # Post-build gate diagnostic: record per-layer (m, b) statistics to
+    # init_gate_stats.json in the run directory. This is a generic health
+    # check for runs that use learnable reactivation gates, especially when
+    # data-driven calibration is enabled.
+    if is_main:
+        try:
+            dump_init_gate_stats(unwrapped_model, run_save_path)
+        except Exception as exc:  # diagnostic must not break training
+            logger.warning("init_gate_stats diagnostic failed: %s", exc)
     if is_main:
         try:
             is_recurrent_core = getattr(
@@ -376,7 +574,10 @@ def main(config_path: str, args=None):
             logger.error(f"Failed to generate model summary before training: {e}")
 
     if is_main:
-        save_dict(asdict(config), run_save_path, "config.json")
+        config_payload = asdict(config)
+        if canonicalize_model_core_flags is not None:
+            config_payload = canonicalize_model_core_flags(config_payload)
+        save_dict(config_payload, run_save_path, "config.json")
 
     # Under DDP, autoencoder pretraining must be serialized: rank 0
     # trains and saves the checkpoint, other ranks wait then load it.
@@ -443,6 +644,18 @@ def main(config_path: str, args=None):
         unwrapped_model.encoder_network = Identity(encoder_network.encoder.output_dim)
     else:
         unwrapped_model.encoder_network = encoder_network
+
+    # Optional post-hoc empirical calibration of the reactivation (m, b).
+    # Triggered when model.core.reactivation.init_policy == "empirical".
+    # Runs a handful of training batches through the model, measures the
+    # per-layer voltage distribution before the reactivation, and sets
+    # b = E[V], m = k / std(V).
+    _maybe_calibrate_data_driven_reactivation(
+        config=config,
+        model=unwrapped_model,
+        train_dataset=encoded_train_ds,
+        is_main=is_main,
+    )
 
     main_net_save_path = os.path.join(run_save_path, "main_network")
     os.makedirs(main_net_save_path, exist_ok=True)

@@ -268,7 +268,7 @@ base_config:
         latent_dim: null
 
     core:
-      type: "EINet"
+      type: "einet"
 
       architecture:
         excitatory_layer_sizes: [20]

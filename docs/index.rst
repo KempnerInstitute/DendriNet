@@ -29,6 +29,7 @@ files.
    training_strategies
    datasets
    analysis
+   engineering_architecture
    configuration_guide
    sweeps
    fsdp_troubleshooting

@@ -27,7 +27,7 @@ model:
   encoder:
     type: "identity"
   core:
-    type: "EINet"
+    type: "einet"
     architecture:
       excitatory_layer_sizes: [256]
       inhibitory_layer_sizes: [64]
@@ -42,6 +42,7 @@ model:
     transfer:
       input_mode: 1
       inhibitory_mode: "first"
+      output_activation: "relu"
     morphology:
       use_shunting: true
       weight_transform: "softplus"

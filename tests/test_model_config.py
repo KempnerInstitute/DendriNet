@@ -70,7 +70,12 @@ def test_reactivation_config_defaults():
     assert cfg.type == "param_tanh"
     assert cfg.init_m == 1.5
     assert cfg.init_b == 0.5
-    assert cfg.match_additive_init_to_shunting is False
+    assert cfg.init_policy == "analytical"
+    assert cfg.occupancy_quantile_low is None
+    assert cfg.occupancy_quantile_high is None
+    assert cfg.occupancy_target_low is None
+    assert cfg.occupancy_target_high is None
+    assert cfg.sigma_aware_k == 0.25
 
 
 def test_transfer_function_config_defaults():
@@ -99,7 +104,7 @@ def test_decoder_config_defaults():
 
 def test_core_config_nested():
     cfg = CoreConfig()
-    assert cfg.type == "EINet"
+    assert cfg.type == "einet"
     assert isinstance(cfg.architecture, ArchitectureConfig)
     assert isinstance(cfg.connectivity, ConnectivityConfig)
     assert isinstance(cfg.transfer, TransferFunctionConfig)

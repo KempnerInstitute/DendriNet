@@ -973,6 +973,38 @@ class ReceptiveFieldAnalysisConfig(BaseConfig):
 
 
 @dataclass
+class ReactivationDynamicsAnalysisParams(BaseConfig):
+    """Parameters for the reactivation-dynamics analyzer.
+
+    The analyzer snapshots each ``ParametricTanh`` layer per epoch,
+    capturing the learnable ``(log_m, b)`` parameters together with
+    statistics of the pre-reactivation voltage ``V`` and the post-gate
+    output ``r``. ``max_samples`` caps the batch size drawn from the
+    training dataset to keep the analyzer lightweight.
+    """
+
+    max_samples: int = 1024
+
+
+@dataclass
+class ReactivationDynamicsAnalysisConfig(BaseConfig):
+    """Enable/disable reactivation-dynamics analysis.
+
+    When ``enabled=True`` and ``training=True``, the analyzer fires each
+    epoch (one JSON file per epoch under
+    ``<save_root>/reactivation_dynamics/epochs/``). This provides a direct
+    record of gate parameters, voltage statistics, and output occupancy
+    throughout training.
+    """
+
+    enabled: bool = False
+    training: bool = True
+    params: ReactivationDynamicsAnalysisParams = field(
+        default_factory=ReactivationDynamicsAnalysisParams
+    )
+
+
+@dataclass
 class CorrelationSelectionParams(BaseConfig):
     """Preferred (grouped) selectors for correlation analysis."""
 
@@ -1171,6 +1203,9 @@ class AnalysisConfig(BaseConfig):
     )
     receptive_field_analysis: ReceptiveFieldAnalysisConfig = field(
         default_factory=ReceptiveFieldAnalysisConfig
+    )
+    reactivation_dynamics_analysis: ReactivationDynamicsAnalysisConfig = field(
+        default_factory=ReactivationDynamicsAnalysisConfig
     )
     correlation_analysis: CorrelationAnalysisConfig = field(
         default_factory=CorrelationAnalysisConfig

@@ -16,8 +16,13 @@ from omegaconf import DictConfig
 # Import dynamo config for JIT compilation optimization
 try:
     import torch._dynamo.config
+    from torch._dynamo import disable as _dynamo_disable
 except ImportError:
     torch._dynamo = None
+
+    def _dynamo_disable(fn):
+        return fn
+
 
 from dendritic_modeling.networks.architectures.excitation_inhibition.ei_layer import (
     ExcitationInhibitionLayer,
@@ -86,7 +91,8 @@ class ExcitationInhibitionNetwork(BaseNetwork):
         reactivate: bool = True,
         reactivation_init_m: float = 1.5,
         reactivation_init_b: float = 0.5,
-        reactivation_match_additive_init_to_shunting: bool = False,
+        reactivation_init_policy: str = "analytical",
+        reactivation_sigma_aware_k: float = 0.25,
         dbl_init_method: str = "analytical_expectation",
         somatic_synapses: bool = True,
         ee_synapses_per_branch_per_layer: Optional[list[int]] = None,
@@ -120,6 +126,7 @@ class ExcitationInhibitionNetwork(BaseNetwork):
         init_method="xavier_normal",
         weight_threshold=1e-6,
         adaptive_initialization=True,
+        compile_forward: bool = True,
         **kwargs,
     ):
         super().__init__()
@@ -133,9 +140,8 @@ class ExcitationInhibitionNetwork(BaseNetwork):
         self.reactivate = reactivate
         self.reactivation_init_m = reactivation_init_m
         self.reactivation_init_b = reactivation_init_b
-        self.reactivation_match_additive_init_to_shunting = (
-            reactivation_match_additive_init_to_shunting
-        )
+        self.reactivation_init_policy = reactivation_init_policy
+        self.reactivation_sigma_aware_k = reactivation_sigma_aware_k
         self.dbl_init_method = dbl_init_method
         self.somatic_synapses = somatic_synapses
         self.inhibitory_network_type = inhibitory_network_type
@@ -177,6 +183,12 @@ class ExcitationInhibitionNetwork(BaseNetwork):
         self.init_method = init_method
         self.weight_threshold = weight_threshold
         self.adaptive_initialization = adaptive_initialization
+        self.compile_forward = compile_forward
+
+        # Flag for the one-shot nonnegative conductance-input validation.
+        # False until the first successful forward pass validates the sign of
+        # the transfer-layer outputs that feed the first dendritic layer.
+        self._nonneg_input_checked = False
 
         # Set up transfer function
         self.setup_transfer_function()
@@ -363,7 +375,8 @@ class ExcitationInhibitionNetwork(BaseNetwork):
                 reactivate=self.reactivate,
                 reactivation_init_m=self.reactivation_init_m,
                 reactivation_init_b=self.reactivation_init_b,
-                reactivation_match_additive_init_to_shunting=self.reactivation_match_additive_init_to_shunting,
+                reactivation_init_policy=self.reactivation_init_policy,
+                reactivation_sigma_aware_k=self.reactivation_sigma_aware_k,
                 dbl_init_method=self.dbl_init_method,
                 somatic_synapses=self.somatic_synapses,
                 topk_init_method=self.topk_init_method,
@@ -399,18 +412,20 @@ class ExcitationInhibitionNetwork(BaseNetwork):
         # Create ModuleList with the layers
         self.layers = nn.ModuleList(layers)
 
-        # Enable JIT compilation for better performance (PyTorch 2.0+)
-        try:
-            if torch._dynamo is not None:
-                # Increase recompile limit to reduce warnings
-                torch._dynamo.config.recompile_limit = 100
-                torch._dynamo.config.force_parameter_static_shapes = (
-                    False  # Allow dynamic params
-                )
-            self.forward = torch.compile(self.forward, dynamic=True)
-        except (AttributeError, ImportError):
-            # torch.compile not available in older PyTorch versions
-            pass
+        # Optional torch.compile acceleration. Keep this opt-in because
+        # Inductor caches can be fragile on shared filesystems and in tests.
+        if self.compile_forward:
+            try:
+                if torch._dynamo is not None:
+                    # Increase recompile limit to reduce warnings
+                    torch._dynamo.config.recompile_limit = 100
+                    torch._dynamo.config.force_parameter_static_shapes = (
+                        False  # Allow dynamic params
+                    )
+                self.forward = torch.compile(self.forward, dynamic=True)
+            except (AttributeError, ImportError):
+                # torch.compile not available in older PyTorch versions
+                pass
 
     def decay_weights(self, weight_decay, weight_boosting=False):
         for layer in self.layers:
@@ -422,6 +437,52 @@ class ExcitationInhibitionNetwork(BaseNetwork):
             layer: ExcitationInhibitionLayer
             layer.apply_rewiring()
 
+    @_dynamo_disable
+    def _check_nonneg_network_input(self, excitatory_x, inhibitory_x=None) -> None:
+        """One-time sanity check on the conductance-driving inputs.
+
+        Positive-conductance shunting requires the *transfer-layer outputs* that
+        feed the first dendritic layer to be non-negative. This allows configs
+        to clamp a signed raw input via ``transfer.output_activation='relu'``
+        while still rejecting silent signed conductance drive at the actual
+        shunting boundary.
+        """
+        if self._nonneg_input_checked:
+            return
+        if not self.use_shunting:
+            self._nonneg_input_checked = True
+            return
+        if self.weight_transform.lower() not in POSITIVE_WEIGHT_TRANSFORMS:
+            self._nonneg_input_checked = True
+            return
+
+        mins = []
+        for tensor in (excitatory_x, inhibitory_x):
+            if torch.is_tensor(tensor):
+                mins.append(float(tensor.detach().min().item()))
+        x_min = min(mins) if mins else 0.0
+        if x_min < -1e-5:  # small tolerance for float-precision negatives
+            raise ValueError(
+                "ExcitationInhibitionNetwork received signed conductance-driving "
+                "inputs after the transfer layer "
+                f"(min={x_min:.4g}) while configured for shunting with "
+                f"weight_transform={self.weight_transform!r}. A positive-"
+                "conductance shunting network requires non-negative inputs "
+                "(firing rates / conductances) so the shunting denominator "
+                "(1 + g_exc + g_inh) stays bounded away from zero. Common "
+                "cause: `data.processing.normalize: true` on an image dataset "
+                "or a signed transfer output feeding the first dendritic "
+                "layer.\n"
+                "Fix options:\n"
+                "  1. data.processing.normalize: false   "
+                "(keep pixels in [0, 1])\n"
+                '  2. model.core.transfer.output_activation: "relu"   '
+                "(clamp transfer outputs before shunting)\n"
+                '  3. model.core.type: "dendritic_additive"   '
+                "(use additive morphology, which handles signed inputs)"
+            )
+        self._nonneg_input_checked = True
+
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
         Forward logic:
@@ -431,6 +492,7 @@ class ExcitationInhibitionNetwork(BaseNetwork):
         - Subsequent layers receive outputs from previous layers
         """
         excitatory_x, inhibitory_x = self.transfer_fn(x)
+        self._check_nonneg_network_input(excitatory_x, inhibitory_x)
 
         # Optimized: Use direct iteration over ModuleList
         for layer in self.layers:
@@ -589,10 +651,13 @@ class ConfigurableEINetwork(ExcitationInhibitionNetwork):
             weight_transform: Override weight transform (e.g., "exp", "identity").
         """
         from dendritic_modeling.scripts.script_utils.config_utils import (
+            canonicalize_model_core_flags,
             prepare_ei_network_params,
         )
 
-        params = prepare_ei_network_params(config, input_dim)
+        params = prepare_ei_network_params(
+            canonicalize_model_core_flags(config), input_dim
+        )
 
         if synapse_mode is not None:
             params["synapse_mode"] = synapse_mode

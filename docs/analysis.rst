@@ -325,6 +325,25 @@ Each module follows the same ``enabled``/``training``/``params`` pattern.
 ``single_layer_contribution``
    Measures each layer's contribution to the network output.
 
+``reactivation_dynamics``
+   Per-epoch trajectory tracker for parametric reactivation gates. For every
+   ``ParametricTanh`` layer in the model, snapshots the pre-reactivation
+   voltage distribution (mean, std, median, MAD, quantiles), the current
+   learnable ``(m, b)`` parameters, and the post-gate saturation fractions
+   (``sat_lo = P(output < 0.05)``, ``sat_hi = P(output > 0.95)``). Saves
+   one JSON file per epoch under ``<run>/reactivation_dynamics/epochs/``.
+   Useful for diagnosing gate-slope drift, init-calibration quality, and
+   voltage-distribution stationarity during training.
+
+   .. code-block:: yaml
+
+      analysis:
+        reactivation_dynamics_analysis:
+          enabled: true
+          training: true
+          params:
+            max_samples: 1024
+
 Compatibility Notes
 -------------------
 

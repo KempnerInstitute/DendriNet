@@ -46,7 +46,7 @@ class TestShuntingInvariants:
     def test_excitation_only_output_bounded(self):
         """Shunting with only excitation: v = E/(E+relu(E)+1+eps) in [0, 1)."""
         layer = _make_layer(use_shunting=True, reactivate=False)
-        x = torch.randn(4, 20)
+        x = torch.rand(4, 20)  # non-negative (shunting requires this)
         out = layer(x)
         # Shunting formula: numerator / (denominator + eps)
         # With only excitation: denominator >= 1 (starts at 1) and >= |numerator|
@@ -117,7 +117,7 @@ class TestReactivation:
     def test_reactivation_output_bounded(self):
         """With reactivation (ParametricTanh), output should be in [0, 1]."""
         layer = _make_layer(use_shunting=True, reactivate=True)
-        x = torch.randn(4, 20)
+        x = torch.rand(4, 20)  # non-negative (shunting requires this)
         out = layer(x)
         assert (out >= 0).all()
         assert (out <= 1).all()
@@ -131,7 +131,7 @@ class TestReactivation:
         assert pytest.approx(layer.reactivation.log_m.exp()[0].item(), rel=1e-6) == 0.1
         assert pytest.approx(layer.reactivation.b[0].item(), rel=1e-6) == 0.0
 
-    def test_additive_can_match_shunting_reactivation_init(self):
+    def test_additive_fixed_init_policy_uses_yaml_values(self):
         layer = DendriticBranchLayer(
             output_dim=8,
             excitatory_input_dim=20,
@@ -141,7 +141,7 @@ class TestReactivation:
             reactivation_type="param_tanh",
             reactivation_init_m=1.5,
             reactivation_init_b=0.5,
-            reactivation_match_additive_init_to_shunting=True,
+            reactivation_init_policy="fixed",
         )
         assert pytest.approx(layer.reactivation.log_m.exp()[0].item(), rel=1e-6) == 1.5
         assert pytest.approx(layer.reactivation.b[0].item(), rel=1e-6) == 0.5
@@ -155,7 +155,7 @@ class TestReactivation:
 class TestBranchLayerGradientFlow:
     def test_gradient_shunting(self):
         layer = _make_layer(use_shunting=True, reactivate=True)
-        x = torch.randn(2, 20)
+        x = torch.rand(2, 20)  # non-negative
         out = layer(x)
         out.sum().backward()
         assert layer.branch_excitation.pre_w.grad is not None
@@ -174,8 +174,8 @@ class TestBranchLayerGradientFlow:
             inhibitory_input_dim=10,
             inhibitory_synapses_per_branch=3,
         )
-        x = torch.randn(2, 20)
-        inh = torch.randn(2, 10)
+        x = torch.rand(2, 20)  # non-negative
+        inh = torch.rand(2, 10)  # non-negative
         out = layer(x, inhibitory_input=inh)
         out.sum().backward()
         assert layer.branch_excitation.pre_w.grad is not None
@@ -195,8 +195,8 @@ class TestBranchInputAggregation:
             reactivate=False,
             input_branch_factor=3,
         )
-        x = torch.randn(2, 20)
-        branch_in = torch.randn(2, 24)  # 8 * 3
+        x = torch.rand(2, 20)  # non-negative (shunting requires this)
+        branch_in = torch.rand(2, 24)  # 8 * 3
 
         out_no_branch = layer(x, branch_input=None)
         out_with_branch = layer(x, branch_input=branch_in)
@@ -272,7 +272,7 @@ class TestBranchLayerTopKTypes:
             topk_type="stochastic",
             weight_transform="exp",
         )
-        x = torch.randn(2, 20)
+        x = torch.rand(2, 20)  # non-negative (shunting + exp requires this)
         out = layer(x)
         assert out.shape == (2, 8)
 
@@ -286,7 +286,7 @@ class TestBranchLayerTopKTypes:
             topk_type="variance",
             weight_transform="exp",
         )
-        x = torch.randn(2, 20)
+        x = torch.rand(2, 20)  # non-negative
         out = layer(x)
         assert out.shape == (2, 8)
 
@@ -405,3 +405,8 @@ class TestAdditiveWithInhibitionAndBranches:
         branch = torch.randn(2, 24)
         out = layer(x, branch_input=branch)
         assert torch.isfinite(out).all()
+
+
+# The nonneg-input validation lives at the network boundary
+# (ExcitationInhibitionNetwork), not inside DendriticBranchLayer. See
+# tests/test_ei_network_regression.py for the network-level tests.

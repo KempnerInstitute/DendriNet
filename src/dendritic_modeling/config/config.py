@@ -300,7 +300,7 @@ def _build_core_config(core_data: Any) -> CoreConfig:
     core_dict = _to_plain_dict(core_data)
     unified_ei = core_dict.get("unified_ei", core_dict.get("ei_unified", {}))
     return CoreConfig(
-        type=str(core_dict.get("type", "EINet")),
+        type=str(core_dict.get("type", "einet")),
         architecture=ArchitectureConfig(
             **_to_plain_dict(core_dict.get("architecture", {}))
         ),
@@ -656,6 +656,7 @@ def _map_analysis_config(
         "compartment_snr": "compartment_snr_analysis",
         "multiplicative_gain": "multiplicative_gain_analysis",
         "receptive_field": "receptive_field_analysis",
+        "reactivation_dynamics": "reactivation_dynamics_analysis",
         "single_layer_contribution": "single_layer_contribution",
         "synaptic_activation": "synaptic_activation_analysis",
         "branch_activation": "branch_activation_analysis",

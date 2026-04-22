@@ -212,6 +212,7 @@ class LocalCreditAssignment(Trainer):
             FourFactorConfig,
             HSICConfig,
             InhibitoryHomeostasisConfig,
+            LocalGateHomeostasisConfig,
             LocalVoltageHomeostasisConfig,
             MorphologyAwareConfig,
             ThreeFactorConfig,
@@ -286,11 +287,26 @@ class LocalCreditAssignment(Trainer):
                 **cfg_kwargs["voltage_homeostasis"]
             )
 
+        if "gate_homeostasis" in cfg_kwargs and isinstance(
+            cfg_kwargs["gate_homeostasis"], dict
+        ):
+            cfg_kwargs["gate_homeostasis"] = LocalGateHomeostasisConfig(
+                **cfg_kwargs["gate_homeostasis"]
+            )
+
         return LocalRuleConfig(**cfg_kwargs)
 
     # Override: do not run extra pretrain/final phases here
     def _pretrain(self, *args, **kwargs):  # type: ignore[override]
         return [], []
+
+    def _resolve_local_reactivation_update_flag(
+        self, update_reactivation: bool
+    ) -> bool:
+        """Disable local reactivation updates when the shared trainer mode does not use learned b,m."""
+        if self._normalize_reactivation_update_mode() == "backprop":
+            return bool(update_reactivation)
+        return False
 
     # ----------------------- Core training overrides -----------------------
     def _epoch_train(
@@ -347,6 +363,9 @@ class LocalCreditAssignment(Trainer):
                                 sched["decoder_update_mode"]
                             ).lower()
                         break
+            update_reactivation = self._resolve_local_reactivation_update_flag(
+                update_reactivation
+            )
             x_batch = x_batch.to(self.device)
             y_batch = y_batch.to(self.device)
 
@@ -1483,6 +1502,91 @@ class LocalCreditAssignment(Trainer):
         weight = float(cfg.weight)
         return weight * (target_v - v_n)
 
+    def _compute_gate_homeostasis_aux_grads(
+        self,
+        react_module: Optional[nn.Module],
+        v_n: Optional[torch.Tensor],
+        v_out: Optional[torch.Tensor],
+    ) -> tuple[Optional[torch.Tensor], Optional[torch.Tensor]]:
+        """Return strictly local auxiliary grads for reactivation parameters.
+
+        This is the local counterpart to gate-occupancy warmup: it uses only
+        each layer's own gate outputs and local derivatives, never a global
+        backpropagated signal. The returned tensors already live in parameter
+        coordinates (`log_m`, `b`) and can be added directly to `.grad`.
+        """
+        cfg = getattr(self.local_cfg, "gate_homeostasis", None)
+        if (
+            cfg is None
+            or not getattr(cfg, "enabled", False)
+            or v_n is None
+            or v_out is None
+            or not isinstance(react_module, ParametricActivation)
+            or not hasattr(react_module, "log_m")
+        ):
+            return None, None
+
+        if v_n.dim() != 2 or v_out.dim() != 2:
+            return None, None
+
+        if not isinstance(react_module, (ParametricTanh, ParametricTanhOnlyM)):
+            return None, None
+
+        target_mean = float(getattr(cfg, "target_mean", 0.5))
+        target_saturation = float(getattr(cfg, "target_saturation", 0.2))
+        low_thr = float(getattr(cfg, "low_threshold", 0.1))
+        high_thr = float(getattr(cfg, "high_threshold", 0.9))
+        sat_k = float(getattr(cfg, "saturation_slope", 20.0))
+        center_weight = float(getattr(cfg, "center_weight", 0.0))
+        saturation_weight = float(getattr(cfg, "saturation_weight", 0.0))
+
+        if center_weight <= 0.0 and saturation_weight <= 0.0:
+            return None, None
+
+        y = v_out
+        base = 0.5 * (1.0 - (2.0 * y - 1.0).square())
+        m_vec = react_module.log_m.detach().exp().to(device=v_n.device, dtype=v_n.dtype)
+
+        if hasattr(react_module, "b"):
+            b_vec = react_module.b.detach().to(device=v_n.device, dtype=v_n.dtype)
+        else:
+            b_vec = torch.full_like(m_vec, float(getattr(react_module, "fixed_b", 0.5)))
+
+        dr_dlogm = base * (v_n - b_vec.unsqueeze(0)) * m_vec.unsqueeze(0)
+        dr_db: Optional[torch.Tensor]
+        if hasattr(react_module, "b"):
+            dr_db = -base * m_vec.unsqueeze(0)
+        else:
+            dr_db = None
+
+        grad_log_m = torch.zeros_like(m_vec)
+        grad_b = torch.zeros_like(b_vec) if dr_db is not None else None
+
+        if center_weight > 0.0:
+            mean_r = y.mean(dim=0)
+            mean_err = mean_r - target_mean
+            dmean_dlogm = dr_dlogm.mean(dim=0)
+            grad_log_m = grad_log_m + (2.0 * center_weight) * mean_err * dmean_dlogm
+            if dr_db is not None and grad_b is not None:
+                dmean_db = dr_db.mean(dim=0)
+                grad_b = grad_b + (2.0 * center_weight) * mean_err * dmean_db
+
+        if saturation_weight > 0.0:
+            soft_lo = torch.sigmoid(sat_k * (low_thr - y))
+            soft_hi = torch.sigmoid(sat_k * (y - high_thr))
+            total_sat = soft_lo.mean(dim=0) + soft_hi.mean(dim=0)
+            sat_err = total_sat - target_saturation
+            dsat_dr = -sat_k * soft_lo * (1.0 - soft_lo) + sat_k * soft_hi * (
+                1.0 - soft_hi
+            )
+            dsat_dlogm = (dsat_dr * dr_dlogm).mean(dim=0)
+            grad_log_m = grad_log_m + (2.0 * saturation_weight) * sat_err * dsat_dlogm
+            if dr_db is not None and grad_b is not None:
+                dsat_db = (dsat_dr * dr_db).mean(dim=0)
+                grad_b = grad_b + (2.0 * saturation_weight) * sat_err * dsat_db
+
+        return grad_log_m, grad_b
+
     def _resolve_layer_dynamics_mode(self, rec: dict[str, Any]) -> str:
         """Resolve local update dynamics for the current layer.
 
@@ -2250,6 +2354,33 @@ class LocalCreditAssignment(Trainer):
                         react_module.b.grad = grad_b.to(react_module.b.dtype)
                     else:
                         react_module.b.grad = react_module.b.grad + grad_b.to(
+                            react_module.b.dtype
+                        )
+
+                aux_grad_log_m, aux_grad_b = self._compute_gate_homeostasis_aux_grads(
+                    react_module=react_module,
+                    v_n=v_n,
+                    v_out=v_out,
+                )
+                if aux_grad_log_m is not None and hasattr(react_module, "log_m"):
+                    if react_module.log_m.grad is None:
+                        react_module.log_m.grad = aux_grad_log_m.to(
+                            react_module.log_m.dtype
+                        )
+                    else:
+                        react_module.log_m.grad = (
+                            react_module.log_m.grad
+                            + aux_grad_log_m.to(react_module.log_m.dtype)
+                        )
+                if (
+                    aux_grad_b is not None
+                    and hasattr(react_module, "b")
+                    and react_module.b is not None
+                ):
+                    if react_module.b.grad is None:
+                        react_module.b.grad = aux_grad_b.to(react_module.b.dtype)
+                    else:
+                        react_module.b.grad = react_module.b.grad + aux_grad_b.to(
                             react_module.b.dtype
                         )
 

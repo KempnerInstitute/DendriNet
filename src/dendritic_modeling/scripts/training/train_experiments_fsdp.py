@@ -43,7 +43,12 @@ from dendritic_modeling.config import load_config
 from dendritic_modeling.datasets import get_unified_datasets
 from dendritic_modeling.models import Classifier, Regressor
 from dendritic_modeling.networks import Identity
+from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.initialize import (
+    is_data_driven_reactivation_policy,
+    normalize_reactivation_init_policy,
+)
 from dendritic_modeling.networks.architectures.factory import get_architecture
+from dendritic_modeling.scripts.script_utils import config_utils as _config_utils
 from dendritic_modeling.scripts.script_utils.setup_utils import (
     _config_to_plain_dict,
     _get_dataset_specific_params,
@@ -62,6 +67,9 @@ from dendritic_modeling.utils.logging_config import LoggerManager
 
 logger = logging.getLogger(__name__)
 logger_manager = LoggerManager()
+canonicalize_model_core_flags = getattr(
+    _config_utils, "canonicalize_model_core_flags", None
+)
 
 # WandB import (optional)
 try:
@@ -386,7 +394,10 @@ def main(config_path):
         logger.info(f"Logging to {log_file}")
 
         # Save config
-        save_dict(asdict(config), run_save_path, "config.json")
+        config_payload = asdict(config)
+        if canonicalize_model_core_flags is not None:
+            config_payload = canonicalize_model_core_flags(config_payload)
+        save_dict(config_payload, run_save_path, "config.json")
     else:
         run_save_path = None
 
@@ -498,6 +509,55 @@ def main(config_path):
         logger.info(
             f"Performance analysis training: {config.analysis.performance_analysis.training}"
         )
+
+        # Parity with the single-GPU launcher: if the config requests
+        # data-driven reactivation calibration, run it here before training
+        # starts. Under FSDP the model is already sharded by this point;
+        # calibration runs on rank 0's shard-view of the model and writes
+        # back to the ParametricTanh parameters, which then get
+        # synchronized across ranks via FSDP's standard parameter-sharing
+        # on the first forward pass. We log a warning so users can spot
+        # divergence if it occurs.
+        from dendritic_modeling.scripts.training.train_experiments import (
+            _maybe_calibrate_data_driven_reactivation,
+        )
+
+        requested_policies = set()
+        try:
+            reactivation_cfg = config.model.core.reactivation
+            init_policy = normalize_reactivation_init_policy(
+                getattr(reactivation_cfg, "init_policy", "analytical")
+            )
+            if is_data_driven_reactivation_policy(init_policy):
+                requested_policies.add(init_policy)
+        except AttributeError:
+            logger.debug(
+                "Reactivation config path missing (config.model.core.reactivation); "
+                "skipping config-level data-driven init policy detection."
+            )
+
+        for module in model.modules():
+            layer_policy = getattr(module, "reactivation_init_policy", None)
+            if layer_policy is None:
+                continue
+            layer_policy = normalize_reactivation_init_policy(layer_policy)
+            if is_data_driven_reactivation_policy(layer_policy):
+                requested_policies.add(layer_policy)
+
+        if requested_policies:
+            logger.warning(
+                "FSDP + init_policy=%r: running calibration on rank 0 only. "
+                "Parameter writes may not propagate perfectly across ranks "
+                "depending on sharding strategy. Verify with the "
+                "ReactivationDynamicsAnalyzer if in doubt.",
+                ", ".join(sorted(requested_policies)),
+            )
+            _maybe_calibrate_data_driven_reactivation(
+                config=config,
+                model=model,
+                train_dataset=encoded_train_ds,
+                is_main=True,
+            )
 
     # Create FSDP trainer
     trainer = FSDPTrainer(

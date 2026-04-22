@@ -55,9 +55,14 @@ class MorphologyConfig(BaseConfig):
     """Morphological features configuration."""
 
     somatic_synapses: bool = False
-    use_shunting: bool = True
+    use_shunting: bool = True  # Legacy fallback for core.type == "einet"
     use_additive_normalization: bool = False  # Normalize voltage in additive mode
+    # Only used when an EINet-style config is translated into the recurrent
+    # unified E-I path. Feedforward models ignore this flag.
     allow_self_recurrence: bool = True
+    # Keep the structured-config default aligned with develop-era BP configs.
+    # Experiments that need a stricter positive-conductance regime can still
+    # request "exp" explicitly.
     weight_transform: str = "softplus"
     dbl_init_method: str = "analytical_expectation"
 
@@ -97,9 +102,28 @@ class ReactivationConfig(BaseConfig):
 
     enabled: bool = True
     type: str = "param_tanh"
+    # init_policy selects how the parametric gate ``(m, b)`` is initialized.
+    #
+    # Primary policies:
+    # - "analytical": initialize from the selected DBL init rule.
+    # - "fixed": use init_m and init_b exactly as provided.
+    # - "empirical": robust median/MAD calibration from sampled voltages.
+    # - "quantile": q10/q90 -> 0.1/0.9 occupancy calibration.
+    # - "occupancy_quantile": generalized q_low/q_high -> r_low/r_high rule.
+    # Common aliases are accepted for compatibility.
+    init_policy: str = "analytical"
     init_m: float = 1.5
     init_b: float = 0.5
-    match_additive_init_to_shunting: bool = False
+    occupancy_quantile_low: Optional[float] = None
+    occupancy_quantile_high: Optional[float] = None
+    occupancy_target_low: Optional[float] = None
+    occupancy_target_high: Optional[float] = None
+    calibration_min_quantile_width: float = 1e-3
+    calibration_max_m: float = 50.0
+    calibration_revert_on_invalid: bool = True
+    # Scale factor used by the "empirical" policy when mapping a robust
+    # voltage spread estimate (MAD * 1.4826) to the initial gate slope.
+    sigma_aware_k: float = 0.25
     gradient_scaling: str = "none"
 
 
@@ -118,6 +142,7 @@ class ImplementationConfig(BaseConfig):
     adaptive_initialization: bool = False
     print_hooks: bool = False
     store_routing: bool = False
+    compile_forward: bool = True
 
 
 @dataclass
@@ -170,7 +195,7 @@ class SpatialConfig(BaseConfig):
 class CoreConfig(BaseConfig):
     """Core network configuration."""
 
-    type: str = "EINet"
+    type: str = "einet"
 
     architecture: ArchitectureConfig = field(default_factory=ArchitectureConfig)
     connectivity: ConnectivityConfig = field(default_factory=ConnectivityConfig)

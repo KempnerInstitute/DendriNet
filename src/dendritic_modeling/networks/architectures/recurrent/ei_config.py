@@ -39,7 +39,15 @@ class PopulationConfig(BaseConfig):
     reactivation_type: str = "param_tanh"
     reactivation_init_m: float = 1.0
     reactivation_init_b: float = 0.5
-    reactivation_match_additive_init_to_shunting: bool = False
+    reactivation_init_policy: str = "analytical"
+    reactivation_occupancy_quantile_low: Optional[float] = None
+    reactivation_occupancy_quantile_high: Optional[float] = None
+    reactivation_occupancy_target_low: Optional[float] = None
+    reactivation_occupancy_target_high: Optional[float] = None
+    reactivation_calibration_min_quantile_width: float = 1e-3
+    reactivation_calibration_max_m: float = 50.0
+    reactivation_calibration_revert_on_invalid: bool = True
+    reactivation_sigma_aware_k: float = 0.25
     reactivation_strategy: str = "none"
     blocklinear_strategy: str = "none"
 

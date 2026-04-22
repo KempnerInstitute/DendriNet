@@ -32,7 +32,7 @@ def test_topk_forward_does_not_cache_by_default():
     layer = TopKLinear(in_features=12, out_features=5, K=3, noise_level=0.5)
     layer.initialize()
 
-    x = torch.randn(4, 12)
+    x = torch.rand(4, 12)
     _ = layer(x)
 
     assert layer._last_forward_weight_mask is None
@@ -45,7 +45,7 @@ def test_topk_forward_caches_exact_mask_when_enabled():
     layer.initialize()
     layer.cache_mask = True
 
-    x = torch.randn(4, 12)
+    x = torch.rand(4, 12)
     out = layer(x)
 
     cached_mask = layer._last_forward_weight_mask
@@ -69,7 +69,7 @@ def test_local_recorders_use_cached_topk_mask_without_extra_sampling():
 
     records, handles = trainer._attach_local_recorders(model)
     topk.cache_mask = True
-    x = torch.randn(6, 8)
+    x = torch.rand(6, 8)
 
     try:
         with patch.object(topk, "weight_mask", wraps=topk.weight_mask) as wrapped_mask:

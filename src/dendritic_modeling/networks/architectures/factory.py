@@ -1,4 +1,3 @@
-import warnings
 from dataclasses import asdict, is_dataclass
 from typing import Any, Optional, Union
 
@@ -48,6 +47,57 @@ _UNIFIED_EI_TYPES: set[str] = {
     "unified_ei",
     "ei_net",
     "unified_einet",
+    # Parallel aliases that mirror the BP / feedforward vocabulary
+    # (`dendritic_shunting`, `dendritic_additive`, `flat_shunting`,
+    # `flat_additive`). An `rnn_` prefix disambiguates them from the
+    # non-recurrent BP types. The factory below canonicalizes each alias
+    # to the appropriate `use_shunting` / `use_additive_normalization`
+    # pair on every excitatory population, leaving the `ei_unified` path
+    # unchanged for backward compatibility.
+    "rnn_dendritic_shunting",
+    "rnn_dendritic_additive",
+    "rnn_flat_shunting",
+    "rnn_flat_additive",
+}
+
+# Type-alias implied overrides on each excitatory population.
+# The alias is resolved at build time; `ei_unified` is a no-op (explicit
+# config wins). The BP `canonicalize_model_core_flags` uses the same idea.
+#
+# For `*_additive` aliases: we also force an additive-safe reactivation-gate
+# init (m=0.1, b=0.0, policy="fixed"). This bypasses the analytical init
+# rule in `analytical_expectation_dbl_init`, which on non-leaf additive
+# layers computes `E_Vinf = E_g_exc - E_g_inh + 0.5 * g_branch` ≈ 1.02 and
+# places the gate center above the useful voltage range. The BP-path
+# `dendritic_additive` type ships equivalent additive-safe defaults via its
+# own canonicalization; the aliases here give the recurrent/unified-EI
+# path the same safety net. Existing `ei_unified` configs with
+# `use_shunting: false` and `reactivation_init_policy: analytical`
+# continue to dispatch the (buggy) analytical rule unchanged — users opt
+# into the fix by switching `core.type` to the alias.
+_UNIFIED_EI_ALIAS_OVERRIDES: dict[str, dict[str, object]] = {
+    "rnn_dendritic_shunting": {
+        "use_shunting": True,
+    },
+    "rnn_dendritic_additive": {
+        "use_shunting": False,
+        "use_additive_normalization": True,
+        "reactivation_init_m": 0.1,
+        "reactivation_init_b": 0.0,
+        "reactivation_init_policy": "fixed",
+    },
+    "rnn_flat_shunting": {
+        "use_shunting": True,
+        "branch_factors": [1],
+    },
+    "rnn_flat_additive": {
+        "use_shunting": False,
+        "use_additive_normalization": True,
+        "reactivation_init_m": 0.1,
+        "reactivation_init_b": 0.0,
+        "reactivation_init_policy": "fixed",
+        "branch_factors": [1],
+    },
 }
 
 # Spatial dendritic cores: flatten encoder spatial output → EINet → project.
@@ -306,9 +356,27 @@ def _build_recurrent_einet_from_structured_config(
             reactivation_type=str(reactivation.get("type", "param_tanh")),
             reactivation_init_m=float(reactivation.get("init_m", 1.5)),
             reactivation_init_b=float(reactivation.get("init_b", 0.5)),
-            reactivation_match_additive_init_to_shunting=bool(
-                reactivation.get("match_additive_init_to_shunting", False)
+            reactivation_init_policy=str(reactivation.get("init_policy", "analytical")),
+            reactivation_occupancy_quantile_low=reactivation.get(
+                "occupancy_quantile_low"
             ),
+            reactivation_occupancy_quantile_high=reactivation.get(
+                "occupancy_quantile_high"
+            ),
+            reactivation_occupancy_target_low=reactivation.get("occupancy_target_low"),
+            reactivation_occupancy_target_high=reactivation.get(
+                "occupancy_target_high"
+            ),
+            reactivation_calibration_min_quantile_width=float(
+                reactivation.get("calibration_min_quantile_width", 1e-3)
+            ),
+            reactivation_calibration_max_m=float(
+                reactivation.get("calibration_max_m", 50.0)
+            ),
+            reactivation_calibration_revert_on_invalid=bool(
+                reactivation.get("calibration_revert_on_invalid", True)
+            ),
+            reactivation_sigma_aware_k=float(reactivation.get("sigma_aware_k", 0.25)),
             reactivation_strategy=str(reactivation.get("gradient_scaling", "none")),
             blocklinear_strategy=str(blocklinear.get("gradient_scaling", "none")),
             level_taus=list(recurrent_cfg.get("level_taus", [])),
@@ -385,7 +453,8 @@ def _build_recurrent_einet_from_structured_config(
                 reactivation_type=exc_cfg.reactivation_type,
                 reactivation_init_m=exc_cfg.reactivation_init_m,
                 reactivation_init_b=exc_cfg.reactivation_init_b,
-                reactivation_match_additive_init_to_shunting=exc_cfg.reactivation_match_additive_init_to_shunting,
+                reactivation_init_policy=exc_cfg.reactivation_init_policy,
+                reactivation_sigma_aware_k=exc_cfg.reactivation_sigma_aware_k,
                 reactivation_strategy=exc_cfg.reactivation_strategy,
                 blocklinear_strategy=exc_cfg.blocklinear_strategy,
                 level_taus=exc_cfg.level_taus,
@@ -510,6 +579,15 @@ def get_architecture(
         unified_cfg = dict(unified_cfg)
         unified_cfg["input_dim"] = input_dim
 
+        # Resolve recurrent-type aliases to explicit population flags. When
+        # `type` is `ei_unified` / `unified_ei` / `ei_net`, this is a no-op;
+        # otherwise it sets use_shunting / use_additive_normalization / flat
+        # branch_factors to match the alias. Explicit values in the YAML
+        # are preserved unless they conflict with the alias, in which case
+        # the alias wins (matching the BP `canonicalize_model_core_flags`
+        # contract and producing a self-consistent config).
+        alias_overrides = _UNIFIED_EI_ALIAS_OVERRIDES.get(type, {})
+
         layers_cfg = []
         for layer in unified_cfg.get("layers", []):
             if isinstance(layer, EILayerConfig):
@@ -523,6 +601,44 @@ def get_architecture(
             exc = layer.get("excitatory")
             inh = layer.get("inhibitory")
             if isinstance(exc, dict):
+                if alias_overrides:
+                    exc = dict(exc)
+                    for k, v in alias_overrides.items():
+                        # `branch_factors` override only applies when the
+                        # config did not specify its own tree (otherwise we
+                        # would silently erase a user-provided hierarchy).
+                        if k == "branch_factors" and exc.get("branch_factors"):
+                            continue
+                        exc[k] = v
+                # Warn about the additive-init-bug trap: `use_shunting=False`
+                # combined with the analytical init policy hits the buggy
+                # `E_Vinf = E_g_exc - E_g_inh + 0.5` branch on non-leaf
+                # layers and places the gate center above the useful
+                # voltage range. Users should switch to the
+                # `rnn_dendritic_additive` alias (which sets a safe
+                # fixed-init) or explicitly set `reactivation_init_policy`
+                # to "fixed" with a sensible `reactivation_init_b`.
+                if not bool(exc.get("use_shunting", True)):
+                    policy = str(
+                        exc.get("reactivation_init_policy", "analytical")
+                    ).lower()
+                    if policy in {
+                        "analytical",
+                        "auto",
+                        "quantile",
+                        "occupancy_quantile",
+                    }:
+                        import warnings
+
+                        warnings.warn(
+                            "Additive-integration ablation with "
+                            f"reactivation_init_policy='{policy}' triggers a known "
+                            "non-leaf gate-center bug (E[V_inf] ~ 1.02). Prefer "
+                            "core.type='rnn_dendritic_additive' (or 'fixed' policy "
+                            "with b=0.0) for a correctly-initialised additive path.",
+                            RuntimeWarning,
+                            stacklevel=2,
+                        )
                 layer["excitatory"] = PopulationConfig(**exc)
             if isinstance(inh, dict):
                 layer["inhibitory"] = PopulationConfig(**inh)
@@ -664,8 +780,11 @@ def get_architecture(
             weight_transform = "identity"
             use_shunting = False
 
+        params_for_build = _to_plain_mapping(parameters)
+        params_for_build.setdefault("type", type)
+
         return ConfigurableEINetwork(
-            config=parameters,
+            config=params_for_build,
             input_dim=input_dim,
             synapse_mode=synapse_mode,
             use_shunting=use_shunting,

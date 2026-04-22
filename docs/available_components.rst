@@ -28,6 +28,8 @@ Core Network Types
      - Generic E-I; reads use_shunting from config
    * - ``ei_unified``
      - Unified E-I (feedforward + recurrent capable)
+   * - ``rnn_dendritic_shunting``, ``rnn_dendritic_additive``
+     - Unified recurrent-EI aliases with type-implied shunting/additive defaults
    * - ``point_mlp``
      - Plain point-neuron MLP baseline
    * - ``total_param_mlp``
@@ -104,8 +106,8 @@ Weight Transforms
 
 Set via ``model.core.morphology.weight_transform``:
 
-``exp`` -- always positive, sharp exponential parameterization (default recurrent paper setting).
-``softplus`` -- always positive, smoother gradient.
+``softplus`` -- always positive, smoother gradient (default structured EI / recurrent setting).
+``exp`` -- always positive, sharp exponential parameterization.
 ``relu`` -- non-negative, can be exactly zero.
 ``identity`` -- signed weights (for dendritic_mlp).
 

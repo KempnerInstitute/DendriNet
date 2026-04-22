@@ -1,5 +1,6 @@
 """Utilities for configuration handling and transformation."""
 
+import copy
 import logging
 from dataclasses import (
     asdict as dataclass_asdict,
@@ -19,6 +20,173 @@ logger = logging.getLogger(__name__)
 
 # Cache for converted configs to avoid repeated conversions
 _config_cache = {}
+
+
+def canonicalize_model_core_flags(
+    config: Union[dict, DictConfig, object],
+) -> dict[str, Any]:
+    """Return a plain config dict with type-implied core flags normalized.
+
+    The architecture factory treats ``model.core.type`` as authoritative for
+    shunting/additive variants. Historically, some saved sweep configs retained
+    ``morphology.use_shunting=True`` even when ``type='dendritic_additive'``.
+    That mismatch is harmless during model construction because the factory
+    overrides the flag, but it makes raw ``config.json`` files look mislabeled.
+
+    This helper mirrors the factory's effective behavior in the serialized
+    config so saved runs are easier to audit and downstream tools see a
+    self-consistent payload.
+    """
+    if isinstance(config, DictConfig):
+        result = OmegaConf.to_container(config, resolve=True)
+    elif is_dataclass(config):
+        result = dataclass_asdict(config)
+    else:
+        result = copy.deepcopy(config)
+
+    if not isinstance(result, dict):
+        return {}
+
+    model_cfg = result.get("model")
+    if isinstance(model_cfg, dict) and isinstance(model_cfg.get("core"), dict):
+        core_cfg = model_cfg["core"]
+    elif {"architecture", "connectivity"} <= set(result.keys()):
+        # Also support direct core-config dicts passed straight to the factory.
+        core_cfg = result
+    else:
+        return result
+
+    core_type = str(core_cfg.get("type", "")).lower()
+    morphology_cfg = core_cfg.setdefault("morphology", {})
+    if not isinstance(morphology_cfg, dict):
+        morphology_cfg = {}
+        core_cfg["morphology"] = morphology_cfg
+
+    type_overrides: dict[str, dict[str, Any]] = {
+        "dendritic_shunting": {"use_shunting": True},
+        "flat_shunting": {"use_shunting": True},
+        "dendritic_additive": {
+            "use_shunting": False,
+            "use_additive_normalization": True,
+        },
+        "flat_additive": {
+            "use_shunting": False,
+            "use_additive_normalization": True,
+        },
+        "dendritic_mlp": {"use_shunting": False},
+        "flat_mlp": {"use_shunting": False},
+        "point_mlp": {"use_shunting": False},
+        "mlp": {"use_shunting": False},
+    }
+    overrides = type_overrides.get(core_type)
+    if overrides is not None:
+        morphology_cfg.update(overrides)
+
+    # Feedforward additive aliases need the same safe gate bootstrap as the
+    # recurrent additive aliases. Without this, the analytical rule can place
+    # non-leaf additive gate centres above the useful voltage range.
+    if core_type in {"dendritic_additive", "flat_additive"}:
+        reactivation_cfg = core_cfg.setdefault("reactivation", {})
+        if not isinstance(reactivation_cfg, dict):
+            reactivation_cfg = {}
+            core_cfg["reactivation"] = reactivation_cfg
+        reactivation_cfg["init_m"] = 0.1
+        reactivation_cfg["init_b"] = 0.0
+        reactivation_cfg["init_policy"] = "fixed"
+
+    return result
+
+
+# Type-alias implied overrides for the recurrent / unified-EI path.
+# Mirrors the `_UNIFIED_EI_ALIAS_OVERRIDES` in the factory; this helper
+# rewrites a raw config dict so saved configs are self-consistent with
+# the alias they declare. The `*_additive` aliases also pin the gate-init
+# to `(m=0.1, b=0.0, policy="fixed")`, bypassing the analytical init rule
+# which on non-leaf additive layers computes an out-of-range gate center.
+_RNN_CORE_ALIAS_OVERRIDES: dict[str, dict[str, object]] = {
+    "rnn_dendritic_shunting": {
+        "use_shunting": True,
+    },
+    "rnn_dendritic_additive": {
+        "use_shunting": False,
+        "use_additive_normalization": True,
+        "reactivation_init_m": 0.1,
+        "reactivation_init_b": 0.0,
+        "reactivation_init_policy": "fixed",
+    },
+    "rnn_flat_shunting": {
+        "use_shunting": True,
+        "branch_factors": [1],
+    },
+    "rnn_flat_additive": {
+        "use_shunting": False,
+        "use_additive_normalization": True,
+        "reactivation_init_m": 0.1,
+        "reactivation_init_b": 0.0,
+        "reactivation_init_policy": "fixed",
+        "branch_factors": [1],
+    },
+}
+
+
+def canonicalize_rnn_core_flags(
+    config: Union[dict, DictConfig, object],
+) -> dict[str, Any]:
+    """Return a plain config dict with recurrent unified-EI core aliases
+    resolved to explicit excitatory-population flags.
+
+    When ``model.core.type`` is one of the recurrent aliases
+    (``rnn_dendritic_shunting``, ``rnn_dendritic_additive``,
+    ``rnn_flat_shunting``, ``rnn_flat_additive``), this helper rewrites
+    ``use_shunting`` / ``use_additive_normalization`` (and in the flat
+    case, ``branch_factors``) on every excitatory population so the saved
+    payload is self-describing. ``ei_unified`` / ``unified_ei`` / ``ei_net``
+    are treated as no-ops: the explicit population-level flags are the
+    source of truth.
+    """
+    if isinstance(config, DictConfig):
+        result = OmegaConf.to_container(config, resolve=True)
+    elif is_dataclass(config):
+        result = dataclass_asdict(config)
+    else:
+        result = copy.deepcopy(config)
+
+    if not isinstance(result, dict):
+        return {}
+
+    model_cfg = result.get("model")
+    if not isinstance(model_cfg, dict):
+        return result
+
+    core_cfg = model_cfg.get("core")
+    if not isinstance(core_cfg, dict):
+        return result
+
+    core_type = str(core_cfg.get("type", "")).lower()
+    overrides = _RNN_CORE_ALIAS_OVERRIDES.get(core_type)
+    if overrides is None:
+        return result
+
+    unified_cfg = core_cfg.get("unified_ei") or core_cfg.get("ei_unified")
+    if not isinstance(unified_cfg, dict):
+        return result
+    layers = unified_cfg.get("layers")
+    if not isinstance(layers, list):
+        return result
+
+    for layer in layers:
+        if not isinstance(layer, dict):
+            continue
+        exc = layer.get("excitatory")
+        if not isinstance(exc, dict):
+            continue
+        for k, v in overrides.items():
+            if k == "branch_factors" and exc.get("branch_factors"):
+                # Preserve explicit dendritic trees even under flat aliases.
+                continue
+            exc[k] = v
+
+    return result
 
 
 def normalize_sparsity_type(sparsity_type: Any) -> str:

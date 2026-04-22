@@ -25,6 +25,7 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.i
     ei_equivalence_dbl_init,
     identity_weighttransform_dbl_init,
     naive_dbl_init,
+    normalize_reactivation_init_policy,
 )
 
 # Import linear layer variants
@@ -95,7 +96,15 @@ class DendriticBranchLayer(nn.Module):
         reactivation_type="param_tanh",
         reactivation_init_m=1,
         reactivation_init_b=0.5,
-        reactivation_match_additive_init_to_shunting=False,
+        reactivation_init_policy="analytical",
+        reactivation_occupancy_quantile_low=None,
+        reactivation_occupancy_quantile_high=None,
+        reactivation_occupancy_target_low=None,
+        reactivation_occupancy_target_high=None,
+        reactivation_calibration_min_quantile_width=1e-3,
+        reactivation_calibration_max_m=50.0,
+        reactivation_calibration_revert_on_invalid=True,
+        reactivation_sigma_aware_k=0.25,
         dbl_init_method="analytical_expectation",
         reactivation_strategy="none",
         blocklinear_strategy="none",
@@ -267,21 +276,30 @@ class DendriticBranchLayer(nn.Module):
         self.input_branch_factor = input_branch_factor
         self.reactivation_init_m = reactivation_init_m
         self.reactivation_init_b = reactivation_init_b
-        self.reactivation_match_additive_init_to_shunting = (
-            reactivation_match_additive_init_to_shunting
+        self.reactivation_init_policy = normalize_reactivation_init_policy(
+            reactivation_init_policy
         )
+        self.reactivation_occupancy_quantile_low = reactivation_occupancy_quantile_low
+        self.reactivation_occupancy_quantile_high = reactivation_occupancy_quantile_high
+        self.reactivation_occupancy_target_low = reactivation_occupancy_target_low
+        self.reactivation_occupancy_target_high = reactivation_occupancy_target_high
+        self.reactivation_calibration_min_quantile_width = (
+            reactivation_calibration_min_quantile_width
+        )
+        self.reactivation_calibration_max_m = reactivation_calibration_max_m
+        self.reactivation_calibration_revert_on_invalid = (
+            reactivation_calibration_revert_on_invalid
+        )
+        self.reactivation_sigma_aware_k = reactivation_sigma_aware_k
 
         if reactivate:
-            init_m = reactivation_init_m
-            init_b = reactivation_init_b
-            if not use_shunting and not reactivation_match_additive_init_to_shunting:
-                init_m = 0.1
-                init_b = 0.1
+            # Construct with YAML-supplied values; initialize() will overwrite
+            # them based on reactivation_init_policy and dbl_init_method.
             self.reactivation = ActivationFactory.create(
                 act_type=reactivation_type,
                 output_dim=output_dim,
-                init_m=init_m,
-                init_b=init_b,
+                init_m=reactivation_init_m,
+                init_b=reactivation_init_b,
                 **kwargs,
             )
             if use_shunting:

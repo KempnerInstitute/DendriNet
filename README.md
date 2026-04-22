@@ -1,7 +1,7 @@
 # Dendritic Modeling Framework
 
 [![CI Pipeline](https://github.com/KempnerInstitute/dendritic-modeling/actions/workflows/ci-simplified.yml/badge.svg?branch=develop)](https://github.com/KempnerInstitute/dendritic-modeling/actions/workflows/ci-simplified.yml)
-[![codecov](https://codecov.io/gh/KempnerInstitute/dendritic-modeling/branch/develop/graph/badge.svg)](https://codecov.io/gh/KempnerInstitute/dendritic-modeling)
+[![Coverage](docs/_static/badges/coverage.svg)](https://github.com/KempnerInstitute/dendritic-modeling/actions/workflows/ci-simplified.yml?query=branch%3Adevelop)
 [![Documentation](https://github.com/KempnerInstitute/dendritic-modeling/actions/workflows/deploy-docs.yml/badge.svg?branch=develop)](https://github.com/KempnerInstitute/dendritic-modeling/actions/workflows/deploy-docs.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://github.com/KempnerInstitute/dendritic-modeling/blob/develop/pyproject.toml)
