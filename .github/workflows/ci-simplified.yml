@@ -55,6 +55,7 @@ jobs:
   test:
     needs: quality
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
@@ -108,6 +109,8 @@ jobs:
         COV_FAIL_UNDER: "30"
       run: |
         python -m pytest tests/ \
+          -n auto \
+          --dist loadfile \
           --cov=src/dendritic_modeling \
           --cov-report=xml \
           --cov-report=term-missing \
