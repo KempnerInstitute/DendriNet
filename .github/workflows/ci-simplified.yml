@@ -109,21 +109,9 @@ jobs:
         COV_FAIL_UNDER: "30"
       run: |
         python -m pytest tests/ \
-          -k "not test_load_mnist_as_datasets and not test_load_cifar10_as_datasets" \
-          -n auto \
+          -n 2 \
           --dist loadfile \
           --cov=src/dendritic_modeling \
-          --cov-report=xml \
-          --cov-report=term-missing \
-          --cov-fail-under=0 \
-          --junitxml=pytest-results-parallel.xml \
-          --maxfail=5 \
-          -v
-        python -m pytest \
-          tests/test_datasets.py::TestRealDatasets::test_load_mnist_as_datasets \
-          tests/test_datasets.py::TestRealDatasets::test_load_cifar10_as_datasets \
-          --cov=src/dendritic_modeling \
-          --cov-append \
           --cov-report=xml \
           --cov-report=term-missing \
           --cov-fail-under=${COV_FAIL_UNDER} \
@@ -169,7 +157,6 @@ jobs:
         name: test-results-${{ matrix.os }}-${{ matrix.python-version }}
         path: |
           pytest-results.xml
-          pytest-results-parallel.xml
           coverage.xml
 
   # Security and documentation - only on PRs to save resources
