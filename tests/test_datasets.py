@@ -319,13 +319,15 @@ class TestRealDatasets(unittest.TestCase):
             label = int(idx % self.num_classes)
             return sample, label
 
-    @patch("dendritic_modeling.datasets.standard_datasets.datasets.MNIST")
-    def test_load_mnist_as_datasets(self, mock_mnist):
+    @patch(
+        "dendritic_modeling.datasets.standard_datasets._load_torchvision_train_test_pair"
+    )
+    def test_load_mnist_as_datasets(self, mock_load_pair):
         """Test MNIST dataset loading on a tiny torchvision-style smoke set."""
-        mock_mnist.side_effect = [
+        mock_load_pair.return_value = (
             self._TinyVisionDataset(12, (1, 28, 28)),
             self._TinyVisionDataset(6, (1, 28, 28)),
-        ]
+        )
         train_ds, valid_ds, test_ds = load_mnist_as_datasets(
             train_valid_split=0.8,
             flatten=True,
@@ -348,13 +350,15 @@ class TestRealDatasets(unittest.TestCase):
         self.assertGreater(len(test_ds), 0)
         # valid_ds might be empty if train_valid_split=1
 
-    @patch("dendritic_modeling.datasets.standard_datasets.datasets.CIFAR10")
-    def test_load_cifar10_as_datasets(self, mock_cifar10):
+    @patch(
+        "dendritic_modeling.datasets.standard_datasets._load_torchvision_train_test_pair"
+    )
+    def test_load_cifar10_as_datasets(self, mock_load_pair):
         """Test CIFAR-10 dataset loading on a tiny torchvision-style smoke set."""
-        mock_cifar10.side_effect = [
+        mock_load_pair.return_value = (
             self._TinyVisionDataset(15, (3, 32, 32)),
             self._TinyVisionDataset(7, (3, 32, 32)),
-        ]
+        )
         train_ds, valid_ds, test_ds = load_cifar10_as_datasets(
             train_valid_split=0.8,
             flatten=False,
