@@ -29,6 +29,13 @@ from dendritic_modeling.analysis.tools.compartment_statistics import (
     CompartmentStatisticsAnalyzer,
 )
 from dendritic_modeling.analysis.tools.correlation_analysis import CorrelationAnalyzer
+from dendritic_modeling.analysis.tools.dendritic_timetraces import (
+    DendriticTimetracesAnalyzer,
+)
+from dendritic_modeling.analysis.tools.inhibitory_specialization import (
+    InhibitorySpecializationAnalyzer,
+)
+from dendritic_modeling.analysis.tools.jacobian_spectrum import JacobianSpectrumAnalyzer
 from dendritic_modeling.analysis.tools.multiplicative_gain import (
     MultiplicativeGainAnalyzer,
 )
@@ -176,6 +183,25 @@ class AnalysisManager:
             and self.config.routing_analysis.enabled
         ):
             self.routing_analyzer = RoutingAnalyzer()
+
+        # Initialize Inhibitory Specialization Analysis (recurrent E-I models only)
+        inh_spec_cfg = getattr(self.config, "inhibitory_specialization_analysis", None)
+        if inh_spec_cfg is not None and inh_spec_cfg.enabled:
+            self.inhibitory_specialization_analyzer = InhibitorySpecializationAnalyzer(
+                inh_spec_cfg.params
+            )
+
+        # Initialize Jacobian Spectrum Analysis (recurrent dendritic models only)
+        jac_cfg = getattr(self.config, "jacobian_spectrum_analysis", None)
+        if jac_cfg is not None and jac_cfg.enabled:
+            self.jacobian_spectrum_analyzer = JacobianSpectrumAnalyzer(jac_cfg.params)
+
+        # Initialize Dendritic Timetraces Analysis (recurrent dendritic models only)
+        ddt_cfg = getattr(self.config, "dendritic_timetraces_analysis", None)
+        if ddt_cfg is not None and ddt_cfg.enabled:
+            self.dendritic_timetraces_analyzer = DendriticTimetracesAnalyzer(
+                ddt_cfg.params
+            )
 
         # Initialize Adversarial Robustness Analysis
         if (
@@ -490,6 +516,61 @@ class AnalysisManager:
                 filename=filename,
             )
             self.logger.info("Routing analysis completed successfully")
+
+        # Inhibitory Specialization Analysis (recurrent E-I models)
+        inh_spec_cfg = getattr(self.config, "inhibitory_specialization_analysis", None)
+        if (
+            inh_spec_cfg is not None
+            and inh_spec_cfg.enabled
+            and hasattr(self, "inhibitory_specialization_analyzer")
+            and (
+                (getattr(inh_spec_cfg, "training", False) and training) or not training
+            )
+        ):
+            self.logger.info("Starting inhibitory specialization analysis...")
+            self.inhibitory_specialization_analyzer.analyze(
+                model=self.model,
+                device=self.device,
+                save_path=os.path.join(self.save_root, "inhibitory_specialization"),
+                filename=filename,
+            )
+            self.logger.info(
+                "Inhibitory specialization analysis completed successfully"
+            )
+
+        # Jacobian Spectrum Analysis (recurrent dendritic models)
+        jac_cfg = getattr(self.config, "jacobian_spectrum_analysis", None)
+        if (
+            jac_cfg is not None
+            and jac_cfg.enabled
+            and hasattr(self, "jacobian_spectrum_analyzer")
+            and ((getattr(jac_cfg, "training", False) and training) or not training)
+        ):
+            self.logger.info("Starting jacobian spectrum analysis...")
+            self.jacobian_spectrum_analyzer.analyze(
+                model=self.model,
+                device=self.device,
+                save_path=os.path.join(self.save_root, "jacobian_spectrum"),
+                filename=filename,
+            )
+            self.logger.info("Jacobian spectrum analysis completed successfully")
+
+        # Dendritic Timetraces Analysis (recurrent dendritic models)
+        ddt_cfg = getattr(self.config, "dendritic_timetraces_analysis", None)
+        if (
+            ddt_cfg is not None
+            and ddt_cfg.enabled
+            and hasattr(self, "dendritic_timetraces_analyzer")
+            and ((getattr(ddt_cfg, "training", False) and training) or not training)
+        ):
+            self.logger.info("Starting dendritic timetraces analysis...")
+            self.dendritic_timetraces_analyzer.analyze(
+                model=self.model,
+                device=self.device,
+                save_path=os.path.join(self.save_root, "dendritic_timetraces"),
+                filename=filename,
+            )
+            self.logger.info("Dendritic timetraces analysis completed successfully")
 
         # Adversarial Robustness Analysis
         if (
