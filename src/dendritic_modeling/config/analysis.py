@@ -1157,6 +1157,112 @@ class RoutingAnalysisConfig(BaseConfig):
 
 
 @dataclass
+class InhibitorySpecializationAnalysisParams(BaseConfig):
+    """Parameters for inhibitory-specialization (gate-index) analysis.
+
+    - gate_threshold: absolute mean-G cutoff separating gate/context-specialists
+      from diffuse neurons (per-I view) and soma/distal-dominant from balanced
+      pairs (per-pair view).
+    - std_threshold: std-G cutoff above which a neuron is classified
+      mixed-conditional rather than a consistent specialist.
+    - save_figures: whether to write a PDF alongside the JSON results.
+    """
+
+    gate_threshold: float = 0.1
+    std_threshold: float = 0.15
+    save_figures: bool = True
+
+
+@dataclass
+class InhibitorySpecializationAnalysisConfig(BaseConfig):
+    """Enable/disable inhibitory-specialization analysis.
+
+    Applicable only to recurrent E-I dendritic cores that carry at least one
+    layer with a local inhibitory pool wired through ``branch_rec_inhibition``.
+    Silently skipped for feedforward-only or baseline RNN cores.
+    """
+
+    enabled: bool = False
+    training: bool = False
+    params: InhibitorySpecializationAnalysisParams = field(
+        default_factory=InhibitorySpecializationAnalysisParams
+    )
+
+
+@dataclass
+class JacobianSpectrumAnalysisParams(BaseConfig):
+    """Parameters for per-level Jacobian / recurrent-spectrum analysis.
+
+    - top_k: number of leading singular values to keep per branch layer.
+    - save_figures: whether to write a PDF alongside the JSON results.
+    """
+
+    top_k: int = 16
+    save_figures: bool = True
+
+
+@dataclass
+class JacobianSpectrumAnalysisConfig(BaseConfig):
+    """Enable/disable per-level Jacobian / recurrent-spectrum analysis.
+
+    Reads the effective ``branch_recurrent`` / ``branch_rec_inhibition``
+    weights of the excitatory population at each branch level and reports
+    their top singular values plus the spectral radius. Skipped on
+    baseline RNN cores and on layers without recurrent compartments.
+    """
+
+    enabled: bool = False
+    training: bool = False
+    params: JacobianSpectrumAnalysisParams = field(
+        default_factory=JacobianSpectrumAnalysisParams
+    )
+
+
+@dataclass
+class DendriticTimetracesAnalysisParams(BaseConfig):
+    """Parameters for dendritic-time-trace simulation.
+
+    The analyzer simulates ``V_l(t)`` and ``hat V_l(t)`` for the trained
+    τ and reactivation parameters on a synthetic two-pulse stimulus.
+
+    - n_timesteps: trial length.
+    - stim1_window / stim2_window: ``(start, end)`` index tuples in [0, T).
+      Set either to ``None`` to disable the corresponding pulse.
+    - stim1_amp / stim2_amp: amplitudes of the two pulses.
+    - response_window: optional shaded region marking the response period.
+    - noise_std: white noise added to the input; 0 disables.
+    - seed: RNG seed for the noise tensor (deterministic).
+    - save_figures: whether to write a PDF per E-I layer.
+    """
+
+    n_timesteps: int = 90
+    stim1_window: Optional[tuple[int, int]] = (5, 25)
+    stim2_window: Optional[tuple[int, int]] = (55, 75)
+    response_window: Optional[tuple[int, int]] = (75, 90)
+    stim1_amp: float = 0.8
+    stim2_amp: float = 0.6
+    noise_std: float = 0.05
+    seed: int = 0
+    save_figures: bool = True
+
+
+@dataclass
+class DendriticTimetracesAnalysisConfig(BaseConfig):
+    """Enable/disable dendritic-time-trace simulation.
+
+    Simulates the learned per-level cascade dynamics (τ, m, b) on a
+    synthetic two-pulse trial. Skipped on baseline RNN cores or on
+    dendritic populations without ``log_tau`` exposed.
+    """
+
+    enabled: bool = False
+    training: bool = False
+    params: DendriticTimetracesAnalysisParams = field(
+        default_factory=DendriticTimetracesAnalysisParams
+    )
+
+
+@dataclass
 class AnalysisConfig(BaseConfig):
     """Top-level analysis configuration container.
 
@@ -1212,6 +1318,15 @@ class AnalysisConfig(BaseConfig):
     )
     routing_analysis: RoutingAnalysisConfig = field(
         default_factory=RoutingAnalysisConfig
+    )
+    inhibitory_specialization_analysis: InhibitorySpecializationAnalysisConfig = field(
+        default_factory=InhibitorySpecializationAnalysisConfig
+    )
+    jacobian_spectrum_analysis: JacobianSpectrumAnalysisConfig = field(
+        default_factory=JacobianSpectrumAnalysisConfig
+    )
+    dendritic_timetraces_analysis: DendriticTimetracesAnalysisConfig = field(
+        default_factory=DendriticTimetracesAnalysisConfig
     )
     adversarial_robustness_analysis: AdversarialRobustnessAnalysisConfig = field(
         default_factory=AdversarialRobustnessAnalysisConfig

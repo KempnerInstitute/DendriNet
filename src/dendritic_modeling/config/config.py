@@ -661,6 +661,9 @@ def _map_analysis_config(
         "synaptic_activation": "synaptic_activation_analysis",
         "branch_activation": "branch_activation_analysis",
         "routing": "routing_analysis",
+        "inhibitory_specialization": "inhibitory_specialization_analysis",
+        "jacobian_spectrum": "jacobian_spectrum_analysis",
+        "dendritic_timetraces": "dendritic_timetraces_analysis",
         "adversarial_robustness": "adversarial_robustness_analysis",
     }
 
