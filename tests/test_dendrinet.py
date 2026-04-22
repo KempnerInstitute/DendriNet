@@ -77,9 +77,7 @@ class TestDendriNet(unittest.TestCase):
         )
 
         x = torch.rand(batch_size, excitatory_input_dim)
-        inhibitory_input = inhibitory_input = torch.rand(
-            batch_size, inhibitory_input_dim
-        )
+        inhibitory_input = torch.rand(batch_size, inhibitory_input_dim)
         output = model(x, inhibitory_input)
 
         # Check that the output has the correct shape

@@ -132,6 +132,8 @@ def _maybe_calibrate_data_driven_reactivation(
         if is_data_driven_reactivation_policy(init_policy):
             requested_policies.add(init_policy)
     except AttributeError:
+        # The reactivation config path is optional; fall back to collecting
+        # any per-layer policies directly from the built modules below.
         pass
 
     for module in model.modules():
@@ -150,7 +152,6 @@ def _maybe_calibrate_data_driven_reactivation(
         mode = reactivation_policy_to_calibration_mode(init_policy)
         policy_msg = init_policy
     else:
-        init_policy = "mixed"
         mode = None
         policy_msg = ", ".join(sorted(requested_policies))
 
