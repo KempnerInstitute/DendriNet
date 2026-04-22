@@ -72,5 +72,6 @@ Each generated config writes its outputs under `results/config_<n>/`.
 ## Notes
 
 - The maintained user documentation is in `docs/sweeps.rst`.
-- Use the example configs under `configs/` and `configs/sweeps/` as the
-  source of truth for current schema.
+- Use `configs/sweep_config.yaml` as the maintained generic schema example.
+- Keep project- or paper-specific sweep packs outside the main `configs/`
+  tree (for example under `drafts/*/configs/sweeps/` or local ignored folders).

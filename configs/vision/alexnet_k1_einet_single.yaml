@@ -62,7 +62,7 @@ experiment:
 
 data:
   dataset_name: "imagenet"
-  base_dir: "/n/holylfs06/LABS/kempner_shared/Everyone/testbed/vision/imagenet_1k"
+  base_dir: ""                              # Set to your local ImageNet root
   processing:
     flatten: false
     normalize: true

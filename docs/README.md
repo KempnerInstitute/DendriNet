@@ -16,6 +16,13 @@ codebase. The `.rst` files here are the authoritative user-facing docs.
 - `config_reference.rst`
 - `fsdp_troubleshooting.rst`
 
+## Supporting Scripts
+
+Doc-side asset generators live in `docs/scripts/`.
+
+- `generate_dendritic_diagram.py`
+- `generate_coverage_badge.py`
+
 ## Build
 
 ```bash

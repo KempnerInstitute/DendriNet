@@ -23,7 +23,7 @@ Templates:
 
 - ``configs/config_exp.yaml`` -- single-GPU training (complete reference)
 - ``configs/config_exp_fsdp.yaml`` -- FSDP multi-GPU training
-- ``configs/sweep_config.yaml`` -- parameter sweeps
+- ``configs/sweep_config.yaml`` -- generic parameter-sweep template
 
 Top-Level Structure
 -------------------
@@ -311,9 +311,8 @@ Example configs:
 
 - ``configs/vision/alexnet_k1_einet_single.yaml`` — replace fc7 only (K=1), single-GPU / non-DDP
 - ``configs/vision/alexnet_k1_einet_ddp.yaml`` — same K=1 replacement configured for DDP launch
-- ``configs/vision/alexnet_k2_einet.yaml`` — replace fc6 + fc7 (K=2)
-- ``configs/vision/alexnet_k2_tensor_map.yaml`` — tensor-map dendritic baseline
-- ``configs/vision/alexnet_conv_dendritic_conv.yaml`` — spatial dendritic conv replacement
+- ``configs/examples/pretrained_alexnet_fc.yaml`` — tensor-map pretrained replacement around AlexNet FC layers
+- ``configs/examples/pretrained_alexnet_conv.yaml`` — spatial pretrained replacement example for AlexNet conv/feature maps
 - ``scripts/test_pretrained_training.sh`` — generates a temporary 1-epoch AlexNet smoke config
 
 Recurrent Networks

@@ -41,8 +41,8 @@ Basic sweep configuration:
      base_seed: 42
 
    slurm_config:
-     account: "kempner_dev"
-     partition: "kempner"
+     account: ""
+     partition: ""
      time: "02:00:00"
      gpus_per_node: 1
 
@@ -75,8 +75,9 @@ Typical layout:
 Examples
 --------
 
-See example configurations in ``configs/sweep_config.yaml`` and the
-specialized examples under ``configs/sweeps/``.
+Use ``configs/sweep_config.yaml`` as the maintained generic sweep template.
+Project-specific sweep packs should live outside the main config tree
+(for example under ``drafts/*/configs/sweeps/`` or local ignored folders).
 
 .. code-block:: bash
 

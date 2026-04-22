@@ -7,7 +7,7 @@ experiment:
     enabled: false
 data:
   dataset_name: cifar10
-  base_dir: /n/holylabs/LABS/kempner_dev/Users/hsafaai/Code/dendritic-modeling/data
+  base_dir: ""
   processing:
     flatten: true
     normalize: true
