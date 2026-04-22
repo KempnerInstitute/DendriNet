@@ -136,7 +136,7 @@ python<span class="w"> </span>src/dendritic_modeling/scripts/training/train_expe
 <span class="nt">data</span><span class="p">:</span><span class="w">         </span><span class="c1"># dataset, processing, dataset-specific params</span>
 <span class="nt">model</span><span class="p">:</span><span class="w">        </span><span class="c1"># encoder, core network, decoder, pretrained_replacement</span>
 <span class="nt">training</span><span class="p">:</span><span class="w">     </span><span class="c1"># encoder + main training, strategies, regularization, pruning, AMP</span>
-<span class="nt">analysis</span><span class="p">:</span><span class="w">     </span><span class="c1"># 16 analysis modules</span>
+<span class="nt">analysis</span><span class="p">:</span><span class="w">     </span><span class="c1"># 20 analysis modules</span>
 <span class="nt">wandb</span><span class="p">:</span><span class="w">        </span><span class="c1"># Weights &amp; Biases logging</span>
 <span class="nt">outputs</span><span class="p">:</span><span class="w">      </span><span class="c1"># run_name, results_dir</span>
 <span class="nt">distributed</span><span class="p">:</span><span class="w">  </span><span class="c1"># mode (none/ddp/fsdp), FSDP tuning knobs</span>
@@ -231,15 +231,25 @@ path <code class="docutils literal notranslate"><span class="pre">training.main.
 <p>Set <code class="docutils literal notranslate"><span class="pre">data.dataset_name</span></code> to one of:</p>
 <ul class="simple">
 <li><p><strong>Standard</strong>: <code class="docutils literal notranslate"><span class="pre">mnist</span></code>, <code class="docutils literal notranslate"><span class="pre">fashion_mnist</span></code>, <code class="docutils literal notranslate"><span class="pre">cifar10</span></code>, <code class="docutils literal notranslate"><span class="pre">imagenet</span></code>,
-<code class="docutils literal notranslate"><span class="pre">mnist_modulo10</span></code></p></li>
+<code class="docutils literal notranslate"><span class="pre">mnist_modulo10</span></code>, <code class="docutils literal notranslate"><span class="pre">cifar10_modulo10</span></code>,
+<code class="docutils literal notranslate"><span class="pre">double_cifar10_contextual_mod10</span></code>, <code class="docutils literal notranslate"><span class="pre">double_mnist_contextual_mod10</span></code></p></li>
 <li><p><strong>Synthetic</strong>: <code class="docutils literal notranslate"><span class="pre">correlated_gaussian</span></code>, <code class="docutils literal notranslate"><span class="pre">nonlinear_interaction</span></code>,
 <code class="docutils literal notranslate"><span class="pre">linear_separable</span></code>, <code class="docutils literal notranslate"><span class="pre">nonlinear_separable</span></code>, <code class="docutils literal notranslate"><span class="pre">block_correlated</span></code>,
-<code class="docutils literal notranslate"><span class="pre">balanced_information</span></code>, <code class="docutils literal notranslate"><span class="pre">poisson_generator</span></code>, <code class="docutils literal notranslate"><span class="pre">multixor</span></code>,
-<code class="docutils literal notranslate"><span class="pre">orientation_bars</span></code>, <code class="docutils literal notranslate"><span class="pre">orthonet</span></code></p></li>
+<code class="docutils literal notranslate"><span class="pre">balanced_information</span></code>, <code class="docutils literal notranslate"><span class="pre">contextual_stream_gain_shift</span></code>,
+<code class="docutils literal notranslate"><span class="pre">poisson_generator</span></code>, <code class="docutils literal notranslate"><span class="pre">multixor</span></code>, <code class="docutils literal notranslate"><span class="pre">orientation_bars</span></code>, <code class="docutils literal notranslate"><span class="pre">orthonet</span></code></p></li>
 <li><p><strong>Sequence</strong>: <code class="docutils literal notranslate"><span class="pre">sequential_mnist</span></code>, <code class="docutils literal notranslate"><span class="pre">copy_task</span></code>, <code class="docutils literal notranslate"><span class="pre">adding_problem</span></code>,
 <code class="docutils literal notranslate"><span class="pre">variable_delay_dms</span></code>, <code class="docutils literal notranslate"><span class="pre">multi_frequency</span></code>, <code class="docutils literal notranslate"><span class="pre">hierarchical_temporal</span></code>,
-<code class="docutils literal notranslate"><span class="pre">context_dependent_decision</span></code>, <code class="docutils literal notranslate"><span class="pre">switching_context_decision</span></code>,
-<code class="docutils literal notranslate"><span class="pre">timescale_generalization</span></code>, <code class="docutils literal notranslate"><span class="pre">lorenz</span></code>, <code class="docutils literal notranslate"><span class="pre">stringer_v1</span></code></p></li>
+<code class="docutils literal notranslate"><span class="pre">context_dependent_decision</span></code>, <code class="docutils literal notranslate"><span class="pre">context_dependent_decision_hard</span></code>,
+<code class="docutils literal notranslate"><span class="pre">context_dependent_decision_positive</span></code>,
+<code class="docutils literal notranslate"><span class="pre">context_dependent_decision_hard_positive</span></code>,
+<code class="docutils literal notranslate"><span class="pre">switching_context_decision</span></code>, <code class="docutils literal notranslate"><span class="pre">switching_context_decision_positive</span></code>,
+<code class="docutils literal notranslate"><span class="pre">timescale_generalization</span></code>, <code class="docutils literal notranslate"><span class="pre">timescale_generalization_positive</span></code>,
+<code class="docutils literal notranslate"><span class="pre">odr_generalization</span></code>, <code class="docutils literal notranslate"><span class="pre">odr_generalization_positive</span></code>,
+<code class="docutils literal notranslate"><span class="pre">romo_delay_comparison</span></code>, <code class="docutils literal notranslate"><span class="pre">romo_delay_comparison_positive</span></code>,
+<code class="docutils literal notranslate"><span class="pre">gain_modulated_contextual_comparison</span></code>,
+<code class="docutils literal notranslate"><span class="pre">gain_modulated_contextual_comparison_positive</span></code>, <code class="docutils literal notranslate"><span class="pre">lorenz</span></code>,
+<code class="docutils literal notranslate"><span class="pre">lorenz_sequence</span></code>, <code class="docutils literal notranslate"><span class="pre">switching_lds</span></code>, <code class="docutils literal notranslate"><span class="pre">multi_sine_forecast</span></code>,
+<code class="docutils literal notranslate"><span class="pre">stringer_v1</span></code></p></li>
 </ul>
 <p>Dataset-specific parameters go under <code class="docutils literal notranslate"><span class="pre">data.dataset_params.&lt;name&gt;</span></code>.
 See <a class="reference internal" href="datasets.html"><span class="doc">Datasets</span></a> for details.</p>
@@ -304,7 +314,9 @@ backward compatibility.</p>
 <code class="docutils literal notranslate"><span class="pre">ablation</span></code>, <code class="docutils literal notranslate"><span class="pre">synapse_turnover</span></code>, <code class="docutils literal notranslate"><span class="pre">noise_perturbation</span></code>, <code class="docutils literal notranslate"><span class="pre">weight</span></code>,
 <code class="docutils literal notranslate"><span class="pre">single_layer_contribution</span></code>, <code class="docutils literal notranslate"><span class="pre">synaptic_activation</span></code>, <code class="docutils literal notranslate"><span class="pre">branch_activation</span></code>,
 <code class="docutils literal notranslate"><span class="pre">compartment_statistics</span></code>, <code class="docutils literal notranslate"><span class="pre">compartment_snr</span></code>, <code class="docutils literal notranslate"><span class="pre">multiplicative_gain</span></code>,
-<code class="docutils literal notranslate"><span class="pre">receptive_field</span></code>, <code class="docutils literal notranslate"><span class="pre">adversarial_robustness</span></code>, <code class="docutils literal notranslate"><span class="pre">routing</span></code>.</p>
+<code class="docutils literal notranslate"><span class="pre">receptive_field</span></code>, <code class="docutils literal notranslate"><span class="pre">adversarial_robustness</span></code>, <code class="docutils literal notranslate"><span class="pre">routing</span></code>,
+<code class="docutils literal notranslate"><span class="pre">reactivation_dynamics</span></code>, <code class="docutils literal notranslate"><span class="pre">inhibitory_specialization</span></code>,
+<code class="docutils literal notranslate"><span class="pre">jacobian_spectrum</span></code>, <code class="docutils literal notranslate"><span class="pre">dendritic_timetraces</span></code>.</p>
 <p>See <a class="reference internal" href="analysis.html"><span class="doc">Analysis</span></a> for per-module parameter details.</p>
 <p>Backward compatibility:</p>
 <ul class="simple">

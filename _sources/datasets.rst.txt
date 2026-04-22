@@ -21,9 +21,24 @@ Standard Datasets
 ``cifar10``
    CIFAR-10. 32x32 color, 10 classes.
 
+``imagenet``
+   ImageNet classification with torchvision-compatible preprocessing.
+   Parameters: ``train_samples_per_class``, ``val_samples_per_class`` for
+   reduced local/debug subsets.
+
 ``mnist_modulo10``
    Two random MNIST images concatenated; label = ``(label_a + label_b) % 10``.
    Parameter: ``shuffle_iterations`` (default: 2).
+
+``cifar10_modulo10``
+   CIFAR-10 analogue of ``mnist_modulo10``. Two random CIFAR examples are
+   paired and the target is the modulo-10 sum of the source labels.
+   Parameters: ``shuffle_iterations``, ``pair_seed``.
+
+``double_cifar10_contextual_mod10``, ``double_mnist_contextual_mod10``
+   Contextual paired-digit / paired-image tasks. Two source examples are
+   combined and a context signal selects which arithmetic mapping to apply.
+   Parameters: ``shuffle_iterations``, ``pair_seed``, ``context_seed``.
 
 Synthetic Datasets
 ------------------
@@ -48,6 +63,27 @@ Synthetic Datasets
 ``nonlinear_interaction``
    Simple XOR-like interaction task. Class depends on the product of input
    dimension pairs.
+
+``block_correlated``
+   Synthetic classification task with block-structured feature covariance.
+
+``balanced_information``
+   Synthetic task designed to balance information across excitatory and
+   inhibitory feature subsets.
+
+``contextual_stream_gain_shift``
+   Synthetic contextual stream task with train/test gain-shift control for
+   alignment and robustness analysis.
+
+``multixor``
+   Multi-XOR synthetic classification task used for structured nonlinearity
+   benchmarks.
+
+``orientation_bars``
+   Synthetic vision task built from oriented bar patterns.
+
+``orthonet``
+   Synthetic structured-vision dataset with orthogonal feature families.
 
 .. code-block:: yaml
 
@@ -97,16 +133,49 @@ For use with recurrent architectures (``ei_unified``, ``gru``, ``lstm``,
    ``integration_duration``, ``coherence_levels``, ``noise_std``,
    ``variable_delay``, ``conflict_fraction``.
 
+``context_dependent_decision_hard``
+   Harder variant of the context-dependent decision task with stronger
+   distractors / conflict structure.
+
+``context_dependent_decision_positive``, ``context_dependent_decision_hard_positive``
+   Positive-drive encodings of the Mante-style tasks for shunting / positive
+   conductance experiments.
+
 ``switching_context_decision``
    Evidence integration under slowly switching context. Fixed-length
    sequences partitioned into context blocks. Parameters: ``signal_dim``,
    ``n_contexts``, ``block_duration``, ``n_blocks``.
+
+``switching_context_decision_positive``
+   Positive-drive encoding of ``switching_context_decision``.
 
 ``timescale_generalization``
    Delayed match-to-sample with variable delays. Train on one delay range,
    test on another to evaluate temporal generalization. Parameters:
    ``stimulus_dim``, ``stimulus_duration``, ``min_delay``, ``max_delay``,
    ``probe_duration``.
+
+``timescale_generalization_positive``
+   Positive-drive version of ``timescale_generalization``.
+
+``odr_generalization``
+   Oculomotor delayed-response style task with train/test delay shifts.
+
+``odr_generalization_positive``
+   Positive-drive version of ``odr_generalization``.
+
+``romo_delay_comparison``
+   Romo-style delayed frequency-comparison task.
+
+``romo_delay_comparison_positive``
+   Positive-drive / positive-code version of the Romo task.
+
+``gain_modulated_contextual_comparison``
+   Gain- and context-modulated comparison task with pathway-specific nuisance
+   variation.
+
+``gain_modulated_contextual_comparison_positive``
+   Positive-drive version of the gain/context comparison task.
 
 ``switching_lds``
    Switching linear dynamical system. Latent dynamics follow mode-dependent
@@ -117,6 +186,12 @@ For use with recurrent architectures (``ei_unified``, ``gru``, ``lstm``,
    Lorenz attractor dynamics prediction (regression). Input: ``[seq_len, 3]``.
    Target: next-step state. Parameters: ``seq_len``, ``dt``, ``sigma``,
    ``rho``, ``beta``.
+
+``lorenz_sequence``
+   Alias of ``lorenz`` retained for compatibility with older sequence configs.
+
+``multi_sine_forecast``
+   Multi-sine forecasting task with several concurrent oscillatory components.
 
 ``stringer_v1``
    Real V1 calcium imaging data (Stringer et al., 2019). Drifting grating
@@ -129,6 +204,10 @@ Poisson Generator
 Wrapper that adds Poisson noise to any base dataset. Parameters:
 ``multiplicative_gain``, ``fixed_gain_factor``, ``max_gain_factor``,
 ``poisson_sampling``, ``stimulus_duration``.
+
+This wrapper is selected via ``data.dataset_name: poisson_generator`` and
+delegates to a base dataset such as ``mnist`` or ``cifar10`` through
+``data.dataset_params.poisson_generator.base_dataset``.
 
 Data Processing
 ---------------

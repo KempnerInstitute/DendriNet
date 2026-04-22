@@ -120,8 +120,20 @@ under <code class="docutils literal notranslate"><span class="pre">data.dataset_
 </dd>
 <dt><code class="docutils literal notranslate"><span class="pre">cifar10</span></code></dt><dd><p>CIFAR-10. 32x32 color, 10 classes.</p>
 </dd>
+<dt><code class="docutils literal notranslate"><span class="pre">imagenet</span></code></dt><dd><p>ImageNet classification with torchvision-compatible preprocessing.
+Parameters: <code class="docutils literal notranslate"><span class="pre">train_samples_per_class</span></code>, <code class="docutils literal notranslate"><span class="pre">val_samples_per_class</span></code> for
+reduced local/debug subsets.</p>
+</dd>
 <dt><code class="docutils literal notranslate"><span class="pre">mnist_modulo10</span></code></dt><dd><p>Two random MNIST images concatenated; label = <code class="docutils literal notranslate"><span class="pre">(label_a</span> <span class="pre">+</span> <span class="pre">label_b)</span> <span class="pre">%</span> <span class="pre">10</span></code>.
 Parameter: <code class="docutils literal notranslate"><span class="pre">shuffle_iterations</span></code> (default: 2).</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">cifar10_modulo10</span></code></dt><dd><p>CIFAR-10 analogue of <code class="docutils literal notranslate"><span class="pre">mnist_modulo10</span></code>. Two random CIFAR examples are
+paired and the target is the modulo-10 sum of the source labels.
+Parameters: <code class="docutils literal notranslate"><span class="pre">shuffle_iterations</span></code>, <code class="docutils literal notranslate"><span class="pre">pair_seed</span></code>.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">double_cifar10_contextual_mod10</span></code>, <code class="docutils literal notranslate"><span class="pre">double_mnist_contextual_mod10</span></code></dt><dd><p>Contextual paired-digit / paired-image tasks. Two source examples are
+combined and a context signal selects which arithmetic mapping to apply.
+Parameters: <code class="docutils literal notranslate"><span class="pre">shuffle_iterations</span></code>, <code class="docutils literal notranslate"><span class="pre">pair_seed</span></code>, <code class="docutils literal notranslate"><span class="pre">context_seed</span></code>.</p>
 </dd>
 </dl>
 </section>
@@ -143,6 +155,21 @@ patterns. Inputs are clamped to [0, 1].</p>
 </dd>
 <dt><code class="docutils literal notranslate"><span class="pre">nonlinear_interaction</span></code></dt><dd><p>Simple XOR-like interaction task. Class depends on the product of input
 dimension pairs.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">block_correlated</span></code></dt><dd><p>Synthetic classification task with block-structured feature covariance.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">balanced_information</span></code></dt><dd><p>Synthetic task designed to balance information across excitatory and
+inhibitory feature subsets.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">contextual_stream_gain_shift</span></code></dt><dd><p>Synthetic contextual stream task with train/test gain-shift control for
+alignment and robustness analysis.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">multixor</span></code></dt><dd><p>Multi-XOR synthetic classification task used for structured nonlinearity
+benchmarks.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">orientation_bars</span></code></dt><dd><p>Synthetic vision task built from oriented bar patterns.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">orthonet</span></code></dt><dd><p>Synthetic structured-vision dataset with orthogonal feature families.</p>
 </dd>
 </dl>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">data</span><span class="p">:</span>
@@ -186,14 +213,37 @@ integrated evidence. Parameters: <code class="docutils literal notranslate"><spa
 <code class="docutils literal notranslate"><span class="pre">integration_duration</span></code>, <code class="docutils literal notranslate"><span class="pre">coherence_levels</span></code>, <code class="docutils literal notranslate"><span class="pre">noise_std</span></code>,
 <code class="docutils literal notranslate"><span class="pre">variable_delay</span></code>, <code class="docutils literal notranslate"><span class="pre">conflict_fraction</span></code>.</p>
 </dd>
+<dt><code class="docutils literal notranslate"><span class="pre">context_dependent_decision_hard</span></code></dt><dd><p>Harder variant of the context-dependent decision task with stronger
+distractors / conflict structure.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">context_dependent_decision_positive</span></code>, <code class="docutils literal notranslate"><span class="pre">context_dependent_decision_hard_positive</span></code></dt><dd><p>Positive-drive encodings of the Mante-style tasks for shunting / positive
+conductance experiments.</p>
+</dd>
 <dt><code class="docutils literal notranslate"><span class="pre">switching_context_decision</span></code></dt><dd><p>Evidence integration under slowly switching context. Fixed-length
 sequences partitioned into context blocks. Parameters: <code class="docutils literal notranslate"><span class="pre">signal_dim</span></code>,
 <code class="docutils literal notranslate"><span class="pre">n_contexts</span></code>, <code class="docutils literal notranslate"><span class="pre">block_duration</span></code>, <code class="docutils literal notranslate"><span class="pre">n_blocks</span></code>.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">switching_context_decision_positive</span></code></dt><dd><p>Positive-drive encoding of <code class="docutils literal notranslate"><span class="pre">switching_context_decision</span></code>.</p>
 </dd>
 <dt><code class="docutils literal notranslate"><span class="pre">timescale_generalization</span></code></dt><dd><p>Delayed match-to-sample with variable delays. Train on one delay range,
 test on another to evaluate temporal generalization. Parameters:
 <code class="docutils literal notranslate"><span class="pre">stimulus_dim</span></code>, <code class="docutils literal notranslate"><span class="pre">stimulus_duration</span></code>, <code class="docutils literal notranslate"><span class="pre">min_delay</span></code>, <code class="docutils literal notranslate"><span class="pre">max_delay</span></code>,
 <code class="docutils literal notranslate"><span class="pre">probe_duration</span></code>.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">timescale_generalization_positive</span></code></dt><dd><p>Positive-drive version of <code class="docutils literal notranslate"><span class="pre">timescale_generalization</span></code>.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">odr_generalization</span></code></dt><dd><p>Oculomotor delayed-response style task with train/test delay shifts.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">odr_generalization_positive</span></code></dt><dd><p>Positive-drive version of <code class="docutils literal notranslate"><span class="pre">odr_generalization</span></code>.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">romo_delay_comparison</span></code></dt><dd><p>Romo-style delayed frequency-comparison task.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">romo_delay_comparison_positive</span></code></dt><dd><p>Positive-drive / positive-code version of the Romo task.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">gain_modulated_contextual_comparison</span></code></dt><dd><p>Gain- and context-modulated comparison task with pathway-specific nuisance
+variation.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">gain_modulated_contextual_comparison_positive</span></code></dt><dd><p>Positive-drive version of the gain/context comparison task.</p>
 </dd>
 <dt><code class="docutils literal notranslate"><span class="pre">switching_lds</span></code></dt><dd><p>Switching linear dynamical system. Latent dynamics follow mode-dependent
 linear transitions with partial observation. Parameters: <code class="docutils literal notranslate"><span class="pre">latent_dim</span></code>,
@@ -202,6 +252,10 @@ linear transitions with partial observation. Parameters: <code class="docutils l
 <dt><code class="docutils literal notranslate"><span class="pre">lorenz</span></code></dt><dd><p>Lorenz attractor dynamics prediction (regression). Input: <code class="docutils literal notranslate"><span class="pre">[seq_len,</span> <span class="pre">3]</span></code>.
 Target: next-step state. Parameters: <code class="docutils literal notranslate"><span class="pre">seq_len</span></code>, <code class="docutils literal notranslate"><span class="pre">dt</span></code>, <code class="docutils literal notranslate"><span class="pre">sigma</span></code>,
 <code class="docutils literal notranslate"><span class="pre">rho</span></code>, <code class="docutils literal notranslate"><span class="pre">beta</span></code>.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">lorenz_sequence</span></code></dt><dd><p>Alias of <code class="docutils literal notranslate"><span class="pre">lorenz</span></code> retained for compatibility with older sequence configs.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">multi_sine_forecast</span></code></dt><dd><p>Multi-sine forecasting task with several concurrent oscillatory components.</p>
 </dd>
 <dt><code class="docutils literal notranslate"><span class="pre">stringer_v1</span></code></dt><dd><p>Real V1 calcium imaging data (Stringer et al., 2019). Drifting grating
 responses. Parameters: <code class="docutils literal notranslate"><span class="pre">n_neurons</span></code>, <code class="docutils literal notranslate"><span class="pre">n_classes</span></code> (orientation bins),
@@ -214,6 +268,9 @@ responses. Parameters: <code class="docutils literal notranslate"><span class="p
 <p>Wrapper that adds Poisson noise to any base dataset. Parameters:
 <code class="docutils literal notranslate"><span class="pre">multiplicative_gain</span></code>, <code class="docutils literal notranslate"><span class="pre">fixed_gain_factor</span></code>, <code class="docutils literal notranslate"><span class="pre">max_gain_factor</span></code>,
 <code class="docutils literal notranslate"><span class="pre">poisson_sampling</span></code>, <code class="docutils literal notranslate"><span class="pre">stimulus_duration</span></code>.</p>
+<p>This wrapper is selected via <code class="docutils literal notranslate"><span class="pre">data.dataset_name:</span> <span class="pre">poisson_generator</span></code> and
+delegates to a base dataset such as <code class="docutils literal notranslate"><span class="pre">mnist</span></code> or <code class="docutils literal notranslate"><span class="pre">cifar10</span></code> through
+<code class="docutils literal notranslate"><span class="pre">data.dataset_params.poisson_generator.base_dataset</span></code>.</p>
 </section>
 <section id="data-processing">
 <h2><a class="toc-backref" href="#id5" role="doc-backlink">Data Processing</a><a class="headerlink" href="#data-processing" title="Link to this heading"></a></h2>

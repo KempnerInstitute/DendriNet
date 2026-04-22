@@ -147,16 +147,27 @@ Datasets
 
 Set via ``data.dataset_name``:
 
-**Standard**: ``mnist``, ``fashion_mnist``, ``cifar10``, ``mnist_modulo10``.
+**Standard**: ``mnist``, ``fashion_mnist``, ``cifar10``, ``imagenet``,
+``mnist_modulo10``, ``cifar10_modulo10``,
+``double_cifar10_contextual_mod10``, ``double_mnist_contextual_mod10``.
 
 **Synthetic**: ``correlated_gaussian``, ``linear_separable``,
-``nonlinear_separable``, ``nonlinear_interaction``.
+``nonlinear_separable``, ``nonlinear_interaction``, ``block_correlated``,
+``balanced_information``, ``contextual_stream_gain_shift``,
+``poisson_generator``, ``multixor``, ``orientation_bars``, ``orthonet``.
 
 **Sequence**: ``sequential_mnist``, ``copy_task``, ``adding_problem``,
 ``variable_delay_dms``, ``multi_frequency``, ``hierarchical_temporal``,
-``context_dependent_decision``, ``switching_context_decision``,
-``timescale_generalization``, ``switching_lds``, ``lorenz``,
-``stringer_v1``.
+``context_dependent_decision``, ``context_dependent_decision_hard``,
+``context_dependent_decision_positive``,
+``context_dependent_decision_hard_positive``,
+``switching_context_decision``, ``switching_context_decision_positive``,
+``timescale_generalization``, ``timescale_generalization_positive``,
+``odr_generalization``, ``odr_generalization_positive``,
+``romo_delay_comparison``, ``romo_delay_comparison_positive``,
+``gain_modulated_contextual_comparison``,
+``gain_modulated_contextual_comparison_positive``, ``switching_lds``,
+``lorenz``, ``lorenz_sequence``, ``multi_sine_forecast``, ``stringer_v1``.
 
 Analysis Modules
 ----------------
@@ -171,7 +182,9 @@ Available modules: ``performance``, ``information``, ``ablation``,
 ``correlation``, ``weight``, ``synapse_turnover``, ``noise_perturbation``,
 ``compartment_statistics``, ``compartment_snr``, ``multiplicative_gain``,
 ``routing``, ``receptive_field``, ``adversarial_robustness``,
-``single_layer_contribution``, ``synaptic_activation``, ``branch_activation``.
+``single_layer_contribution``, ``synaptic_activation``, ``branch_activation``,
+``reactivation_dynamics``, ``inhibitory_specialization``,
+``jacobian_spectrum``, ``dendritic_timetraces``.
 
 Information Analysis Components
 -------------------------------
