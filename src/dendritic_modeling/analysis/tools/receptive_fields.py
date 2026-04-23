@@ -1,3 +1,4 @@
+import math
 import os
 import re
 import tqdm
@@ -7,10 +8,12 @@ from copy import deepcopy
 
 import logging
 import matplotlib.pyplot as plt
+from matplotlib.colors import TwoSlopeNorm
 import pandas as pd
 import seaborn as sns
 import torch
 import torch.nn.functional as F
+import numpy as np
 from sklearn.decomposition import NMF
 
 from dendritic_modeling.analysis.core.base import AbstractAnalyzer
@@ -136,7 +139,7 @@ class ReceptiveFieldAnalyzer(AbstractAnalyzer):
 
         components = torch.from_numpy(nmf.components_).to(device, dtype)
         return components
-
+    
     def _compute_receptive_field_metrics(
         self,
         soma_idx: int,
@@ -148,30 +151,14 @@ class ReceptiveFieldAnalyzer(AbstractAnalyzer):
         prefix: str = "exc"
     ):
         syn = weights[weight_mask]
-        # syn = weights
 
         unique_classes = torch.unique(labels)
         n_classes = len(unique_classes)
 
-        pref_sim_mean = 0
-        unpref_sim_mean = 0
-        
-        pref_sim_max_rq = 0
-        unpref_sim_max_rq = 0
-        
-        pref_active = 0
-        unpref_active = 0
-
-        pref_sim_nmf_mean = 0
-        unpref_sim_nmf_mean = 0
-        pref_sim_nmf_max = 0
-        unpref_sim_nmf_max = 0
-        pref_sim_sum_nmf = 0
-        unpref_sim_sum_nmf = 0
+        class_dict: dict[str, dict[str, float]] = {}
 
         for label in unique_classes:
             input_mask = labels == label
-            # x = inputs[input_mask]
             x = inputs[input_mask][:,weight_mask]
 
             x_mean = x.mean(dim=0)
@@ -183,54 +170,24 @@ class ReceptiveFieldAnalyzer(AbstractAnalyzer):
             max_rq_pc = self._max_rq_power_iteration(cov)
             max_rq_sim = F.cosine_similarity(max_rq_pc, syn, dim=0).item()
 
-            nmf_components = self._nmf(x, n_components=5)
+            nmf_components = self._nmf(x, n_components=5, max_iter=5000, tol=1e-3)
             nmf_sim = F.cosine_similarity(nmf_components, syn[None,:], dim=1)
             nmf_sim_mean = nmf_sim.mean().item()
             nmf_sim_max = nmf_sim.max().item()
             nmf_sum_sim = F.cosine_similarity(nmf_components.sum(dim=0), syn, dim=0).item()
 
-            # active = (
-            #     (x_mean > 0).float() * weight_mask.float()
-            # ).sum() / weight_mask.float().sum().item()
             active = (x_mean > 0).float().mean().item()
-            
-            if label == soma_idx:
-                pref_sim_mean += x_sim_mean
-                pref_sim_max_rq += max_rq_sim
-                pref_active += active
 
-                pref_sim_nmf_mean += nmf_sim_mean
-                pref_sim_nmf_max += nmf_sim_max
-                pref_sim_sum_nmf += nmf_sum_sim
-            else:
-                unpref_sim_mean += x_sim_mean
-                unpref_sim_max_rq += max_rq_sim
-                unpref_active += active
+            class_dict[f"class_{label}"] = {
+                "sim_mean": x_sim_mean,
+                "sim_max_rq": max_rq_sim,
+                "sim_nmf_mean": nmf_sim_mean,
+                "sim_nmf_max": nmf_sim_max,
+                "sim_sum_nmf": nmf_sum_sim,
+                "active": active
+            }
 
-                unpref_sim_nmf_mean += nmf_sim_mean
-                unpref_sim_nmf_max += nmf_sim_max
-                unpref_sim_sum_nmf += nmf_sum_sim
-        
-        unpref_sim_mean /= n_classes
-        unpref_sim_max_rq /= n_classes
-        unpref_active /= n_classes
-
-        unpref_sim_nmf_mean /= n_classes
-        unpref_sim_nmf_max /= n_classes
-        unpref_sim_sum_nmf /= n_classes
-
-        branch_data[f"{prefix}_pref_sim_mean"] = pref_sim_mean
-        branch_data[f"{prefix}_pref_sim_max_rq"] = pref_sim_max_rq
-        branch_data[f"{prefix}_pref_active"] = pref_active
-        branch_data[f"{prefix}_pref_sim_nmf_mean"] = pref_sim_nmf_mean
-        branch_data[f"{prefix}_pref_sim_nmf_max"] = pref_sim_nmf_max
-        branch_data[f"{prefix}_pref_sim_sum_nmf"] = pref_sim_sum_nmf
-        branch_data[f"{prefix}_unpref_sim_mean"] = unpref_sim_mean
-        branch_data[f"{prefix}_unpref_sim_max_rq"] = unpref_sim_max_rq
-        branch_data[f"{prefix}_unpref_active"] = unpref_active
-        branch_data[f"{prefix}_unpref_sim_nmf_mean"] = unpref_sim_nmf_mean
-        branch_data[f"{prefix}_unpref_sim_nmf_max"] = unpref_sim_nmf_max
-        branch_data[f"{prefix}_unpref_sim_sum_nmf"] = unpref_sim_sum_nmf
+        branch_data[prefix] = class_dict
         return branch_data
 
     def forward_hook(
@@ -305,17 +262,6 @@ class ReceptiveFieldAnalyzer(AbstractAnalyzer):
                 )
                 handles.append(handle)
         
-        # inh_dendrinet: DendriNet = core_network.layers[0].inhibitory_cells
-        # inh_cell_data: dict[int, dict[str, float | tuple[int, int, int]]] = {}
-        # if isinstance(inh_dendrinet, DendriNet):
-        #     for dbl in inh_dendrinet.branch_layers:
-        #         if dbl.branch_excitation is not None:
-        #             handle = dbl.register_forward_hook(
-        #                 partial(self.forward_hook, labels=labels, data_dict=inh_cell_data)
-        #             )
-        #             handles.append(handle)
-
-        # return handles, exc_cell_data, inh_cell_data
         return handles, exc_cell_data
 
     def remove_forward_hooks(self, handles: list[torch.utils.hooks.RemovableHandle]):
@@ -376,25 +322,136 @@ class ReceptiveFieldAnalyzer(AbstractAnalyzer):
         return rfs_dict
 
     @staticmethod
-    def _layer_aggregate_branch_data(
-        data_dict: dict[int, dict[str, Any]]
-    ) -> dict[str, dict[str, float]]:
-        """Aggregate branch data to layer level."""
-        layer_data: dict[str, dict[str, list[float]]] = {}
+    def _branch_data_to_ratios(
+        data_dict: dict[int, dict[str, tuple | dict[str, dict[str, float]]]]
+    ) -> dict[int, dict[str, tuple | dict[str, dict[str, float]]]]:
+        # data_dict[branch_idx][location | synapse_type][class_key][metric]
+        ratios_dict = deepcopy(data_dict)
+
+        for branch_idx, branch_data in data_dict.items():
+            location = branch_data["location"]
+            soma_str = f"{location[0]}"
+
+            for synapse_type in ("exc", "inh"):
+                if synapse_type in branch_data:
+                    synapse_data = branch_data[synapse_type]
+
+                    pref_data = synapse_data[f"class_{soma_str}"]
+                    for class_key, class_data in synapse_data.items():
+                        for metric, value in class_data.items():
+                            ratio = pref_data[metric] / value
+                            ratios_dict[branch_idx][synapse_type][class_key][metric] = ratio
+
+        return ratios_dict
+    
+    @staticmethod
+    def _layer_aggregate_ratios_data(
+        ratios_dict: dict[int, dict[str, dict[str, dict[str, float]]]]
+    ) -> dict[str, dict[str, dict[str, list[float]]]]:
+        """Aggregate ratios data to layer level."""
+        # ratios_dict[branch_idx][location | synapse_type][class_key][metric]
+        # layer_data[depth][synapse_type][metric]: list[float]
+        layer_data: dict[str, dict[str, dict[str, list[float]]]] = {}
+
+        max_depth = ratios_dict[0]["location"][1]
+        synapse_types = list(ratios_dict[0].keys())
+        synapse_types.remove("location")
+        metrics = list(ratios_dict[0][synapse_types[0]]["class_0"].keys())
+
+        for depth in range(max_depth, 0, -1):
+            layer_data[f"depth_{depth}"] = {}
+            for synapse_type in synapse_types:
+                layer_data[f"depth_{depth}"][synapse_type] = {}
+                for metric in metrics:
+                    layer_data[f"depth_{depth}"][synapse_type][metric] = []
+        
+        for branch_data in ratios_dict.values():
+            location = branch_data["location"]
+            soma_str = f"{location[0]}"
+            depth_key = f"depth_{location[1]}"
+            for synapse_type in synapse_types:
+                synapse_data = branch_data[synapse_type]
+                for class_key, class_data in synapse_data.items():
+                    if class_key != f"class_{soma_str}":
+                        for metric, value in class_data.items():
+                            layer_data[depth_key][synapse_type][metric].append(value)
+        
+        return layer_data
+    
+    @staticmethod
+    def _layer_soma_aggregate_ratios_data(
+        ratios_dict: dict[int, dict[str, dict[str, dict[str, float]]]]
+    ) -> dict[str, dict[str, dict[str, dict[str, dict[str, list[float]]]]]]:
+        """Aggregate ratios data by layer and soma."""
+        # ratios_dict[branch_idx][location | synapse_type][class_key][metric]
+        # layer_soma_data[synapse_type][depth_key][soma_key][class_key][metric]: list[float]
+        layer_soma_data: dict[str, dict[str, dict[str, dict[str, dict[str, list[float]]]]]] = {}
+
+        max_depth = ratios_dict[0]["location"][1]
+        synapse_types = list(ratios_dict[0].keys())
+        synapse_types.remove("location")
+        metrics = list(ratios_dict[0][synapse_types[0]]["class_0"].keys())
+        n_classes = len(ratios_dict[0][synapse_types[0]].keys())
+
+        for synapse_type in synapse_types:
+            layer_soma_data[synapse_type] = {}
+            for depth in range(max_depth, 0, -1):
+                depth_key = f"depth_{depth}"
+                layer_soma_data[synapse_type][depth_key] = {}
+                for soma_idx in range(n_classes):
+                    soma_key = f"soma_{soma_idx}"
+                    layer_soma_data[synapse_type][depth_key][soma_key] = {}
+                    for class_idx in range(n_classes):
+                        class_key = f"class_{class_idx}"
+                        layer_soma_data[synapse_type][depth_key][soma_key][class_key] = {}
+                        for metric in metrics:
+                            layer_soma_data[synapse_type][depth_key][soma_key][class_key][metric] = []
+        
+        for branch_data in ratios_dict.values():
+            location = branch_data["location"]
+            soma_key = f"soma_{location[0]}"
+            depth_key = f"depth_{location[1]}"
+            for synapse_type in synapse_types:
+                synapse_data = branch_data[synapse_type]
+                for class_key, class_data in synapse_data.items():
+                    for metric, value in class_data.items():
+                        layer_soma_data[synapse_type][depth_key][soma_key][
+                            class_key
+                        ][metric].append(value)
+
+        return layer_soma_data
+
+    @staticmethod
+    def _layer_aggregate_branch_data_preferred(
+        data_dict: dict[int, dict[str, tuple | dict[str, dict[str, float]]]]
+    ) -> dict[str, dict[str, dict[str, list[float]]]]:
+        """Aggregate branch data to layer level (preferred class only)."""
+        # data_dict[branch_idx][location | synapse_type][class_key][metric]
+        # layer_data[depth][synapse_type][metric]: list[float]
+        layer_data: dict[str, dict[str, dict[str, list[float]]]] = {}
 
         max_depth = data_dict[0]["location"][1]
-        keys = list(data_dict[0].keys())
-        keys.remove("location")
+        synapse_types = list(data_dict[0].keys())
+        synapse_types.remove("location")
+        metrics = list(data_dict[0][synapse_types[0]]["class_0"].keys())
 
-        for depth in range(max_depth, -1, -1):
+        for depth in range(max_depth, 0, -1):
             layer_data[f"depth_{depth}"] = {}
-            for key in keys:
-                layer_data[f"depth_{depth}"][key] = []
-
+            for synapse_type in synapse_types:
+                layer_data[f"depth_{depth}"][synapse_type] = {}
+                for metric in metrics:
+                    layer_data[f"depth_{depth}"][synapse_type][metric] = []
+        
         for branch_data in data_dict.values():
-            depth = branch_data["location"][1]
-            for key in keys:
-                layer_data[f"depth_{depth}"][key].append(branch_data[key])
+            location = branch_data["location"]
+            soma_str = f"{location[0]}"
+            depth_key = f"depth_{location[1]}"
+            for synapse_type in synapse_types:
+                synapse_data = branch_data[synapse_type]
+                for class_key, class_data in synapse_data.items():
+                    if class_key == f"class_{soma_str}":
+                        for metric, value in class_data.items():
+                            layer_data[depth_key][synapse_type][metric].append(value)
         
         return layer_data
 
@@ -423,13 +480,6 @@ class ReceptiveFieldAnalyzer(AbstractAnalyzer):
             self.inh_rf_shape = self.exc_rf_shape
         
         n_total = 0
-        # for module in ei_layer.modules():
-        #     if (
-        #         isinstance(module, DendriticBranchLayer)
-        #         and (module.branch_excitation is not None
-        #         or module.branch_inhibition is not None)
-        #     ):
-        #         n_total += module.n_branches
         for dbl in ei_layer.excitatory_cells.branch_layers:
             dbl: DendriticBranchLayer
             if (
@@ -443,7 +493,6 @@ class ReceptiveFieldAnalyzer(AbstractAnalyzer):
         x: torch.Tensor = x.to(device)
         labels: torch.Tensor = labels.to(device)
 
-        # handles, exc_cell_data, inh_cell_data = self.attach_forward_hooks(model, labels)
         handles, exc_cell_data = self.attach_forward_hooks(model, labels)
 
         self._pbar = tqdm.tqdm(
@@ -458,16 +507,20 @@ class ReceptiveFieldAnalyzer(AbstractAnalyzer):
         self._pbar.close()
         del self._pbar
 
-        layer_data = {}
-        layer_data["exc_cells"] = self._layer_aggregate_branch_data(exc_cell_data)
-        # if inh_cell_data is not None:
-        #     layer_data["inh_cells"] = self._layer_aggregate_branch_data(inh_cell_data)
+        layer_pref_data = self._layer_aggregate_branch_data_preferred(exc_cell_data)
+        
+        ratios_data = self._branch_data_to_ratios(exc_cell_data)
+        layer_ratios_data = self._layer_aggregate_ratios_data(ratios_data)
+        layer_soma_data = self._layer_soma_aggregate_ratios_data(ratios_data)
 
         if save_path is not None:
             if training:
                 save_path = os.path.join(save_path, "epochs")
          
-            save_dict(layer_data, save_path, f"{filename}.json")
+            save_dict(layer_pref_data, save_path, f"{filename}_pref.json")
+
+            save_dict(layer_ratios_data, save_path, f"{filename}_ratios.json")
+            save_dict(layer_soma_data, save_path, f"{filename}_soma.json")
 
         if not training:
             rfs_dict = self.collect_receptive_fields(ei_layer)
@@ -490,9 +543,18 @@ class ReceptiveFieldAnalyzer(AbstractAnalyzer):
                 #     )
                 ### DELETE INH CELLS FROM METRIC ANALYSIS, THEY DO NOT HAVE PREFERRED/UNPREFERRED
 
-            _plot_receptive_fields_layer_metric_ratios(
-                layer_data["exc_cells"], "exc", save_path
-            )
+            if save_path is not None:
+                _plot_receptive_fields_layer_metric_ratios(
+                    layer_pref_data,
+                    layer_ratios_data,
+                    "exc",
+                    save_path,
+                )
+                _plot_receptive_fields_layer_soma_metric_ratios_heatmaps(
+                    layer_soma_data,
+                    "exc",
+                    save_path,
+                )
 
 
 def _plot_receptive_fields(
@@ -653,13 +715,17 @@ def _plot_receptive_fields_layer_metric_quantiles(
 
 
 def _plot_receptive_fields_layer_metric_ratios(
-    layer_data: dict[str, dict[str, list[float]]],
+    layer_pref_data: dict[str, dict[str, dict[str, list[float]]]],
+    layer_ratios_data: dict[str, dict[str, dict[str, list[float]]]],
     cell_type: str,
     save_path: str,
 ) -> None:
     """
-    2×2 figure: top row — preferred-only similarities on y in [0, 1] (max RQ, NMF metrics,
-    mean, active); bottom row — pref/unpref ratios (same hues), grey line at y=1 on bottom only.
+    2×2 figure: top row — preferred-class similarities from ``layer_pref_data`` (y in [0, 1]);
+    bottom row — pre-aggregated ratios from ``layer_ratios_data`` (same hues), grey line at y=1
+    on the bottom row only.
+
+    Expected layout: ``layer_key -> synapse_type ("exc"|"inh") -> metric -> list[float]``.
     """
     if cell_type not in ("exc", "inh"):
         logger.warning("cell_type must be 'exc' or 'inh', got %s", cell_type)
@@ -691,7 +757,8 @@ def _plot_receptive_fields_layer_metric_ratios(
             return (int(m.group(1)), k)
         return (10**9, k)
 
-    sorted_layer_keys = sorted(layer_data.keys(), key=_depth_sort_key)
+    layer_keys = set(layer_pref_data.keys()) | set(layer_ratios_data.keys())
+    sorted_layer_keys = sorted(layer_keys, key=_depth_sort_key)
 
     def _pref_rows_for_synapse(synapse_type: str) -> list[dict[str, Any]]:
         rows_local: list[dict[str, Any]] = []
@@ -700,25 +767,25 @@ def _plot_receptive_fields_layer_metric_ratios(
             if not m:
                 continue
             depth = int(m.group(1))
-            ld = layer_data[layer_key]
+            by_syn = layer_pref_data.get(layer_key, {})
+            syn_metrics = by_syn.get(synapse_type)
+            if not syn_metrics:
+                continue
             for metric_key in metrics:
-                pref_key = f"{synapse_type}_pref_{metric_key}"
-                if pref_key not in ld:
-                    logger.warning(
-                        "Missing key %s in %s; skipping", pref_key, layer_key
-                    )
-                    continue
-                pref_vals = ld[pref_key]
+                pref_vals = syn_metrics.get(metric_key)
                 if not pref_vals:
                     continue
                 metric_label = _metric_plot_meta[metric_key][0]
                 for v in pref_vals:
+                    fv = float(v)
+                    if not math.isfinite(fv):
+                        continue
                     rows_local.append(
                         {
                             "depth": depth,
                             "depth_label": f"Layer {depth}",
                             "metric": metric_label,
-                            "value": float(v),
+                            "value": fv,
                         }
                     )
         return rows_local
@@ -730,44 +797,25 @@ def _plot_receptive_fields_layer_metric_ratios(
             if not m:
                 continue
             depth = int(m.group(1))
-            ld = layer_data[layer_key]
+            by_syn = layer_ratios_data.get(layer_key, {})
+            syn_metrics = by_syn.get(synapse_type)
+            if not syn_metrics:
+                continue
             for metric_key in metrics:
-                pref_key = f"{synapse_type}_pref_{metric_key}"
-                unpref_key = f"{synapse_type}_unpref_{metric_key}"
-                if pref_key not in ld or unpref_key not in ld:
-                    logger.warning(
-                        "Missing keys %s or %s in %s; skipping",
-                        pref_key,
-                        unpref_key,
-                        layer_key,
-                    )
+                ratio_vals = syn_metrics.get(metric_key)
+                if not ratio_vals:
                     continue
-                pref_vals = ld[pref_key]
-                unpref_vals = ld[unpref_key]
-                if not pref_vals or not unpref_vals:
-                    continue
-                pref_t = torch.as_tensor(pref_vals, dtype=torch.float32)
-                unpref_t = torch.as_tensor(unpref_vals, dtype=torch.float32)
-                n = int(min(pref_t.numel(), unpref_t.numel()))
-                if n == 0:
-                    continue
-                pref_t = pref_t[:n]
-                unpref_t = unpref_t[:n]
-                ratio_t = torch.where(
-                    unpref_t.abs() > 1e-8,
-                    pref_t / unpref_t,
-                    torch.tensor(float("nan"), dtype=torch.float32),
-                )
                 metric_label = _metric_plot_meta[metric_key][0]
-                for v in ratio_t.tolist():
-                    if v != v:  # skip NaN from ratio
+                for v in ratio_vals:
+                    fv = float(v)
+                    if not math.isfinite(fv):
                         continue
                     rows_local.append(
                         {
                             "depth": depth,
                             "depth_label": f"Layer {depth}",
                             "metric": metric_label,
-                            "value": float(v),
+                            "value": fv,
                         }
                     )
         return rows_local
@@ -873,5 +921,226 @@ def _plot_receptive_fields_layer_metric_ratios(
     out_name = f"{cell_type}_cell_pref_unpref_ratio_by_layer_exc_inh_metrics.png"
     fig.savefig(os.path.join(save_path, out_name), dpi=200, bbox_inches="tight")
     plt.close(fig)
+
+
+
+def _plot_receptive_fields_layer_soma_metric_ratios_heatmaps(
+    layer_soma_data: dict[str, dict[str, dict[str, dict[str, dict[str, list[float]]]]]],
+    cell_type: str,
+    save_path: str,
+) -> None:
+    """Plot receptive fields layer soma metric ratios heatmaps."""
+    # layer_soma_data[synapse_type][depth_key][soma_key][class_key][metric]: list[float]
+    # heatmap_data[synapse_type][depth_key][metric]: np.ndarray
+    if not layer_soma_data:
+        logger.warning("empty layer_soma_data; skipping soma heatmaps")
+        return
+
+    first_syn = next(iter(layer_soma_data.keys()))
+    if not layer_soma_data[first_syn]:
+        logger.warning("no depth keys in layer_soma_data; skipping soma heatmaps")
+        return
+
+    heatmap_data: dict[str, dict[str, dict[str, np.ndarray]]] = {}
+
+    synapse_types = list(layer_soma_data.keys())
+    depth_keys = list(layer_soma_data[synapse_types[0]].keys())
+    soma_keys = list(layer_soma_data[synapse_types[0]][depth_keys[0]].keys())
+    class_keys = list(
+        layer_soma_data[synapse_types[0]][depth_keys[0]][soma_keys[0]].keys()
+    )
+    metrics = list(
+        layer_soma_data[synapse_types[0]][depth_keys[0]][soma_keys[0]][
+            class_keys[0]
+        ].keys()
+    )
+
+    for synapse_type in synapse_types:
+        heatmap_data[synapse_type] = {}
+        for depth_key in depth_keys:
+            heatmap_data[synapse_type][depth_key] = {}
+            for metric in metrics:
+                heatmap_data[synapse_type][depth_key][metric] = np.zeros(
+                    (len(soma_keys), len(class_keys))
+                )
+
+    for synapse_type in synapse_types:
+        for depth_key in depth_keys:
+            for metric in metrics:
+                for soma_key in soma_keys:
+                    soma_idx = int(soma_key.split("_")[-1])
+                    for class_key in class_keys:
+                        class_idx = int(class_key.split("_")[-1])
+                        vals = layer_soma_data[synapse_type][depth_key][soma_key][
+                            class_key
+                        ][metric]
+                        if vals:
+                            heatmap_data[synapse_type][depth_key][metric][
+                                soma_idx, class_idx
+                            ] = float(np.mean(vals))
+                        else:
+                            heatmap_data[synapse_type][depth_key][metric][
+                                soma_idx, class_idx
+                            ] = float("nan")
+
+    def _depth_key_sort_key(dk: str) -> tuple[int, str]:
+        m = re.match(r"depth_(\d+)$", dk)
+        if m:
+            return (int(m.group(1)), dk)
+        return (10**9, dk)
+
+    def _parse_depth_index(dk: str) -> int:
+        m = re.match(r"depth_(\d+)$", dk)
+        if m:
+            return int(m.group(1))
+        return 0
+
+    depth_keys_sorted = sorted(depth_keys, key=_depth_key_sort_key)
+    # depth_keys_sorted = depth_keys
+    n_layers = len(depth_keys_sorted)
+    if n_layers < 1:
+        logger.warning("no depth layers; skipping soma heatmaps")
+        return
+    n_soma = len(soma_keys)
+    n_class = len(class_keys)
+    # Row i matches soma_keys[i]; label ticks with the corresponding soma index
+    soma_index_labels: list[str] = [
+        str(int(sk.split("_")[-1])) for sk in soma_keys
+    ]
+    class_tick = np.arange(n_class, dtype=int)
+    _syn_figure_titles: dict[str, str] = {
+        "exc": "Excitatory Synapses",
+        "inh": "Inhibitory Synapses",
+    }
+
+    os.makedirs(save_path, exist_ok=True)
+
+    def _bracket_vcenter(dmin: float, dmax: float, vcenter: float) -> tuple[float, float]:
+        """Return (lo, hi) with lo < vcenter < hi for TwoSlopeNorm."""
+        dmin, dmax = float(dmin), float(dmax)
+        if not (math.isfinite(dmin) and math.isfinite(dmax)):
+            return 0.0, 2.0
+        if dmax < dmin:
+            dmin, dmax = dmax, dmin
+        if abs(dmax - dmin) < 1e-12:
+            d = dmin
+            if d < vcenter:
+                return d, 2.0 * vcenter - d
+            if d > vcenter:
+                return 2.0 * vcenter - d, d
+            return vcenter - 1.0, vcenter + 1.0
+        if dmin < vcenter < dmax:
+            return dmin, dmax
+        if dmax <= vcenter:
+            return dmin, vcenter + max(vcenter - dmin, 1e-3)
+        return vcenter - max(dmax - vcenter, 1e-3), dmax
+
+    for metric in metrics:
+        blocks: list[np.ndarray] = []
+        for syn in ("exc", "inh"):
+            if syn not in heatmap_data:
+                continue
+            for depth_key in depth_keys_sorted:
+                mdict = heatmap_data[syn].get(depth_key, {})
+                if metric in mdict:
+                    h = np.asarray(mdict[metric], dtype=np.float64)
+                    if h.size:
+                        blocks.append(h)
+        if not blocks:
+            continue
+        mat_stack = np.concatenate([b.ravel() for b in blocks])
+        v0 = float(np.nanmin(mat_stack))
+        vm = float(np.nanmax(mat_stack))
+        lo, hi = _bracket_vcenter(v0, vm, 1.0)
+        norm = TwoSlopeNorm(vmin=lo, vcenter=1.0, vmax=hi)
+
+        per_panel_w = 2.0
+        per_panel_h = 2.6
+        w_in = max(6.0, per_panel_w * n_layers + 1.4)
+        h_in = 2 * per_panel_h + 1.1
+        fig, axes = plt.subplots(
+            2,
+            n_layers,
+            figsize=(w_in, h_in),
+            squeeze=False,
+            layout="constrained",
+        )
+
+        mappable: Any = None
+        for col, depth_key in enumerate(depth_keys_sorted):
+            layer_idx = _parse_depth_index(depth_key)
+            for row, syn in enumerate(("exc", "inh")):
+                ax = axes[row, col]
+                if syn not in heatmap_data or depth_key not in heatmap_data[syn]:
+                    ax.text(
+                        0.5, 0.5, "no data",
+                        ha="center", va="center", transform=ax.transAxes,
+                    )
+                    ax.set_xticks([])
+                    ax.set_yticks([])
+                else:
+                    M = np.asarray(
+                        heatmap_data[syn][depth_key][metric], dtype=np.float64
+                    )
+                    im = ax.imshow(
+                        M,
+                        cmap="PRGn",
+                        norm=norm,
+                        aspect="equal",
+                        origin="upper",
+                        interpolation="nearest",
+                    )
+                    mappable = im
+
+                    ax.set_xticks(np.arange(n_class))
+                    if row == 1:
+                        ax.set_xticklabels([str(int(t)) for t in class_tick], fontsize=8)
+                    else:
+                        ax.set_xticklabels([])
+
+                    ax.set_yticks(np.arange(n_soma))
+                    if col == 0:
+                        ax.set_yticklabels(soma_index_labels, fontsize=8)
+                    else:
+                        ax.set_yticklabels([])
+
+                    ax.tick_params(axis="both", length=3, pad=2)
+
+                ax.set_title(
+                    f"{_syn_figure_titles[syn]} Layer {layer_idx}",
+                    fontsize=9,
+                    pad=3,
+                )
+                if row == 1:
+                    ax.set_xlabel("Class", fontsize=9, labelpad=2)
+                if col == 0:
+                    ax.set_ylabel("Soma", fontsize=9, labelpad=2)
+
+        if mappable is not None:
+            fig.colorbar(
+                mappable,
+                ax=axes,
+                orientation="vertical",
+                shrink=0.85,
+                aspect=28,
+                pad=0.02,
+            )
+
+        title_metric = str(metric).replace("_", " ").title()
+        cell_label = "Excitatory" if cell_type == "exc" else "Inhibitory"
+        fig.suptitle(
+            f"{cell_label} cells — {title_metric} (soma vs class, pref ratio)",
+            fontsize=11,
+        )
+
+        safe_metric = re.sub(r"[^a-zA-Z0-9_]+", "_", str(metric)).strip("_")
+        out = os.path.join(
+            save_path, f"{cell_type}_soma_{safe_metric}_ratio_heatmaps.png"
+        )
+        fig.savefig(out, dpi=200, facecolor=fig.get_facecolor())
+        plt.close(fig)
+
+
+
 
 
