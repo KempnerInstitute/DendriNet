@@ -1,0 +1,131 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1380" height="980" viewBox="0 0 1380 980">
+  <defs>
+    <style>
+      .title { font: 700 36px "DejaVu Sans", Arial, sans-serif; fill: #16324f; }
+      .subtitle { font: 600 22px "DejaVu Sans", Arial, sans-serif; fill: #33556f; }
+      .label { font: 600 20px "DejaVu Sans", Arial, sans-serif; fill: #16324f; }
+      .body { font: 400 17px "DejaVu Sans", Arial, sans-serif; fill: #284b63; }
+      .small { font: 400 15px "DejaVu Sans", Arial, sans-serif; fill: #486172; }
+      .tiny { font: 400 14px "DejaVu Sans", Arial, sans-serif; fill: #58707f; }
+      .panel { fill: #f8fbfd; stroke: #89a9bf; stroke-width: 2.5; rx: 22; }
+      .accent { fill: #e8f3f8; stroke: #4b8aa8; stroke-width: 2.5; rx: 22; }
+      .exc { fill: #eef7ec; stroke: #6aa56a; stroke-width: 2.5; rx: 22; }
+      .inh { fill: #fff3f1; stroke: #c06a5b; stroke-width: 2.5; rx: 22; }
+      .formula { fill: #fff8ec; stroke: #c18b3b; stroke-width: 2.5; rx: 18; }
+      .optional { fill: #f8f5ff; stroke: #8d7ab5; stroke-width: 2.5; rx: 18; }
+      .arrow { stroke: #4b6f88; stroke-width: 4; fill: none; marker-end: url(#arrowhead); }
+      .arrow-thin { stroke: #7197b0; stroke-width: 2.75; fill: none; marker-end: url(#arrowheadThin); }
+      .branch { fill: #ffffff; stroke: #4b8aa8; stroke-width: 2.5; }
+      .branch-soma { fill: #ffffff; stroke: #2d6a4f; stroke-width: 3; }
+      .fan { stroke: #a0b6c6; stroke-width: 2.5; fill: none; }
+    </style>
+    <marker id="arrowhead" markerWidth="14" markerHeight="10" refX="10" refY="5" orient="auto">
+      <polygon points="0 0, 10 5, 0 10" fill="#4b6f88"/>
+    </marker>
+    <marker id="arrowheadThin" markerWidth="12" markerHeight="8" refX="9" refY="4" orient="auto">
+      <polygon points="0 0, 9 4, 0 8" fill="#7197b0"/>
+    </marker>
+  </defs>
+
+  <rect width="1380" height="980" fill="#ffffff"/>
+  <text x="60" y="70" class="title">One Dendritic Neuron in Code Terms</text>
+  <text x="60" y="106" class="subtitle">Example tree for one soma with branch_factors = [3, 2]. The implementation batches many such trees at once.</text>
+
+  <rect x="60" y="150" width="210" height="118" class="exc"/>
+  <text x="88" y="194" class="label">x_E</text>
+  <text x="88" y="224" class="body">excitatory input</text>
+  <text x="88" y="248" class="small">shape [B, d_E]</text>
+
+  <rect x="60" y="292" width="210" height="118" class="inh"/>
+  <text x="88" y="336" class="label">x_I</text>
+  <text x="88" y="366" class="body">inhibitory input</text>
+  <text x="88" y="390" class="small">shape [B, d_I]</text>
+
+  <rect x="60" y="436" width="210" height="126" class="optional"/>
+  <text x="88" y="480" class="label">optional recurrent input</text>
+  <text x="88" y="510" class="body">h_E(t-1), h_I(t-1)</text>
+  <text x="88" y="536" class="small">only for recurrent cells</text>
+
+  <rect x="320" y="146" width="560" height="240" class="panel"/>
+  <text x="348" y="188" class="label">DendriticBranchLayer 2: distal branches</text>
+  <text x="348" y="216" class="small">Each branch gets its own TopK excitatory bank and optional TopK inhibitory bank.</text>
+  <circle cx="400" cy="296" r="22" class="branch"/>
+  <circle cx="480" cy="296" r="22" class="branch"/>
+  <circle cx="560" cy="296" r="22" class="branch"/>
+  <circle cx="640" cy="296" r="22" class="branch"/>
+  <circle cx="720" cy="296" r="22" class="branch"/>
+  <circle cx="800" cy="296" r="22" class="branch"/>
+  <text x="386" y="334" class="tiny">b0</text>
+  <text x="466" y="334" class="tiny">b1</text>
+  <text x="546" y="334" class="tiny">b2</text>
+  <text x="626" y="334" class="tiny">b3</text>
+  <text x="706" y="334" class="tiny">b4</text>
+  <text x="786" y="334" class="tiny">b5</text>
+  <rect x="344" y="236" width="230" height="34" class="exc"/>
+  <text x="360" y="258" class="small">branch_excitation = TopKLinear(W_E, K_E)</text>
+  <rect x="596" y="236" width="230" height="34" class="inh"/>
+  <text x="612" y="258" class="small">branch_inhibition = TopKLinear(W_I, K_I)</text>
+
+  <rect x="400" y="420" width="400" height="176" class="panel"/>
+  <text x="428" y="460" class="label">DendriticBranchLayer 1: proximal branches</text>
+  <text x="428" y="488" class="small">Child branches are grouped by BlockLinear, then local E and I synapses are added again.</text>
+  <circle cx="470" cy="544" r="26" class="branch"/>
+  <circle cx="600" cy="544" r="26" class="branch"/>
+  <circle cx="730" cy="544" r="26" class="branch"/>
+  <text x="454" y="586" class="tiny">p0</text>
+  <text x="584" y="586" class="tiny">p1</text>
+  <text x="714" y="586" class="tiny">p2</text>
+
+  <rect x="480" y="642" width="250" height="168" class="panel"/>
+  <text x="508" y="684" class="label">DendriticBranchLayer 0: soma</text>
+  <text x="508" y="712" class="small">Aggregates the last child branches.</text>
+  <text x="508" y="736" class="small">If somatic_synapses = true,</text>
+  <text x="508" y="758" class="small">the soma also has direct E and I TopK banks.</text>
+  <circle cx="605" cy="782" r="34" class="branch-soma"/>
+
+  <path d="M400 318 L470 518" class="fan"/>
+  <path d="M480 318 L470 518" class="fan"/>
+  <path d="M560 318 L600 518" class="fan"/>
+  <path d="M640 318 L600 518" class="fan"/>
+  <path d="M720 318 L730 518" class="fan"/>
+  <path d="M800 318 L730 518" class="fan"/>
+  <path d="M470 570 L605 748" class="fan"/>
+  <path d="M600 570 L605 748" class="fan"/>
+  <path d="M730 570 L605 748" class="fan"/>
+
+  <rect x="908" y="146" width="414" height="278" class="formula"/>
+  <text x="936" y="188" class="label">Per-branch computation</text>
+  <text x="936" y="228" class="body">E = branch_excitation(x_E)</text>
+  <text x="936" y="260" class="body">I = branch_inhibition(x_I)</text>
+  <text x="936" y="292" class="body">V_b = branches_to_output(child branches)</text>
+  <text x="936" y="324" class="body">g_b = branches_to_output.sum_conductances()</text>
+  <text x="936" y="366" class="body">shunting: V = (E + E_rec + V_b) / (1 + E + E_rec + g_b + I + I_rec + eps)</text>
+  <text x="936" y="398" class="body">additive: V = E + E_rec + V_b - I - I_rec</text>
+
+  <rect x="908" y="458" width="414" height="220" class="accent"/>
+  <text x="936" y="500" class="label">Code mapping</text>
+  <text x="936" y="538" class="body">DendriNet.branch_layers</text>
+  <text x="936" y="566" class="body">DendriticBranchLayer.branch_excitation</text>
+  <text x="936" y="594" class="body">DendriticBranchLayer.branch_inhibition</text>
+  <text x="936" y="622" class="body">DendriticBranchLayer.branches_to_output</text>
+  <text x="936" y="650" class="body">DendriticBranchLayer.reactivation</text>
+
+  <rect x="908" y="706" width="414" height="164" class="optional"/>
+  <text x="936" y="748" class="label">Vectorization detail</text>
+  <text x="936" y="782" class="body">For n_soma neurons, each branch layer stores</text>
+  <text x="936" y="810" class="body">output_dim = n_soma x branches_at_that_level.</text>
+  <text x="936" y="838" class="small">One tree per neuron, flattened into a batched feature axis.</text>
+
+  <path d="M270 206 L320 206" class="arrow"/>
+  <path d="M270 352 L320 352" class="arrow"/>
+  <path d="M270 500 L360 500 L360 360" class="arrow-thin"/>
+  <path d="M270 206 L290 206 L290 500 L430 500" class="arrow-thin"/>
+  <path d="M270 352 L300 352 L300 528 L430 528" class="arrow-thin"/>
+  <path d="M270 206 L300 206 L300 700 L480 700" class="arrow-thin"/>
+  <path d="M270 352 L310 352 L310 726 L480 726" class="arrow-thin"/>
+
+  <text x="332" y="392" class="tiny">same x_E and x_I are available to every branch layer</text>
+  <text x="334" y="612" class="tiny">BlockLinear groups sibling branches before the next layer</text>
+
+  <text x="60" y="926" class="small">If somatic_synapses = false, the soma layer keeps only the child-branch aggregation path and removes the direct E/I synapse banks.</text>
+</svg>

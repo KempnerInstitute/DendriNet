@@ -7,6 +7,7 @@ from typing import Callable, Optional
 import matplotlib.animation as animation
 import matplotlib.pyplot as plt
 import torch
+import torch.nn.functional as F
 from torch.utils.data import TensorDataset
 
 from dendritic_modeling.analysis.core.base import AbstractAnalyzer
@@ -49,6 +50,9 @@ class MultiplicativeGainAnalyzer(AbstractAnalyzer):
         self.gain_max = getattr(params, "gain_max", 10.0)
         self.n_steps = getattr(params, "n_steps", 10)
         self.logspace = getattr(params, "logspace", False)
+        self.input_preprocess = str(getattr(params, "input_preprocess", "none")).lower()
+        self.noise_model = str(getattr(params, "noise_model", "none")).lower()
+        self.poisson_eps = float(getattr(params, "poisson_eps", 1e-6))
 
         self.accuracy = getattr(params, "accuracy", False)
         self.auc = getattr(params, "auc", False)
@@ -66,6 +70,32 @@ class MultiplicativeGainAnalyzer(AbstractAnalyzer):
         base_inputs: Optional[torch.Tensor] = None,
         device: str | torch.device | None = None,
     ) -> torch.Tensor:
+        def _preprocess_inputs(inputs: torch.Tensor) -> torch.Tensor:
+            mode = self.input_preprocess
+            if mode in {"none", "identity"}:
+                return inputs
+            if mode == "relu":
+                return inputs.clamp_min(0.0)
+            if mode == "softplus":
+                return F.softplus(inputs)
+            if mode == "shift_min":
+                mins = inputs.amin(dim=0, keepdim=True)
+                return inputs - mins
+            if mode == "global_shift_min":
+                return inputs - inputs.amin()
+            raise ValueError(
+                f"Unknown multiplicative-gain input_preprocess={self.input_preprocess!r}"
+            )
+
+        def _apply_noise_model(inputs: torch.Tensor) -> torch.Tensor:
+            if self.noise_model in {"none", "identity"}:
+                return inputs
+            if self.noise_model == "poisson":
+                return torch.poisson(inputs.clamp_min(self.poisson_eps))
+            raise ValueError(
+                f"Unknown multiplicative-gain noise_model={self.noise_model!r}"
+            )
+
         if isinstance(dataset, PoissonGeneratorDataset):
             if self.uniform_gain:
                 dataset._set_gain_factor(gain_factor)
@@ -81,6 +111,7 @@ class MultiplicativeGainAnalyzer(AbstractAnalyzer):
                 if base_inputs is not None
                 else materialize_dataset(dataset, runtime, device=device)[0]
             )
+            inputs = _preprocess_inputs(inputs)
 
             if not self.uniform_gain:
                 gain_factor = (torch.rand_like(inputs) * (gain_factor - 1)) + 1
@@ -90,6 +121,7 @@ class MultiplicativeGainAnalyzer(AbstractAnalyzer):
                 # )
 
             inputs = inputs * gain_factor
+            inputs = _apply_noise_model(inputs)
             return inputs
 
     def analyze(

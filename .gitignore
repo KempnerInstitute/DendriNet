@@ -230,3 +230,5 @@ tmp/
 analysis/
 !src/dendritic_modeling/analysis/
 !src/dendritic_modeling/analysis/**
+src/dendritic_modeling/analysis/**/__pycache__/
+src/dendritic_modeling/analysis/**/*.py[cod]
