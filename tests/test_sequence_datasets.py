@@ -40,7 +40,7 @@ def test_sequential_mnist_modes_and_invalid(monkeypatch):
             self.targets = torch.tensor([3, 7], dtype=torch.long)
 
     fake_transforms = types.SimpleNamespace(
-        ToTensor=lambda: object(),
+        ToTensor=object,
         Compose=lambda transforms: transforms,
         Lambda=lambda fn: fn,
     )
