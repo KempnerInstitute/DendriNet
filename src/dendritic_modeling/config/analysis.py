@@ -830,6 +830,11 @@ class MultiplicativeGainAnalysisParams(BaseConfig):
     gain_max: float = 10.0
     n_steps: int = 10
     logspace: bool = False
+    input_preprocess: str = (
+        "none"  # "none", "relu", "softplus", "shift_min", "global_shift_min"
+    )
+    noise_model: str = "none"  # "none", "poisson"
+    poisson_eps: float = 1e-6
     accuracy: bool = False
     auc: bool = False
     categorical_loglikelihood: bool = False

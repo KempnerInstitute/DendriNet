@@ -14,6 +14,11 @@ The framework has a small number of stable layers:
    :alt: System overview of configs, datasets, model factory, training, analysis, and artifacts.
    :width: 100%
 
+For neuron-level and operator-level diagrams of the dendritic core itself, see
+:doc:`network_architectures`. That page now shows the actual ``DendriNet`` tree
+layout, ``TopKLinear`` synapse banks, ``BlockLinear`` branch aggregation, and
+the E/I layer stack used by the factory.
+
 The practical rule of thumb is:
 
 - ``config/`` and ``configs/`` define intent.

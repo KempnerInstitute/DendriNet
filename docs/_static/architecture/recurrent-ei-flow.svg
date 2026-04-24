@@ -21,8 +21,9 @@
 
   <rect x="70" y="130" width="250" height="120" class="accent"/>
   <text x="100" y="175" class="label">Input / Encoder</text>
-  <text x="100" y="208" class="body">transfer.output_activation</text>
-  <text x="100" y="234" class="body">guards shunting inputs</text>
+  <text x="100" y="206" class="body">transfer.output_</text>
+  <text x="100" y="228" class="body">activation</text>
+  <text x="100" y="250" class="small">guards shunting inputs</text>
 
   <rect x="390" y="120" width="320" height="150" class="box"/>
   <text x="420" y="165" class="label">EILayerConfig</text>
@@ -39,13 +40,14 @@
 
   <rect x="620" y="350" width="360" height="180" class="inh"/>
   <text x="650" y="395" class="label">Inhibitory Population</text>
-  <text x="650" y="428" class="body">matching PopulationConfig surface</text>
+  <text x="650" y="428" class="body">matching PopulationConfig</text>
   <text x="650" y="454" class="body">recurrent / feedforward routing</text>
-  <text x="650" y="480" class="body">same branch semantics as feedforward EI</text>
+  <text x="650" y="480" class="body">same branch semantics as</text>
+  <text x="650" y="504" class="body">feedforward EI</text>
 
   <rect x="430" y="610" width="340" height="90" class="accent"/>
   <text x="460" y="653" class="label">Decoder / Readout</text>
-  <text x="460" y="680" class="body">final population outputs -&gt; task head</text>
+  <text x="460" y="680" class="body">population outputs -&gt; task head</text>
 
   <path d="M320 190 L390 190" class="arrow"/>
   <path d="M550 270 L300 350" class="arrow"/>
@@ -56,9 +58,10 @@
   <path d="M800 530 L800 590 L680 590 L680 610" class="arrow"/>
 
   <path d="M240 350 C240 280, 240 260, 180 250" class="arrow dashed"/>
-  <path d="M740 350 C740 280, 740 260, 880 250" class="arrow dashed"/>
+  <path d="M740 350 C740 280, 740 260, 710 250" class="arrow dashed"/>
 
   <text x="85" y="290" class="small">shared feedforward/recurrent branch semantics</text>
   <text x="835" y="290" class="small">recurrent inputs from previous-step outputs</text>
-  <text x="420" y="735" class="small">allow_self_recurrence masks same-population self-feedback without changing cross-population recurrence</text>
+  <text x="420" y="724" class="small">allow_self_recurrence masks same-population feedback</text>
+  <text x="420" y="744" class="small">cross-population recurrence is unchanged</text>
 </svg>
