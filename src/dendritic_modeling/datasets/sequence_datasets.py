@@ -1570,11 +1570,22 @@ class StringerV1Dataset(Dataset):
                   and all_running.npy.
         n_neurons: Number of neurons to select by response variance.
         n_classes: Number of orientation bins (orientations span [0, 2*pi)).
-        split: "train" or "test".
+        split: "train", "test", or "all".
         train_fraction: Fraction of trials for training (rest = test).
         normalize: Z-score normalize each neuron's responses.
         seed: Random seed for reproducible train/test split.
         session_idx: Index into all_running.npy for this session (default 20 = GT3).
+        running_state: Keep all trials, or only the low/high running subset.
+        running_quantile: Quantile used to define low/high states. `0.5` gives
+            a median split, `1/3` gives lower/upper tertiles.
+        gain_group_count: Number of pathway-specific multiplicative gain factors.
+        gain_grouping: How neurons are grouped for pathway-specific gains.
+            Supported: "preferred_class", "random", "contiguous".
+        global_gain_min/global_gain_max: Range for a per-trial global positive gain.
+        group_gain_min/group_gain_max: Range for per-group positive gains.
+        gain_seed: Seed for the deterministic gain augmentation.
+        poisson_sampling: If True, apply Poisson shot noise after multiplicative gain.
+        poisson_rate_scale: Scale factor before Poisson sampling.
     """
 
     _GRATING_FILE = "gratings_drifting_GT3_2019_04_05_1.npy"
@@ -1590,10 +1601,35 @@ class StringerV1Dataset(Dataset):
         normalize: bool = True,
         seed: int = 42,
         session_idx: int = 20,
+        running_state: str = "all",
+        running_quantile: float = 0.5,
+        gain_group_count: int = 1,
+        gain_grouping: str = "preferred_class",
+        global_gain_min: float = 1.0,
+        global_gain_max: float = 1.0,
+        group_gain_min: float = 1.0,
+        group_gain_max: float = 1.0,
+        gain_seed: Optional[int] = None,
+        poisson_sampling: bool = False,
+        poisson_rate_scale: float = 1.0,
     ):
         super().__init__()
-        if split not in ("train", "test"):
-            raise ValueError(f"split must be 'train' or 'test', got '{split}'")
+        if split not in ("train", "test", "all"):
+            raise ValueError(f"split must be 'train', 'test', or 'all', got '{split}'")
+        if running_state not in ("all", "low", "high"):
+            raise ValueError(
+                f"running_state must be 'all', 'low', or 'high', got '{running_state}'"
+            )
+        if not (0.0 < running_quantile <= 0.5):
+            raise ValueError(
+                f"running_quantile must be in (0, 0.5], got {running_quantile}"
+            )
+        if gain_group_count < 1:
+            raise ValueError(f"gain_group_count must be >= 1, got {gain_group_count}")
+        if poisson_rate_scale <= 0:
+            raise ValueError(
+                f"poisson_rate_scale must be > 0, got {poisson_rate_scale}"
+            )
 
         # --- Load raw data ---
         grating_path = os.path.join(data_dir, self._GRATING_FILE)
@@ -1616,22 +1652,23 @@ class StringerV1Dataset(Dataset):
         if os.path.exists(running_path):
             all_running = np.load(running_path, allow_pickle=True)
             running = all_running[session_idx]  # (n_trials,)
-            self._running_speed = running.astype(np.float32)
+            running_speed_full = running.astype(np.float32)
         else:
             logger.warning(
                 f"Running speed file not found at {running_path}, "
                 f"setting all running speeds to 0"
             )
-            self._running_speed = np.zeros(n_trials, dtype=np.float32)
+            running_speed_full = np.zeros(n_trials, dtype=np.float32)
 
         # --- Select top neurons by variance ---
         neuron_var = sresp.var(axis=1)  # variance across trials per neuron
         n_select = min(n_neurons, n_neurons_total)
         top_idx = np.argsort(neuron_var)[-n_select:][::-1]  # descending
         self._neuron_indices = top_idx
-        responses = sresp[top_idx, :].T  # (n_trials, n_select)
+        raw_responses = sresp[top_idx, :].T.astype(np.float32)  # (n_trials, n_select)
 
         # --- Normalize ---
+        responses = raw_responses.copy()
         if normalize:
             mu = responses.mean(axis=0, keepdims=True)
             std = responses.std(axis=0, keepdims=True) + 1e-8
@@ -1642,29 +1679,177 @@ class StringerV1Dataset(Dataset):
         bin_edges = np.linspace(0, 2 * np.pi, n_classes + 1)
         labels = np.digitize(istim, bin_edges) - 1
         labels = np.clip(labels, 0, n_classes - 1)  # handle edge case at 2*pi
+        full_labels = labels.copy()
+
+        if normalize and (
+            gain_group_count > 1
+            or global_gain_min != 1.0
+            or global_gain_max != 1.0
+            or group_gain_min != 1.0
+            or group_gain_max != 1.0
+            or poisson_sampling
+        ):
+            raise ValueError(
+                "Stringer gain augmentation requires normalize=False so the inputs "
+                "remain nonnegative and rate-like."
+            )
+
+        # --- Running-state filter ---
+        low_thresh = np.quantile(running_speed_full, running_quantile)
+        high_thresh = np.quantile(running_speed_full, 1.0 - running_quantile)
+        if running_state == "low":
+            keep_mask = running_speed_full <= low_thresh
+        elif running_state == "high":
+            keep_mask = running_speed_full >= high_thresh
+        else:
+            keep_mask = np.ones(n_trials, dtype=bool)
+
+        available_idx = np.flatnonzero(keep_mask)
+        responses = responses[available_idx]
+        labels = labels[available_idx]
+        running_speed = running_speed_full[available_idx]
 
         # --- Train/test split ---
-        rng = np.random.RandomState(seed)
-        perm = rng.permutation(n_trials)
-        n_train = int(n_trials * train_fraction)
-
-        if split == "train":
-            idx = perm[:n_train]
+        if split == "all":
+            idx = np.arange(len(labels))
         else:
-            idx = perm[n_train:]
+            rng = np.random.RandomState(seed)
+            perm = rng.permutation(len(labels))
+            n_train = int(len(labels) * train_fraction)
+            if split == "train":
+                idx = perm[:n_train]
+            else:
+                idx = perm[n_train:]
 
-        self.responses = torch.tensor(responses[idx], dtype=torch.float32)
-        self.labels = torch.tensor(labels[idx], dtype=torch.long)
+        selected_global_idx = available_idx[idx]
+        selected_responses = responses[idx]
+        selected_labels = labels[idx]
+        selected_running = running_speed[idx]
+
+        gain_groups = self._build_gain_groups(
+            raw_responses=raw_responses,
+            full_labels=full_labels,
+            n_classes=n_classes,
+            gain_group_count=gain_group_count,
+            gain_grouping=gain_grouping,
+            seed=(gain_seed if gain_seed is not None else seed),
+        )
+        selected_responses = self._apply_gain_augmentation(
+            responses=selected_responses,
+            sample_indices=selected_global_idx,
+            gain_groups=gain_groups,
+            gain_group_count=gain_group_count,
+            global_gain_min=global_gain_min,
+            global_gain_max=global_gain_max,
+            group_gain_min=group_gain_min,
+            group_gain_max=group_gain_max,
+            gain_seed=(gain_seed if gain_seed is not None else seed),
+            poisson_sampling=poisson_sampling,
+            poisson_rate_scale=poisson_rate_scale,
+        )
+
+        self.responses = torch.tensor(selected_responses, dtype=torch.float32)
+        self.labels = torch.tensor(selected_labels, dtype=torch.long)
+        self._running_speed = selected_running.astype(np.float32)
         self._running_mask = torch.tensor(
-            self._running_speed[idx] > np.median(self._running_speed),
+            self._running_speed > np.median(running_speed_full),
             dtype=torch.bool,
         )
-        self._split_indices = idx
+        self._split_indices = selected_global_idx
 
         logger.info(
-            f"StringerV1Dataset({split}): {len(self)} trials, "
+            f"StringerV1Dataset({split}, state={running_state}): {len(self)} trials, "
             f"{n_select} neurons, {n_classes} classes"
         )
+
+    @staticmethod
+    def _build_gain_groups(
+        raw_responses: np.ndarray,
+        full_labels: np.ndarray,
+        n_classes: int,
+        gain_group_count: int,
+        gain_grouping: str,
+        seed: int,
+    ) -> np.ndarray:
+        n_neurons = raw_responses.shape[1]
+        if gain_group_count <= 1:
+            return np.zeros(n_neurons, dtype=np.int64)
+
+        if gain_grouping == "random":
+            rng = np.random.RandomState(seed)
+            perm = rng.permutation(n_neurons)
+            group_ids = np.zeros(n_neurons, dtype=np.int64)
+            group_ids[perm] = np.arange(n_neurons) % gain_group_count
+            return group_ids
+
+        if gain_grouping == "contiguous":
+            return np.floor(
+                np.arange(n_neurons, dtype=np.float32) * gain_group_count / n_neurons
+            ).astype(np.int64)
+
+        if gain_grouping != "preferred_class":
+            raise ValueError(
+                f"Unsupported gain_grouping={gain_grouping!r}. "
+                "Use 'preferred_class', 'random', or 'contiguous'."
+            )
+
+        class_means = np.zeros((n_classes, n_neurons), dtype=np.float32)
+        for c in range(n_classes):
+            mask = full_labels == c
+            if not np.any(mask):
+                continue
+            class_means[c] = raw_responses[mask].mean(axis=0)
+
+        preferred_class = class_means.argmax(axis=0)
+        return np.floor(preferred_class * gain_group_count / n_classes).astype(np.int64)
+
+    @staticmethod
+    def _apply_gain_augmentation(
+        responses: np.ndarray,
+        sample_indices: np.ndarray,
+        gain_groups: np.ndarray,
+        gain_group_count: int,
+        global_gain_min: float,
+        global_gain_max: float,
+        group_gain_min: float,
+        group_gain_max: float,
+        gain_seed: int,
+        poisson_sampling: bool,
+        poisson_rate_scale: float,
+    ) -> np.ndarray:
+        if (
+            gain_group_count <= 1
+            and global_gain_min == 1.0
+            and global_gain_max == 1.0
+            and group_gain_min == 1.0
+            and group_gain_max == 1.0
+            and not poisson_sampling
+        ):
+            return responses
+
+        if min(global_gain_min, global_gain_max, group_gain_min, group_gain_max) <= 0:
+            raise ValueError("All gain ranges must be strictly positive.")
+
+        rng = np.random.RandomState(gain_seed)
+        max_trial_idx = int(sample_indices.max()) + 1
+        global_gains = rng.uniform(global_gain_min, global_gain_max, size=max_trial_idx)
+        group_gains = rng.uniform(
+            group_gain_min,
+            group_gain_max,
+            size=(max_trial_idx, gain_group_count),
+        )
+
+        neuron_gains = group_gains[sample_indices][:, gain_groups]
+        total_gain = global_gains[sample_indices, None] * neuron_gains
+        augmented = np.clip(
+            responses * total_gain.astype(np.float32), a_min=0.0, a_max=None
+        )
+
+        if poisson_sampling:
+            rate = np.clip(augmented * poisson_rate_scale, a_min=0.0, a_max=None)
+            augmented = rng.poisson(rate).astype(np.float32) / float(poisson_rate_scale)
+
+        return augmented.astype(np.float32)
 
     def __len__(self):
         return len(self.labels)
@@ -2823,27 +3008,84 @@ def get_sequence_datasets(
         n_classes = kwargs.get("n_classes", 8)
         normalize = kwargs.get("normalize", True)
         seed = kwargs.get("label_noise_seed", 42)
-        # Fixed 90/10 train/test split; train_valid_split handled by factory below
-        test_fraction = 0.1
+        session_idx = kwargs.get("session_idx", 20)
+        running_quantile = kwargs.get("running_quantile", 0.5)
+        running_state = kwargs.get("running_state", "all")
+        train_running_state = kwargs.get("train_running_state", running_state)
+        test_running_state = kwargs.get("test_running_state", running_state)
+        gain_group_count = kwargs.get("gain_group_count", 1)
+        gain_grouping = kwargs.get("gain_grouping", "preferred_class")
+        poisson_sampling = kwargs.get("poisson_sampling", False)
+        poisson_rate_scale = kwargs.get("poisson_rate_scale", 1.0)
+        gain_seed = kwargs.get("gain_seed", seed)
 
-        train_full = StringerV1Dataset(
-            data_dir=data_dir,
-            n_neurons=n_neurons,
-            n_classes=n_classes,
-            split="train",
-            train_fraction=1.0 - test_fraction,
-            normalize=normalize,
-            seed=seed,
+        def _state_kwargs(prefix: str, state: str) -> dict:
+            return {
+                "running_state": state,
+                "running_quantile": running_quantile,
+                "gain_group_count": kwargs.get(
+                    f"{prefix}gain_group_count", gain_group_count
+                ),
+                "gain_grouping": kwargs.get(f"{prefix}gain_grouping", gain_grouping),
+                "global_gain_min": kwargs.get(
+                    f"{prefix}global_gain_min", kwargs.get("global_gain_min", 1.0)
+                ),
+                "global_gain_max": kwargs.get(
+                    f"{prefix}global_gain_max", kwargs.get("global_gain_max", 1.0)
+                ),
+                "group_gain_min": kwargs.get(
+                    f"{prefix}group_gain_min", kwargs.get("group_gain_min", 1.0)
+                ),
+                "group_gain_max": kwargs.get(
+                    f"{prefix}group_gain_max", kwargs.get("group_gain_max", 1.0)
+                ),
+                "gain_seed": kwargs.get(f"{prefix}gain_seed", gain_seed),
+                "poisson_sampling": kwargs.get(
+                    f"{prefix}poisson_sampling", poisson_sampling
+                ),
+                "poisson_rate_scale": kwargs.get(
+                    f"{prefix}poisson_rate_scale", poisson_rate_scale
+                ),
+            }
+
+        common = {
+            "data_dir": data_dir,
+            "n_neurons": n_neurons,
+            "n_classes": n_classes,
+            "normalize": normalize,
+            "seed": seed,
+            "session_idx": session_idx,
+        }
+
+        use_state_specific_split = (
+            train_running_state != "all" or test_running_state != "all"
         )
-        test_ds = StringerV1Dataset(
-            data_dir=data_dir,
-            n_neurons=n_neurons,
-            n_classes=n_classes,
-            split="test",
-            train_fraction=1.0 - test_fraction,
-            normalize=normalize,
-            seed=seed,
-        )
+        if use_state_specific_split:
+            train_full = StringerV1Dataset(
+                split="all",
+                **common,
+                **_state_kwargs("train_", train_running_state),
+            )
+            test_ds = StringerV1Dataset(
+                split="all",
+                **common,
+                **_state_kwargs("test_", test_running_state),
+            )
+        else:
+            # Fixed 90/10 train/test split; train_valid_split handled by factory below
+            test_fraction = 0.1
+            train_full = StringerV1Dataset(
+                split="train",
+                train_fraction=1.0 - test_fraction,
+                **common,
+                **_state_kwargs("train_", train_running_state),
+            )
+            test_ds = StringerV1Dataset(
+                split="test",
+                train_fraction=1.0 - test_fraction,
+                **common,
+                **_state_kwargs("test_", test_running_state),
+            )
     else:
         raise ValueError(f"Unknown sequence dataset: {dataset_name}")
 

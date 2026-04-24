@@ -1,106 +1,125 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1320" height="760" viewBox="0 0 1320 760">
+<svg xmlns="http://www.w3.org/2000/svg" width="1320" height="840" viewBox="0 0 1320 840">
   <defs>
     <style>
-      .title { font: 700 36px "DejaVu Sans", Arial, sans-serif; fill: #16324f; }
-      .subtitle { font: 600 22px "DejaVu Sans", Arial, sans-serif; fill: #33556f; }
-      .label { font: 600 20px "DejaVu Sans", Arial, sans-serif; fill: #16324f; }
+      .title { font: 700 36px "DejaVu Sans", Arial, sans-serif; fill: #12324d; }
+      .subtitle { font: 500 21px "DejaVu Sans", Arial, sans-serif; fill: #45637a; }
+      .chip { fill: #edf4fa; stroke: #9bb7ca; stroke-width: 1.6; rx: 16; }
+      .chiptext { font: 600 14px "DejaVu Sans", Arial, sans-serif; fill: #36556d; letter-spacing: 0.08em; text-transform: uppercase; }
+      .label { font: 600 20px "DejaVu Sans", Arial, sans-serif; fill: #153450; }
       .body { font: 400 17px "DejaVu Sans", Arial, sans-serif; fill: #284b63; }
-      .small { font: 400 15px "DejaVu Sans", Arial, sans-serif; fill: #486172; }
-      .panel { fill: #f8fbfd; stroke: #89a9bf; stroke-width: 2.5; rx: 22; }
-      .accent { fill: #e8f3f8; stroke: #4b8aa8; stroke-width: 2.5; rx: 22; }
-      .exc { fill: #eef7ec; stroke: #6aa56a; stroke-width: 2.5; rx: 22; }
-      .formula { fill: #fff8ec; stroke: #c18b3b; stroke-width: 2.5; rx: 18; }
-      .arrow { stroke: #4b6f88; stroke-width: 4; fill: none; marker-end: url(#arrowhead); }
-      .grid { stroke: #9ab3c5; stroke-width: 2; fill: none; }
+      .small { font: 400 15px "DejaVu Sans", Arial, sans-serif; fill: #516b7d; }
+      .panel { fill: #f8fbfd; stroke: #8eafc3; stroke-width: 2.2; rx: 22; filter: url(#shadow); }
+      .accent { fill: #e8f3f8; stroke: #4f89a8; stroke-width: 2.2; rx: 22; filter: url(#shadow); }
+      .exc { fill: #eef7ec; stroke: #69a768; stroke-width: 2.2; rx: 22; filter: url(#shadow); }
+      .formula { fill: #fff8ed; stroke: #c18b3b; stroke-width: 2.2; rx: 18; filter: url(#shadow); }
+      .takeaway { fill: #f2f7fb; stroke: #9db7c8; stroke-width: 1.8; rx: 18; }
+      .arrow { stroke: #4c7088; stroke-width: 3.6; fill: none; marker-end: url(#arrowhead); }
       .fill { fill: #dfeaf2; }
       .hot { fill: #82c58b; }
       .cold { fill: #f3c1b8; }
     </style>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="#9fb5c4" flood-opacity="0.18"/>
+    </filter>
     <marker id="arrowhead" markerWidth="14" markerHeight="10" refX="10" refY="5" orient="auto">
-      <polygon points="0 0, 10 5, 0 10" fill="#4b6f88"/>
+      <polygon points="0 0, 10 5, 0 10" fill="#4c7088"/>
     </marker>
   </defs>
 
-  <rect width="1320" height="760" fill="#ffffff"/>
-  <text x="60" y="70" class="title">Operator View: TopKLinear and BlockLinear</text>
-  <text x="60" y="106" class="subtitle">Two different sparsity controls shape the dendritic core.</text>
+  <rect width="1320" height="840" fill="#fbfcfe"/>
+  <text x="60" y="72" class="title">Core Operators</text>
+  <text x="60" y="108" class="subtitle">external sparsity and tree aggregation</text>
 
-  <rect x="60" y="150" width="560" height="540" class="panel"/>
-  <text x="90" y="194" class="label">TopKLinear: sparse external synapses</text>
-  <text x="90" y="224" class="body">One row per branch. Keep only the K strongest inputs in that row.</text>
+  <rect x="60" y="132" width="148" height="34" class="chip"/>
+  <text x="106" y="154" class="chiptext">TopK</text>
+  <rect x="220" y="132" width="118" height="34" class="chip"/>
+  <text x="250" y="154" class="chiptext">Block</text>
 
-  <rect x="94" y="256" width="132" height="70" class="accent"/>
-  <text x="116" y="298" class="label">x</text>
-  <text x="116" y="320" class="small">[B, d_in]</text>
+  <rect x="60" y="188" width="560" height="596" class="panel"/>
+  <text x="90" y="230" class="label">TopKLinear</text>
+  <text x="90" y="258" class="body">external synapses per branch row</text>
 
-  <rect x="268" y="240" width="144" height="104" class="accent"/>
-  <text x="292" y="280" class="label">pre_w</text>
-  <text x="292" y="308" class="body">raw parameters</text>
-  <text x="292" y="332" class="small">[n_branches, d_in]</text>
+  <rect x="94" y="292" width="122" height="68" class="accent"/>
+  <text x="124" y="332" class="label">x</text>
+  <text x="112" y="354" class="small">[B, d_in]</text>
 
-  <rect x="446" y="256" width="138" height="70" class="accent"/>
-  <text x="470" y="298" class="label">transform</text>
-  <text x="470" y="320" class="small">exp / softplus / relu / identity</text>
+  <rect x="252" y="278" width="160" height="96" class="accent"/>
+  <text x="282" y="316" class="label">pre_w</text>
+  <text x="282" y="342" class="body">raw parameters</text>
+  <text x="284" y="364" class="small">[n_branches, d_in]</text>
 
-  <path d="M226 291 L268 291" class="arrow"/>
-  <path d="M412 291 L446 291" class="arrow"/>
+  <rect x="450" y="278" width="140" height="96" class="accent"/>
+  <text x="472" y="316" class="label">transform</text>
+  <text x="474" y="342" class="small">exp / softplus</text>
+  <text x="480" y="362" class="small">relu / identity</text>
 
-  <rect x="90" y="382" width="500" height="260" class="formula"/>
-  <text x="120" y="424" class="label">Row-wise masking rule</text>
-  <text x="120" y="458" class="body">W = weight_transform(pre_w)</text>
-  <text x="120" y="490" class="body">M = weight_mask(pre_w)</text>
-  <text x="120" y="522" class="body">W_pruned = M ⊙ W</text>
-  <text x="120" y="554" class="body">TopKLinear(x) = x W_pruned^T</text>
-  <text x="120" y="594" class="small">K is per branch, not per layer. Different branches can keep different input coordinates.</text>
+  <path d="M216 326 L252 326" class="arrow"/>
+  <path d="M412 326 L450 326" class="arrow"/>
 
-  <rect x="366" y="362" width="190" height="134" class="exc"/>
-  <text x="392" y="396" class="label">example row mask</text>
-  <rect x="392" y="418" width="20" height="20" class="fill"/>
-  <rect x="414" y="418" width="20" height="20" class="hot"/>
-  <rect x="436" y="418" width="20" height="20" class="fill"/>
-  <rect x="458" y="418" width="20" height="20" class="hot"/>
-  <rect x="480" y="418" width="20" height="20" class="fill"/>
-  <rect x="502" y="418" width="20" height="20" class="hot"/>
-  <text x="392" y="462" class="small">K = 3 active synapses for this branch</text>
+  <rect x="90" y="412" width="302" height="246" class="formula"/>
+  <text x="118" y="452" class="label">TopKLinear</text>
+  <text x="118" y="486" class="body">W = phi(pre_w)</text>
+  <text x="118" y="518" class="body">M = topk_mask(pre_w)</text>
+  <text x="118" y="550" class="body">W* = M ⊙ W</text>
+  <text x="118" y="582" class="body">x -&gt; x (W*)^T</text>
+  <text x="118" y="622" class="small">K active inputs per branch row</text>
 
-  <rect x="700" y="150" width="560" height="540" class="panel"/>
-  <text x="730" y="194" class="label">BlockLinear: tree-structured branch aggregation</text>
-  <text x="730" y="224" class="body">Groups consecutive child branches that belong to the same parent branch.</text>
+  <rect x="420" y="412" width="170" height="170" class="exc"/>
+  <text x="448" y="450" class="label">Example mask</text>
+  <rect x="446" y="474" width="20" height="20" class="fill"/>
+  <rect x="470" y="474" width="20" height="20" class="hot"/>
+  <rect x="494" y="474" width="20" height="20" class="fill"/>
+  <rect x="518" y="474" width="20" height="20" class="hot"/>
+  <rect x="542" y="474" width="20" height="20" class="fill"/>
+  <rect x="566" y="474" width="20" height="20" class="hot"/>
+  <text x="446" y="524" class="small">K = 3 active inputs</text>
+  <text x="446" y="546" class="small">for this branch</text>
 
-  <rect x="734" y="256" width="152" height="70" class="accent"/>
-  <text x="760" y="298" class="label">u</text>
-  <text x="760" y="320" class="small">child outputs [B, n_parent x b]</text>
+  <rect x="420" y="606" width="170" height="52" class="accent"/>
+  <text x="466" y="638" class="small">external fan-in</text>
 
-  <rect x="928" y="240" width="162" height="104" class="accent"/>
-  <text x="954" y="280" class="label">log_weight</text>
-  <text x="954" y="308" class="body">one weight per child slot</text>
-  <text x="954" y="332" class="small">[n_parent, b]</text>
+  <rect x="700" y="188" width="560" height="596" class="panel"/>
+  <text x="730" y="230" class="label">BlockLinear</text>
+  <text x="730" y="258" class="body">group sibling branches by parent</text>
 
-  <rect x="1120" y="256" width="108" height="70" class="accent"/>
-  <text x="1146" y="298" class="label">g_b</text>
-  <text x="1146" y="320" class="small">branch conductance</text>
+  <rect x="734" y="292" width="150" height="68" class="accent"/>
+  <text x="786" y="332" class="label">u</text>
+  <text x="748" y="354" class="small">child outputs [B, n_parent x b]</text>
 
-  <path d="M886 291 L928 291" class="arrow"/>
-  <path d="M1090 291 L1120 291" class="arrow"/>
+  <rect x="922" y="278" width="172" height="96" class="accent"/>
+  <text x="952" y="316" class="label">log_weight</text>
+  <text x="950" y="342" class="body">one weight per child slot</text>
+  <text x="970" y="364" class="small">[n_parent, b]</text>
 
-  <rect x="734" y="382" width="500" height="260" class="formula"/>
-  <text x="764" y="424" class="label">Grouping rule</text>
-  <text x="764" y="458" class="body">u.reshape(B, n_parent, b)</text>
-  <text x="764" y="490" class="body">g_b = weight_transform(log_weight)</text>
-  <text x="764" y="522" class="body">V_b[j] = sum_k g_b[j, k] u[j, k]</text>
-  <text x="764" y="554" class="body">sum_conductances() = sum_k g_b[j, k]</text>
-  <text x="764" y="594" class="small">b = input_branch_factor. This controls tree fan-in, not external synaptic sparsity.</text>
+  <rect x="1128" y="292" width="102" height="68" class="accent"/>
+  <text x="1156" y="332" class="label">g_b</text>
+  <text x="1142" y="354" class="small">conductance</text>
 
-  <rect x="988" y="362" width="214" height="134" class="exc"/>
-  <text x="1014" y="396" class="label">example grouping</text>
-  <rect x="1014" y="420" width="24" height="24" class="cold"/>
-  <rect x="1042" y="420" width="24" height="24" class="cold"/>
-  <rect x="1070" y="420" width="24" height="24" class="cold"/>
-  <text x="1104" y="438" class="small">child group -> parent 0</text>
-  <rect x="1014" y="454" width="24" height="24" class="hot"/>
-  <rect x="1042" y="454" width="24" height="24" class="hot"/>
-  <rect x="1070" y="454" width="24" height="24" class="hot"/>
-  <text x="1104" y="472" class="small">child group -> parent 1</text>
+  <path d="M884 326 L922 326" class="arrow"/>
+  <path d="M1094 326 L1128 326" class="arrow"/>
 
-  <text x="60" y="730" class="small">TopKLinear decides which external inputs each branch can see. BlockLinear decides how sibling branches are merged on the way to the soma.</text>
+  <rect x="730" y="412" width="302" height="246" class="formula"/>
+  <text x="758" y="452" class="label">BlockLinear</text>
+  <text x="758" y="486" class="body">u -&gt; reshape(B, n_parent, b)</text>
+  <text x="758" y="518" class="body">g_b = phi(log_weight)</text>
+  <text x="758" y="550" class="body">V_b[j] = sum_k g_b[j, k] u[j, k]</text>
+  <text x="758" y="582" class="body">sum_k g_b[j, k]</text>
+  <text x="758" y="622" class="small">b = input_branch_factor</text>
+
+  <rect x="1060" y="412" width="170" height="170" class="exc"/>
+  <text x="1088" y="450" class="label">Example grouping</text>
+  <rect x="1088" y="474" width="24" height="24" class="cold"/>
+  <rect x="1116" y="474" width="24" height="24" class="cold"/>
+  <rect x="1144" y="474" width="24" height="24" class="cold"/>
+  <text x="1088" y="522" class="small">child group 0</text>
+  <text x="1088" y="544" class="small">-&gt; parent 0</text>
+  <rect x="1088" y="554" width="24" height="24" class="hot"/>
+  <rect x="1116" y="554" width="24" height="24" class="hot"/>
+  <rect x="1144" y="554" width="24" height="24" class="hot"/>
+
+  <rect x="1060" y="606" width="170" height="52" class="accent"/>
+  <text x="1088" y="638" class="small">tree fan-in</text>
+
+  <rect x="60" y="796" width="1200" height="30" class="takeaway"/>
+  <text x="84" y="816" class="small">Takeaway: TopKLinear selects external inputs; BlockLinear merges sibling branches toward the soma.</text>
 </svg>
