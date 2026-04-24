@@ -1,0 +1,153 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="1080" viewBox="0 0 1440 1080">
+  <defs>
+    <style>
+      .title { font: 700 36px "DejaVu Sans", Arial, sans-serif; fill: #12324d; }
+      .subtitle { font: 500 21px "DejaVu Sans", Arial, sans-serif; fill: #45637a; }
+      .chip { fill: #edf4fa; stroke: #9bb7ca; stroke-width: 1.6; rx: 16; }
+      .chiptext { font: 600 14px "DejaVu Sans", Arial, sans-serif; fill: #36556d; letter-spacing: 0.08em; text-transform: uppercase; }
+      .label { font: 600 20px "DejaVu Sans", Arial, sans-serif; fill: #153450; }
+      .body { font: 400 17px "DejaVu Sans", Arial, sans-serif; fill: #284b63; }
+      .small { font: 400 15px "DejaVu Sans", Arial, sans-serif; fill: #516b7d; }
+      .tiny { font: 400 14px "DejaVu Sans", Arial, sans-serif; fill: #5a7385; }
+      .panel { fill: #f8fbfd; stroke: #8eafc3; stroke-width: 2.2; rx: 22; filter: url(#shadow); }
+      .accent { fill: #e8f3f8; stroke: #4f89a8; stroke-width: 2.2; rx: 22; filter: url(#shadow); }
+      .exc { fill: #eef7ec; stroke: #69a768; stroke-width: 2.2; rx: 22; filter: url(#shadow); }
+      .inh { fill: #fff2ef; stroke: #c36b5d; stroke-width: 2.2; rx: 22; filter: url(#shadow); }
+      .formula { fill: #fff8ed; stroke: #c18b3b; stroke-width: 2.2; rx: 18; filter: url(#shadow); }
+      .optional { fill: #f8f5ff; stroke: #8d7ab5; stroke-width: 2.2; rx: 18; filter: url(#shadow); }
+      .takeaway { fill: #f2f7fb; stroke: #9db7c8; stroke-width: 1.8; rx: 18; }
+      .arrow { stroke: #4c7088; stroke-width: 3.6; fill: none; marker-end: url(#arrowhead); }
+      .arrow-thin { stroke: #6f94aa; stroke-width: 2.5; fill: none; marker-end: url(#arrowheadThin); }
+      .branch { fill: #ffffff; stroke: #4b8aa8; stroke-width: 2.5; }
+      .branch-soma { fill: #ffffff; stroke: #2d6a4f; stroke-width: 3; }
+      .fan { stroke: #a0b6c6; stroke-width: 1.8; stroke-opacity: 0.55; fill: none; }
+    </style>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="#9fb5c4" flood-opacity="0.18"/>
+    </filter>
+    <marker id="arrowhead" markerWidth="14" markerHeight="10" refX="10" refY="5" orient="auto">
+      <polygon points="0 0, 10 5, 0 10" fill="#4c7088"/>
+    </marker>
+    <marker id="arrowheadThin" markerWidth="12" markerHeight="8" refX="9" refY="4" orient="auto">
+      <polygon points="0 0, 9 4, 0 8" fill="#6f94aa"/>
+    </marker>
+  </defs>
+
+  <rect width="1440" height="1080" fill="#fbfcfe"/>
+  <text x="60" y="72" class="title">Single Dendritic Neuron</text>
+  <text x="60" y="108" class="subtitle">example tree, branch_factors = [3, 2]</text>
+
+  <rect x="60" y="132" width="130" height="34" class="chip"/>
+  <text x="90" y="154" class="chiptext">Cell Schematic</text>
+  <rect x="202" y="132" width="152" height="34" class="chip"/>
+  <text x="232" y="154" class="chiptext">Flattened in code</text>
+
+  <rect x="60" y="188" width="220" height="108" class="exc"/>
+  <text x="90" y="230" class="label">x_E</text>
+  <text x="90" y="258" class="body">excitatory input</text>
+  <text x="90" y="282" class="small">shape [B, d_E]</text>
+
+  <rect x="60" y="322" width="220" height="108" class="inh"/>
+  <text x="90" y="364" class="label">x_I</text>
+  <text x="90" y="392" class="body">inhibitory input</text>
+  <text x="90" y="416" class="small">shape [B, d_I]</text>
+
+  <rect x="60" y="456" width="220" height="122" class="optional"/>
+  <text x="90" y="498" class="label">recurrent input</text>
+  <text x="90" y="526" class="body">h_E(t-1), h_I(t-1)</text>
+  <text x="90" y="552" class="small">optional, recurrent only</text>
+
+  <rect x="332" y="188" width="544" height="256" class="panel"/>
+  <text x="362" y="230" class="label">Layer 2: distal branches</text>
+  <text x="362" y="258" class="small">per-branch TopK E/I banks</text>
+
+  <rect x="362" y="280" width="214" height="34" class="exc"/>
+  <text x="378" y="302" class="small">TopKLinear(W_E, K_E)</text>
+  <rect x="606" y="280" width="214" height="34" class="inh"/>
+  <text x="622" y="302" class="small">TopKLinear(W_I, K_I)</text>
+
+  <circle cx="406" cy="352" r="22" class="branch"/>
+  <circle cx="486" cy="352" r="22" class="branch"/>
+  <circle cx="566" cy="352" r="22" class="branch"/>
+  <circle cx="646" cy="352" r="22" class="branch"/>
+  <circle cx="726" cy="352" r="22" class="branch"/>
+  <circle cx="806" cy="352" r="22" class="branch"/>
+  <text x="392" y="392" class="tiny">b0</text>
+  <text x="472" y="392" class="tiny">b1</text>
+  <text x="552" y="392" class="tiny">b2</text>
+  <text x="632" y="392" class="tiny">b3</text>
+  <text x="712" y="392" class="tiny">b4</text>
+  <text x="792" y="392" class="tiny">b5</text>
+
+  <rect x="392" y="408" width="416" height="24" class="accent"/>
+  <text x="414" y="425" class="tiny">6 branches on one feature axis</text>
+
+  <rect x="392" y="488" width="420" height="190" class="panel"/>
+  <text x="500" y="530" class="label">Layer 1: proximal branches</text>
+  <text x="500" y="558" class="small">BlockLinear groups siblings</text>
+  <text x="500" y="582" class="small">local E/I banks are added again</text>
+
+  <circle cx="472" cy="604" r="26" class="branch"/>
+  <circle cx="602" cy="604" r="26" class="branch"/>
+  <circle cx="732" cy="604" r="26" class="branch"/>
+  <text x="456" y="648" class="tiny">p0</text>
+  <text x="586" y="648" class="tiny">p1</text>
+  <text x="716" y="648" class="tiny">p2</text>
+
+  <rect x="432" y="662" width="340" height="24" class="accent"/>
+  <text x="454" y="679" class="tiny">BlockLinear(branch_factor=2)</text>
+
+  <rect x="480" y="724" width="250" height="202" class="panel"/>
+  <text x="508" y="766" class="label">Layer 0: soma</text>
+  <text x="508" y="794" class="small">aggregates the final child branches</text>
+  <text x="508" y="818" class="small">optional direct E and I TopK banks</text>
+  <circle cx="605" cy="878" r="34" class="branch-soma"/>
+
+  <path d="M406 374 L472 578" class="fan"/>
+  <path d="M486 374 L472 578" class="fan"/>
+  <path d="M566 374 L602 578" class="fan"/>
+  <path d="M646 374 L602 578" class="fan"/>
+  <path d="M726 374 L732 578" class="fan"/>
+  <path d="M806 374 L732 578" class="fan"/>
+  <path d="M472 630 L605 844" class="fan"/>
+  <path d="M602 630 L605 844" class="fan"/>
+  <path d="M732 630 L605 844" class="fan"/>
+
+  <rect x="930" y="188" width="450" height="376" class="formula"/>
+  <text x="958" y="230" class="label">Local branch rule</text>
+  <text x="958" y="268" class="body">E = branch_excitation(x_E)</text>
+  <text x="958" y="300" class="body">I = branch_inhibition(x_I)</text>
+  <text x="958" y="332" class="body">V_b = merge(child branches)</text>
+  <text x="958" y="364" class="body">g_b = summed branch conductance</text>
+  <text x="958" y="410" class="body">shunting:</text>
+  <text x="988" y="438" class="body">V = (E + E_rec + V_b)</text>
+  <text x="988" y="466" class="body">    / (1 + E + I + E_rec + I_rec + g_b)</text>
+  <text x="958" y="506" class="body">additive:</text>
+  <text x="988" y="534" class="body">V = E + E_rec + V_b - I - I_rec</text>
+
+  <rect x="930" y="604" width="450" height="176" class="accent"/>
+  <text x="958" y="646" class="label">Code mapping</text>
+  <text x="958" y="682" class="body">DendriNet.branch_layers</text>
+  <text x="958" y="710" class="body">branch_excitation</text>
+  <text x="958" y="738" class="body">branch_inhibition</text>
+  <text x="958" y="766" class="body">branches_to_output</text>
+
+  <rect x="930" y="812" width="450" height="150" class="optional"/>
+  <text x="958" y="852" class="label">Vectorization detail</text>
+  <text x="958" y="886" class="body">output_dim = n_soma x branches</text>
+  <text x="958" y="914" class="small">one tree per neuron; shared feature axis</text>
+
+  <path d="M280 242 L332 242" class="arrow"/>
+  <path d="M280 376 L332 376" class="arrow"/>
+  <path d="M280 516 L364 516 L364 388" class="arrow-thin"/>
+  <path d="M280 242 L308 242 L308 552 L432 552" class="arrow-thin"/>
+  <path d="M280 376 L318 376 L318 578 L432 578" class="arrow-thin"/>
+  <path d="M280 242 L328 242 L328 770 L480 770" class="arrow-thin"/>
+  <path d="M280 376 L338 376 L338 796 L480 796" class="arrow-thin"/>
+
+  <text x="382" y="464" class="tiny">x_E and x_I feed each layer</text>
+  <text x="416" y="708" class="tiny">siblings merge before the next level</text>
+
+  <rect x="60" y="1008" width="1320" height="30" class="takeaway"/>
+  <text x="84" y="1028" class="small">Takeaway: each neuron is a small dendritic tree that reads sparse inputs and then merges branch states hierarchically toward the soma.</text>
+</svg>

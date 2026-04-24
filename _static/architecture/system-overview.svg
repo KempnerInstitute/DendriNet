@@ -58,7 +58,8 @@
 
   <rect x="620" y="560" width="360" height="110" class="artifact"/>
   <text x="650" y="605" class="label">Artifacts</text>
-  <text x="650" y="638" class="body">config.json, checkpoints, init_gate_stats.json, metrics, figures</text>
+  <text x="650" y="632" class="body">config.json, checkpoints, metrics,</text>
+  <text x="650" y="656" class="body">init_gate_stats.json, figures</text>
 
   <path d="M280 195 L340 195" class="arrow"/>
   <path d="M580 195 L640 195" class="arrow"/>

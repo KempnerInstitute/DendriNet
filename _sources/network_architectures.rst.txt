@@ -20,6 +20,44 @@ Every model follows the encoder-core-decoder pattern:
 
 The core network type is set via ``model.core.type`` in the YAML config file.
 
+Visual Overview
+---------------
+
+The diagrams below are meant to answer the first engineering question people
+usually have about this codebase: what exactly is a dendritic neuron here, and
+how do ``TopKLinear``, branch factors, E/I routing, and somatic synapses fit
+together?
+
+.. figure:: _static/architecture/dendritic-ei-stack.svg
+   :alt: Network-level view of the transfer layer and stacked excitatory and inhibitory dendritic populations.
+   :width: 100%
+
+   Network-level view of the feedforward E/I core. ``TransferLayer`` produces
+   ``(x_E, x_I)``. Each ``ExcitationInhibitionLayer`` updates the inhibitory
+   population first and then feeds that output into the excitatory population.
+   The core network output is always the final excitatory state.
+
+.. figure:: _static/architecture/dendritic-single-neuron.svg
+   :alt: Single-neuron view of a DendriNet tree with branch layers, top-k synapses, branch aggregation, and soma output.
+   :width: 100%
+
+   Single-neuron view of one dendritic tree. Every ``DendriticBranchLayer`` can
+   receive direct excitatory and inhibitory synapses, and parent layers also
+   receive aggregated child-branch input through ``BlockLinear``.
+
+The most important config-to-code mapping is:
+
+- ``excitatory_layer_sizes`` and ``inhibitory_layer_sizes`` choose how many
+  dendritic trees exist in each population
+- ``excitatory_branch_factors`` and ``inhibitory_branch_factors`` choose the
+  branching pattern inside each tree
+- ``*_synapses_per_branch`` chooses the row-wise ``K`` used by each
+  ``TopKLinear`` bank
+- ``somatic_synapses`` decides whether the soma layer also has direct E/I
+  synapses
+- ``use_shunting`` chooses divisive versus additive integration inside each
+  ``DendriticBranchLayer``
+
 Core Network Types
 ------------------
 
@@ -76,6 +114,17 @@ excitatory and inhibitory signals. At each layer, the inhibitory population
 processes the excitatory input first; its output then modulates the excitatory
 population via shunting or additive inhibition. The final layer's excitatory
 output is the network output.
+
+In code terms, the main forward rule is:
+
+.. code-block:: text
+
+   (x_E, x_I) = TransferLayer(x)
+   h_I^(l) = inhibitory_cells(h_E^(l-1), h_I^(l-1))
+   h_E^(l) = excitatory_cells(h_E^(l-1), h_I^(l))
+
+This is implemented by ``ExcitationInhibitionNetwork.forward`` calling
+``ExcitationInhibitionLayer.forward`` layer by layer.
 
 TransferLayer
 ~~~~~~~~~~~~~
@@ -165,6 +214,14 @@ The architecture is built from distal to soma:
 If ``somatic_synapses`` is ``True``, the soma level also receives direct
 synaptic input in addition to branch aggregation.
 
+Two implementation details are easy to miss:
+
+- each branch layer receives the same external ``x_E`` and optional ``x_I``;
+  direct synapses are not restricted to the most distal level
+- the tree is vectorized across neurons by flattening all branches at a given
+  depth into one feature axis, so ``output_dim`` at a branch layer is
+  ``n_soma * branches_at_that_level``
+
 Key parameters:
 
 ``n_soma``
@@ -242,6 +299,25 @@ Components
 
 ``reactivation``
    Parametric nonlinearity applied to the voltage output.
+
+Operator-Level View
+~~~~~~~~~~~~~~~~~~~
+
+.. figure:: _static/architecture/dendritic-operator-details.svg
+   :alt: Detail view of TopKLinear and BlockLinear operators in the dendritic network.
+   :width: 100%
+
+   ``TopKLinear`` and ``BlockLinear`` control different kinds of structure.
+   ``TopKLinear`` enforces sparse external synapses per branch. ``BlockLinear``
+   enforces tree-structured aggregation from sibling branches to their parent.
+
+For engineering work, the key distinction is:
+
+- ``K`` controls how many external inputs each branch keeps
+- ``branch_factor`` controls how many child branches are grouped by the next
+  parent branch
+- these are independent controls and they act at different points in the
+  forward pass
 
 TopKLinear
 ----------
