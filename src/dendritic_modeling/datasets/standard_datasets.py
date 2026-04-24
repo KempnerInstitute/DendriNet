@@ -93,6 +93,35 @@ def _get_config_value(
         return getattr(config, key, default)
 
 
+def _dataset_to_tensors(
+    dataset: Dataset,
+    *,
+    flatten: bool = False,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Materialize a finite dataset using its declared length.
+
+    Direct iteration over torch Dataset objects relies on ``__getitem__`` raising
+    ``IndexError`` out of range. Some wrappers and test doubles do not enforce
+    that contract, so explicit indexing by ``len(dataset)`` is safer.
+    """
+    data = []
+    labels = []
+    for idx in range(len(dataset)):
+        img, label = dataset[idx]
+        if not torch.is_tensor(img):
+            img = torch.as_tensor(img)
+        if not torch.is_tensor(label):
+            label = torch.as_tensor(label)
+        data.append(img)
+        labels.append(label)
+
+    data_tensor = torch.stack(data)
+    label_tensor = torch.stack(labels)
+    if flatten:
+        data_tensor = data_tensor.view(data_tensor.size(0), -1)
+    return data_tensor, label_tensor
+
+
 @contextmanager
 def _dataset_download_lock(root: str):
     """Serialize dataset repair/download work for a shared cache root."""
@@ -482,21 +511,18 @@ def load_mnist_as_datasets(
         train_dataset, [train_size, valid_size]
     )
 
-    x_train = torch.stack([img for img, _ in train_dataset])
-    y_train = torch.tensor([label for _, label in train_dataset])
+    x_train, y_train = _dataset_to_tensors(train_dataset)
 
     # Handle empty validation dataset when train_valid_split=1
     if len(valid_dataset) > 0:
-        x_valid = torch.stack([img for img, _ in valid_dataset])
-        y_valid = torch.tensor([label for _, label in valid_dataset])
+        x_valid, y_valid = _dataset_to_tensors(valid_dataset)
     else:
         # Create empty tensors with correct shape
         sample_img, _ = train_dataset[0]
         x_valid = torch.empty(0, *sample_img.shape)
         y_valid = torch.empty(0, dtype=torch.long)
 
-    x_test = torch.stack([img for img, _ in test_dataset])
-    y_test = torch.tensor([label for _, label in test_dataset])
+    x_test, y_test = _dataset_to_tensors(test_dataset)
 
     if flatten:
         x_train = x_train.view(x_train.shape[0], -1)
@@ -552,19 +578,16 @@ def load_fashion_mnist_as_datasets(
         train_dataset, [train_size, valid_size]
     )
 
-    x_train = torch.stack([img for img, _ in train_dataset])
-    y_train = torch.tensor([label for _, label in train_dataset])
+    x_train, y_train = _dataset_to_tensors(train_dataset)
 
     if len(valid_dataset) > 0:
-        x_valid = torch.stack([img for img, _ in valid_dataset])
-        y_valid = torch.tensor([label for _, label in valid_dataset])
+        x_valid, y_valid = _dataset_to_tensors(valid_dataset)
     else:
         sample_img, _ = train_dataset[0]
         x_valid = torch.empty(0, *sample_img.shape)
         y_valid = torch.empty(0, dtype=torch.long)
 
-    x_test = torch.stack([img for img, _ in test_dataset])
-    y_test = torch.tensor([label for _, label in test_dataset])
+    x_test, y_test = _dataset_to_tensors(test_dataset)
 
     if flatten:
         x_train = x_train.view(x_train.shape[0], -1)
@@ -674,18 +697,6 @@ def load_cifar10_as_datasets(
         dataset_name="CIFAR10",
     )
 
-    def convert_to_tensor(dataset):
-        data = []
-        labels = []
-        for img, label in dataset:
-            data.append(img)
-            labels.append(label)
-        data_tensor = torch.stack(data)
-        label_tensor = torch.tensor(labels)
-        if flatten:
-            data_tensor = data_tensor.view(data_tensor.size(0), -1)
-        return data_tensor, label_tensor
-
     if train_valid_split < 1.0:
         train_size = int(len(train_dataset) * train_valid_split)
         valid_size = len(train_dataset) - train_size
@@ -694,16 +705,16 @@ def load_cifar10_as_datasets(
             train_dataset, [train_size, valid_size]
         )
 
-        x_train, y_train = convert_to_tensor(train_dataset)
-        x_valid, y_valid = convert_to_tensor(valid_dataset)
-        x_test, y_test = convert_to_tensor(test_dataset)
+        x_train, y_train = _dataset_to_tensors(train_dataset, flatten=flatten)
+        x_valid, y_valid = _dataset_to_tensors(valid_dataset, flatten=flatten)
+        x_test, y_test = _dataset_to_tensors(test_dataset, flatten=flatten)
 
         train_ds = torch.utils.data.TensorDataset(x_train, y_train)
         valid_ds = torch.utils.data.TensorDataset(x_valid, y_valid)
         test_ds = torch.utils.data.TensorDataset(x_test, y_test)
     else:
-        x_train, y_train = convert_to_tensor(train_dataset)
-        x_test, y_test = convert_to_tensor(test_dataset)
+        x_train, y_train = _dataset_to_tensors(train_dataset, flatten=flatten)
+        x_test, y_test = _dataset_to_tensors(test_dataset, flatten=flatten)
         train_ds = torch.utils.data.TensorDataset(x_train, y_train)
         # Create a separate validation dataset with the same data as train
         # to avoid reference issues

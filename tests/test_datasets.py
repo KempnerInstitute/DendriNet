@@ -315,6 +315,8 @@ class TestRealDatasets(unittest.TestCase):
             return self.n_samples
 
         def __getitem__(self, idx):
+            if idx < 0 or idx >= self.n_samples:
+                raise IndexError(idx)
             sample = torch.full(self.sample_shape, float(idx % 7), dtype=torch.float32)
             label = int(idx % self.num_classes)
             return sample, label
