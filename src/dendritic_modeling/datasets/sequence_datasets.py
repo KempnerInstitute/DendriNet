@@ -416,6 +416,8 @@ class RomoDelayComparisonDataset(Dataset):
                 sig2 = torch.sin(2.0 * math.pi * f2 * phase_grid / stimulus_duration)
                 sig1 = sig1 + noise_std * torch.randn_like(sig1)
                 sig2 = sig2 + noise_std * torch.randn_like(sig2)
+                sig1 = sig1.unsqueeze(-1)
+                sig2 = sig2.unsqueeze(-1)
 
             self.targets[i] = int(f2 > f1)
             self.delays[i] = delay

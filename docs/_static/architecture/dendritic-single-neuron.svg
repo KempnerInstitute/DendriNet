@@ -20,7 +20,7 @@
       .arrow-thin { stroke: #6f94aa; stroke-width: 2.5; fill: none; marker-end: url(#arrowheadThin); }
       .branch { fill: #ffffff; stroke: #4b8aa8; stroke-width: 2.5; }
       .branch-soma { fill: #ffffff; stroke: #2d6a4f; stroke-width: 3; }
-      .fan { stroke: #a0b6c6; stroke-width: 2.4; fill: none; }
+      .fan { stroke: #a0b6c6; stroke-width: 1.8; stroke-opacity: 0.55; fill: none; }
     </style>
     <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
       <feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="#9fb5c4" flood-opacity="0.18"/>
@@ -53,18 +53,18 @@
   <text x="90" y="416" class="small">shape [B, d_I]</text>
 
   <rect x="60" y="456" width="220" height="122" class="optional"/>
-  <text x="90" y="498" class="label">optional recurrent input</text>
+  <text x="90" y="498" class="label">recurrent input</text>
   <text x="90" y="526" class="body">h_E(t-1), h_I(t-1)</text>
-  <text x="90" y="552" class="small">recurrent case only</text>
+  <text x="90" y="552" class="small">optional, recurrent only</text>
 
   <rect x="332" y="188" width="544" height="256" class="panel"/>
-  <text x="362" y="230" class="label">DendriticBranchLayer 2: distal branches</text>
-  <text x="362" y="258" class="small">per-branch TopK excitation and optional TopK inhibition</text>
+  <text x="362" y="230" class="label">Layer 2: distal branches</text>
+  <text x="362" y="258" class="small">per-branch TopK E/I banks</text>
 
   <rect x="362" y="280" width="214" height="34" class="exc"/>
-  <text x="378" y="302" class="small">branch_excitation = TopKLinear(W_E, K_E)</text>
+  <text x="378" y="302" class="small">TopKLinear(W_E, K_E)</text>
   <rect x="606" y="280" width="214" height="34" class="inh"/>
-  <text x="622" y="302" class="small">branch_inhibition = TopKLinear(W_I, K_I)</text>
+  <text x="622" y="302" class="small">TopKLinear(W_I, K_I)</text>
 
   <circle cx="406" cy="352" r="22" class="branch"/>
   <circle cx="486" cy="352" r="22" class="branch"/>
@@ -80,11 +80,12 @@
   <text x="792" y="392" class="tiny">b5</text>
 
   <rect x="392" y="408" width="416" height="24" class="accent"/>
-  <text x="414" y="425" class="tiny">branches_at_level = 6, flattened into one batched feature axis</text>
+  <text x="414" y="425" class="tiny">6 branches on one feature axis</text>
 
   <rect x="392" y="488" width="420" height="190" class="panel"/>
-  <text x="420" y="530" class="label">DendriticBranchLayer 1: proximal branches</text>
-  <text x="420" y="558" class="small">BlockLinear groups siblings; local E and I are added again.</text>
+  <text x="500" y="530" class="label">Layer 1: proximal branches</text>
+  <text x="500" y="558" class="small">BlockLinear groups siblings</text>
+  <text x="500" y="582" class="small">local E/I banks are added again</text>
 
   <circle cx="472" cy="604" r="26" class="branch"/>
   <circle cx="602" cy="604" r="26" class="branch"/>
@@ -94,10 +95,10 @@
   <text x="716" y="648" class="tiny">p2</text>
 
   <rect x="432" y="662" width="340" height="24" class="accent"/>
-  <text x="454" y="679" class="tiny">branches_to_output = BlockLinear(input_branch_factor = 2)</text>
+  <text x="454" y="679" class="tiny">BlockLinear(branch_factor=2)</text>
 
   <rect x="480" y="724" width="250" height="202" class="panel"/>
-  <text x="508" y="766" class="label">DendriticBranchLayer 0: soma</text>
+  <text x="508" y="766" class="label">Layer 0: soma</text>
   <text x="508" y="794" class="small">aggregates the final child branches</text>
   <text x="508" y="818" class="small">optional direct E and I TopK banks</text>
   <circle cx="605" cy="878" r="34" class="branch-soma"/>
@@ -116,25 +117,25 @@
   <text x="958" y="230" class="label">Local branch rule</text>
   <text x="958" y="268" class="body">E = branch_excitation(x_E)</text>
   <text x="958" y="300" class="body">I = branch_inhibition(x_I)</text>
-  <text x="958" y="332" class="body">V_b = branches_to_output(child branches)</text>
-  <text x="958" y="364" class="body">g_b = branches_to_output.sum_conductances()</text>
+  <text x="958" y="332" class="body">V_b = merge(child branches)</text>
+  <text x="958" y="364" class="body">g_b = summed branch conductance</text>
   <text x="958" y="410" class="body">shunting:</text>
   <text x="988" y="438" class="body">V = (E + E_rec + V_b)</text>
-  <text x="988" y="466" class="body">    / (1 + E + E_rec + g_b + I + I_rec + eps)</text>
+  <text x="988" y="466" class="body">    / (1 + E + I + E_rec + I_rec + g_b)</text>
   <text x="958" y="506" class="body">additive:</text>
   <text x="988" y="534" class="body">V = E + E_rec + V_b - I - I_rec</text>
 
   <rect x="930" y="604" width="450" height="176" class="accent"/>
   <text x="958" y="646" class="label">Code mapping</text>
   <text x="958" y="682" class="body">DendriNet.branch_layers</text>
-  <text x="958" y="710" class="body">DendriticBranchLayer.branch_excitation</text>
-  <text x="958" y="738" class="body">DendriticBranchLayer.branch_inhibition</text>
-  <text x="958" y="766" class="body">DendriticBranchLayer.branches_to_output</text>
+  <text x="958" y="710" class="body">branch_excitation</text>
+  <text x="958" y="738" class="body">branch_inhibition</text>
+  <text x="958" y="766" class="body">branches_to_output</text>
 
   <rect x="930" y="812" width="450" height="150" class="optional"/>
   <text x="958" y="852" class="label">Vectorization detail</text>
-  <text x="958" y="886" class="body">output_dim = n_soma x branches_at_that_level</text>
-  <text x="958" y="914" class="small">one tree per neuron in a shared feature axis</text>
+  <text x="958" y="886" class="body">output_dim = n_soma x branches</text>
+  <text x="958" y="914" class="small">one tree per neuron; shared feature axis</text>
 
   <path d="M280 242 L332 242" class="arrow"/>
   <path d="M280 376 L332 376" class="arrow"/>
@@ -144,8 +145,8 @@
   <path d="M280 242 L328 242 L328 770 L480 770" class="arrow-thin"/>
   <path d="M280 376 L338 376 L338 796 L480 796" class="arrow-thin"/>
 
-  <text x="350" y="464" class="tiny">the same x_E and x_I feed every branch layer</text>
-  <text x="416" y="708" class="tiny">BlockLinear merges siblings before the next level</text>
+  <text x="382" y="464" class="tiny">x_E and x_I feed each layer</text>
+  <text x="416" y="708" class="tiny">siblings merge before the next level</text>
 
   <rect x="60" y="1008" width="1320" height="30" class="takeaway"/>
   <text x="84" y="1028" class="small">Takeaway: each neuron is a small dendritic tree that reads sparse inputs and then merges branch states hierarchically toward the soma.</text>

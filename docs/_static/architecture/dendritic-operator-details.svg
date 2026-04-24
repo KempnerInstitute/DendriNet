@@ -83,8 +83,8 @@
   <text x="730" y="258" class="body">group sibling branches by parent</text>
 
   <rect x="734" y="292" width="150" height="68" class="accent"/>
-  <text x="786" y="332" class="label">u</text>
-  <text x="748" y="354" class="small">child outputs [B, n_parent x b]</text>
+  <text x="786" y="328" class="label">u</text>
+  <text x="748" y="350" class="small">[B, n_parent x b]</text>
 
   <rect x="922" y="278" width="172" height="96" class="accent"/>
   <text x="952" y="316" class="label">log_weight</text>
@@ -102,7 +102,7 @@
   <text x="758" y="452" class="label">BlockLinear</text>
   <text x="758" y="486" class="body">u -&gt; reshape(B, n_parent, b)</text>
   <text x="758" y="518" class="body">g_b = phi(log_weight)</text>
-  <text x="758" y="550" class="body">V_b[j] = sum_k g_b[j, k] u[j, k]</text>
+  <text x="758" y="550" class="body">V_b[j] = sum_k g_b[j,k] u[j,k]</text>
   <text x="758" y="582" class="body">sum_k g_b[j, k]</text>
   <text x="758" y="622" class="small">b = input_branch_factor</text>
 
