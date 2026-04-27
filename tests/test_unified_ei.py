@@ -484,6 +484,46 @@ def test_factory_builds_unified_ei_recurrent():
     assert y.shape == (2, 6)
 
 
+def test_recurrent_additive_alias_uses_responsive_fixed_gate():
+    params = OmegaConf.create(
+        {
+            "unified_ei": {
+                "output_mode": "last",
+                "layers": [
+                    {
+                        "excitatory": {
+                            "n_neurons": 6,
+                            "branch_factors": [2],
+                            "ff_excitatory_synapses": 3,
+                            "rec_excitatory_synapses": 2,
+                            # These stale fields should be overridden by
+                            # the recurrent additive alias.
+                            "use_shunting": True,
+                            "reactivation_init_policy": "quantile",
+                        },
+                        "inhibitory": None,
+                        "recurrent": True,
+                        "dt": 1.0,
+                    }
+                ],
+            }
+        }
+    )
+
+    net = get_architecture("rnn_dendritic_additive", params, input_dim=8)
+    layer = net.layers[0].e_population.branch_layers[0]
+
+    assert layer.use_shunting is False
+    assert layer.use_additive_normalization is True
+    assert layer.reactivation_init_policy == "fixed"
+    assert layer.reactivation_init_m == pytest.approx(1.0)
+    assert layer.reactivation_init_b == pytest.approx(0.0)
+
+    y = net(torch.rand(2, 5, 8))
+    assert y.shape == (2, 6)
+    assert torch.isfinite(y).all()
+
+
 def test_factory_builds_einet_recurrent_option_with_transfer():
     """New-style: rec synapses in connectivity, no explicit enabled flag."""
     params = OmegaConf.create(

@@ -298,6 +298,34 @@ class TestReactivationUpdateModes(unittest.TestCase):
 
         self.assertEqual(mock_calibrate.call_args.kwargs["mode"], "occupancy_quantile")
 
+    def test_from_init_policy_recalibration_uses_per_layer_mode(self):
+        model = _ToyReactivationModel()
+        model.reactivation_init_policy = "quantile"
+        trainer = Trainer(
+            optimizer=torch.optim.Adam(model.parameters(), lr=0.01),
+            loss_function="cross_entropy",
+            suppress_prints=True,
+            reactivation_update_mode="backprop",
+            reactivation_recalibration_mode="from_init_policy",
+            num_workers=0,
+        )
+        trainer.device = torch.device("cpu")
+        train_loader = torch.utils.data.DataLoader(
+            torch.utils.data.TensorDataset(
+                torch.rand(16, 8), torch.randint(0, 2, (16,))
+            ),
+            batch_size=8,
+            shuffle=False,
+        )
+
+        with patch(
+            "dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.initialize.calibrate_reactivation_from_data"
+        ) as mock_calibrate:
+            mock_calibrate.return_value = {}
+            trainer._recalibrate_reactivation(model, train_loader)
+
+        self.assertIsNone(mock_calibrate.call_args.kwargs["mode"])
+
     def test_quantile_recalibration_uses_configured_batch_count_and_ema(self):
         model = _ToyReactivationModel()
         trainer = Trainer(
