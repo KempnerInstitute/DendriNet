@@ -108,6 +108,8 @@ Pretrained-replacement cores (vision):
 - `src/dendritic_modeling/analysis/`: analyzers and metric code
 - `src/dendritic_modeling/scripts/`: CLI entry points
 - `configs/`: experiment, sweep, and comparison configs
+- `projects/`: registry for paper-specific reproducibility workspaces
+  (project subfolders are ignored until individually released)
 - `tests/`: pytest-based test suite
 
 ## License

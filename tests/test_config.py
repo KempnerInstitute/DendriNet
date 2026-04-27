@@ -15,6 +15,7 @@ from dendritic_modeling.config import (
     ConnectivityConfig,
     CoreConfig,
     DataConfig,
+    LocalRuleConfig,
     ModelConfig,
     OutputsConfig,
     TrainingConfig,
@@ -95,6 +96,33 @@ class TestConfigDataclasses(unittest.TestCase):
         self.assertIsInstance(config.model, ModelConfig)
         self.assertIsInstance(config.training, TrainingConfig)
         self.assertEqual(config.data.dataset_name, "mnist")
+
+    def test_local_rule_explicit_inhibitory_update_modes(self):
+        local_cfg = LocalRuleConfig(explicit_inhibitory_update_mode="local_ca")
+        self.assertEqual(local_cfg.explicit_inhibitory_update_mode, "local_ca")
+        self.assertTrue(local_cfg.update_explicit_inhibitory_cells)
+
+        freeze_cfg = LocalRuleConfig(explicit_inhibitory_update_mode="freeze")
+        self.assertEqual(freeze_cfg.explicit_inhibitory_update_mode, "freeze")
+        self.assertFalse(freeze_cfg.update_explicit_inhibitory_cells)
+
+        alias_cfg = LocalRuleConfig(
+            explicit_inhibitory_update_mode="same_as_excitatory"
+        )
+        self.assertEqual(alias_cfg.explicit_inhibitory_update_mode, "local_ca")
+
+    def test_local_rule_legacy_explicit_inhibitory_update_bool(self):
+        legacy_false = LocalRuleConfig(update_explicit_inhibitory_cells=False)
+        self.assertEqual(legacy_false.explicit_inhibitory_update_mode, "freeze")
+        self.assertFalse(legacy_false.update_explicit_inhibitory_cells)
+
+        legacy_true = LocalRuleConfig(update_explicit_inhibitory_cells=True)
+        self.assertEqual(legacy_true.explicit_inhibitory_update_mode, "local_ca")
+        self.assertTrue(legacy_true.update_explicit_inhibitory_cells)
+
+    def test_local_rule_rejects_invalid_explicit_inhibitory_update_mode(self):
+        with self.assertRaises(ValueError):
+            LocalRuleConfig(explicit_inhibitory_update_mode="graph_local")
 
 
 class TestConfigLoading(unittest.TestCase):

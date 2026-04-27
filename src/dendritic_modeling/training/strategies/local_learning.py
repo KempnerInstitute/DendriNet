@@ -108,6 +108,22 @@ class LocalCreditAssignment(Trainer):
     ) -> dict[str, Any]:
         """Normalize legacy flat local learning config to nested LocalRuleConfig layout."""
         cfg = dict(config_dict)
+        alias_mode = cfg.pop("inhibitory_cell_update_mode", None)
+        if alias_mode is not None:
+            existing_mode = cfg.get("explicit_inhibitory_update_mode")
+            if (
+                existing_mode is not None
+                and LocalRuleConfig._normalize_explicit_inhibitory_update_mode(
+                    existing_mode
+                )
+                != LocalRuleConfig._normalize_explicit_inhibitory_update_mode(
+                    alias_mode
+                )
+            ):
+                raise ValueError(
+                    "Conflicting inhibitory-cell update aliases in LocalRuleConfig"
+                )
+            cfg["explicit_inhibitory_update_mode"] = alias_mode
 
         def ensure_section(section_name: str) -> dict[str, Any]:
             section = self._section_to_dict(cfg.get(section_name))
@@ -295,6 +311,24 @@ class LocalCreditAssignment(Trainer):
             )
 
         return LocalRuleConfig(**cfg_kwargs)
+
+    def _should_update_local_record(self, rec: dict[str, Any]) -> bool:
+        """Return whether LocalCA should write gradients for a recorded branch.
+
+        This only changes explicit inhibitory-cell DendriNet populations. I-to-E
+        synapses that live on excitatory dendrites remain ordinary excitatory
+        population records and are still updated by LocalCA.
+        """
+        if rec.get("population") != "explicit_inhibitory":
+            return True
+
+        mode = getattr(self.local_cfg, "explicit_inhibitory_update_mode", None)
+        if mode is None:
+            # Compatibility for older LocalRuleConfig-like objects in tests.
+            return bool(
+                getattr(self.local_cfg, "update_explicit_inhibitory_cells", True)
+            )
+        return str(mode).lower() == "local_ca"
 
     # Override: do not run extra pretrain/final phases here
     def _pretrain(self, *args, **kwargs):  # type: ignore[override]
@@ -1681,10 +1715,19 @@ class LocalCreditAssignment(Trainer):
                     handle = m.register_forward_hook(_dec_in_hook)
                     handles.append(handle)
 
-        for module in model.modules():
+        for module_name, module in model.named_modules():
             if not isinstance(module, DendriticBranchLayer):
                 continue
-            rec: dict[str, Any] = {"layer": module}
+            population = (
+                "explicit_inhibitory"
+                if ".inhibitory_cells." in module_name
+                else "excitatory"
+            )
+            rec: dict[str, Any] = {
+                "layer": module,
+                "module_name": module_name,
+                "population": population,
+            }
 
             # Reactivation: capture pre-activation (voltage) and output
             def _react_hook(m, inputs, outputs, rec=rec):
@@ -1806,6 +1849,12 @@ class LocalCreditAssignment(Trainer):
 
         # Iterate in the order records were captured
         for layer_idx, rec in enumerate(layer_records):
+            if not self._should_update_local_record(rec):
+                # In freeze mode, explicit inhibitory-cell dendrites are held
+                # fixed. The E-cell I-to-E synapses still learn locally because
+                # they are part of excitatory dendrite records.
+                continue
+
             v_n: Optional[torch.Tensor] = rec.get("v_n")  # [B, out]
             if v_n is None:
                 continue

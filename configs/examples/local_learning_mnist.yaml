@@ -92,6 +92,10 @@ training:
       error_mode: "auto"
       error_broadcast_mode: "per_soma"
       broadcast_bandwidth: "full"       # "full" | "sign_only" | "quantized" | "sparse_topk"
+      # LocalCA-only policy for explicit inhibitory DendriNet populations:
+      # "local_ca" updates them with the same rule used for E-cell dendrites;
+      # "freeze" leaves them fixed while E-cell I-to-E synapses still learn.
+      explicit_inhibitory_update_mode: "local_ca"
       three_factor:
         dynamics_mode: "auto"
         use_conductance_scaling: true

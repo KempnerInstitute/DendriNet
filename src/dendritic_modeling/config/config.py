@@ -748,6 +748,20 @@ def _map_analysis_config(
 def _build_local_rule_config(lsc_data: dict) -> LocalRuleConfig:
     """Build LocalRuleConfig from dict data with nested configs."""
     lsc_kwargs = dict(lsc_data)
+    alias_mode = lsc_kwargs.pop("inhibitory_cell_update_mode", None)
+    if alias_mode is not None:
+        existing_mode = lsc_kwargs.get("explicit_inhibitory_update_mode")
+        if (
+            existing_mode is not None
+            and LocalRuleConfig._normalize_explicit_inhibitory_update_mode(
+                existing_mode
+            )
+            != LocalRuleConfig._normalize_explicit_inhibitory_update_mode(alias_mode)
+        ):
+            raise ValueError(
+                "Conflicting inhibitory-cell update aliases in LocalRuleConfig"
+            )
+        lsc_kwargs["explicit_inhibitory_update_mode"] = alias_mode
 
     # Handle nested three_factor config
     if "three_factor" in lsc_kwargs and isinstance(lsc_kwargs["three_factor"], dict):
