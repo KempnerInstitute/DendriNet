@@ -529,11 +529,13 @@ class TestShuntingNonnegInputCheck:
         out = net(torch.randn(BATCH, INPUT_DIM))
         assert out.shape == (BATCH, OUTPUT_DIM)
 
-    def test_check_is_once_per_instance(self):
-        """After one successful call, the check caches and doesn't rerun."""
+    def test_check_runs_on_every_forward_for_positive_shunting(self):
+        """A later signed batch must still be rejected after a positive batch."""
         config = _minimal_config()
         config["morphology"]["weight_transform"] = "softplus"
         net = get_architecture("dendritic_shunting", config, input_dim=INPUT_DIM)
         assert net._nonneg_input_checked is False  # not yet validated
         _ = net(torch.rand(BATCH, INPUT_DIM))
         assert net._nonneg_input_checked is True
+        with pytest.raises(ValueError, match="signed conductance-driving inputs"):
+            _ = net(torch.randn(BATCH, INPUT_DIM))

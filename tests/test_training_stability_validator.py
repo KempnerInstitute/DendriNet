@@ -35,6 +35,8 @@ def _build_config(
     weight_transform="softplus",
     normalize_inputs=False,
     transfer_output_activation=None,
+    dataset_name="synthetic",
+    dataset_params=None,
 ):
     architecture = ConfigNode(
         topk_ultrafast=topk_ultrafast,
@@ -78,7 +80,11 @@ def _build_config(
             ),
             core_network=ConfigNode(parameters=core_network_params),
         ),
-        data=ConfigNode(processing=ConfigNode(normalize=normalize_inputs)),
+        data=ConfigNode(
+            dataset_name=dataset_name,
+            processing=ConfigNode(normalize=normalize_inputs),
+            dataset_params=dataset_params or ConfigNode(),
+        ),
     )
 
 
@@ -140,6 +146,41 @@ def test_validate_training_stability_rejects_signed_shunting_input(monkeypatch):
         normalize_inputs=True,
         weight_transform="softplus",
         transfer_output_activation=None,
+    )
+
+    errors = []
+    monkeypatch.setattr(tsv.logger, "error", lambda message: errors.append(message))
+
+    assert validate_training_stability(config) is False
+    assert "Signed shunting input" in "\n".join(errors)
+
+
+def test_validate_training_stability_rejects_nested_stringer_normalize(monkeypatch):
+    config = _build_config(
+        core_type="dendritic_shunting",
+        normalize_inputs=False,
+        weight_transform="softplus",
+        transfer_output_activation=None,
+        dataset_name="stringer_v1",
+        dataset_params=ConfigNode(stringer_v1=ConfigNode(normalize=True)),
+    )
+
+    errors = []
+    monkeypatch.setattr(tsv.logger, "error", lambda message: errors.append(message))
+
+    assert validate_training_stability(config) is False
+    assert "Signed shunting input" in "\n".join(errors)
+
+
+def test_validate_training_stability_unwraps_sweep_base_config(monkeypatch):
+    config = ConfigNode(
+        sweep_config=ConfigNode(),
+        base_config=_build_config(
+            core_type="dendritic_shunting",
+            normalize_inputs=True,
+            weight_transform="softplus",
+            transfer_output_activation=None,
+        ),
     )
 
     errors = []

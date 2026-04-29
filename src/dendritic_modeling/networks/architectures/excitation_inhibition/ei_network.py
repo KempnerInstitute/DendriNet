@@ -185,9 +185,10 @@ class ExcitationInhibitionNetwork(BaseNetwork):
         self.adaptive_initialization = adaptive_initialization
         self.compile_forward = compile_forward
 
-        # Flag for the one-shot nonnegative conductance-input validation.
-        # False until the first successful forward pass validates the sign of
-        # the transfer-layer outputs that feed the first dendritic layer.
+        # Records whether the nonnegative conductance-input validation has run.
+        # The validation itself is performed on every forward pass for shunting
+        # networks with positive weights, because later batches can differ from
+        # the first one.
         self._nonneg_input_checked = False
 
         # Set up transfer function
@@ -439,16 +440,14 @@ class ExcitationInhibitionNetwork(BaseNetwork):
 
     @_dynamo_disable
     def _check_nonneg_network_input(self, excitatory_x, inhibitory_x=None) -> None:
-        """One-time sanity check on the conductance-driving inputs.
+        """Runtime sanity check on the conductance-driving inputs.
 
         Positive-conductance shunting requires the *transfer-layer outputs* that
         feed the first dendritic layer to be non-negative. This allows configs
         to clamp a signed raw input via ``transfer.output_activation='relu'``
-        while still rejecting silent signed conductance drive at the actual
+        while still rejecting silent signed conductance drive on every batch at the
         shunting boundary.
         """
-        if self._nonneg_input_checked:
-            return
         if not self.use_shunting:
             self._nonneg_input_checked = True
             return
