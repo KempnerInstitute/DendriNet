@@ -101,10 +101,21 @@ class GeneralSweepGenerator(BaseSweepGenerator):
                     self._set_nested_parameter(config, param_name, param_value)
                     param_dict[param_name] = param_value
 
-                # Set seed
+                # Set seed — model AND dataset use the same value per run.
                 if "train" not in config:
                     config["train"] = {}
                 config["train"]["seed"] = seed
+
+                # Plan023 fix: pair the dataset seed with the model
+                # seed so each run gets its own independent class
+                # permutation set (not a single shared one inherited
+                # from the base config's default seed=0).  Using
+                # setdefault so this is a no-op for plans whose
+                # dataset path doesn't include `structured_correlation`.
+                _data        = config.setdefault("data", {})
+                _data_params = _data.setdefault("dataset_params", {})
+                _sc          = _data_params.setdefault("structured_correlation", {})
+                _sc["seed"]  = seed
 
                 # Add metadata
                 config["_sweep_metadata"] = {

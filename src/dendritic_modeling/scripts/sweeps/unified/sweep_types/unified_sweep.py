@@ -562,23 +562,40 @@ class UnifiedSweepGenerator(BaseSweepGenerator):
                             target = target[k]
                         target[keys[-1]] = val
 
+            # Plan023 helper: pair the dataset seed with the model seed
+            # so each run gets its own independent class permutation
+            # set.  No-op when the dataset path doesn't include
+            # ``structured_correlation`` (other dataset families just
+            # ignore the new key).
+            def _set_dataset_seed(cfg, seed_value):
+                if "data" not in cfg:
+                    cfg["data"] = {}
+                if "dataset_params" not in cfg["data"]:
+                    cfg["data"]["dataset_params"] = {}
+                if "structured_correlation" not in cfg["data"]["dataset_params"]:
+                    cfg["data"]["dataset_params"]["structured_correlation"] = {}
+                cfg["data"]["dataset_params"]["structured_correlation"]["seed"] = seed_value
+
             # Handle multiple seeds if specified
             if seeds_per_condition > 1:
                 for seed_offset in range(seeds_per_condition):
+                    seed_value = base_seed + seed_offset
                     seed_config = OmegaConf.create(deepcopy(new_config))
                     # Set seed in the correct location based on config structure
                     if "experiment" in seed_config:
-                        seed_config.experiment.seed = base_seed + seed_offset
+                        seed_config.experiment.seed = seed_value
                     elif "training" in seed_config:
                         # For new structure, seed is in experiment section, but fall back to training if needed
                         if "experiment" not in seed_config:
                             seed_config["experiment"] = {}
-                        seed_config.experiment.seed = base_seed + seed_offset
+                        seed_config.experiment.seed = seed_value
                     else:
                         # Old structure fallback
                         if "train" not in seed_config:
                             seed_config["train"] = {}
-                        seed_config.train.seed = base_seed + seed_offset
+                        seed_config.train.seed = seed_value
+                    # Plan023: dataset seed paired with model seed.
+                    _set_dataset_seed(seed_config, seed_value)
                     configs.append(seed_config)
             else:
                 # Set seed in the correct location based on config structure
@@ -594,6 +611,8 @@ class UnifiedSweepGenerator(BaseSweepGenerator):
                     if "train" not in new_config:
                         new_config["train"] = {}
                     new_config.train.seed = base_seed
+                # Plan023: dataset seed paired with model seed.
+                _set_dataset_seed(new_config, base_seed)
                 configs.append(new_config)
 
         return configs
