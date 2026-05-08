@@ -190,57 +190,109 @@ class ReceptiveFieldAnalyzer(AbstractAnalyzer):
         branch_data[prefix] = class_dict
         return branch_data
 
+    # def forward_hook(
+    #     self, 
+    #     module: DendriticBranchLayer, 
+    #     input: tuple[torch.Tensor, torch.Tensor, Optional[torch.Tensor]], 
+    #     output: torch.Tensor,
+    #     labels: torch.Tensor,
+    #     data_dict: dict[int, dict[str, float | tuple[int, int, int]]],
+    # ):
+    #     """Forward hook to collect receptive fields."""
+    #     excitatory_input, inhibitory_input, _ = input
+
+    #     exc_weight = module.branch_excitation.pruned_weight()
+    #     exc_mask = module.branch_excitation.weight_mask().bool()
+
+    #     if module.branch_inhibition is not None:
+    #         inh_weight = module.branch_inhibition.pruned_weight()
+    #         inh_mask = module.branch_inhibition.weight_mask().bool()
+
+    #     branches_per_soma = int(module.n_branches // self.n_soma)
+
+    #     depth = module.layer_idx
+    #     for b in range(module.n_branches):
+    #         soma_idx = int(b // branches_per_soma)
+    #         branch_idx = int(b % branches_per_soma)
+    #         branch_location = (soma_idx, depth, branch_idx)
+            
+    #         branch_data = {"location": branch_location}
+
+    #         branch_data = self._compute_receptive_field_metrics(
+    #             soma_idx=soma_idx,
+    #             weights=exc_weight[b],
+    #             weight_mask=exc_mask[b],
+    #             inputs=excitatory_input,
+    #             labels=labels,
+    #             branch_data=branch_data,
+    #             prefix="exc"
+    #         )
+
+    #         if module.branch_inhibition is not None:
+    #             branch_data = self._compute_receptive_field_metrics(
+    #                 soma_idx=soma_idx,
+    #                 weights=inh_weight[b],
+    #                 weight_mask=inh_mask[b],
+    #                 inputs=inhibitory_input,
+    #                 labels=labels,
+    #                 branch_data=branch_data,
+    #                 prefix="inh"
+    #             )
+
+    #         data_dict[len(data_dict)] = branch_data
+
+    #         self._pbar.update(1)
+
     def forward_hook(
         self, 
         module: DendriticBranchLayer, 
         input: tuple[torch.Tensor, torch.Tensor, Optional[torch.Tensor]], 
         output: torch.Tensor,
         labels: torch.Tensor,
-        data_dict: dict[int, dict[str, float | tuple[int, int, int]]],
+        data_dict: dict[str, dict[str, dict[str, list[float]]]],
     ):
         """Forward hook to collect receptive fields."""
         excitatory_input, inhibitory_input, _ = input
 
-        exc_weight = module.branch_excitation.pruned_weight()
-        exc_mask = module.branch_excitation.weight_mask().bool()
+        if self.exc_inputs is None:
+            self.exc_inputs = excitatory_input
+        if self.inh_inputs is None:
+            self.inh_inputs = inhibitory_input
 
-        if module.branch_inhibition is not None:
-            inh_weight = module.branch_inhibition.pruned_weight()
-            inh_mask = module.branch_inhibition.weight_mask().bool()
+        excitation: torch.Tensor = module.branch_excitation(excitatory_input)
+        inhibition: torch.Tensor = module.branch_inhibition(inhibitory_input)
 
-        branches_per_soma = int(module.n_branches // self.n_soma)
+        branches_per_soma = int(module.n_branches // self.n_exc_soma)
 
         depth = module.layer_idx
         for b in range(module.n_branches):
             soma_idx = int(b // branches_per_soma)
             branch_idx = int(b % branches_per_soma)
-            branch_location = (soma_idx, depth, branch_idx)
             
-            branch_data = {"location": branch_location}
+            # branch_location = (soma_idx, depth, branch_idx)
+            location_key = f"soma {soma_idx} - depth {depth} - branch {branch_idx}"
 
-            branch_data = self._compute_receptive_field_metrics(
-                soma_idx=soma_idx,
-                weights=exc_weight[b],
-                weight_mask=exc_mask[b],
-                inputs=excitatory_input,
-                labels=labels,
-                branch_data=branch_data,
-                prefix="exc"
-            )
+            
+            # branch_data = {"location": branch_location}
+            branch_data = {}
 
-            if module.branch_inhibition is not None:
-                branch_data = self._compute_receptive_field_metrics(
-                    soma_idx=soma_idx,
-                    weights=inh_weight[b],
-                    weight_mask=inh_mask[b],
-                    inputs=inhibitory_input,
-                    labels=labels,
-                    branch_data=branch_data,
-                    prefix="inh"
-                )
+            for class_idx in range(self.n_classes):
+                class_key = f"class_{class_idx}"
+                class_mask = labels == class_idx
 
-            data_dict[len(data_dict)] = branch_data
+                exc = excitation[class_mask][:,b]
+                inh = inhibition[class_mask][:,b]
+                vout = output[class_mask][:,b]
 
+                branch_data[class_key] = {
+                    "exc": exc.detach().cpu().tolist(),
+                    "inh": inh.detach().cpu().tolist(),
+                    "ei_ratio": (exc / (inh + 1e-6)).detach().cpu().tolist(),
+                    "vout": vout.detach().cpu().tolist()
+                }
+            
+            # data_dict[len(data_dict)] = branch_data
+            data_dict[location_key] = branch_data
             self._pbar.update(1)
 
     def attach_forward_hooks(
@@ -251,7 +303,12 @@ class ReceptiveFieldAnalyzer(AbstractAnalyzer):
         """Attach forward hooks to the model."""
         core_network: ExcitationInhibitionNetwork = model.core_network
         exc_dendrinet: DendriNet = core_network.layers[0].excitatory_cells
-        self.n_soma = exc_dendrinet.n_soma
+        self.n_exc_soma = exc_dendrinet.n_soma
+
+        inh_dendrinet = core_network.layers[0].inhibitory_cells
+        self.n_inh_soma = None
+        if isinstance(inh_dendrinet, DendriNet):
+            self.n_inh_soma = inh_dendrinet.n_soma
 
         exc_cell_data: dict[int, dict[str, float | tuple[int, int, int]]] = {}
         handles = []
@@ -271,9 +328,12 @@ class ReceptiveFieldAnalyzer(AbstractAnalyzer):
 
     def collect_receptive_fields(self, ei_layer: ExcitationInhibitionLayer):
         """Collect receptive fields from the model."""
-        rfs_dict: dict[str, dict[int, dict[str, Any]]] = {"exc_cells": {}}
 
-        def _rfs_from_dendrinet(dendrinet: DendriNet, cell_type: str):
+        def _rfs_from_dendrinet(
+            dendrinet: DendriNet, 
+            cell_type: str, 
+            rfs_dict: dict[str, dict[str, Any]]
+        ):
             branch_counter = 0
             for dbl in dendrinet.branch_layers:
                 dbl: DendriticBranchLayer
@@ -282,16 +342,26 @@ class ReceptiveFieldAnalyzer(AbstractAnalyzer):
                         exc_weight = dbl.branch_excitation.pruned_weight()
                     if dbl.branch_inhibition is not None:
                         inh_weight = dbl.branch_inhibition.pruned_weight()
-            
-                    branches_per_soma = int(dbl.n_branches // self.n_soma)
+
+                    if cell_type == "exc":
+                        n_soma = self.n_exc_soma
+                    elif cell_type == "inh":
+                        n_soma = self.n_inh_soma
+                    else:
+                        raise ValueError(f"Invalid cell type: {cell_type}")
+
+                    branches_per_soma = int(dbl.n_branches // n_soma)
 
                     depth = dbl.layer_idx
                     for b in range(dbl.n_branches):
                         soma_idx = int(b // branches_per_soma)
                         branch_idx = int(b % branches_per_soma)
-                        branch_location = (soma_idx, depth, branch_idx)
+                        
+                        # branch_location = (soma_idx, depth, branch_idx)
+                        location_key = f"soma {soma_idx} - depth {depth} - branch {branch_idx}"
 
-                        branch_rfs = {"location": branch_location}
+                        # branch_rfs = {"location": branch_location}
+                        branch_rfs = {}
                         
                         if dbl.branch_excitation is not None:
                             if self.exc_rf_shape is not None:
@@ -307,153 +377,318 @@ class ReceptiveFieldAnalyzer(AbstractAnalyzer):
                                 inh_rf = inh_weight[b][:,None]
                             branch_rfs["inh_rf"] = inh_rf.detach().cpu().numpy()
 
-                        rfs_dict[cell_type][branch_counter] = branch_rfs
+                        # rfs_dict[branch_counter] = branch_rfs
+                        rfs_dict[location_key] = branch_rfs
                         branch_counter += 1
 
 
         exc_dendrinet: DendriNet = ei_layer.excitatory_cells
-        _rfs_from_dendrinet(exc_dendrinet, "exc_cells")
+        exc_rfs_dict: dict[str, dict[str, Any]] = {}
+        _rfs_from_dendrinet(
+            dendrinet=exc_dendrinet,
+            cell_type="exc",
+            rfs_dict=exc_rfs_dict
+        )
 
         inh_dendrinet: DendriNet = ei_layer.inhibitory_cells
+        inh_rfs_dict: Optional[dict[str, dict[str, Any]]] = None
         if isinstance(inh_dendrinet, DendriNet):
-            rfs_dict["inh_cells"] = {}
-            _rfs_from_dendrinet(inh_dendrinet, "inh_cells")
+            inh_rfs_dict = {}
+            _rfs_from_dendrinet(
+                dendrinet=inh_dendrinet,
+                cell_type="inh",
+                rfs_dict=inh_rfs_dict
+            )
 
-        return rfs_dict
-
-    @staticmethod
-    def _branch_data_to_ratios(
-        data_dict: dict[int, dict[str, tuple | dict[str, dict[str, float]]]]
-    ) -> dict[int, dict[str, tuple | dict[str, dict[str, float]]]]:
-        # data_dict[branch_idx][location | synapse_type][class_key][metric]
-        ratios_dict = deepcopy(data_dict)
-
-        for branch_idx, branch_data in data_dict.items():
-            location = branch_data["location"]
-            soma_str = f"{location[0]}"
-
-            for synapse_type in ("exc", "inh"):
-                if synapse_type in branch_data:
-                    synapse_data = branch_data[synapse_type]
-
-                    pref_data = synapse_data[f"class_{soma_str}"]
-                    for class_key, class_data in synapse_data.items():
-                        for metric, value in class_data.items():
-                            ratio = pref_data[metric] / value
-                            ratios_dict[branch_idx][synapse_type][class_key][metric] = ratio
-
-        return ratios_dict
+        return exc_rfs_dict, inh_rfs_dict
     
     @staticmethod
-    def _layer_aggregate_ratios_data(
-        ratios_dict: dict[int, dict[str, dict[str, dict[str, float]]]]
-    ) -> dict[str, dict[str, dict[str, list[float]]]]:
-        """Aggregate ratios data to layer level."""
-        # ratios_dict[branch_idx][location | synapse_type][class_key][metric]
-        # layer_data[depth][synapse_type][metric]: list[float]
-        layer_data: dict[str, dict[str, dict[str, list[float]]]] = {}
-
-        max_depth = ratios_dict[0]["location"][1]
-        synapse_types = list(ratios_dict[0].keys())
-        synapse_types.remove("location")
-        metrics = list(ratios_dict[0][synapse_types[0]]["class_0"].keys())
-
-        for depth in range(max_depth, 0, -1):
-            layer_data[f"depth_{depth}"] = {}
-            for synapse_type in synapse_types:
-                layer_data[f"depth_{depth}"][synapse_type] = {}
-                for metric in metrics:
-                    layer_data[f"depth_{depth}"][synapse_type][metric] = []
+    def _aggregate_rfs_by_soma(
+        rfs_dict: dict[str, dict[str, np.ndarray]]
+    ) -> dict[str, dict[str, np.ndarray]]:
+        """Aggregate receptive fields by soma."""
+        agg_rfs_dict: dict[str, dict[str, np.ndarray]] = {}
         
-        for branch_data in ratios_dict.values():
-            location = branch_data["location"]
-            soma_str = f"{location[0]}"
-            depth_key = f"depth_{location[1]}"
-            for synapse_type in synapse_types:
-                synapse_data = branch_data[synapse_type]
-                for class_key, class_data in synapse_data.items():
-                    if class_key != f"class_{soma_str}":
-                        for metric, value in class_data.items():
-                            layer_data[depth_key][synapse_type][metric].append(value)
+        for location_key, branch_data in rfs_dict.items():
+            soma_idx = _location_key_to_tuple(location_key)[0]
+            soma_key = f"soma {soma_idx}"
+            
+            if soma_key not in agg_rfs_dict:
+                agg_rfs_dict[soma_key] = {}
+            
+            if "exc_rf" in branch_data and "exc_rf" not in agg_rfs_dict[soma_key]:
+                agg_rfs_dict[soma_key]["exc_rf"] = branch_data["exc_rf"]
+            elif "exc_rf" in branch_data:
+                agg_rfs_dict[soma_key]["exc_rf"] += branch_data["exc_rf"]
+
+            if "inh_rf" in branch_data and "inh_rf" not in agg_rfs_dict[soma_key]:
+                agg_rfs_dict[soma_key]["inh_rf"] = branch_data["inh_rf"]
+            elif "inh_rf" in branch_data:
+                agg_rfs_dict[soma_key]["inh_rf"] += branch_data["inh_rf"]
         
-        return layer_data
+        n_soma = len(agg_rfs_dict)
+        n_branches = len(rfs_dict)
+        branches_per_soma = n_branches / n_soma
+
+        for soma_data in agg_rfs_dict.values():
+            if "exc_rf" in soma_data:
+                soma_data["exc_rf"] = soma_data["exc_rf"] / branches_per_soma
+            if "inh_rf" in soma_data:
+                soma_data["inh_rf"] = soma_data["inh_rf"] / branches_per_soma
+                
+        return agg_rfs_dict
     
     @staticmethod
-    def _layer_soma_aggregate_ratios_data(
-        ratios_dict: dict[int, dict[str, dict[str, dict[str, float]]]]
-    ) -> dict[str, dict[str, dict[str, dict[str, dict[str, list[float]]]]]]:
-        """Aggregate ratios data by layer and soma."""
-        # ratios_dict[branch_idx][location | synapse_type][class_key][metric]
-        # layer_soma_data[synapse_type][depth_key][soma_key][class_key][metric]: list[float]
-        layer_soma_data: dict[str, dict[str, dict[str, dict[str, dict[str, list[float]]]]]] = {}
+    def _prod_agg_i_cell_e_rf_by_e_cell_i_ref(
+        agg_inh_rfs_dict: dict[str, dict[str, np.ndarray]],
+        exc_rfs_dict: dict[str, dict[str, np.ndarray]],
+    ) -> dict[str, dict[str, np.ndarray]]:
+        """Product of aggregated inh cell exc syn RFs by exc cell inh syn RFs."""
+        prod_rfs_dict: dict[str, dict[str, np.ndarray]] = {}
 
-        max_depth = ratios_dict[0]["location"][1]
-        synapse_types = list(ratios_dict[0].keys())
-        synapse_types.remove("location")
-        metrics = list(ratios_dict[0][synapse_types[0]]["class_0"].keys())
-        n_classes = len(ratios_dict[0][synapse_types[0]].keys())
+        for location_key, branch_rfs in exc_rfs_dict.items():
+            e_cell_inh_rf = branch_rfs["inh_rf"]
+            i_cell_ixs = e_cell_inh_rf.nonzero()[0].tolist()
 
-        for synapse_type in synapse_types:
-            layer_soma_data[synapse_type] = {}
-            for depth in range(max_depth, 0, -1):
-                depth_key = f"depth_{depth}"
-                layer_soma_data[synapse_type][depth_key] = {}
-                for soma_idx in range(n_classes):
-                    soma_key = f"soma_{soma_idx}"
-                    layer_soma_data[synapse_type][depth_key][soma_key] = {}
-                    for class_idx in range(n_classes):
-                        class_key = f"class_{class_idx}"
-                        layer_soma_data[synapse_type][depth_key][soma_key][class_key] = {}
-                        for metric in metrics:
-                            layer_soma_data[synapse_type][depth_key][soma_key][class_key][metric] = []
-        
-        for branch_data in ratios_dict.values():
-            location = branch_data["location"]
-            soma_key = f"soma_{location[0]}"
-            depth_key = f"depth_{location[1]}"
-            for synapse_type in synapse_types:
-                synapse_data = branch_data[synapse_type]
-                for class_key, class_data in synapse_data.items():
-                    for metric, value in class_data.items():
-                        layer_soma_data[synapse_type][depth_key][soma_key][
-                            class_key
-                        ][metric].append(value)
+            prod_branch_rf = {}
+            for i_cell_idx in i_cell_ixs:
+                i_cell_key = f"soma {i_cell_idx}"
+                i_cell_exc_rf = agg_inh_rfs_dict[i_cell_key]["exc_rf"]
 
-        return layer_soma_data
+                if "inh_rf" not in prod_branch_rf:
+                    prod_branch_rf["inh_rf"] = i_cell_exc_rf
+                else:
+                    prod_branch_rf["inh_rf"] += i_cell_exc_rf
+            
+            prod_branch_rf["inh_rf"] = prod_branch_rf["inh_rf"] / len(i_cell_ixs)
+            prod_rfs_dict[location_key] = prod_branch_rf
+        return prod_rfs_dict
+    
+    @staticmethod
+    def _compute_mean_vector_dict(
+        excitatory_inputs: torch.Tensor,
+        inhibitory_inputs: torch.Tensor,
+        labels: torch.Tensor
+    ) -> dict[str, dict[str, np.ndarray]]:
+        """Compute mean vector dictionary."""
+        mean_vector_dict: dict[str, dict[str, np.ndarray]] = {}
+
+        exc_mean_vector = excitatory_inputs.mean(dim=0)
+        inh_mean_vector = inhibitory_inputs.mean(dim=0)
+        mean_vector_dict["total"] = {
+            "exc": exc_mean_vector.detach().cpu().numpy(),
+            "inh": inh_mean_vector.detach().cpu().numpy()
+        }
+
+        for class_idx in torch.unique(labels):
+            class_mask = labels == class_idx
+
+            exc_mean_vector = excitatory_inputs[class_mask].mean(dim=0)
+            inh_mean_vector = inhibitory_inputs[class_mask].mean(dim=0)
+            mean_vector_dict[f"class_{class_idx}"] = {
+                "exc": exc_mean_vector.detach().cpu().numpy(),
+                "inh": inh_mean_vector.detach().cpu().numpy()
+            }
+
+        return mean_vector_dict
 
     @staticmethod
-    def _layer_aggregate_branch_data_preferred(
-        data_dict: dict[int, dict[str, tuple | dict[str, dict[str, float]]]]
+    def _branch_data_to_preferred(
+        data_dict: dict[str, dict[str, dict[str, list[float]]]]
     ) -> dict[str, dict[str, dict[str, list[float]]]]:
-        """Aggregate branch data to layer level (preferred class only)."""
-        # data_dict[branch_idx][location | synapse_type][class_key][metric]
-        # layer_data[depth][synapse_type][metric]: list[float]
-        layer_data: dict[str, dict[str, dict[str, list[float]]]] = {}
+        """Convert branch data to preferred class only."""
+        pref_unpref_data: dict[str, dict[str, dict[str, list[float]]]] = {}
+        for location_key, branch_data in data_dict.items():
+            pref_unpref_data[location_key] = {}
 
-        max_depth = data_dict[0]["location"][1]
-        synapse_types = list(data_dict[0].keys())
-        synapse_types.remove("location")
-        metrics = list(data_dict[0][synapse_types[0]]["class_0"].keys())
+            pref_dict: dict[str, list[float]] = {}
+            unpref_dict: dict[str, list[float]] = {}
 
-        for depth in range(max_depth, 0, -1):
-            layer_data[f"depth_{depth}"] = {}
-            for synapse_type in synapse_types:
-                layer_data[f"depth_{depth}"][synapse_type] = {}
-                for metric in metrics:
-                    layer_data[f"depth_{depth}"][synapse_type][metric] = []
+            metrics = list(list(branch_data.values())[-1].keys())
+            for metric in metrics:
+                pref_dict[metric] = []
+                unpref_dict[metric] = []
+            
+            loc_tuple = _location_key_to_tuple(location_key)
+            pref_class_key = f"class_{loc_tuple[0]}"
+            for class_key, class_data in branch_data.items():
+                if isinstance(class_data, dict):
+                    for metric, value_list in class_data.items():
+                        if class_key == pref_class_key:
+                            pref_dict[metric].extend(value_list)
+                        else:
+                            unpref_dict[metric].extend(value_list)
+            
+            pref_unpref_data[location_key]["preferred"] = pref_dict
+            pref_unpref_data[location_key]["unpreferred"] = unpref_dict
+
+        return pref_unpref_data
+    
+    # @staticmethod
+    # def _branch_data_to_preferred(
+    #     data_dict: dict[int, dict[str, tuple | dict[str, list[float]]]]
+    # ) -> dict[int, dict[str, tuple | dict[str, list[float]]]]:
+    #     """Convert branch data to preferred class only."""
+    #     pref_unpref_data: dict[int, dict[str, tuple | dict[str, list[float]]]] = {}
+    #     for branch_idx, branch_data in data_dict.items():
+    #         location = branch_data["location"]
+    #         pref_unpref_data[branch_idx] = {"location": location}
+
+    #         pref_dict: dict[str, list[float]] = {}
+    #         unpref_dict: dict[str, list[float]] = {}
+
+    #         metrics = list(list(branch_data.values())[-1].keys())
+    #         for metric in metrics:
+    #             pref_dict[metric] = []
+    #             unpref_dict[metric] = []
+            
+    #         pref_class_key = f"class_{location[0]}"
+    #         for class_key, class_data in branch_data.items():
+    #             if isinstance(class_data, dict):
+    #                 for metric, value_list in class_data.items():
+    #                     if class_key == pref_class_key:
+    #                         pref_dict[metric].extend(value_list)
+    #                     else:
+    #                         unpref_dict[metric].extend(value_list)
+            
+    #         pref_unpref_data[branch_idx]["preferred"] = pref_dict
+    #         pref_unpref_data[branch_idx]["unpreferred"] = unpref_dict
+
+    #     return pref_unpref_data
+
+    # @staticmethod
+    # def _branch_data_to_ratios(
+    #     data_dict: dict[int, dict[str, tuple | dict[str, dict[str, float]]]]
+    # ) -> dict[int, dict[str, tuple | dict[str, dict[str, float]]]]:
+    #     # data_dict[branch_idx][location | synapse_type][class_key][metric]
+    #     ratios_dict = deepcopy(data_dict)
+
+    #     for branch_idx, branch_data in data_dict.items():
+    #         location = branch_data["location"]
+    #         soma_str = f"{location[0]}"
+
+    #         for synapse_type in ("exc", "inh"):
+    #             if synapse_type in branch_data:
+    #                 synapse_data = branch_data[synapse_type]
+
+    #                 pref_data = synapse_data[f"class_{soma_str}"]
+    #                 for class_key, class_data in synapse_data.items():
+    #                     for metric, value in class_data.items():
+    #                         ratio = pref_data[metric] / value
+    #                         ratios_dict[branch_idx][synapse_type][class_key][metric] = ratio
+
+    #     return ratios_dict
+    
+    # @staticmethod
+    # def _layer_aggregate_ratios_data(
+    #     ratios_dict: dict[int, dict[str, dict[str, dict[str, float]]]]
+    # ) -> dict[str, dict[str, dict[str, list[float]]]]:
+    #     """Aggregate ratios data to layer level."""
+    #     # ratios_dict[branch_idx][location | synapse_type][class_key][metric]
+    #     # layer_data[depth][synapse_type][metric]: list[float]
+    #     layer_data: dict[str, dict[str, dict[str, list[float]]]] = {}
+
+    #     max_depth = ratios_dict[0]["location"][1]
+    #     synapse_types = list(ratios_dict[0].keys())
+    #     synapse_types.remove("location")
+    #     metrics = list(ratios_dict[0][synapse_types[0]]["class_0"].keys())
+
+    #     for depth in range(max_depth, 0, -1):
+    #         layer_data[f"depth_{depth}"] = {}
+    #         for synapse_type in synapse_types:
+    #             layer_data[f"depth_{depth}"][synapse_type] = {}
+    #             for metric in metrics:
+    #                 layer_data[f"depth_{depth}"][synapse_type][metric] = []
         
-        for branch_data in data_dict.values():
-            location = branch_data["location"]
-            soma_str = f"{location[0]}"
-            depth_key = f"depth_{location[1]}"
-            for synapse_type in synapse_types:
-                synapse_data = branch_data[synapse_type]
-                for class_key, class_data in synapse_data.items():
-                    if class_key == f"class_{soma_str}":
-                        for metric, value in class_data.items():
-                            layer_data[depth_key][synapse_type][metric].append(value)
+    #     for branch_data in ratios_dict.values():
+    #         location = branch_data["location"]
+    #         soma_str = f"{location[0]}"
+    #         depth_key = f"depth_{location[1]}"
+    #         for synapse_type in synapse_types:
+    #             synapse_data = branch_data[synapse_type]
+    #             for class_key, class_data in synapse_data.items():
+    #                 if class_key != f"class_{soma_str}":
+    #                     for metric, value in class_data.items():
+    #                         layer_data[depth_key][synapse_type][metric].append(value)
         
-        return layer_data
+    #     return layer_data
+    
+    # @staticmethod
+    # def _layer_soma_aggregate_ratios_data(
+    #     ratios_dict: dict[int, dict[str, dict[str, dict[str, float]]]]
+    # ) -> dict[str, dict[str, dict[str, dict[str, dict[str, list[float]]]]]]:
+    #     """Aggregate ratios data by layer and soma."""
+    #     # ratios_dict[branch_idx][location | synapse_type][class_key][metric]
+    #     # layer_soma_data[synapse_type][depth_key][soma_key][class_key][metric]: list[float]
+    #     layer_soma_data: dict[str, dict[str, dict[str, dict[str, dict[str, list[float]]]]]] = {}
+
+    #     max_depth = ratios_dict[0]["location"][1]
+    #     synapse_types = list(ratios_dict[0].keys())
+    #     synapse_types.remove("location")
+    #     metrics = list(ratios_dict[0][synapse_types[0]]["class_0"].keys())
+    #     n_classes = len(ratios_dict[0][synapse_types[0]].keys())
+
+    #     for synapse_type in synapse_types:
+    #         layer_soma_data[synapse_type] = {}
+    #         for depth in range(max_depth, 0, -1):
+    #             depth_key = f"depth_{depth}"
+    #             layer_soma_data[synapse_type][depth_key] = {}
+    #             for soma_idx in range(n_classes):
+    #                 soma_key = f"soma_{soma_idx}"
+    #                 layer_soma_data[synapse_type][depth_key][soma_key] = {}
+    #                 for class_idx in range(n_classes):
+    #                     class_key = f"class_{class_idx}"
+    #                     layer_soma_data[synapse_type][depth_key][soma_key][class_key] = {}
+    #                     for metric in metrics:
+    #                         layer_soma_data[synapse_type][depth_key][soma_key][class_key][metric] = []
+        
+    #     for branch_data in ratios_dict.values():
+    #         location = branch_data["location"]
+    #         soma_key = f"soma_{location[0]}"
+    #         depth_key = f"depth_{location[1]}"
+    #         for synapse_type in synapse_types:
+    #             synapse_data = branch_data[synapse_type]
+    #             for class_key, class_data in synapse_data.items():
+    #                 for metric, value in class_data.items():
+    #                     layer_soma_data[synapse_type][depth_key][soma_key][
+    #                         class_key
+    #                     ][metric].append(value)
+
+    #     return layer_soma_data
+
+    # @staticmethod
+    # def _layer_aggregate_branch_data_preferred(
+    #     data_dict: dict[int, dict[str, tuple | dict[str, dict[str, float]]]]
+    # ) -> dict[str, dict[str, dict[str, list[float]]]]:
+    #     """Aggregate branch data to layer level (preferred class only)."""
+    #     # data_dict[branch_idx][location | synapse_type][class_key][metric]
+    #     # layer_data[depth][synapse_type][metric]: list[float]
+    #     layer_data: dict[str, dict[str, dict[str, list[float]]]] = {}
+
+    #     max_depth = data_dict[0]["location"][1]
+    #     synapse_types = list(data_dict[0].keys())
+    #     synapse_types.remove("location")
+    #     metrics = list(data_dict[0][synapse_types[0]]["class_0"].keys())
+
+    #     for depth in range(max_depth, 0, -1):
+    #         layer_data[f"depth_{depth}"] = {}
+    #         for synapse_type in synapse_types:
+    #             layer_data[f"depth_{depth}"][synapse_type] = {}
+    #             for metric in metrics:
+    #                 layer_data[f"depth_{depth}"][synapse_type][metric] = []
+        
+    #     for branch_data in data_dict.values():
+    #         location = branch_data["location"]
+    #         soma_str = f"{location[0]}"
+    #         depth_key = f"depth_{location[1]}"
+    #         for synapse_type in synapse_types:
+    #             synapse_data = branch_data[synapse_type]
+    #             for class_key, class_data in synapse_data.items():
+    #                 if class_key == f"class_{soma_str}":
+    #                     for metric, value in class_data.items():
+    #                         layer_data[depth_key][synapse_type][metric].append(value)
+        
+    #     return layer_data
 
     def analyze(
         self,
@@ -493,6 +728,12 @@ class ReceptiveFieldAnalyzer(AbstractAnalyzer):
         x: torch.Tensor = x.to(device)
         labels: torch.Tensor = labels.to(device)
 
+        self.exc_inputs = None
+        self.inh_inputs = None
+
+        unique_classes = torch.unique(labels)
+        self.n_classes = len(unique_classes)
+
         handles, exc_cell_data = self.attach_forward_hooks(model, labels)
 
         self._pbar = tqdm.tqdm(
@@ -507,68 +748,209 @@ class ReceptiveFieldAnalyzer(AbstractAnalyzer):
         self._pbar.close()
         del self._pbar
 
-        layer_pref_data = self._layer_aggregate_branch_data_preferred(exc_cell_data)
+        pref_unpref_data = self._branch_data_to_preferred(exc_cell_data)
         
-        ratios_data = self._branch_data_to_ratios(exc_cell_data)
-        layer_ratios_data = self._layer_aggregate_ratios_data(ratios_data)
-        layer_soma_data = self._layer_soma_aggregate_ratios_data(ratios_data)
-
         if save_path is not None:
             if training:
                 save_path = os.path.join(save_path, "epochs")
          
-            save_dict(layer_pref_data, save_path, f"{filename}_pref.json")
-
-            save_dict(layer_ratios_data, save_path, f"{filename}_ratios.json")
-            save_dict(layer_soma_data, save_path, f"{filename}_soma.json")
-
         if not training:
-            rfs_dict = self.collect_receptive_fields(ei_layer)
-            # _plot_receptive_fields(rfs_dict, "exc", "exc", save_path)
-            # _plot_receptive_fields(rfs_dict, "exc", "inh", save_path)
-            # _plot_receptive_fields(rfs_dict, "inh", "exc", save_path)
-
-            # for mkey in (
-            #     "sim_mean", "sim_max_rq", "sim_pc_1", "sim_pc_all", "silent"
-            # ):
-            #     _plot_receptive_fields_layer_metric_quantiles(
-            #         layer_data["exc_cells"], "exc", "exc", mkey, save_path
-            #     )
-            #     _plot_receptive_fields_layer_metric_quantiles(
-            #         layer_data["exc_cells"], "exc", "inh", mkey, save_path
-            #     )
-                # if inh_cell_data is not None:
-                #     _plot_receptive_fields_layer_metric_quantiles(
-                #         layer_data["inh_cells"], "inh", "exc", mkey, save_path
-                #     )
-                ### DELETE INH CELLS FROM METRIC ANALYSIS, THEY DO NOT HAVE PREFERRED/UNPREFERRED
-
+            
             if save_path is not None:
-                _plot_receptive_fields_layer_metric_ratios(
-                    layer_pref_data,
-                    layer_ratios_data,
-                    "exc",
-                    save_path,
+                activation_plots_path = os.path.join(save_path, "activation_plots")
+                
+                _plot_exc_vs_inh_by_compartment(
+                    pref_unpref_data, activation_plots_path
                 )
-                _plot_receptive_fields_layer_soma_metric_ratios_heatmaps(
-                    layer_soma_data,
-                    "exc",
-                    save_path,
+                _plot_vout_vs_eiratio_by_compartment(
+                    pref_unpref_data, activation_plots_path
                 )
+                _plot_vout_activation_boxplots(
+                    exc_cell_data, activation_plots_path
+                )
+
+                weight_rfs_path = os.path.join(save_path, "synapse_weight_rfs")
+                exc_rfs_dict, inh_rfs_dict = self.collect_receptive_fields(ei_layer)
+                _plot_receptive_fields(
+                    save_path=weight_rfs_path,
+                    rfs_dict=exc_rfs_dict, 
+                    cell_type="exc", 
+                    synapse_type="exc"
+                )
+                _plot_receptive_fields(
+                    save_path=weight_rfs_path,
+                    rfs_dict=exc_rfs_dict, 
+                    cell_type="exc", 
+                    synapse_type="inh"
+                )
+                if inh_rfs_dict is not None:
+                    _plot_receptive_fields(
+                        save_path=weight_rfs_path,
+                        rfs_dict=inh_rfs_dict, 
+                        cell_type="inh", 
+                        synapse_type="exc"
+                    )
+                
+                agg_weight_rfs_path = os.path.join(save_path, "agg_synapse_weight_rfs")
+                exc_agg_rfs_dict = self._aggregate_rfs_by_soma(exc_rfs_dict)
+                _plot_receptive_fields(
+                    save_path=agg_weight_rfs_path,
+                    rfs_dict=exc_agg_rfs_dict, 
+                    cell_type="exc", 
+                    synapse_type="exc"
+                )
+                _plot_receptive_fields(
+                    save_path=agg_weight_rfs_path,
+                    rfs_dict=exc_agg_rfs_dict, 
+                    cell_type="exc", 
+                    synapse_type="inh"
+                )
+                if inh_rfs_dict is not None:
+                    inh_agg_rfs_dict = self._aggregate_rfs_by_soma(inh_rfs_dict)
+                    _plot_receptive_fields(
+                        save_path=agg_weight_rfs_path,
+                        rfs_dict=inh_agg_rfs_dict, 
+                        cell_type="inh", 
+                        synapse_type="exc"
+                    )
+                
+                mean_vector_dict = self._compute_mean_vector_dict(
+                    self.exc_inputs,
+                    self.inh_inputs,
+                    labels
+                )
+                syn_act_rfs_path = os.path.join(save_path, "synapse_activation_rfs")
+                _plot_receptive_fields(
+                    save_path=syn_act_rfs_path,
+                    rfs_dict=exc_rfs_dict, 
+                    cell_type="exc", 
+                    synapse_type="exc",
+                    mean_vector_dict=mean_vector_dict,
+                    total_mean_vector=False,
+                    mean_vector_type="exc"
+                )
+                _plot_receptive_fields(
+                    save_path=syn_act_rfs_path,
+                    rfs_dict=exc_rfs_dict, 
+                    cell_type="exc", 
+                    synapse_type="inh",
+                    mean_vector_dict=mean_vector_dict,
+                    total_mean_vector=False,
+                    mean_vector_type="inh"
+                )
+                if inh_rfs_dict is not None:
+                    _plot_receptive_fields(
+                        save_path=syn_act_rfs_path,
+                        rfs_dict=inh_rfs_dict, 
+                        cell_type="inh", 
+                        synapse_type="exc",
+                        mean_vector_dict=mean_vector_dict,
+                        total_mean_vector=True,
+                        mean_vector_type="exc"
+                    )
+                
+                agg_syn_act_rfs_path = os.path.join(save_path, "agg_synapse_activation_rfs")
+                _plot_receptive_fields(
+                    save_path=agg_syn_act_rfs_path,
+                    rfs_dict=exc_agg_rfs_dict, 
+                    cell_type="exc", 
+                    synapse_type="exc",
+                    mean_vector_dict=mean_vector_dict,
+                    total_mean_vector=False,
+                    mean_vector_type="exc"
+                )
+                _plot_receptive_fields(
+                    save_path=agg_syn_act_rfs_path,
+                    rfs_dict=exc_agg_rfs_dict, 
+                    cell_type="exc", 
+                    synapse_type="inh",
+                    mean_vector_dict=mean_vector_dict,
+                    total_mean_vector=False,
+                    mean_vector_type="inh"
+                )
+                if inh_rfs_dict is not None:
+                    _plot_receptive_fields(
+                        save_path=agg_syn_act_rfs_path,
+                        rfs_dict=inh_agg_rfs_dict, 
+                        cell_type="inh", 
+                        synapse_type="exc",
+                        mean_vector_dict=mean_vector_dict,
+                        total_mean_vector=True,
+                        mean_vector_type="exc"
+                    )
+                
+                prod_rfs_dict = self._prod_agg_i_cell_e_rf_by_e_cell_i_ref(
+                    agg_inh_rfs_dict=inh_agg_rfs_dict,
+                    exc_rfs_dict=exc_rfs_dict
+                )
+                agg_prod_rfs_dict = self._aggregate_rfs_by_soma(prod_rfs_dict)
+
+                agg_prod_rfs_path = os.path.join(save_path, "agg_prod_synapse_activation_rfs")
+                _plot_receptive_fields(
+                    save_path=agg_prod_rfs_path,
+                    rfs_dict=agg_prod_rfs_dict, 
+                    cell_type="inh", 
+                    synapse_type="inh",
+                    mean_vector_dict=mean_vector_dict,
+                    total_mean_vector=True,
+                    mean_vector_type="exc"
+                )
+                _plot_receptive_fields(
+                    save_path=agg_prod_rfs_path,
+                    rfs_dict=prod_rfs_dict, 
+                    cell_type="exc", 
+                    synapse_type="inh",
+                    mean_vector_dict=mean_vector_dict,
+                    total_mean_vector=True,
+                    mean_vector_type="exc"
+                )
+
+                agg_prod_rfs_path = os.path.join(save_path, "agg_prod_synapse_weight_rfs")
+                _plot_receptive_fields(
+                    save_path=agg_prod_rfs_path,
+                    rfs_dict=agg_prod_rfs_dict, 
+                    cell_type="inh", 
+                    synapse_type="inh"
+                )
+                _plot_receptive_fields(
+                    save_path=agg_prod_rfs_path,
+                    rfs_dict=prod_rfs_dict, 
+                    cell_type="exc", 
+                    synapse_type="inh"
+                )
+
+
+### NOTES AND TODOs
+###   (DONE) Show preferred / unpreferred (or class-conditioned) E vs I plots for each compartment on exc cells.
+###   Show class-conditioned vout activation boxplots for each compartment (including soma) on exc and inh cells.
+###   Confusion matrix
+###   Reliability diagram? (entropy of readout space versus some notion of error, architecture-agnostic visual for "how the model decides")
+###   Mean MNIST digit for each class next to aggregated exc receptive field for each readout neuron
+###   Sum of exc syn receptive fields for each interneuron
+###   Linear weighted sum of inh syn receptive fields for each readout neuron (multiply aggregated interneuron exc RFs by inh syn weights on readout neurons)
+###   Aggregate above^ by soma (total interneuron exc RF for each readout neuron)
+###   Multiply all receptive fields by class-conditioned mean vectors of inputs (to kill silent synapses)
+###   Some visual (for each compartment) showing why some preferred stimuli have E/I ratio < 1 and nonpreferred stimuli have E/I ratio > 1 (think about this HARD AHHHH)
+
+
+def _location_key_to_tuple(location_key: str) -> tuple[int, int, int]:
+    """Convert location key to tuple."""
+    loc = location_key.replace("soma", "").replace("depth", "").replace("branch", "")
+    loc = loc.replace(" ", "")
+    return tuple(int(x) for x in loc.split("-"))
 
 
 def _plot_receptive_fields(
-    rfs_dict: dict[str, dict[int, dict[str, tuple[int, int, int] | torch.Tensor]]], 
+    save_path: str,
+    rfs_dict: dict[str, dict[str, np.ndarray]],
     cell_type: str,
     synapse_type: str,
-    save_path: str
+    mean_vector_dict: Optional[dict[str, dict[str, np.ndarray]]] = None,
+    total_mean_vector: Optional[bool] = False,
+    mean_vector_type: Optional[str] = None,
 ):
     """Plot receptive fields."""
-    if f"{cell_type}_cells" not in rfs_dict:
-        return
-    
-    cell_rfs_dict = rfs_dict[f"{cell_type}_cells"]
-    n_total_branches = len(cell_rfs_dict)
+    n_total_branches = len(rfs_dict)
     
     n_rows = 1
     n_cols = 1
@@ -582,19 +964,263 @@ def _plot_receptive_fields(
     fig, axes = plt.subplots(n_rows, n_cols, figsize=(6 * n_cols, 6 * n_rows))
     axes = axes.flatten()
 
-    for i, branch_rfs in enumerate(cell_rfs_dict.values()):
+    for i, (location_key, branch_rfs) in enumerate(rfs_dict.items()):
         ax = axes[i]
         
-        soma_idx, depth, branch_idx = branch_rfs["location"]
+        if "depth" in location_key and "branch" in location_key:
+            soma_idx = _location_key_to_tuple(location_key)[0]
+        elif "soma " in location_key:
+            soma_idx = location_key.replace("soma ", "")
+        else:
+            raise ValueError(f"Invalid location key: {location_key}")
+        
+        
+        
+        # soma_idx, depth, branch_idx = branch_rfs["location"]
         rf = branch_rfs[f"{synapse_type}_rf"]
 
+        if mean_vector_dict is not None:
+            if total_mean_vector:
+                class_key = "total"
+            else:
+                class_key = f"class_{soma_idx}"
+            input_mean_vec = mean_vector_dict[class_key][mean_vector_type]
+            shaped_vec = input_mean_vec.reshape(*rf.shape)
+            rf = rf * shaped_vec
+
         sns.heatmap(rf, ax=ax, cmap="viridis")
-        ax.set_title(f"Soma {soma_idx}, Depth {depth}, Branch {branch_idx}")
+        # ax.set_title(f"Soma {soma_idx}, Depth {depth}, Branch {branch_idx}")
+        ax.set_title(location_key.title())
     
-    fig.suptitle(f"{synapse_type.title()} Synapse Receptive Fields on {cell_type.title()} Cells")
+    for j in range(n_total_branches, len(axes)):
+        axes[j].set_visible(False)
+    
+    # fig.suptitle(f"{synapse_type.title()} Synapse Receptive Fields on {cell_type.title()} Cells")
     fig.tight_layout()
+    os.makedirs(save_path, exist_ok=True)
     fig.savefig(os.path.join(save_path, f"{cell_type}_cell_{synapse_type}_syn_rfs.png"))
     plt.close(fig)
+
+
+def _plot_vout_activation_boxplots(
+    data_dict: dict[str, dict[str, dict[str, list[float]]]],
+    save_path: str,
+) -> None:
+    """Per-branch boxplots of compartment output ``vout`` vs. input class label."""
+    if not data_dict:
+        return
+
+    branch_keys = list(data_dict.keys())
+    n_total_branches = len(branch_keys)
+
+    n_rows = 1
+    n_cols = 1
+    while n_rows * n_cols < n_total_branches:
+        if n_rows < n_cols:
+            n_rows += 1
+        else:
+            n_cols += 1
+
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(6 * n_cols, 6 * n_rows))
+    axes_flat = np.atleast_1d(axes).ravel()
+
+    first_bd = data_dict[branch_keys[0]]
+    class_order = sorted(
+        int(k.split("_")[1])
+        for k in first_bd
+        if isinstance(first_bd.get(k), dict) and k.startswith("class_")
+    )
+    if not class_order:
+        plt.close(fig)
+        return
+
+    for i, bk in enumerate(branch_keys):
+        ax = axes_flat[i]
+        bd = data_dict[bk]
+        # soma_idx, depth, branch_idx = _location_key_to_tuple(bk)
+
+        rows: list[dict[str, int | float]] = []
+        for ci in class_order:
+            ck = f"class_{ci}"
+            if ck not in bd or not isinstance(bd[ck], dict):
+                continue
+            vals = bd[ck].get("vout", [])
+            for v in vals:
+                rows.append({"Class": ci, "vout": float(v)})
+
+        if rows:
+            df = pd.DataFrame(rows)
+            sns.boxplot(
+                data=df,
+                x="Class",
+                y="vout",
+                ax=ax,
+                order=class_order,
+                color="0.88",
+            )
+        ax.set_xlabel("Class")
+        ax.set_ylabel(r"$V_{\mathrm{out}}$")
+        ax.set_ylim(0.0, 1.0)
+        xticks = [str(c) for c in class_order]
+        ax.set_xticks(range(len(class_order)))
+        ax.set_xticklabels(xticks)
+        # ax.set_title(f"Soma {soma_idx}, Depth {depth}, Branch {branch_idx}")
+        ax.set_title(bk.title())
+
+    for j in range(n_total_branches, len(axes_flat)):
+        axes_flat[j].set_visible(False)
+
+    fig.suptitle(
+        r"$V_{\mathrm{out}}$ by input class (excitatory cell compartments)",
+        y=1.02,
+    )
+    fig.tight_layout()
+    fig.subplots_adjust(top=0.94)
+    os.makedirs(save_path, exist_ok=True)
+    fig.savefig(os.path.join(save_path, "exc_vout_activation_by_class_boxplots.png"))
+    plt.close(fig)
+
+
+def _plot_pref_unpref_scatter_by_compartment(
+    pref_unpref_data: dict[str, dict[str, dict[str, list[float]]]],
+    xvar: str,
+    yvar: str,
+    x_logscale: bool,
+    save_path: str,
+    fig_basename: str,
+    reference_line: Optional[str] = None,
+) -> None:
+    """
+    One subplot per branch/compartment, same grid heuristic as _plot_receptive_fields.
+
+    ``pref_unpref_data`` is the output of ``_branch_data_to_preferred``: for each
+    branch, ``preferred`` / ``unpreferred`` map metric names (``exc``, ``inh``,
+    ``ei_ratio``, ``vout``) to per-sample lists. Scatter ``yvar`` vs ``xvar``;
+    preferred points in red, unpreferred in black.
+
+    ``reference_line``: optional grey dotted guide — ``"y=x"`` (identity) or
+    ``"x=1"`` (vertical).
+    """
+    if not pref_unpref_data:
+        return
+
+    branch_keys = list(pref_unpref_data.keys())
+    n_total = len(branch_keys)
+
+    n_rows = 1
+    n_cols = 1
+    while n_rows * n_cols < n_total:
+        if n_rows < n_cols:
+            n_rows += 1
+        else:
+            n_cols += 1
+
+    fig, axes = plt.subplots(
+        n_rows, n_cols, figsize=(6 * n_cols, 6 * n_rows)
+    )
+    axes_flat = np.atleast_1d(axes).ravel()
+
+    x_label = xvar.replace("_", " ").title()
+    y_label = yvar.replace("_", " ").title()
+
+    for i, bk in enumerate(branch_keys):
+        ax = axes_flat[i]
+        bd = pref_unpref_data[bk]
+        # soma_idx, depth, branch_idx = _location_key_to_tuple(bk)
+        pref = bd["preferred"]
+        unpref = bd["unpreferred"]
+
+        xp = np.asarray(pref.get(xvar, []), dtype=float)
+        yp = np.asarray(pref.get(yvar, []), dtype=float)
+        xu = np.asarray(unpref.get(xvar, []), dtype=float)
+        yu = np.asarray(unpref.get(yvar, []), dtype=float)
+
+        mp = np.isfinite(xp) & np.isfinite(yp)
+        mu = np.isfinite(xu) & np.isfinite(yu)
+        if x_logscale:
+            mp = mp & (xp > 0)
+            mu = mu & (xu > 0)
+
+        if mu.any():
+            ax.scatter(
+                xu[mu],
+                yu[mu],
+                c="black",
+                s=12,
+                alpha=0.45,
+                edgecolors="none",
+                label="unpreferred",
+            )
+        if mp.any():
+            ax.scatter(
+                xp[mp],
+                yp[mp],
+                c="red",
+                s=12,
+                alpha=0.45,
+                edgecolors="none",
+                label="preferred",
+            )
+
+        ax.set_xlabel(x_label)
+        ax.set_ylabel(y_label)
+        if x_logscale:
+            ax.set_xscale("log")
+
+        _ref_kw = {"color": "green", "linestyle": "--", "linewidth": 5}
+        if reference_line == "y=x":
+            xmin, xmax = ax.get_xlim()
+            ymin, ymax = ax.get_ylim()
+            lo = max(xmin, ymin)
+            hi = min(xmax, ymax)
+            if math.isfinite(lo) and math.isfinite(hi) and hi > lo:
+                ax.plot([lo, hi], [lo, hi], **_ref_kw)
+        elif reference_line == "x=1":
+            ax.axvline(1.0, **_ref_kw)
+
+        # ax.set_title(f"Soma {soma_idx}, Depth {depth}, Branch {branch_idx}")
+        ax.set_title(bk.title())
+        if i == 0:
+            ax.legend(loc="best", fontsize=8)
+
+    for j in range(n_total, len(axes_flat)):
+        axes_flat[j].set_visible(False)
+
+    fig.tight_layout()
+    os.makedirs(save_path, exist_ok=True)
+    fig.savefig(os.path.join(save_path, fig_basename))
+    plt.close(fig)
+
+
+def _plot_exc_vs_inh_by_compartment(
+    pref_unpref_data: dict[str, dict[str, dict[str, list[float]]]],
+    save_path: str,
+) -> None:
+    _plot_pref_unpref_scatter_by_compartment(
+        pref_unpref_data,
+        xvar="inh",
+        yvar="exc",
+        x_logscale=False,
+        save_path=save_path,
+        fig_basename="exc_vs_inh_by_compartment_pref_unpref.png",
+        reference_line="y=x",
+    )
+
+
+def _plot_vout_vs_eiratio_by_compartment(
+    pref_unpref_data: dict[str, dict[str, dict[str, list[float]]]],
+    save_path: str,
+) -> None:
+    _plot_pref_unpref_scatter_by_compartment(
+        pref_unpref_data,
+        xvar="ei_ratio",
+        yvar="vout",
+        x_logscale=True,
+        save_path=save_path,
+        fig_basename="vout_vs_eiratio_by_compartment_pref_unpref.png",
+        reference_line="x=1",
+    )
+
 
 
 def _plot_receptive_fields_layer_metric_quantiles(
