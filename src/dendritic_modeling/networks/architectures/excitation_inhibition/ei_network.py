@@ -13,6 +13,8 @@ import torch
 import torch.nn as nn
 from omegaconf import DictConfig
 
+from dendritic_modeling.profiling import is_nvtx_enabled, mark_backward, nvtx_range
+
 # Import dynamo config for JIT compilation optimization
 try:
     import torch._dynamo.config
@@ -491,12 +493,32 @@ class ExcitationInhibitionNetwork(BaseNetwork):
         - First layer's inhibitory cells receive the same input as excitatory cells
         - Subsequent layers receive outputs from previous layers
         """
-        excitatory_x, inhibitory_x = self.transfer_fn(x)
+        profile = is_nvtx_enabled()
+        if profile:
+            with nvtx_range(
+                "dendritic.ei_network.forward"
+                f"(layers={len(self.layers)},output={self.output_dim})"
+            ):
+                output = self._forward_impl(x, profile=True)
+            return mark_backward(output, "dendritic.ei_network.backward")
+
+        return self._forward_impl(x, profile=False)
+
+    def _forward_impl(self, x: torch.Tensor, profile: bool = False) -> torch.Tensor:
+        if profile:
+            with nvtx_range("dendritic.transfer.forward"):
+                excitatory_x, inhibitory_x = self.transfer_fn(x)
+        else:
+            excitatory_x, inhibitory_x = self.transfer_fn(x)
         self._check_nonneg_network_input(excitatory_x, inhibitory_x)
 
         # Optimized: Use direct iteration over ModuleList
-        for layer in self.layers:
-            excitatory_x, inhibitory_x = layer(excitatory_x, inhibitory_x)
+        for layer_idx, layer in enumerate(self.layers):
+            if profile:
+                with nvtx_range(f"dendritic.ei_network.layer(index={layer_idx})"):
+                    excitatory_x, inhibitory_x = layer(excitatory_x, inhibitory_x)
+            else:
+                excitatory_x, inhibitory_x = layer(excitatory_x, inhibitory_x)
 
         return excitatory_x
 

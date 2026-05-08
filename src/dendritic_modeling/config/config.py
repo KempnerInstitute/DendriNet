@@ -84,6 +84,7 @@ class ExperimentConfig(BaseConfig):
     allow_tf32: bool = False
     float32_matmul_precision: str = "highest"
     enable_profiling: bool = False
+    enable_nvtx: bool = False
     profiling_output_dir: str = "results/profiling/"
     enable_hooks: bool = True
 

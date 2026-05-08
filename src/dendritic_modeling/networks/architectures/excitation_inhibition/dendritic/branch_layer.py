@@ -11,6 +11,7 @@ from typing import Optional
 import torch
 import torch.nn as nn
 
+from dendritic_modeling.profiling import is_nvtx_enabled, mark_backward, nvtx_range
 from dendritic_modeling.networks.activations import ActivationFactory
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.blocklinear import (
     BlockLinear,
@@ -479,12 +480,59 @@ class DendriticBranchLayer(nn.Module):
         recurrent_input=None,
         rec_inhibitory_input=None,
     ):
+        profile = is_nvtx_enabled()
+        if profile:
+            range_name = (
+                "dendritic.branch.forward"
+                f"(layer={self.layer_idx},branches={self.n_branches},"
+                f"shunting={self.use_shunting})"
+            )
+            with nvtx_range(range_name):
+                result = self._forward_impl(
+                    x=x,
+                    inhibitory_input=inhibitory_input,
+                    branch_input=branch_input,
+                    recurrent_input=recurrent_input,
+                    rec_inhibitory_input=rec_inhibitory_input,
+                    profile=True,
+                )
+            return mark_backward(
+                result,
+                "dendritic.branch.backward"
+                f"(layer={self.layer_idx},branches={self.n_branches})",
+            )
+
+        return self._forward_impl(
+            x=x,
+            inhibitory_input=inhibitory_input,
+            branch_input=branch_input,
+            recurrent_input=recurrent_input,
+            rec_inhibitory_input=rec_inhibitory_input,
+            profile=False,
+        )
+
+    def _forward_impl(
+        self,
+        x,
+        inhibitory_input=None,
+        branch_input=None,
+        recurrent_input=None,
+        rec_inhibitory_input=None,
+        profile: bool = False,
+    ):
         if self.use_shunting:
             numerator = 0
             denominator = 1
 
             if self.input_excitatory and self.branch_excitation is not None:
-                excitation = self.branch_excitation(x)
+                if profile:
+                    with nvtx_range(
+                        "dendritic.branch.exc_synapses"
+                        f"(layer={self.layer_idx},branches={self.n_branches})"
+                    ):
+                        excitation = self.branch_excitation(x)
+                else:
+                    excitation = self.branch_excitation(x)
                 numerator = numerator + excitation
                 denominator = denominator + excitation
 
@@ -493,12 +541,26 @@ class DendriticBranchLayer(nn.Module):
                 and self.branch_recurrent is not None
                 and recurrent_input is not None
             ):
-                rec_excitation = self.branch_recurrent(recurrent_input)
+                if profile:
+                    with nvtx_range(
+                        "dendritic.branch.rec_exc_synapses"
+                        f"(layer={self.layer_idx},branches={self.n_branches})"
+                    ):
+                        rec_excitation = self.branch_recurrent(recurrent_input)
+                else:
+                    rec_excitation = self.branch_recurrent(recurrent_input)
                 numerator = numerator + rec_excitation
                 denominator = denominator + rec_excitation
 
             if self.input_branches and branch_input is not None:
-                current = self.branches_to_output(branch_input)
+                if profile:
+                    with nvtx_range(
+                        "dendritic.branch.child_aggregation"
+                        f"(layer={self.layer_idx},branches={self.n_branches})"
+                    ):
+                        current = self.branches_to_output(branch_input)
+                else:
+                    current = self.branches_to_output(branch_input)
                 numerator = numerator + current
                 conductance = self.branches_to_output.sum_conductances()
                 denominator = denominator + conductance
@@ -508,7 +570,14 @@ class DendriticBranchLayer(nn.Module):
                 and self.branch_inhibition is not None
                 and inhibitory_input is not None
             ):
-                inhibition = self.branch_inhibition(inhibitory_input)
+                if profile:
+                    with nvtx_range(
+                        "dendritic.branch.inh_synapses"
+                        f"(layer={self.layer_idx},branches={self.n_branches})"
+                    ):
+                        inhibition = self.branch_inhibition(inhibitory_input)
+                else:
+                    inhibition = self.branch_inhibition(inhibitory_input)
                 denominator = denominator + inhibition
 
             if (
@@ -516,10 +585,26 @@ class DendriticBranchLayer(nn.Module):
                 and self.branch_rec_inhibition is not None
                 and rec_inhibitory_input is not None
             ):
-                rec_inhibition = self.branch_rec_inhibition(rec_inhibitory_input)
+                if profile:
+                    with nvtx_range(
+                        "dendritic.branch.rec_inh_synapses"
+                        f"(layer={self.layer_idx},branches={self.n_branches})"
+                    ):
+                        rec_inhibition = self.branch_rec_inhibition(
+                            rec_inhibitory_input
+                        )
+                else:
+                    rec_inhibition = self.branch_rec_inhibition(rec_inhibitory_input)
                 denominator = denominator + rec_inhibition
 
-            voltage = numerator / (denominator + self.epsilon)
+            if profile:
+                with nvtx_range(
+                    "dendritic.branch.shunting_voltage"
+                    f"(layer={self.layer_idx},branches={self.n_branches})"
+                ):
+                    voltage = numerator / (denominator + self.epsilon)
+            else:
+                voltage = numerator / (denominator + self.epsilon)
 
             # Store for diagnostic access (no-op during normal training)
             if getattr(self, "_store_diagnostics", False):
@@ -532,31 +617,70 @@ class DendriticBranchLayer(nn.Module):
             voltage = 0
 
             if self.input_excitatory and self.branch_excitation is not None:
-                voltage = voltage + self.branch_excitation(x)
+                if profile:
+                    with nvtx_range(
+                        "dendritic.branch.exc_synapses"
+                        f"(layer={self.layer_idx},branches={self.n_branches})"
+                    ):
+                        voltage = voltage + self.branch_excitation(x)
+                else:
+                    voltage = voltage + self.branch_excitation(x)
 
             if (
                 self.input_recurrent
                 and self.branch_recurrent is not None
                 and recurrent_input is not None
             ):
-                voltage = voltage + self.branch_recurrent(recurrent_input)
+                if profile:
+                    with nvtx_range(
+                        "dendritic.branch.rec_exc_synapses"
+                        f"(layer={self.layer_idx},branches={self.n_branches})"
+                    ):
+                        voltage = voltage + self.branch_recurrent(recurrent_input)
+                else:
+                    voltage = voltage + self.branch_recurrent(recurrent_input)
 
             if self.input_branches and branch_input is not None:
-                voltage = voltage + self.branches_to_output(branch_input)
+                if profile:
+                    with nvtx_range(
+                        "dendritic.branch.child_aggregation"
+                        f"(layer={self.layer_idx},branches={self.n_branches})"
+                    ):
+                        voltage = voltage + self.branches_to_output(branch_input)
+                else:
+                    voltage = voltage + self.branches_to_output(branch_input)
 
             if (
                 self.input_inhibitory
                 and self.branch_inhibition is not None
                 and inhibitory_input is not None
             ):
-                voltage = voltage - self.branch_inhibition(inhibitory_input)
+                if profile:
+                    with nvtx_range(
+                        "dendritic.branch.inh_synapses"
+                        f"(layer={self.layer_idx},branches={self.n_branches})"
+                    ):
+                        voltage = voltage - self.branch_inhibition(inhibitory_input)
+                else:
+                    voltage = voltage - self.branch_inhibition(inhibitory_input)
 
             if (
                 self.input_rec_inhibitory
                 and self.branch_rec_inhibition is not None
                 and rec_inhibitory_input is not None
             ):
-                voltage = voltage - self.branch_rec_inhibition(rec_inhibitory_input)
+                if profile:
+                    with nvtx_range(
+                        "dendritic.branch.rec_inh_synapses"
+                        f"(layer={self.layer_idx},branches={self.n_branches})"
+                    ):
+                        voltage = voltage - self.branch_rec_inhibition(
+                            rec_inhibitory_input
+                        )
+                else:
+                    voltage = voltage - self.branch_rec_inhibition(
+                        rec_inhibitory_input
+                    )
 
             # Optional voltage normalization for additive mode
             # (control experiment: tests whether normalization alone recovers
@@ -572,7 +696,14 @@ class DendriticBranchLayer(nn.Module):
         ]:
             self.compute_grad_scales(g_total=denominator if self.use_shunting else None)
 
-        result = self.reactivation(voltage)
+        if profile:
+            with nvtx_range(
+                "dendritic.branch.reactivation"
+                f"(layer={self.layer_idx},branches={self.n_branches})"
+            ):
+                result = self.reactivation(voltage)
+        else:
+            result = self.reactivation(voltage)
         return result
 
     def compute_raw_currents(
@@ -589,9 +720,37 @@ class DendriticBranchLayer(nn.Module):
             raw_I: FF inhibitory current [batch, output_dim] or 0
             raw_I_rec: Recurrent inhibitory current [batch, output_dim] or 0
         """
+        profile = is_nvtx_enabled()
+        if profile:
+            with nvtx_range(
+                "dendritic.branch.raw_currents"
+                f"(layer={self.layer_idx},branches={self.n_branches})"
+            ):
+                return self._compute_raw_currents_impl(
+                    x, inhibitory_input, recurrent_input, rec_inhibitory_input, True
+                )
+        return self._compute_raw_currents_impl(
+            x, inhibitory_input, recurrent_input, rec_inhibitory_input, False
+        )
+
+    def _compute_raw_currents_impl(
+        self,
+        x,
+        inhibitory_input=None,
+        recurrent_input=None,
+        rec_inhibitory_input=None,
+        profile: bool = False,
+    ):
         raw_E = 0
         if self.input_excitatory and self.branch_excitation is not None:
-            raw_E = self.branch_excitation(x)
+            if profile:
+                with nvtx_range(
+                    "dendritic.branch.raw_ff_exc"
+                    f"(layer={self.layer_idx},branches={self.n_branches})"
+                ):
+                    raw_E = self.branch_excitation(x)
+            else:
+                raw_E = self.branch_excitation(x)
 
         raw_E_rec = 0
         if (
@@ -599,7 +758,14 @@ class DendriticBranchLayer(nn.Module):
             and self.branch_recurrent is not None
             and recurrent_input is not None
         ):
-            raw_E_rec = self.branch_recurrent(recurrent_input)
+            if profile:
+                with nvtx_range(
+                    "dendritic.branch.raw_rec_exc"
+                    f"(layer={self.layer_idx},branches={self.n_branches})"
+                ):
+                    raw_E_rec = self.branch_recurrent(recurrent_input)
+            else:
+                raw_E_rec = self.branch_recurrent(recurrent_input)
 
         raw_I = 0
         if (
@@ -607,7 +773,14 @@ class DendriticBranchLayer(nn.Module):
             and self.branch_inhibition is not None
             and inhibitory_input is not None
         ):
-            raw_I = self.branch_inhibition(inhibitory_input)
+            if profile:
+                with nvtx_range(
+                    "dendritic.branch.raw_ff_inh"
+                    f"(layer={self.layer_idx},branches={self.n_branches})"
+                ):
+                    raw_I = self.branch_inhibition(inhibitory_input)
+            else:
+                raw_I = self.branch_inhibition(inhibitory_input)
 
         raw_I_rec = 0
         if (
@@ -615,7 +788,14 @@ class DendriticBranchLayer(nn.Module):
             and self.branch_rec_inhibition is not None
             and rec_inhibitory_input is not None
         ):
-            raw_I_rec = self.branch_rec_inhibition(rec_inhibitory_input)
+            if profile:
+                with nvtx_range(
+                    "dendritic.branch.raw_rec_inh"
+                    f"(layer={self.layer_idx},branches={self.n_branches})"
+                ):
+                    raw_I_rec = self.branch_rec_inhibition(rec_inhibitory_input)
+            else:
+                raw_I_rec = self.branch_rec_inhibition(rec_inhibitory_input)
 
         return raw_E, raw_E_rec, raw_I, raw_I_rec
 
@@ -634,6 +814,27 @@ class DendriticBranchLayer(nn.Module):
         Returns:
             voltage: Post-shunting, post-reactivation output [batch, output_dim]
         """
+        if is_nvtx_enabled():
+            with nvtx_range(
+                "dendritic.branch.shunt_from_currents"
+                f"(layer={self.layer_idx},branches={self.n_branches})"
+            ):
+                voltage = self._shunt_from_currents_impl(
+                    trace_E, trace_E_rec, trace_I, trace_I_rec
+                )
+                result = self.reactivation(voltage)
+            return mark_backward(
+                result,
+                "dendritic.branch.shunt_backward"
+                f"(layer={self.layer_idx},branches={self.n_branches})",
+            )
+
+        voltage = self._shunt_from_currents_impl(
+            trace_E, trace_E_rec, trace_I, trace_I_rec
+        )
+        return self.reactivation(voltage)
+
+    def _shunt_from_currents_impl(self, trace_E, trace_E_rec, trace_I, trace_I_rec=0):
         if self.use_shunting:
             numerator = trace_E + trace_E_rec
             denominator = 1 + trace_E
@@ -647,7 +848,7 @@ class DendriticBranchLayer(nn.Module):
         else:
             voltage = trace_E + trace_E_rec - trace_I - trace_I_rec
 
-        return self.reactivation(voltage)
+        return voltage
 
     def compute_grad_scales(self, g_total: Optional[torch.Tensor] = None):
         """

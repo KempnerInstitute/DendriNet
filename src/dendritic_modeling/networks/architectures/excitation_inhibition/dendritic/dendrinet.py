@@ -10,6 +10,7 @@ from copy import deepcopy
 import torch
 import torch.nn as nn
 
+from dendritic_modeling.profiling import is_nvtx_enabled, mark_backward, nvtx_range
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_layer import (
     DendriticBranchLayer,
 )
@@ -274,6 +275,22 @@ class DendriNet(nn.Module):
             branch_layer.decay_weights(weight_decay, weight_boosting)
 
     def forward(self, x, inhibitory_input=None):
+        profile = is_nvtx_enabled()
+        if profile:
+            with nvtx_range(
+                "dendritic.network.forward"
+                f"(soma={self.n_soma},levels={self.n_branch_layers + 1})"
+            ):
+                output = self._forward_impl(x, inhibitory_input)
+            return mark_backward(
+                output,
+                "dendritic.network.backward"
+                f"(soma={self.n_soma},levels={self.n_branch_layers + 1})",
+            )
+
+        return self._forward_impl(x, inhibitory_input)
+
+    def _forward_impl(self, x, inhibitory_input=None):
         output = None
         for i in range(self.n_branch_layers + 1):
             # Store excitatory and inhibitory inputs for visualization if needed

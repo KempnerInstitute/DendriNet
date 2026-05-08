@@ -20,6 +20,7 @@ from torch.cuda.amp import GradScaler, autocast
 from torch.utils.data import DataLoader
 
 from dendritic_modeling.models import BaseModel
+from dendritic_modeling.profiling import nvtx_range
 from dendritic_modeling.training.strategies.standard import Trainer
 
 logger = logging.getLogger(__name__)
@@ -177,31 +178,48 @@ class RecurrentTrainer(Trainer):
             x_batch = x_batch.to(self.device)
             y_batch = y_batch.to(self.device)
 
-            self.optimizer.zero_grad()
+            with nvtx_range("training.zero_grad"):
+                self.optimizer.zero_grad()
 
             if self.recurrent_amp:
                 amp_opt = self.optimizer
                 with autocast():
+                    with nvtx_range("training.forward_loss"):
+                        loss = self._compute_sequence_loss(
+                            model, x_batch, y_batch, seq_lengths
+                        )
+                with nvtx_range("training.backward"):
+                    self.recurrent_scaler.scale(loss).backward()
+                if self.grad_clip > 0:
+                    with nvtx_range("training.gradient_clip"):
+                        self.recurrent_scaler.unscale_(amp_opt)
+                        torch.nn.utils.clip_grad_norm_(
+                            model.parameters(), self.grad_clip
+                        )
+                # Step through the configured optimizer object directly so AMP
+                # skip semantics apply to wrapper logic (e.g., custom decay/rewiring).
+                with nvtx_range("training.optimizer_step"):
+                    self.recurrent_scaler.step(amp_opt)
+                    self.recurrent_scaler.update()
+            else:
+                with nvtx_range("training.forward_loss"):
                     loss = self._compute_sequence_loss(
                         model, x_batch, y_batch, seq_lengths
                     )
-                self.recurrent_scaler.scale(loss).backward()
+                with nvtx_range("training.backward"):
+                    loss.backward()
                 if self.grad_clip > 0:
-                    self.recurrent_scaler.unscale_(amp_opt)
-                    torch.nn.utils.clip_grad_norm_(model.parameters(), self.grad_clip)
-                # Step through the configured optimizer object directly so AMP
-                # skip semantics apply to wrapper logic (e.g., custom decay/rewiring).
-                self.recurrent_scaler.step(amp_opt)
-                self.recurrent_scaler.update()
-            else:
-                loss = self._compute_sequence_loss(model, x_batch, y_batch, seq_lengths)
-                loss.backward()
-                if self.grad_clip > 0:
-                    torch.nn.utils.clip_grad_norm_(model.parameters(), self.grad_clip)
-                self.optimizer.step()
+                    with nvtx_range("training.gradient_clip"):
+                        torch.nn.utils.clip_grad_norm_(
+                            model.parameters(), self.grad_clip
+                        )
+                with nvtx_range("training.optimizer_step"):
+                    self.optimizer.step()
 
             total_loss += loss.item()
             n_batches += 1
+            if self.profiler is not None:
+                self.profiler.step()
 
         # Step LR scheduler once per epoch
         if self.scheduler is not None:

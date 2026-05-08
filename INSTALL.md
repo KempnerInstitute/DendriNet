@@ -48,6 +48,19 @@ python src/dendritic_modeling/scripts/training/train_experiments.py --help
 python src/dendritic_modeling/scripts/sweeps/sweep_manager.py --help
 ```
 
+## Profiling Example
+
+`configs/examples/standard_mnist.yaml` is a small DendriNet training run. Enable
+`experiment.enable_profiling: true` for a PyTorch profiler trace, or run with
+NVTX annotations for Nsight:
+
+```bash
+DENDRITIC_NVTX=1 PYTHONPATH=src:$PYTHONPATH nsys profile \
+  -o outputs/profiles/standard_mnist_nvtx \
+  python src/dendritic_modeling/scripts/training/train_experiments.py \
+  configs/examples/standard_mnist.yaml
+```
+
 ## Notes
 
 - The supported workflow is `pip install -e .`.

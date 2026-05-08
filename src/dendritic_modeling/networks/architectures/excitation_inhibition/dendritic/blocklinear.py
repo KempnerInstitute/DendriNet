@@ -10,6 +10,7 @@ from math import floor, log
 import torch
 import torch.nn as nn
 
+from dendritic_modeling.profiling import is_nvtx_enabled, mark_backward, nvtx_range
 from dendritic_modeling.networks.utils.weight_transforms import (
     WeightTransformType,
     apply_weight_transform,
@@ -177,6 +178,21 @@ class BlockLinear(nn.Module):
                     self.log_weight.data = p_prime
 
     def forward(self, x):
+        if is_nvtx_enabled():
+            with nvtx_range(
+                "dendritic.branch.aggregate.forward"
+                f"(out={self.out_features},block={self.block_size})"
+            ):
+                output = self._forward_impl(x)
+            return mark_backward(
+                output,
+                "dendritic.branch.aggregate.backward"
+                f"(out={self.out_features},block={self.block_size})",
+            )
+
+        return self._forward_impl(x)
+
+    def _forward_impl(self, x):
         # Ensure x is a tensor
         if not isinstance(x, torch.Tensor):
             raise TypeError(f"Expected input to be a tensor, got {type(x)}")
@@ -234,6 +250,21 @@ class EfficientBlockLinear(BlockLinear):
     """
 
     def forward(self, x):  # type: ignore[override]
+        if is_nvtx_enabled():
+            with nvtx_range(
+                "dendritic.branch.aggregate_efficient.forward"
+                f"(out={self.out_features},block={self.block_size})"
+            ):
+                output = self._forward_impl(x)
+            return mark_backward(
+                output,
+                "dendritic.branch.aggregate_efficient.backward"
+                f"(out={self.out_features},block={self.block_size})",
+            )
+
+        return self._forward_impl(x)
+
+    def _forward_impl(self, x):  # type: ignore[override]
         if not isinstance(x, torch.Tensor):
             raise TypeError(f"Expected tensor, got {type(x)}")
 

@@ -25,6 +25,7 @@ experiment:
   allow_tf32: false                     # bool: Allow TF32 on Ampere+ GPUs
   float32_matmul_precision: "highest"   # str: "highest" | "high" | "medium"
   enable_profiling: false               # bool: PyTorch profiler
+  enable_nvtx: false                    # bool: annotate dendritic/training spans with NVTX/profile ranges
   profiling_output_dir: "results/profiling/"  # str: Profiler output directory
   enable_hooks: true                    # bool: Gradient hooks for analysis
 

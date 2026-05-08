@@ -8,6 +8,7 @@ from typing import Optional
 import torch
 import torch.nn as nn
 
+from dendritic_modeling.profiling import is_nvtx_enabled, mark_backward, nvtx_range
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_layer import (
     DendriticBranchLayer,
 )
@@ -371,6 +372,25 @@ class StatefulDendriNet(nn.Module):
         inhibitory_input: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         """Feedforward pass -- identical to DendriNet.forward()."""
+        if is_nvtx_enabled():
+            with nvtx_range(
+                "dendritic.stateful_network.forward"
+                f"(soma={self.n_soma},levels={self.n_levels})"
+            ):
+                output = self._forward_impl(x, inhibitory_input)
+            return mark_backward(
+                output,
+                "dendritic.stateful_network.backward"
+                f"(soma={self.n_soma},levels={self.n_levels})",
+            )
+
+        return self._forward_impl(x, inhibitory_input)
+
+    def _forward_impl(
+        self,
+        x: torch.Tensor,
+        inhibitory_input: Optional[torch.Tensor] = None,
+    ) -> torch.Tensor:
         branch_output = None
         for layer in self.branch_layers:
             branch_output = layer(
@@ -418,6 +438,46 @@ class StatefulDendriNet(nn.Module):
             output: Soma-level voltage [batch, n_soma].
             new_state: Updated DendriNetState with integrated traces.
         """
+        if is_nvtx_enabled():
+            with nvtx_range(
+                "dendritic.stateful_network.step"
+                f"(soma={self.n_soma},levels={self.n_levels})"
+            ):
+                output, new_state = self._step_impl(
+                    x=x,
+                    inhibitory_input=inhibitory_input,
+                    recurrent_input=recurrent_input,
+                    rec_inhibitory_input=rec_inhibitory_input,
+                    state=state,
+                    profile=True,
+                )
+            return (
+                mark_backward(
+                    output,
+                    "dendritic.stateful_network.step_backward"
+                    f"(soma={self.n_soma},levels={self.n_levels})",
+                ),
+                new_state,
+            )
+
+        return self._step_impl(
+            x=x,
+            inhibitory_input=inhibitory_input,
+            recurrent_input=recurrent_input,
+            rec_inhibitory_input=rec_inhibitory_input,
+            state=state,
+            profile=False,
+        )
+
+    def _step_impl(
+        self,
+        x: torch.Tensor,
+        inhibitory_input: Optional[torch.Tensor] = None,
+        recurrent_input: Optional[torch.Tensor] = None,
+        rec_inhibitory_input: Optional[torch.Tensor] = None,
+        state: Optional[DendriNetState] = None,
+        profile: bool = False,
+    ) -> tuple[torch.Tensor, DendriNetState]:
         batch_size = x.shape[0]
         device = x.device
         dtype = x.dtype
@@ -440,12 +500,24 @@ class StatefulDendriNet(nn.Module):
 
         for level_idx, layer in enumerate(self.branch_layers):
             # 1. Compute raw synaptic currents from all 4 compartments
-            raw_E, raw_E_rec, raw_I, raw_I_rec = layer.compute_raw_currents(
-                x=x,
-                inhibitory_input=inhibitory_input,
-                recurrent_input=recurrent_input,
-                rec_inhibitory_input=rec_inhibitory_input,
-            )
+            if profile:
+                with nvtx_range(
+                    "dendritic.stateful_network.level_raw_currents"
+                    f"(level={level_idx})"
+                ):
+                    raw_E, raw_E_rec, raw_I, raw_I_rec = layer.compute_raw_currents(
+                        x=x,
+                        inhibitory_input=inhibitory_input,
+                        recurrent_input=recurrent_input,
+                        rec_inhibitory_input=rec_inhibitory_input,
+                    )
+            else:
+                raw_E, raw_E_rec, raw_I, raw_I_rec = layer.compute_raw_currents(
+                    x=x,
+                    inhibitory_input=inhibitory_input,
+                    recurrent_input=recurrent_input,
+                    rec_inhibitory_input=rec_inhibitory_input,
+                )
             raw_E = self._ensure_tensor(raw_E, batch_size, level_idx, device, dtype)
             raw_E_rec = self._ensure_tensor(
                 raw_E_rec, batch_size, level_idx, device, dtype
@@ -490,25 +562,54 @@ class StatefulDendriNet(nn.Module):
             decay = all_decays[level_idx].to(device=device, dtype=dtype)
             one_minus_decay = 1 - decay
 
-            new_trace_E.append(decay * prev_trace_E + one_minus_decay * raw_E)
-            new_trace_E_rec.append(
-                decay * prev_trace_E_rec + one_minus_decay * raw_E_rec
-            )
-            new_trace_I.append(decay * prev_trace_I + one_minus_decay * raw_I)
-            new_trace_I_rec.append(
-                decay * prev_trace_I_rec + one_minus_decay * raw_I_rec
-            )
-            new_trace_branch.append(
-                decay * prev_trace_branch + one_minus_decay * raw_branch
-            )
+            if profile:
+                with nvtx_range(
+                    "dendritic.stateful_network.integrate_traces"
+                    f"(level={level_idx})"
+                ):
+                    new_trace_E.append(decay * prev_trace_E + one_minus_decay * raw_E)
+                    new_trace_E_rec.append(
+                        decay * prev_trace_E_rec + one_minus_decay * raw_E_rec
+                    )
+                    new_trace_I.append(decay * prev_trace_I + one_minus_decay * raw_I)
+                    new_trace_I_rec.append(
+                        decay * prev_trace_I_rec + one_minus_decay * raw_I_rec
+                    )
+                    new_trace_branch.append(
+                        decay * prev_trace_branch + one_minus_decay * raw_branch
+                    )
+            else:
+                new_trace_E.append(decay * prev_trace_E + one_minus_decay * raw_E)
+                new_trace_E_rec.append(
+                    decay * prev_trace_E_rec + one_minus_decay * raw_E_rec
+                )
+                new_trace_I.append(decay * prev_trace_I + one_minus_decay * raw_I)
+                new_trace_I_rec.append(
+                    decay * prev_trace_I_rec + one_minus_decay * raw_I_rec
+                )
+                new_trace_branch.append(
+                    decay * prev_trace_branch + one_minus_decay * raw_branch
+                )
 
             # 4. Shunting from integrated traces
-            branch_voltage = layer.shunt_from_currents(
-                trace_E=new_trace_E[level_idx] + new_trace_branch[level_idx],
-                trace_E_rec=new_trace_E_rec[level_idx],
-                trace_I=new_trace_I[level_idx],
-                trace_I_rec=new_trace_I_rec[level_idx],
-            )
+            if profile:
+                with nvtx_range(
+                    "dendritic.stateful_network.level_shunting"
+                    f"(level={level_idx})"
+                ):
+                    branch_voltage = layer.shunt_from_currents(
+                        trace_E=new_trace_E[level_idx] + new_trace_branch[level_idx],
+                        trace_E_rec=new_trace_E_rec[level_idx],
+                        trace_I=new_trace_I[level_idx],
+                        trace_I_rec=new_trace_I_rec[level_idx],
+                    )
+            else:
+                branch_voltage = layer.shunt_from_currents(
+                    trace_E=new_trace_E[level_idx] + new_trace_branch[level_idx],
+                    trace_E_rec=new_trace_E_rec[level_idx],
+                    trace_I=new_trace_I[level_idx],
+                    trace_I_rec=new_trace_I_rec[level_idx],
+                )
             if keep_mask is not None:
                 branch_voltage = branch_voltage * keep_mask
             level_voltage_cache.append(branch_voltage)

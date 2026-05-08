@@ -510,6 +510,11 @@ def prepare_trainer_config(
         if isinstance(experiment_config, dict)
         else experiment_config.enable_profiling
     )
+    enable_nvtx = (
+        experiment_config.get("enable_nvtx", False)
+        if isinstance(experiment_config, dict)
+        else getattr(experiment_config, "enable_nvtx", False)
+    )
     enable_hooks = (
         experiment_config.get("enable_hooks", False)
         if isinstance(experiment_config, dict)
@@ -529,6 +534,8 @@ def prepare_trainer_config(
     if enable_profiling:
         trainer_config["enable_profiling"] = True
         trainer_config["profiling_output_dir"] = f"{save_path}/profiling"
+    if enable_nvtx:
+        trainer_config["enable_nvtx"] = True
 
     trainer_config["enable_hooks"] = enable_hooks
 

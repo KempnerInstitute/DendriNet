@@ -10,6 +10,7 @@ from typing import Any, Optional
 import torch
 import torch.nn as nn
 
+from dendritic_modeling.profiling import is_nvtx_enabled, mark_backward, nvtx_range
 from dendritic_modeling.networks.architectures.classical.mlp.mlp import MLP
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.dendrinet import (
     DendriNet,
@@ -311,6 +312,28 @@ class ExcitationInhibitionLayer(nn.Module):
         Returns:
             excitatory_output, inhibitory_output
         """
+        profile = is_nvtx_enabled()
+        if profile:
+            with nvtx_range("dendritic.ei_layer.forward"):
+                excitatory_x, inhibitory_x = self._forward_impl(
+                    excitatory_x, inhibitory_x
+                )
+            excitatory_x = mark_backward(
+                excitatory_x, "dendritic.ei_layer.exc_backward"
+            )
+            if torch.is_tensor(inhibitory_x):
+                inhibitory_x = mark_backward(
+                    inhibitory_x, "dendritic.ei_layer.inh_backward"
+                )
+            return excitatory_x, inhibitory_x
+
+        return self._forward_impl(excitatory_x, inhibitory_x)
+
+    def _forward_impl(
+        self,
+        excitatory_x: torch.Tensor,
+        inhibitory_x: Optional[torch.Tensor] = None,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         if self.synapse_mode == "mlp":
             # Merge inputs into one signed synapse bank.
             def _cat(a: torch.Tensor, b: Optional[torch.Tensor]) -> torch.Tensor:

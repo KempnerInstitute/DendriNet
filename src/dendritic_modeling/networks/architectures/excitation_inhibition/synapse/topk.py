@@ -12,6 +12,7 @@ from typing import Optional
 import torch
 import torch.nn as nn
 
+from dendritic_modeling.profiling import is_nvtx_enabled, mark_backward, nvtx_range
 from dendritic_modeling.networks.utils.weight_transforms import (
     WeightTransformType,
     apply_weight_transform,
@@ -205,6 +206,23 @@ class TopKLinear(nn.Module):
 
     def forward(self, x):
         """Forward pass through the TopK linear layer."""
+        profile = is_nvtx_enabled()
+        if profile:
+            range_name = (
+                "dendritic.synapse.topk.forward"
+                f"(out={self.out_features},in={self.in_features},K={self.K})"
+            )
+            with nvtx_range(range_name):
+                output = self._forward_impl(x, profile=True)
+            return mark_backward(
+                output,
+                "dendritic.synapse.topk.backward"
+                f"(out={self.out_features},in={self.in_features},K={self.K})",
+            )
+
+        return self._forward_impl(x, profile=False)
+
+    def _forward_impl(self, x, profile: bool = False):
         # Ensure x is a 2D tensor for matrix multiplication
         if not isinstance(x, torch.Tensor):
             raise TypeError(f"Expected input to be a tensor, got {type(x)}")
@@ -213,7 +231,16 @@ class TopKLinear(nn.Module):
         if x.dim() == 1:
             x = x.unsqueeze(0)
 
-        mask = self.weight_mask()
+        if profile:
+            active = self.out_features * self.K
+            candidates = self.out_features * self.in_features
+            with nvtx_range(
+                "dendritic.synapse.topk.select_active"
+                f"(active={active},candidates={candidates})"
+            ):
+                mask = self.weight_mask()
+        else:
+            mask = self.weight_mask()
         if self.cache_mask:
             self._last_forward_weight_mask = mask.detach()
 

@@ -8,6 +8,7 @@ for all training strategies in the dendritic modeling framework.
 import logging
 import os
 import time
+from contextlib import nullcontext
 from copy import deepcopy
 from typing import Optional
 
@@ -26,6 +27,7 @@ from dendritic_modeling.config.training import (
 )
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.networks import ParametricActivation
+from dendritic_modeling.profiling import dendritic_nvtx, nvtx_range
 from dendritic_modeling.plotting import plot_loss_curves
 from dendritic_modeling.training.distributed_samplers import (
     PaddedDistributedEvalSampler,
@@ -129,6 +131,7 @@ class Trainer:
             self.enable_amp = False
 
         self.enable_profiling = kwargs.get("enable_profiling", False)
+        self.enable_nvtx = kwargs.get("enable_nvtx", self.enable_profiling)
         self.profiler = None
 
         if self.enable_profiling:
@@ -509,23 +512,25 @@ class Trainer:
     ) -> tuple[list[float], list[float], list[float], list[float]]:
         if wandb_info is None:
             wandb_info = {}
-        for _ in range(1, n_epochs + 1):
-            train_losses, valid_losses, train_losses_base, train_losses_reg = (
-                self._run_epoch(
-                    model=model,
-                    train_loader=train_loader,
-                    valid_loader=valid_loader,
-                    train_losses=train_losses,
-                    valid_losses=valid_losses,
-                    train_losses_base=train_losses_base,
-                    train_losses_reg=train_losses_reg,
-                    logger_info=logger_info,
-                    wandb_info=wandb_info,
+        profiler_context = self.profiler if self.profiler is not None else nullcontext()
+        with dendritic_nvtx(self.enable_nvtx), profiler_context:
+            for _ in range(1, n_epochs + 1):
+                train_losses, valid_losses, train_losses_base, train_losses_reg = (
+                    self._run_epoch(
+                        model=model,
+                        train_loader=train_loader,
+                        valid_loader=valid_loader,
+                        train_losses=train_losses,
+                        valid_losses=valid_losses,
+                        train_losses_base=train_losses_base,
+                        train_losses_reg=train_losses_reg,
+                        logger_info=logger_info,
+                        wandb_info=wandb_info,
+                    )
                 )
-            )
 
-            if self._check_early_stopping():
-                break
+                if self._check_early_stopping():
+                    break
 
         return train_losses, valid_losses, train_losses_base, train_losses_reg
 
@@ -657,89 +662,112 @@ class Trainer:
         has_regularization = self.regularization_manager.has_regularization()
 
         for batch in train_loader:
-            x_batch, y_batch = batch[0].to(self.device), batch[1].to(self.device)
+            with nvtx_range("training.batch"):
+                with nvtx_range("training.to_device"):
+                    x_batch = batch[0].to(self.device)
+                    y_batch = batch[1].to(self.device)
 
-            if self.enable_amp:
-                # Mixed precision forward pass
-                with autocast():
-                    base_loss = self.loss_function(model, x_batch, y_batch)
+                if self.enable_amp:
+                    # Mixed precision forward pass
+                    with autocast():
+                        with nvtx_range("training.forward_loss"):
+                            base_loss = self.loss_function(model, x_batch, y_batch)
+
+                        # Add all regularization losses only if regularization is enabled
+                        if has_regularization:
+                            with nvtx_range("training.regularization"):
+                                reg_loss = (
+                                    self.regularization_manager.compute_regularization_loss(
+                                        model,
+                                        x_batch,
+                                        y_batch,
+                                        param_groups=self.optimizer.param_groups,
+                                    )
+                                )
+                            total_loss = base_loss + reg_loss
+                            reg_loss_item = reg_loss.item()
+                        else:
+                            total_loss = base_loss
+                            reg_loss_item = 0.0
+
+                    with nvtx_range("training.zero_grad"):
+                        self.optimizer.zero_grad()
+                    with nvtx_range("training.backward"):
+                        self.scaler.scale(total_loss).backward()
+
+                    # Optional expensive operations (configurable for performance)
+                    if self.enable_nan_checking:
+                        with nvtx_range("training.nan_gradient_check"):
+                            nan_detected = self._check_and_handle_nan_gradients(model)
+                        if nan_detected:
+                            logger.warning(
+                                "NaNs detected and handled in gradients during AMP training"
+                            )
+
+                    # Gradient clipping with AMP
+                    if self.grad_clip_value:
+                        with nvtx_range("training.gradient_clip"):
+                            # Unscale gradients before clipping
+                            self.scaler.unscale_(self.optimizer)
+                            if self.enable_adaptive_clipping:
+                                self._apply_adaptive_gradient_clipping(model)
+                            else:
+                                clip_grad_value_(model.parameters(), self.grad_clip_value)
+
+                    with nvtx_range("training.optimizer_step"):
+                        self.scaler.step(self.optimizer)
+                        self.scaler.update()
+                else:
+                    # Standard precision training
+                    with nvtx_range("training.forward_loss"):
+                        base_loss: torch.Tensor = self.loss_function(
+                            model, x_batch, y_batch
+                        )
 
                     # Add all regularization losses only if regularization is enabled
                     if has_regularization:
-                        reg_loss = (
-                            self.regularization_manager.compute_regularization_loss(
-                                model,
-                                x_batch,
-                                y_batch,
-                                param_groups=self.optimizer.param_groups,
+                        with nvtx_range("training.regularization"):
+                            reg_loss = (
+                                self.regularization_manager.compute_regularization_loss(
+                                    model,
+                                    x_batch,
+                                    y_batch,
+                                    param_groups=self.optimizer.param_groups,
+                                )
                             )
-                        )
                         total_loss = base_loss + reg_loss
                         reg_loss_item = reg_loss.item()
                     else:
                         total_loss = base_loss
                         reg_loss_item = 0.0
 
-                self.optimizer.zero_grad()
-                self.scaler.scale(total_loss).backward()
+                    with nvtx_range("training.zero_grad"):
+                        self.optimizer.zero_grad()
+                    with nvtx_range("training.backward"):
+                        total_loss.backward()
 
-                # Optional expensive operations (configurable for performance)
-                if self.enable_nan_checking:
-                    nan_detected = self._check_and_handle_nan_gradients(model)
-                    if nan_detected:
-                        logger.warning(
-                            "NaNs detected and handled in gradients during AMP training"
-                        )
+                    # Optional expensive operations (configurable for performance)
+                    if self.enable_nan_checking:
+                        with nvtx_range("training.nan_gradient_check"):
+                            nan_detected = self._check_and_handle_nan_gradients(model)
+                        if nan_detected:
+                            logger.warning("NaNs detected and handled in gradients")
 
-                # Gradient clipping with AMP
-                if self.grad_clip_value:
-                    # Unscale gradients before clipping
-                    self.scaler.unscale_(self.optimizer)
-                    if self.enable_adaptive_clipping:
-                        self._apply_adaptive_gradient_clipping(model)
-                    else:
-                        clip_grad_value_(model.parameters(), self.grad_clip_value)
-
-                self.scaler.step(self.optimizer)
-                self.scaler.update()
-            else:
-                # Standard precision training
-                base_loss: torch.Tensor = self.loss_function(model, x_batch, y_batch)
-
-                # Add all regularization losses only if regularization is enabled
-                if has_regularization:
-                    reg_loss = self.regularization_manager.compute_regularization_loss(
-                        model,
-                        x_batch,
-                        y_batch,
-                        param_groups=self.optimizer.param_groups,
-                    )
-                    total_loss = base_loss + reg_loss
-                    reg_loss_item = reg_loss.item()
-                else:
-                    total_loss = base_loss
-                    reg_loss_item = 0.0
-
-                self.optimizer.zero_grad()
-                total_loss.backward()
-
-                # Optional expensive operations (configurable for performance)
-                if self.enable_nan_checking:
-                    nan_detected = self._check_and_handle_nan_gradients(model)
-                    if nan_detected:
-                        logger.warning("NaNs detected and handled in gradients")
-
-                # Gradient clipping: adaptive (expensive) vs simple (fast)
-                if self.enable_adaptive_clipping:
-                    self._apply_adaptive_gradient_clipping(model)
-                else:
-                    # Use simple, fast gradient clipping (default)
-                    clip_grad_value_(model.parameters(), self.grad_clip_value)
-                self.optimizer.step()
+                    # Gradient clipping: adaptive (expensive) vs simple (fast)
+                    with nvtx_range("training.gradient_clip"):
+                        if self.enable_adaptive_clipping:
+                            self._apply_adaptive_gradient_clipping(model)
+                        else:
+                            # Use simple, fast gradient clipping (default)
+                            clip_grad_value_(model.parameters(), self.grad_clip_value)
+                    with nvtx_range("training.optimizer_step"):
+                        self.optimizer.step()
 
             train_loss_total += total_loss.item()
             train_loss_base += base_loss.item()
             train_loss_reg += reg_loss_item
+            if self.profiler is not None:
+                self.profiler.step()
 
         train_loss_total /= len(train_loader)
         train_loss_base /= len(train_loader)

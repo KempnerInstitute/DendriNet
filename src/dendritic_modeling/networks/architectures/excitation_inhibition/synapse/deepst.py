@@ -11,6 +11,7 @@ from typing import Optional
 import torch
 import torch.nn as nn
 
+from dendritic_modeling.profiling import is_nvtx_enabled, mark_backward, nvtx_range
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.topk import (
     TOPK_INIT_METHODS,
 )
@@ -212,6 +213,19 @@ class DeepstLinear(nn.Module):
         return self.weight() * self.mask
 
     def forward(self, x):
+        if is_nvtx_enabled():
+            with nvtx_range(
+                "dendritic.synapse.deepst.forward"
+                f"(target_active={self.target_connections},"
+                f"candidates={self.total_connections})"
+            ):
+                output = torch.matmul(x, self.pruned_weight().t())
+            return mark_backward(
+                output,
+                "dendritic.synapse.deepst.backward"
+                f"(out={self.out_features},in={self.in_features})",
+            )
+
         # Apply mask and sum across dendritic locations
         return torch.matmul(x, self.pruned_weight().t())
 
