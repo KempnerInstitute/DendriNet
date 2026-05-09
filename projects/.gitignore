@@ -5,8 +5,8 @@
 # To release a project later, add explicit unignore rules for that folder, for
 # example:
 #
-# !p003_dendrinet_rnn/
-# !p003_dendrinet_rnn/**
+# !project_id_slug/
+# !project_id_slug/**
 
 *
 !.gitignore

@@ -1,10 +1,10 @@
-# Project Release Packages
+# Release Packages
 
-This directory is reserved for paper-specific public release packages.
+This directory is reserved for sanitized public reproducibility packages.
 
 No active draft, private experiment, cluster-specific config, raw result,
-checkpoint, Slurm log, or personal path should live here. While a paper is in
-development, keep its working material in the private `drafts/` tree or external
+checkpoint, Slurm log, or personal path should live here. While work is in
+development, keep working material in the private `drafts/` tree or external
 storage.
 
 ## Current Policy
@@ -12,8 +12,8 @@ storage.
 Project folders are ignored by default. This keeps the main DendriNet codebase
 clean and prevents accidental commits of private or machine-specific material.
 
-When a paper is ready for public release, create one sanitized package here with
-only releaseable assets:
+When a reproducibility package is ready for public release, create one
+sanitized package here with only releaseable assets:
 
 ```text
 projects/<project_id_slug>/
@@ -30,15 +30,6 @@ they contain compact, sanitized, release-facing assets. Large outputs should be
 hosted externally, for example on Hugging Face, Zenodo, OSF, or institutional
 storage.
 
-## Registered Future Projects
-
-| ID | Future folder | Working scope | Status |
-| --- | --- | --- | --- |
-| P001 | `p001_dendritic_theory_empirical/` | Theory-driven dendritic computation and empirical validation | Private draft |
-| P002 | `p002_dendritic_empirical_benchmarks/` | Feedforward/CNN or non-RNN empirical dendritic benchmarks | Private draft |
-| P003 | `p003_dendrinet_rnn/` | Recurrent dendritic E/I model and RNN paper artifacts | Private draft |
-| P004 | `p004_local_credit_assignment/` | Local credit assignment and biologically plausible learning | Private draft |
-
 ## Release Checklist
 
 Before unignoring and committing a project folder here:
@@ -48,7 +39,7 @@ Before unignoring and committing a project folder here:
 2. Keep raw checkpoints, full run directories, logs, and large arrays outside
    git.
 3. Move reusable implementation into `src/dendritic_modeling/` with tests.
-4. Include only canonical configs and compact summary files required for paper
+4. Include only canonical configs and compact summary files required for release
    reproduction.
 5. Add artifact preparation and verification scripts if external artifacts are
    released.

@@ -71,14 +71,20 @@ def _spectra_for_population(
                 w_rec = rec.weight().detach().cpu()
             sigma_rec = _singular_values(w_rec, top_k)
             entry["sigma_rec"] = sigma_rec
-            entry["top_singular_value_rec"] = float(sigma_rec[0]) if sigma_rec else 0.0
+            top_rec = float(sigma_rec[0]) if sigma_rec else 0.0
+            entry["top_singular_value_rec"] = top_rec
+            # Backward-compatible alias for existing consumers/tests.
+            entry["spectral_radius_rec"] = top_rec
             saw_any = True
         if inh is not None:
             with torch.no_grad():
                 w_inh = inh.weight().detach().cpu()
             sigma_inh = _singular_values(w_inh, top_k)
             entry["sigma_inh"] = sigma_inh
-            entry["top_singular_value_inh"] = float(sigma_inh[0]) if sigma_inh else 0.0
+            top_inh = float(sigma_inh[0]) if sigma_inh else 0.0
+            entry["top_singular_value_inh"] = top_inh
+            # Backward-compatible alias for existing consumers/tests.
+            entry["spectral_radius_inh"] = top_inh
             saw_any = True
 
         levels.append(entry)

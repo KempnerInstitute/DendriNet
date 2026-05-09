@@ -1,7 +1,7 @@
-# Future Project Release Template
+# Future Release Package Template
 
-Use this template only when a paper is ready to expose a sanitized public
-package under `projects/<project_id_slug>/`.
+Use this template only when a sanitized public reproducibility package is ready
+to live under `projects/<project_id_slug>/`.
 
 ```text
 projects/<project_id_slug>/
@@ -18,7 +18,7 @@ projects/<project_id_slug>/
 ```markdown
 # Project Title
 
-Short description of the paper-specific release package.
+Short description of the release package.
 
 ## Scope
 
@@ -49,7 +49,7 @@ Python, PyTorch, CUDA, package, and cluster assumptions.
 
 ## Minimal Reproduction
 
-Commands that rebuild paper figures or tables from tracked summaries.
+Commands that rebuild release figures or tables from tracked summaries.
 
 ## Full Reproduction
 
@@ -78,7 +78,7 @@ public_release:
   code:
     include:
       - src/dendritic_modeling
-      - configs required by the paper
+      - configs required by the release
       - projects/project_id_slug
     exclude:
       - drafts
@@ -90,7 +90,7 @@ public_release:
     location: external artifact repository
     include:
       - compact result summaries
-      - generated paper figures, if needed
+      - generated release figures, if needed
       - checksums and metadata
     exclude:
       - raw logs
