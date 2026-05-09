@@ -1197,59 +1197,75 @@ is shown with its default value and the full set of valid options.</p>
 <span class="linenos">1100</span><span class="w">      </span><span class="nt">downsample</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">                  </span><span class="c1"># bool: Downsample activations</span>
 <span class="linenos">1101</span><span class="w">      </span><span class="nt">samples</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span><span class="w">                        </span><span class="c1"># int: Samples to keep</span>
 <span class="linenos">1102</span>
-<span class="linenos">1103</span><span class="w">  </span><span class="c1"># ---------- Routing ----------</span>
-<span class="linenos">1104</span><span class="w">  </span><span class="nt">routing</span><span class="p">:</span>
-<span class="linenos">1105</span><span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span><span class="w">                      </span><span class="c1"># bool: Enable routing analysis (recurrent models only)</span>
-<span class="linenos">1106</span><span class="w">    </span><span class="nt">training</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span><span class="w">                     </span><span class="c1"># bool: Run during training</span>
-<span class="linenos">1107</span>
-<span class="linenos">1108</span><span class="c1"># ============================================================================</span>
-<span class="linenos">1109</span><span class="c1"># WEIGHTS &amp; BIASES</span>
-<span class="linenos">1110</span><span class="c1"># ============================================================================</span>
-<span class="linenos">1111</span><span class="nt">wandb</span><span class="p">:</span>
-<span class="linenos">1112</span><span class="w">  </span><span class="nt">use_wandb</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span><span class="w">                      </span><span class="c1"># bool: Enable W&amp;B logging</span>
-<span class="linenos">1113</span><span class="w">  </span><span class="nt">entity</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;&quot;</span><span class="w">                            </span><span class="c1"># str: W&amp;B entity (team/user)</span>
-<span class="linenos">1114</span><span class="w">  </span><span class="nt">project</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;dendritic-sweeps&quot;</span><span class="w">           </span><span class="c1"># str: W&amp;B project name</span>
-<span class="linenos">1115</span><span class="w">  </span><span class="nt">group</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;unified_sweep&quot;</span><span class="w">                </span><span class="c1"># str: W&amp;B run group</span>
-<span class="linenos">1116</span><span class="w">  </span><span class="nt">tags</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;debug&quot;</span><span class="p p-Indicator">]</span><span class="w">                       </span><span class="c1"># list[str]: W&amp;B tags</span>
-<span class="linenos">1117</span>
-<span class="linenos">1118</span><span class="c1"># ============================================================================</span>
-<span class="linenos">1119</span><span class="c1"># OUTPUTS</span>
-<span class="linenos">1120</span><span class="c1"># ============================================================================</span>
-<span class="linenos">1121</span><span class="nt">outputs</span><span class="p">:</span>
-<span class="linenos">1122</span><span class="w">  </span><span class="nt">run_name</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;ei_sweep&quot;</span><span class="w">                  </span><span class="c1"># str: Experiment run name</span>
-<span class="linenos">1123</span><span class="w">  </span><span class="nt">results_dir</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;results&quot;</span><span class="w">                </span><span class="c1"># str: Results output directory</span>
-<span class="linenos">1124</span>
-<span class="linenos">1125</span><span class="c1"># ============================================================================</span>
-<span class="linenos">1126</span><span class="c1"># DISTRIBUTED TRAINING</span>
-<span class="linenos">1127</span><span class="c1"># Node/GPU counts are controlled by SLURM (--nodes, --gpus-per-node) or by</span>
-<span class="linenos">1128</span><span class="c1"># the launcher CLI argument, NOT by this config.</span>
-<span class="linenos">1129</span><span class="c1"># ============================================================================</span>
-<span class="linenos">1130</span><span class="nt">distributed</span><span class="p">:</span>
-<span class="linenos">1131</span><span class="w">  </span><span class="c1"># &quot;none&quot; = single GPU, &quot;ddp&quot; = DistributedDataParallel, &quot;fsdp&quot; = FullyShardedDataParallel</span>
-<span class="linenos">1132</span><span class="w">  </span><span class="c1"># For ddp/fsdp, launch via torchrun or SLURM srun; node/GPU counts are set by</span>
-<span class="linenos">1133</span><span class="w">  </span><span class="c1"># the launcher (--nproc_per_node, --nodes), NOT by this config.</span>
-<span class="linenos">1134</span><span class="w">  </span><span class="nt">mode</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;none&quot;</span><span class="w">                          </span><span class="c1"># str: &quot;none&quot; | &quot;ddp&quot; | &quot;fsdp&quot;</span>
-<span class="linenos">1135</span>
-<span class="linenos">1136</span><span class="w">  </span><span class="c1"># DDP has no configurable parameters in this framework -- just set mode: &quot;ddp&quot;</span>
-<span class="linenos">1137</span><span class="w">  </span><span class="c1"># and PyTorch handles the rest (gradient sync, broadcast, etc.).</span>
-<span class="linenos">1138</span>
-<span class="linenos">1139</span><span class="w">  </span><span class="c1"># FSDP settings (only used when mode = &quot;fsdp&quot;)</span>
-<span class="linenos">1140</span><span class="w">  </span><span class="nt">fsdp</span><span class="p">:</span>
-<span class="linenos">1141</span><span class="w">    </span><span class="c1"># FULL_SHARD: shard params + grads + optimizer across all ranks (lowest memory)</span>
-<span class="linenos">1142</span><span class="w">    </span><span class="c1"># SHARD_GRAD_OP: shard grads + optimizer only (faster, more memory)</span>
-<span class="linenos">1143</span><span class="w">    </span><span class="c1"># NO_SHARD: no sharding (equivalent to DDP)</span>
-<span class="linenos">1144</span><span class="w">    </span><span class="c1"># HYBRID_SHARD: shard within node, replicate across nodes (multi-node sweet spot)</span>
-<span class="linenos">1145</span><span class="w">    </span><span class="nt">sharding_strategy</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;FULL_SHARD&quot;</span><span class="w">       </span><span class="c1"># str: &quot;FULL_SHARD&quot; | &quot;SHARD_GRAD_OP&quot; | &quot;NO_SHARD&quot; | &quot;HYBRID_SHARD&quot;</span>
-<span class="linenos">1146</span><span class="w">    </span><span class="nt">mixed_precision</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">                 </span><span class="c1"># bool: FSDP mixed precision (BF16 compute, FP32 reduce)</span>
-<span class="linenos">1147</span><span class="w">    </span><span class="nt">cpu_offload</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span><span class="w">                    </span><span class="c1"># bool: Offload params to CPU (saves GPU memory, slower)</span>
-<span class="linenos">1148</span><span class="w">    </span><span class="nt">min_num_params</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1000000</span><span class="w">               </span><span class="c1"># int: Min params to shard a module</span>
-<span class="linenos">1149</span><span class="w">    </span><span class="nt">reduce_communication_overhead</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">   </span><span class="c1"># bool: Reduce communication overhead</span>
-<span class="linenos">1150</span><span class="w">    </span><span class="nt">limit_all_gathers</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">              </span><span class="c1"># bool: Limit concurrent all-gathers</span>
-<span class="linenos">1151</span><span class="w">    </span><span class="nt">forward_prefetch</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">                </span><span class="c1"># bool: Prefetch next FSDP unit in forward</span>
-<span class="linenos">1152</span><span class="w">    </span><span class="nt">sync_module_states</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">              </span><span class="c1"># bool: Sync module states on init (broadcast rank 0)</span>
-<span class="linenos">1153</span><span class="w">    </span><span class="nt">use_orig_params</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">                 </span><span class="c1"># bool: Use original param references (needed for param groups)</span>
-<span class="linenos">1154</span><span class="w">    </span><span class="nt">backward_prefetch</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;BACKWARD_PRE&quot;</span><span class="w">     </span><span class="c1"># str: &quot;BACKWARD_PRE&quot; | &quot;BACKWARD_POST&quot;</span>
-<span class="linenos">1155</span><span class="w">    </span><span class="nt">gradient_checkpointing</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span><span class="w">         </span><span class="c1"># bool: Activation checkpointing (trade compute for memory)</span>
+<span class="linenos">1103</span><span class="w">  </span><span class="c1"># ---------- Local rule components ----------</span>
+<span class="linenos">1104</span><span class="w">  </span><span class="nt">local_rule_components</span><span class="p">:</span>
+<span class="linenos">1105</span><span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span><span class="w">                      </span><span class="c1"># bool: Enable LocalCA component-factor logging</span>
+<span class="linenos">1106</span><span class="w">    </span><span class="nt">training</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span><span class="w">                     </span><span class="c1"># bool: Run during training for epoch trajectories</span>
+<span class="linenos">1107</span><span class="w">    </span><span class="nt">params</span><span class="p">:</span>
+<span class="linenos">1108</span><span class="w">      </span><span class="nt">max_samples</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1024</span><span class="w">                 </span><span class="c1"># int | null: Examples per snapshot</span>
+<span class="linenos">1109</span><span class="w">      </span><span class="nt">include_dendritic</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">           </span><span class="c1"># bool: Include branch-to-parent conductance terms</span>
+<span class="linenos">1110</span><span class="w">      </span><span class="nt">include_broadcast</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">           </span><span class="c1"># bool: Log scalar/per-soma broadcast-error proxy</span>
+<span class="linenos">1111</span><span class="w">      </span><span class="nt">broadcast_mode</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;scalar&quot;</span><span class="w">          </span><span class="c1"># str: &quot;scalar&quot; | &quot;per_soma&quot;</span>
+<span class="linenos">1112</span><span class="w">      </span><span class="nt">error_mode</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;auto&quot;</span><span class="w">                </span><span class="c1"># str: &quot;auto&quot; | &quot;ce&quot; | &quot;mse&quot; | &quot;none&quot;</span>
+<span class="linenos">1113</span><span class="w">      </span><span class="nt">e_rev_exc</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1.0</span><span class="w">                    </span><span class="c1"># float: Excitatory reversal for driving force</span>
+<span class="linenos">1114</span><span class="w">      </span><span class="nt">e_rev_inh</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.0</span><span class="w">                    </span><span class="c1"># float: Inhibitory reversal for driving force</span>
+<span class="linenos">1115</span><span class="w">      </span><span class="nt">save_json</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">                   </span><span class="c1"># bool: Save per-snapshot JSON</span>
+<span class="linenos">1116</span><span class="w">      </span><span class="nt">save_csv</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">                    </span><span class="c1"># bool: Save per-snapshot CSV</span>
+<span class="linenos">1117</span><span class="w">      </span><span class="nt">append_training_csv</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">         </span><span class="c1"># bool: Append training snapshots to trajectory.csv</span>
+<span class="linenos">1118</span>
+<span class="linenos">1119</span><span class="w">  </span><span class="c1"># ---------- Routing ----------</span>
+<span class="linenos">1120</span><span class="w">  </span><span class="nt">routing</span><span class="p">:</span>
+<span class="linenos">1121</span><span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span><span class="w">                      </span><span class="c1"># bool: Enable routing analysis (recurrent models only)</span>
+<span class="linenos">1122</span><span class="w">    </span><span class="nt">training</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span><span class="w">                     </span><span class="c1"># bool: Run during training</span>
+<span class="linenos">1123</span>
+<span class="linenos">1124</span><span class="c1"># ============================================================================</span>
+<span class="linenos">1125</span><span class="c1"># WEIGHTS &amp; BIASES</span>
+<span class="linenos">1126</span><span class="c1"># ============================================================================</span>
+<span class="linenos">1127</span><span class="nt">wandb</span><span class="p">:</span>
+<span class="linenos">1128</span><span class="w">  </span><span class="nt">use_wandb</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span><span class="w">                      </span><span class="c1"># bool: Enable W&amp;B logging</span>
+<span class="linenos">1129</span><span class="w">  </span><span class="nt">entity</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;&quot;</span><span class="w">                            </span><span class="c1"># str: W&amp;B entity (team/user)</span>
+<span class="linenos">1130</span><span class="w">  </span><span class="nt">project</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;dendritic-sweeps&quot;</span><span class="w">           </span><span class="c1"># str: W&amp;B project name</span>
+<span class="linenos">1131</span><span class="w">  </span><span class="nt">group</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;unified_sweep&quot;</span><span class="w">                </span><span class="c1"># str: W&amp;B run group</span>
+<span class="linenos">1132</span><span class="w">  </span><span class="nt">tags</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;debug&quot;</span><span class="p p-Indicator">]</span><span class="w">                       </span><span class="c1"># list[str]: W&amp;B tags</span>
+<span class="linenos">1133</span>
+<span class="linenos">1134</span><span class="c1"># ============================================================================</span>
+<span class="linenos">1135</span><span class="c1"># OUTPUTS</span>
+<span class="linenos">1136</span><span class="c1"># ============================================================================</span>
+<span class="linenos">1137</span><span class="nt">outputs</span><span class="p">:</span>
+<span class="linenos">1138</span><span class="w">  </span><span class="nt">run_name</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;ei_sweep&quot;</span><span class="w">                  </span><span class="c1"># str: Experiment run name</span>
+<span class="linenos">1139</span><span class="w">  </span><span class="nt">results_dir</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;results&quot;</span><span class="w">                </span><span class="c1"># str: Results output directory</span>
+<span class="linenos">1140</span>
+<span class="linenos">1141</span><span class="c1"># ============================================================================</span>
+<span class="linenos">1142</span><span class="c1"># DISTRIBUTED TRAINING</span>
+<span class="linenos">1143</span><span class="c1"># Node/GPU counts are controlled by SLURM (--nodes, --gpus-per-node) or by</span>
+<span class="linenos">1144</span><span class="c1"># the launcher CLI argument, NOT by this config.</span>
+<span class="linenos">1145</span><span class="c1"># ============================================================================</span>
+<span class="linenos">1146</span><span class="nt">distributed</span><span class="p">:</span>
+<span class="linenos">1147</span><span class="w">  </span><span class="c1"># &quot;none&quot; = single GPU, &quot;ddp&quot; = DistributedDataParallel, &quot;fsdp&quot; = FullyShardedDataParallel</span>
+<span class="linenos">1148</span><span class="w">  </span><span class="c1"># For ddp/fsdp, launch via torchrun or SLURM srun; node/GPU counts are set by</span>
+<span class="linenos">1149</span><span class="w">  </span><span class="c1"># the launcher (--nproc_per_node, --nodes), NOT by this config.</span>
+<span class="linenos">1150</span><span class="w">  </span><span class="nt">mode</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;none&quot;</span><span class="w">                          </span><span class="c1"># str: &quot;none&quot; | &quot;ddp&quot; | &quot;fsdp&quot;</span>
+<span class="linenos">1151</span>
+<span class="linenos">1152</span><span class="w">  </span><span class="c1"># DDP has no configurable parameters in this framework -- just set mode: &quot;ddp&quot;</span>
+<span class="linenos">1153</span><span class="w">  </span><span class="c1"># and PyTorch handles the rest (gradient sync, broadcast, etc.).</span>
+<span class="linenos">1154</span>
+<span class="linenos">1155</span><span class="w">  </span><span class="c1"># FSDP settings (only used when mode = &quot;fsdp&quot;)</span>
+<span class="linenos">1156</span><span class="w">  </span><span class="nt">fsdp</span><span class="p">:</span>
+<span class="linenos">1157</span><span class="w">    </span><span class="c1"># FULL_SHARD: shard params + grads + optimizer across all ranks (lowest memory)</span>
+<span class="linenos">1158</span><span class="w">    </span><span class="c1"># SHARD_GRAD_OP: shard grads + optimizer only (faster, more memory)</span>
+<span class="linenos">1159</span><span class="w">    </span><span class="c1"># NO_SHARD: no sharding (equivalent to DDP)</span>
+<span class="linenos">1160</span><span class="w">    </span><span class="c1"># HYBRID_SHARD: shard within node, replicate across nodes (multi-node sweet spot)</span>
+<span class="linenos">1161</span><span class="w">    </span><span class="nt">sharding_strategy</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;FULL_SHARD&quot;</span><span class="w">       </span><span class="c1"># str: &quot;FULL_SHARD&quot; | &quot;SHARD_GRAD_OP&quot; | &quot;NO_SHARD&quot; | &quot;HYBRID_SHARD&quot;</span>
+<span class="linenos">1162</span><span class="w">    </span><span class="nt">mixed_precision</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">                 </span><span class="c1"># bool: FSDP mixed precision (BF16 compute, FP32 reduce)</span>
+<span class="linenos">1163</span><span class="w">    </span><span class="nt">cpu_offload</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span><span class="w">                    </span><span class="c1"># bool: Offload params to CPU (saves GPU memory, slower)</span>
+<span class="linenos">1164</span><span class="w">    </span><span class="nt">min_num_params</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1000000</span><span class="w">               </span><span class="c1"># int: Min params to shard a module</span>
+<span class="linenos">1165</span><span class="w">    </span><span class="nt">reduce_communication_overhead</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">   </span><span class="c1"># bool: Reduce communication overhead</span>
+<span class="linenos">1166</span><span class="w">    </span><span class="nt">limit_all_gathers</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">              </span><span class="c1"># bool: Limit concurrent all-gathers</span>
+<span class="linenos">1167</span><span class="w">    </span><span class="nt">forward_prefetch</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">                </span><span class="c1"># bool: Prefetch next FSDP unit in forward</span>
+<span class="linenos">1168</span><span class="w">    </span><span class="nt">sync_module_states</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">              </span><span class="c1"># bool: Sync module states on init (broadcast rank 0)</span>
+<span class="linenos">1169</span><span class="w">    </span><span class="nt">use_orig_params</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">                 </span><span class="c1"># bool: Use original param references (needed for param groups)</span>
+<span class="linenos">1170</span><span class="w">    </span><span class="nt">backward_prefetch</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;BACKWARD_PRE&quot;</span><span class="w">     </span><span class="c1"># str: &quot;BACKWARD_PRE&quot; | &quot;BACKWARD_POST&quot;</span>
+<span class="linenos">1171</span><span class="w">    </span><span class="nt">gradient_checkpointing</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span><span class="w">         </span><span class="c1"># bool: Activation checkpointing (trade compute for memory)</span>
 </pre></div>
 </div>
 </section>

@@ -54,6 +54,23 @@ Run a parameter sweep
    python src/dendritic_modeling/scripts/sweeps/result_analyzer.py \
      /path/to/sweep/results
 
+Example model runs
+------------------
+
+The repository includes runnable example configs for common model shapes:
+
+.. code-block:: bash
+
+   # CIFAR-10, 128-neuron DendriNet, [3, 3, 3] morphology, 40E/10I synapses
+   PYTHONPATH=src:$PYTHONPATH python \
+     src/dendritic_modeling/scripts/training/train_experiments.py \
+     configs/examples/cifar10_128_333_40e10i.yaml
+
+   # AlexNet fc7 replacement with a 500-neuron dendritic tensor-map core
+   PYTHONPATH=src:$PYTHONPATH python \
+     src/dendritic_modeling/scripts/training/train_experiments.py \
+     configs/examples/alexnet_fc7_dendritic_500.yaml
+
 Output structure
 ----------------
 

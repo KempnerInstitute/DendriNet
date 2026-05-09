@@ -50,6 +50,7 @@
 <li class="toctree-l2"><a class="reference internal" href="#override-parameters-from-the-command-line">Override parameters from the command line</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#distributed-training-ddp-fsdp">Distributed training (DDP / FSDP)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#run-a-parameter-sweep">Run a parameter sweep</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#example-model-runs">Example model runs</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#output-structure">Output structure</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#wandb-integration">WandB integration</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#minimal-configuration-example">Minimal configuration example</a></li>
@@ -143,6 +144,21 @@ python<span class="w"> </span>src/dendritic_modeling/scripts/sweeps/sweep_manage
 <span class="c1"># Analyze results</span>
 python<span class="w"> </span>src/dendritic_modeling/scripts/sweeps/result_analyzer.py<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>/path/to/sweep/results
+</pre></div>
+</div>
+</section>
+<section id="example-model-runs">
+<h2>Example model runs<a class="headerlink" href="#example-model-runs" title="Link to this heading"></a></h2>
+<p>The repository includes runnable example configs for common model shapes:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># CIFAR-10, 128-neuron DendriNet, [3, 3, 3] morphology, 40E/10I synapses</span>
+<span class="nv">PYTHONPATH</span><span class="o">=</span>src:<span class="nv">$PYTHONPATH</span><span class="w"> </span>python<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>src/dendritic_modeling/scripts/training/train_experiments.py<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>configs/examples/cifar10_128_333_40e10i.yaml
+
+<span class="c1"># AlexNet fc7 replacement with a 500-neuron dendritic tensor-map core</span>
+<span class="nv">PYTHONPATH</span><span class="o">=</span>src:<span class="nv">$PYTHONPATH</span><span class="w"> </span>python<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>src/dendritic_modeling/scripts/training/train_experiments.py<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>configs/examples/alexnet_fc7_dendritic_500.yaml
 </pre></div>
 </div>
 </section>

@@ -409,6 +409,8 @@ works for AlexNet, VGG, and coarse splits of ResNet (e.g. at <code class="docuti
 backend (planned).</p>
 <p>Example configs:</p>
 <ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">configs/examples/cifar10_128_333_40e10i.yaml</span></code> — CIFAR-10, 128 excitatory neurons, <code class="docutils literal notranslate"><span class="pre">[3,</span> <span class="pre">3,</span> <span class="pre">3]</span></code> dendritic morphology, 40 excitatory and 10 inhibitory synapses per branch</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">configs/examples/alexnet_fc7_dendritic_500.yaml</span></code> — AlexNet <code class="docutils literal notranslate"><span class="pre">fc7</span></code> replacement with a 500-neuron dendritic tensor-map core and trainable <code class="docutils literal notranslate"><span class="pre">fc8</span></code> suffix</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">configs/vision/alexnet_k1_einet_single.yaml</span></code> — replace fc7 only (K=1), single-GPU / non-DDP</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">configs/vision/alexnet_k1_einet_ddp.yaml</span></code> — same K=1 replacement configured for DDP launch</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">configs/examples/pretrained_alexnet_fc.yaml</span></code> — tensor-map pretrained replacement around AlexNet FC layers</p></li>
