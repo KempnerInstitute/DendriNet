@@ -13,6 +13,7 @@ from .ei_connectivity_motifs import (
 )
 from .inhibitory_specialization import InhibitorySpecializationAnalyzer
 from .jacobian_spectrum import JacobianSpectrumAnalyzer
+from .local_rule_components import LocalRuleComponentAnalyzer
 from .reactivation_dynamics import ReactivationDynamicsAnalyzer
 from .synaptic_activation import SynapticActivationAnalyzer
 from .synaptic_pruning import (
@@ -30,6 +31,7 @@ __all__ = [
     "DendriticTimetracesAnalyzer",
     "InhibitorySpecializationAnalyzer",
     "JacobianSpectrumAnalyzer",
+    "LocalRuleComponentAnalyzer",
     "ReactivationDynamicsAnalyzer",
     "SynapticActivationAnalyzer",
     "SynapticPruningAnalyzer",

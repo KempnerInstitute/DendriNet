@@ -70,6 +70,13 @@ def validate_training_stability(config) -> bool:
     Returns:
         bool: True if validation passes, False if critical issues found
     """
+    # Sweep submission files wrap the actual train-time config under
+    # ``base_config``. Validate that inner config so audit scripts do not
+    # accidentally approve a sweep wrapper whose resolved jobs would be unsafe.
+    base_config = _cfg_get(config, "base_config", None)
+    if base_config is not None:
+        return validate_training_stability(base_config)
+
     warnings = []
     errors = []
 
@@ -99,6 +106,7 @@ def validate_training_stability(config) -> bool:
     morphology_cfg = _cfg_path(config, ["model", "core", "morphology"], {})
     transfer_cfg = _cfg_path(config, ["model", "core", "transfer"], {})
     data_processing_cfg = _cfg_path(config, ["data", "processing"], {})
+    data_cfg = _cfg_path(config, ["data"], {})
     legacy_params = _cfg_path(config, ["model", "core_network", "parameters"], {})
 
     topk_ultrafast = bool(
@@ -143,7 +151,14 @@ def validate_training_stability(config) -> bool:
         if transfer_output_activation is None
         else str(transfer_output_activation).strip().lower()
     )
+    dataset_name = str(_cfg_get(data_cfg, "dataset_name", "")).strip().lower()
     normalize_inputs = bool(_cfg_get(data_processing_cfg, "normalize", False))
+    dataset_params_cfg = _cfg_path(config, ["data", "dataset_params"], {})
+    if dataset_name == "stringer_v1":
+        stringer_cfg = _cfg_get(dataset_params_cfg, "stringer_v1", {})
+        normalize_inputs = normalize_inputs or bool(
+            _cfg_get(stringer_cfg, "normalize", False)
+        )
 
     trainer_params = _cfg_path(config, ["training", "main", "common"], {})
     learning_rate = float(
@@ -182,10 +197,10 @@ def validate_training_stability(config) -> bool:
         and transfer_output_activation not in NONNEGATIVE_TRANSFER_ACTIVATIONS
     ):
         errors.append(
-            "Signed shunting input: data.processing.normalize=true produces "
+            "Signed shunting input: the configured preprocessing can produce "
             "signed inputs, but this model uses shunting with a positive "
             f"weight transform ({weight_transform!r}) and no nonnegative "
-            "transfer.output_activation. Use normalize=false, set "
+            "transfer.output_activation. Use all normalize flags=false, set "
             "transfer.output_activation to a nonnegative activation such as "
             "'relu', or switch to an additive morphology."
         )

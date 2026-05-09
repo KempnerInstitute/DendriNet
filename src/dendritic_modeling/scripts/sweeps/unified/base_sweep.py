@@ -348,7 +348,7 @@ class SweepJobManager:
                 # Add LD_LIBRARY_PATH to ensure conda libs are found
                 f.write("# Set library path for conda environment\n")
                 f.write(
-                    f'export LD_LIBRARY_PATH="{conda_env_path}/lib:$LD_LIBRARY_PATH"\n'
+                    f'export LD_LIBRARY_PATH="{conda_env_path}/lib:${{LD_LIBRARY_PATH:-}}"\n'
                 )
                 f.write("\n")
                 f.write("# Verify environment works\n")
@@ -477,7 +477,7 @@ class SweepJobManager:
                 # Add LD_LIBRARY_PATH to ensure conda libs are found
                 f.write("# Set library path for conda environment\n")
                 f.write(
-                    f'export LD_LIBRARY_PATH="{conda_env_path}/lib:$LD_LIBRARY_PATH"\n\n'
+                    f'export LD_LIBRARY_PATH="{conda_env_path}/lib:${{LD_LIBRARY_PATH:-}}"\n\n'
                 )
                 f.write("# Verify environment works\n")
                 f.write(

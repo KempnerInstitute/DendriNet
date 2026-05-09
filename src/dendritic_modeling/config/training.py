@@ -532,6 +532,15 @@ class LocalRuleConfig(BaseConfig):
     # ========== PARAMETER UPDATE CONTROL ==========
     update_inactive_weights: bool = False
     update_reactivation: bool = True
+    # LocalCA-only policy for explicit inhibitory DendriNet populations.
+    # "local_ca": update I-cell dendrites with the same local rule machinery
+    #             used for E-cell dendrites. This is the matched/comparable mode.
+    # "freeze": skip LocalCA updates for explicit I-cell dendrites while still
+    #           updating I-to-E synapses on excitatory dendrites.
+    explicit_inhibitory_update_mode: str = "local_ca"
+    # Deprecated compatibility shim. If set by old YAMLs, it is converted to
+    # explicit_inhibitory_update_mode in __post_init__.
+    update_explicit_inhibitory_cells: Optional[bool] = None
     encoder_update_mode: str = "none"  # "backprop", "none"
     decoder_update_mode: str = "backprop"  # "backprop", "local", "none"
 
@@ -544,6 +553,48 @@ class LocalRuleConfig(BaseConfig):
     # ========== OPTIMIZATION ==========
     clip_grad_value: float = 5.0
     normalize_by_batch: bool = True
+
+    def __post_init__(self) -> None:
+        mode = self._normalize_explicit_inhibitory_update_mode(
+            self.explicit_inhibitory_update_mode
+        )
+        legacy_update = self.update_explicit_inhibitory_cells
+        if legacy_update is not None:
+            legacy_mode = "local_ca" if bool(legacy_update) else "freeze"
+            if mode != "local_ca" and mode != legacy_mode:
+                raise ValueError(
+                    "Conflicting explicit inhibitory update settings: "
+                    f"explicit_inhibitory_update_mode={mode!r} but "
+                    f"update_explicit_inhibitory_cells={legacy_update!r}"
+                )
+            mode = legacy_mode
+
+        self.explicit_inhibitory_update_mode = mode
+        self.update_explicit_inhibitory_cells = mode == "local_ca"
+
+    @staticmethod
+    def _normalize_explicit_inhibitory_update_mode(mode: Any) -> str:
+        if isinstance(mode, bool):
+            return "local_ca" if mode else "freeze"
+        normalized = str(mode).strip().lower().replace("-", "_")
+        aliases = {
+            "local_ca": "local_ca",
+            "same_as_excitatory": "local_ca",
+            "same_local_rule": "local_ca",
+            "update": "local_ca",
+            "train": "local_ca",
+            "true": "local_ca",
+            "freeze": "freeze",
+            "none": "freeze",
+            "off": "freeze",
+            "false": "freeze",
+        }
+        if normalized not in aliases:
+            allowed = "'local_ca' or 'freeze'"
+            raise ValueError(
+                f"Invalid explicit_inhibitory_update_mode={mode!r}; expected {allowed}"
+            )
+        return aliases[normalized]
 
 
 @dataclass

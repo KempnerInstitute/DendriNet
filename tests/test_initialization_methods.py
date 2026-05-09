@@ -424,8 +424,8 @@ class TestEmpiricalCalibration:
             b_before, rel=1e-6
         )
 
-    def test_maybe_calibrate_uses_layer_policy_when_top_level_missing(self):
-        """Launcher helper should honor per-layer policy for recurrent-style configs."""
+    def test_maybe_calibrate_uses_per_layer_mode_when_top_level_missing(self):
+        """Launcher helper should preserve per-layer policy boundaries."""
 
         class DummyCore:
             pass
@@ -460,7 +460,46 @@ class TestEmpiricalCalibration:
             )
 
         mock_calibrate.assert_called_once()
-        assert mock_calibrate.call_args.kwargs["mode"] == "occupancy_quantile"
+        assert mock_calibrate.call_args.kwargs["mode"] is None
+
+    def test_maybe_calibrate_ignores_stale_config_when_layer_policies_exist(self):
+        """Built module policies should override stale YAML-level init policy."""
+
+        class DummyReactivation:
+            init_policy = "quantile"
+
+        class DummyCore:
+            reactivation = DummyReactivation()
+
+        class DummyModelCfg:
+            core = DummyCore()
+
+        class DummyConfig:
+            model = DummyModelCfg()
+
+        class FixedPolicyModule(torch.nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.reactivation_init_policy = "fixed"
+                self.weight = torch.nn.Parameter(torch.zeros(1))
+
+        model = FixedPolicyModule()
+        dataset = torch.utils.data.TensorDataset(torch.randn(8, 4), torch.zeros(8))
+
+        with patch(
+            "dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.initialize.calibrate_reactivation_from_data"
+        ) as mock_calibrate:
+            _maybe_calibrate_data_driven_reactivation(
+                config=DummyConfig(),
+                model=model,
+                train_dataset=dataset,
+                is_main=False,
+                n_batches=1,
+                batch_size=4,
+                n_iterations=1,
+            )
+
+        mock_calibrate.assert_not_called()
 
     def test_maybe_calibrate_preserves_recurrent_sequence_batches_and_seq_lengths(self):
         """Recurrent calibration should keep [B, T, D] inputs and pass seq_lengths."""

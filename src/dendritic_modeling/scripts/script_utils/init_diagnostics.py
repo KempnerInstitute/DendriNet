@@ -109,12 +109,12 @@ def _flag_suspicious(stats: dict[str, Any], m_clip_warn: float = 40.0) -> list[s
         identical_m = m_n > 1 and m_unique == 1
         identical_b = b_n > 1 and b_unique == 1
         m_clipped = m_max >= m_clip_warn
-        # Upper-edge (b >= 0.95) saturates regardless of m, because
-        # shunting voltages are bounded in (0,1). Lower-edge (b <= 0.05)
-        # only saturates when combined with a sharp slope; a gentle gate
-        # (m ~= 0.1) centered at 0 is the additive-safe default and is
-        # healthy, not pathological.
-        b_saturated = bmean >= 0.95 or (bmean <= 0.05 and m_mean >= 1.0)
+        # Upper-edge (b >= 0.95) saturates regardless of m, because shunting
+        # voltages are bounded in (0,1). Lower-edge (b <= 0.05) is only a
+        # saturation risk with a very sharp slope. Moderate fixed gates
+        # centered at zero are healthy for normalized additive recurrent
+        # voltages, so do not warn on m ~= 1, b = 0.
+        b_saturated = bmean >= 0.95 or (bmean <= 0.05 and m_mean >= 5.0)
 
         # Always flag a clipped slope regardless of variance. Even when a run
         # recovers later, starting from a clipped gate is usually worth review.

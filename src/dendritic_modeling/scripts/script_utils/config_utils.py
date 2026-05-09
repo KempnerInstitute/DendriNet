@@ -82,9 +82,9 @@ def canonicalize_model_core_flags(
     if overrides is not None:
         morphology_cfg.update(overrides)
 
-    # Feedforward additive aliases need the same safe gate bootstrap as the
-    # recurrent additive aliases. Without this, the analytical rule can place
-    # non-leaf additive gate centres above the useful voltage range.
+    # Feedforward additive aliases need an additive-safe gate bootstrap.
+    # Keep this legacy BP value stable; recurrent additive aliases use their
+    # own normalized-voltage slope below.
     if core_type in {"dendritic_additive", "flat_additive"}:
         reactivation_cfg = core_cfg.setdefault("reactivation", {})
         if not isinstance(reactivation_cfg, dict):
@@ -100,9 +100,11 @@ def canonicalize_model_core_flags(
 # Type-alias implied overrides for the recurrent / unified-EI path.
 # Mirrors the `_UNIFIED_EI_ALIAS_OVERRIDES` in the factory; this helper
 # rewrites a raw config dict so saved configs are self-consistent with
-# the alias they declare. The `*_additive` aliases also pin the gate-init
-# to `(m=0.1, b=0.0, policy="fixed")`, bypassing the analytical init rule
-# which on non-leaf additive layers computes an out-of-range gate center.
+# the alias they declare. Recurrent additive aliases normalize voltages,
+# so m=1.0 keeps the fixed gate responsive on approximately unit-scale
+# activations while avoiding the analytical non-leaf gate-center trap.
+_RECURRENT_ADDITIVE_REACTIVATION_INIT_M = 1.0
+
 _RNN_CORE_ALIAS_OVERRIDES: dict[str, dict[str, object]] = {
     "rnn_dendritic_shunting": {
         "use_shunting": True,
@@ -110,7 +112,7 @@ _RNN_CORE_ALIAS_OVERRIDES: dict[str, dict[str, object]] = {
     "rnn_dendritic_additive": {
         "use_shunting": False,
         "use_additive_normalization": True,
-        "reactivation_init_m": 0.1,
+        "reactivation_init_m": _RECURRENT_ADDITIVE_REACTIVATION_INIT_M,
         "reactivation_init_b": 0.0,
         "reactivation_init_policy": "fixed",
     },
@@ -121,7 +123,7 @@ _RNN_CORE_ALIAS_OVERRIDES: dict[str, dict[str, object]] = {
     "rnn_flat_additive": {
         "use_shunting": False,
         "use_additive_normalization": True,
-        "reactivation_init_m": 0.1,
+        "reactivation_init_m": _RECURRENT_ADDITIVE_REACTIVATION_INIT_M,
         "reactivation_init_b": 0.0,
         "reactivation_init_policy": "fixed",
         "branch_factors": [1],

@@ -5,6 +5,7 @@ from unittest.mock import patch
 import torch
 import torch.nn as nn
 
+from dendritic_modeling.config.training import LocalRuleConfig
 from dendritic_modeling.networks import DendriticBranchLayer, TopKLinear
 from dendritic_modeling.training.strategies.local_learning import LocalCreditAssignment
 
@@ -83,3 +84,29 @@ def test_local_recorders_use_cached_topk_mask_without_extra_sampling():
     rec = records[0]
     assert isinstance(rec.get("exc_mask"), torch.Tensor)
     torch.testing.assert_close(rec["exc_mask"], topk._last_forward_weight_mask)
+
+
+def test_explicit_inhibitory_update_mode_only_gates_i_cell_records():
+    """Freeze mode skips explicit I-cell records but not E-cell I synapses."""
+    trainer = LocalCreditAssignment.__new__(LocalCreditAssignment)
+
+    trainer.local_cfg = LocalRuleConfig(explicit_inhibitory_update_mode="freeze")
+    assert not trainer._should_update_local_record(
+        {"population": "explicit_inhibitory"}
+    )
+    assert trainer._should_update_local_record({"population": "excitatory"})
+
+    trainer.local_cfg = LocalRuleConfig(explicit_inhibitory_update_mode="local_ca")
+    assert trainer._should_update_local_record({"population": "explicit_inhibitory"})
+
+
+def test_deprecated_inhibitory_cell_update_mode_alias_still_loads():
+    """The old shorter YAML key should map to the canonical explicit-I policy."""
+    trainer = LocalCreditAssignment.__new__(LocalCreditAssignment)
+
+    local_cfg = trainer._build_local_rule_config(
+        {"inhibitory_cell_update_mode": "freeze"}
+    )
+
+    assert local_cfg.explicit_inhibitory_update_mode == "freeze"
+    assert not local_cfg.update_explicit_inhibitory_cells

@@ -1,0 +1,159 @@
+# ============================================================================
+# AlexNet fc7 replacement: 500-neuron dendritic tensor-map core
+# ============================================================================
+# Replaces AlexNet fc7 (classifier.4 + classifier.5) with a DendriNet/EINet
+# tensor-map core. The frozen prefix keeps the ImageNet backbone through fc6,
+# the dendritic core has 500 excitatory neurons, and a learned projection maps
+# the core output back to the fc8 input size.
+#
+# Pipeline:
+#   prefix = features.* + avgpool + fc6 + ReLU -> 4096 features, frozen
+#   core   = 500-neuron dendritic tensor-map   -> projected to 4096 features
+#   suffix = fc8 classifier                    -> 1000 ImageNet classes
+#
+# Run:
+#   PYTHONPATH=src:$PYTHONPATH python \
+#     src/dendritic_modeling/scripts/training/train_experiments.py \
+#     configs/examples/alexnet_fc7_dendritic_500.yaml
+# ============================================================================
+
+experiment:
+  seed: 42
+  train_valid_split: 0.8
+  fast_mode: true
+  enable_hooks: false
+  checkpointing:
+    enabled: true
+    save_every_n_epochs: 25
+    checkpoint_dir: "outputs/checkpoints/"
+
+data:
+  dataset_name: "imagenet"
+  base_dir: ""                              # Set to your local ImageNet root
+  processing:
+    flatten: false
+    normalize: true
+  dataset_params:
+    imagenet:
+      train_samples_per_class: null
+      val_samples_per_class: null
+
+model:
+  task: "classification"
+
+  pretrained_replacement:
+    enabled: true
+    backbone: "alexnet"
+    weights: "IMAGENET1K_V1"
+    input_shape: [3, 224, 224]
+    replace:
+      start: "classifier.4"                 # fc7 Linear(4096 -> 4096)
+      end: "classifier.5"                   # fc7 ReLU
+    omit_layers: ["classifier.0", "classifier.3"]
+    trainability:
+      encoder:
+        mode: "frozen"
+      decoder:
+        mode: "trainable"
+
+  core:
+    type: "hierarchical_dendritic_tensor_map"
+    architecture:
+      excitatory_layer_sizes: [500]
+      inhibitory_layer_sizes: [125]
+      excitatory_branch_factors: [3, 3]
+      inhibitory_branch_factors: [1]
+      inhibitory_network_type: "dendritic"
+    connectivity:
+      ee_synapses_per_branch_per_layer: [40]
+      ei_synapses_per_branch_per_layer: [0]
+      ie_synapses_per_branch_per_layer: [10]
+      ii_synapses_per_branch_per_layer: [0]
+    transfer:
+      input_mode: 1
+      output_activation: "relu"
+    morphology:
+      use_shunting: true
+      weight_transform: "softplus"
+      dbl_init_method: "analytical_expectation"
+    sparsity:
+      init_method: "xavier_normal"
+      type: "standard"
+    reactivation:
+      enabled: true
+      type: "param_tanh"
+      init_m: 1.5
+      init_b: 0.5
+    blocklinear:
+      gradient_scaling: "none"
+      efficient: false
+
+training:
+  encoder:
+    strategy: "standard"
+    common:
+      epochs: 0
+  main:
+    strategy: "standard"
+    common:
+      epochs: 50
+      batch_size: 128
+      shuffle: true
+      grad_clip_value: 5.0
+      loss_function: "cat_nll"
+      early_stopping: true
+      patience: 10
+      load_best_state_dict: true
+      print_every: 1
+      use_amp: true
+      param_groups:
+        lr: 0.001
+        split_params: true
+        topk_lr: 0.001
+        blocklinear_lr: 0.0001
+        reactivation_lr: 0.0001
+        decoder_lr: 0.0001
+        encoder_lr: 0.0
+    optimizer:
+      name: "adam"
+    strategies:
+      standard: {}
+
+analysis:
+  runtime:
+    final:
+      mode: "stream"
+      batch_size: 128
+      num_workers: 4
+  performance:
+    enabled: true
+    training: false
+    params:
+      accuracy: true
+      auc: false
+      categorical_loglikelihood: true
+    final_splits: ["valid", "test"]
+  information: { enabled: false, training: false, params: {} }
+  correlation: { enabled: false, training: false, params: {} }
+  ablation: { enabled: false, training: false, params: {} }
+  synapse_turnover: { enabled: false, training: false, params: {} }
+  noise_perturbation: { enabled: false, training: false, params: {} }
+  weight: { enabled: false, training: false, params: {} }
+  single_layer_contribution: { enabled: false, training: false, params: {} }
+  synaptic_activation: { enabled: false, training: false, params: {} }
+  branch_activation: { enabled: false, training: false, params: {} }
+  compartment_statistics: { enabled: false, training: false, params: {} }
+  compartment_snr: { enabled: false, training: false, params: {} }
+
+wandb:
+  use_wandb: false
+  project: "dendritic-sweeps"
+  group: "alexnet_fc7_replacement"
+  tags: ["alexnet", "fc7", "tensor_map", "dendritic", "imagenet"]
+
+outputs:
+  run_name: "alexnet_fc7_dendritic_500"
+  results_dir: "outputs"
+
+distributed:
+  mode: none

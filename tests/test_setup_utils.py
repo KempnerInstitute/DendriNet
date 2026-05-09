@@ -5,6 +5,9 @@ from dendritic_modeling.config import DataConfig, DataProcessingConfig
 from dendritic_modeling.networks.architectures.classical.pathway_router import (
     PathwayRouter,
 )
+from dendritic_modeling.scripts.script_utils.config_utils import (
+    canonicalize_rnn_core_flags,
+)
 from dendritic_modeling.scripts.script_utils.setup_utils import (
     _config_to_plain_dict,
     _get_dataset_specific_params,
@@ -60,6 +63,37 @@ def test_config_to_plain_dict_handles_dictconfig() -> None:
     converted = _config_to_plain_dict(section)
 
     assert converted == {"flatten": False, "normalize": True}
+
+
+def test_canonicalize_rnn_additive_alias_saved_config() -> None:
+    payload = {
+        "model": {
+            "core": {
+                "type": "rnn_dendritic_additive",
+                "unified_ei": {
+                    "layers": [
+                        {
+                            "excitatory": {
+                                "n_neurons": 6,
+                                "branch_factors": [2],
+                                "use_shunting": True,
+                                "reactivation_init_policy": "quantile",
+                            }
+                        }
+                    ]
+                },
+            }
+        }
+    }
+
+    out = canonicalize_rnn_core_flags(payload)
+    exc = out["model"]["core"]["unified_ei"]["layers"][0]["excitatory"]
+
+    assert exc["use_shunting"] is False
+    assert exc["use_additive_normalization"] is True
+    assert exc["reactivation_init_policy"] == "fixed"
+    assert exc["reactivation_init_m"] == 1.0
+    assert exc["reactivation_init_b"] == 0.0
 
 
 def test_get_dataset_specific_params_handles_custom_dict_sections() -> None:

@@ -18,6 +18,8 @@ from dendritic_modeling.config.analysis import (
     AnalysisConfig,
     AnalysisRuntimeConfig,
     EvaluationRuntimeConfig,
+    LocalRuleComponentAnalysisConfig,
+    LocalRuleComponentAnalysisParams,
     PerformanceAnalysisConfig,
     PerformanceAnalysisParams,
 )
@@ -660,6 +662,7 @@ def _map_analysis_config(
         "single_layer_contribution": "single_layer_contribution",
         "synaptic_activation": "synaptic_activation_analysis",
         "branch_activation": "branch_activation_analysis",
+        "local_rule_components": "local_rule_component_analysis",
         "routing": "routing_analysis",
         "inhibitory_specialization": "inhibitory_specialization_analysis",
         "jacobian_spectrum": "jacobian_spectrum_analysis",
@@ -742,12 +745,36 @@ def _map_analysis_config(
     if "runtime" not in mapped:
         mapped["runtime"] = _default_analysis_runtime_config(distributed_mode)
 
+    if "local_rule_component_analysis" in mapped and isinstance(
+        mapped["local_rule_component_analysis"], Mapping
+    ):
+        lrc = dict(mapped["local_rule_component_analysis"])
+        if "params" in lrc and isinstance(lrc["params"], Mapping):
+            lrc["params"] = LocalRuleComponentAnalysisParams(**lrc["params"])
+        mapped["local_rule_component_analysis"] = LocalRuleComponentAnalysisConfig(
+            **lrc
+        )
+
     return mapped
 
 
 def _build_local_rule_config(lsc_data: dict) -> LocalRuleConfig:
     """Build LocalRuleConfig from dict data with nested configs."""
     lsc_kwargs = dict(lsc_data)
+    alias_mode = lsc_kwargs.pop("inhibitory_cell_update_mode", None)
+    if alias_mode is not None:
+        existing_mode = lsc_kwargs.get("explicit_inhibitory_update_mode")
+        if (
+            existing_mode is not None
+            and LocalRuleConfig._normalize_explicit_inhibitory_update_mode(
+                existing_mode
+            )
+            != LocalRuleConfig._normalize_explicit_inhibitory_update_mode(alias_mode)
+        ):
+            raise ValueError(
+                "Conflicting inhibitory-cell update aliases in LocalRuleConfig"
+            )
+        lsc_kwargs["explicit_inhibitory_update_mode"] = alias_mode
 
     # Handle nested three_factor config
     if "three_factor" in lsc_kwargs and isinstance(lsc_kwargs["three_factor"], dict):

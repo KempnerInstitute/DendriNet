@@ -74,6 +74,9 @@ normalize_param_groups_config = getattr(
 canonicalize_model_core_flags = getattr(
     _config_utils, "canonicalize_model_core_flags", None
 )
+canonicalize_rnn_core_flags = getattr(
+    _config_utils, "canonicalize_rnn_core_flags", None
+)
 
 
 if normalize_param_groups_config is None:
@@ -122,7 +125,9 @@ def _maybe_calibrate_data_driven_reactivation(
         reactivation_policy_to_calibration_mode,
     )
 
-    requested_policies = set()
+    config_requested_policies = set()
+    layer_requested_policies = set()
+    saw_layer_policy = False
 
     try:
         reactivation_cfg = config.model.core.reactivation
@@ -130,7 +135,7 @@ def _maybe_calibrate_data_driven_reactivation(
             getattr(reactivation_cfg, "init_policy", "analytical")
         )
         if is_data_driven_reactivation_policy(init_policy):
-            requested_policies.add(init_policy)
+            config_requested_policies.add(init_policy)
     except AttributeError:
         # The reactivation config path is optional; fall back to collecting
         # any per-layer policies directly from the built modules below.
@@ -140,14 +145,25 @@ def _maybe_calibrate_data_driven_reactivation(
         layer_policy = getattr(module, "reactivation_init_policy", None)
         if layer_policy is None:
             continue
+        saw_layer_policy = True
         layer_policy = normalize_reactivation_init_policy(layer_policy)
         if is_data_driven_reactivation_policy(layer_policy):
-            requested_policies.add(layer_policy)
+            layer_requested_policies.add(layer_policy)
 
+    # Once the model is built, module-level policies are authoritative. This is
+    # important for recurrent aliases where the factory may override stale YAML
+    # policies for one population while preserving data-driven policies for the
+    # other population.
+    requested_policies = (
+        layer_requested_policies if saw_layer_policy else config_requested_policies
+    )
     if not requested_policies:
         return
 
-    if len(requested_policies) == 1:
+    if saw_layer_policy:
+        mode = None
+        policy_msg = ", ".join(sorted(requested_policies))
+    elif len(requested_policies) == 1:
         init_policy = next(iter(requested_policies))
         mode = reactivation_policy_to_calibration_mode(init_policy)
         policy_msg = init_policy
@@ -577,6 +593,8 @@ def main(config_path: str, args=None):
         config_payload = asdict(config)
         if canonicalize_model_core_flags is not None:
             config_payload = canonicalize_model_core_flags(config_payload)
+        if canonicalize_rnn_core_flags is not None:
+            config_payload = canonicalize_rnn_core_flags(config_payload)
         save_dict(config_payload, run_save_path, "config.json")
 
     # Under DDP, autoencoder pretraining must be serialized: rank 0

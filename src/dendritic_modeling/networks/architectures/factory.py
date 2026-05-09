@@ -64,17 +64,14 @@ _UNIFIED_EI_TYPES: set[str] = {
 # The alias is resolved at build time; `ei_unified` is a no-op (explicit
 # config wins). The BP `canonicalize_model_core_flags` uses the same idea.
 #
-# For `*_additive` aliases: we also force an additive-safe reactivation-gate
-# init (m=0.1, b=0.0, policy="fixed"). This bypasses the analytical init
-# rule in `analytical_expectation_dbl_init`, which on non-leaf additive
-# layers computes `E_Vinf = E_g_exc - E_g_inh + 0.5 * g_branch` ≈ 1.02 and
-# places the gate center above the useful voltage range. The BP-path
-# `dendritic_additive` type ships equivalent additive-safe defaults via its
-# own canonicalization; the aliases here give the recurrent/unified-EI
-# path the same safety net. Existing `ei_unified` configs with
-# `use_shunting: false` and `reactivation_init_policy: analytical`
-# continue to dispatch the (buggy) analytical rule unchanged — users opt
-# into the fix by switching `core.type` to the alias.
+# For `*_additive` aliases: we force additive voltage normalization and a
+# fixed reactivation gate. The normalization makes additive voltages roughly
+# zero-mean/unit-variance; with that scale, m=1.0 keeps the gate responsive
+# without the saturation risk of the old analytical init. Existing
+# `ei_unified` configs with explicit fields continue to dispatch unchanged,
+# so users opt into this recurrent additive path by selecting the alias.
+_RECURRENT_ADDITIVE_REACTIVATION_INIT_M = 1.0
+
 _UNIFIED_EI_ALIAS_OVERRIDES: dict[str, dict[str, object]] = {
     "rnn_dendritic_shunting": {
         "use_shunting": True,
@@ -82,7 +79,7 @@ _UNIFIED_EI_ALIAS_OVERRIDES: dict[str, dict[str, object]] = {
     "rnn_dendritic_additive": {
         "use_shunting": False,
         "use_additive_normalization": True,
-        "reactivation_init_m": 0.1,
+        "reactivation_init_m": _RECURRENT_ADDITIVE_REACTIVATION_INIT_M,
         "reactivation_init_b": 0.0,
         "reactivation_init_policy": "fixed",
     },
@@ -93,7 +90,7 @@ _UNIFIED_EI_ALIAS_OVERRIDES: dict[str, dict[str, object]] = {
     "rnn_flat_additive": {
         "use_shunting": False,
         "use_additive_normalization": True,
-        "reactivation_init_m": 0.1,
+        "reactivation_init_m": _RECURRENT_ADDITIVE_REACTIVATION_INIT_M,
         "reactivation_init_b": 0.0,
         "reactivation_init_policy": "fixed",
         "branch_factors": [1],

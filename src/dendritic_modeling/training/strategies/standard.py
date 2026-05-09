@@ -412,7 +412,9 @@ class Trainer:
             )
         return normalized
 
-    def _resolve_reactivation_recalibration_mode(self, model: BaseModel) -> str:
+    def _resolve_reactivation_recalibration_mode(
+        self, model: BaseModel
+    ) -> Optional[str]:
         """Resolve the calibration rule used for periodic (m, b) refreshes."""
         explicit_mode = self._normalize_reactivation_recalibration_mode()
         if explicit_mode != "from_init_policy":
@@ -426,17 +428,20 @@ class Trainer:
             reactivation_policy_to_calibration_mode,
         )
 
+        saw_layer_policy = False
         for module in self._unwrap_model(model).modules():
             policy = getattr(module, "reactivation_init_policy", None)
             if policy is None:
                 continue
+            saw_layer_policy = True
             policy = normalize_reactivation_init_policy(policy)
             mode = reactivation_policy_to_calibration_mode(policy)
             if mode is not None:
-                return mode
-            break
+                # Defer to per-layer policies so fixed/analytical layers are
+                # not recalibrated just because a sibling layer is data-driven.
+                return None
 
-        return "occupancy_quantile"
+        return None if saw_layer_policy else "occupancy_quantile"
 
     def train(
         self,

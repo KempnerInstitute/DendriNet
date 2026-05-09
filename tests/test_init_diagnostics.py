@@ -46,3 +46,11 @@ def test_dump_init_gate_stats_flags_clipped_saturated_pattern(tmp_path):
     assert payload["warnings"]
     assert any("calibration clip" in warning for warning in payload["warnings"])
     assert any("identical (m, b)" in warning for warning in payload["warnings"])
+
+
+def test_dump_init_gate_stats_accepts_normalized_additive_fixed_gate(tmp_path):
+    model = _DummyModel(output_dim=8, init_m=1.0, init_b=0.0)
+
+    payload = dump_init_gate_stats(model, tmp_path)
+
+    assert payload["warnings"] == []
