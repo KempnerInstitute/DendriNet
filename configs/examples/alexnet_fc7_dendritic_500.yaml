@@ -1,14 +1,14 @@
 # ============================================================================
-# AlexNet fc7 replacement: 500-neuron dendritic tensor-map core
+# AlexNet fc7 replacement: 500E-only dendritic tensor-map core
 # ============================================================================
 # Replaces AlexNet fc7 (classifier.4 + classifier.5) with a DendriNet/EINet
 # tensor-map core. The frozen prefix keeps the ImageNet backbone through fc6,
-# the dendritic core has 500 excitatory neurons, and a learned projection maps
-# the core output back to the fc8 input size.
+# the dendritic core has 500 excitatory neurons and no inhibitory population,
+# and a learned projection maps the core output back to the fc8 input size.
 #
 # Pipeline:
 #   prefix = features.* + avgpool + fc6 + ReLU -> 4096 features, frozen
-#   core   = 500-neuron dendritic tensor-map   -> projected to 4096 features
+#   core   = 500E-only dendritic tensor-map    -> projected to 4096 features
 #   suffix = fc8 classifier                    -> 1000 ImageNet classes
 #
 # Run:
@@ -60,14 +60,14 @@ model:
     type: "hierarchical_dendritic_tensor_map"
     architecture:
       excitatory_layer_sizes: [500]
-      inhibitory_layer_sizes: [125]
+      inhibitory_layer_sizes: []
       excitatory_branch_factors: [3, 3]
       inhibitory_branch_factors: [1]
       inhibitory_network_type: "dendritic"
     connectivity:
       ee_synapses_per_branch_per_layer: [40]
       ei_synapses_per_branch_per_layer: [0]
-      ie_synapses_per_branch_per_layer: [10]
+      ie_synapses_per_branch_per_layer: [0]
       ii_synapses_per_branch_per_layer: [0]
     transfer:
       input_mode: 1
