@@ -36,6 +36,9 @@ from dendritic_modeling.analysis.tools.inhibitory_specialization import (
     InhibitorySpecializationAnalyzer,
 )
 from dendritic_modeling.analysis.tools.jacobian_spectrum import JacobianSpectrumAnalyzer
+from dendritic_modeling.analysis.tools.local_rule_components import (
+    LocalRuleComponentAnalyzer,
+)
 from dendritic_modeling.analysis.tools.multiplicative_gain import (
     MultiplicativeGainAnalyzer,
 )
@@ -163,6 +166,13 @@ class AnalysisManager:
         if self.config.branch_activation_analysis.enabled:
             self.branch_activation_analyzer = BranchActivationAnalyzer(
                 self.config.branch_activation_analysis.params
+            )
+
+        # Initialize Local Rule Component Analysis
+        lrc_cfg = getattr(self.config, "local_rule_component_analysis", None)
+        if lrc_cfg is not None and lrc_cfg.enabled:
+            self.local_rule_component_analyzer = LocalRuleComponentAnalyzer(
+                lrc_cfg.params
             )
 
         # Initialize Correlation Analysis
@@ -470,6 +480,26 @@ class AnalysisManager:
                 device=self.device,
                 save_path=os.path.join(self.save_root, "branch_activation_analysis"),
                 filename=filename,
+                runtime=runtime,
+            )
+
+        # Local Rule Component Analysis
+        lrc_cfg = getattr(self.config, "local_rule_component_analysis", None)
+        if (
+            lrc_cfg is not None
+            and lrc_cfg.enabled
+            and hasattr(self, "local_rule_component_analyzer")
+            and ((getattr(lrc_cfg, "training", False) and training) or not training)
+        ):
+            self.local_rule_component_analyzer.analyze(
+                model=self.model,
+                train_ds=self.data.get("train"),
+                valid_ds=self.data.get("valid"),
+                test_dataset=self.data.get("test"),
+                device=self.device,
+                save_path=os.path.join(self.save_root, "local_rule_components"),
+                filename=filename,
+                training=training,
                 runtime=runtime,
             )
 

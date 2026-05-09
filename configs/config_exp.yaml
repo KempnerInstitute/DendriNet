@@ -1100,6 +1100,22 @@ analysis:
       downsample: true                  # bool: Downsample activations
       samples: 5                        # int: Samples to keep
 
+  # ---------- Local rule components ----------
+  local_rule_components:
+    enabled: false                      # bool: Enable LocalCA component-factor logging
+    training: false                     # bool: Run during training for epoch trajectories
+    params:
+      max_samples: 1024                 # int | null: Examples per snapshot
+      include_dendritic: true           # bool: Include branch-to-parent conductance terms
+      include_broadcast: true           # bool: Log scalar/per-soma broadcast-error proxy
+      broadcast_mode: "scalar"          # str: "scalar" | "per_soma"
+      error_mode: "auto"                # str: "auto" | "ce" | "mse" | "none"
+      e_rev_exc: 1.0                    # float: Excitatory reversal for driving force
+      e_rev_inh: 0.0                    # float: Inhibitory reversal for driving force
+      save_json: true                   # bool: Save per-snapshot JSON
+      save_csv: true                    # bool: Save per-snapshot CSV
+      append_training_csv: true         # bool: Append training snapshots to trajectory.csv
+
   # ---------- Routing ----------
   routing:
     enabled: false                      # bool: Enable routing analysis (recurrent models only)

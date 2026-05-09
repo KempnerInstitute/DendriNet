@@ -23,6 +23,22 @@ class BaselineRNNConfig:
     output_mode: str = "last"  # "last", "mean", "all"
     input_projection_dims: list[int] = field(default_factory=list)
     use_layernorm: bool = False
+    # Initialization for the recurrent weight matrices.
+    # "default": PyTorch defaults (uniform with k = 1/sqrt(hidden_dim)).
+    # "orthogonal": orthogonal init for the hidden-to-hidden recurrent kernel
+    #   (standard fix for vanilla-RNN training stability on long sequences).
+    # We default to "default" so that existing training configs reproduce
+    # bit-for-bit; new configs that want better long-sequence trainability
+    # should explicitly set init_method="orthogonal".
+    init_method: str = "default"  # "default" | "orthogonal"
+    # LSTM-only: extra bias added to the forget gate at initialization on top
+    # of PyTorch's defaults. PyTorch's nn.LSTM initializes the bias to small
+    # uniform values, putting the forget gate near sigmoid(0)=0.5 and causing
+    # severe cell-state decay over long sequences. The standard convention
+    # since Jozefowicz et al. (2015) is +1.0. We default to 0.0 for
+    # backward compatibility with existing checkpoints/configs; new configs
+    # should explicitly set lstm_forget_bias=1.0.
+    lstm_forget_bias: float = 0.0
 
 
 class BaselineRNN(BaseNetwork):
@@ -72,10 +88,66 @@ class BaselineRNN(BaseNetwork):
             batch_first=True,
             dropout=config.dropout if config.num_layers > 1 else 0.0,
         )
+
+        # Apply paper-fair initialization options on top of PyTorch defaults.
+        # These are no-ops when init_method="default" and lstm_forget_bias=0.0,
+        # so existing training runs that did not set them are unaffected.
+        self._apply_recurrent_init(
+            cell_type,
+            init_method=str(config.init_method).lower(),
+            lstm_forget_bias=float(config.lstm_forget_bias),
+        )
+
         self.output_layernorm = (
             nn.LayerNorm(config.hidden_dim) if self._use_layernorm else nn.Identity()
         )
         self.output_dim = config.hidden_dim
+
+    def _apply_recurrent_init(
+        self,
+        cell_type: str,
+        init_method: str = "default",
+        lstm_forget_bias: float = 0.0,
+    ) -> None:
+        """Optionally re-initialize the recurrent kernels for training stability.
+
+        - ``init_method="orthogonal"`` orthogonalizes the hidden-to-hidden
+          weight blocks of the underlying nn.GRU/nn.LSTM/nn.RNN. For vanilla
+          RNNs in particular this is the standard fix for catastrophic
+          gradient vanishing on long sequences (Saxe, McClelland, Ganguli
+          2013). For GRU and LSTM, PyTorch's ``weight_hh_*`` is a stack of
+          gate kernels; we orthogonalize each gate block individually to
+          preserve the gating-projection interpretation.
+        - ``lstm_forget_bias != 0`` adds the supplied value to the forget-gate
+          slice of every LSTM bias (matches Jozefowicz, Zaremba, Sutskever
+          2015). PyTorch's nn.LSTM stacks the four gate biases as
+          ``[i, f, g, o]``; with ``hidden_size = H`` the forget-gate slice is
+          rows ``H:2H``. ``nn.LSTM`` keeps two bias vectors (``bias_ih_l*``
+          and ``bias_hh_l*``); we add the offset to ``bias_ih_l*`` only so
+          the effective forget-bias offset is exactly the supplied value.
+        """
+        if init_method not in ("default", "orthogonal"):
+            raise ValueError(
+                f"Unknown init_method '{init_method}'. Choose from: default, orthogonal"
+            )
+
+        H = self.config.hidden_dim
+        n_gates = {"vanilla": 1, "gru": 3, "lstm": 4}[cell_type]
+
+        if init_method == "orthogonal":
+            for name, p in self.rnn.named_parameters():
+                if "weight_hh" not in name:
+                    continue
+                # weight_hh has shape (n_gates*H, H); orthogonalize each gate slice
+                with torch.no_grad():
+                    for g in range(n_gates):
+                        nn.init.orthogonal_(p[g * H : (g + 1) * H, :])
+
+        if cell_type == "lstm" and lstm_forget_bias != 0.0:
+            with torch.no_grad():
+                for name, p in self.rnn.named_parameters():
+                    if name.startswith("bias_ih_"):
+                        p[H : 2 * H].add_(lstm_forget_bias)
 
     @property
     def is_recurrent(self) -> bool:

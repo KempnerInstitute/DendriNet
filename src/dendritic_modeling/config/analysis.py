@@ -919,6 +919,46 @@ class BranchActivationAnalysisConfig(BaseConfig):
 
 
 @dataclass
+class LocalRuleComponentAnalysisParams(BaseConfig):
+    """Parameters for LocalCA component trajectory analysis.
+
+    The analyzer records the fast factors in the local rule by branch depth and
+    synapse type: branch voltage, input resistance, E/I driving force, active
+    presynaptic drive, conductance-form eligibility, rule-correct eligibility,
+    optional scalar/per-soma broadcast error, and the resulting local update
+    factor before optimizer-specific parameterization.
+
+    - max_samples: deterministic cap on examples used per snapshot.
+    - include_dendritic: also record branch-to-parent conductance terms.
+    - include_broadcast: compute an approximate LocalCA broadcast from labels.
+    - broadcast_mode: "scalar" or "per_soma" for the recorded error field.
+    - error_mode: "auto", "ce", "mse", or "none".
+    """
+
+    max_samples: Optional[int] = 1024
+    include_dendritic: bool = True
+    include_broadcast: bool = True
+    broadcast_mode: str = "scalar"
+    error_mode: str = "auto"
+    e_rev_exc: float = 1.0
+    e_rev_inh: float = 0.0
+    save_json: bool = True
+    save_csv: bool = True
+    append_training_csv: bool = True
+
+
+@dataclass
+class LocalRuleComponentAnalysisConfig(BaseConfig):
+    """Enable/disable LocalCA local-rule component analysis."""
+
+    enabled: bool = False
+    training: bool = False
+    params: LocalRuleComponentAnalysisParams = field(
+        default_factory=LocalRuleComponentAnalysisParams
+    )
+
+
+@dataclass
 class SingleLayerContributionAnalysisParams(BaseConfig):
     """Parameters for single-layer contribution analysis.
 
@@ -1212,8 +1252,8 @@ class JacobianSpectrumAnalysisConfig(BaseConfig):
 
     Reads the effective ``branch_recurrent`` / ``branch_rec_inhibition``
     weights of the excitatory population at each branch level and reports
-    their top singular values plus the spectral radius. Skipped on
-    baseline RNN cores and on layers without recurrent compartments.
+    their top singular values. Skipped on baseline RNN cores and on layers
+    without recurrent compartments.
     """
 
     enabled: bool = False
@@ -1308,6 +1348,9 @@ class AnalysisConfig(BaseConfig):
     )
     branch_activation_analysis: BranchActivationAnalysisConfig = field(
         default_factory=BranchActivationAnalysisConfig
+    )
+    local_rule_component_analysis: LocalRuleComponentAnalysisConfig = field(
+        default_factory=LocalRuleComponentAnalysisConfig
     )
     information_analysis: InformationAnalysisConfig = field(
         default_factory=InformationAnalysisConfig
