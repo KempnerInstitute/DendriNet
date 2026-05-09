@@ -307,10 +307,12 @@ works for AlexNet, VGG, and coarse splits of ResNet (e.g. at ``avgpool`` or
 ``fc``).  Replacing layers *inside* residual blocks requires an FX-graph
 backend (planned).
 
-Example configs:
+The runnable examples page includes ``configs/examples/alexnet_fc7_dendritic_500.yaml``,
+which replaces AlexNet ``fc7`` with a 500E-only dendritic tensor-map core. See
+:doc:`examples` for all four primary example configs.
 
-- ``configs/examples/cifar10_128_333_40e10i.yaml`` — CIFAR-10, 128 excitatory neurons, ``[3, 3, 3]`` dendritic morphology, 40 excitatory and 10 inhibitory synapses per branch
-- ``configs/examples/alexnet_fc7_dendritic_500.yaml`` — AlexNet ``fc7`` replacement with a 500-neuron dendritic tensor-map core and trainable ``fc8`` suffix
+Additional pretrained replacement configs:
+
 - ``configs/vision/alexnet_k1_einet_single.yaml`` — replace fc7 only (K=1), single-GPU / non-DDP
 - ``configs/vision/alexnet_k1_einet_ddp.yaml`` — same K=1 replacement configured for DDP launch
 - ``configs/examples/pretrained_alexnet_fc.yaml`` — tensor-map pretrained replacement around AlexNet FC layers

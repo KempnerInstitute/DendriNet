@@ -19,7 +19,7 @@
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
-    <link rel="next" title="Network Architectures" href="network_architectures.html" />
+    <link rel="next" title="Runnable Config Examples" href="examples.html" />
     <link rel="prev" title="Installation" href="installation.html" /> 
 </head>
 
@@ -56,6 +56,7 @@
 <li class="toctree-l2"><a class="reference internal" href="#minimal-configuration-example">Minimal configuration example</a></li>
 </ul>
 </li>
+<li class="toctree-l1"><a class="reference internal" href="examples.html">Runnable Config Examples</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">User Guide</span></p>
 <ul>
@@ -149,13 +150,24 @@ python<span class="w"> </span>src/dendritic_modeling/scripts/sweeps/result_analy
 </section>
 <section id="example-model-runs">
 <h2>Example model runs<a class="headerlink" href="#example-model-runs" title="Link to this heading"></a></h2>
-<p>The repository includes runnable example configs for common model shapes:</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># CIFAR-10, 128-neuron DendriNet, [3, 3, 3] morphology, 40E/10I synapses</span>
+<p>The repository includes four primary runnable example configs. See
+<a class="reference internal" href="examples.html"><span class="doc">Runnable Config Examples</span></a> for the same list with short notes.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># MNIST, original single-layer feedforward example</span>
+<span class="nv">PYTHONPATH</span><span class="o">=</span>src:<span class="nv">$PYTHONPATH</span><span class="w"> </span>python<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>src/dendritic_modeling/scripts/training/train_experiments.py<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>configs/examples/standard_mnist.yaml
+
+<span class="c1"># CIFAR-10, one 128E/32I layer, [3, 3, 3] morphology, 40E/10I synapses</span>
 <span class="nv">PYTHONPATH</span><span class="o">=</span>src:<span class="nv">$PYTHONPATH</span><span class="w"> </span>python<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>src/dendritic_modeling/scripts/training/train_experiments.py<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>configs/examples/cifar10_128_333_40e10i.yaml
 
-<span class="c1"># AlexNet fc7 replacement with a 500-neuron dendritic tensor-map core</span>
+<span class="c1"># CIFAR-10, two dendritic EI layers</span>
+<span class="nv">PYTHONPATH</span><span class="o">=</span>src:<span class="nv">$PYTHONPATH</span><span class="w"> </span>python<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>src/dendritic_modeling/scripts/training/train_experiments.py<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>configs/examples/cifar10_two_layer.yaml
+
+<span class="c1"># AlexNet fc7 replacement with a 500E-only dendritic tensor-map core</span>
 <span class="nv">PYTHONPATH</span><span class="o">=</span>src:<span class="nv">$PYTHONPATH</span><span class="w"> </span>python<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>src/dendritic_modeling/scripts/training/train_experiments.py<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>configs/examples/alexnet_fc7_dendritic_500.yaml
@@ -221,7 +233,7 @@ python<span class="w"> </span>src/dendritic_modeling/scripts/sweeps/result_analy
           </div>
           <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
         <a href="installation.html" class="btn btn-neutral float-left" title="Installation" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
-        <a href="network_architectures.html" class="btn btn-neutral float-right" title="Network Architectures" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+        <a href="examples.html" class="btn btn-neutral float-right" title="Runnable Config Examples" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
     </div>
 
   <hr/>

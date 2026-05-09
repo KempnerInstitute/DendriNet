@@ -46,6 +46,7 @@
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="quickstart.html">Quick Start</a></li>
+<li class="toctree-l1"><a class="reference internal" href="examples.html">Runnable Config Examples</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">User Guide</span></p>
 <ul class="current">
@@ -407,10 +408,11 @@ utility:</p>
 works for AlexNet, VGG, and coarse splits of ResNet (e.g. at <code class="docutils literal notranslate"><span class="pre">avgpool</span></code> or
 <code class="docutils literal notranslate"><span class="pre">fc</span></code>).  Replacing layers <em>inside</em> residual blocks requires an FX-graph
 backend (planned).</p>
-<p>Example configs:</p>
+<p>The runnable examples page includes <code class="docutils literal notranslate"><span class="pre">configs/examples/alexnet_fc7_dendritic_500.yaml</span></code>,
+which replaces AlexNet <code class="docutils literal notranslate"><span class="pre">fc7</span></code> with a 500E-only dendritic tensor-map core. See
+<a class="reference internal" href="examples.html"><span class="doc">Runnable Config Examples</span></a> for all four primary example configs.</p>
+<p>Additional pretrained replacement configs:</p>
 <ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">configs/examples/cifar10_128_333_40e10i.yaml</span></code> — CIFAR-10, 128 excitatory neurons, <code class="docutils literal notranslate"><span class="pre">[3,</span> <span class="pre">3,</span> <span class="pre">3]</span></code> dendritic morphology, 40 excitatory and 10 inhibitory synapses per branch</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">configs/examples/alexnet_fc7_dendritic_500.yaml</span></code> — AlexNet <code class="docutils literal notranslate"><span class="pre">fc7</span></code> replacement with a 500-neuron dendritic tensor-map core and trainable <code class="docutils literal notranslate"><span class="pre">fc8</span></code> suffix</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">configs/vision/alexnet_k1_einet_single.yaml</span></code> — replace fc7 only (K=1), single-GPU / non-DDP</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">configs/vision/alexnet_k1_einet_ddp.yaml</span></code> — same K=1 replacement configured for DDP launch</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">configs/examples/pretrained_alexnet_fc.yaml</span></code> — tensor-map pretrained replacement around AlexNet FC layers</p></li>
