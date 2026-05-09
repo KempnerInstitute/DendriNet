@@ -57,16 +57,27 @@ Run a parameter sweep
 Example model runs
 ------------------
 
-The repository includes runnable example configs for common model shapes:
+The repository includes four primary runnable example configs. See
+:doc:`examples` for the same list with short notes.
 
 .. code-block:: bash
 
-   # CIFAR-10, 128-neuron DendriNet, [3, 3, 3] morphology, 40E/10I synapses
+   # MNIST, original single-layer feedforward example
+   PYTHONPATH=src:$PYTHONPATH python \
+     src/dendritic_modeling/scripts/training/train_experiments.py \
+     configs/examples/standard_mnist.yaml
+
+   # CIFAR-10, one 128E/32I layer, [3, 3, 3] morphology, 40E/10I synapses
    PYTHONPATH=src:$PYTHONPATH python \
      src/dendritic_modeling/scripts/training/train_experiments.py \
      configs/examples/cifar10_128_333_40e10i.yaml
 
-   # AlexNet fc7 replacement with a 500-neuron dendritic tensor-map core
+   # CIFAR-10, two dendritic EI layers
+   PYTHONPATH=src:$PYTHONPATH python \
+     src/dendritic_modeling/scripts/training/train_experiments.py \
+     configs/examples/cifar10_two_layer.yaml
+
+   # AlexNet fc7 replacement with a 500E-only dendritic tensor-map core
    PYTHONPATH=src:$PYTHONPATH python \
      src/dendritic_modeling/scripts/training/train_experiments.py \
      configs/examples/alexnet_fc7_dendritic_500.yaml

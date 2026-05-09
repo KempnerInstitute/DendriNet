@@ -20,6 +20,7 @@ files.
 
    installation
    quickstart
+   examples
 
 .. toctree::
    :maxdepth: 2

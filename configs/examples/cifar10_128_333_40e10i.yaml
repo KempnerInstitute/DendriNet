@@ -1,10 +1,10 @@
 # ============================================================================
-# CIFAR-10 DendriNet: 128 neurons, 3x3x3 morphology, 40E/10I synapses
+# CIFAR-10 DendriNet: 128E/32I, 3x3x3 morphology, 40E/10I synapses
 # ============================================================================
 # Standard single-GPU feedforward run. The dendritic core has one excitatory
-# layer with 128 neurons. Each excitatory neuron uses a three-level morphology
-# with branch factors [3, 3, 3]. Each branch receives 40 excitatory and 10
-# inhibitory synapses.
+# layer with 128 neurons and one inhibitory layer with 32 neurons. Each
+# excitatory neuron uses a three-level morphology with branch factors [3, 3, 3].
+# Each excitatory branch receives 40 excitatory and 10 inhibitory synapses.
 #
 # Run:
 #   PYTHONPATH=src:$PYTHONPATH python \
@@ -39,11 +39,11 @@ model:
       inhibitory_network_type: "dendritic"
     connectivity:
       ee_synapses_per_branch_per_layer: [40]
-      ei_synapses_per_branch_per_layer: [0]
+      ei_synapses_per_branch_per_layer: [10]
       ie_synapses_per_branch_per_layer: [10]
       ii_synapses_per_branch_per_layer: [0]
     transfer:
-      input_mode: 1
+      input_mode: 0
       inhibitory_mode: "first"
       output_activation: "relu"
     morphology:
