@@ -874,6 +874,7 @@ class ReceptiveFieldAnalysisParams(BaseConfig):
     - rf_shape: optional (H, W) receptive field shape if known.
     """
     rf_shape: Optional[tuple[int, int]] = None
+    fig_save_format: str = "png"
 
 
 @dataclass
