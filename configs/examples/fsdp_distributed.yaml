@@ -53,7 +53,9 @@ model:
       inhibitory_branch_factors: [1]
     connectivity:
       ee_synapses_per_branch_per_layer: [60]
+      ei_synapses_per_branch_per_layer: [20]
       ie_synapses_per_branch_per_layer: [20]
+      ii_synapses_per_branch_per_layer: [0]
     morphology:
       use_shunting: true
       weight_transform: "softplus"

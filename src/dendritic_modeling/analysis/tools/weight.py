@@ -14,13 +14,10 @@ import numpy as np
 import torch
 
 from dendritic_modeling.analysis.core.base import AbstractAnalyzer
+from dendritic_modeling.analysis.utils.einet_core import has_einet_core
 from dendritic_modeling.config import WeightAnalysisParams
 from dendritic_modeling.models import BaseModel
-from dendritic_modeling.networks import (
-    DendriNet,
-    DendriticBranchLayer,
-    ExcitationInhibitionNetwork,
-)
+from dendritic_modeling.networks import DendriNet, DendriticBranchLayer
 from dendritic_modeling.utils import save_dict
 
 logger = logging.getLogger(__name__)
@@ -85,9 +82,7 @@ class WeightAnalyzer(AbstractAnalyzer):
         Returns:
             Dictionary containing all weight analysis results
         """
-        try:
-            assert isinstance(model.core_network, ExcitationInhibitionNetwork)
-        except AssertionError:
+        if not has_einet_core(model):
             return None
 
         self.logger.info("Starting comprehensive weight analysis...")

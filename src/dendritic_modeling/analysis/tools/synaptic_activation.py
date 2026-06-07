@@ -16,10 +16,7 @@ from dendritic_modeling.analysis.utils.runtime import (
 from dendritic_modeling.config import SynapticActivationAnalysisParams
 from dendritic_modeling.config.analysis import EvaluationRuntimeConfig
 from dendritic_modeling.models import BaseModel
-from dendritic_modeling.networks import (
-    DendriticBranchLayer,
-    ExcitationInhibitionNetwork,
-)
+from dendritic_modeling.networks import DendriticBranchLayer, TopKLinear
 from dendritic_modeling.utils import save_dict
 
 
@@ -63,12 +60,21 @@ class SynapticActivationAnalyzer:
             List of hook handles for later removal
         """
         handles = []
-        for _name, module in model.named_modules():
+        for layer_name, module in model.named_modules():
             if isinstance(module, DendriticBranchLayer):
-                if _name not in self.data_dict.keys():
-                    self.data_dict[_name] = {}
-                    module._name = _name
-                    handle = module.register_forward_hook(self.forward_hook)
+                synapse_modules = [
+                    ("exc", module.branch_excitation),
+                    ("inh", module.branch_inhibition),
+                    ("rec_exc", getattr(module, "branch_recurrent", None)),
+                    ("rec_inh", getattr(module, "branch_rec_inhibition", None)),
+                ]
+                self.data_dict.setdefault(layer_name, {})
+                for synapse_type, synapse_module in synapse_modules:
+                    if synapse_module is None:
+                        continue
+                    synapse_module._analysis_layer_name = layer_name
+                    synapse_module._analysis_synapse_type = synapse_type
+                    handle = synapse_module.register_forward_hook(self.forward_hook)
                     handles.append(handle)
         return handles
 
@@ -79,42 +85,21 @@ class SynapticActivationAnalyzer:
 
     def forward_hook(
         self,
-        module: DendriticBranchLayer,
-        input: tuple[torch.Tensor, torch.Tensor, Optional[torch.Tensor]],
+        module: TopKLinear,
+        input: tuple[torch.Tensor, ...],
         output: torch.Tensor,
     ):
         """
         Forward hook to collect synaptic activations.
 
         Args:
-            module: The dendritic branch layer
-            input: Input tuple (excitatory, inhibitory, optional)
-            output: Module output
+            module: The synaptic TopK layer.
+            input: Input tuple to the synaptic layer.
+            output: Branch current output.
         """
-        excitatory_input, inhibitory_input, _ = input
-        excitatory_input = excitatory_input[..., None]
-        if inhibitory_input is not None:
-            inhibitory_input = inhibitory_input[..., None]
-
-        key = module._name
-
-        # Collect excitatory synaptic activations
-        if module.branch_excitation is not None:
-            pruned_exc_syn = module.branch_excitation.pruned_weight().t()
-            for _ in range(excitatory_input.ndim - 2):
-                pruned_exc_syn = pruned_exc_syn[None, ...]
-            self.data_dict[key].setdefault("exc", []).append(
-                (excitatory_input * pruned_exc_syn).detach().cpu()
-            )
-
-        # Collect inhibitory synaptic activations
-        if module.branch_inhibition is not None and inhibitory_input is not None:
-            pruned_inh_syn = module.branch_inhibition.pruned_weight().t()
-            for _ in range(inhibitory_input.ndim - 2):
-                pruned_inh_syn = pruned_inh_syn[None, ...]
-            self.data_dict[key].setdefault("inh", []).append(
-                (inhibitory_input * pruned_inh_syn).detach().cpu()
-            )
+        key = module._analysis_layer_name
+        synapse_type = module._analysis_synapse_type
+        self.data_dict[key].setdefault(synapse_type, []).append(output.detach().cpu())
 
     def analyze(
         self,
@@ -138,9 +123,10 @@ class SynapticActivationAnalyzer:
         Returns:
             Dictionary containing activation analysis if save_path is None, otherwise None
         """
-        try:
-            assert isinstance(model.core_network, ExcitationInhibitionNetwork)
-        except AssertionError:
+        core = getattr(model, "core_network", model)
+        if not any(
+            isinstance(module, DendriticBranchLayer) for module in core.modules()
+        ):
             return
 
         self.data_dict = {}
@@ -168,8 +154,7 @@ class SynapticActivationAnalyzer:
 
         # Initialize summary structures
         if self.network_summary:
-            exc_net = []
-            inh_net = []
+            network_values = {}
 
         if self.layer_summary:
             layer_summary = {}
@@ -185,77 +170,51 @@ class SynapticActivationAnalyzer:
             if self.branch_summary:
                 branch_summary[name] = {}
 
-            # Process excitatory activations
-            if "exc" in module_dict.keys():
-                exc: torch.Tensor = module_dict["exc"]
+            for synapse_type, activation in list(module_dict.items()):
+                if not isinstance(activation, torch.Tensor):
+                    continue
                 if self.logspace:
-                    exc = torch.log(exc + 1e-9)
+                    activation = torch.log(activation + 1e-9)
 
                 if self.network_summary or self.layer_summary:
-                    exc_flat = exc.flatten()
+                    flat = activation.flatten()
                     if self.logspace:
-                        exc_flat = exc_flat[exc_flat > -20]
+                        flat = flat[flat > -20]
                     else:
-                        exc_flat = exc_flat[exc_flat > 0]
+                        flat = flat[flat > 0]
+                    if flat.numel() == 0:
+                        flat = torch.zeros(1)
 
                 if self.network_summary:
-                    exc_net.append(exc_flat)
+                    network_values.setdefault(synapse_type, []).append(flat)
 
                 if self.layer_summary:
-                    layer_summary[name]["exc"] = {}
-                    layer_summary[name]["exc"]["mean"] = exc_flat.mean().item()
-                    layer_summary[name]["exc"]["std"] = exc_flat.std().item()
+                    layer_summary[name][synapse_type] = {
+                        "mean": flat.mean().item(),
+                        "std": flat.std(unbiased=False).item(),
+                    }
 
                 if self.branch_summary:
-                    branch_summary[name]["exc"] = {}
-                    branch_summary[name]["exc"]["mean"] = exc.mean(dim=0).tolist()
-                    branch_summary[name]["exc"]["std"] = exc.std(dim=0).tolist()
+                    branch_summary[name][synapse_type] = {
+                        "mean": activation.mean(dim=0).tolist(),
+                        "std": activation.std(dim=0, unbiased=False).tolist(),
+                    }
 
                 if self.raw_summary:
-                    self.data_dict[name]["exc"] = exc.tolist()
-
-            # Process inhibitory activations
-            if "inh" in module_dict.keys():
-                inh: torch.Tensor = module_dict["inh"]
-                if self.logspace:
-                    inh = torch.log(inh + 1e-9)
-
-                if self.network_summary or self.layer_summary:
-                    inh_flat = inh.flatten()
-                    if self.logspace:
-                        inh_flat = inh_flat[inh_flat > -20]
-                    else:
-                        inh_flat = inh_flat[inh_flat > 0]
-
-                if self.network_summary:
-                    inh_net.append(inh_flat)
-
-                if self.layer_summary:
-                    layer_summary[name]["inh"] = {}
-                    layer_summary[name]["inh"]["mean"] = inh_flat.mean().item()
-                    layer_summary[name]["inh"]["std"] = inh_flat.std().item()
-
-                if self.branch_summary:
-                    branch_summary[name]["inh"] = {}
-                    branch_summary[name]["inh"]["mean"] = inh.mean(dim=0).tolist()
-                    branch_summary[name]["inh"]["std"] = inh.std(dim=0).tolist()
-
-                if self.raw_summary:
-                    self.data_dict[name]["inh"] = inh.tolist()
+                    self.data_dict[name][synapse_type] = activation.tolist()
 
         # Compile results
         results = {"logspace": self.logspace}
 
         if self.network_summary:
-            network_summary = {}
-            network_summary["exc"] = {}
-            network_summary["inh"] = {}
-            network_summary["exc"]["mean"] = torch.cat(exc_net).mean().item()
-            network_summary["inh"]["mean"] = torch.cat(inh_net).mean().item()
-            network_summary["exc"]["std"] = torch.cat(exc_net).std().item()
-            network_summary["inh"]["std"] = torch.cat(inh_net).std().item()
-
-            results["network_summary"] = network_summary
+            results["network_summary"] = {
+                synapse_type: {
+                    "mean": torch.cat(values).mean().item(),
+                    "std": torch.cat(values).std(unbiased=False).item(),
+                }
+                for synapse_type, values in network_values.items()
+                if values
+            }
 
         if self.layer_summary:
             results["layer_summary"] = layer_summary

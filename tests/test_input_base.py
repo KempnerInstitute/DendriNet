@@ -23,7 +23,7 @@ class TestInputNetTransform:
 
     def test_init_with_all_none_dimensions(self):
         """Test initialization with all dimensions as None."""
-        with pytest.raises((AttributeError, TypeError)):
+        with pytest.raises((AttributeError, TypeError, ValueError)):
             InputNetTransform(
                 input_dim=None,
                 excitatory_dim=None,
@@ -52,6 +52,39 @@ class TestInputNetTransform:
             network_type="IndexInputTransform",
         )
         assert transform.input_transform is not None
+
+    def test_index_input_transform_split_seed_is_local_and_reproducible(self):
+        """Seeded index splits should not depend on global RNG state."""
+        transform_a = InputNetTransform(
+            input_dim=10,
+            excitatory_dim=5,
+            inhibitory_dim=5,
+            network_type="IndexInputTransform",
+            split_seed=123,
+        )
+        transform_b = InputNetTransform(
+            input_dim=10,
+            excitatory_dim=5,
+            inhibitory_dim=5,
+            network_type="IndexInputTransform",
+            split_seed=123,
+        )
+        transform_c = InputNetTransform(
+            input_dim=10,
+            excitatory_dim=5,
+            inhibitory_dim=5,
+            network_type="IndexInputTransform",
+            split_seed=124,
+        )
+
+        torch.testing.assert_close(
+            transform_a.input_transform.exc_dims,
+            transform_b.input_transform.exc_dims,
+        )
+        assert not torch.equal(
+            transform_a.input_transform.exc_dims,
+            transform_c.input_transform.exc_dims,
+        )
 
     def test_forward_mlp_independent(self):
         """Test forward pass with independent heads using IndexInputTransform."""
@@ -199,6 +232,18 @@ class TestInputNetTransform:
 
             assert exc_out.shape == (batch_size, 12)
             assert inh_out.shape == (batch_size, 8)
+
+    def test_index_transform_rejects_runtime_input_dim_mismatch(self):
+        """Index-based splits should not silently drop or invent dimensions."""
+        transform = InputNetTransform(
+            input_dim=20,
+            excitatory_dim=12,
+            inhibitory_dim=8,
+            network_type="IndexInputTransform",
+        )
+
+        with pytest.raises(ValueError, match="expected last input dimension 20"):
+            transform(torch.randn(4, 21))
 
     def test_forward_pass_gradient_flow(self):
         """Test that gradients flow properly through the network."""

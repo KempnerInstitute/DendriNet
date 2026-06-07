@@ -1,0 +1,206 @@
+{
+  "date": "2026-06-06",
+  "scope": "Round-7 AE remediation pass",
+  "source_report_section": "AE",
+  "fixed_or_addressed": [
+    {
+      "finding": "FSDP checkpoint full-state all-gather gated under rank==0",
+      "status": "fixed",
+      "files": [
+        "src/dendritic_modeling/training/strategies/fsdp_standard.py",
+        "src/dendritic_modeling/training/fsdp_utils.py"
+      ],
+      "notes": "All training-loop checkpoint calls now enter save_fsdp_checkpoint on every rank and pass rank through; rank 0 remains the only file writer."
+    },
+    {
+      "finding": "FSDP optimizer state saved as rank-local optimizer.state_dict",
+      "status": "fixed_with_fallback_warning",
+      "files": [
+        "src/dendritic_modeling/training/fsdp_utils.py"
+      ],
+      "notes": "Uses FullyShardedDataParallel.optim_state_dict on save and optim_state_dict_to_load on load, with an explicit warning fallback for unsupported/runtime-failing PyTorch combinations."
+    },
+    {
+      "finding": "FSDP gradient clipping uses local-shard torch.nn.utils.clip_grad_norm_",
+      "status": "fixed",
+      "files": [
+        "src/dendritic_modeling/training/strategies/fsdp_standard.py"
+      ],
+      "notes": "FSDPTrainer now clips through the wrapped model's clip_grad_norm_ method when available."
+    },
+    {
+      "finding": "FSDP AMP uses plain GradScaler",
+      "status": "fixed",
+      "files": [
+        "src/dendritic_modeling/training/strategies/fsdp_standard.py"
+      ],
+      "notes": "Uses ShardedGradScaler when the installed PyTorch exposes it, falling back to GradScaler only for compatibility."
+    },
+    {
+      "finding": "FSDP MixedPrecision hardcoded fp16",
+      "status": "fixed",
+      "files": [
+        "src/dendritic_modeling/training/fsdp_utils.py"
+      ],
+      "notes": "Added mixed_precision_dtype/param_dtype/reduce_dtype/buffer_dtype aliases while preserving the old fp16 default."
+    },
+    {
+      "finding": "FSDP gradient checkpoint wrapper uses default reentrant checkpoint with kwargs",
+      "status": "fixed",
+      "files": [
+        "src/dendritic_modeling/training/fsdp_utils.py"
+      ],
+      "notes": "Checkpoint wrappers now pass use_reentrant=False."
+    },
+    {
+      "finding": "DDP standard train loss not all-reduced",
+      "status": "fixed",
+      "files": [
+        "src/dendritic_modeling/training/strategies/standard.py"
+      ],
+      "notes": "Training total/base/regularization losses are reduced across ranks before reporting."
+    },
+    {
+      "finding": "DistributedSampler seed not tied to experiment.seed",
+      "status": "fixed",
+      "files": [
+        "src/dendritic_modeling/training/strategies/standard.py",
+        "src/dendritic_modeling/scripts/training/train_experiments.py",
+        "src/dendritic_modeling/scripts/training/train_experiments_fsdp.py"
+      ],
+      "notes": "Standard and FSDP distributed samplers now receive the experiment/trainer seed."
+    },
+    {
+      "finding": "Standard/sequence dataset random_split unseeded or fixed to 42",
+      "status": "fixed",
+      "files": [
+        "src/dendritic_modeling/datasets/standard_datasets.py",
+        "src/dendritic_modeling/datasets/sequence_datasets.py",
+        "src/dendritic_modeling/scripts/script_utils/setup_utils.py",
+        "src/dendritic_modeling/scripts/training/train_experiments_fsdp.py"
+      ],
+      "notes": "Added split_seed threading and explicit split generators for MNIST/Fashion/CIFAR/ImageNet/sequence splits."
+    },
+    {
+      "finding": "StringerV1 normalization leak and non-disjoint state-specific overlap",
+      "status": "fixed",
+      "files": [
+        "src/dendritic_modeling/datasets/sequence_datasets.py"
+      ],
+      "notes": "Train/test Stringer normalization uses train-split stats; state-specific all-vs-subset overlaps are rejected; state-specific test can reuse train stats."
+    },
+    {
+      "finding": "Lorenz linear observation matrix differs between train/test",
+      "status": "fixed",
+      "files": [
+        "src/dendritic_modeling/datasets/sequence_datasets.py"
+      ],
+      "notes": "Added observation_seed independent of trajectory seed; the factory shares it across train/test."
+    },
+    {
+      "finding": "PoissonGenerator uniform multiplicative gain crashes with no gain factor",
+      "status": "fixed",
+      "files": [
+        "src/dendritic_modeling/datasets/standard_datasets.py"
+      ],
+      "notes": "Uniform gain now defaults to identity gain; non-uniform gain without a bound raises a clear ValueError."
+    },
+    {
+      "finding": "ImageNet subset first-per-class and unseeded split",
+      "status": "fixed",
+      "files": [
+        "src/dendritic_modeling/datasets/standard_datasets.py"
+      ],
+      "notes": "Per-class subsets are seeded random samples and train/valid split is generated with split_seed."
+    },
+    {
+      "finding": "Indexed sparse seed=None ignores experiment/global seed",
+      "status": "fixed",
+      "files": [
+        "src/dendritic_modeling/networks/architectures/excitation_inhibition/synapse/indexed.py"
+      ],
+      "notes": "seed=None derives from the process/global torch RNG, so experiment set_seed controls indexed morphology."
+    },
+    {
+      "finding": "Indexed TopK + conductance_dynamic forward-hook scaling AttributeError",
+      "status": "fixed",
+      "files": [
+        "src/dendritic_modeling/networks/architectures/excitation_inhibition/synapse/indexed.py"
+      ],
+      "notes": "IndexedSparseLinear and IndexedDynamicTopKLinear now implement register_forward_param_gradient_scale."
+    },
+    {
+      "finding": "BlockLinear softplus decay inverse overflow",
+      "status": "fixed",
+      "files": [
+        "src/dendritic_modeling/networks/architectures/excitation_inhibition/dendritic/blocklinear.py"
+      ],
+      "notes": "Softplus decay/boost now uses the shared stable inverse_softplus."
+    },
+    {
+      "finding": "conductance_power<1 floors tiny nonzero conductances",
+      "status": "fixed",
+      "files": [
+        "src/dendritic_modeling/networks/architectures/recurrent/stateful_dendrinet.py"
+      ],
+      "notes": "Exact zeros are guarded without clamping sub-epsilon nonzero magnitudes upward."
+    },
+    {
+      "finding": "SklearnEstimator reports mean feature-wise MI for multivariate X",
+      "status": "fixed",
+      "files": [
+        "src/dendritic_modeling/utils/information/estimators.py"
+      ],
+      "notes": "Multivariate continuous/discrete and continuous/continuous paths now call joint nearest-neighbor estimators instead of averaging per-feature sklearn scores."
+    },
+    {
+      "finding": "Fisher proxy double-converted to bits and multiclass proxy unweighted",
+      "status": "fixed",
+      "files": [
+        "src/dendritic_modeling/analysis/core/information.py"
+      ],
+      "notes": "Fisher proxy keys are excluded from nats-to-bits conversion; multiclass between/within variances are class-count weighted; binary covariance uses population variance."
+    },
+    {
+      "finding": "Compartment SNR single-feature pinv/cov failure",
+      "status": "fixed",
+      "files": [
+        "src/dendritic_modeling/analysis/tools/compartment_snr.py"
+      ],
+      "notes": "Single-feature multivariate SNR now uses the scalar d'^2 formula and population variance."
+    },
+    {
+      "finding": "Noise perturbation and compartment-statistics analysis unseeded RNG",
+      "status": "fixed",
+      "files": [
+        "src/dendritic_modeling/config/analysis.py",
+        "src/dendritic_modeling/datasets/augmentation/noise.py",
+        "src/dendritic_modeling/analysis/metrics/noise_perturbation.py",
+        "src/dendritic_modeling/analysis/tools/compartment_statistics.py"
+      ],
+      "notes": "Added analysis seeds and explicit torch.Generator usage."
+    }
+  ],
+  "intentionally_deferred": [
+    {
+      "finding": "TopK input_scale dead work and redundant stored scale attributes on forward-hook path",
+      "reason": "Performance cleanup only. Removing these attributes could affect the legacy non-forward-hook gradient-scaling path; left for a narrower cleanup after profiling."
+    }
+  ],
+  "verification": {
+    "py_compile": "passed",
+    "targeted_tests": "12 passed",
+    "affected_module_tests": "111 passed, 9 skipped",
+    "focused_dataset_rerun_after_mnist_modulo10_seed_fix": "28 passed, 3 skipped",
+    "full_suite": "1627 passed, 11 skipped, 4 warnings",
+    "numerical_smoke": {
+      "fisher_not_bits_converted": true,
+      "fractional_power_finite": true,
+      "indexed_seed_and_grad_scale": true,
+      "lorenz_observation_matrix_shared": true,
+      "single_feature_snr_finite": true,
+      "sklearn_multivariate_joint_finite": true,
+      "stringer_train_stats_reused": true
+    }
+  }
+}

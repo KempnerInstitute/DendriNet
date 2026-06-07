@@ -184,11 +184,22 @@ class RegularizationManager:
         return total_reg_loss
 
     def _identify_group_type(self, group: dict, group_idx: int) -> str:
-        """Identify the type of parameter group based on index (same order as model.get_param_groups)."""
-        # Map group indices to group types (matching BaseModel.get_param_groups order)
-        # Index 0: topk, Index 1: blocklinear, Index 2: reactivation, Index 3: decoder
-        group_names = ["topk", "blocklinear", "reactivation", "decoder"]
+        """Identify optimizer group type for per-group regularization weights."""
+        group_name = group.get("name")
+        if group_name:
+            return str(group_name)
 
+        # Backward-compatible fallback for externally supplied param groups
+        # that predate the explicit BaseModel group names.
+        group_names = [
+            "topk",
+            "blocklinear",
+            "reactivation",
+            "mlp_inh_net",
+            "decoder",
+            "encoder",
+            "catch_all",
+        ]
         if group_idx < len(group_names):
             return group_names[group_idx]
 

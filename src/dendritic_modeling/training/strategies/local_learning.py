@@ -82,6 +82,7 @@ class LocalCreditAssignment(Trainer):
         self._additive_gain_cache: dict[str, Any] = {}
         self._additive_running_var: dict[int, torch.Tensor] = {}
         self._broadcast_cache: dict[tuple[Any, ...], Any] = {}
+        self._stdp_traces: dict[int, dict[str, torch.Tensor]] = {}
         self._warned_decoder_soma_fallback = False
         self.filename_prefix = "local_learning_"
         self.logger_info_prefix = "[Local] "
@@ -211,6 +212,28 @@ class LocalCreditAssignment(Trainer):
             if legacy_name in cfg and nested_name not in hsic_section:
                 hsic_section[nested_name] = cfg.pop(legacy_name)
 
+        stdp_section = ensure_section("stdp")
+        stdp_field_map = {
+            "stdp_enabled": "enabled",
+            "stdp_apply_to": "apply_to",
+            "stdp_activity_mode": "activity_mode",
+            "stdp_pre_threshold": "pre_threshold",
+            "stdp_post_threshold": "post_threshold",
+            "stdp_tau_pre": "tau_pre",
+            "stdp_tau_post": "tau_post",
+            "stdp_a_plus": "a_plus",
+            "stdp_a_minus": "a_minus",
+            "stdp_learning_rate_scale": "learning_rate_scale",
+            "stdp_inhibitory_update_sign": "inhibitory_update_sign",
+            "stdp_use_error_modulation": "use_error_modulation",
+            "stdp_error_modulation_mode": "error_modulation_mode",
+            "stdp_clamp_update": "clamp_update",
+            "stdp_detach_traces": "detach_traces",
+        }
+        for legacy_name, nested_name in stdp_field_map.items():
+            if legacy_name in cfg and nested_name not in stdp_section:
+                stdp_section[nested_name] = cfg.pop(legacy_name)
+
         # Drop known legacy-only keys that are not part of LocalRuleConfig.
         for legacy_only_key in [
             "rho_value",
@@ -231,6 +254,7 @@ class LocalCreditAssignment(Trainer):
             LocalGateHomeostasisConfig,
             LocalVoltageHomeostasisConfig,
             MorphologyAwareConfig,
+            STDPConfig,
             ThreeFactorConfig,
         )
 
@@ -288,6 +312,9 @@ class LocalCreditAssignment(Trainer):
 
         if "hsic" in cfg_kwargs and isinstance(cfg_kwargs["hsic"], dict):
             cfg_kwargs["hsic"] = HSICConfig(**cfg_kwargs["hsic"])
+
+        if "stdp" in cfg_kwargs and isinstance(cfg_kwargs["stdp"], dict):
+            cfg_kwargs["stdp"] = STDPConfig(**cfg_kwargs["stdp"])
 
         if "inhibitory_homeostasis" in cfg_kwargs and isinstance(
             cfg_kwargs["inhibitory_homeostasis"], dict
@@ -751,6 +778,208 @@ class LocalCreditAssignment(Trainer):
             f"Unknown weight transform '{transform_type}', falling back to exp derivative."
         )
         return raw_param.exp()
+
+    def _stdp_enabled(self) -> bool:
+        """Return whether trace-based STDP updates should be applied."""
+        stdp_cfg = getattr(self.local_cfg, "stdp", None)
+        return bool(
+            getattr(stdp_cfg, "enabled", False)
+            or str(getattr(self.local_cfg, "rule_variant", "")).lower() == "stdp"
+        )
+
+    def _stdp_pathway_enabled(self, pathway: str) -> bool:
+        """Return whether STDP is configured for a recorded synaptic pathway."""
+        stdp_cfg = getattr(self.local_cfg, "stdp", None)
+        apply_to = getattr(stdp_cfg, "apply_to", ("exc", "rec_exc"))
+        if isinstance(apply_to, str):
+            apply_to = (apply_to,)
+        normalized = {str(item).strip().lower().replace("-", "_") for item in apply_to}
+        return "all" in normalized or pathway in normalized
+
+    def _stdp_activity(
+        self, values: torch.Tensor, threshold: float, mode: str
+    ) -> torch.Tensor:
+        """Convert raw local values to non-backpropagating STDP activities."""
+        activity = values.detach()
+        if activity.dim() != 2:
+            activity = activity.reshape(activity.size(0), -1)
+        centered = activity - float(threshold)
+        mode = (mode or "relu").lower()
+        if mode == "identity":
+            return centered
+        if mode == "binary":
+            return (centered > 0).to(dtype=activity.dtype)
+        if mode in {"abs", "absolute"}:
+            return centered.abs()
+        if mode != "relu":
+            logger.warning("Unknown stdp.activity_mode=%r; using relu.", mode)
+        return functional.relu(centered)
+
+    @staticmethod
+    def _stdp_decay(tau: float) -> float:
+        """Single-step exponential decay for an STDP eligibility trace."""
+        tau = max(float(tau), 1e-6)
+        return math.exp(-1.0 / tau)
+
+    def _add_topk_grad(
+        self,
+        layer: TopKLinear,
+        grad_param: torch.Tensor,
+        mask: torch.Tensor | None,
+    ) -> None:
+        """Accumulate a raw-parameter gradient while respecting connectivity masks."""
+        if hasattr(layer, "_connection_mask_like"):
+            grad_param = grad_param * layer._connection_mask_like(grad_param)
+        if mask is not None and not self.local_cfg.update_inactive_weights:
+            grad_param = grad_param * mask.to(
+                device=grad_param.device, dtype=grad_param.dtype
+            )
+        if layer.pre_w.grad is None:
+            layer.pre_w.grad = grad_param.to(layer.pre_w.dtype)
+        else:
+            layer.pre_w.grad = layer.pre_w.grad + grad_param.to(layer.pre_w.dtype)
+
+    def _apply_stdp_gradient(
+        self,
+        layer: TopKLinear,
+        pre: torch.Tensor,
+        post: torch.Tensor,
+        mask: torch.Tensor | None,
+        pathway: str,
+        error_signal: torch.Tensor | None = None,
+    ) -> None:
+        """Apply one trace-based STDP gradient to a TopK synapse module.
+
+        Positive STDP potentiation is represented as a negative optimizer
+        gradient because PyTorch optimizers perform ``param -= lr * grad``.
+        """
+        if not self._stdp_pathway_enabled(pathway):
+            return
+
+        stdp_cfg = self.local_cfg.stdp
+        if not hasattr(self, "_stdp_traces"):
+            self._stdp_traces = {}
+        pre_activity = self._stdp_activity(
+            pre,
+            threshold=float(getattr(stdp_cfg, "pre_threshold", 0.0)),
+            mode=str(getattr(stdp_cfg, "activity_mode", "relu")),
+        )
+        post_activity = self._stdp_activity(
+            post,
+            threshold=float(getattr(stdp_cfg, "post_threshold", 0.0)),
+            mode=str(getattr(stdp_cfg, "activity_mode", "relu")),
+        )
+        if (
+            pre_activity.size(1) != layer.in_features
+            or post_activity.size(1) != layer.out_features
+        ):
+            logger.debug(
+                "Skipping STDP for %s: activity shape %s -> %s does not match %s -> %s.",
+                pathway,
+                tuple(pre_activity.shape),
+                tuple(post_activity.shape),
+                layer.in_features,
+                layer.out_features,
+            )
+            return
+
+        trace_state = self._stdp_traces.setdefault(id(layer), {})
+        prev_pre = trace_state.get("pre")
+        prev_post = trace_state.get("post")
+        if (
+            prev_pre is None
+            or prev_pre.shape != (layer.in_features,)
+            or prev_pre.device != pre_activity.device
+            or prev_pre.dtype != pre_activity.dtype
+        ):
+            prev_pre = torch.zeros(
+                layer.in_features, device=pre_activity.device, dtype=pre_activity.dtype
+            )
+        if (
+            prev_post is None
+            or prev_post.shape != (layer.out_features,)
+            or prev_post.device != post_activity.device
+            or prev_post.dtype != post_activity.dtype
+        ):
+            prev_post = torch.zeros(
+                layer.out_features,
+                device=post_activity.device,
+                dtype=post_activity.dtype,
+            )
+
+        pre_batch = pre_activity.mean(dim=0)
+        post_batch = post_activity.mean(dim=0)
+
+        potentiation = post_batch[:, None] * prev_pre[None, :]
+        depression = prev_post[:, None] * pre_batch[None, :]
+        delta_w = (
+            float(getattr(stdp_cfg, "a_plus", 1.0)) * potentiation
+            - float(getattr(stdp_cfg, "a_minus", 0.5)) * depression
+        )
+
+        if pathway in {"inh", "rec_inh"}:
+            delta_w = delta_w * float(getattr(stdp_cfg, "inhibitory_update_sign", -1.0))
+
+        if bool(getattr(stdp_cfg, "use_error_modulation", False)):
+            if isinstance(error_signal, torch.Tensor):
+                mode = str(
+                    getattr(stdp_cfg, "error_modulation_mode", "scalar_abs")
+                ).lower()
+                if mode == "scalar_signed":
+                    error_scale = error_signal.detach().mean()
+                else:
+                    error_scale = error_signal.detach().abs().mean()
+                delta_w = delta_w * error_scale.to(
+                    device=delta_w.device, dtype=delta_w.dtype
+                )
+
+        clamp_update = float(getattr(stdp_cfg, "clamp_update", 0.0))
+        if clamp_update > 0.0:
+            delta_w = torch.clamp(delta_w, -clamp_update, clamp_update)
+
+        chain = self._weight_transform_derivative(
+            layer.pre_w.detach(),
+            getattr(layer, "weight_transform", "exp"),
+        )
+        grad_param = -float(getattr(stdp_cfg, "learning_rate_scale", 1.0)) * delta_w
+        grad_param = grad_param * chain
+        self._add_topk_grad(layer, grad_param, mask)
+
+        pre_decay = self._stdp_decay(float(getattr(stdp_cfg, "tau_pre", 20.0)))
+        post_decay = self._stdp_decay(float(getattr(stdp_cfg, "tau_post", 20.0)))
+        next_pre = pre_decay * prev_pre + (1.0 - pre_decay) * pre_batch
+        next_post = post_decay * prev_post + (1.0 - post_decay) * post_batch
+        if bool(getattr(stdp_cfg, "detach_traces", True)):
+            next_pre = next_pre.detach()
+            next_post = next_post.detach()
+        trace_state["pre"] = next_pre
+        trace_state["post"] = next_post
+
+    def _apply_stdp_pathways(
+        self,
+        rec: dict[str, Any],
+        post_signal: torch.Tensor,
+        error_signal: torch.Tensor | None = None,
+    ) -> None:
+        """Apply configured STDP updates to all recorded TopK pathways."""
+        pathway_keys = {
+            "exc": ("exc_module", "x_exc", "exc_mask"),
+            "inh": ("inh_module", "x_inh", "inh_mask"),
+            "rec_exc": ("rec_exc_module", "x_rec_exc", "rec_exc_mask"),
+            "rec_inh": ("rec_inh_module", "x_rec_inh", "rec_inh_mask"),
+        }
+        for pathway, (layer_key, input_key, mask_key) in pathway_keys.items():
+            layer = rec.get(layer_key)
+            pre = rec.get(input_key)
+            if isinstance(layer, TopKLinear) and isinstance(pre, torch.Tensor):
+                self._apply_stdp_gradient(
+                    layer=layer,
+                    pre=pre,
+                    post=post_signal,
+                    mask=rec.get(mask_key),
+                    pathway=pathway,
+                    error_signal=error_signal,
+                )
 
     def _compute_reactivation_derivative(
         self,
@@ -1685,6 +1914,8 @@ class LocalCreditAssignment(Trainer):
             - v_out: post-reactivation output
             - x_exc, exc_out, exc_module, exc_mask (if present)
             - x_inh, inh_out, inh_module, inh_mask (if present)
+            - x_rec_exc, rec_exc_out, rec_exc_module, rec_exc_mask (if present)
+            - x_rec_inh, rec_inh_out, rec_inh_module, rec_inh_mask (if present)
             - x_blk (reshaped input), blk_out, blk_module (if present)
         """
         records: list[dict[str, Any]] = []
@@ -1776,6 +2007,44 @@ class LocalCreditAssignment(Trainer):
                         rec["inh_mask"] = None
 
                 handles.append(inh_layer.register_forward_hook(_inh_hook))
+
+            # Recurrent excitatory TopK
+            if getattr(module, "branch_recurrent", None) is not None:
+                rec_exc_layer: TopKLinear = module.branch_recurrent
+
+                def _rec_exc_hook(m, inputs, outputs, rec=rec, layer=rec_exc_layer):
+                    rec["x_rec_exc"] = inputs[0].detach()
+                    rec["rec_exc_out"] = outputs.detach()
+                    rec["rec_exc_module"] = layer
+                    try:
+                        cached_mask = getattr(layer, "_last_forward_weight_mask", None)
+                        if isinstance(cached_mask, torch.Tensor):
+                            rec["rec_exc_mask"] = cached_mask.detach()
+                        else:
+                            rec["rec_exc_mask"] = layer.weight_mask().detach()
+                    except Exception:
+                        rec["rec_exc_mask"] = None
+
+                handles.append(rec_exc_layer.register_forward_hook(_rec_exc_hook))
+
+            # Recurrent inhibitory TopK
+            if getattr(module, "branch_rec_inhibition", None) is not None:
+                rec_inh_layer: TopKLinear = module.branch_rec_inhibition
+
+                def _rec_inh_hook(m, inputs, outputs, rec=rec, layer=rec_inh_layer):
+                    rec["x_rec_inh"] = inputs[0].detach()
+                    rec["rec_inh_out"] = outputs.detach()
+                    rec["rec_inh_module"] = layer
+                    try:
+                        cached_mask = getattr(layer, "_last_forward_weight_mask", None)
+                        if isinstance(cached_mask, torch.Tensor):
+                            rec["rec_inh_mask"] = cached_mask.detach()
+                        else:
+                            rec["rec_inh_mask"] = layer.weight_mask().detach()
+                    except Exception:
+                        rec["rec_inh_mask"] = None
+
+                handles.append(rec_inh_layer.register_forward_hook(_rec_inh_hook))
 
             # Dendritic BlockLinear
             if getattr(module, "branches_to_output", None) is not None:
@@ -1929,6 +2198,10 @@ class LocalCreditAssignment(Trainer):
             bandwidth = getattr(self.local_cfg, "broadcast_bandwidth", "full")
             if bandwidth != "full":
                 e_n = self._apply_broadcast_bandwidth(e_n, bandwidth)
+
+            stdp_error_signal = e_n
+            if str(getattr(self.local_cfg, "rule_variant", "")).lower() == "stdp":
+                e_n = torch.zeros_like(e_n)
 
             layer_dynamics_mode = self._resolve_layer_dynamics_mode(rec)
             if layer_dynamics_mode == "conductance":
@@ -2109,15 +2382,44 @@ class LocalCreditAssignment(Trainer):
                     getattr(exc_layer, "weight_transform", "exp"),
                 )
                 grad_param = grad_g * exc_chain
-                mask = rec.get("exc_mask")
-                if mask is not None and not self.local_cfg.update_inactive_weights:
-                    grad_param = grad_param * mask
-                if exc_layer.pre_w.grad is None:
-                    exc_layer.pre_w.grad = grad_param.to(exc_layer.pre_w.dtype)
-                else:
-                    exc_layer.pre_w.grad = exc_layer.pre_w.grad + grad_param.to(
-                        exc_layer.pre_w.dtype
+                self._add_topk_grad(exc_layer, grad_param, rec.get("exc_mask"))
+
+            # Synaptic (TopKLinear) - recurrent excitatory (if present)
+            rec_exc_layer: Optional[TopKLinear] = rec.get("rec_exc_module")
+            if rec_exc_layer is not None and rec.get("x_rec_exc") is not None:
+                x_rec_exc: torch.Tensor = rec["x_rec_exc"]  # [B, in]
+                grad_g_rec_exc = post_factor.t() @ x_rec_exc
+                if self.local_cfg.normalize_by_batch:
+                    grad_g_rec_exc = grad_g_rec_exc / float(batch_size)
+                voltage_homeo_error = self._compute_voltage_homeostasis_error(v_n)
+                if voltage_homeo_error is not None:
+                    if layer_dynamics_mode == "conductance":
+                        rec_exc_homeo_factor = (
+                            voltage_homeo_error
+                            * R_tot
+                            * (self.local_cfg.three_factor.e_rev_exc - v_n)
+                        )
+                    else:
+                        rec_exc_homeo_factor = voltage_homeo_error
+                    grad_homeo_rec_exc = rec_exc_homeo_factor.t() @ x_rec_exc
+                    if self.local_cfg.normalize_by_batch:
+                        grad_homeo_rec_exc = grad_homeo_rec_exc / float(batch_size)
+                    grad_g_rec_exc = grad_g_rec_exc + grad_homeo_rec_exc
+                if (
+                    isinstance(role_synaptic_alignment, torch.Tensor)
+                    and role_synaptic_alignment.size() == grad_g_rec_exc.size()
+                ):
+                    grad_g_rec_exc = grad_g_rec_exc * role_synaptic_alignment.to(
+                        device=grad_g_rec_exc.device, dtype=grad_g_rec_exc.dtype
                     )
+                rec_exc_chain = self._weight_transform_derivative(
+                    rec_exc_layer.pre_w.detach(),
+                    getattr(rec_exc_layer, "weight_transform", "exp"),
+                )
+                grad_param_rec_exc = grad_g_rec_exc * rec_exc_chain
+                self._add_topk_grad(
+                    rec_exc_layer, grad_param_rec_exc, rec.get("rec_exc_mask")
+                )
 
             # Synaptic (TopKLinear) - inhibitory (if present)
             inh_layer: Optional[TopKLinear] = rec.get("inh_module")
@@ -2208,15 +2510,91 @@ class LocalCreditAssignment(Trainer):
                     getattr(inh_layer, "weight_transform", "exp"),
                 )
                 grad_param_inh = grad_g_inh * inh_chain
-                mask_inh = rec.get("inh_mask")
-                if mask_inh is not None and not self.local_cfg.update_inactive_weights:
-                    grad_param_inh = grad_param_inh * mask_inh
-                if inh_layer.pre_w.grad is None:
-                    inh_layer.pre_w.grad = grad_param_inh.to(inh_layer.pre_w.dtype)
+                self._add_topk_grad(inh_layer, grad_param_inh, rec.get("inh_mask"))
+
+            # Synaptic (TopKLinear) - recurrent inhibitory (if present)
+            rec_inh_layer: Optional[TopKLinear] = rec.get("rec_inh_module")
+            if rec_inh_layer is not None and rec.get("x_rec_inh") is not None:
+                x_rec_inh: torch.Tensor = rec["x_rec_inh"]  # [B, in]
+                if layer_dynamics_mode == "conductance":
+                    if self.local_cfg.three_factor.use_driving_force:
+                        rec_inh_post = self.local_cfg.three_factor.e_rev_inh - v_n
+                    else:
+                        rec_inh_post = self.local_cfg.three_factor.theta - v_n
+                    rec_inh_factor = e_v * R_tot * rec_inh_post  # [B, out]
                 else:
-                    inh_layer.pre_w.grad = inh_layer.pre_w.grad + grad_param_inh.to(
-                        inh_layer.pre_w.dtype
+                    additive_mode = getattr(
+                        self.local_cfg.three_factor, "additive_gain_mode", "none"
                     )
+                    if additive_mode == "input_dependent":
+                        pseudo_R, _ = self._compute_additive_pseudo_signals(rec, v_n)
+                        rec_inh_post = self.local_cfg.three_factor.theta - v_n
+                        rec_inh_factor = e_v * pseudo_R * rec_inh_post
+                    elif additive_mode in ("learned_gain", "running_stats"):
+                        rec_inh_factor = -post_factor_raw
+                    else:
+                        rec_inh_factor = -e_v
+
+                if isinstance(rho, torch.Tensor):
+                    rec_inh_factor = rec_inh_factor * rho.unsqueeze(0)
+                else:
+                    rec_inh_factor = (
+                        rec_inh_factor * float(rho)
+                        if self.local_cfg.rule_variant in {"4f", "5f"}
+                        else rec_inh_factor
+                    )
+
+                rec_inh_factor = (
+                    rec_inh_factor * float(phi)
+                    if self.local_cfg.rule_variant == "5f"
+                    else rec_inh_factor
+                )
+
+                if isinstance(branch_scale, torch.Tensor):
+                    rec_inh_factor = rec_inh_factor * branch_scale.unsqueeze(0)
+                else:
+                    rec_inh_factor = rec_inh_factor * float(branch_scale)
+
+                grad_g_rec_inh = rec_inh_factor.t() @ x_rec_inh
+                if self.local_cfg.normalize_by_batch:
+                    grad_g_rec_inh = grad_g_rec_inh / float(batch_size)
+                if (
+                    isinstance(role_synaptic_alignment, torch.Tensor)
+                    and role_synaptic_alignment.size() == grad_g_rec_inh.size()
+                ):
+                    grad_g_rec_inh = grad_g_rec_inh * role_synaptic_alignment.to(
+                        device=grad_g_rec_inh.device, dtype=grad_g_rec_inh.dtype
+                    )
+                voltage_homeo_error = self._compute_voltage_homeostasis_error(v_n)
+                if voltage_homeo_error is not None:
+                    if layer_dynamics_mode == "conductance":
+                        rec_inh_homeo_factor = (
+                            voltage_homeo_error
+                            * R_tot
+                            * (self.local_cfg.three_factor.e_rev_inh - v_n)
+                        )
+                    else:
+                        rec_inh_homeo_factor = -voltage_homeo_error
+                    grad_homeo_rec_inh = rec_inh_homeo_factor.t() @ x_rec_inh
+                    if self.local_cfg.normalize_by_batch:
+                        grad_homeo_rec_inh = grad_homeo_rec_inh / float(batch_size)
+                    grad_g_rec_inh = grad_g_rec_inh + grad_homeo_rec_inh
+                homeo_factor = self._compute_inhibitory_homeostasis_factor(
+                    rec=rec, R_tot=R_tot, v_n=v_n
+                )
+                if homeo_factor is not None:
+                    grad_homeo = homeo_factor.t() @ x_rec_inh
+                    if self.local_cfg.normalize_by_batch:
+                        grad_homeo = grad_homeo / float(batch_size)
+                    grad_g_rec_inh = grad_g_rec_inh + grad_homeo
+                rec_inh_chain = self._weight_transform_derivative(
+                    rec_inh_layer.pre_w.detach(),
+                    getattr(rec_inh_layer, "weight_transform", "exp"),
+                )
+                grad_param_rec_inh = grad_g_rec_inh * rec_inh_chain
+                self._add_topk_grad(
+                    rec_inh_layer, grad_param_rec_inh, rec.get("rec_inh_mask")
+                )
 
             # Dendritic (BlockLinear)
             blk_layer = rec.get("blk_module")
@@ -2433,6 +2811,16 @@ class LocalCreditAssignment(Trainer):
                             react_module.b.dtype
                         )
 
+            if self._stdp_enabled():
+                post_signal = rec.get("v_out")
+                if not isinstance(post_signal, torch.Tensor):
+                    post_signal = v_n
+                self._apply_stdp_pathways(
+                    rec=rec,
+                    post_signal=post_signal,
+                    error_signal=stdp_error_signal,
+                )
+
             # HSIC/pHSIC auxiliary: add kernel-based gradients
             if self.local_cfg.hsic.enabled:
                 v_out = rec.get("v_out")
@@ -2472,18 +2860,9 @@ class LocalCreditAssignment(Trainer):
                                 grad_g_self = grad_g_self / float(batch_size)
                             g_curr = exc_layer.weight().detach()
                             grad_param_self = grad_g_self * g_curr
-                            mask = rec.get("exc_mask")
-                            if mask is not None:
-                                grad_param_self = grad_param_self * mask
-                            if exc_layer.pre_w.grad is None:
-                                exc_layer.pre_w.grad = grad_param_self.to(
-                                    exc_layer.pre_w.dtype
-                                )
-                            else:
-                                exc_layer.pre_w.grad = (
-                                    exc_layer.pre_w.grad
-                                    + grad_param_self.to(exc_layer.pre_w.dtype)
-                                )
+                            self._add_topk_grad(
+                                exc_layer, grad_param_self, rec.get("exc_mask")
+                            )
                     if (
                         self.local_cfg.hsic.target_weight != 0.0
                         and y_target is not None
@@ -2508,18 +2887,9 @@ class LocalCreditAssignment(Trainer):
                                 grad_g_tgt = grad_g_tgt / float(batch_size)
                             g_curr = exc_layer.weight().detach()
                             grad_param_tgt = grad_g_tgt * g_curr
-                            mask = rec.get("exc_mask")
-                            if mask is not None:
-                                grad_param_tgt = grad_param_tgt * mask
-                            if exc_layer.pre_w.grad is None:
-                                exc_layer.pre_w.grad = grad_param_tgt.to(
-                                    exc_layer.pre_w.dtype
-                                )
-                            else:
-                                exc_layer.pre_w.grad = (
-                                    exc_layer.pre_w.grad
-                                    + grad_param_tgt.to(exc_layer.pre_w.dtype)
-                                )
+                            self._add_topk_grad(
+                                exc_layer, grad_param_tgt, rec.get("exc_mask")
+                            )
 
     # ----------------------- Helper: HSIC kernel functions ------------------
     def _compute_kernel_matrix(self, X: torch.Tensor, Y: torch.Tensor) -> torch.Tensor:
@@ -2759,7 +3129,7 @@ class LocalCreditAssignment(Trainer):
                 stats.rho_ema = rho_batch
             else:
                 stats.rho_ema = decay * stats.rho_ema + alpha * rho_batch
-            return float(stats.rho_ema)
+            return float(max(0.1, min(2.0, stats.rho_ema)))
 
         else:
             # Single-sample mode: Use configured estimator

@@ -1,0 +1,121 @@
+{
+  "section": "AC",
+  "date": "2026-06-06",
+  "scope": "Round-6 remediation for Section AB confirmed runtime, numerical, contract, state, and determinism findings",
+  "fixed": [
+    {
+      "id": "AB-dead-gradient-recurrent-context-dms",
+      "files": [
+        "configs/examples/recurrent_context_decision.yaml",
+        "configs/examples/recurrent_dms.yaml",
+        "tests/test_extended_example_configs.py"
+      ],
+      "summary": "Reconnected final slow E/I layers with sparse upstream ff_excitatory_synapses=2 and added config gradient-flow regression."
+    },
+    {
+      "id": "AB-conductance-power-sublinear-nan",
+      "files": [
+        "src/dendritic_modeling/networks/architectures/recurrent/stateful_dendrinet.py",
+        "tests/test_synapse_types.py"
+      ],
+      "summary": "Clamped magnitudes before fractional conductance powers to keep raw=0 gradients finite."
+    },
+    {
+      "id": "AB-exp-weight-overflow",
+      "files": [
+        "src/dendritic_modeling/networks/utils/weight_transforms.py",
+        "tests/test_weight_transforms.py"
+      ],
+      "summary": "Added safe_exp and routed exp weight transform through dtype-safe exponent clamping."
+    },
+    {
+      "id": "AB-parametric-linear-exp-overflow",
+      "files": [
+        "src/dendritic_modeling/networks/activations/parametric.py",
+        "tests/test_activation_factory.py"
+      ],
+      "summary": "Guarded linear blend exponentials and used torch.sigmoid for stable sigmoid evaluation."
+    },
+    {
+      "id": "AB-gradient-hook-silent-fallback",
+      "files": [
+        "src/dendritic_modeling/networks/architectures/excitation_inhibition/dendritic/gradient_scaling.py",
+        "tests/test_gradient_scaling_hooks.py"
+      ],
+      "summary": "Gradient scaling hook failures now log a warning with traceback once per failure signature before returning unscaled gradients."
+    },
+    {
+      "id": "AB-has-enabled-synapse-types-contract",
+      "files": [
+        "src/dendritic_modeling/config/conversion.py",
+        "tests/test_config_conversion.py"
+      ],
+      "summary": "Explicit enabled=false now disables typed synapses even when legacy lists are present."
+    },
+    {
+      "id": "AB-multipop-state-methods",
+      "files": [
+        "src/dendritic_modeling/networks/architectures/recurrent/multi_population.py",
+        "tests/test_multi_population_ei.py"
+      ],
+      "summary": "Added detach, clone, and to methods to MultiPopulationLayerState."
+    },
+    {
+      "id": "AB-multipop-mask-seed-correlation",
+      "files": [
+        "src/dendritic_modeling/networks/architectures/recurrent/multi_population.py",
+        "tests/test_multi_population_ei.py"
+      ],
+      "summary": "Included timing and pathway in multi-population probabilistic connection-mask seed offsets."
+    },
+    {
+      "id": "AB-index-input-transform-seed",
+      "files": [
+        "src/dendritic_modeling/networks/architectures/excitation_inhibition/input_transform/index.py",
+        "src/dendritic_modeling/networks/architectures/excitation_inhibition/input_transform/transfer.py",
+        "src/dendritic_modeling/networks/input/base.py",
+        "tests/test_input_base.py"
+      ],
+      "summary": "Added optional local split_seed support and threaded it through transfer/input wrappers while preserving unseeded behavior."
+    },
+    {
+      "id": "AB-conductance-dynamic-recurrent-stale-scale",
+      "files": [
+        "src/dendritic_modeling/networks/architectures/excitation_inhibition/synapse/topk.py",
+        "src/dendritic_modeling/networks/architectures/excitation_inhibition/dendritic/blocklinear.py",
+        "src/dendritic_modeling/networks/architectures/excitation_inhibition/dendritic/gradient_scaling.py",
+        "src/dendritic_modeling/networks/architectures/excitation_inhibition/dendritic/branch_layer.py",
+        "src/dendritic_modeling/networks/architectures/recurrent/stateful_dendrinet.py",
+        "tests/test_gradient_scaling_hooks.py",
+        "tests/test_unified_ei.py"
+      ],
+      "summary": "Recurrent conductance_dynamic now uses per-forward tensor hooks for timestep-local parameter/input gradient scaling while feedforward keeps the existing hook path."
+    }
+  ],
+  "verification": {
+    "dead_gradient_probe_after_fix": {
+      "recurrent_context_decision": {
+        "input_projection_dead": "0/2",
+        "i_population_dead": "0/30",
+        "all_dead": "0/80"
+      },
+      "recurrent_dms": {
+        "input_projection_dead": "0/2",
+        "i_population_dead": "0/30",
+        "all_dead": "0/78"
+      }
+    },
+    "focused_regression_tests": "12 passed",
+    "affected_area_sweep": "243 passed",
+    "conductance_dynamic_direct_tests": "4 passed",
+    "conductance_dynamic_affected_sweep": "173 passed",
+    "broader_recurrent_config_sweep": "130 passed, 2 warnings",
+    "full_suite": "1619 passed, 11 skipped, 4 warnings",
+    "example_config_build_sweep": "21 built, 2 expected transformer-runner skips, 0 failures"
+  },
+  "remaining": [
+    "dense BlockLinear remains default pending benchmarked performance decision",
+    "constant recurrent decay factors can be precomputed as a performance cleanup",
+    "weight_decay>=1 validation, DoG zero-sigma guard, LDA fallback semantics, analyzer AssertionError fallbacks, activation docstrings, and seq_lengths==0 handling remain lower-priority follow-ups"
+  ]
+}

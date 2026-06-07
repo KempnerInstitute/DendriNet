@@ -10,6 +10,7 @@ from typing import Any, Optional
 
 import torch
 
+from dendritic_modeling.config.conversion import to_plain_dict
 from dendritic_modeling.config.multi_stage_training import (
     MultiStageTrainingConfig,
     TrainingStageConfig,
@@ -22,20 +23,52 @@ from dendritic_modeling.config.training import (
     ReportingConfig,
 )
 from dendritic_modeling.training.strategies import (
-    FeedbackAlignmentTrainer,
-    HomeostaticControlTrainer,
-    LayerWiseTrainer,
-    LocalCreditAssignment,
     MultiStageTrainer,
     RecurrentTrainer,
     ShuntingFeedbackAlignmentTrainer,
     Trainer,
-    TwoStepTrainer,
-    TwoStepTrainerWithKL,
-    VoltageStabilizationTrainer,
 )
 
 logger = logging.getLogger(__name__)
+
+TRAINER_STRATEGY_REGISTRY: dict[str, dict[str, Any]] = {
+    "standard": {"class": "Trainer"},
+    "freeze_layers": {"class": "LayerWiseTrainer"},
+    "freeze_branches": {"class": "TwoStepTrainer"},
+    "fa": {"class": "FeedbackAlignmentTrainer", "fixed_kwargs": {"mode": "fa"}},
+    "dfa": {"class": "FeedbackAlignmentTrainer", "fixed_kwargs": {"mode": "dfa"}},
+    "local_ca": {"class": "LocalCreditAssignment"},
+    "freeze_branch_kl": {"class": "TwoStepTrainerWithKL"},
+    "voltage_stabilization": {"class": "VoltageStabilizationTrainer"},
+    "homeostatic_control": {"class": "HomeostaticControlTrainer"},
+}
+
+
+def register_trainer_strategy(
+    name: str,
+    trainer_class: type[Trainer] | str,
+    *,
+    fixed_kwargs: dict[str, Any] | None = None,
+) -> None:
+    """Register a trainer strategy without editing ``get_trainer``."""
+    if not name:
+        raise ValueError("trainer strategy name must be non-empty")
+    TRAINER_STRATEGY_REGISTRY[str(name).lower()] = {
+        "class": trainer_class,
+        "fixed_kwargs": dict(fixed_kwargs or {}),
+    }
+
+
+def get_available_trainer_strategies() -> list[str]:
+    """Return supported trainer strategy names."""
+    special = ["shunting_fa", "shunting_dfa", "recurrent", "multi_stage"]
+    return list(TRAINER_STRATEGY_REGISTRY.keys()) + special
+
+
+def _resolve_trainer_class(class_ref: type[Trainer] | str) -> type[Trainer]:
+    if isinstance(class_ref, str):
+        return globals()[class_ref]
+    return class_ref
 
 
 def _build_multi_stage_config(raw_config: Any) -> MultiStageTrainingConfig:
@@ -48,14 +81,8 @@ def _build_multi_stage_config(raw_config: Any) -> MultiStageTrainingConfig:
             "strategy='multi_stage' requires 'multi_stage_config' in trainer config."
         )
 
-    if hasattr(raw_config, "asdict") and callable(raw_config.asdict):
-        raw_config = raw_config.asdict()
-    elif hasattr(raw_config, "__dict__") and not isinstance(raw_config, dict):
-        raw_config = {
-            key: value
-            for key, value in vars(raw_config).items()
-            if not key.startswith("_")
-        }
+    if not isinstance(raw_config, dict):
+        raw_config = to_plain_dict(raw_config)
 
     if not isinstance(raw_config, dict):
         raise ValueError(
@@ -72,14 +99,8 @@ def _build_multi_stage_config(raw_config: Any) -> MultiStageTrainingConfig:
         if isinstance(stage, TrainingStageConfig):
             stage_configs.append(stage)
             continue
-        if hasattr(stage, "asdict") and callable(stage.asdict):
-            stage = stage.asdict()
-        elif hasattr(stage, "__dict__") and not isinstance(stage, dict):
-            stage = {
-                key: value
-                for key, value in vars(stage).items()
-                if not key.startswith("_")
-            }
+        if not isinstance(stage, dict):
+            stage = to_plain_dict(stage)
         if not isinstance(stage, dict):
             raise ValueError(
                 f"Stage {idx} in multi_stage_config must be a dict or TrainingStageConfig."
@@ -252,31 +273,15 @@ def get_trainer(
     trainer_config_dict["analysis_manager"] = analysis_manager
     trainer_config_dict["optimizer"] = optimizer
 
-    if strategy == "standard":
+    if strategy in TRAINER_STRATEGY_REGISTRY:
         enhanced_configs = _extract_enhanced_configs(trainer_config_dict)
         trainer_config_dict.update(enhanced_configs)
+        spec = TRAINER_STRATEGY_REGISTRY[strategy]
+        trainer_config_dict.update(spec.get("fixed_kwargs", {}))
+        trainer_cls = _resolve_trainer_class(spec["class"])
+        return trainer_cls(**trainer_config_dict)
 
-        return Trainer(**trainer_config_dict)
-
-    elif strategy == "freeze_layers":
-        enhanced_configs = _extract_enhanced_configs(trainer_config_dict)
-        trainer_config_dict.update(enhanced_configs)
-        return LayerWiseTrainer(**trainer_config_dict)
-    elif strategy == "freeze_branches":
-        enhanced_configs = _extract_enhanced_configs(trainer_config_dict)
-        trainer_config_dict.update(enhanced_configs)
-        return TwoStepTrainer(**trainer_config_dict)
-    elif strategy == "fa":
-        enhanced_configs = _extract_enhanced_configs(trainer_config_dict)
-        trainer_config_dict.update(enhanced_configs)
-        trainer_config_dict["mode"] = "fa"
-        return FeedbackAlignmentTrainer(**trainer_config_dict)
-    elif strategy == "dfa":
-        enhanced_configs = _extract_enhanced_configs(trainer_config_dict)
-        trainer_config_dict.update(enhanced_configs)
-        trainer_config_dict["mode"] = "dfa"
-        return FeedbackAlignmentTrainer(**trainer_config_dict)
-    elif strategy == "shunting_fa":
+    if strategy == "shunting_fa":
         enhanced_configs = _extract_enhanced_configs(trainer_config_dict)
         trainer_config_dict.update(enhanced_configs)
         trainer_config_dict["mode"] = "fa"
@@ -288,34 +293,11 @@ def get_trainer(
         trainer_config_dict["mode"] = "dfa"
         e_rev = trainer_config_dict.pop("e_rev_exc", 1.0)
         return ShuntingFeedbackAlignmentTrainer(**trainer_config_dict, e_rev_exc=e_rev)
-    elif strategy == "local_ca":
-        enhanced_configs = _extract_enhanced_configs(trainer_config_dict)
-        trainer_config_dict.update(enhanced_configs)
-        return LocalCreditAssignment(**trainer_config_dict)
-    elif strategy == "freeze_branch_kl":
-        enhanced_configs = _extract_enhanced_configs(trainer_config_dict)
-        trainer_config_dict.update(enhanced_configs)
-        return TwoStepTrainerWithKL(**trainer_config_dict)
-    elif strategy == "voltage_stabilization":
-        enhanced_configs = _extract_enhanced_configs(trainer_config_dict)
-        trainer_config_dict.update(enhanced_configs)
-        return VoltageStabilizationTrainer(**trainer_config_dict)
-    elif strategy == "homeostatic_control":
-        enhanced_configs = _extract_enhanced_configs(trainer_config_dict)
-        trainer_config_dict.update(enhanced_configs)
-        return HomeostaticControlTrainer(**trainer_config_dict)
     elif strategy == "recurrent":
         # Strategy-specific recurrent config takes precedence over generic fields.
         recurrent_cfg = trainer_config_dict.pop("recurrent_config", None)
         if recurrent_cfg is not None and not isinstance(recurrent_cfg, dict):
-            if hasattr(recurrent_cfg, "asdict") and callable(recurrent_cfg.asdict):
-                recurrent_cfg = recurrent_cfg.asdict()
-            elif hasattr(recurrent_cfg, "__dict__"):
-                recurrent_cfg = {
-                    key: value
-                    for key, value in vars(recurrent_cfg).items()
-                    if not key.startswith("_")
-                }
+            recurrent_cfg = to_plain_dict(recurrent_cfg)
         if isinstance(recurrent_cfg, dict):
             # recurrent_cfg should only contain fields the user explicitly set
             # (default-valued fields are stripped by config_utils).  Explicit
@@ -354,21 +336,7 @@ def get_trainer(
             analysis_manager=analysis_manager,
         )
     else:
-        supported = [
-            "standard",
-            "freeze_layers",
-            "freeze_branches",
-            "fa",
-            "dfa",
-            "shunting_fa",
-            "shunting_dfa",
-            "local_ca",
-            "freeze_branch_kl",
-            "voltage_stabilization",
-            "homeostatic_control",
-            "recurrent",
-            "multi_stage",
-        ]
+        supported = get_available_trainer_strategies()
         raise ValueError(
             f"Unknown training strategy '{strategy}'. Supported strategies: {supported}"
         )

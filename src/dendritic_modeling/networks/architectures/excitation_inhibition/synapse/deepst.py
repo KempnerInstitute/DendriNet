@@ -11,12 +11,16 @@ from typing import Optional
 import torch
 import torch.nn as nn
 
+from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.structured_mask import (
+    validate_connection_mask,
+)
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.topk import (
     TOPK_INIT_METHODS,
 )
 from dendritic_modeling.networks.utils.weight_transforms import (
     WeightTransformType,
     apply_weight_transform,
+    inverse_softplus,
 )
 
 
@@ -37,6 +41,7 @@ class DeepstLinear(nn.Module):
         weight_threshold=1e-6,  # New: threshold for weight pruning
         weight_transform: WeightTransformType = "exp",
         forbidden_input_index_per_output: Optional[torch.Tensor] = None,
+        connection_mask: Optional[torch.Tensor] = None,
     ):
         super().__init__()
 
@@ -98,11 +103,33 @@ class DeepstLinear(nn.Module):
         # Total number of possible connections
         self.total_connections = out_features * in_features
 
+        allowed_connection_mask = validate_connection_mask(
+            connection_mask,
+            out_features,
+            in_features,
+        )
+        if allowed_connection_mask is None:
+            allowed_connection_mask = torch.ones(
+                out_features, in_features, dtype=torch.bool
+            )
+            persist_allowed = False
+        else:
+            persist_allowed = True
+        self.register_buffer(
+            "_allowed_connection_mask",
+            allowed_connection_mask,
+            persistent=persist_allowed,
+        )
+        self.allowed_connections = int(allowed_connection_mask.sum().item())
+
         # Target number of active connections based on density
         if rewiring_mode == "constant_branch":
-            self.target_connections = out_features * synapses_per_branch
+            allowed_per_branch = allowed_connection_mask.sum(dim=1)
+            self.target_connections = int(
+                torch.clamp(allowed_per_branch, max=synapses_per_branch).sum().item()
+            )
         else:
-            self.target_connections = int(self.total_connections * target_density)
+            self.target_connections = int(self.allowed_connections * target_density)
 
         # Initialize weights parameter
         if self.init_method is not None and self.init_method in TOPK_INIT_METHODS:
@@ -147,14 +174,17 @@ class DeepstLinear(nn.Module):
         self.register_buffer(
             "_forbidden_input_index_per_output", forbidden, persistent=False
         )
-        forbidden_connection_mask = torch.zeros(
-            out_features, in_features, dtype=torch.bool
-        )
+        forbidden_connection_mask = ~allowed_connection_mask.clone()
         if forbidden.numel() > 0:
-            row_idx = torch.arange(out_features, dtype=torch.long)
-            valid = forbidden >= 0
+            row_idx = torch.arange(
+                out_features,
+                dtype=torch.long,
+                device=forbidden_connection_mask.device,
+            )
+            forbidden_idx = forbidden.to(forbidden_connection_mask.device)
+            valid = forbidden_idx >= 0
             if bool(valid.any()):
-                forbidden_connection_mask[row_idx[valid], forbidden[valid]] = True
+                forbidden_connection_mask[row_idx[valid], forbidden_idx[valid]] = True
         self.register_buffer(
             "_forbidden_connection_mask", forbidden_connection_mask, persistent=False
         )
@@ -398,6 +428,11 @@ class DeepstLinear(nn.Module):
         """
         active_connections = self.mask.sum().item()
         density = active_connections / self.total_connections
+        allowed_density = (
+            active_connections / self.allowed_connections
+            if self.allowed_connections > 0
+            else 0.0
+        )
 
         # Per-branch stats for constant_branch mode
         branch_stats = {}
@@ -413,18 +448,65 @@ class DeepstLinear(nn.Module):
         return {
             "active_connections": active_connections,
             "total_connections": self.total_connections,
+            "allowed_connections": self.allowed_connections,
             "density": density,
+            "allowed_density": allowed_density,
             "target_density": self.target_density,
             "branch_stats": branch_stats,
         }
 
-    def decay_weights(self, weight_decay=0.1, weight_boost=False):
-        """
-        Apply weight decay to active synaptic connections.
+    def decay_weights(
+        self,
+        weight_decay: float = 0.1,
+        weight_boosting: bool = False,
+        weight_boost: bool | None = None,
+    ):
+        """Apply multiplicative decay to active synapses.
 
-        Args:
-            weight_decay: float, weight decay rate (default: 0.1)
+        DeepST stores a dense parameter tensor plus a dynamic boolean mask. This
+        mirrors ``TopKLinear.decay_weights``: active connections decay in the
+        transformed weight space, and optional boosting applies only to inactive
+        but allowed connection slots.
         """
+        if weight_boost is not None:
+            weight_boosting = bool(weight_boost)
+        if not 0.0 <= float(weight_decay) < 1.0:
+            raise ValueError("weight_decay must satisfy 0 <= weight_decay < 1")
+
+        with torch.no_grad():
+            active_mask = self.mask.to(device=self.pre_w.device, dtype=torch.bool)
+            inactive_allowed = (~active_mask) & (
+                ~self._forbidden_connection_mask.to(self.pre_w.device)
+            )
+
+            if self.weight_transform == "exp":
+                self.pre_w.data[active_mask] += math.log(1.0 - float(weight_decay))
+                if weight_boosting:
+                    self.pre_w.data[inactive_allowed] += math.log(
+                        1.0 + float(weight_decay)
+                    )
+            elif self.weight_transform == "softplus":
+                weight = nn.functional.softplus(self.pre_w.data)
+                updated = weight.clone()
+                updated[active_mask] = updated[active_mask] * (
+                    1.0 - float(weight_decay)
+                )
+                if weight_boosting:
+                    updated[inactive_allowed] = updated[inactive_allowed] * (
+                        1.0 + float(weight_decay)
+                    )
+                updated_pre_w = self.pre_w.data.clone()
+                update_mask = active_mask | (inactive_allowed & bool(weight_boosting))
+                updated_pre_w[update_mask] = inverse_softplus(updated[update_mask])
+                self.pre_w.data = updated_pre_w
+            elif self.weight_transform in {"identity", "relu"}:
+                self.pre_w.data[active_mask] *= 1.0 - float(weight_decay)
+                if weight_boosting:
+                    self.pre_w.data[inactive_allowed] *= 1.0 + float(weight_decay)
+            else:
+                raise ValueError(
+                    f"Unsupported weight_transform: {self.weight_transform}"
+                )
 
 
 __all__ = ["DeepstLinear"]

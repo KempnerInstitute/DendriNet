@@ -282,6 +282,7 @@ base_config:
 
       transfer:
         input_mode: 1
+        allow_direct_inhibitory_stream: true
         independent_pathways: false
         excitatory_dim: null
         inhibitory_dim: null

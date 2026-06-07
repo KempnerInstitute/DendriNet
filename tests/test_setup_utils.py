@@ -1,16 +1,33 @@
+import pytest
 import torch
 from omegaconf import OmegaConf
 
-from dendritic_modeling.config import DataConfig, DataProcessingConfig
+from dendritic_modeling.config import DataConfig, DataProcessingConfig, load_config
+from dendritic_modeling.config.model import (
+    ArchitectureConfig,
+    ConnectivityConfig,
+    CoreConfig,
+    DecoderConfig,
+    DecoderParamsConfig,
+    EncoderConfig,
+    EncoderParamsConfig,
+    ModelConfig,
+    MorphologyConfig,
+    ReactivationConfig,
+    TransferFunctionConfig,
+)
 from dendritic_modeling.networks.architectures.classical.pathway_router import (
     PathwayRouter,
 )
+from dendritic_modeling.networks.architectures.factory import get_architecture
 from dendritic_modeling.scripts.script_utils.config_utils import (
+    canonicalize_model_core_flags,
     canonicalize_rnn_core_flags,
 )
 from dendritic_modeling.scripts.script_utils.setup_utils import (
     _config_to_plain_dict,
     _get_dataset_specific_params,
+    _is_recurrent_core_config,
     initialize_model,
 )
 
@@ -37,6 +54,7 @@ _SHUNTING_PILOT_MODEL_CFG = OmegaConf.create(
                 "input_mode": 1,
                 "independent_pathways": False,
                 "output_activation": None,
+                "allow_direct_inhibitory_stream": True,
             },
             "morphology": {
                 "somatic_synapses": False,
@@ -86,7 +104,8 @@ def test_canonicalize_rnn_additive_alias_saved_config() -> None:
         }
     }
 
-    out = canonicalize_rnn_core_flags(payload)
+    with pytest.warns(UserWarning, match="rnn_dendritic_additive"):
+        out = canonicalize_rnn_core_flags(payload)
     exc = out["model"]["core"]["unified_ei"]["layers"][0]["excitatory"]
 
     assert exc["use_shunting"] is False
@@ -94,6 +113,78 @@ def test_canonicalize_rnn_additive_alias_saved_config() -> None:
     assert exc["reactivation_init_policy"] == "fixed"
     assert exc["reactivation_init_m"] == 1.0
     assert exc["reactivation_init_b"] == 0.0
+
+
+def test_canonicalize_preserves_point_mlp_reference_use_shunting() -> None:
+    payload = {
+        "model": {
+            "core": {
+                "type": "point_mlp",
+                "morphology": {"use_shunting": True},
+            }
+        }
+    }
+
+    out = canonicalize_model_core_flags(payload)
+
+    assert out["model"]["core"]["morphology"]["use_shunting"] is True
+
+
+def test_canonicalize_structured_recurrent_additive_saved_config() -> None:
+    payload = {
+        "model": {
+            "core": {
+                "type": "dendritic_additive",
+                "connectivity": {"rec_ee_synapses_per_branch": [1]},
+                "morphology": {
+                    "use_shunting": True,
+                    "use_additive_normalization": False,
+                },
+                "reactivation": {
+                    "init_policy": "analytical",
+                    "init_m": 1.5,
+                    "init_b": 0.5,
+                },
+            }
+        }
+    }
+
+    with pytest.warns(UserWarning, match="dendritic_additive"):
+        out = canonicalize_model_core_flags(payload)
+    core = out["model"]["core"]
+
+    assert core["morphology"]["use_shunting"] is False
+    assert core["morphology"]["use_additive_normalization"] is True
+    assert core["reactivation"]["init_policy"] == "fixed"
+    assert core["reactivation"]["init_m"] == 1.0
+    assert core["reactivation"]["init_b"] == 0.0
+
+
+def test_canonicalize_rnn_flat_alias_overrides_branch_factors() -> None:
+    payload = {
+        "model": {
+            "core": {
+                "type": "rnn_flat_shunting",
+                "unified_ei": {
+                    "layers": [
+                        {
+                            "excitatory": {
+                                "n_neurons": 6,
+                                "branch_factors": [2, 2],
+                            }
+                        }
+                    ]
+                },
+            }
+        }
+    }
+
+    with pytest.warns(UserWarning, match="rnn_flat_shunting"):
+        out = canonicalize_rnn_core_flags(payload)
+    exc = out["model"]["core"]["unified_ei"]["layers"][0]["excitatory"]
+
+    assert exc["use_shunting"] is True
+    assert exc["branch_factors"] == [1]
 
 
 def test_get_dataset_specific_params_handles_custom_dict_sections() -> None:
@@ -125,6 +216,404 @@ def test_initialize_model_accepts_structured_core_config() -> None:
     assert model is not None
     logits = model(torch.rand(8, 18))
     assert torch.isfinite(logits).all()
+
+
+def test_initialize_model_accepts_default_model_config() -> None:
+    cfg_model = ModelConfig()
+    cfg_model.encoder.params.input_dim = 18
+
+    model, _ = initialize_model(cfg_model)
+
+    logits = model(torch.rand(4, 18))
+    assert torch.isfinite(logits).all()
+
+
+def test_initialize_model_accepts_typed_point_mlp_example_config() -> None:
+    cfg = load_config("configs/branch_comparison/tc3_matched_mlp.yaml")
+
+    model, _ = initialize_model(cfg.model)
+
+    assert model is not None
+    assert model.core_network.output_dim == 256
+
+
+def test_initialize_model_rejects_transformer_replacement_with_runner_hint() -> None:
+    cfg_model = ModelConfig()
+    cfg_model.transformer_replacement.enabled = True
+    cfg_model.core.type = "dendritic_ffn"
+
+    with pytest.raises(ValueError, match="train_transformer_replacement"):
+        initialize_model(cfg_model)
+
+
+def test_initialize_model_accepts_population_graph_recurrent_core() -> None:
+    cfg_model = OmegaConf.create(
+        {
+            "task": "classification",
+            "encoder": {"type": "identity", "params": {"input_dim": 5}},
+            "core": {
+                "type": "population_graph",
+                "population_graph": {
+                    "readout_population": "pyr",
+                    "output_mode": "last",
+                    "population_defaults": {
+                        "ff_excitatory_synapses": 2,
+                        "rec_excitatory_synapses": 1,
+                        "rec_inhibitory_synapses": 1,
+                        "somatic_synapses": True,
+                        "reactivate": False,
+                        "dbl_init_method": "default",
+                    },
+                    "cell_types": [
+                        {
+                            "name": "pyr",
+                            "polarity": "excitatory",
+                            "n_neurons": 4,
+                            "branch_factors": [1],
+                        },
+                        {
+                            "name": "pv",
+                            "polarity": "inhibitory",
+                            "n_neurons": 2,
+                            "branch_factors": [1],
+                        },
+                    ],
+                },
+            },
+            "decoder": {
+                "type": "MLP",
+                "params": {"hidden_dims": [], "activation": "relu", "output_dim": 2},
+            },
+        }
+    )
+
+    model, _ = initialize_model(cfg_model)
+
+    logits = model(torch.rand(3, 4, 5))
+    assert torch.isfinite(logits).all()
+    assert model._is_recurrent_core
+
+
+def test_initialize_model_accepts_population_graph_feedforward_core() -> None:
+    cfg_model = OmegaConf.create(
+        {
+            "task": "classification",
+            "encoder": {"type": "identity", "params": {"input_dim": 5}},
+            "core": {
+                "type": "population_graph",
+                "population_graph": {
+                    "readout_population": "pyr",
+                    "output_mode": "last",
+                    "population_defaults": {
+                        "ff_excitatory_synapses": 2,
+                        "ff_inhibitory_synapses": 0,
+                        "rec_excitatory_synapses": 0,
+                        "rec_inhibitory_synapses": 0,
+                        "somatic_synapses": True,
+                        "reactivate": False,
+                        "dbl_init_method": "default",
+                    },
+                    "cell_types": [
+                        {
+                            "name": "pyr",
+                            "polarity": "excitatory",
+                            "n_neurons": 4,
+                            "branch_factors": [1],
+                        },
+                    ],
+                },
+            },
+            "decoder": {
+                "type": "MLP",
+                "params": {"hidden_dims": [], "activation": "relu", "output_dim": 2},
+            },
+        }
+    )
+
+    assert _is_recurrent_core_config(cfg_model.core) is False
+    model, _ = initialize_model(cfg_model)
+
+    logits = model(torch.rand(3, 5))
+    assert torch.isfinite(logits).all()
+    assert not model._is_recurrent_core
+
+
+def _typed_soma_feedback_core() -> CoreConfig:
+    return CoreConfig(
+        type="dendritic_shunting",
+        architecture=ArchitectureConfig(
+            excitatory_layer_sizes=[4],
+            inhibitory_layer_sizes=[],
+            excitatory_branch_factors=[1],
+        ),
+        connectivity=ConnectivityConfig(
+            ee_synapses_per_branch_per_layer=[2],
+            ie_synapses_per_branch_per_layer=[0],
+            ei_synapses_per_branch_per_layer=[0],
+            ii_synapses_per_branch_per_layer=[0],
+            rec_ee_synapses_per_branch=[0],
+            rec_ie_synapses_per_branch=[0],
+            rec_ei_synapses_per_branch=[0],
+            rec_ii_synapses_per_branch=[0],
+        ),
+        transfer=TransferFunctionConfig(input_mode=0),
+        morphology=MorphologyConfig(use_shunting=True, somatic_synapses=True),
+        reactivation=ReactivationConfig(enabled=False),
+        soma_feedback={"enabled": True, "levels": "distal"},
+    )
+
+
+def _typed_stateful_feature_core(feature_name: str, payload: dict) -> CoreConfig:
+    core = CoreConfig(
+        type="dendritic_shunting",
+        architecture=ArchitectureConfig(
+            excitatory_layer_sizes=[4],
+            inhibitory_layer_sizes=[],
+            excitatory_branch_factors=[1],
+        ),
+        connectivity=ConnectivityConfig(
+            ee_synapses_per_branch_per_layer=[2],
+            ie_synapses_per_branch_per_layer=[0],
+            ei_synapses_per_branch_per_layer=[0],
+            ii_synapses_per_branch_per_layer=[0],
+            rec_ee_synapses_per_branch=[0],
+            rec_ie_synapses_per_branch=[0],
+            rec_ei_synapses_per_branch=[0],
+            rec_ii_synapses_per_branch=[0],
+        ),
+        transfer=TransferFunctionConfig(input_mode=0),
+        morphology=MorphologyConfig(use_shunting=True, somatic_synapses=True),
+        reactivation=ReactivationConfig(enabled=False),
+    )
+    setattr(core, feature_name, payload)
+    return core
+
+
+@pytest.mark.parametrize(
+    ("feature_name", "payload"),
+    [
+        ("dynamics", {"mode": "spike", "readout": "rate"}),
+        ("dendritic_spikes", {"enabled": True, "levels": "distal"}),
+        (
+            "synapse_types",
+            {
+                "enabled": True,
+                "excitatory": [{"name": "AMPA", "fraction": 1.0, "tau": None}],
+                "inhibitory": [{"name": "GABA_A", "fraction": 1.0, "tau": None}],
+            },
+        ),
+    ],
+)
+def test_initialize_model_stateful_einet_features_use_recurrent_wrapper(
+    feature_name: str, payload: dict
+) -> None:
+    cfg_model = ModelConfig(
+        task="classification",
+        encoder=EncoderConfig(
+            type="identity",
+            params=EncoderParamsConfig(input_dim=5),
+        ),
+        core=_typed_stateful_feature_core(feature_name, payload),
+        decoder=DecoderConfig(
+            type="MLP",
+            params=DecoderParamsConfig(
+                hidden_dims=[],
+                activation="relu",
+                output_dim=2,
+            ),
+        ),
+    )
+
+    assert _is_recurrent_core_config(cfg_model.core) is True
+    model, _ = initialize_model(cfg_model)
+
+    assert model._is_recurrent_core
+    logits = model(torch.rand(3, 5))
+    assert torch.isfinite(logits).all()
+
+
+def test_factory_accepts_typed_core_config_for_structured_einet() -> None:
+    core = _typed_soma_feedback_core()
+
+    net = get_architecture(core.type, core, input_dim=5)
+
+    assert net.is_recurrent is True
+    assert net.output_dim == 4
+
+
+def test_initialize_model_typed_soma_feedback_core_uses_recurrent_wrapper() -> None:
+    cfg_model = ModelConfig(
+        task="classification",
+        encoder=EncoderConfig(
+            type="identity",
+            params=EncoderParamsConfig(input_dim=5),
+        ),
+        core=_typed_soma_feedback_core(),
+        decoder=DecoderConfig(
+            type="MLP",
+            params=DecoderParamsConfig(
+                hidden_dims=[],
+                activation="relu",
+                output_dim=2,
+            ),
+        ),
+    )
+
+    assert _is_recurrent_core_config(cfg_model.core) is True
+    model, _ = initialize_model(cfg_model)
+
+    logits = model(torch.rand(3, 4, 5))
+    assert torch.isfinite(logits).all()
+    assert model._is_recurrent_core
+
+
+def test_population_graph_soma_feedback_core_requires_recurrent_wrapper() -> None:
+    core = CoreConfig(
+        type="population_graph",
+        population_graph={
+            "output_mode": "last",
+            "population_defaults": {
+                "ff_excitatory_synapses": 1,
+                "soma_feedback_enabled": True,
+                "soma_feedback_levels": "distal",
+            },
+            "cell_types": [
+                {
+                    "name": "pyr",
+                    "polarity": "excitatory",
+                    "n_neurons": 4,
+                    "branch_factors": [1],
+                }
+            ],
+        },
+    )
+
+    assert _is_recurrent_core_config(core) is True
+
+
+def _temporal_population_feature_cases() -> list[dict]:
+    return [
+        {"dynamics_mode": "spike", "spike_readout": "rate"},
+        {
+            "synapse_types": {
+                "enabled": True,
+                "excitatory": [{"name": "AMPA", "fraction": 1.0}],
+                "inhibitory": [{"name": "GABA_A", "fraction": 1.0}],
+            }
+        },
+        {"dendritic_spikes_enabled": True, "dendritic_spike_levels": "distal"},
+        {"soma_feedback_enabled": True, "soma_feedback_levels": "distal"},
+    ]
+
+
+def _multi_population_temporal_core(population_overrides: dict) -> CoreConfig:
+    population_defaults = {
+        "ff_excitatory_synapses": 2,
+        "ff_inhibitory_synapses": 1,
+        "rec_excitatory_synapses": 0,
+        "rec_inhibitory_synapses": 0,
+        "somatic_synapses": True,
+        "reactivate": True,
+        "weight_transform": "softplus",
+        "use_shunting": True,
+        **population_overrides,
+    }
+    return CoreConfig(
+        type="multi_population_ei",
+        multi_population={
+            "output_mode": "last",
+            "layers": [
+                {
+                    "name": "layer0",
+                    "readout_population": "e",
+                    "population_defaults": population_defaults,
+                    "populations": [
+                        {
+                            "name": "i",
+                            "polarity": "inhibitory",
+                            "n_neurons": 3,
+                            "branch_factors": [1],
+                            "population": {"ff_inhibitory_synapses": 0},
+                        },
+                        {
+                            "name": "e",
+                            "polarity": "excitatory",
+                            "n_neurons": 5,
+                            "branch_factors": [2],
+                        },
+                    ],
+                    "connections": [
+                        {"source": "input", "target": "i"},
+                        {"source": "input", "target": "e"},
+                        {"source": "i", "target": "e"},
+                    ],
+                }
+            ],
+        },
+    )
+
+
+@pytest.mark.parametrize("population_overrides", _temporal_population_feature_cases())
+def test_multi_population_temporal_features_use_recurrent_wrapper(
+    population_overrides: dict,
+) -> None:
+    core = _multi_population_temporal_core(population_overrides)
+    cfg_model = ModelConfig(
+        task="classification",
+        encoder=EncoderConfig(
+            type="identity",
+            params=EncoderParamsConfig(input_dim=5),
+        ),
+        core=core,
+        decoder=DecoderConfig(
+            type="MLP",
+            params=DecoderParamsConfig(
+                hidden_dims=[],
+                activation="relu",
+                output_dim=2,
+            ),
+        ),
+    )
+
+    assert _is_recurrent_core_config(core) is True
+    model, _ = initialize_model(cfg_model)
+
+    assert model._is_recurrent_core
+    assert model.core_network.is_recurrent is True
+    logits = model(torch.rand(3, 4, 5))
+    assert logits.shape == (3, 2)
+    assert torch.isfinite(logits).all()
+
+
+@pytest.mark.parametrize("population_overrides", _temporal_population_feature_cases())
+def test_population_graph_temporal_features_require_recurrent_wrapper(
+    population_overrides: dict,
+) -> None:
+    core = CoreConfig(
+        type="population_graph",
+        population_graph={
+            "output_mode": "last",
+            "population_defaults": {
+                "ff_excitatory_synapses": 2,
+                "rec_excitatory_synapses": 0,
+                "rec_inhibitory_synapses": 0,
+                "use_shunting": True,
+                **population_overrides,
+            },
+            "cell_types": [
+                {
+                    "name": "pyr",
+                    "polarity": "excitatory",
+                    "n_neurons": 4,
+                    "branch_factors": [1],
+                }
+            ],
+        },
+    )
+
+    assert _is_recurrent_core_config(core) is True
+    net = get_architecture(core.type, core, input_dim=5)
+    assert net.is_recurrent is True
 
 
 def test_pathway_router_fixed_and_learned_modes() -> None:

@@ -25,9 +25,18 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.input_trans
 )
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse import (
     DeepstLinear,
+    IndexedDynamicTopKLinear,
+    IndexedSparseLinear,
     StochasticTopKLinear,
     TopKLinear,
     VarianceTopKLinear,
+    distance_kernel_probabilities,
+    normalize_pathway_name,
+    sample_configured_mask,
+    sample_distance_kernel_mask,
+    sample_fixed_indegree_mask,
+    sample_probability_mask,
+    validate_connection_mask,
 )
 
 __all__ = [
@@ -41,9 +50,18 @@ __all__ = [
     "GradientScaler",
     "IdentityInputTransform",
     "IndexInputTransform",
+    "IndexedDynamicTopKLinear",
+    "IndexedSparseLinear",
     "StochasticTopKLinear",
     "TopKLinear",
     "TransferLayer",
     "VarianceTopKLinear",
     "analytical_expectation_dbl_init",
+    "distance_kernel_probabilities",
+    "normalize_pathway_name",
+    "sample_configured_mask",
+    "sample_distance_kernel_mask",
+    "sample_fixed_indegree_mask",
+    "sample_probability_mask",
+    "validate_connection_mask",
 ]

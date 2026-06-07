@@ -15,6 +15,10 @@ import torch
 import torch.utils.data
 
 from dendritic_modeling.analysis.core.base import AbstractAnalyzer
+from dendritic_modeling.analysis.utils.recurrent_introspection import (
+    is_recurrent_core,
+    iter_routing_entries,
+)
 from dendritic_modeling.analysis.utils.runtime import analysis_device_context
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.utils.general import save_dict
@@ -80,7 +84,7 @@ class RoutingAnalyzer(AbstractAnalyzer):
         self.log_analysis_start("routing_analysis")
 
         core = model.core_network
-        if not getattr(core, "is_recurrent", False):
+        if not is_recurrent_core(core):
             self.logger.info("Skipping routing analysis: core_network is not recurrent")
             return {}
         if not hasattr(core, "store_routing") or not hasattr(core, "_routing_info"):
@@ -118,38 +122,30 @@ class RoutingAnalyzer(AbstractAnalyzer):
                                 valid_mask = (seq_lengths > timestep_idx).detach().cpu()
                                 if not bool(valid_mask.any()):
                                     continue
-                            for layer_key, layer_info in timestep_info.items():
-                                for pop_key in ("excitatory", "inhibitory"):
-                                    if pop_key not in layer_info:
+                            for full_key, pop_info in iter_routing_entries(
+                                timestep_info
+                            ):
+                                if "level_contributions" in pop_info:
+                                    values = (
+                                        pop_info["level_contributions"].detach().cpu()
+                                    )
+                                    if valid_mask is not None:
+                                        values = values[valid_mask]
+                                    if values.numel() == 0:
                                         continue
-                                    pop_info = layer_info[pop_key]
-                                    full_key = f"{layer_key}/{pop_key}"
+                                    if full_key not in level_contribs:
+                                        level_contribs[full_key] = []
+                                    level_contribs[full_key].append(values)
 
-                                    if "level_contributions" in pop_info:
-                                        values = (
-                                            pop_info["level_contributions"]
-                                            .detach()
-                                            .cpu()
-                                        )
-                                        if valid_mask is not None:
-                                            values = values[valid_mask]
-                                        if values.numel() == 0:
-                                            continue
-                                        if full_key not in level_contribs:
-                                            level_contribs[full_key] = []
-                                        level_contribs[full_key].append(values)
-
-                                    if "ff_rec_ratios" in pop_info:
-                                        ratios = (
-                                            pop_info["ff_rec_ratios"].detach().cpu()
-                                        )
-                                        if valid_mask is not None:
-                                            ratios = ratios[valid_mask]
-                                        if ratios.numel() == 0:
-                                            continue
-                                        if full_key not in ff_rec_ratios:
-                                            ff_rec_ratios[full_key] = []
-                                        ff_rec_ratios[full_key].append(ratios)
+                                if "ff_rec_ratios" in pop_info:
+                                    ratios = pop_info["ff_rec_ratios"].detach().cpu()
+                                    if valid_mask is not None:
+                                        ratios = ratios[valid_mask]
+                                    if ratios.numel() == 0:
+                                        continue
+                                    if full_key not in ff_rec_ratios:
+                                        ff_rec_ratios[full_key] = []
+                                    ff_rec_ratios[full_key].append(ratios)
         finally:
             core.store_routing = original_store_routing
 

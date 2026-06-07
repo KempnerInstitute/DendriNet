@@ -9,7 +9,15 @@ import multiprocessing as mp
 from typing import Optional
 
 import torch
+import torch.nn as nn
 
+from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.deepst import (
+    DeepstLinear,
+)
+from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.indexed import (
+    IndexedDynamicTopKLinear,
+    IndexedSparseLinear,
+)
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.stochastic import (
     StochasticTopKLinear,
 )
@@ -21,16 +29,19 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.var
 )
 
 # Registry of available TopK layer implementations
-SPARSE_LAYER_REGISTRY: dict[str, type[TopKLinear]] = {
+SPARSE_LAYER_REGISTRY: dict[str, type[nn.Module]] = {
     "standard": TopKLinear,
     "stochastic": StochasticTopKLinear,
     "variance": VarianceTopKLinear,
+    "deepst": DeepstLinear,
+    "indexed": IndexedSparseLinear,
+    "indexed_dynamic": IndexedDynamicTopKLinear,
 }
 
 
 def get_sparse_layer(
     layer_type: str, in_features: int, out_features: int, K: int, **kwargs
-) -> TopKLinear:
+) -> nn.Module:
     """
     Factory function to create sparse layers based on type.
 
@@ -54,12 +65,14 @@ def get_sparse_layer(
         )
 
     layer_class = SPARSE_LAYER_REGISTRY[layer_type]
+    if layer_type == "deepst":
+        return layer_class(in_features=in_features, out_features=out_features, **kwargs)
     return layer_class(
         in_features=in_features, out_features=out_features, K=K, **kwargs
     )
 
 
-def register_sparse_layer(name: str, layer_class: type[TopKLinear]) -> None:
+def register_sparse_layer(name: str, layer_class: type[nn.Module]) -> None:
     """
     Register a new sparse layer type.
 

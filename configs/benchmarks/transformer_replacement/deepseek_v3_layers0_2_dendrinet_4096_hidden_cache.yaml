@@ -1,0 +1,88 @@
+# DeepSeek-V3 dense-FFN replacement from cached MLP activations.
+#
+# Target model: deepseek-ai/DeepSeek-V3
+# Target layers: 0, 1, 2, the three dense FFN layers before DeepSeekMoE begins.
+#
+# This config trains only the dendritic replacements from precomputed
+# layer-wise MLP input/output tensors. It is the practical DeepSeek-scale path:
+# run the full teacher once with a model-parallel inference/runtime stack,
+# cache MLP activations, then train and sweep DendriNet replacements cheaply.
+
+experiment:
+  seed: 510
+
+model:
+  task: "language_modeling"
+  transformer_replacement:
+    enabled: true
+    model_name: "deepseek-ai/DeepSeek-V3"
+    layers: [0, 1, 2]
+    target_module: "mlp"
+    layers_attr: "model.layers"
+    input_transform: "signed_split"
+    preserve_device_dtype: true
+    model_kwargs:
+      trust_remote_code: true
+      torch_dtype: "auto"
+      device_map: "auto"
+    replacement_kwargs:
+      output_init_std: 0.02
+
+  core:
+    type: "dendritic_ffn"
+    architecture:
+      excitatory_layer_sizes: [4096]
+      excitatory_branch_factors: [2, 2, 2]
+    connectivity:
+      ee_synapses_per_branch_per_layer: [128]
+      ei_synapses_per_branch_per_layer: [0]
+      ie_synapses_per_branch_per_layer: [0]
+      ii_synapses_per_branch_per_layer: [0]
+    transfer:
+      input_transform: "signed_split"
+    morphology:
+      use_shunting: false
+      weight_transform: "softplus"
+    sparsity:
+      type: "indexed_dynamic"
+      init_method: "xavier_normal"
+      temperature: 0.25
+      indexed:
+        candidate_size: 512
+        selection: "standard"
+        seed: 510
+        output_chunk_size: 4096
+    reactivation:
+      enabled: true
+      type: "param_tanh"
+
+training:
+  main:
+    optimizer:
+      name: "adamw"
+      lr: 0.0005
+      weight_decay: 0.0001
+
+  transformer_replacement:
+    enabled: true
+    mode: "layerwise_distillation"
+    teacher_source: "hidden_cache"
+    train_target: "replacement_only"
+    layers: [0, 1, 2]
+    device: "auto"
+    dtype: "float32"
+    use_amp: true
+    data_parallel: true
+    data_parallel_devices: [0, 1, 2, 3, 4, 5, 6, 7]
+    batch_size: 64
+    max_steps: 3000
+    eval_every: 100
+    log_every: 25
+    loss: "mse"
+    save_dir: "results/deepseek_v3_replacement/layers0_2_dendrinet_4096"
+    save_replacements: true
+    hidden_cache:
+      train_inputs: "results/deepseek_v3_replacement/cache/train_inputs.pt"
+      train_targets: "results/deepseek_v3_replacement/cache/train_targets.pt"
+      valid_inputs: "results/deepseek_v3_replacement/cache/valid_inputs.pt"
+      valid_targets: "results/deepseek_v3_replacement/cache/valid_targets.pt"

@@ -1,0 +1,56 @@
+{
+  "section": "AB",
+  "title": "Temporal-feature recurrent-wrapper remediation",
+  "date": "2026-06-06",
+  "status": "fixed",
+  "fixed_findings": [
+    {
+      "id": "AA.3-multi-population-temporal-state-drop",
+      "severity": "high",
+      "summary": "multi_population_ei temporal per-population features did not force recurrent wrapper selection",
+      "files_changed": [
+        "src/dendritic_modeling/config/recurrence.py",
+        "src/dendritic_modeling/networks/architectures/recurrent/multi_population.py",
+        "tests/test_multi_population_ei.py",
+        "tests/test_setup_utils.py"
+      ],
+      "result": "multi_population_ei now marks spike soma, synapse_types, dendritic_spikes, and soma_feedback populations as recurrent"
+    },
+    {
+      "id": "sibling-population-graph-temporal-state-drop",
+      "severity": "high",
+      "summary": "population_graph runtime/config detection used the same incomplete temporal-state contract",
+      "files_changed": [
+        "src/dendritic_modeling/config/recurrence.py",
+        "src/dendritic_modeling/networks/architectures/recurrent/population_graph.py",
+        "tests/test_population_graph.py",
+        "tests/test_setup_utils.py"
+      ],
+      "result": "population_graph now applies the same temporal-state recurrent wrapper contract while preserving pure feedforward static behavior"
+    }
+  ],
+  "temporal_features": [
+    "dynamics_mode=spike",
+    "synapse_types enabled or configured",
+    "dendritic_spikes_enabled=true",
+    "soma_feedback_enabled=true"
+  ],
+  "verification": [
+    {
+      "command": "python -m pytest --no-cov tests/test_multi_population_ei.py tests/test_setup_utils.py -q",
+      "result": "53 passed"
+    },
+    {
+      "command": "python -m pytest --no-cov tests/test_multi_population_ei.py tests/test_setup_utils.py tests/test_population_graph.py tests/test_spiking_dynamics.py tests/test_synapse_types.py tests/test_recurrent_protocol.py tests/test_recurrent_trainer_amp.py -q",
+      "result": "96 passed, 2 warnings"
+    },
+    {
+      "command": "PYTHONPATH=src:$PYTHONPATH python review_round2/numerical_regression_20260605/run_numerical_regression.py --quick --json-out review_round2/numerical_regression_20260605/metrics_quick_after_temporal_fix.json",
+      "result": "9/9 passed"
+    },
+    {
+      "command": "python -m pytest --no-cov",
+      "result": "1605 passed, 11 skipped, 4 warnings"
+    }
+  ]
+}

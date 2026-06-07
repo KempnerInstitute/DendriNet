@@ -1,0 +1,29 @@
+{
+  "date": "2026-06-06",
+  "scope": "Follow-up cleanup of AF.4 deferred TopK dynamic-gradient scale work",
+  "resolved": [
+    {
+      "finding": "TopK input_scale_vec and persistent scale attributes are redundant on the forward-hook RNN path",
+      "status": "fixed",
+      "files": [
+        "src/dendritic_modeling/networks/architectures/excitation_inhibition/dendritic/branch_layer.py",
+        "src/dendritic_modeling/networks/architectures/excitation_inhibition/synapse/topk.py",
+        "src/dendritic_modeling/networks/architectures/excitation_inhibition/synapse/indexed.py",
+        "src/dendritic_modeling/networks/architectures/excitation_inhibition/dendritic/blocklinear.py"
+      ],
+      "notes": "TopK input-scale computation was removed because no TopK input hook consumes it. Forward-hook registration now captures scale tensors in per-forward hooks without mutating persistent param_scale_vec/input_scale_vec attributes. The legacy non-forward-hook path still writes param_scale_vec, which GradientScaler consumes."
+    }
+  ],
+  "tests_added_or_updated": [
+    "tests/test_gradient_scaling_hooks.py::test_branch_layer_legacy_topk_scale_keeps_param_scale_only",
+    "tests/test_gradient_scaling_hooks.py::test_topk_forward_param_scale_is_per_call_and_bypasses_stale_param_hook",
+    "tests/test_gradient_scaling_hooks.py::test_blocklinear_forward_scales_param_and_input_per_call",
+    "tests/test_unified_ei.py::test_recurrent_conductance_dynamic_uses_forward_hooks_without_stale_scale_vectors"
+  ],
+  "verification": {
+    "py_compile": "passed",
+    "focused_gradient_tests": "6 passed",
+    "affected_recurrent_synapse_subset": "136 passed",
+    "full_suite": "1628 passed, 11 skipped, 4 warnings"
+  }
+}

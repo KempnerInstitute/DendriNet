@@ -229,8 +229,12 @@ class DendriteConv2d(nn.Module):
 
         mask_flat = torch.zeros(out_channels, n_dendrites, rf_synapses)
         generator = torch.Generator(device="cpu")
-        if base_seed is not None:
-            generator.manual_seed(base_seed)
+        # base_seed=None must follow the global RNG (set_seed/experiment.seed),
+        # not torch's fixed default seed — otherwise the mask is pinned identically
+        # across experiment seeds. Mirrors synapse/indexed._connection_generator.
+        if base_seed is None:
+            base_seed = int(torch.empty((), dtype=torch.int64).random_().item())
+        generator.manual_seed(int(base_seed) % (2**63 - 1))
 
         for out_idx in range(out_channels):
             for dend_idx in range(n_dendrites):

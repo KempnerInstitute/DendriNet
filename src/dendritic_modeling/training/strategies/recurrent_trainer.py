@@ -14,12 +14,16 @@ import logging
 import math
 
 import torch
+import torch.distributed as dist
 import torch.nn as nn
 import torch.utils.data
 from torch.cuda.amp import GradScaler, autocast
 from torch.utils.data import DataLoader
 
 from dendritic_modeling.models import BaseModel
+from dendritic_modeling.training.distributed_samplers import (
+    PaddedDistributedEvalSampler,
+)
 from dendritic_modeling.training.strategies.standard import Trainer
 
 logger = logging.getLogger(__name__)
@@ -243,3 +247,54 @@ class RecurrentTrainer(Trainer):
                 n_batches += 1
 
         return total_loss, n_batches
+
+    def _epoch_valid_distributed(
+        self, model: BaseModel, valid_loader: DataLoader
+    ) -> float:
+        """Distributed validation using recurrent sequence-aware loss."""
+        model.eval()
+        weighted_loss_sum = 0.0
+        total_examples = 0
+        sampler = valid_loader.sampler
+        if isinstance(sampler, PaddedDistributedEvalSampler):
+            real_count = len(sampler.real_indices)
+        else:
+            real_count = None
+
+        seen = 0
+        with torch.no_grad():
+            for batch in valid_loader:
+                if len(batch) == 3:
+                    x_batch, y_batch, seq_lengths = batch
+                    seq_lengths = seq_lengths.to(self.device)
+                else:
+                    x_batch, y_batch = batch
+                    seq_lengths = None
+                x_batch = x_batch.to(self.device)
+                y_batch = y_batch.to(self.device)
+
+                batch_size = y_batch.size(0)
+                if real_count is not None:
+                    real_in_batch = min(batch_size, real_count - seen)
+                    if real_in_batch <= 0:
+                        seen += batch_size
+                        continue
+                    if real_in_batch < batch_size:
+                        x_batch = x_batch[:real_in_batch]
+                        y_batch = y_batch[:real_in_batch]
+                        if seq_lengths is not None:
+                            seq_lengths = seq_lengths[:real_in_batch]
+                        batch_size = real_in_batch
+                    seen += batch_size
+
+                loss = self._compute_sequence_loss(model, x_batch, y_batch, seq_lengths)
+                weighted_loss_sum += loss.item() * batch_size
+                total_examples += batch_size
+
+        stats = torch.tensor(
+            [weighted_loss_sum, float(total_examples)],
+            device=self.device,
+            dtype=torch.float64,
+        )
+        dist.all_reduce(stats, op=dist.ReduceOp.SUM)
+        return stats[0].item() / max(stats[1].item(), 1.0)

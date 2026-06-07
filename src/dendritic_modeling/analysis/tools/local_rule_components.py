@@ -91,9 +91,21 @@ def _summary(values: torch.Tensor) -> dict[str, float | int]:
             "n": 0,
         }
 
+    quantile_values = values
+    max_quantile_values = 1_000_000
+    if quantile_values.numel() > max_quantile_values:
+        # torch.quantile can fail on very large tensors; strided subsampling
+        # keeps epoch-level diagnostics deterministic and inexpensive.
+        stride = int(
+            torch.ceil(
+                torch.tensor(quantile_values.numel() / max_quantile_values)
+            ).item()
+        )
+        quantile_values = quantile_values[::stride]
+
     q = torch.quantile(
-        values,
-        torch.tensor([0.05, 0.50, 0.95], dtype=values.dtype),
+        quantile_values,
+        torch.tensor([0.05, 0.50, 0.95], dtype=quantile_values.dtype),
     )
     return {
         "mean": float(values.mean().item()),

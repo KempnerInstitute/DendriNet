@@ -1,0 +1,592 @@
+{
+  "all_passed": true,
+  "artifact_dir": "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/review_round2/numerical_regression_20260605",
+  "created_at": "2026-06-05 22:26:16",
+  "cuda_available": true,
+  "num_cases": 9,
+  "num_passed": 9,
+  "repo_root": "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling",
+  "results": [
+    {
+      "batch_size": 256,
+      "case": "old_standard_mnist_bp",
+      "config": "configs/examples/standard_mnist.yaml",
+      "device": "cuda",
+      "elapsed_sec": 0.5815258026123047,
+      "epochs": 2,
+      "final_train": {
+        "accuracy": 0.10677083333333333,
+        "finite_outputs": true,
+        "loss": 2.292539437611898,
+        "n": 768
+      },
+      "final_valid": {
+        "accuracy": 0.1015625,
+        "finite_outputs": true,
+        "loss": 2.3039309978485107,
+        "n": 256
+      },
+      "gradient_after": {
+        "filtered_grad_norms": {},
+        "finite_grads": true,
+        "loss": 2.2976138591766357,
+        "nonzero_grad_param_tensors": 22,
+        "total_grad_norm": 0.16964682512681684
+      },
+      "gradient_before": {
+        "filtered_grad_norms": {},
+        "finite_grads": true,
+        "loss": 2.305368423461914,
+        "nonzero_grad_param_tensors": 22,
+        "total_grad_norm": 0.191840845414981
+      },
+      "initial_train": {
+        "accuracy": 0.09375,
+        "finite_outputs": true,
+        "loss": 2.31284236907959,
+        "n": 768
+      },
+      "initial_valid": {
+        "accuracy": 0.0859375,
+        "finite_outputs": true,
+        "loss": 2.324073553085327,
+        "n": 256
+      },
+      "no_loss_explosion": true,
+      "nparams": 2126602,
+      "passed": true,
+      "run_save_path": "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/review_round2/numerical_regression_20260605/runs/old_standard_mnist_bp_20260605_222524",
+      "strategy": "standard",
+      "train_improved_within_2pct": true,
+      "train_losses": [
+        2.308804432551066,
+        2.297417720158895
+      ],
+      "train_subset": 768,
+      "valid_losses": [
+        2.312284469604492,
+        2.3039309978485107
+      ],
+      "valid_subset": 256
+    },
+    {
+      "batch_size": 256,
+      "case": "multi_population_mnist_bp",
+      "config": "configs/examples/multi_population_ei_feedforward.yaml",
+      "device": "cuda",
+      "elapsed_sec": 0.631624698638916,
+      "epochs": 2,
+      "final_train": {
+        "accuracy": 0.13802083333333334,
+        "finite_outputs": true,
+        "loss": 2.288294474283854,
+        "n": 768
+      },
+      "final_valid": {
+        "accuracy": 0.109375,
+        "finite_outputs": true,
+        "loss": 2.3007750511169434,
+        "n": 256
+      },
+      "gradient_after": {
+        "filtered_grad_norms": {
+          "core_network.layers.0.populations.i": 0.0004596633873909248
+        },
+        "finite_grads": true,
+        "loss": 2.299175262451172,
+        "nonzero_grad_param_tensors": 25,
+        "total_grad_norm": 0.161129641086399
+      },
+      "gradient_before": {
+        "filtered_grad_norms": {
+          "core_network.layers.0.populations.i": 0.00019010176104791612
+        },
+        "finite_grads": true,
+        "loss": 2.328944683074951,
+        "nonzero_grad_param_tensors": 25,
+        "total_grad_norm": 0.29474743415924626
+      },
+      "initial_train": {
+        "accuracy": 0.11328125,
+        "finite_outputs": true,
+        "loss": 2.3094090620676675,
+        "n": 768
+      },
+      "initial_valid": {
+        "accuracy": 0.11328125,
+        "finite_outputs": true,
+        "loss": 2.3202693462371826,
+        "n": 256
+      },
+      "no_loss_explosion": true,
+      "nparams": 2256138,
+      "passed": true,
+      "run_save_path": "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/review_round2/numerical_regression_20260605/runs/multi_population_mnist_bp_20260605_222531",
+      "strategy": "standard",
+      "train_improved_within_2pct": true,
+      "train_losses": [
+        2.30425492922465,
+        2.292484760284424
+      ],
+      "train_subset": 768,
+      "valid_losses": [
+        2.3088316917419434,
+        2.3007750511169434
+      ],
+      "valid_subset": 256
+    },
+    {
+      "batch_size": 256,
+      "case": "multi_population_independent_transfer_mnist_bp",
+      "config": "configs/examples/multi_population_ei_independent_transfer.yaml",
+      "device": "cuda",
+      "elapsed_sec": 0.6083827018737793,
+      "epochs": 2,
+      "final_train": {
+        "accuracy": 0.12630208333333334,
+        "finite_outputs": true,
+        "loss": 2.2833617528279624,
+        "n": 768
+      },
+      "final_valid": {
+        "accuracy": 0.07421875,
+        "finite_outputs": true,
+        "loss": 2.303391218185425,
+        "n": 256
+      },
+      "gradient_after": {
+        "filtered_grad_norms": {
+          "core_network.layers.0.populations.i": 0.0001351014154749589
+        },
+        "finite_grads": true,
+        "loss": 2.278895854949951,
+        "nonzero_grad_param_tensors": 25,
+        "total_grad_norm": 0.21267722072121434
+      },
+      "gradient_before": {
+        "filtered_grad_norms": {
+          "core_network.layers.0.populations.i": 0.0001465855777530345
+        },
+        "finite_grads": true,
+        "loss": 2.332242012023926,
+        "nonzero_grad_param_tensors": 25,
+        "total_grad_norm": 0.3913891719928819
+      },
+      "initial_train": {
+        "accuracy": 0.09375,
+        "finite_outputs": true,
+        "loss": 2.321370522181193,
+        "n": 768
+      },
+      "initial_valid": {
+        "accuracy": 0.109375,
+        "finite_outputs": true,
+        "loss": 2.312683343887329,
+        "n": 256
+      },
+      "no_loss_explosion": true,
+      "nparams": 2231050,
+      "passed": true,
+      "run_save_path": "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/review_round2/numerical_regression_20260605/runs/multi_population_independent_transfer_mnist_bp_20260605_222537",
+      "strategy": "standard",
+      "train_improved_within_2pct": true,
+      "train_losses": [
+        2.3153039614359536,
+        2.2939676443735757
+      ],
+      "train_subset": 768,
+      "valid_losses": [
+        2.304168701171875,
+        2.303391218185425
+      ],
+      "valid_subset": 256
+    },
+    {
+      "batch_size": 256,
+      "case": "old_standard_cifar10_bp",
+      "config": "configs/examples/standard_cifar10.yaml",
+      "device": "cuda",
+      "elapsed_sec": 1.0954790115356445,
+      "epochs": 2,
+      "final_train": {
+        "accuracy": 0.10807291666666667,
+        "finite_outputs": true,
+        "loss": 2.2986515363057456,
+        "n": 768
+      },
+      "final_valid": {
+        "accuracy": 0.08203125,
+        "finite_outputs": true,
+        "loss": 2.3141772747039795,
+        "n": 256
+      },
+      "gradient_after": {
+        "filtered_grad_norms": {},
+        "finite_grads": true,
+        "loss": 2.293583869934082,
+        "nonzero_grad_param_tensors": 22,
+        "total_grad_norm": 0.33222489814081824
+      },
+      "gradient_before": {
+        "filtered_grad_norms": {},
+        "finite_grads": true,
+        "loss": 2.3233752250671387,
+        "nonzero_grad_param_tensors": 22,
+        "total_grad_norm": 0.5572320275326774
+      },
+      "initial_train": {
+        "accuracy": 0.109375,
+        "finite_outputs": true,
+        "loss": 2.3274946212768555,
+        "n": 768
+      },
+      "initial_valid": {
+        "accuracy": 0.109375,
+        "finite_outputs": true,
+        "loss": 2.300123691558838,
+        "n": 256
+      },
+      "no_loss_explosion": true,
+      "nparams": 16286218,
+      "passed": true,
+      "run_save_path": "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/review_round2/numerical_regression_20260605/runs/old_standard_cifar10_bp_20260605_222543",
+      "strategy": "standard",
+      "train_improved_within_2pct": true,
+      "train_losses": [
+        2.3170764446258545,
+        2.302043358484904
+      ],
+      "train_subset": 768,
+      "valid_losses": [
+        2.3046765327453613,
+        2.3141772747039795
+      ],
+      "valid_subset": 256
+    },
+    {
+      "batch_size": 256,
+      "case": "multi_population_two_layer_cifar10_bp",
+      "config": "configs/examples/multi_population_ei_two_layer.yaml",
+      "device": "cuda",
+      "elapsed_sec": 1.003359079360962,
+      "epochs": 2,
+      "final_train": {
+        "accuracy": 0.10677083333333333,
+        "finite_outputs": true,
+        "loss": 2.301758368810018,
+        "n": 768
+      },
+      "final_valid": {
+        "accuracy": 0.125,
+        "finite_outputs": true,
+        "loss": 2.3001513481140137,
+        "n": 256
+      },
+      "gradient_after": {
+        "filtered_grad_norms": {
+          "core_network.layers.0.populations.i0": 0.00017159482699704784,
+          "core_network.layers.1.populations.e1": 0.03690227409288127
+        },
+        "finite_grads": true,
+        "loss": 2.305575370788574,
+        "nonzero_grad_param_tensors": 56,
+        "total_grad_norm": 0.20814950724878098
+      },
+      "gradient_before": {
+        "filtered_grad_norms": {
+          "core_network.layers.0.populations.i0": 0.00029258088039848043,
+          "core_network.layers.1.populations.e1": 0.03692865953848923
+        },
+        "finite_grads": true,
+        "loss": 2.310816764831543,
+        "nonzero_grad_param_tensors": 56,
+        "total_grad_norm": 0.24152739567892093
+      },
+      "initial_train": {
+        "accuracy": 0.10677083333333333,
+        "finite_outputs": true,
+        "loss": 2.3134731451670327,
+        "n": 768
+      },
+      "initial_valid": {
+        "accuracy": 0.125,
+        "finite_outputs": true,
+        "loss": 2.302454948425293,
+        "n": 256
+      },
+      "no_loss_explosion": true,
+      "nparams": 16571642,
+      "passed": true,
+      "run_save_path": "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/review_round2/numerical_regression_20260605/runs/multi_population_two_layer_cifar10_bp_20260605_222551",
+      "strategy": "standard",
+      "train_improved_within_2pct": true,
+      "train_losses": [
+        2.3128576278686523,
+        2.30441681543986
+      ],
+      "train_subset": 768,
+      "valid_losses": [
+        2.300671100616455,
+        2.3001513481140137
+      ],
+      "valid_subset": 256
+    },
+    {
+      "batch_size": 256,
+      "case": "old_local_learning_mnist",
+      "config": "configs/examples/local_learning_mnist.yaml",
+      "device": "cuda",
+      "elapsed_sec": 0.6916401386260986,
+      "epochs": 1,
+      "final_train": {
+        "accuracy": 0.11067708333333333,
+        "finite_outputs": true,
+        "loss": 2.3128786087036133,
+        "n": 768
+      },
+      "final_valid": {
+        "accuracy": 0.09765625,
+        "finite_outputs": true,
+        "loss": 2.31710147857666,
+        "n": 256
+      },
+      "gradient_after": {
+        "filtered_grad_norms": {},
+        "finite_grads": true,
+        "loss": 2.3062448501586914,
+        "nonzero_grad_param_tensors": 22,
+        "total_grad_norm": 0.1925337338412525
+      },
+      "gradient_before": {
+        "filtered_grad_norms": {},
+        "finite_grads": true,
+        "loss": 2.3163352012634277,
+        "nonzero_grad_param_tensors": 22,
+        "total_grad_norm": 0.24627425877556838
+      },
+      "initial_train": {
+        "accuracy": 0.11067708333333333,
+        "finite_outputs": true,
+        "loss": 2.3225268522898355,
+        "n": 768
+      },
+      "initial_valid": {
+        "accuracy": 0.09765625,
+        "finite_outputs": true,
+        "loss": 2.318183660507202,
+        "n": 256
+      },
+      "no_loss_explosion": true,
+      "nparams": 1287946,
+      "passed": true,
+      "run_save_path": "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/review_round2/numerical_regression_20260605/runs/old_local_learning_mnist_20260605_222559",
+      "strategy": "local_ca",
+      "train_improved_within_2pct": true,
+      "train_losses": [
+        2.31939435005188
+      ],
+      "train_subset": 768,
+      "valid_losses": [
+        2.31710147857666
+      ],
+      "valid_subset": 256
+    },
+    {
+      "batch_size": 256,
+      "case": "multi_population_local_learning_mnist",
+      "config": "configs/examples/multi_population_ei_feedforward.yaml",
+      "device": "cuda",
+      "elapsed_sec": 0.6494607925415039,
+      "epochs": 1,
+      "final_train": {
+        "accuracy": 0.09765625,
+        "finite_outputs": true,
+        "loss": 2.3030025959014893,
+        "n": 768
+      },
+      "final_valid": {
+        "accuracy": 0.07421875,
+        "finite_outputs": true,
+        "loss": 2.3142337799072266,
+        "n": 256
+      },
+      "gradient_after": {
+        "filtered_grad_norms": {
+          "core_network.layers.0.populations.i": 0.00016776330426711088
+        },
+        "finite_grads": true,
+        "loss": 2.3067798614501953,
+        "nonzero_grad_param_tensors": 25,
+        "total_grad_norm": 0.24310161667928484
+      },
+      "gradient_before": {
+        "filtered_grad_norms": {
+          "core_network.layers.0.populations.i": 0.00018712008618254313
+        },
+        "finite_grads": true,
+        "loss": 2.3237123489379883,
+        "nonzero_grad_param_tensors": 25,
+        "total_grad_norm": 0.3297139973668027
+      },
+      "initial_train": {
+        "accuracy": 0.09765625,
+        "finite_outputs": true,
+        "loss": 2.3168952465057373,
+        "n": 768
+      },
+      "initial_valid": {
+        "accuracy": 0.07421875,
+        "finite_outputs": true,
+        "loss": 2.311138868331909,
+        "n": 256
+      },
+      "no_loss_explosion": true,
+      "nparams": 2256138,
+      "passed": true,
+      "run_save_path": "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/review_round2/numerical_regression_20260605/runs/multi_population_local_learning_mnist_20260605_222603",
+      "strategy": "local_ca",
+      "train_improved_within_2pct": true,
+      "train_losses": [
+        2.313011805216471
+      ],
+      "train_subset": 768,
+      "valid_losses": [
+        2.3142337799072266
+      ],
+      "valid_subset": 256
+    },
+    {
+      "batch_size": 64,
+      "case": "old_recurrent_dms_unified_ei",
+      "config": "configs/examples/recurrent_dms.yaml",
+      "device": "cuda",
+      "elapsed_sec": 1.3584845066070557,
+      "epochs": 1,
+      "final_train": {
+        "accuracy": 0.48828125,
+        "finite_outputs": true,
+        "loss": 0.7008500099182129,
+        "n": 256
+      },
+      "final_valid": {
+        "accuracy": 0.5,
+        "finite_outputs": true,
+        "loss": 0.6981421709060669,
+        "n": 64
+      },
+      "gradient_after": {
+        "filtered_grad_norms": {},
+        "finite_grads": true,
+        "loss": 0.7080643773078918,
+        "nonzero_grad_param_tensors": 24,
+        "total_grad_norm": 0.27356043914431927
+      },
+      "gradient_before": {
+        "filtered_grad_norms": {},
+        "finite_grads": true,
+        "loss": 0.6898688077926636,
+        "nonzero_grad_param_tensors": 24,
+        "total_grad_norm": 0.06258635016150102
+      },
+      "initial_train": {
+        "accuracy": 0.51171875,
+        "finite_outputs": true,
+        "loss": 0.6997784078121185,
+        "n": 256
+      },
+      "initial_valid": {
+        "accuracy": 0.5,
+        "finite_outputs": true,
+        "loss": 0.7031025886535645,
+        "n": 64
+      },
+      "no_loss_explosion": true,
+      "nparams": 62302,
+      "passed": true,
+      "run_save_path": "/n/holylabs/kempner_dev/Users/hsafaai/Code/dendritic-modeling/review_round2/numerical_regression_20260605/runs/old_recurrent_dms_unified_ei_20260605_222609",
+      "strategy": "recurrent",
+      "train_improved_within_2pct": true,
+      "train_losses": [
+        0.7045534253120422
+      ],
+      "train_subset": 256,
+      "valid_losses": [
+        0.6981421709060669
+      ],
+      "valid_subset": 64
+    },
+    {
+      "batch_size": 64,
+      "case": "direct_multi_population_recurrent_qualified_feedback",
+      "device": "cuda",
+      "elapsed_sec": 3.0107362270355225,
+      "epochs": 6,
+      "final_train": {
+        "accuracy": 0.5260416666666666,
+        "finite_outputs": true,
+        "loss": 0.69183149933815,
+        "n": 384
+      },
+      "final_valid": {
+        "accuracy": 0.5703125,
+        "finite_outputs": true,
+        "loss": 0.6864772439002991,
+        "n": 128
+      },
+      "gradient_after": {
+        "filtered_grad_norms": {
+          "populations.e1": 0.059450753702549264,
+          "populations.i0": 0.00039461169592489844
+        },
+        "finite_grads": true,
+        "loss": 0.7023217678070068,
+        "nonzero_grad_param_tensors": 40,
+        "total_grad_norm": 0.28381619270556463
+      },
+      "gradient_before": {
+        "filtered_grad_norms": {
+          "populations.e1": 0.03961979255473125,
+          "populations.i0": 0.0002909292349429632
+        },
+        "finite_grads": true,
+        "loss": 0.6885485649108887,
+        "nonzero_grad_param_tensors": 40,
+        "total_grad_norm": 0.14418154050527904
+      },
+      "hidden_route_ok": true,
+      "initial_train": {
+        "accuracy": 0.4739583333333333,
+        "finite_outputs": true,
+        "loss": 0.7253476679325104,
+        "n": 384
+      },
+      "initial_valid": {
+        "accuracy": 0.4296875,
+        "finite_outputs": true,
+        "loss": 0.7436889708042145,
+        "n": 128
+      },
+      "nparams": 1115,
+      "passed": true,
+      "strategy": "recurrent",
+      "train_improved_by_2pct": true,
+      "train_losses": [
+        0.7008106013139089,
+        0.6946431994438171,
+        0.6938748359680176,
+        0.6921002268791199,
+        0.692578504482905,
+        0.6921746631463369
+      ],
+      "valid_losses": [
+        0.6850974559783936,
+        0.6833116412162781,
+        0.6864397525787354,
+        0.6907372772693634,
+        0.6893168389797211,
+        0.6864772439002991
+      ]
+    }
+  ],
+  "torch_version": "2.9.1+cu128"
+}

@@ -15,6 +15,11 @@ import torch.distributed as dist
 from torch.cuda.amp import GradScaler, autocast
 from torch.utils.data import DataLoader, Dataset
 
+try:  # PyTorch exposes the FSDP-aware scaler from this submodule.
+    from torch.distributed.fsdp.sharded_grad_scaler import ShardedGradScaler
+except Exception:  # pragma: no cover - depends on installed PyTorch version.
+    ShardedGradScaler = None
+
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.training.distributed_samplers import (
     PaddedDistributedEvalSampler,
@@ -112,7 +117,8 @@ class FSDPTrainer(Trainer):
         if self.use_amp:
             try:
                 # autocast and GradScaler already imported at top
-                self.scaler = GradScaler()
+                scaler_cls = ShardedGradScaler or GradScaler
+                self.scaler = scaler_cls()
                 if self.rank == 0:
                     logger.info("Mixed precision training enabled for FSDP")
             except ImportError:
@@ -324,12 +330,13 @@ class FSDPTrainer(Trainer):
                 if self.early_stopping and valid_loss < best_valid_loss:
                     best_valid_loss = valid_loss
                     patience_counter = 0
-                    if self.rank == 0 and self.checkpointing:
+                    if self.checkpointing:
                         save_fsdp_checkpoint(
                             model,
                             self.optimizer,
                             epoch,
                             os.path.join(self.checkpoint_dir, "best_model.pt"),
+                            rank=self.rank,
                         )
                 elif self.early_stopping:
                     patience_counter += 1
@@ -374,8 +381,7 @@ class FSDPTrainer(Trainer):
 
             # Checkpointing
             if (
-                self.rank == 0
-                and self.save_every_n_epochs is not None
+                self.save_every_n_epochs is not None
                 and self.save_every_n_epochs > 0
                 and (epoch + 1) % self.save_every_n_epochs == 0
             ):
@@ -384,16 +390,17 @@ class FSDPTrainer(Trainer):
                     self.optimizer,
                     epoch,
                     os.path.join(self.checkpoint_dir, f"checkpoint_epoch_{epoch}.pt"),
+                    rank=self.rank,
                 )
 
         # Final save
-        if self.rank == 0:
-            save_fsdp_checkpoint(
-                model,
-                self.optimizer,
-                self.epochs - 1,
-                os.path.join(self.checkpoint_dir, "final_model.pt"),
-            )
+        save_fsdp_checkpoint(
+            model,
+            self.optimizer,
+            self.epochs - 1,
+            os.path.join(self.checkpoint_dir, "final_model.pt"),
+            rank=self.rank,
+        )
 
         # Generate plots (only on rank 0)
         if self.rank == 0:
@@ -439,9 +446,7 @@ class FSDPTrainer(Trainer):
                 # Gradient clipping
                 if self.grad_clip_value is not None:
                     self.scaler.unscale_(self.optimizer)
-                    torch.nn.utils.clip_grad_norm_(
-                        model.parameters(), self.grad_clip_value
-                    )
+                    self._clip_grad_norm_fsdp(model)
 
                 # Optimizer step with scaling
                 self.scaler.step(self.optimizer)
@@ -457,9 +462,7 @@ class FSDPTrainer(Trainer):
 
                 # Gradient clipping
                 if self.grad_clip_value is not None:
-                    torch.nn.utils.clip_grad_norm_(
-                        model.parameters(), self.grad_clip_value
-                    )
+                    self._clip_grad_norm_fsdp(model)
 
                 # Optimizer step
                 self.optimizer.step()
@@ -480,6 +483,12 @@ class FSDPTrainer(Trainer):
         avg_acc = stats[1].item() / max(global_examples, 1)
 
         return avg_loss, avg_acc
+
+    def _clip_grad_norm_fsdp(self, model: BaseModel):
+        """Clip FSDP gradients through FSDP's collective-aware method."""
+        if hasattr(model, "clip_grad_norm_"):
+            return model.clip_grad_norm_(self.grad_clip_value)
+        return torch.nn.utils.clip_grad_norm_(model.parameters(), self.grad_clip_value)
 
     def _epoch_valid_fsdp(
         self, model: BaseModel, valid_loader: DataLoader

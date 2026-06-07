@@ -1,6 +1,5 @@
 """Utilities for configuration handling and transformation."""
 
-import copy
 import logging
 from dataclasses import (
     asdict as dataclass_asdict,
@@ -11,6 +10,14 @@ from typing import Any, Union
 
 from omegaconf import DictConfig, OmegaConf
 
+from dendritic_modeling.config.conversion import (
+    normalize_sparsity_type as _normalize_sparsity_type,
+    to_plain_dict,
+)
+from dendritic_modeling.config.model_aliases import (
+    canonicalize_model_core_flags as _canonicalize_model_core_flags,
+    canonicalize_rnn_core_flags as _canonicalize_rnn_core_flags,
+)
 from dendritic_modeling.config.training import (
     ParamGroupsConfig,
     TrainingStrategiesConfig,
@@ -25,178 +32,20 @@ _config_cache = {}
 def canonicalize_model_core_flags(
     config: Union[dict, DictConfig, object],
 ) -> dict[str, Any]:
-    """Return a plain config dict with type-implied core flags normalized.
-
-    The architecture factory treats ``model.core.type`` as authoritative for
-    shunting/additive variants. Historically, some saved sweep configs retained
-    ``morphology.use_shunting=True`` even when ``type='dendritic_additive'``.
-    That mismatch is harmless during model construction because the factory
-    overrides the flag, but it makes raw ``config.json`` files look mislabeled.
-
-    This helper mirrors the factory's effective behavior in the serialized
-    config so saved runs are easier to audit and downstream tools see a
-    self-consistent payload.
-    """
-    if isinstance(config, DictConfig):
-        result = OmegaConf.to_container(config, resolve=True)
-    elif is_dataclass(config):
-        result = dataclass_asdict(config)
-    else:
-        result = copy.deepcopy(config)
-
-    if not isinstance(result, dict):
-        return {}
-
-    model_cfg = result.get("model")
-    if isinstance(model_cfg, dict) and isinstance(model_cfg.get("core"), dict):
-        core_cfg = model_cfg["core"]
-    elif {"architecture", "connectivity"} <= set(result.keys()):
-        # Also support direct core-config dicts passed straight to the factory.
-        core_cfg = result
-    else:
-        return result
-
-    core_type = str(core_cfg.get("type", "")).lower()
-    morphology_cfg = core_cfg.setdefault("morphology", {})
-    if not isinstance(morphology_cfg, dict):
-        morphology_cfg = {}
-        core_cfg["morphology"] = morphology_cfg
-
-    type_overrides: dict[str, dict[str, Any]] = {
-        "dendritic_shunting": {"use_shunting": True},
-        "flat_shunting": {"use_shunting": True},
-        "dendritic_additive": {
-            "use_shunting": False,
-            "use_additive_normalization": True,
-        },
-        "flat_additive": {
-            "use_shunting": False,
-            "use_additive_normalization": True,
-        },
-        "dendritic_mlp": {"use_shunting": False},
-        "flat_mlp": {"use_shunting": False},
-        "point_mlp": {"use_shunting": False},
-        "mlp": {"use_shunting": False},
-    }
-    overrides = type_overrides.get(core_type)
-    if overrides is not None:
-        morphology_cfg.update(overrides)
-
-    # Feedforward additive aliases need an additive-safe gate bootstrap.
-    # Keep this legacy BP value stable; recurrent additive aliases use their
-    # own normalized-voltage slope below.
-    if core_type in {"dendritic_additive", "flat_additive"}:
-        reactivation_cfg = core_cfg.setdefault("reactivation", {})
-        if not isinstance(reactivation_cfg, dict):
-            reactivation_cfg = {}
-            core_cfg["reactivation"] = reactivation_cfg
-        reactivation_cfg["init_m"] = 0.1
-        reactivation_cfg["init_b"] = 0.0
-        reactivation_cfg["init_policy"] = "fixed"
-
-    return result
-
-
-# Type-alias implied overrides for the recurrent / unified-EI path.
-# Mirrors the `_UNIFIED_EI_ALIAS_OVERRIDES` in the factory; this helper
-# rewrites a raw config dict so saved configs are self-consistent with
-# the alias they declare. Recurrent additive aliases normalize voltages,
-# so m=1.0 keeps the fixed gate responsive on approximately unit-scale
-# activations while avoiding the analytical non-leaf gate-center trap.
-_RECURRENT_ADDITIVE_REACTIVATION_INIT_M = 1.0
-
-_RNN_CORE_ALIAS_OVERRIDES: dict[str, dict[str, object]] = {
-    "rnn_dendritic_shunting": {
-        "use_shunting": True,
-    },
-    "rnn_dendritic_additive": {
-        "use_shunting": False,
-        "use_additive_normalization": True,
-        "reactivation_init_m": _RECURRENT_ADDITIVE_REACTIVATION_INIT_M,
-        "reactivation_init_b": 0.0,
-        "reactivation_init_policy": "fixed",
-    },
-    "rnn_flat_shunting": {
-        "use_shunting": True,
-        "branch_factors": [1],
-    },
-    "rnn_flat_additive": {
-        "use_shunting": False,
-        "use_additive_normalization": True,
-        "reactivation_init_m": _RECURRENT_ADDITIVE_REACTIVATION_INIT_M,
-        "reactivation_init_b": 0.0,
-        "reactivation_init_policy": "fixed",
-        "branch_factors": [1],
-    },
-}
+    """Backward-compatible wrapper for config-layer alias canonicalization."""
+    return _canonicalize_model_core_flags(config)
 
 
 def canonicalize_rnn_core_flags(
     config: Union[dict, DictConfig, object],
 ) -> dict[str, Any]:
-    """Return a plain config dict with recurrent unified-EI core aliases
-    resolved to explicit excitatory-population flags.
-
-    When ``model.core.type`` is one of the recurrent aliases
-    (``rnn_dendritic_shunting``, ``rnn_dendritic_additive``,
-    ``rnn_flat_shunting``, ``rnn_flat_additive``), this helper rewrites
-    ``use_shunting`` / ``use_additive_normalization`` (and in the flat
-    case, ``branch_factors``) on every excitatory population so the saved
-    payload is self-describing. ``ei_unified`` / ``unified_ei`` / ``ei_net``
-    are treated as no-ops: the explicit population-level flags are the
-    source of truth.
-    """
-    if isinstance(config, DictConfig):
-        result = OmegaConf.to_container(config, resolve=True)
-    elif is_dataclass(config):
-        result = dataclass_asdict(config)
-    else:
-        result = copy.deepcopy(config)
-
-    if not isinstance(result, dict):
-        return {}
-
-    model_cfg = result.get("model")
-    if not isinstance(model_cfg, dict):
-        return result
-
-    core_cfg = model_cfg.get("core")
-    if not isinstance(core_cfg, dict):
-        return result
-
-    core_type = str(core_cfg.get("type", "")).lower()
-    overrides = _RNN_CORE_ALIAS_OVERRIDES.get(core_type)
-    if overrides is None:
-        return result
-
-    unified_cfg = core_cfg.get("unified_ei") or core_cfg.get("ei_unified")
-    if not isinstance(unified_cfg, dict):
-        return result
-    layers = unified_cfg.get("layers")
-    if not isinstance(layers, list):
-        return result
-
-    for layer in layers:
-        if not isinstance(layer, dict):
-            continue
-        exc = layer.get("excitatory")
-        if not isinstance(exc, dict):
-            continue
-        for k, v in overrides.items():
-            if k == "branch_factors" and exc.get("branch_factors"):
-                # Preserve explicit dendritic trees even under flat aliases.
-                continue
-            exc[k] = v
-
-    return result
+    """Backward-compatible wrapper for config-layer recurrent aliases."""
+    return _canonicalize_rnn_core_flags(config)
 
 
 def normalize_sparsity_type(sparsity_type: Any) -> str:
     """Normalize public sparsity aliases to the internal TopK strategy names."""
-    normalized = "standard" if sparsity_type is None else str(sparsity_type).lower()
-    if normalized == "topk":
-        return "standard"
-    return normalized
+    return _normalize_sparsity_type(sparsity_type)
 
 
 def get_config_value(config: Union[dict, object], key: str, default: Any = None) -> Any:
@@ -312,11 +161,20 @@ def prepare_ei_network_params(
         reactivation_dict = config.get("reactivation", {})
         blocklinear_dict = config.get("blocklinear", {})
 
+    connectivity_dict = dict(connectivity_dict)
+    structured_connectivity = connectivity_dict.pop(
+        "structured",
+        connectivity_dict.pop("structured_connectivity", {}),
+    )
+
     # Build base parameters
     params = {
         "input_dim": input_dim,
         **architecture_dict,
         **connectivity_dict,
+        "structured_connectivity": structured_connectivity,
+        "synapse_types": config.get("synapse_types", {}),
+        "dynamics": config.get("dynamics", config.get("spiking", {})),
         "transfer_params": transfer_dict,
         **morphology_dict,
         **implementation_dict,
@@ -327,6 +185,9 @@ def prepare_ei_network_params(
         if key == "deepst":
             for deepst_key, deepst_value in value.items():
                 params[deepst_key] = deepst_value
+        elif key == "indexed":
+            for indexed_key, indexed_value in value.items():
+                params[f"indexed_{indexed_key}"] = indexed_value
         elif key == "gradient_scaling":
             params["topk_strategy"] = value
         elif key == "type":
@@ -338,9 +199,14 @@ def prepare_ei_network_params(
     params["reactivate"] = (
         reactivation_dict.pop("enabled", True) if reactivation_dict else True
     )
+    dendritic_activation = reactivation_dict.get("dendritic_activation")
     for key, value in reactivation_dict.items():
         if key == "type":
-            params["reactivation_type"] = value
+            if dendritic_activation is None:
+                params["reactivation_type"] = value
+        elif key == "dendritic_activation":
+            if value is not None:
+                params["reactivation_type"] = value
         elif key == "gradient_scaling":
             params["reactivation_strategy"] = value
         elif key.startswith("init_"):
@@ -398,19 +264,7 @@ def _get_explicit_strategy_overrides(
     """Return raw user-provided overrides for the selected strategy when available."""
 
     def _to_dict_local(config):
-        if isinstance(config, DictConfig):
-            return OmegaConf.to_container(config, resolve=True)
-        if is_dataclass(config):
-            return dataclass_asdict(config)
-        if hasattr(config, "asdict") and callable(config.asdict):
-            return config.asdict()
-        if hasattr(config, "__dict__") and not isinstance(config, dict):
-            return {
-                key: value
-                for key, value in vars(config).items()
-                if not key.startswith("_")
-            }
-        return config if isinstance(config, dict) else {}
+        return to_plain_dict(config)
 
     explicit_overrides = (
         main_train_config.get("_explicit_strategy_overrides")
@@ -442,20 +296,8 @@ def prepare_trainer_config(
         Flattened trainer configuration dictionary
     """
 
-    # Helper function to convert config to dict
     def to_dict(config):
-        if config is None:
-            return {}
-        if isinstance(config, dict):
-            return config
-        if isinstance(config, DictConfig) or hasattr(config, "_metadata"):
-            return OmegaConf.to_container(config, resolve=True)
-        # Many config objects are dataclasses/BaseConfig
-        if hasattr(config, "asdict") and callable(config.asdict):
-            return config.asdict()
-        if is_dataclass(config):
-            return dataclass_asdict(config)
-        return dict(config)
+        return to_plain_dict(config)
 
     # Start with common training parameters
     common_config = (

@@ -136,8 +136,24 @@ class EINetwork(BaseNetwork):
                 return outputs[torch.arange(B, device=outputs.device), idx]
             return outputs[:, -1, :]
         if self.output_mode == "mean":
+            if seq_lengths is not None:
+                _B, T, _ = outputs.shape
+                lengths = seq_lengths.to(device=outputs.device).long().clamp(0, T)
+                mask = torch.arange(T, device=outputs.device).unsqueeze(
+                    0
+                ) < lengths.unsqueeze(1)
+                masked = outputs * mask.unsqueeze(-1).to(dtype=outputs.dtype)
+                denom = lengths.clamp_min(1).unsqueeze(1).to(dtype=outputs.dtype)
+                return masked.sum(dim=1) / denom
             return outputs.mean(dim=1)
         if self.output_mode == "all":
+            if seq_lengths is not None:
+                _B, T, _ = outputs.shape
+                lengths = seq_lengths.to(device=outputs.device).long().clamp(0, T)
+                mask = torch.arange(T, device=outputs.device).unsqueeze(
+                    0
+                ) < lengths.unsqueeze(1)
+                return outputs * mask.unsqueeze(-1).to(dtype=outputs.dtype)
             return outputs
         raise ValueError(f"Unknown output_mode: {self.output_mode}")
 
@@ -192,6 +208,8 @@ class EINetwork(BaseNetwork):
             hidden: Final hidden state (only when return_hidden=True).
         """
         if self.is_recurrent:
+            if x.dim() == 2:
+                x = x.unsqueeze(1)
             out, hidden = self._forward_recurrent(
                 x, hidden=hidden, seq_lengths=seq_lengths
             )

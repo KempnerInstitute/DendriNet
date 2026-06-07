@@ -18,9 +18,12 @@ from dendritic_modeling.config.training import (
     VoltageStabilizationStrategyConfig,
 )
 from dendritic_modeling.training.factory import (
+    TRAINER_STRATEGY_REGISTRY,
     _extract_enhanced_configs,
     extract_weights_from_simple_mlp,
+    get_available_trainer_strategies,
     get_trainer,
+    register_trainer_strategy,
     transfer_mlp_weights_to_input_net,
 )
 
@@ -48,6 +51,35 @@ class TestExtractEnhancedConfigs:
 
         # Original config should be cleaned
         assert "optimizer" not in trainer_config
+
+    def test_register_trainer_strategy_adds_config_only_extension_point(self):
+        class DummyTrainer:
+            def __init__(self, **kwargs):
+                self.kwargs = kwargs
+
+        strategy_name = "dummy_registry_strategy"
+        optimizer = Mock()
+        try:
+            register_trainer_strategy(
+                strategy_name,
+                DummyTrainer,
+                fixed_kwargs={"custom_mode": "probe"},
+            )
+
+            trainer = get_trainer(
+                strategy_name,
+                optimizer,
+                {"device": "cpu"},
+                analysis_manager="analysis",
+            )
+
+            assert strategy_name in get_available_trainer_strategies()
+            assert isinstance(trainer, DummyTrainer)
+            assert trainer.kwargs["optimizer"] is optimizer
+            assert trainer.kwargs["analysis_manager"] == "analysis"
+            assert trainer.kwargs["custom_mode"] == "probe"
+        finally:
+            TRAINER_STRATEGY_REGISTRY.pop(strategy_name, None)
 
     def test_extract_pruning_config(self):
         """Test extracting pruning configuration."""

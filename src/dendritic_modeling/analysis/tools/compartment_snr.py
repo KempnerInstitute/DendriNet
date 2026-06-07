@@ -214,6 +214,30 @@ class CompartmentSNRAnalyzer(AbstractAnalyzer):
         stats_dict: dict[str, float],
     ) -> dict[str, float]:
         """Compute discriminability for a multivariate activation tensor."""
+        if data_tensor.ndim == 1:
+            data_tensor = data_tensor[:, None]
+        else:
+            data_tensor = data_tensor.reshape(data_tensor.shape[0], -1)
+        n_samples = data_tensor.shape[0]
+        n_dims = data_tensor.shape[1]
+
+        if n_dims == 1:
+            total_mean = data_tensor.mean(dim=0)
+            total_var = data_tensor[:, 0].var(correction=0)
+            between_var = data_tensor.new_tensor(0.0)
+            for label in torch.unique(labels):
+                class_data = data_tensor[labels == label]
+                class_prob = class_data.shape[0] / max(n_samples, 1)
+                diff = class_data.mean(dim=0) - total_mean
+                between_var = between_var + class_prob * diff[0].pow(2)
+
+            d2 = (between_var / (total_var + self.epsilon)).item()
+            stats_dict[f"{prefix}_d_max"] = d2
+            stats_dict[f"{prefix}_d_total"] = d2
+            stats_dict[f"{prefix}_n_sig_dirs"] = float(d2 > self.epsilon)
+            stats_dict[f"{prefix}_ratio_sig_dirs"] = float(d2 > self.epsilon)
+            return stats_dict
+
         # cov = torch.cov(data_tensor.T, correction=0)
         # eigvals_cov, eigvecs_cov = torch.linalg.eigh(cov)
         # inv_sqrt_e = torch.diag(
@@ -254,9 +278,6 @@ class CompartmentSNRAnalyzer(AbstractAnalyzer):
 
         cov = torch.cov(data_tensor.T, correction=0)
         inv_cov: torch.Tensor = torch.linalg.pinv(cov)
-
-        n_samples = data_tensor.shape[0]
-        n_dims = data_tensor.shape[1]
 
         cov_b = torch.zeros_like(cov)
         total_mean = data_tensor.mean(dim=0)
@@ -304,7 +325,7 @@ class CompartmentSNRAnalyzer(AbstractAnalyzer):
         for field, values in global_aggregated.items():
             data_tensor = torch.tensor(values)
             global_statistics[f"{field}_mean"] = data_tensor.mean().item()
-            global_statistics[f"{field}_std"] = data_tensor.std().item()
+            global_statistics[f"{field}_std"] = data_tensor.std(correction=0).item()
         return global_statistics
 
     def _branch_analysis(self, labels: torch.Tensor):
@@ -353,7 +374,7 @@ class CompartmentSNRAnalyzer(AbstractAnalyzer):
     ) -> dict[str, float]:
         """Compute discriminability for a univariate activation tensor."""
         total_mean = data_tensor.mean().item()
-        total_var = data_tensor.var().item()
+        total_var = data_tensor.var(correction=0).item()
 
         n_samples = data_tensor.shape[0]
         var_E_C = 0
@@ -386,7 +407,7 @@ class CompartmentSNRAnalyzer(AbstractAnalyzer):
         for field, values in global_aggregated.items():
             data_tensor = torch.tensor(values)
             global_statistics[f"{field}_mean"] = data_tensor.mean().item()
-            global_statistics[f"{field}_std"] = data_tensor.std().item()
+            global_statistics[f"{field}_std"] = data_tensor.std(correction=0).item()
         return global_statistics
 
     def _layer_branch_aggregation(
@@ -408,7 +429,7 @@ class CompartmentSNRAnalyzer(AbstractAnalyzer):
             for field, values in layer_aggregated.items():
                 data_tensor = torch.tensor(values)
                 layer_stats[f"{field}_mean"] = data_tensor.mean().item()
-                layer_stats[f"{field}_std"] = data_tensor.std().item()
+                layer_stats[f"{field}_std"] = data_tensor.std(correction=0).item()
 
             layer_statistics[layer_key] = layer_stats
         return layer_statistics

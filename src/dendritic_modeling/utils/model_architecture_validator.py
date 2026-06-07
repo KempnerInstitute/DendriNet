@@ -178,9 +178,9 @@ class ModelArchitectureValidator:
         self.inhibitory_dim = self.transfer_params.get("inhibitory_dim", None)
 
     def check_input_mode_consistency(self):
-        """Check input_mode and independent_pathways consistency"""
-        if self.input_mode == 0 and self.independent_pathways:
-            self.errors.append("input_mode=0 requires independent_pathways=False")
+        """Check input-mode values that are invalid independent of routing split."""
+        if self.input_mode not in {0, 1}:
+            self.errors.append(f"input_mode must be 0 or 1, got {self.input_mode}")
 
     def check_layer_dimensions(self):
         """Check layer size consistency"""

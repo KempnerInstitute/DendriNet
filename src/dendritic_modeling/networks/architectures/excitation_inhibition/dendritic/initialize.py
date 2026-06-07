@@ -281,7 +281,8 @@ def _apply_reactivation_init(
     Data-driven policies use the analytical fallback here and are overwritten
     later by calibration from sampled voltages.
     """
-    if isinstance(dbl.reactivation, torch.nn.Identity):
+    initialize = getattr(dbl.reactivation, "initialize", None)
+    if isinstance(dbl.reactivation, torch.nn.Identity) or not callable(initialize):
         return
 
     policy = normalize_reactivation_init_policy(
@@ -289,10 +290,10 @@ def _apply_reactivation_init(
     )
 
     if policy == "fixed":
-        dbl.reactivation.initialize(dbl.reactivation_init_m, dbl.reactivation_init_b)
+        initialize(dbl.reactivation_init_m, dbl.reactivation_init_b)
         return
 
-    dbl.reactivation.initialize(m_auto, b_auto)
+    initialize(m_auto, b_auto)
 
 
 def _apply_reactivation_calibration(
@@ -306,12 +307,16 @@ def _apply_reactivation_calibration(
 
     alpha = float(max(0.0, min(1.0, ema_alpha)))
     react = layer.reactivation
+    initialize = getattr(react, "initialize", None)
+    if not callable(initialize):
+        return _current_reactivation_state(layer)
+
     safe_m_target = max(float(m_target), 1e-8)
     target_b = float(b_target)
 
     with torch.no_grad():
         if alpha >= 1.0 - 1e-12:
-            react.initialize(safe_m_target, target_b)
+            initialize(safe_m_target, target_b)
             return safe_m_target, target_b
 
         applied_m = safe_m_target
@@ -324,7 +329,7 @@ def _apply_reactivation_calibration(
             react.log_m.data.copy_(blended_m.log())
             applied_m = float(blended_m.mean().item())
         else:
-            react.initialize(safe_m_target, target_b)
+            initialize(safe_m_target, target_b)
 
         if hasattr(react, "b") and torch.is_tensor(react.b):
             current_b = react.b.detach()
@@ -447,7 +452,8 @@ def calibrate_reactivation_from_data(
     for name, mod in model.named_modules():
         if not isinstance(mod, DendriticBranchLayer):
             continue
-        if isinstance(mod.reactivation, torch.nn.Identity):
+        initialize = getattr(mod.reactivation, "initialize", None)
+        if isinstance(mod.reactivation, torch.nn.Identity) or not callable(initialize):
             continue
         if mode is None:
             layer_policy = normalize_reactivation_init_policy(
@@ -1073,7 +1079,13 @@ def analytical_expectation_dbl_init(dbl, adaptive=True, branch_factors=None):
             else:
                 # g_branch = E_g_exc + E_g_inh + 1
                 g_branch = 1
-                E_Vinf = E_g_exc - E_g_inh + 0.5 * g_branch
+                # Additive voltage V = E - I is centered near 0 (it is NOT
+                # bounded in [0, 1] like the shunting voltage), so the gate
+                # center is E[V] = E_g_exc - E_g_inh. The former `+ 0.5*g_branch`
+                # term was a holdover from the shunting branch (whose V lives in
+                # [0, 1] centered at 0.5) and pushed the additive non-leaf gate
+                # center ~+0.5 std above the actual voltage bulk.
+                E_Vinf = E_g_exc - E_g_inh
                 m = 0.1
 
             dbl.branches_to_output.initialize(g_branch=g_branch)
@@ -1179,7 +1191,13 @@ def ei_equivalence_dbl_init(dbl):
             else:
                 # g_branch = E_g_exc + E_g_inh + 1
                 g_branch = 1
-                E_Vinf = E_g_exc - E_g_inh + 0.5 * g_branch
+                # Additive voltage V = E - I is centered near 0 (it is NOT
+                # bounded in [0, 1] like the shunting voltage), so the gate
+                # center is E[V] = E_g_exc - E_g_inh. The former `+ 0.5*g_branch`
+                # term was a holdover from the shunting branch (whose V lives in
+                # [0, 1] centered at 0.5) and pushed the additive non-leaf gate
+                # center ~+0.5 std above the actual voltage bulk.
+                E_Vinf = E_g_exc - E_g_inh
                 m = 0.1
 
             dbl.branches_to_output.initialize(g_branch=g_branch)
@@ -1246,7 +1264,13 @@ def naive_dbl_init(dbl):
                 E_Vinf = (E_g_exc + 0.5 * g_branch) / (E_g_exc + E_g_inh + g_branch + 1)
                 m = 1.5
             else:
-                E_Vinf = E_g_exc - E_g_inh + 0.5 * g_branch
+                # Additive voltage V = E - I is centered near 0 (it is NOT
+                # bounded in [0, 1] like the shunting voltage), so the gate
+                # center is E[V] = E_g_exc - E_g_inh. The former `+ 0.5*g_branch`
+                # term was a holdover from the shunting branch (whose V lives in
+                # [0, 1] centered at 0.5) and pushed the additive non-leaf gate
+                # center ~+0.5 std above the actual voltage bulk.
+                E_Vinf = E_g_exc - E_g_inh
                 m = 0.1
         else:
             if dbl.use_shunting:

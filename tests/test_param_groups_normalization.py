@@ -1,11 +1,13 @@
 import torch.nn as nn
 
+from dendritic_modeling.config.regularization import RegularizationConfig
 from dendritic_modeling.config.training import ParamGroupsConfig
 from dendritic_modeling.models.base import BaseModel
 from dendritic_modeling.scripts.script_utils.config_utils import (
     normalize_param_groups_config,
     prepare_trainer_config,
 )
+from dendritic_modeling.training.regularization import RegularizationManager
 
 
 class _DummyModel(BaseModel):
@@ -30,6 +32,26 @@ def test_normalize_param_groups_from_dict_applies_lr():
     normalized = normalize_param_groups_config({"lr": 0.02, "split_params": False})
     groups_normalized = model.get_param_groups(normalized)
     assert groups_normalized[0]["lr"] == 0.02
+    assert groups_normalized[0]["name"] == "all"
+
+
+def test_base_model_split_param_groups_are_named():
+    model = _DummyModel()
+    model.core_network = nn.Linear(2, 2)
+    model.decoder_network = nn.Linear(2, 1)
+
+    groups = model.get_param_groups(ParamGroupsConfig(lr=0.02, split_params=True))
+    names = {group["name"] for group in groups}
+
+    assert "decoder" in names
+    assert "catch_all" in names
+    assert all("name" in group for group in groups)
+
+
+def test_regularization_uses_explicit_param_group_name():
+    manager = RegularizationManager(RegularizationConfig())
+
+    assert manager._identify_group_type({"name": "mlp_inh_net"}, 3) == "mlp_inh_net"
 
 
 def test_normalize_param_groups_passthrough_for_typed_config():

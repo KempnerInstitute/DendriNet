@@ -28,11 +28,7 @@ from dendritic_modeling.analysis.utils.runtime import (
 from dendritic_modeling.config import CompartmentStatisticsAnalysisParams
 from dendritic_modeling.config.analysis import EvaluationRuntimeConfig
 from dendritic_modeling.models import BaseModel
-from dendritic_modeling.networks import (
-    DendriticBranchLayer,
-    ExcitationInhibitionNetwork,
-    TopKLinear,
-)
+from dendritic_modeling.networks import DendriticBranchLayer, TopKLinear
 from dendritic_modeling.plotting.visualizations.plotting_utils import (
     convert_layer_names,
     get_color_scheme,
@@ -79,6 +75,7 @@ class CompartmentStatisticsAnalyzer(AbstractAnalyzer):
 
         self.per_class_analysis = getattr(params, "per_class_analysis", False)
         self.n_samples = getattr(params, "n_samples", None)
+        self.seed = int(getattr(params, "seed", 0) or 0)
         self.epsilon = torch.finfo(torch.float32).eps
 
     def collect_raw_data(
@@ -89,30 +86,29 @@ class CompartmentStatisticsAnalyzer(AbstractAnalyzer):
         self.class_labels = y if self.per_class_analysis and y is not None else None
         handles = []
         for key, module in model.named_modules():
-            if (
-                isinstance(module, DendriticBranchLayer)
-                and module.branch_excitation is not None
-                and module.branch_inhibition is not None
-            ):
+            if isinstance(module, DendriticBranchLayer):
                 self.raw_dict[key] = {}
                 for branch_idx in range(module.n_branches):
                     self.raw_dict[key][branch_idx] = {"depth": module.layer_idx}
 
-                if self.synapse_weights:
-                    exc_weights = (
-                        module.branch_excitation.pruned_weight().detach().cpu()
-                    )
-                    inh_weights = (
-                        module.branch_inhibition.pruned_weight().detach().cpu()
-                    )
-                    for branch_idx in range(module.n_branches):
-                        exc_w = exc_weights[branch_idx]
-                        exc_w = exc_w[exc_w > self.epsilon]
-                        self.raw_dict[key][branch_idx]["exc_weights"] = exc_w
+                synapse_modules = [
+                    ("exc", module.branch_excitation),
+                    ("inh", module.branch_inhibition),
+                    ("rec_exc", getattr(module, "branch_recurrent", None)),
+                    ("rec_inh", getattr(module, "branch_rec_inhibition", None)),
+                ]
 
-                        inh_w = inh_weights[branch_idx]
-                        inh_w = inh_w[inh_w > self.epsilon]
-                        self.raw_dict[key][branch_idx]["inh_weights"] = inh_w
+                if self.synapse_weights:
+                    for synapse_type, synapse_module in synapse_modules:
+                        if synapse_module is None:
+                            continue
+                        weights = synapse_module.pruned_weight().detach().cpu()
+                        for branch_idx in range(module.n_branches):
+                            w = weights[branch_idx]
+                            w = w[w > self.epsilon]
+                            self.raw_dict[key][branch_idx][
+                                f"{synapse_type}_weights"
+                            ] = w
 
                 if self.branch_weights and hasattr(module, "branches_to_output"):
                     branch_weights = module.branches_to_output.weight().detach().cpu()
@@ -122,22 +118,23 @@ class CompartmentStatisticsAnalyzer(AbstractAnalyzer):
                         self.raw_dict[key][branch_idx]["branch_weights"] = branch_w
 
                 if self.inputs or self.activations:
-                    handle = module.branch_excitation.register_forward_hook(
-                        lambda module, input, output, layer_key=key: self.forward_hook(
-                            module, input, output, layer_key, "exc"
+                    for synapse_type, synapse_module in synapse_modules:
+                        if synapse_module is None:
+                            continue
+                        handle = synapse_module.register_forward_hook(
+                            lambda module, input, output, layer_key=key, label=synapse_type: self.forward_hook(
+                                module, input, output, layer_key, label
+                            )
                         )
-                    )
-                    handles.append(handle)
-                    handle = module.branch_inhibition.register_forward_hook(
-                        lambda module, input, output, layer_key=key: self.forward_hook(
-                            module, input, output, layer_key, "inh"
-                        )
-                    )
-                    handles.append(handle)
+                        handles.append(handle)
 
         if self.inputs or self.activations:
             if self.n_samples is not None:
-                indices = torch.randperm(x.shape[0])[: self.n_samples]
+                generator = torch.Generator(device=x.device)
+                generator.manual_seed(self.seed)
+                indices = torch.randperm(
+                    x.shape[0], generator=generator, device=x.device
+                )[: self.n_samples]
                 x = x[indices]
                 if self.class_labels is not None:
                     self.class_labels = self.class_labels[indices]
@@ -494,9 +491,10 @@ class CompartmentStatisticsAnalyzer(AbstractAnalyzer):
         Returns:
             Dictionary containing all weight analysis results
         """
-        try:
-            assert isinstance(model.core_network, ExcitationInhibitionNetwork)
-        except AssertionError:
+        core = getattr(model, "core_network", model)
+        if not any(
+            isinstance(module, DendriticBranchLayer) for module in core.modules()
+        ):
             return None
 
         start_time = time.time()

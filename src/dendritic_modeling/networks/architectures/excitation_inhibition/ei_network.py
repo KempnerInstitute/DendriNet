@@ -126,7 +126,8 @@ class ExcitationInhibitionNetwork(BaseNetwork):
         init_method="xavier_normal",
         weight_threshold=1e-6,
         adaptive_initialization=True,
-        compile_forward: bool = True,
+        compile_forward: bool = False,
+        structured_connectivity=None,
         **kwargs,
     ):
         super().__init__()
@@ -184,6 +185,7 @@ class ExcitationInhibitionNetwork(BaseNetwork):
         self.weight_threshold = weight_threshold
         self.adaptive_initialization = adaptive_initialization
         self.compile_forward = compile_forward
+        self.structured_connectivity = structured_connectivity
 
         # Records whether the nonnegative conductance-input validation has run.
         # The validation itself is performed on every forward pass for shunting
@@ -238,7 +240,10 @@ class ExcitationInhibitionNetwork(BaseNetwork):
         # Insert input_dim at the beginning
         excitatory_layer_sizes.insert(0, self.input_dim)
 
-        # For input_mode=1, inhibitory_layer_sizes should remain empty or filled with None
+        # For input_mode=1, an empty inhibitory_layer_sizes list means the
+        # transferred inhibitory pathway is used directly. A positive
+        # inhibitory layer size still requests an explicit inhibitory
+        # population.
         if self.transfer_params.get("input_mode", 0) == 1:
             # Ensure we have None for each layer if the list is empty
             if not inhibitory_layer_sizes:
@@ -260,6 +265,25 @@ class ExcitationInhibitionNetwork(BaseNetwork):
         has_inhibitory_neurons = any(
             size is not None and size > 0 for size in self.inhibitory_layer_sizes
         )
+        uses_direct_inhibitory_stream = (
+            self.transfer_params.get("input_mode", 0) == 1
+            and not has_inhibitory_neurons
+            and any(int(v or 0) > 0 for v in ie_syn)
+        )
+        allow_direct_inhibitory_stream = bool(
+            self.transfer_params.get("allow_direct_inhibitory_stream", False)
+            or self.transfer_params.get("allow_direct_inhibitory_input", False)
+        )
+        if uses_direct_inhibitory_stream and not allow_direct_inhibitory_stream:
+            raise ValueError(
+                "input_mode=1 with empty inhibitory_layer_sizes and nonzero "
+                "ie_synapses_per_branch_per_layer would use the transferred "
+                "inhibitory stream directly instead of building inhibitory "
+                "neurons. Set architecture.inhibitory_layer_sizes to positive "
+                "values for an inhibitory population, or set "
+                "transfer.allow_direct_inhibitory_stream=true to opt in to the "
+                "direct stream explicitly."
+            )
 
         # Only extend lists if they have values to repeat, otherwise error
         while len(ee_syn) < num_layers:
@@ -309,11 +333,13 @@ class ExcitationInhibitionNetwork(BaseNetwork):
 
         # Build each layer
         for i in range(num_layers):
-            # For input_mode=1, don't build inhibitory cells
-            # Also check if inhibitory layer size exists for this layer
+            # Build inhibitory cells whenever an inhibitory layer size is defined.
+            # With input_mode=1 and an empty inhibitory_layer_sizes list, this keeps
+            # the feedforward/direct inhibitory-input behavior. With non-empty
+            # inhibitory_layer_sizes, the inhibitory stream can drive an explicit
+            # inhibitory population.
             build_inhibitory_cells = (
-                self.transfer_params.get("input_mode", 0) != 1
-                and i + 1 < len(inhibitory_layer_sizes)
+                i + 1 < len(inhibitory_layer_sizes)
                 and inhibitory_layer_sizes[i + 1] is not None
                 and inhibitory_layer_sizes[i + 1] > 0
             )
@@ -323,16 +349,6 @@ class ExcitationInhibitionNetwork(BaseNetwork):
                 # First layer receives input from transfer function
                 layer_excitatory_input_dim = excitatory_input_dim
                 layer_inhibitory_input_dim = inhibitory_input_dim
-                # Excitatory cells receive inhibitory output from same layer's inhibitory cells
-                # Check if inhibitory layer exists
-                if (
-                    i + 1 < len(inhibitory_layer_sizes)
-                    and inhibitory_layer_sizes[i + 1] is not None
-                ):
-                    inhibitory_layer_sizes[i + 1]
-                else:
-                    # For input_mode=1, there are no inhibitory neurons
-                    pass
             else:
                 # Subsequent layers receive outputs from previous layer
                 layer_excitatory_input_dim = excitatory_layer_sizes[i]
@@ -341,16 +357,6 @@ class ExcitationInhibitionNetwork(BaseNetwork):
                     if i < len(inhibitory_layer_sizes)
                     else None
                 )
-                # Excitatory cells receive inhibitory output from same layer's inhibitory cells
-                # Check if inhibitory layer exists
-                if (
-                    i + 1 < len(inhibitory_layer_sizes)
-                    and inhibitory_layer_sizes[i + 1] is not None
-                ):
-                    inhibitory_layer_sizes[i + 1]
-                else:
-                    # For input_mode=1, there are no inhibitory neurons
-                    pass
 
             # Get n_inhibitory_cells for this layer
             n_inhibitory_cells = (
@@ -406,6 +412,8 @@ class ExcitationInhibitionNetwork(BaseNetwork):
                 weight_threshold=self.weight_threshold,
                 efficient_blocklinear=self.efficient_blocklinear,
                 adaptive_initialization=self.adaptive_initialization,
+                structured_connectivity=self.structured_connectivity,
+                structured_layer_idx=i,
                 **kwargs,
             )
             layers.append(layer)

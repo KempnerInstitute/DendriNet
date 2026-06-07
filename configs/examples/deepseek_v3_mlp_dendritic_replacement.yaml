@@ -1,0 +1,102 @@
+# ============================================================================
+# DeepSeek-V3 transformer MLP replacement: first dense FFN blocks
+# ============================================================================
+# This config mirrors the AlexNet replacement configs conceptually:
+#   1. model.transformer_replacement defines the source model and target layers.
+#   2. model.core defines the dendritic replacement module.
+#
+# It is intentionally a configuration template, not a small smoke-test config:
+# loading DeepSeek-V3 requires the Hugging Face model weights and the
+# corresponding hardware/memory setup.
+# ============================================================================
+
+experiment:
+  seed: 42
+
+model:
+  task: "language_modeling"
+
+  transformer_replacement:
+    enabled: true
+    model_name: "deepseek-ai/DeepSeek-V3"
+    layers: [0, 1, 2]
+    target_module: "mlp"
+    layers_attr: "model.layers"
+    input_transform: "signed_split"
+    preserve_device_dtype: true
+    model_kwargs:
+      device_map: "auto"
+      torch_dtype: "auto"
+
+  core:
+    type: "dendritic_ffn"
+    architecture:
+      excitatory_layer_sizes: [512]
+      excitatory_branch_factors: [3, 3]
+    connectivity:
+      ee_synapses_per_branch_per_layer: [40]
+      ei_synapses_per_branch_per_layer: [0]
+      ie_synapses_per_branch_per_layer: [0]
+      ii_synapses_per_branch_per_layer: [0]
+    transfer:
+      input_transform: "signed_split"
+    morphology:
+      use_shunting: true
+      weight_transform: "softplus"
+      dbl_init_method: "analytical_expectation"
+    sparsity:
+      type: "indexed_dynamic"
+      init_method: "xavier_normal"
+      noise_level: 0.0
+      temperature: 0.5
+      indexed:
+        candidate_size: 256
+        selection: "stochastic"
+        seed: 42
+        output_chunk_size: 2048
+    reactivation:
+      enabled: true
+      type: "param_tanh"
+      init_policy: "analytical"
+
+training:
+  main:
+    strategy: "standard"
+    common:
+      epochs: 0
+    optimizer:
+      name: "adamw"
+      lr: 0.0003
+      weight_decay: 0.01
+
+  # Enable this block with the dedicated distillation runner:
+  #
+  #   python -m dendritic_modeling.scripts.training.train_transformer_replacement \
+  #     configs/examples/deepseek_v3_mlp_dendritic_replacement.yaml
+  #
+  # For DeepSeek-V3 scale, use teacher_source: hf_text with a real text file
+  # and a hardware setup that can load/run the teacher model. For first local
+  # checks, use configs/examples/transformer_replacement_synthetic_distillation.yaml.
+  transformer_replacement:
+    enabled: false
+    mode: "layerwise_distillation"
+    teacher_source: "hf_text"
+    train_target: "replacement_only"
+    layers: [0, 1, 2]
+    device: "cuda"
+    dtype: "bfloat16"
+    sequence_length: 128
+    batch_size: 1
+    max_steps: 1000
+    eval_every: 100
+    log_every: 10
+    loss: "mse"
+    save_dir: "results/deepseek_v3_dendritic_mlp_distillation"
+    save_replacements: true
+    text:
+      text_path: "/path/to/text_corpus.txt"
+      tokenizer_name: "deepseek-ai/DeepSeek-V3"
+      max_tokens: 1000000
+
+analysis:
+  performance: { enabled: false, training: false, params: {} }

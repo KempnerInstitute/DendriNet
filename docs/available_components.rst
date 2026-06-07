@@ -3,6 +3,40 @@ Available Components
 
 Quick reference of all implemented components and their configuration strings.
 
+Extension Registries
+--------------------
+
+Most built-in components below are still selected by YAML strings. For
+project-local extensions, use the registry APIs so new components can be added
+without editing central dispatch chains:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 28 36 36
+
+   * - Family
+     - Registry API
+     - Selection path
+   * - Architecture / core
+     - ``dendritic_modeling.networks.architectures.register_architecture``
+     - ``model.core.type`` or direct ``get_architecture(...)`` calls
+   * - Optimizer
+     - ``dendritic_modeling.training.optimizers.register_optimizer``
+     - ``training.main.optimizer.name``
+   * - Loss
+     - ``dendritic_modeling.training.loss.register_loss_function``
+     - trainer ``loss_function`` / configured loss name
+   * - Dataset
+     - ``dendritic_modeling.datasets.register_dataset``
+     - ``data.task.dataset``
+   * - Analyzer metadata
+     - ``dendritic_modeling.analysis.register_analyzer``
+     - metadata/discovery only; execution remains in ``AnalysisManager``
+
+Built-in architecture names are reserved and cannot be shadowed by extension
+registrations. This keeps existing experiments reproducible while allowing new
+components to be introduced cleanly.
+
 Core Network Types
 ------------------
 
@@ -28,6 +62,14 @@ Core Network Types
      - Generic E-I; reads use_shunting from config
    * - ``ei_unified``
      - Unified E-I (feedforward + recurrent capable)
+   * - ``population_graph``
+     - Named recurrent dendritic populations for cell-type experiments
+   * - ``cell_type_graph``, ``cell_types``
+     - Aliases for ``population_graph``
+   * - ``multi_population_ei``
+     - Multi-population feedforward/recurrent dendritic layers with named
+       populations, per-population morphology, and validated directional
+       same-step connections
    * - ``rnn_dendritic_shunting``, ``rnn_dendritic_additive``
      - Unified recurrent-EI aliases with type-implied shunting/additive defaults
    * - ``point_mlp``
@@ -98,6 +140,12 @@ Set via ``model.core.sparsity.type``. Canonical values are:
      - Variance-aware selection
    * - ``deepst``
      - Dynamic rewiring with density targets
+   * - ``indexed``
+     - Fixed-index sparse synapses that store only ``out_features x K``
+       weights plus integer presynaptic indices
+   * - ``indexed_dynamic``
+     - Candidate-pool sparse TopK; stores ``out_features x C`` candidate
+       weights and dynamically selects ``K`` active candidates per forward pass
 
 ``topk`` is retained as a backward-compatible alias for ``standard``.
 
@@ -114,6 +162,183 @@ Set via ``model.core.morphology.weight_transform``:
 For biologically constrained recurrent runs, pair a positive transform
 (``exp`` or ``softplus``) with ``allow_self_recurrence: false`` in the
 population config to remove same-population autaptic feedback.
+
+Recurrent Extensions
+--------------------
+
+.. list-table::
+   :header-rows: 1
+   :widths: 24 32 44
+
+   * - Component
+     - Config keys
+     - Notes
+   * - Named cell types
+     - ``model.core.population_graph.cell_types``
+     - Each entry defines ``name``, ``polarity``, ``n_neurons``, and
+       ``branch_factors``.
+   * - Source-target cell-type masks
+     - ``model.core.population_graph.connections``
+     - Optional ``source``, ``target``, ``enabled``, ``probability`` /
+       ``p_connect``, and ``seed``.
+   * - Structured TopK masks
+     - ``model.core.connectivity.structured``
+     - Supports ``fixed_indegree``, ``bernoulli``, and ``distance`` pathway
+       masks for feedforward and recurrent E/I pathways.
+   * - Synapse types
+     - ``synapse_types.enabled``, ``excitatory``, ``inhibitory``
+     - Each type can define ``name``, ``fraction``, ``tau`` or
+       ``tau_rise``/``tau_decay``, ``magnesium_block``, ``stp``, and
+       ``reversal_potential``.
+   * - Spiking soma
+     - ``dynamics_mode: spike`` or ``model.core.dynamics.mode: spike``
+     - LIF soma with ``spike_readout`` set to ``spikes``, ``rate``, or
+       ``membrane``.
+   * - Dendritic spike / plateau events
+     - ``dendritic_spikes_enabled`` or
+       ``model.core.dynamics.dendritic_spikes.enabled``
+     - Optional local branch threshold/plateau events at distal, proximal, or
+       all non-soma dendritic levels; propagation can be ``additive``,
+       ``replace``, or ``gated``.
+   * - Soma-to-dendrite feedback
+     - ``soma_feedback_enabled`` or ``model.core.soma_feedback.enabled``
+     - Optional previous-timestep soma output/voltage/readout projected back
+       into dendritic levels as additive, shunting, or gated feedback.
+   * - Transformer FFN replacement
+     - ``model.transformer_replacement`` plus ``model.core.type: dendritic_ffn``
+     - Hugging Face model patcher for replacing decoder-block MLP/FFN modules
+       with token-wise ``DendriticFFNReplacement`` modules; use
+       ``sparsity.type: indexed_dynamic`` for low-parameter dynamic TopK.
+   * - Transformer replacement distillation
+     - ``training.transformer_replacement``
+     - Layerwise block-output distillation for dendritic FFN replacements using
+       ``synthetic_mlp``, ``hidden_cache``, or ``hf_text`` teacher sources.
+   * - Recurrent analysis introspection
+     - ``analysis.utils.recurrent_introspection`` and
+       ``analysis.spike_train``
+     - Shared helper for legacy E/I and named-population analysis tools, plus
+       LIF raster/rate/ISI/Fano summaries.
+   * - Recurrent protocols
+     - ``networks.RecurrentCore``, ``networks.SteppableRecurrentCore``
+     - Small structural interfaces for trainer-facing sequence cores and
+       one-step recurrent dendritic populations.
+
+Multi-Population Layers
+-----------------------
+
+Set ``model.core.type: multi_population_ei`` to define layers with more than
+one named cell population. Each population owns its own ``PopulationConfig``
+payload, so morphology and dynamics can differ by population.
+
+The current two-population E/I feedforward layer is the simple special case:
+
+.. code-block:: yaml
+
+   model:
+     core:
+       type: multi_population_ei
+       multi_population:
+         layers:
+           - name: layer0
+             readout_population: e
+             population_defaults:
+               ff_excitatory_synapses: 4
+               ff_inhibitory_synapses: 2
+               rec_excitatory_synapses: 0
+               rec_inhibitory_synapses: 0
+               reactivate: true
+             populations:
+               - name: i
+                 polarity: inhibitory
+                 n_neurons: 16
+                 branch_factors: [1]
+               - name: e
+                 polarity: excitatory
+                 n_neurons: 64
+                 branch_factors: [3, 2]
+             connections:
+               - source: input
+                 target: i
+               - source: input
+                 target: e
+               - source: i
+                 target: e
+
+For legacy-style independent transfer streams, enable the transfer layer and
+use explicit external source names. ``source: input`` remains the compatibility
+stream; ``source: input_e`` and ``source: input_i`` refer to the excitatory and
+inhibitory tensors returned by ``TransferLayer`` on the first layer:
+
+.. code-block:: yaml
+
+   model:
+     core:
+       type: multi_population_ei
+       multi_population:
+         use_transfer: true
+         transfer_params:
+           input_mode: 0
+           independent_pathways: true
+           excitatory_dim: 392
+           inhibitory_dim: 392
+         layers:
+           - name: layer0
+             readout_population: e
+             population_defaults:
+               ff_excitatory_synapses: 4
+               ff_inhibitory_synapses: 2
+               rec_excitatory_synapses: 0
+               rec_inhibitory_synapses: 0
+             populations:
+               - name: i
+                 polarity: inhibitory
+                 n_neurons: 16
+                 branch_factors: [1]
+               - name: e
+                 polarity: excitatory
+                 n_neurons: 64
+                 branch_factors: [3, 2]
+             connections:
+               - source: input_e
+                 target: i
+               - source: input_e
+                 target: e
+               - source: input_i
+                 target: e
+               - source: i
+                 target: e
+
+Same-step population-to-population connections must be directional and
+acyclic. For example, ``i -> e`` is allowed, but ``e -> i`` plus ``i -> e`` in
+the same layer and same timestep raises a config error. Bidirectional
+population interactions are supported with ``timing: delayed`` on recurrent
+layers, where they use previous-timestep outputs instead of creating an
+algebraic loop.
+
+For multiple layers, each layer defines its own population graph.
+``source: input`` remains the compatibility shorthand for the previous layer's
+readout stream. Prefer explicit qualified sources when a later layer should
+receive specific earlier populations:
+
+.. code-block:: yaml
+
+   connections:
+     - source: layer0.e0
+       target: i1
+     - source: layer0.e0
+       target: e1
+     - source: layer0.i0
+       target: e1
+     - source: i1
+       target: e1
+
+Same-step qualified sources must come from earlier layers. Delayed qualified
+sources are allowed on recurrent target layers and use previous-timestep
+population outputs.
+
+If ``input_projection_dims`` is combined with ``use_transfer: true``, the
+projection applies to ``input``/``input_e``. ``input_i`` keeps the inhibitory
+dimension produced by ``TransferLayer``.
 
 Activation Types
 ----------------
@@ -184,7 +409,8 @@ Available modules: ``performance``, ``information``, ``ablation``,
 ``routing``, ``receptive_field``, ``adversarial_robustness``,
 ``single_layer_contribution``, ``synaptic_activation``, ``branch_activation``,
 ``reactivation_dynamics``, ``inhibitory_specialization``,
-``jacobian_spectrum``, ``dendritic_timetraces``.
+``jacobian_spectrum``, ``dendritic_timetraces``, ``local_rule_components``,
+``spike_train``.
 
 Information Analysis Components
 -------------------------------

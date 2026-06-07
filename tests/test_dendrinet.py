@@ -241,6 +241,23 @@ class TestDendriNet(unittest.TestCase):
         # Ensure output is non-negative due to the activation function
         self.assertTrue(torch.all(output >= 0))
 
+    def test_dendritic_activation_alias_applies_to_all_layers(self):
+        """Test public dendritic_activation alias for tree-level activation."""
+        model = DendriNet(
+            n_soma=1,
+            branch_factors=[2, 2],
+            excitatory_input_dim=10,
+            excitatory_synapses_per_branch=3,
+            reactivate=False,
+            dendritic_activation="tanh",
+        )
+
+        self.assertEqual(model.dendritic_activation, "tanh")
+        for layer in model.branch_layers:
+            self.assertTrue(layer.reactivate)
+            self.assertEqual(layer.dendritic_activation, "tanh")
+            self.assertIsInstance(layer.reactivation, torch.nn.Tanh)
+
     def test_no_activation_function(self):
         """Test the network when reactivate is False."""
         n_soma = 1

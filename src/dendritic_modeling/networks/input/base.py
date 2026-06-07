@@ -42,6 +42,7 @@ class InputNetTransform(nn.Module):
         excitatory_strides: Optional[list[int]] = None,
         inhibitory_strides: Optional[list[int]] = None,
         network_type: str = "MLP",
+        split_seed: Optional[int] = None,
     ):
         super().__init__()
         self.network_type = network_type
@@ -51,6 +52,7 @@ class InputNetTransform(nn.Module):
                 input_dim=input_dim,
                 excitatory_dim=excitatory_dim,
                 inhibitory_dim=inhibitory_dim,
+                split_seed=split_seed,
             )
 
         elif network_type == "MLP":

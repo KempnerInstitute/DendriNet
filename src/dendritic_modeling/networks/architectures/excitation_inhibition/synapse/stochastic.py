@@ -37,6 +37,7 @@ class StochasticTopKLinear(TopKLinear):
         weight_norm_order: Optional[int] = None,
         gamma: float = 1.0,
         forbidden_input_index_per_output: Optional[torch.Tensor] = None,
+        connection_mask: Optional[torch.Tensor] = None,
         temperature=0.5,  # extra hyperparam for sharper or flatter gating
         ultrafast=False,  # Set to True for much faster but approximate implementation
     ):
@@ -52,9 +53,11 @@ class StochasticTopKLinear(TopKLinear):
             weight_norm_order=weight_norm_order,
             gamma=gamma,
             forbidden_input_index_per_output=forbidden_input_index_per_output,
+            connection_mask=connection_mask,
         )
         self.temperature = temperature
         self.ultrafast = ultrafast
+        self.initialize()
 
     def weight_mask_ultrafast(self):
         """
@@ -68,7 +71,8 @@ class StochasticTopKLinear(TopKLinear):
         # Ensure K is valid and an integer
         k_value = max(1, int(self.K))
 
-        # Apply scaled and temperature-controlled noise
+        # Apply scaled and temperature-controlled noise only to structurally
+        # allowed scores; forbidden positions are masked before selection.
         w_for_topk = self.pre_w.clone()
 
         # Generate noise with standard deviation that scales with temperature
@@ -76,8 +80,7 @@ class StochasticTopKLinear(TopKLinear):
         noise = torch.randn_like(w_for_topk) * noise_scale
 
         # Simply add noise to weights - simpler but still effective approach
-        noisy_weights = w_for_topk + noise
-        noisy_weights = self._apply_forbidden_scores(noisy_weights)
+        noisy_weights = self._apply_forbidden_scores(w_for_topk + noise)
 
         # Perform standard TopK selection on the noisy weights
         topK_indices = torch.topk(
@@ -100,21 +103,24 @@ class StochasticTopKLinear(TopKLinear):
 
         return mask
 
-    def weight_mask(self):
-        """
-        Stochastic TopK selection using ultrafast noise-based approximation.
+    def weight_mask_rank_probabilistic(self):
+        """Rank-probabilistic stochastic TopK selection.
 
-        This replaces the complex rank-based probability sampling with simple noise addition,
-        providing 10-50x speedup with similar stochastic behavior.
+        Ranks are computed after applying structured/forbidden masks. The
+        sampled mask is corrected to avoid pathological all-off rows, then the
+        hard structural mask is applied again before returning.
         """
-        # Always use ultrafast implementation (much faster with similar behavior)
-        return self.weight_mask_ultrafast()
 
-        # Apply noise if requested
-        w_for_topk = self.pre_w
+        if self.temperature <= 0.0:
+            return super().weight_mask()
+
+        # Rank by transformed synaptic strength, not raw parameter magnitude.
+        w_for_topk = self.weight()
+        if self.weight_transform == "identity":
+            w_for_topk = w_for_topk.abs()
         if self.noise_level > 0:
-            noise = torch.randn_like(self.pre_w) * self.noise_level
-            w_for_topk = self.pre_w + noise
+            noise = torch.randn_like(w_for_topk) * self.noise_level
+            w_for_topk = w_for_topk + noise
 
         # Ensure K is an integer and at least 1
         k_value = max(1, int(self.K))
@@ -122,12 +128,11 @@ class StochasticTopKLinear(TopKLinear):
         # Get dimensions
         out_features, in_features = w_for_topk.shape
 
-        # Calculate absolute values for ranking
-        abs_weights = w_for_topk.abs()
+        scores = self._apply_forbidden_scores(w_for_topk)
 
         # For each neuron, sort the input weights and get the ranks
         # - First, get the indices that would sort each row in descending order
-        _, sort_indices = torch.sort(abs_weights, dim=1, descending=True)
+        _, sort_indices = torch.sort(scores, dim=1, descending=True)
 
         # - Create a rank tensor with the same shape as weights
         # Ensure the dtype is the same as what we'll assign to it (Long/Int64)
@@ -165,10 +170,11 @@ class StochasticTopKLinear(TopKLinear):
             too_few_indices = too_few_mask.nonzero(as_tuple=False).view(-1)
             for i in too_few_indices:
                 # Get the indices of the top-K weights for this neuron
-                _, top_indices = torch.topk(abs_weights[i], k_value, largest=True)
+                _, top_indices = torch.topk(scores[i], k_value, largest=True)
                 mask[i, top_indices] = 1
 
         # 3. For neurons with too many connections (more than 2*K), keep only the top 2*K
+        connections_per_neuron = mask.sum(dim=1)
         too_many_mask = connections_per_neuron > (2 * k_value)
         if too_many_mask.any():
             # Safe handling of nonzero indices to avoid 0-d tensor issues
@@ -178,7 +184,7 @@ class StochasticTopKLinear(TopKLinear):
                 # First, get indices of all connections that are currently active
                 active_indices = mask[i].nonzero(as_tuple=True)[0]
                 # Get their weights
-                active_weights = abs_weights[i, active_indices]
+                active_weights = scores[i, active_indices]
                 # Sort from weakest to strongest
                 _, sorted_indices = torch.sort(active_weights)
                 # Calculate how many to remove
@@ -189,16 +195,24 @@ class StochasticTopKLinear(TopKLinear):
                     mask[i, indices_to_remove] = 0
 
         # 4. Handle neurons with zero connections
+        connections_per_neuron = mask.sum(dim=1)
         zero_connections = connections_per_neuron == 0
         if zero_connections.any():
             # Safe handling of nonzero indices to avoid 0-d tensor issues
             zero_indices = zero_connections.nonzero(as_tuple=False).view(-1)
             for i in zero_indices:
                 # Get the index of the strongest weight for this neuron
-                strongest_idx = torch.argmax(abs_weights[i])
+                strongest_idx = torch.argmax(scores[i])
                 mask[i, strongest_idx] = 1
 
-        return mask
+        return self._apply_forbidden_mask(mask)
+
+    def weight_mask(self):
+        """Return a stochastic TopK mask using the configured sampling mode."""
+
+        if self.ultrafast:
+            return self.weight_mask_ultrafast()
+        return self.weight_mask_rank_probabilistic()
 
 
 __all__ = ["StochasticTopKLinear"]

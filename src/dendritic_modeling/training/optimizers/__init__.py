@@ -6,6 +6,19 @@ for dendritic network training.
 """
 
 from dendritic_modeling.training.optimizers.custom import CustomWeightDecayOptimizer
-from dendritic_modeling.training.optimizers.factory import create_optimizer
+from dendritic_modeling.training.optimizers.factory import (
+    create_optimizer,
+    get_available_optimizers,
+    register_optimizer,
+    unregister_optimizer,
+    validate_optimizer_config,
+)
 
-__all__ = ["CustomWeightDecayOptimizer", "create_optimizer"]
+__all__ = [
+    "CustomWeightDecayOptimizer",
+    "create_optimizer",
+    "get_available_optimizers",
+    "register_optimizer",
+    "unregister_optimizer",
+    "validate_optimizer_config",
+]

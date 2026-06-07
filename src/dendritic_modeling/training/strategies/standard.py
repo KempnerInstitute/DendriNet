@@ -31,7 +31,10 @@ from dendritic_modeling.training.distributed_samplers import (
     PaddedDistributedEvalSampler,
 )
 from dendritic_modeling.training.loss.functions import LossFunction, get_loss_function
-from dendritic_modeling.training.regularization import RegularizationManager
+from dendritic_modeling.training.regularization import (
+    PruningManager,
+    RegularizationManager,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +76,7 @@ class Trainer:
         self.suppress_prints = suppress_prints
         self.print_every = print_every
         self.analysis_manager = analysis_manager
+        self.seed = int(kwargs.get("seed", 0) or 0)
 
         regularization_config = kwargs.get("regularization_config")
         pruning_config = kwargs.get("pruning_config")
@@ -85,6 +89,7 @@ class Trainer:
 
         # Initialize RegularizationManager
         self.regularization_manager = RegularizationManager(self.regularization_config)
+        self.pruning_manager = PruningManager(self.pruning_config)
 
         # Log regularization settings
         if (
@@ -248,6 +253,7 @@ class Trainer:
                 num_replicas=world_size,
                 rank=rank,
                 shuffle=self.shuffle,
+                seed=self.seed,
             )
             self._valid_sampler = PaddedDistributedEvalSampler(
                 valid_data,
@@ -657,6 +663,7 @@ class Trainer:
         train_loss_total = 0
         train_loss_base = 0
         train_loss_reg = 0
+        n_batches = 0
 
         # Check once if regularization is enabled to avoid repeated checks
         has_regularization = self.regularization_manager.has_regularization()
@@ -745,10 +752,31 @@ class Trainer:
             train_loss_total += total_loss.item()
             train_loss_base += base_loss.item()
             train_loss_reg += reg_loss_item
+            n_batches += 1
 
-        train_loss_total /= len(train_loader)
-        train_loss_base /= len(train_loader)
-        train_loss_reg /= len(train_loader)
+        if self._is_distributed:
+            stats = torch.tensor(
+                [
+                    float(train_loss_total),
+                    float(train_loss_base),
+                    float(train_loss_reg),
+                    float(n_batches),
+                ],
+                device=self.device,
+                dtype=torch.float64,
+            )
+            dist.all_reduce(stats, op=dist.ReduceOp.SUM)
+            train_loss_total, train_loss_base, train_loss_reg, n_batches = (
+                stats[0].item(),
+                stats[1].item(),
+                stats[2].item(),
+                int(stats[3].item()),
+            )
+
+        denom = max(n_batches, 1)
+        train_loss_total /= denom
+        train_loss_base /= denom
+        train_loss_reg /= denom
         return train_loss_total, train_loss_base, train_loss_reg
 
     def _epoch_valid(
@@ -811,6 +839,43 @@ class Trainer:
         )
         dist.all_reduce(stats, op=dist.ReduceOp.SUM)
         return stats[0].item() / max(stats[1].item(), 1.0)
+
+    def _evaluate_loader_loss(self, model: BaseModel, loader: DataLoader) -> float:
+        if self._is_distributed:
+            return self._epoch_valid_distributed(self._unwrap_model(model), loader)
+        loss_sum, n_batches = self._epoch_valid(model, loader)
+        return loss_sum / max(n_batches, 1)
+
+    def _apply_pruning_and_evaluate(
+        self,
+        model: BaseModel,
+        train_data: torch.utils.data.Dataset,
+        valid_data: torch.utils.data.Dataset,
+    ) -> dict:
+        """Apply configured pruning after training and measure pre/post loss."""
+        if not hasattr(self, "device"):
+            self._initialize_attributes(model, self.epochs)
+
+        train_loader, valid_loader = self._dataloaders(train_data, valid_data)
+        unwrapped = self._unwrap_model(model)
+
+        pre_train_loss = self._evaluate_loader_loss(model, train_loader)
+        pre_valid_loss = self._evaluate_loader_loss(model, valid_loader)
+        pruning_stats = self.pruning_manager.prune_model(unwrapped)
+        post_train_loss = self._evaluate_loader_loss(model, train_loader)
+        post_valid_loss = self._evaluate_loader_loss(model, valid_loader)
+
+        return {
+            "pruning_stats": pruning_stats,
+            "pre_pruning_performance": {
+                "train_loss": pre_train_loss,
+                "valid_loss": pre_valid_loss,
+            },
+            "post_pruning_performance": {
+                "train_loss": post_train_loss,
+                "valid_loss": post_valid_loss,
+            },
+        }
 
     def _update_best(self, model: BaseModel, valid_loss: float) -> None:
         if valid_loss < self.best_loss:

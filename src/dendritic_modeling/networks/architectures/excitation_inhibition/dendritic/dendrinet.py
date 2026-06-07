@@ -10,8 +10,12 @@ from copy import deepcopy
 import torch
 import torch.nn as nn
 
+from dendritic_modeling.networks.activations import resolve_dendritic_activation
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_layer import (
     DendriticBranchLayer,
+)
+from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.structured_mask import (
+    sample_configured_mask,
 )
 
 
@@ -46,6 +50,7 @@ class DendriNet(nn.Module):
         topk_strategy="none",
         use_shunting=True,
         reactivation_type="param_tanh",
+        dendritic_activation=None,
         reactivation_strategy="none",
         blocklinear_strategy="none",
         print_hooks=False,
@@ -68,9 +73,18 @@ class DendriNet(nn.Module):
         init_method=None,
         weight_threshold=1e-6,
         adaptive_initialization=True,  # Add adaptive initialization parameter
+        structured_connectivity=None,
+        structured_layer_idx: int = 0,
+        structured_excitatory_pathway: str = "ee",
+        structured_inhibitory_pathway: str = "ie",
         **kwargs,
     ):
         super().__init__()
+        reactivate, reactivation_type = resolve_dendritic_activation(
+            dendritic_activation,
+            reactivate,
+            reactivation_type,
+        )
 
         if not isinstance(n_soma, int):
             raise TypeError("n_soma must be an integer")
@@ -87,6 +101,7 @@ class DendriNet(nn.Module):
 
         # Store branch factors for network-aware initialization
         self.branch_factors = deepcopy(branch_factors)
+        self.dendritic_activation = reactivation_type if reactivate else "none"
 
         if (
             inhibitory_input_dim is not None
@@ -114,13 +129,46 @@ class DendriNet(nn.Module):
         branch_factors.reverse()
         branch_factors.insert(0, None)
         branch_layers = []
+
+        def _structured_mask(pathway, out_dim, in_dim, synapses_per_branch, level_idx):
+            if (
+                in_dim is None
+                or synapses_per_branch is None
+                or synapses_per_branch <= 0
+            ):
+                return None
+            return sample_configured_mask(
+                structured_connectivity,
+                pathway=pathway,
+                out_features=out_dim,
+                in_features=in_dim,
+                layer_idx=structured_layer_idx,
+                level_idx=level_idx,
+            )
+
         for i in range(self.n_branch_layers):
+            excitatory_connection_mask = _structured_mask(
+                structured_excitatory_pathway,
+                layer_sizes[i],
+                excitatory_input_dim,
+                excitatory_synapses_per_branch,
+                i,
+            )
+            inhibitory_connection_mask = _structured_mask(
+                structured_inhibitory_pathway,
+                layer_sizes[i],
+                inhibitory_input_dim,
+                inhibitory_synapses_per_branch,
+                i,
+            )
             lyr = DendriticBranchLayer(
                 output_dim=layer_sizes[i],
                 excitatory_input_dim=excitatory_input_dim,
                 excitatory_synapses_per_branch=excitatory_synapses_per_branch,
                 inhibitory_input_dim=inhibitory_input_dim,
                 inhibitory_synapses_per_branch=inhibitory_synapses_per_branch,
+                excitatory_connection_mask=excitatory_connection_mask,
+                inhibitory_connection_mask=inhibitory_connection_mask,
                 input_branch_factor=branch_factors[i],
                 topk_init_method=topk_init_method,
                 topk_noise_level=topk_noise_level,
@@ -133,6 +181,7 @@ class DendriNet(nn.Module):
                 topk_strategy=topk_strategy,
                 use_shunting=use_shunting,
                 reactivate=reactivate,
+                dendritic_activation=dendritic_activation,
                 reactivation_init_m=reactivation_init_m,
                 reactivation_init_b=reactivation_init_b,
                 reactivation_init_policy=reactivation_init_policy,
@@ -162,6 +211,21 @@ class DendriNet(nn.Module):
             branch_layers.append(lyr)
 
         if somatic_synapses:
+            soma_level_idx = self.n_branch_layers
+            excitatory_connection_mask = _structured_mask(
+                structured_excitatory_pathway,
+                n_soma,
+                excitatory_input_dim,
+                excitatory_synapses_per_branch,
+                soma_level_idx,
+            )
+            inhibitory_connection_mask = _structured_mask(
+                structured_inhibitory_pathway,
+                n_soma,
+                inhibitory_input_dim,
+                inhibitory_synapses_per_branch,
+                soma_level_idx,
+            )
             branch_layers.append(
                 DendriticBranchLayer(
                     output_dim=n_soma,
@@ -169,6 +233,8 @@ class DendriNet(nn.Module):
                     excitatory_synapses_per_branch=excitatory_synapses_per_branch,
                     inhibitory_input_dim=inhibitory_input_dim,
                     inhibitory_synapses_per_branch=inhibitory_synapses_per_branch,
+                    excitatory_connection_mask=excitatory_connection_mask,
+                    inhibitory_connection_mask=inhibitory_connection_mask,
                     input_branch_factor=branch_factors[-1],
                     topk_init_method=topk_init_method,
                     topk_noise_level=topk_noise_level,
@@ -181,6 +247,7 @@ class DendriNet(nn.Module):
                     topk_strategy=topk_strategy,
                     use_shunting=use_shunting,
                     reactivate=reactivate,
+                    dendritic_activation=dendritic_activation,
                     reactivation_init_m=reactivation_init_m,
                     reactivation_init_b=reactivation_init_b,
                     reactivation_init_policy=reactivation_init_policy,
@@ -228,6 +295,7 @@ class DendriNet(nn.Module):
                     topk_strategy=topk_strategy,
                     use_shunting=use_shunting,
                     reactivate=reactivate,
+                    dendritic_activation=dendritic_activation,
                     reactivation_init_m=reactivation_init_m,
                     reactivation_init_b=reactivation_init_b,
                     reactivation_init_policy=reactivation_init_policy,

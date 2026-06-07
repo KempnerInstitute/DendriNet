@@ -289,6 +289,90 @@ class MainTrainingConfig(BaseConfig):
 
 
 @dataclass
+class TransformerReplacementTrainingConfig(BaseConfig):
+    """Training options for transformer MLP/FFN dendritic replacements.
+
+    This block controls *how* the transformer replacement is trained.  The
+    target model/layers still live in ``model.transformer_replacement`` and the
+    dendritic replacement architecture still lives in ``model.core``.
+
+    Supported ``teacher_source`` values:
+
+    - ``"synthetic_mlp"``: train against a small generated teacher MLP.  This is
+      the fast smoke-test path and does not require Hugging Face dependencies.
+    - ``"hidden_cache"``: train from saved hidden-state/target tensors.
+    - ``"hf_text"``: run a Hugging Face causal LM on raw text and distill the
+      selected MLP modules from captured hidden activations.
+    """
+
+    enabled: bool = False
+    mode: str = "layerwise_distillation"
+    teacher_source: str = "synthetic_mlp"
+    train_target: str = "replacement_only"
+    layers: list[int] = field(default_factory=list)
+    device: str = "auto"
+    dtype: str = "float32"
+    seed: int | None = None
+    data_parallel: bool = False
+    data_parallel_devices: list[int] = field(default_factory=list)
+
+    max_steps: int = 200
+    eval_every: int = 50
+    log_every: int = 25
+    batch_size: int = 32
+    sequence_length: int = 8
+    train_samples: int = 2048
+    valid_samples: int = 512
+
+    hidden_size: int | None = None
+    intermediate_size: int | None = None
+    synthetic_teacher: dict[str, Any] = field(
+        default_factory=lambda: {
+            "kind": "gated_mlp",
+            "activation": "silu",
+            "bias": False,
+            "input_std": 1.0,
+        }
+    )
+    hidden_cache: dict[str, Any] = field(
+        default_factory=lambda: {
+            "train_inputs": "",
+            "train_targets": "",
+            "valid_inputs": "",
+            "valid_targets": "",
+        }
+    )
+    text: dict[str, Any] = field(
+        default_factory=lambda: {
+            "text_path": "",
+            "dataset_name": "",
+            "dataset_config": "",
+            "split": "train",
+            "text_field": "text",
+            "max_documents": None,
+            "streaming": False,
+            "tokenizer_name": "",
+            "tokenizer_kwargs": {},
+            "max_tokens": None,
+        }
+    )
+
+    loss: str = "mse"
+    cosine_weight: float = 0.0
+    lm_loss_weight: float = 1.0
+    kl_loss_weight: float = 0.0
+    kl_temperature: float = 1.0
+    hidden_loss_weight: float = 0.0
+    hidden_loss_layers: list[int] = field(default_factory=list)
+    warm_start_dir: str = ""
+    gradient_checkpointing: bool = False
+    max_grad_norm: float | None = None
+    save_dir: str = "results/transformer_replacement_distillation"
+    save_replacements: bool = True
+    use_amp: bool = False
+
+
+@dataclass
 class ThreeFactorConfig(BaseConfig):
     """Parameters for 3-factor (3F) base learning rule.
 
@@ -414,6 +498,47 @@ class HSICConfig(BaseConfig):
 
 
 @dataclass
+class STDPConfig(BaseConfig):
+    """Parameters for spike-timing / trace-based local plasticity.
+
+    The rule is implemented at the same TopK synapse sites used by LocalCA. It
+    can run alone via ``rule_variant: "stdp"`` or as an auxiliary update on top
+    of 3F/4F/5F by setting ``stdp.enabled: true``.
+    """
+
+    enabled: bool = False
+    # Pathways are TopK inputs recorded on each DendriticBranchLayer:
+    # "exc", "inh", "rec_exc", "rec_inh".
+    apply_to: list[str] = field(default_factory=lambda: ["exc", "rec_exc"])
+    activity_mode: str = "relu"  # "relu", "identity", "binary", "abs"
+    pre_threshold: float = 0.0
+    post_threshold: float = 0.0
+    tau_pre: float = 20.0
+    tau_post: float = 20.0
+    a_plus: float = 1.0
+    a_minus: float = 0.5
+    learning_rate_scale: float = 1.0
+    inhibitory_update_sign: float = -1.0
+    use_error_modulation: bool = False
+    error_modulation_mode: str = "scalar_abs"  # "scalar_abs", "scalar_signed"
+    clamp_update: float = 0.0
+    detach_traces: bool = True
+
+    def __post_init__(self) -> None:
+        if isinstance(self.apply_to, str):
+            self.apply_to = [self.apply_to]
+        elif self.apply_to is None:
+            self.apply_to = ["exc", "rec_exc"]
+        self.apply_to = [
+            str(pathway).strip().lower().replace("-", "_") for pathway in self.apply_to
+        ]
+        self.activity_mode = str(self.activity_mode).strip().lower()
+        self.error_modulation_mode = (
+            str(self.error_modulation_mode).strip().lower().replace("-", "_")
+        )
+
+
+@dataclass
 class InhibitoryHomeostasisConfig(BaseConfig):
     """Parameters for local inhibitory homeostasis updates.
 
@@ -467,11 +592,11 @@ class LocalRuleConfig(BaseConfig):
     """Configuration for local learning rules.
 
     Organizes parameters by learning rule method for clarity.
-    Each rule (3F/4F/5F) has its own nested configuration.
+    Each rule (3F/4F/5F/STDP) has its own nested configuration.
     """
 
     # ========== CORE CONFIGURATION ==========
-    rule_variant: str = "3f"  # "3f", "4f", "5f" (also accepts *_vh aliases)
+    rule_variant: str = "3f"  # "3f", "4f", "5f", "stdp" (also accepts *_vh aliases)
 
     # ========== ERROR SIGNAL ==========
     error_mode: str = "auto"  # "auto", "mse", "ce", "bce"
@@ -514,6 +639,9 @@ class LocalRuleConfig(BaseConfig):
     # HSIC auxiliary loss
     hsic: HSICConfig = field(default_factory=HSICConfig)
 
+    # Trace-based spike-timing plasticity rule
+    stdp: STDPConfig = field(default_factory=STDPConfig)
+
     # Local inhibitory homeostasis
     inhibitory_homeostasis: InhibitoryHomeostasisConfig = field(
         default_factory=InhibitoryHomeostasisConfig
@@ -555,6 +683,22 @@ class LocalRuleConfig(BaseConfig):
     normalize_by_batch: bool = True
 
     def __post_init__(self) -> None:
+        if isinstance(self.stdp, dict):
+            self.stdp = STDPConfig(**self.stdp)
+
+        normalized_rule = str(self.rule_variant).strip().lower().replace("-", "_")
+        stdp_aliases = {
+            "stdp",
+            "spike_timing",
+            "spike_timing_dependent_plasticity",
+            "trace_stdp",
+        }
+        if normalized_rule in stdp_aliases:
+            self.rule_variant = "stdp"
+            self.stdp.enabled = True
+        else:
+            self.rule_variant = normalized_rule
+
         mode = self._normalize_explicit_inhibitory_update_mode(
             self.explicit_inhibitory_update_mode
         )
@@ -615,3 +759,6 @@ class TrainingConfig(BaseConfig):
 
     encoder: EncoderTrainingConfig = field(default_factory=EncoderTrainingConfig)
     main: MainTrainingConfig = field(default_factory=MainTrainingConfig)
+    transformer_replacement: TransformerReplacementTrainingConfig = field(
+        default_factory=TransformerReplacementTrainingConfig
+    )

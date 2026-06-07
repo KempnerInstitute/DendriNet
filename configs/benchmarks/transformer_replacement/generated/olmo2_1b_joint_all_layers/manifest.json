@@ -1,0 +1,40 @@
+{
+  "variant": "1b",
+  "model_name": "allenai/OLMo-2-0425-1B",
+  "num_layers": 16,
+  "config_dir": "configs/benchmarks/transformer_replacement/generated/olmo2_1b_joint_all_layers",
+  "results_root": "results/transformer_replacement_benchmarks/olmo2_1b_joint_all_layers",
+  "configs": [
+    {
+      "name": "joint_b22_warm",
+      "config": "configs/benchmarks/transformer_replacement/generated/olmo2_1b_joint_all_layers/olmo2_1b_joint_b22_warm.yaml",
+      "save_dir": "results/transformer_replacement_benchmarks/olmo2_1b_joint_all_layers/joint_b22_warm",
+      "branch_factors": [
+        2,
+        2
+      ],
+      "warm_start_dir": "results/transformer_replacement_benchmarks/olmo2_1b_dolmino_all_layers/all_layer_checkpoints"
+    },
+    {
+      "name": "joint_b22_scratch",
+      "config": "configs/benchmarks/transformer_replacement/generated/olmo2_1b_joint_all_layers/olmo2_1b_joint_b22_scratch.yaml",
+      "save_dir": "results/transformer_replacement_benchmarks/olmo2_1b_joint_all_layers/joint_b22_scratch",
+      "branch_factors": [
+        2,
+        2
+      ],
+      "warm_start_dir": ""
+    },
+    {
+      "name": "joint_b222_scratch",
+      "config": "configs/benchmarks/transformer_replacement/generated/olmo2_1b_joint_all_layers/olmo2_1b_joint_b222_scratch.yaml",
+      "save_dir": "results/transformer_replacement_benchmarks/olmo2_1b_joint_all_layers/joint_b222_scratch",
+      "branch_factors": [
+        2,
+        2,
+        2
+      ],
+      "warm_start_dir": ""
+    }
+  ]
+}

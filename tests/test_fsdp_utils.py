@@ -109,6 +109,22 @@ class TestCreateFSDPWrapPolicy:
 class TestGetFSDPConfig:
     """Test get_fsdp_config function."""
 
+    @patch("torch.cuda.current_device", return_value=0)
+    def test_get_fsdp_config_mixed_precision_dtype_aliases_cpu_safe(
+        self, _mock_current_device
+    ):
+        config = get_fsdp_config(
+            fsdp_config_dict={
+                "mixed_precision": True,
+                "mixed_precision_dtype": "bf16",
+                "reduce_dtype": "fp32",
+            }
+        )
+
+        assert config["mixed_precision"].param_dtype is torch.bfloat16
+        assert config["mixed_precision"].reduce_dtype is torch.float32
+        assert config["mixed_precision"].buffer_dtype is torch.bfloat16
+
     @pytest.mark.skipif(
         not torch.cuda.is_available(), reason="CUDA not available - FSDP requires GPU"
     )

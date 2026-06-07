@@ -135,6 +135,14 @@ class HierarchicalDendriticTensorMap(BaseNetwork):
         """E-I layers (ExcitationInhibitionLayer list) from the inner EINet."""
         return self.einet.layers
 
+    @property
+    def somatic_synapses(self):
+        return getattr(self.einet, "somatic_synapses", True)
+
+    @property
+    def use_shunting(self):
+        return getattr(self.einet, "use_shunting", True)
+
     def get_effective_params(self) -> int:
         """Effective (post-sparsity) parameter count from the inner EINet.
 

@@ -51,8 +51,10 @@ dependencies = [
 "Documentation" = "https://github.com/kempner-institute/dendritic-modeling/blob/main/README.md"
 
 [project.scripts]
-dendritic-train = "dendritic_modeling.scripts.training.train_experiments:main"
-dendritic-sweep = "dendritic_modeling.scripts.sweeps.unified.sweep_manager:main"
+dendritic-train = "dendritic_modeling.scripts.training.train_experiments:cli_main"
+dendritic-train-transformer-replacement = "dendritic_modeling.scripts.training.train_transformer_replacement:main"
+dendritic-benchmark-transformer-replacement = "dendritic_modeling.scripts.training.benchmark_transformer_replacement:main"
+dendritic-sweep = "dendritic_modeling.scripts.sweeps.sweep_manager:main"
 dendritic-analyze = "dendritic_modeling.scripts.sweeps.result_analyzer:main"
 
 [tool.setuptools]
@@ -60,10 +62,6 @@ package-dir = {"" = "src"}
 
 [tool.setuptools.packages.find]
 where = ["src"]
-
-[tool.setuptools.package-data]
-dendritic_modeling = ["configs/*.yaml", "configs/**/*.yaml"]
-
 
 [project.optional-dependencies]
 test = [
@@ -105,6 +103,14 @@ train = [
     "ipython>=8.0.0",
 ]
 
+transformer = [
+    "transformers>=4.52,<5",
+    "datasets>=2.19",
+    "accelerate>=0.30",
+    "safetensors>=0.4",
+    "sentencepiece>=0.2",
+]
+
 docs = [
     "sphinx",
     "sphinx-rtd-theme",
@@ -117,7 +123,7 @@ docs = [
 ]
 
 all = [
-    "dendritic_modeling[dev,train,docs,tf]",
+    "dendritic_modeling[dev,train,docs,tf,transformer]",
 ]
 
 # Configuration for pytest

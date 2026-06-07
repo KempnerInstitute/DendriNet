@@ -17,6 +17,7 @@ import torch
 from tqdm import tqdm
 
 from dendritic_modeling.analysis.core.base import AbstractAnalyzer
+from dendritic_modeling.analysis.utils.einet_core import has_einet_core
 from dendritic_modeling.analysis.utils.runtime import (
     get_model_device,
     materialize_dataset,
@@ -24,10 +25,7 @@ from dendritic_modeling.analysis.utils.runtime import (
 from dendritic_modeling.config import InformationAnalysisParams
 from dendritic_modeling.config.analysis import EvaluationRuntimeConfig
 from dendritic_modeling.models import BaseModel
-from dendritic_modeling.networks import (
-    DendriticBranchLayer,
-    ExcitationInhibitionNetwork,
-)
+from dendritic_modeling.networks import DendriticBranchLayer
 from dendritic_modeling.plotting.visualizations.information_plots import (
     plot_fully_aggregated_analysis,
     plot_info_vs_ei_depth_per_dendritic_layer,
@@ -1069,18 +1067,24 @@ class InformationAnalyzer(AbstractAnalyzer):
         else:
             means = []
             variances = []
+            counts = []
             for c in uniq:
                 mc = labels == c
-                if np.sum(mc) <= 1:
+                n_c = int(np.sum(mc))
+                if n_c <= 1:
                     continue
                 means.append(np.mean(x[mc], axis=0))
                 variances.append(np.var(x[mc], axis=0))
+                counts.append(n_c)
             if len(means) <= 1:
                 return 0.0, 0.0
             means = np.stack(means, axis=0)
             variances = np.stack(variances, axis=0)
-            between_var = np.var(means, axis=0)
-            within_var = np.mean(variances, axis=0)
+            weights = np.asarray(counts, dtype=float)
+            weights /= max(float(weights.sum()), eps)
+            grand_mean = np.average(means, axis=0, weights=weights)
+            between_var = np.average((means - grand_mean) ** 2, axis=0, weights=weights)
+            within_var = np.average(variances, axis=0, weights=weights)
             fisher = between_var / (within_var + eps)
 
         fisher = np.maximum(0.0, fisher)
@@ -1144,8 +1148,8 @@ class InformationAnalyzer(AbstractAnalyzer):
         mu1 = np.mean(x1, axis=0)
         dmu = mu1 - mu0
 
-        cov0 = np.atleast_2d(np.cov(x0, rowvar=False))
-        cov1 = np.atleast_2d(np.cov(x1, rowvar=False))
+        cov0 = np.atleast_2d(np.cov(x0, rowvar=False, bias=True))
+        cov1 = np.atleast_2d(np.cov(x1, rowvar=False, bias=True))
         pooled = 0.5 * (cov0 + cov1)
 
         eps = float(getattr(self, "gaussian_fisher_eps", 1e-8))
@@ -1920,8 +1924,8 @@ class InformationAnalyzer(AbstractAnalyzer):
         # Dimensionless ratios; do not convert.
         if "_normalized" in key:
             return False
-        # Fisher discriminability proxy (d'^2-like); not an information unit.
-        if "_fisher_F" in key:
+        # Fisher discriminability proxies (d'^2-like); not information units.
+        if "_fisher" in key:
             return False
         # Counts used for proxy bookkeeping.
         if key.endswith("_n"):
@@ -3074,9 +3078,9 @@ class InformationAnalyzer(AbstractAnalyzer):
         moved = False
         try:
             # Check if model has ExcitationInhibitionNetwork
-            if not isinstance(model.core_network, ExcitationInhibitionNetwork):
+            if not has_einet_core(model):
                 self.logger.warning(
-                    "Model does not have ExcitationInhibitionNetwork. Skipping information analysis."
+                    "Model does not expose an ExcitationInhibitionNetwork. Skipping information analysis."
                 )
                 return
 

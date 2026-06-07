@@ -63,6 +63,7 @@ class NoisePerturbationAnalyzer:
         self.categorical_ll = getattr(params, "categorical_loglikelihood", False)
         self.mse = getattr(params, "mse", False)
         self.cosine_similarity = getattr(params, "cosine_similarity", False)
+        self.seed = int(getattr(params, "seed", 0) or 0)
 
     def analyze(
         self,
@@ -92,6 +93,8 @@ class NoisePerturbationAnalyzer:
             x: torch.Tensor = items[0].to(analysis_device)
             y: torch.Tensor = items[1].to(analysis_device)
             y = y[None, ...].expand(self.n_samples, *y.shape)
+            generator = torch.Generator(device=analysis_device)
+            generator.manual_seed(self.seed)
 
             noise_results = {}
 
@@ -120,7 +123,12 @@ class NoisePerturbationAnalyzer:
                 noise_results["uniform"] = {}
                 for mag in self.uniform_magnitudes:
                     noise_results["uniform"][f"{mag}"] = {}
-                    noisy_x = add_uniform_noise(x, spread=mag, n_samples=self.n_samples)
+                    noisy_x = add_uniform_noise(
+                        x,
+                        spread=mag,
+                        n_samples=self.n_samples,
+                        generator=generator,
+                    )
                     noisy_test_ds = TensorDataset(noisy_x, y)
                     if self.accuracy:
                         _evaluate_metric(
@@ -167,7 +175,12 @@ class NoisePerturbationAnalyzer:
                 noise_results["gaussian"] = {}
                 for sdev in self.gaussian_sdevs:
                     noise_results["gaussian"][f"{sdev}"] = {}
-                    noisy_x = add_gaussian_noise(x, std=sdev, n_samples=self.n_samples)
+                    noisy_x = add_gaussian_noise(
+                        x,
+                        std=sdev,
+                        n_samples=self.n_samples,
+                        generator=generator,
+                    )
                     noisy_test_ds = TensorDataset(noisy_x, y)
                     if self.accuracy:
                         _evaluate_metric(
