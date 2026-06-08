@@ -251,6 +251,15 @@ class TestFactoryDispatch:
         with pytest.raises(ValueError):
             get_architecture("nonexistent_type", config, input_dim=INPUT_DIM)
 
+    @pytest.mark.parametrize(
+        "alias",
+        ["matchedtotalparammlp", "matchedactiveparammlp"],
+    )
+    def test_removed_matched_mlp_aliases_raise(self, alias):
+        config = _minimal_config()
+        with pytest.raises(ValueError):
+            get_architecture(alias, config, input_dim=INPUT_DIM)
+
 
 # ---------------------------------------------------------------------------
 # ConfigurableEINetwork from config

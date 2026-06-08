@@ -525,6 +525,21 @@ def test_ablation_analyzer():
     assert analyzer.compartment_ablation
 
 
+def test_ablation_analyzer_ignores_removed_flat_aliases():
+    from dendritic_modeling.config.analysis import AblationAnalysisParams
+
+    params = AblationAnalysisParams()
+    params.layer_ablation = True
+    params.ablate_excitation = True
+    params.accuracy = True
+
+    analyzer = AblationAnalyzer(params)
+
+    assert not analyzer.layer_ablation
+    assert not analyzer.ablate_excitation
+    assert not analyzer.accuracy
+
+
 @pytest.mark.skip(
     reason="AblationAnalyzer requires complex ExcitationInhibitionNetwork setup - integration test needed"
 )

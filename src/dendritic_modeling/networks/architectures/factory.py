@@ -1,4 +1,3 @@
-import warnings
 from dataclasses import asdict, replace
 from typing import Any, Optional, Union
 
@@ -141,8 +140,6 @@ _BUILTIN_ARCHITECTURE_TYPES: frozenset[str] = frozenset(
         "dendrnn",
         "effectivematchedparammlp",
         "identity",
-        "matchedactiveparammlp",
-        "matchedtotalparammlp",
         "mlp",
         "mlpautoencoder",
         "mlpvariationalautoencoder",
@@ -1153,24 +1150,10 @@ def get_architecture(
     # ------------------------------------------------------------------
     # MR-style structured-config MLP baselines
     # ------------------------------------------------------------------
-    if type in ["matchedtotalparammlp", "total_param_mlp"]:
-        if type == "matchedtotalparammlp":
-            warnings.warn(
-                "Architecture type 'matchedtotalparammlp' is deprecated; use "
-                "'total_param_mlp' instead.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
+    if type == "total_param_mlp":
         return MatchedTotalParamMLP(parameters, input_dim)
 
-    if type in ["matchedactiveparammlp", "active_param_mlp"]:
-        if type == "matchedactiveparammlp":
-            warnings.warn(
-                "Architecture type 'matchedactiveparammlp' is deprecated; use "
-                "'active_param_mlp' instead.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
+    if type == "active_param_mlp":
         return MatchedActiveParamMLP(parameters, input_dim)
 
     if type == "ss_mlp":
