@@ -9,6 +9,9 @@ and block linear layers.
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.deepst import (
     DeepstLinear,
 )
+from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.dense_to_sparse import (
+    DenseToSparseLinear,
+)
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.indexed import (
     IndexedDynamicTopKLinear,
     IndexedSparseLinear,
@@ -36,6 +39,7 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.var
 __all__ = [
     "TOPK_INIT_METHODS",
     "DeepstLinear",
+    "DenseToSparseLinear",
     "IndexedDynamicTopKLinear",
     "IndexedSparseLinear",
     "StochasticTopKLinear",

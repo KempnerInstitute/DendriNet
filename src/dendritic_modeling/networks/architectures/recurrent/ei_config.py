@@ -32,6 +32,15 @@ class PopulationConfig(BaseConfig):
     topk_temperature: float = 0.5
     topk_ultrafast: bool = False
     topk_strategy: str = "none"
+    dense_to_sparse_initial_density: float = 1.0
+    dense_to_sparse_initial_k: Optional[int] = None
+    dense_to_sparse_start_step: int = 0
+    dense_to_sparse_end_step: int = 1000
+    dense_to_sparse_update_interval: int = 1
+    dense_to_sparse_schedule: str = "cubic"
+    dense_to_sparse_freeze_on_end: bool = False
+    dense_to_sparse_advance_on_forward: bool = True
+    dense_to_sparse_prune_metric: str = "weight"
     weight_transform: str = "exp"
     use_shunting: bool = True
     use_additive_normalization: bool = False

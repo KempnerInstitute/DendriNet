@@ -23,13 +23,36 @@ from dendritic_modeling.config.training import (
     ReportingConfig,
 )
 from dendritic_modeling.training.strategies import (
+    FeedbackAlignmentTrainer,
+    HomeostaticControlTrainer,
+    LayerWiseTrainer,
+    LocalCreditAssignment,
     MultiStageTrainer,
     RecurrentTrainer,
     ShuntingFeedbackAlignmentTrainer,
     Trainer,
+    TwoStepTrainer,
+    TwoStepTrainerWithKL,
+    VoltageStabilizationTrainer,
 )
 
 logger = logging.getLogger(__name__)
+
+# These classes are resolved by name through ``globals()`` below, and tests
+# patch them through this module path. Keep them materialized in module globals.
+_TRAINER_CLASS_GLOBALS = (
+    FeedbackAlignmentTrainer,
+    HomeostaticControlTrainer,
+    LayerWiseTrainer,
+    LocalCreditAssignment,
+    MultiStageTrainer,
+    RecurrentTrainer,
+    ShuntingFeedbackAlignmentTrainer,
+    Trainer,
+    TwoStepTrainer,
+    TwoStepTrainerWithKL,
+    VoltageStabilizationTrainer,
+)
 
 TRAINER_STRATEGY_REGISTRY: dict[str, dict[str, Any]] = {
     "standard": {"class": "Trainer"},

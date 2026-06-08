@@ -339,19 +339,45 @@ class TestWithInhibitoryNeurons:
         out = net(x)
         assert out.shape == (BATCH, OUTPUT_DIM)
 
-    def test_input_mode1_empty_inhibitory_layers_requires_explicit_direct_opt_in(self):
+    def test_input_mode1_direct_stream_can_require_explicit_opt_in(self):
         config = _config_with_inhibitory_layers(input_mode=1, inhibitory_layer_sizes=[])
         config["transfer"].pop("allow_direct_inhibitory_stream")
+        config["transfer"]["require_explicit_direct_inhibitory_stream"] = True
         with pytest.raises(ValueError, match="allow_direct_inhibitory_stream"):
             ConfigurableEINetwork(config=config, input_dim=INPUT_DIM)
 
-    @pytest.mark.parametrize("input_mode", [0, 1])
+    @pytest.mark.parametrize("input_mode", [0])
     def test_defined_inhibitory_layer_size_builds_inhibitory_population(
         self, input_mode
     ):
         config = _config_with_inhibitory_layers(
             input_mode=input_mode, inhibitory_layer_sizes=[5]
         )
+        torch.manual_seed(42)
+        net = ConfigurableEINetwork(config=config, input_dim=INPUT_DIM)
+        assert net.layers[0].inhibitory_cells is not None
+        x = torch.rand(BATCH, INPUT_DIM)
+        out = net(x)
+        assert out.shape == (BATCH, OUTPUT_DIM)
+
+    def test_input_mode1_defined_inhibitory_size_is_legacy_direct_stream_by_default(
+        self,
+    ):
+        config = _config_with_inhibitory_layers(
+            input_mode=1, inhibitory_layer_sizes=[5]
+        )
+        torch.manual_seed(42)
+        net = ConfigurableEINetwork(config=config, input_dim=INPUT_DIM)
+        assert net.layers[0].inhibitory_cells is None
+        x = torch.rand(BATCH, INPUT_DIM)
+        out = net(x)
+        assert out.shape == (BATCH, OUTPUT_DIM)
+
+    def test_input_mode1_can_opt_into_explicit_inhibitory_population(self):
+        config = _config_with_inhibitory_layers(
+            input_mode=1, inhibitory_layer_sizes=[5]
+        )
+        config["transfer"]["input_mode1_build_inhibitory_population"] = True
         torch.manual_seed(42)
         net = ConfigurableEINetwork(config=config, input_dim=INPUT_DIM)
         assert net.layers[0].inhibitory_cells is not None

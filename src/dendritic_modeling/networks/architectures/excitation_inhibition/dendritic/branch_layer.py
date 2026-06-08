@@ -86,6 +86,15 @@ class DendriticBranchLayer(nn.Module):
         topk_temperature=0.5,  # For stochastic TopK
         topk_ultrafast=False,  # For much faster stochastic TopK
         topk_strategy="none",
+        dense_to_sparse_initial_density=1.0,
+        dense_to_sparse_initial_k=None,
+        dense_to_sparse_start_step=0,
+        dense_to_sparse_end_step=1000,
+        dense_to_sparse_update_interval=1,
+        dense_to_sparse_schedule="cubic",
+        dense_to_sparse_freeze_on_end=False,
+        dense_to_sparse_advance_on_forward=True,
+        dense_to_sparse_prune_metric="weight",
         use_shunting=True,
         reactivate=False,
         reactivation_type="param_tanh",
@@ -154,6 +163,15 @@ class DendriticBranchLayer(nn.Module):
         self.topk_temperature = topk_temperature  # Store the temperature
         self.topk_ultrafast = topk_ultrafast  # Store the ultrafast flag
         self.topk_strategy = topk_strategy  # Store the strategy
+        self.dense_to_sparse_initial_density = dense_to_sparse_initial_density
+        self.dense_to_sparse_initial_k = dense_to_sparse_initial_k
+        self.dense_to_sparse_start_step = dense_to_sparse_start_step
+        self.dense_to_sparse_end_step = dense_to_sparse_end_step
+        self.dense_to_sparse_update_interval = dense_to_sparse_update_interval
+        self.dense_to_sparse_schedule = dense_to_sparse_schedule
+        self.dense_to_sparse_freeze_on_end = dense_to_sparse_freeze_on_end
+        self.dense_to_sparse_advance_on_forward = dense_to_sparse_advance_on_forward
+        self.dense_to_sparse_prune_metric = dense_to_sparse_prune_metric
         self.indexed_seed = kwargs.pop("indexed_seed", None)
         self.indexed_output_chunk_size = kwargs.pop("indexed_output_chunk_size", 2048)
         self.indexed_candidate_size = kwargs.pop("indexed_candidate_size", None)
@@ -345,8 +363,20 @@ class DendriticBranchLayer(nn.Module):
         layer_type = (
             "standard" if self.topk_type is None else str(self.topk_type).lower()
         )
-        if layer_type in {"topk", "indexed-dynamic", "indexed_dynamic_topk"}:
-            layer_type = "standard" if layer_type == "topk" else "indexed_dynamic"
+        if layer_type in {
+            "topk",
+            "indexed-dynamic",
+            "indexed_dynamic_topk",
+            "dense-to-sparse",
+            "dense_to_sparse_topk",
+            "annealed-topk",
+        }:
+            if layer_type == "topk":
+                layer_type = "standard"
+            elif layer_type in {"indexed-dynamic", "indexed_dynamic_topk"}:
+                layer_type = "indexed_dynamic"
+            else:
+                layer_type = "dense_to_sparse"
         from dendritic_modeling.utils.sparse_ops import get_sparse_layer
 
         if layer_type == "standard":
@@ -398,6 +428,30 @@ class DendriticBranchLayer(nn.Module):
                 weight_transform=self.weight_transform,
                 forbidden_input_index_per_output=forbidden_input_index_per_output,
                 connection_mask=connection_mask,
+            )
+        elif layer_type in {"dense_to_sparse", "annealed_topk"}:
+            return get_sparse_layer(
+                layer_type,
+                in_features,
+                out_features,
+                K,
+                param_space="log",
+                init_method=init_method,
+                noise_level=noise_level,
+                weight_transform=self.weight_transform,
+                weight_norm_order=self.topk_weight_norm_order,
+                gamma=self.topk_gamma if synapse_type == "inh" else 1.0,
+                forbidden_input_index_per_output=forbidden_input_index_per_output,
+                connection_mask=connection_mask,
+                initial_density=self.dense_to_sparse_initial_density,
+                initial_k=self.dense_to_sparse_initial_k,
+                start_step=self.dense_to_sparse_start_step,
+                end_step=self.dense_to_sparse_end_step,
+                update_interval=self.dense_to_sparse_update_interval,
+                schedule=self.dense_to_sparse_schedule,
+                freeze_on_end=self.dense_to_sparse_freeze_on_end,
+                advance_on_forward=self.dense_to_sparse_advance_on_forward,
+                prune_metric=self.dense_to_sparse_prune_metric,
             )
         elif layer_type == "deepst":
             self.step_counter = 0

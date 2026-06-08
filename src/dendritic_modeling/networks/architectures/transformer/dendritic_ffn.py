@@ -232,6 +232,15 @@ class DendriticFFNReplacement(nn.Module):
         topk_ultrafast: bool = False,
         topk_weight_norm_order: int | None = None,
         topk_gamma: float = 1.0,
+        dense_to_sparse_initial_density: float = 1.0,
+        dense_to_sparse_initial_k: int | None = None,
+        dense_to_sparse_start_step: int = 0,
+        dense_to_sparse_end_step: int = 1000,
+        dense_to_sparse_update_interval: int = 1,
+        dense_to_sparse_schedule: str = "cubic",
+        dense_to_sparse_freeze_on_end: bool = False,
+        dense_to_sparse_advance_on_forward: bool = True,
+        dense_to_sparse_prune_metric: str = "weight",
         indexed_seed: int | None = None,
         indexed_candidate_size: int | None = None,
         indexed_selection: str = "standard",
@@ -287,6 +296,15 @@ class DendriticFFNReplacement(nn.Module):
             topk_ultrafast=topk_ultrafast,
             topk_weight_norm_order=topk_weight_norm_order,
             topk_gamma=topk_gamma,
+            dense_to_sparse_initial_density=dense_to_sparse_initial_density,
+            dense_to_sparse_initial_k=dense_to_sparse_initial_k,
+            dense_to_sparse_start_step=dense_to_sparse_start_step,
+            dense_to_sparse_end_step=dense_to_sparse_end_step,
+            dense_to_sparse_update_interval=dense_to_sparse_update_interval,
+            dense_to_sparse_schedule=dense_to_sparse_schedule,
+            dense_to_sparse_freeze_on_end=dense_to_sparse_freeze_on_end,
+            dense_to_sparse_advance_on_forward=dense_to_sparse_advance_on_forward,
+            dense_to_sparse_prune_metric=dense_to_sparse_prune_metric,
             weight_transform=weight_transform,
             use_shunting=use_shunting,
             use_additive_normalization=use_additive_normalization,
@@ -585,6 +603,9 @@ def build_dendritic_ffn_kwargs_from_core_config(
     morphology = _to_plain_mapping(core.get("morphology", {}))
     sparsity = _to_plain_mapping(core.get("sparsity", {}))
     indexed = _to_plain_mapping(sparsity.get("indexed", {}))
+    dense_to_sparse = _to_plain_mapping(
+        sparsity.get("dense_to_sparse", sparsity.get("annealed_topk", {}))
+    )
     reactivation = _to_plain_mapping(core.get("reactivation", {}))
     core_type = str(core.get("type", "")).lower()
     morphology_overrides = get_core_morphology_alias_overrides(core_type)
@@ -630,6 +651,25 @@ def build_dendritic_ffn_kwargs_from_core_config(
         "topk_ultrafast": bool(sparsity.get("ultrafast", False)),
         "topk_weight_norm_order": sparsity.get("weight_norm_order"),
         "topk_gamma": float(sparsity.get("gamma", 1.0)),
+        "dense_to_sparse_initial_density": float(
+            dense_to_sparse.get("initial_density", 1.0)
+        ),
+        "dense_to_sparse_initial_k": dense_to_sparse.get("initial_k"),
+        "dense_to_sparse_start_step": int(dense_to_sparse.get("start_step", 0)),
+        "dense_to_sparse_end_step": int(dense_to_sparse.get("end_step", 1000)),
+        "dense_to_sparse_update_interval": int(
+            dense_to_sparse.get("update_interval", 1)
+        ),
+        "dense_to_sparse_schedule": str(dense_to_sparse.get("schedule", "cubic")),
+        "dense_to_sparse_freeze_on_end": bool(
+            dense_to_sparse.get("freeze_on_end", False)
+        ),
+        "dense_to_sparse_advance_on_forward": bool(
+            dense_to_sparse.get("advance_on_forward", True)
+        ),
+        "dense_to_sparse_prune_metric": str(
+            dense_to_sparse.get("prune_metric", "weight")
+        ),
         "indexed_seed": indexed.get("seed", sparsity.get("seed")),
         "indexed_candidate_size": indexed.get("candidate_size"),
         "indexed_selection": indexed.get("selection", "standard"),
@@ -678,6 +718,9 @@ def build_ei_stack_kwargs_from_core_config(
     morphology = _to_plain_mapping(core.get("morphology", {}))
     sparsity = _to_plain_mapping(core.get("sparsity", {}))
     indexed = _to_plain_mapping(sparsity.get("indexed", {}))
+    dense_to_sparse = _to_plain_mapping(
+        sparsity.get("dense_to_sparse", sparsity.get("annealed_topk", {}))
+    )
     reactivation = _to_plain_mapping(core.get("reactivation", {}))
     core_type = str(core.get("type", "")).lower()
     morphology_overrides = get_core_morphology_alias_overrides(core_type)
@@ -746,6 +789,25 @@ def build_ei_stack_kwargs_from_core_config(
         "topk_temperature": float(sparsity.get("temperature", 0.25)),
         "topk_weight_norm_order": sparsity.get("weight_norm_order"),
         "topk_gamma": float(sparsity.get("gamma", 1.0)),
+        "dense_to_sparse_initial_density": float(
+            dense_to_sparse.get("initial_density", 1.0)
+        ),
+        "dense_to_sparse_initial_k": dense_to_sparse.get("initial_k"),
+        "dense_to_sparse_start_step": int(dense_to_sparse.get("start_step", 0)),
+        "dense_to_sparse_end_step": int(dense_to_sparse.get("end_step", 1000)),
+        "dense_to_sparse_update_interval": int(
+            dense_to_sparse.get("update_interval", 1)
+        ),
+        "dense_to_sparse_schedule": str(dense_to_sparse.get("schedule", "cubic")),
+        "dense_to_sparse_freeze_on_end": bool(
+            dense_to_sparse.get("freeze_on_end", False)
+        ),
+        "dense_to_sparse_advance_on_forward": bool(
+            dense_to_sparse.get("advance_on_forward", True)
+        ),
+        "dense_to_sparse_prune_metric": str(
+            dense_to_sparse.get("prune_metric", "weight")
+        ),
         "indexed_seed": indexed.get("seed", sparsity.get("seed")),
         "indexed_candidate_size": indexed.get("candidate_size"),
         "indexed_selection": indexed.get("selection", "standard"),

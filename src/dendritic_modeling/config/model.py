@@ -18,6 +18,9 @@ class TransferFunctionConfig(BaseConfig):
     inhibitory_mode: str = "first"  # "none", "first", "all"
     allow_direct_inhibitory_stream: bool = False
     allow_direct_inhibitory_input: bool = False
+    input_mode1_build_inhibitory_population: bool = False
+    build_inhibitory_population_for_input_mode1: bool = False
+    require_explicit_direct_inhibitory_stream: bool = False
 
 
 @dataclass
@@ -121,6 +124,19 @@ class SparsityConfig(BaseConfig):
             "selection": "standard",
             "seed": None,
             "output_chunk_size": 2048,
+        }
+    )
+    dense_to_sparse: dict = field(
+        default_factory=lambda: {
+            "initial_density": 1.0,
+            "initial_k": None,
+            "start_step": 0,
+            "end_step": 1000,
+            "update_interval": 1,
+            "schedule": "cubic",
+            "freeze_on_end": False,
+            "advance_on_forward": True,
+            "prune_metric": "weight",
         }
     )
 

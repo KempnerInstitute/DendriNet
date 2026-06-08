@@ -248,6 +248,9 @@ def _build_recurrent_einet_from_structured_config(
         )
     )
     deepst = _to_plain_mapping(sparsity.get("deepst", {}))
+    dense_to_sparse = _to_plain_mapping(
+        sparsity.get("dense_to_sparse", sparsity.get("annealed_topk", {}))
+    )
 
     # --- Resolve recurrent synapse counts (new location first, old fallback) ---
     def _rec_syn(new_key, *old_keys, fallback=0):
@@ -502,6 +505,25 @@ def _build_recurrent_einet_from_structured_config(
             topk_temperature=float(sparsity.get("temperature", 0.5)),
             topk_ultrafast=bool(sparsity.get("ultrafast", False)),
             topk_strategy=str(sparsity.get("gradient_scaling", "none")),
+            dense_to_sparse_initial_density=float(
+                dense_to_sparse.get("initial_density", 1.0)
+            ),
+            dense_to_sparse_initial_k=dense_to_sparse.get("initial_k"),
+            dense_to_sparse_start_step=int(dense_to_sparse.get("start_step", 0)),
+            dense_to_sparse_end_step=int(dense_to_sparse.get("end_step", 1000)),
+            dense_to_sparse_update_interval=int(
+                dense_to_sparse.get("update_interval", 1)
+            ),
+            dense_to_sparse_schedule=str(dense_to_sparse.get("schedule", "cubic")),
+            dense_to_sparse_freeze_on_end=bool(
+                dense_to_sparse.get("freeze_on_end", False)
+            ),
+            dense_to_sparse_advance_on_forward=bool(
+                dense_to_sparse.get("advance_on_forward", True)
+            ),
+            dense_to_sparse_prune_metric=str(
+                dense_to_sparse.get("prune_metric", "weight")
+            ),
             weight_transform=str(morphology.get("weight_transform", "softplus")),
             use_shunting=use_shunting,
             use_additive_normalization=use_additive_normalization,

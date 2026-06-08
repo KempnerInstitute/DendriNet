@@ -42,6 +42,16 @@ implementation path:
        per-layer ``connections``
      - ``configs/examples/multi_population_ei_two_layer.yaml``
      - ``train_experiments.py``
+   * - Legacy feedforward configs in population format
+     - ``model.core.type: multi_population_ei`` plus
+       ``use_transfer: true`` and old E/I sizes/synapse counts
+     - ``configs/examples/standard_cifar10_multi_population_ei.yaml``
+     - ``train_experiments.py``
+   * - Dense-to-sparse in population format
+     - ``topk_type: dense_to_sparse`` and
+       ``dense_to_sparse_*`` population fields
+     - ``configs/examples/standard_cifar10_dense_to_sparse_multi_population_ei.yaml``
+     - ``train_experiments.py``
    * - AMPA/NMDA/GABA-style synapse types
      - ``synapse_types.enabled``, ``excitatory``, ``inhibitory``,
        ``tau_rise``, ``tau_decay``, ``reversal_potential``
@@ -129,6 +139,32 @@ local same-step ``i1 -> e1`` inhibition:
      src/dendritic_modeling/scripts/training/train_experiments.py \
      configs/examples/multi_population_ei_two_layer.yaml
 
+Old-Format Population Mirrors
+-----------------------------
+
+The following examples mirror the older ``model.core.type: einet`` configs
+with the newer named-population schema. They are useful for migration and
+regression checks because the old morphology, transfer mode, inhibitory-input
+convention, synapse counts, decoder, and training settings are kept aligned:
+
+.. code-block:: bash
+
+   PYTHONPATH=src:$PYTHONPATH python \
+     src/dendritic_modeling/scripts/training/train_experiments.py \
+     configs/examples/standard_mnist_multi_population_ei.yaml
+
+   PYTHONPATH=src:$PYTHONPATH python \
+     src/dendritic_modeling/scripts/training/train_experiments.py \
+     configs/examples/standard_cifar10_multi_population_ei.yaml
+
+   PYTHONPATH=src:$PYTHONPATH python \
+     src/dendritic_modeling/scripts/training/train_experiments.py \
+     configs/examples/cifar10_128_333_40e10i_multi_population_ei.yaml
+
+   PYTHONPATH=src:$PYTHONPATH python \
+     src/dendritic_modeling/scripts/training/train_experiments.py \
+     configs/examples/cifar10_two_layer_multi_population_ei.yaml
+
 CIFAR-10 Single Layer
 ---------------------
 
@@ -140,6 +176,27 @@ CIFAR-10 with one 128E/32I dendritic layer, ``[3, 3, 3]`` morphology, and
    PYTHONPATH=src:$PYTHONPATH python \
      src/dendritic_modeling/scripts/training/train_experiments.py \
      configs/examples/cifar10_128_333_40e10i.yaml
+
+CIFAR-10 Dense-to-Sparse TopK
+-----------------------------
+
+CIFAR-10 with the standard single-layer DendriNet, but
+``model.core.sparsity.type: dense_to_sparse`` so allowed synapses receive
+gradient early and are annealed down to the configured TopK budget:
+
+.. code-block:: bash
+
+   PYTHONPATH=src:$PYTHONPATH python \
+     src/dendritic_modeling/scripts/training/train_experiments.py \
+     configs/examples/standard_cifar10_dense_to_sparse.yaml
+
+The same dense-to-sparse selector can be used from the population schema:
+
+.. code-block:: bash
+
+   PYTHONPATH=src:$PYTHONPATH python \
+     src/dendritic_modeling/scripts/training/train_experiments.py \
+     configs/examples/standard_cifar10_dense_to_sparse_multi_population_ei.yaml
 
 CIFAR-10 Two Layers
 -------------------
@@ -301,6 +358,18 @@ Component Coverage
      - yes
      - no
      - two-layer directional same-step
+     - no
+     - no
+   * - ``standard_cifar10_multi_population_ei.yaml``
+     - yes
+     - no
+     - old E/I mirror
+     - no
+     - no
+   * - ``standard_cifar10_dense_to_sparse_multi_population_ei.yaml``
+     - yes
+     - no
+     - old E/I mirror + dense-to-sparse
      - no
      - no
    * - ``recurrent_synapse_types_ampa_nmda_gaba.yaml``

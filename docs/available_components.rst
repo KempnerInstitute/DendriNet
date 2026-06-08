@@ -138,6 +138,9 @@ Set via ``model.core.sparsity.type``. Canonical values are:
      - Soft top-K with temperature
    * - ``variance``
      - Variance-aware selection
+   * - ``dense_to_sparse``
+     - Dense/high-K warmup followed by scheduled pruning to the configured
+       synapse count; ``annealed_topk`` is an alias
    * - ``deepst``
      - Dynamic rewiring with density targets
    * - ``indexed``
@@ -148,6 +151,7 @@ Set via ``model.core.sparsity.type``. Canonical values are:
        weights and dynamically selects ``K`` active candidates per forward pass
 
 ``topk`` is retained as a backward-compatible alias for ``standard``.
+``annealed_topk`` is retained as a readable alias for ``dense_to_sparse``.
 
 Weight Transforms
 -----------------

@@ -19,6 +19,11 @@ MULTI_POPULATION_EXAMPLES = [
     "configs/examples/multi_population_ei_feedforward.yaml",
     "configs/examples/multi_population_ei_independent_transfer.yaml",
     "configs/examples/multi_population_ei_two_layer.yaml",
+    "configs/examples/standard_mnist_multi_population_ei.yaml",
+    "configs/examples/standard_cifar10_multi_population_ei.yaml",
+    "configs/examples/cifar10_128_333_40e10i_multi_population_ei.yaml",
+    "configs/examples/cifar10_two_layer_multi_population_ei.yaml",
+    "configs/examples/standard_cifar10_dense_to_sparse_multi_population_ei.yaml",
 ]
 
 REPAIRED_RECURRENT_GRADIENT_EXAMPLES = [

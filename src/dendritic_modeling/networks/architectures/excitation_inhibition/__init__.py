@@ -25,6 +25,7 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.input_trans
 )
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse import (
     DeepstLinear,
+    DenseToSparseLinear,
     IndexedDynamicTopKLinear,
     IndexedSparseLinear,
     StochasticTopKLinear,
@@ -45,6 +46,7 @@ __all__ = [
     "DeepstLinear",
     "DendriNet",
     "DendriticBranchLayer",
+    "DenseToSparseLinear",
     "ExcitationInhibitionLayer",
     "ExcitationInhibitionNetwork",
     "GradientScaler",

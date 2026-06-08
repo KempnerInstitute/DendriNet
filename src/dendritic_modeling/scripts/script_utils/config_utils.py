@@ -188,6 +188,9 @@ def prepare_ei_network_params(
         elif key == "indexed":
             for indexed_key, indexed_value in value.items():
                 params[f"indexed_{indexed_key}"] = indexed_value
+        elif key in {"dense_to_sparse", "annealed_topk"}:
+            for dts_key, dts_value in value.items():
+                params[f"dense_to_sparse_{dts_key}"] = dts_value
         elif key == "gradient_scaling":
             params["topk_strategy"] = value
         elif key == "type":

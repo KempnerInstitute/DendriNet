@@ -256,6 +256,19 @@ Delayed qualified sources are allowed on recurrent target layers and use the
 source population's previous-timestep output, so they do not create an
 instantaneous algebraic loop.
 
+For migration from the older feedforward ``einet`` examples, see
+``configs/examples/standard_mnist_multi_population_ei.yaml``,
+``configs/examples/standard_cifar10_multi_population_ei.yaml``,
+``configs/examples/cifar10_128_333_40e10i_multi_population_ei.yaml``, and
+``configs/examples/cifar10_two_layer_multi_population_ei.yaml``. These keep
+the old sizes, synapse counts, transfer settings, and readout heads aligned
+while moving the computation into explicit named-population routing. For
+legacy ``input_mode=1`` configs, this means a single E population with direct
+``input_i`` inhibition rather than explicit I cells. The separate
+``configs/examples/multi_population_ei_two_layer.yaml`` file intentionally
+demonstrates additional cross-layer population routing beyond the old
+two-layer feedforward path.
+
 When ``input_projection_dims`` is used together with ``use_transfer: true``,
 the projection is applied to the compatibility/excitatory stream
 (``input``/``input_e``). The inhibitory transfer stream (``input_i``) keeps the
@@ -297,12 +310,24 @@ TransferLayer
 Controls how input is routed to the E and I pathways.
 
 ``input_mode``
-   Selects the inhibitory-input convention used by the E/I builder. In
-   current configs, explicit inhibitory neurons are primarily determined by
-   ``architecture.inhibitory_layer_sizes``; when no inhibitory population is
-   defined, a direct transferred inhibitory stream must be requested
-   explicitly with ``allow_direct_inhibitory_stream`` where that path is
-   intended.
+   Selects the inhibitory-input convention used by the legacy feedforward E/I
+   builder. ``input_mode: 0`` builds explicit inhibitory cells whenever
+   ``architecture.inhibitory_layer_sizes`` contains positive sizes.
+   ``input_mode: 1`` preserves the older direct-inhibition path: the
+   ``TransferLayer`` inhibitory stream is fed directly into E dendrites and
+   explicit I cells are not built by default, even if stale inhibitory sizes
+   remain in the config.
+
+``input_mode1_build_inhibitory_population``
+   Optional feedforward opt-in for newer experiments that intentionally want
+   ``input_mode: 1`` plus explicit inhibitory cells. The legacy-compatible
+   default is ``false``.
+
+``require_explicit_direct_inhibitory_stream``
+   Optional safety flag. When ``true``, direct input-mode-1 inhibition requires
+   ``allow_direct_inhibitory_stream: true`` or
+   ``allow_direct_inhibitory_input: true``. The default is ``false`` for
+   compatibility with existing configs.
 
 ``independent_pathways``
    Controls raw input routing independently of inhibitory-population
@@ -543,6 +568,17 @@ Set via ``model.core.sparsity.type``:
    Dense-score variance-aware TopK.  It tracks input activation variance and
    ranks synapses by weight strength times input variance.
 
+``dense_to_sparse`` / ``annealed_topk``
+   Developmental pruning TopK. It stores the same dense score matrix as
+   ``standard``, starts with a dense or high-``K`` active set, and gradually
+   anneals to the configured synapse count ``K``. This lets all allowed
+   synapses receive gradients early before the model commits to a sparse
+   morphology. Additional parameters live under ``sparsity.dense_to_sparse``:
+   ``initial_density`` or ``initial_k``, ``start_step``, ``end_step``,
+   ``update_interval``, ``schedule`` (``"linear"``, ``"cubic"``, ``"cosine"``,
+   or ``"step"``), ``freeze_on_end``, ``advance_on_forward``, and
+   ``prune_metric``.
+
 ``deepst``
    Dynamic rewiring with density targets. Additional parameters under
    ``sparsity.deepst``: ``excitatory_target_density``,
@@ -578,6 +614,23 @@ Example low-parameter dynamic sparse config:
            selection: stochastic     # standard or stochastic
            seed: 42
            output_chunk_size: 2048
+
+Example dense-to-sparse developmental pruning config:
+
+.. code-block:: yaml
+
+   model:
+     core:
+       sparsity:
+         type: dense_to_sparse
+         dense_to_sparse:
+           initial_density: 1.0
+           start_step: 0
+           end_step: 4000
+           update_interval: 50
+           schedule: cubic
+           freeze_on_end: true
+           prune_metric: weight
 
 BlockLinear
 -----------

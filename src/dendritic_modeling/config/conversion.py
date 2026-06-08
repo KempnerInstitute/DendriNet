@@ -87,6 +87,8 @@ def normalize_sparsity_type(sparsity_type: Any) -> str:
         return "standard"
     if normalized in {"indexed-dynamic", "indexed_dynamic_topk"}:
         return "indexed_dynamic"
+    if normalized in {"dense-to-sparse", "dense_to_sparse_topk", "annealed-topk"}:
+        return "dense_to_sparse"
     return normalized
 
 

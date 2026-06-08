@@ -467,11 +467,19 @@ Important replacement parameters:
    Number of active presynaptic features per dendritic branch.
 
 ``topk_type``
-   ``standard``, ``stochastic``, ``variance``, and ``deepst`` preserve the
-   dense-score/dynamic behavior of the previous DendriNet TopK family.
+   ``standard``, ``stochastic``, ``variance``, ``dense_to_sparse``, and
+   ``deepst`` preserve the dense-score/dynamic behavior of the previous
+   DendriNet TopK family. ``dense_to_sparse`` starts dense or high-K and
+   anneals to the configured synapse count; ``annealed_topk`` is an alias.
    ``indexed`` stores only exactly active fixed synapses. ``indexed_dynamic``
    stores a larger candidate pool and dynamically selects the active ``K`` from
    that pool, which is the recommended DeepSeek-scale compromise.
+
+``sparsity.dense_to_sparse``
+   Developmental pruning schedule for ``topk_type: dense_to_sparse``. Common
+   fields are ``initial_density`` or ``initial_k``, ``start_step``,
+   ``end_step``, ``update_interval``, ``schedule`` (``linear``, ``cubic``,
+   ``cosine``, or ``step``), ``freeze_on_end``, and ``prune_metric``.
 
 ``sparsity.indexed.candidate_size``
    Candidate-pool size ``C`` for ``indexed_dynamic``.  Stored synapse

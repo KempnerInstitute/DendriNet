@@ -14,6 +14,9 @@ import torch.nn as nn
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.deepst import (
     DeepstLinear,
 )
+from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.dense_to_sparse import (
+    DenseToSparseLinear,
+)
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.indexed import (
     IndexedDynamicTopKLinear,
     IndexedSparseLinear,
@@ -34,6 +37,8 @@ SPARSE_LAYER_REGISTRY: dict[str, type[nn.Module]] = {
     "stochastic": StochasticTopKLinear,
     "variance": VarianceTopKLinear,
     "deepst": DeepstLinear,
+    "dense_to_sparse": DenseToSparseLinear,
+    "annealed_topk": DenseToSparseLinear,
     "indexed": IndexedSparseLinear,
     "indexed_dynamic": IndexedDynamicTopKLinear,
 }
