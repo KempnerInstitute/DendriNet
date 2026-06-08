@@ -290,6 +290,117 @@ def test_soma_feedback_spike_readout_source_falls_back_in_rate_mode():
     torch.testing.assert_close(source, state.soma_output)
 
 
+def test_soma_feedback_disabled_levels_have_no_trainable_projection():
+    pop = PopulationConfig(
+        n_neurons=4,
+        branch_factors=[2, 2],
+        ff_excitatory_synapses=2,
+        ff_inhibitory_synapses=0,
+        soma_feedback_enabled=True,
+        soma_feedback_levels="non_soma",
+        soma_feedback_learnable_strength=True,
+    )
+    net = StatefulDendriNet(pop, excitatory_input_dim=5)
+
+    assert net.soma_feedback_level_indices == {0, 1}
+    assert isinstance(net.soma_feedback_projections[0], torch.nn.Linear)
+    assert isinstance(net.soma_feedback_projections[1], torch.nn.Linear)
+    assert isinstance(net.soma_feedback_projections[2], torch.nn.Identity)
+    assert net.soma_feedback_strength.shape == (2,)
+    assert "soma_feedback_projections.2.weight" not in dict(net.named_parameters())
+
+
+def test_legacy_unified_ei_tau_schema_builds_canonical_recurrent_network():
+    params = {
+        "unified_ei": {
+            "n_excitatory": 8,
+            "n_inhibitory": 3,
+            "output_mode": "last",
+            "dt": 1.0,
+            "learn_taus": True,
+            "i_tau": 7.0,
+            "input_projection_layers": [6],
+            "layers": [
+                {
+                    "tau": 15.0,
+                    "ff_synapses": 3,
+                    "rec_synapses": 2,
+                    "ie_synapses": 1,
+                    "compartment": "topk",
+                    "use_shunting": True,
+                    "reactivate": True,
+                    "reactivation_type": "param_tanh",
+                    "weight_transform": "softplus",
+                }
+            ],
+        }
+    }
+    core_cfg = {"type": "unified_ei", **params}
+
+    assert _is_recurrent_core_config(core_cfg)
+
+    net = get_architecture("unified_ei", params, input_dim=4)
+    layer = net.layers[0]
+
+    assert isinstance(net, EINetwork)
+    assert net.is_recurrent
+    assert net.config.input_projection_dims == [6]
+    assert layer.config.excitatory.n_neurons == 8
+    assert layer.config.excitatory.tau_base == pytest.approx(15.0)
+    assert layer.config.excitatory.learnable_tau is True
+    assert layer.config.inhibitory is not None
+    assert layer.config.inhibitory.n_neurons == 3
+    assert layer.config.inhibitory.tau_base == pytest.approx(7.0)
+
+    y = net(torch.rand(2, 5, 4))
+    assert y.shape == (2, 8)
+    assert torch.isfinite(y).all()
+
+
+def test_legacy_unified_ei_recurrent_only_layer_gets_trainable_upstream_drive():
+    params = {
+        "unified_ei": {
+            "n_excitatory": 6,
+            "n_inhibitory": 2,
+            "input_projection_layers": [5],
+            "layers": [
+                {
+                    "tau": 10.0,
+                    "ff_synapses": 2,
+                    "rec_synapses": 1,
+                    "ie_synapses": 1,
+                    "use_shunting": True,
+                },
+                {
+                    "tau": 50.0,
+                    "ff_synapses": 0,
+                    "rec_synapses": 1,
+                    "ie_synapses": 1,
+                    "use_shunting": True,
+                },
+            ],
+        }
+    }
+
+    net = get_architecture("unified_ei", params, input_dim=4)
+
+    assert net.layers[1].config.excitatory.ff_excitatory_synapses == 2
+    assert net.layers[1].config.inhibitory is not None
+    assert net.layers[1].config.inhibitory.ff_excitatory_synapses == 2
+
+    y = net(torch.rand(2, 4, 4))
+    y.sum().backward()
+    missing = [name for name, param in net.named_parameters() if param.grad is None]
+    zero = [
+        name
+        for name, param in net.named_parameters()
+        if param.grad is not None and param.grad.detach().float().norm().item() == 0.0
+    ]
+
+    assert missing == []
+    assert zero == []
+
+
 def test_stateful_dendrinet_can_mask_same_population_self_recurrence():
     pop = PopulationConfig(
         n_neurons=4,
@@ -1009,7 +1120,9 @@ def test_structured_recurrent_factory_propagates_soma_feedback_config():
     assert population.soma_feedback_source == "voltage"
     assert population.soma_feedback_level_indices == {0}
     assert isinstance(population.soma_feedback_strength, torch.nn.Parameter)
-    assert population.soma_feedback_strength.shape == (population.n_levels,)
+    assert population.soma_feedback_strength.shape == (
+        len(population.soma_feedback_level_indices),
+    )
     assert torch.allclose(
         population.soma_feedback_strength,
         torch.full_like(population.soma_feedback_strength, 0.25),

@@ -185,6 +185,168 @@ def _apply_population_alias_overrides(
     return updated
 
 
+def _is_legacy_unified_ei_layer(layer: dict[str, Any]) -> bool:
+    """Return True for the pre-population unified-EI layer shorthand."""
+    return any(
+        key in layer
+        for key in (
+            "tau",
+            "ff_synapses",
+            "rec_synapses",
+            "ie_synapses",
+            "compartment",
+        )
+    )
+
+
+def _legacy_branch_factors(layer: dict[str, Any], *, inhibitory: bool) -> list[int]:
+    """Translate legacy recurrent compartment names to a population morphology."""
+    key = "inhibitory_branch_factors" if inhibitory else "branch_factors"
+    factors = layer.get(key)
+    if factors is not None:
+        return list(factors)
+    # The old recurrent examples used "topk" as a single sparse compartment.
+    # Keep that behavior explicit in the population schema.
+    return [1]
+
+
+def _canonicalize_legacy_unified_ei_layer(
+    layer: dict[str, Any],
+    unified_cfg: dict[str, Any],
+) -> dict[str, Any]:
+    """Convert legacy unified_ei layer shorthand to explicit populations.
+
+    Legacy configs used per-layer keys such as ``tau``, ``ff_synapses``,
+    ``rec_synapses``, and ``ie_synapses`` plus global ``n_excitatory`` /
+    ``n_inhibitory`` fields. The current recurrent core uses explicit
+    PopulationConfig blocks. This adapter keeps old files buildable while
+    routing them through the same canonical implementation as new configs.
+    """
+    ff_synapses = int(layer.get("ff_synapses", layer.get("ff_excitatory_synapses", 0)))
+    rec_synapses = int(
+        layer.get("rec_synapses", layer.get("rec_excitatory_synapses", 0))
+    )
+    ie_synapses = int(layer.get("ie_synapses", layer.get("ff_inhibitory_synapses", 0)))
+    if (
+        ff_synapses == 0
+        and rec_synapses > 0
+        and not bool(unified_cfg.get("allow_recurrent_only_layers", False))
+    ):
+        # In this implementation a zero-initialized recurrent-only layer has no
+        # upstream drive and can make lower layers/input projections inert. The
+        # migrated recurrent examples use a small sparse upstream drive for the
+        # slow layer; apply the same safe default when adapting the old shorthand.
+        ff_synapses = int(unified_cfg.get("legacy_recurrent_only_ff_synapses", 2))
+    tau = float(layer.get("tau", unified_cfg.get("tau_base", 50.0)))
+    i_tau = float(unified_cfg.get("i_tau", tau))
+    learnable_tau = bool(
+        unified_cfg.get("learnable_tau", unified_cfg.get("learn_taus", False))
+    )
+    soma_mode = str(unified_cfg.get("soma_mode", layer.get("soma_mode", ""))).lower()
+    use_shunting = bool(layer.get("use_shunting", soma_mode not in {"additive", "sum"}))
+    recurrent = bool(
+        layer.get(
+            "recurrent",
+            rec_synapses > 0 or bool(unified_cfg.get("recurrent", False)),
+        )
+    )
+
+    base_population = {
+        "branch_factors": _legacy_branch_factors(layer, inhibitory=False),
+        "ff_excitatory_synapses": ff_synapses,
+        "ff_inhibitory_synapses": ie_synapses,
+        "rec_excitatory_synapses": rec_synapses,
+        "rec_inhibitory_synapses": ie_synapses,
+        "use_shunting": use_shunting,
+        "use_additive_normalization": soma_mode in {"additive", "sum"},
+        "reactivate": bool(layer.get("reactivate", True)),
+        "reactivation_type": layer.get("reactivation_type", "param_tanh"),
+        "weight_transform": str(layer.get("weight_transform", "softplus")),
+        "tau_base": tau,
+        "tau_ratio": float(layer.get("tau_ratio", 1.0)),
+        "learnable_tau": learnable_tau,
+        "somatic_synapses": bool(layer.get("somatic_synapses", True)),
+    }
+
+    n_inhibitory = int(unified_cfg.get("n_inhibitory", 16) or 0)
+    inhibitory = None
+    if n_inhibitory > 0 and (ff_synapses > 0 or rec_synapses > 0):
+        inhibitory = {
+            **base_population,
+            "n_neurons": n_inhibitory,
+            "branch_factors": _legacy_branch_factors(layer, inhibitory=True),
+            "ff_excitatory_synapses": ff_synapses,
+            "ff_inhibitory_synapses": 0,
+            "rec_excitatory_synapses": rec_synapses,
+            "rec_inhibitory_synapses": 0,
+            "tau_base": i_tau,
+        }
+
+    canonical = {
+        key: value
+        for key, value in layer.items()
+        if key
+        not in {
+            "tau",
+            "tau_ratio",
+            "ff_synapses",
+            "rec_synapses",
+            "ie_synapses",
+            "compartment",
+            "use_shunting",
+            "reactivate",
+            "reactivation_type",
+            "weight_transform",
+            "somatic_synapses",
+        }
+    }
+    canonical.update(
+        {
+            "recurrent": recurrent,
+            "dt": float(layer.get("dt", unified_cfg.get("dt", 1.0))),
+            "excitatory": {
+                **base_population,
+                "n_neurons": int(unified_cfg.get("n_excitatory", 64)),
+            },
+            "inhibitory": inhibitory,
+        }
+    )
+    return canonical
+
+
+def _canonicalize_unified_ei_config(
+    unified_cfg: dict[str, Any],
+) -> dict[str, Any]:
+    """Normalize old/new unified-EI config spellings before dataclass build."""
+    canonical = dict(unified_cfg)
+    if (
+        "input_projection_dims" not in canonical
+        and "input_projection_layers" in canonical
+    ):
+        canonical["input_projection_dims"] = list(canonical["input_projection_layers"])
+
+    canonical_layers = []
+    for layer in canonical.get("layers", []) or []:
+        layer_payload = _to_plain_mapping(layer)
+        if layer_payload and _is_legacy_unified_ei_layer(layer_payload):
+            canonical_layers.append(
+                _canonicalize_legacy_unified_ei_layer(layer_payload, canonical)
+            )
+        else:
+            canonical_layers.append(layer)
+    canonical["layers"] = canonical_layers
+    allowed_keys = {
+        "layers",
+        "input_dim",
+        "use_transfer",
+        "transfer_params",
+        "input_projection_dims",
+        "output_mode",
+        "store_routing",
+    }
+    return {key: value for key, value in canonical.items() if key in allowed_keys}
+
+
 def _layer_value(
     value: Any, layer_idx: int, default: Any = 0, *, allow_empty_list: bool = False
 ) -> Any:
@@ -449,9 +611,10 @@ def _build_recurrent_einet_from_structured_config(
     for layer_idx, n_exc in enumerate(excitatory_sizes):
         n_inh = int(_layer_value(inhibitory_sizes, layer_idx, default=0))
         # A positive inhibitory layer size requests an explicit inhibitory
-        # population. input_mode=1 only controls whether the transfer layer
-        # supplies an external inhibitory stream.
-        build_inhibitory_population = n_inh > 0
+        # population, but the population is only built when it has at least one
+        # configured incoming synaptic source. This preserves legacy direct
+        # inhibitory-stream configs with ei/ii/rec_ei/rec_ii all zero.
+        requested_inhibitory_population = n_inh > 0
 
         # Per-layer recurrence
         if explicit_recurrent_layers is not None:
@@ -724,6 +887,32 @@ def _build_recurrent_einet_from_structured_config(
             ),
         )
 
+        inh_ff_excitatory_synapses = int(
+            _layer_value(
+                connectivity.get("ei_synapses_per_branch_per_layer", []),
+                layer_idx,
+                default=0,
+            )
+        )
+        inh_ff_inhibitory_synapses = int(
+            _layer_value(
+                connectivity.get("ii_synapses_per_branch_per_layer", []),
+                layer_idx,
+                default=0,
+            )
+        )
+        inh_rec_excitatory_synapses = int(_layer_value(rec_ei, layer_idx, default=0))
+        inh_rec_inhibitory_synapses = int(_layer_value(rec_ii, layer_idx, default=0))
+        build_inhibitory_population = requested_inhibitory_population and any(
+            value > 0
+            for value in (
+                inh_ff_excitatory_synapses,
+                inh_ff_inhibitory_synapses,
+                inh_rec_excitatory_synapses,
+                inh_rec_inhibitory_synapses,
+            )
+        )
+
         inh_cfg = None
         if build_inhibitory_population:
             inh_cfg = replace(
@@ -732,22 +921,10 @@ def _build_recurrent_einet_from_structured_config(
                 branch_factors=list(
                     architecture.get("inhibitory_branch_factors", [1]) or [1]
                 ),
-                ff_excitatory_synapses=int(
-                    _layer_value(
-                        connectivity.get("ei_synapses_per_branch_per_layer", []),
-                        layer_idx,
-                        default=0,
-                    )
-                ),
-                ff_inhibitory_synapses=int(
-                    _layer_value(
-                        connectivity.get("ii_synapses_per_branch_per_layer", []),
-                        layer_idx,
-                        default=0,
-                    )
-                ),
-                rec_excitatory_synapses=int(_layer_value(rec_ei, layer_idx, default=0)),
-                rec_inhibitory_synapses=int(_layer_value(rec_ii, layer_idx, default=0)),
+                ff_excitatory_synapses=inh_ff_excitatory_synapses,
+                ff_inhibitory_synapses=inh_ff_inhibitory_synapses,
+                rec_excitatory_synapses=inh_rec_excitatory_synapses,
+                rec_inhibitory_synapses=inh_rec_inhibitory_synapses,
                 structured_layer_idx=layer_idx,
                 ff_excitatory_pathway="ei",
                 ff_inhibitory_pathway="ii",
@@ -876,7 +1053,7 @@ def get_architecture(
                 f"{unified_cfg.__class__.__name__}"
             )
 
-        unified_cfg = dict(unified_cfg)
+        unified_cfg = _canonicalize_unified_ei_config(dict(unified_cfg))
         unified_cfg["input_dim"] = input_dim
 
         # Resolve recurrent-type aliases to explicit population flags. When

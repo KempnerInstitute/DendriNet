@@ -373,6 +373,26 @@ class TestWithInhibitoryNeurons:
         out = net(x)
         assert out.shape == (BATCH, OUTPUT_DIM)
 
+    def test_zero_drive_inhibitory_layer_size_uses_direct_inhibitory_stream(self):
+        config = _config_with_inhibitory_layers(
+            input_mode=0, inhibitory_layer_sizes=[5]
+        )
+        config["connectivity"]["ei_synapses_per_branch_per_layer"] = [0]
+        config["connectivity"]["ii_synapses_per_branch_per_layer"] = [0]
+        config["connectivity"]["ie_synapses_per_branch_per_layer"] = [3]
+
+        torch.manual_seed(42)
+        net = ConfigurableEINetwork(config=config, input_dim=INPUT_DIM)
+        layer = net.layers[0]
+
+        assert layer.inhibitory_cells is None
+        assert layer.excitatory_cells.branch_layers[0].branch_inhibition is not None
+
+        x = torch.rand(BATCH, INPUT_DIM)
+        out = net(x)
+        assert out.shape == (BATCH, OUTPUT_DIM)
+        assert torch.isfinite(out).all()
+
     def test_input_mode1_defined_inhibitory_size_is_legacy_direct_stream_by_default(
         self,
     ):

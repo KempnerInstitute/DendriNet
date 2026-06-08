@@ -80,9 +80,17 @@ def _has_unified_recurrent_layers(core_cfg: Any) -> bool:
     unified = to_plain_dict(unified)
     if not unified:
         return False
+    if bool(unified.get("recurrent", False)):
+        return True
     for layer in unified.get("layers", []) or []:
         if isinstance(layer, dict):
             if bool(layer.get("recurrent", False)):
+                return True
+            if _is_positive(layer.get("rec_synapses", 0)):
+                return True
+            if _is_positive(layer.get("rec_excitatory_synapses", 0)):
+                return True
+            if _is_positive(layer.get("rec_inhibitory_synapses", 0)):
                 return True
         elif bool(getattr(layer, "recurrent", False)):
             return True

@@ -171,21 +171,35 @@ class StatefulDendriNet(nn.Module):
         self.soma_feedback_level_indices = self._resolve_soma_feedback_levels(
             pop_config.soma_feedback_levels
         )
+        self._soma_feedback_strength_index = {
+            level_idx: strength_idx
+            for strength_idx, level_idx in enumerate(
+                sorted(self.soma_feedback_level_indices)
+            )
+        }
         self.soma_feedback_projections = nn.ModuleList()
         if self.soma_feedback_enabled:
             # Keep the opt-in feedback modules from shifting the initialization
             # stream for the existing dendritic branches and downstream layers.
             with torch.random.fork_rng(devices=[]):
-                for level_dim in self._level_dims:
-                    projection = nn.Linear(self._n_soma, level_dim, bias=False)
-                    init_std = float(pop_config.soma_feedback_init_std)
-                    if init_std == 0.0:
-                        nn.init.zeros_(projection.weight)
+                for level_idx, level_dim in enumerate(self._level_dims):
+                    if level_idx in self.soma_feedback_level_indices:
+                        projection = nn.Linear(self._n_soma, level_dim, bias=False)
+                        init_std = float(pop_config.soma_feedback_init_std)
+                        if init_std == 0.0:
+                            nn.init.zeros_(projection.weight)
+                        else:
+                            nn.init.normal_(projection.weight, mean=0.0, std=init_std)
                     else:
-                        nn.init.normal_(projection.weight, mean=0.0, std=init_std)
+                        # Preserve projection indexing by level while avoiding
+                        # trainable parameters for levels that are configured
+                        # as feedback-disabled.
+                        projection = nn.Identity()
                     self.soma_feedback_projections.append(projection)
 
-        strength_shape = self.n_levels if self.soma_feedback_per_level else 1
+        strength_shape = (
+            len(self.soma_feedback_level_indices) if self.soma_feedback_per_level else 1
+        )
         strength = torch.full(
             (strength_shape,),
             float(pop_config.soma_feedback_strength),
@@ -608,6 +622,8 @@ class StatefulDendriNet(nn.Module):
         ):
             return None
         strength_idx = level_idx if self.soma_feedback_per_level else 0
+        if self.soma_feedback_per_level:
+            strength_idx = self._soma_feedback_strength_index[level_idx]
         strength = self.soma_feedback_strength[strength_idx].to(
             device=reference.device,
             dtype=reference.dtype,

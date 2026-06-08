@@ -356,10 +356,14 @@ class ExcitationInhibitionNetwork(BaseNetwork):
             # Build inhibitory cells whenever an inhibitory layer size is active
             # for this layer. For input_mode=1 this only happens when the config
             # explicitly opts into input_mode1_build_inhibitory_population.
+            inhibitory_population_has_drive = (
+                int(ei_syn[i] or 0) > 0 or int(ii_syn[i] or 0) > 0
+            )
             build_inhibitory_cells = (
                 i + 1 < len(inhibitory_layer_sizes)
                 and inhibitory_layer_sizes[i + 1] is not None
                 and inhibitory_layer_sizes[i + 1] > 0
+                and inhibitory_population_has_drive
             )
 
             # For the first layer, determine correct dimensions
