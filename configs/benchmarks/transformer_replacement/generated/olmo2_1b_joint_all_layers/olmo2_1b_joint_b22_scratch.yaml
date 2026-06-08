@@ -1,0 +1,96 @@
+# OLMo-2 1B joint all-layer dendritic MLP replacement
+#
+# Data: allenai/dolmino-mix-1124, streamed from Hugging Face.
+# Target MLP layers: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+# Joint objective: LM loss + teacher KL + hidden-state matching.
+
+experiment:
+  seed: 2611
+
+model:
+  task: "language_modeling"
+  transformer_replacement:
+    enabled: true
+    model_name: "allenai/OLMo-2-0425-1B"
+    layers: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+    target_module: "mlp"
+    layers_attr: "model.layers"
+    input_transform: "signed_split"
+    preserve_device_dtype: true
+    model_kwargs:
+      trust_remote_code: true
+      torch_dtype: "auto"
+    replacement_kwargs:
+      output_init_std: 0.02
+
+  core:
+    type: "dendritic_ffn"
+    architecture:
+      excitatory_layer_sizes: [1024]
+      excitatory_branch_factors: [2, 2]
+    connectivity:
+      ee_synapses_per_branch_per_layer: [64]
+      ei_synapses_per_branch_per_layer: [0]
+      ie_synapses_per_branch_per_layer: [0]
+      ii_synapses_per_branch_per_layer: [0]
+    transfer:
+      input_transform: "signed_split"
+    morphology:
+      use_shunting: false
+      weight_transform: "softplus"
+    sparsity:
+      type: "indexed_dynamic"
+      init_method: "xavier_normal"
+      temperature: 0.25
+      indexed:
+        candidate_size: 256
+        selection: "standard"
+        seed: 2611
+        output_chunk_size: 2048
+    reactivation:
+      enabled: true
+      type: "param_tanh"
+
+training:
+  main:
+    optimizer:
+      name: "adamw"
+      lr: 0.0002
+      weight_decay: 0.0001
+
+  transformer_replacement:
+    enabled: true
+    mode: "joint_lm_distillation"
+    teacher_source: "hf_text"
+    train_target: "replacement_only"
+    layers: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+    device: "auto"
+    dtype: "float32"
+    use_amp: true
+    gradient_checkpointing: false
+    sequence_length: 128
+    train_samples: 8192
+    valid_samples: 16
+    batch_size: 1
+    max_steps: 800
+    eval_every: 50
+    log_every: 10
+    lm_loss_weight: 1.0
+    kl_loss_weight: 0.2
+    kl_temperature: 2.0
+    hidden_loss_weight: 0.05
+    hidden_loss_layers: [4, 8, 15]
+    max_grad_norm: 1.0
+    warm_start_dir: ""
+    loss: "mse"
+    save_dir: "results/transformer_replacement_benchmarks/olmo2_1b_joint_all_layers/joint_b22_scratch"
+    save_replacements: true
+    text:
+      dataset_name: "allenai/dolmino-mix-1124"
+      dataset_config: "default"
+      split: "train"
+      text_field: "text"
+      streaming: true
+      max_documents: 1600
+      tokenizer_name: "allenai/OLMo-2-0425-1B"
+      max_tokens: 300000
