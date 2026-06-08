@@ -20,6 +20,13 @@ def test_apply_exp_positive_output():
     assert (out > 0).all()
 
 
+def test_apply_exp_clamps_before_overflow():
+    w = torch.tensor([100.0], dtype=torch.float32)
+    out = apply_weight_transform(w, "exp")
+    assert torch.isfinite(out).all()
+    assert (out > 0).all()
+
+
 def test_apply_relu_zeroes_negatives():
     w = torch.tensor([-2.0, -0.5, 0.0, 0.5, 2.0])
     out = apply_weight_transform(w, "relu")

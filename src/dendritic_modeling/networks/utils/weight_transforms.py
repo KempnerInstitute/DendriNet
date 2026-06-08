@@ -6,12 +6,41 @@ remain positive during training. Each transformation has different characteristi
 
 """
 
+import math
 from typing import Literal
 
 import torch
 import torch.nn.functional as functional
 
 WeightTransformType = Literal["identity", "exp", "relu", "softplus"]
+
+
+def safe_exp(
+    weights: torch.Tensor,
+    margin: float = 1.0,
+    max_exponent: float | None = None,
+) -> torch.Tensor:
+    """Exponentiate without overflowing finite floating-point tensors."""
+    if not torch.is_floating_point(weights):
+        return torch.exp(weights)
+    max_log = math.log(torch.finfo(weights.dtype).max) - float(margin)
+    if max_exponent is not None:
+        max_log = min(max_log, float(max_exponent))
+    return torch.exp(weights.clamp(max=max_log))
+
+
+def inverse_softplus(
+    positive_weights: torch.Tensor,
+    *,
+    eps: float = 1e-8,
+) -> torch.Tensor:
+    """Numerically stable inverse of ``softplus`` for positive values.
+
+    Uses ``x + log(-expm1(-x))`` instead of ``log(exp(x) - 1)`` so large
+    weights map back to raw parameters without overflowing.
+    """
+    x = positive_weights.clamp_min(eps)
+    return x + torch.log(-torch.expm1(-x))
 
 
 def apply_weight_transform(
@@ -31,7 +60,7 @@ def apply_weight_transform(
         ValueError: If transform_type is not supported
     """
     if transform_type == "exp":
-        return torch.exp(weights)
+        return safe_exp(weights)
     elif transform_type == "relu":
         return functional.relu(weights)
     elif transform_type == "softplus":
@@ -57,7 +86,7 @@ def get_weight_transform_fn(transform_type: WeightTransformType):
         Function that applies the transformation
     """
     if transform_type == "exp":
-        return torch.exp
+        return safe_exp
     elif transform_type == "relu":
         return functional.relu
     elif transform_type == "softplus":
@@ -94,9 +123,7 @@ def inverse_weight_transform(
         # ReLU doesn't have a unique inverse, return the weights themselves
         return positive_weights
     elif transform_type == "softplus":
-        # Inverse of softplus: log(exp(x) - 1)
-        # For numerical stability, use the identity: softplus_inverse(x) = log(exp(x) - 1) = x + log(1 - exp(-x)) for x > 0
-        return torch.log(torch.exp(positive_weights) - 1 + 1e-8)
+        return inverse_softplus(positive_weights)
     elif transform_type == "identity":
         # Identity transform is its own inverse (signed weights allowed)
         return positive_weights
@@ -111,5 +138,7 @@ __all__ = [
     "WeightTransformType",
     "apply_weight_transform",
     "get_weight_transform_fn",
+    "inverse_softplus",
     "inverse_weight_transform",
+    "safe_exp",
 ]

@@ -10,6 +10,8 @@ import math
 import torch
 import torch.nn as nn
 
+from dendritic_modeling.networks.utils.weight_transforms import safe_exp
+
 
 class ParametricActivation(nn.Module):
     """
@@ -128,8 +130,8 @@ class ParametricLinearSigmoid(ParametricActivation):
 
         # Calculate the three component functions
         h_x = x  # linear function
-        g_x = torch.exp(-3 * x)  # exponential weighting
-        f_x = 1 / (1 + torch.exp(-(m * x + self.fixed_b)))  # sigmoid
+        g_x = safe_exp(-3 * x, max_exponent=20.0)  # exponential weighting
+        f_x = torch.sigmoid(m * x + self.fixed_b)  # sigmoid
 
         # Combine using the interpolation formula
         return h_x * g_x + f_x * (1 - g_x)
@@ -180,7 +182,7 @@ class ParametricLinearTanh(ParametricActivation):
 
         # Calculate the three component functions
         h_x = x  # linear function
-        g_x = torch.exp(-3 * x)  # exponential weighting
+        g_x = safe_exp(-3 * x, max_exponent=20.0)  # exponential weighting
         f_x = (torch.tanh(m * x + self.fixed_b) + 1) / 2  # tanh
         # Combine using the interpolation formula
         return h_x * g_x + f_x * (1 - g_x)

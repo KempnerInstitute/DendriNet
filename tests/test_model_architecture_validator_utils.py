@@ -79,17 +79,25 @@ def test_validate_model_architecture_accepts_valid_configuration():
     assert validate_model_architecture(config) is True
 
 
-def test_validate_model_architecture_detects_input_mode_pathway_conflict():
+def test_validate_model_architecture_allows_input_mode0_independent_pathways():
     config = _make_valid_config(
-        transfer_overrides={"input_mode": 0, "independent_pathways": True}
+        transfer_overrides={
+            "input_mode": 0,
+            "independent_pathways": True,
+            "excitatory_dim": 400,
+            "inhibitory_dim": 384,
+        }
     )
+
+    assert validate_model_architecture(config) is True
+
+
+def test_validate_model_architecture_detects_invalid_input_mode():
+    config = _make_valid_config(transfer_overrides={"input_mode": 2})
     validator = ModelArchitectureValidator(config)
 
     assert validator.validate() is False
-    assert any(
-        "input_mode=0 requires independent_pathways=False" in err
-        for err in validator.errors
-    )
+    assert any("input_mode must be 0 or 1" in err for err in validator.errors)
 
 
 def test_validate_model_architecture_detects_empty_required_synapse_lists():

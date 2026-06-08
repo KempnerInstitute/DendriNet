@@ -7,6 +7,11 @@ training starts and provides lightweight automatic safeguard toggles.
 
 import logging
 
+from dendritic_modeling.config.model_aliases import (
+    get_core_morphology_alias_overrides,
+    get_unified_ei_alias_overrides,
+)
+
 logger = logging.getLogger(__name__)
 
 POSITIVE_WEIGHT_TRANSFORMS = {"softplus", "exp", "relu"}
@@ -42,19 +47,14 @@ def _first_present(node, paths: list[list[str]], default=None):
 def _effective_use_shunting(core_type: str, morphology_use_shunting: bool) -> bool:
     """Resolve the effective shunting flag from type aliases plus morphology."""
     core_type = (core_type or "").strip().lower()
-    if core_type in {
-        "dendritic_additive",
-        "flat_additive",
-        "dendritic_mlp",
-        "flat_mlp",
-        "point_mlp",
-        "mlp",
-        "rnn_dendritic_additive",
-        "rnn_flat_additive",
-    }:
+    morphology_overrides = get_core_morphology_alias_overrides(core_type)
+    if "use_shunting" in morphology_overrides:
+        return bool(morphology_overrides["use_shunting"])
+    unified_overrides = get_unified_ei_alias_overrides(core_type)
+    if "use_shunting" in unified_overrides:
+        return bool(unified_overrides["use_shunting"])
+    if core_type == "point_mlp":
         return False
-    if "shunting" in core_type:
-        return True
     if core_type in {"einet", "ei_unified", "unified_ei", "ei_net", "unified_einet"}:
         return bool(morphology_use_shunting)
     return False
