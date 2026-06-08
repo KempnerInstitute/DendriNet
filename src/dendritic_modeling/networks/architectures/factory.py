@@ -56,9 +56,11 @@ _EINET_TYPES: set[str] = {
     "dendritic_shunting",
     "dendritic_additive",
     "dendritic_mlp",
+    "dendritic_signed",
     "flat_shunting",
     "flat_additive",
     "flat_mlp",
+    "flat_signed",
 }
 
 _UNIFIED_EI_TYPES: set[str] = {
@@ -1109,6 +1111,10 @@ def get_architecture(
 
         if "flat" in type:
             flatten_dendrites = True
+
+        if "signed" in type:
+            weight_transform = "identity"
+            use_shunting = False
 
         if "mlp" in type:
             synapse_mode = "mlp"

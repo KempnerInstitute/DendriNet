@@ -187,6 +187,8 @@ class TestOutputShape:
             "dendritic_additive",
             "flat_shunting",
             "flat_additive",
+            "dendritic_signed",
+            "flat_signed",
             "dendritic_mlp",
         ],
     )
@@ -225,6 +227,8 @@ class TestFactoryDispatch:
             "dendritic_additive",
             "flat_shunting",
             "flat_additive",
+            "dendritic_signed",
+            "flat_signed",
             "dendritic_mlp",
             "einet",
         ],
@@ -489,6 +493,14 @@ class TestSynapseModeMLPNetwork:
         """dendritic_mlp uses identity weight transform (signed weights)."""
         net = _build_network("dendritic_mlp")
         assert net.weight_transform == "identity"
+
+    @pytest.mark.parametrize("net_type", ["dendritic_signed", "flat_signed"])
+    def test_signed_einet_identity_weights(self, net_type):
+        """Signed EINet aliases keep E/I mode but use identity weights."""
+        net = _build_network(net_type)
+        assert net.synapse_mode == "ei"
+        assert net.weight_transform == "identity"
+        assert net.use_shunting is False
 
     def test_dendritic_mlp_no_shunting(self):
         net = _build_network("dendritic_mlp")

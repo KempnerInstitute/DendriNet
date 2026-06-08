@@ -72,6 +72,8 @@ NETWORK_CATEGORY_COLORS: dict[str, str] = {
     "dendritic_additive": "#ff0000",  # Red
     "flat_shunting": "#1f77b4",  # Blue (dashed line distinguishes)
     "flat_additive": "#ff0000",  # Red
+    "dendritic_signed": "#2ca02c",  # Green
+    "flat_signed": "#2ca02c",  # Green
     "dendritic_mlp": "#7f7f7f",  # Gray
     "flat_mlp": "#bcbd22",  # Olive
     # MLP baselines
@@ -95,6 +97,8 @@ NETWORK_CATEGORY_MARKERS: dict[str, str] = {
     "dendritic_additive": "s",  # Square
     "flat_shunting": "^",  # Triangle up
     "flat_additive": "+",  # Plus
+    "dendritic_signed": "D",  # Diamond
+    "flat_signed": "x",  # X
     "dendritic_mlp": "*",  # Star
     "flat_mlp": "p",  # Pentagon
     "point_mlp": "D",  # Diamond
@@ -117,6 +121,8 @@ NETWORK_CATEGORY_LINESTYLES: dict[str, str] = {
     "dendritic_additive": "-",  # Solid
     "flat_shunting": "--",  # Dashed
     "flat_additive": "--",  # Dashed
+    "dendritic_signed": "-",  # Solid
+    "flat_signed": "--",  # Dashed
     "dendritic_mlp": "-",  # Solid
     "flat_mlp": "--",  # Dashed
     "point_mlp": ":",  # Dotted

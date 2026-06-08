@@ -80,6 +80,7 @@ class StochasticDatasetSweepAnalyzer(BaseSweepAnalyzer):
             "network_type",
             "network_category",
             "nparams",
+            "branch_factors",
             "stimulus_duration",
             "fixed_gain_factor",
             "max_gain_factor",

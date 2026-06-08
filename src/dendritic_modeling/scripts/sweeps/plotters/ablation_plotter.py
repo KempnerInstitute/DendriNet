@@ -50,6 +50,8 @@ class AblationPlotter(BasePlotter):
             "flat_shunting",
             "dendritic_additive",
             "flat_additive",
+            "dendritic_signed",
+            "flat_signed",
             "dendritic_mlp",
             "flat_mlp",
             "point_mlp",

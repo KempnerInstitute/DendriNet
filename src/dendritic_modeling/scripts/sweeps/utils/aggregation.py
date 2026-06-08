@@ -144,6 +144,8 @@ def extract_network_category(data: pd.DataFrame) -> pd.DataFrame:
     dendritic_additive   - EINet with subtractive inhibition
     flat_shunting        - EINet shunting, flattened dendritic tree
     flat_additive        - EINet additive, flattened dendritic tree
+    dendritic_signed     - EINet with signed E/I synapses
+    flat_signed          - EINet with signed E/I synapses, flattened
     dendritic_mlp        - EINet with synapse_mode="mlp", signed weights
     point_mlp            - Shallow parameter-matched point-neuron MLP
     ss_mlp               - Sparse structured MLP (structural match)
@@ -178,6 +180,8 @@ def extract_network_category(data: pd.DataFrame) -> pd.DataFrame:
         {
             "dendriti_additive": "dendritic_additive",
             "dendritic_shuntng": "dendritic_shunting",
+            "dendritic_signed": "dendritic_signed",
+            "flat_signed": "flat_signed",
             "mlp": "point_mlp",
             "einet_sh": "dendritic_shunting",
             "einet_ns": "dendritic_additive",
@@ -194,6 +198,8 @@ def extract_network_category(data: pd.DataFrame) -> pd.DataFrame:
         "dendritic_additive",
         "flat_shunting",
         "flat_additive",
+        "dendritic_signed",
+        "flat_signed",
         "dendritic_mlp",
         "flat_mlp",
         "point_mlp",

@@ -116,6 +116,19 @@ class TestAggregation(unittest.TestCase):
         result = extract_network_category(data)
         self.assertEqual(result.iloc[0]["network_category"], "flat_mlp")
 
+    def test_extract_network_category_signed_aliases(self):
+        """Signed EINet categories should be first-class sweep categories."""
+        data = pd.DataFrame(
+            {
+                "network_type": ["dendritic_signed", "flat_signed"],
+                "use_shunting": [False, False],
+            }
+        )
+
+        result = extract_network_category(data)
+        self.assertEqual(result.iloc[0]["network_category"], "dendritic_signed")
+        self.assertEqual(result.iloc[1]["network_category"], "flat_signed")
+
 
 if __name__ == "__main__":
     unittest.main()
