@@ -3,7 +3,13 @@ import unittest
 import pytest
 import torch
 
-from dendritic_modeling.networks import BlockLinear, DendriticBranchLayer, TopKLinear
+from dendritic_modeling.networks import (
+    BlockLinear,
+    DendriticBranchLayer,
+    IndexedDynamicTopKLinear,
+    IndexedSparseLinear,
+    TopKLinear,
+)
 
 
 class TestDendriticBranchLayer(unittest.TestCase):
@@ -87,6 +93,30 @@ class TestDendriticBranchLayer(unittest.TestCase):
         # Check if reactivation threshold applied
         # Should be non-negative due to reactivation
         self.assertTrue(torch.all(output >= 0))
+
+    def test_dendritic_activation_alias_enables_tanh(self):
+        layer = DendriticBranchLayer(
+            self.output_dim,
+            self.excitatory_input_dim,
+            self.excitatory_synapses_per_branch,
+            reactivate=False,
+            dendritic_activation="tanh",
+        )
+        self.assertTrue(layer.reactivate)
+        self.assertEqual(layer.dendritic_activation, "tanh")
+        self.assertIsInstance(layer.reactivation, torch.nn.Tanh)
+
+    def test_dendritic_activation_none_disables_reactivation(self):
+        layer = DendriticBranchLayer(
+            self.output_dim,
+            self.excitatory_input_dim,
+            self.excitatory_synapses_per_branch,
+            reactivate=True,
+            dendritic_activation="none",
+        )
+        self.assertFalse(layer.reactivate)
+        self.assertEqual(layer.dendritic_activation, "none")
+        self.assertIsInstance(layer.reactivation, torch.nn.Identity)
 
     def test_get_weights(self):
         # Check weights retrieval
@@ -260,6 +290,52 @@ class TestDendriticBranchLayerAdditional:
             p.numel() for p in sample_branch_layer.parameters() if p.requires_grad
         )
         assert total_params > 0  # Should have some trainable parameters
+
+    def test_unknown_topk_type_raises(self):
+        with pytest.raises(ValueError, match="Unknown sparse layer type"):
+            DendriticBranchLayer(
+                output_dim=3,
+                excitatory_input_dim=8,
+                excitatory_synapses_per_branch=2,
+                topk_type="not_a_sparse_strategy",
+            )
+
+    @pytest.mark.parametrize(
+        ("topk_type", "expected_cls", "extra_kwargs"),
+        [
+            ("indexed", IndexedSparseLinear, {}),
+            (
+                "indexed_dynamic",
+                IndexedDynamicTopKLinear,
+                {"indexed_candidate_size": 3},
+            ),
+        ],
+    )
+    def test_indexed_recurrent_synapses_respect_forbidden_indices(
+        self, topk_type, expected_cls, extra_kwargs
+    ):
+        forbidden = torch.tensor([0, 1, 2])
+        layer = DendriticBranchLayer(
+            output_dim=3,
+            excitatory_input_dim=5,
+            excitatory_synapses_per_branch=2,
+            recurrent_input_dim=4,
+            recurrent_synapses_per_branch=2,
+            recurrent_forbidden_input_index_per_output=forbidden,
+            topk_type=topk_type,
+            indexed_seed=17,
+            reactivate=False,
+            input_branch_factor=None,
+            **extra_kwargs,
+        )
+
+        assert isinstance(layer.branch_recurrent, expected_cls)
+        if hasattr(layer.branch_recurrent, "candidate_mask"):
+            mask = layer.branch_recurrent.candidate_mask().bool()
+        else:
+            mask = layer.branch_recurrent.weight_mask().bool()
+        rows = torch.arange(forbidden.numel())
+        assert not bool(mask[rows, forbidden].any())
 
 
 if __name__ == "__main__":

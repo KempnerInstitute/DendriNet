@@ -560,12 +560,13 @@ class SNRPlotter(BasePlotter):
         # Create separate plots for each network category
         categories = ["dendritic_shunting", "dendritic_additive"]
 
-        d_prime_sq_str = r"d'$^2$"
+        heatmap_metric = "d_total"
+        d_prime_sq_str = r"$d_{total}$"
 
         # Create subplot layout: len(depths) rows x 2 columns
         fig, axes = plt.subplots(len(depths), 2, figsize=(15, 3 + 6 * len(depths)))
         fig.suptitle(
-            f"{SNR_PREFIX_MAP[prefix]} Disciminality: {d_prime_sq_str} Heatmap ({colx} vs {coly})",
+            f"{SNR_PREFIX_MAP[prefix]} Discriminability: {d_prime_sq_str} Heatmap ({colx} vs {coly})",
             fontsize=16,
         )
 
@@ -576,7 +577,7 @@ class SNRPlotter(BasePlotter):
         # Collect all values for consistent color scaling
         all_values = []
         for depth in depths:
-            depth_col = f"snr_{prefix}_d'^2_mean_depth{depth}_mean"
+            depth_col = f"snr_{prefix}_{heatmap_metric}_depth{depth}_mean"
             if depth_col in valid_data.columns:
                 for category in categories:
                     category_data = valid_data[
@@ -595,7 +596,7 @@ class SNRPlotter(BasePlotter):
             vmin, vmax = 0, 1
 
         for depth_idx, depth in enumerate(depths):
-            depth_col = f"snr_{prefix}_d'^2_mean_depth{depth}_mean"
+            depth_col = f"snr_{prefix}_{heatmap_metric}_depth{depth}_mean"
 
             if depth_col not in valid_data.columns:
                 # Fill empty subplots if depth column doesn't exist

@@ -5,13 +5,10 @@ This module implements IndexInputTransform which randomly splits
 input dimensions into excitatory and inhibitory channels.
 """
 
-import logging
 from typing import Optional
 
 import torch
 import torch.nn as nn
-
-logger = logging.getLogger(__name__)
 
 
 class IndexInputTransform(nn.Module):
@@ -20,35 +17,41 @@ class IndexInputTransform(nn.Module):
         input_dim: int,
         excitatory_dim: Optional[int] = None,
         inhibitory_dim: Optional[int] = None,
+        split_seed: Optional[int] = None,
     ):
         super().__init__()
 
-        try:
-            assert excitatory_dim is not None and inhibitory_dim is not None, (
-                "error in IndexInputTransform: "
-                "either excitatory_dim or inhibitory_dim must be provided"
-            )
-        except AssertionError as e:
-            logger.error(e)
+        if input_dim is None or int(input_dim) <= 0:
+            raise ValueError(f"input_dim must be a positive integer, got {input_dim}")
+        input_dim = int(input_dim)
+        self.input_dim = input_dim
+
+        if excitatory_dim is None and inhibitory_dim is None:
             excitatory_dim = int(input_dim / 2)
             inhibitory_dim = int(input_dim - excitatory_dim)
-
         if excitatory_dim is None:
             excitatory_dim = int(input_dim - inhibitory_dim)
         if inhibitory_dim is None:
             inhibitory_dim = int(input_dim - excitatory_dim)
 
-        try:
-            assert excitatory_dim + inhibitory_dim == input_dim, (
-                "error in IndexInputTransform: "
+        excitatory_dim = int(excitatory_dim)
+        inhibitory_dim = int(inhibitory_dim)
+        if excitatory_dim <= 0 or inhibitory_dim <= 0:
+            raise ValueError(
+                "excitatory_dim and inhibitory_dim must be positive, "
+                f"got {excitatory_dim} and {inhibitory_dim}"
+            )
+        if excitatory_dim + inhibitory_dim != input_dim:
+            raise ValueError(
                 "excitatory_dim + inhibitory_dim must equal input_dim, "
                 f"got {excitatory_dim} + {inhibitory_dim} != {input_dim}"
             )
-        except AssertionError as e:
-            logger.error(e)
-            inhibitory_dim = int(input_dim - excitatory_dim)
 
-        dims = torch.randperm(input_dim)
+        generator = None
+        if split_seed is not None:
+            generator = torch.Generator()
+            generator.manual_seed(int(split_seed) % ((1 << 63) - 1))
+        dims = torch.randperm(input_dim, generator=generator)
         exc_dims = dims[:excitatory_dim]
         inh_dims = dims[excitatory_dim:]
 
@@ -63,6 +66,11 @@ class IndexInputTransform(nn.Module):
     def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         if x.dim() == 1:
             x = x[None, :]
+        if x.shape[-1] != self.input_dim:
+            raise ValueError(
+                "IndexInputTransform expected last input dimension "
+                f"{self.input_dim}, got {x.shape[-1]}"
+            )
 
         excitatory_input = x[..., self.exc_dims]
         inhibitory_input = x[..., self.inh_dims]

@@ -132,6 +132,11 @@ class ConfigExtractor:
                     if hasattr(morph, "use_shunting"):
                         saved_use_shunting = bool(morph.use_shunting)
                         params["use_shunting"] = saved_use_shunting
+                        if str(getattr(core, "type", "")).lower() in [
+                            "point_mlp",
+                            "mlp",
+                        ]:
+                            params["point_reference_use_shunting"] = saved_use_shunting
 
                 # If core.type explicitly specifies the network variant, make sure the
                 # extracted `use_shunting` matches the *actual* instantiated behavior.
@@ -146,9 +151,13 @@ class ConfigExtractor:
                         "dendritic_mlp",
                         "flat_mlp",
                         "mlp",
-                        "point_mlp",
                     ]:
                         inferred_use_shunting = False
+                    elif nt == "point_mlp":
+                        # For point_mlp, morphology.use_shunting does not change the
+                        # point-neuron computation. It records whether the baseline was
+                        # parameter-matched to a shunting or additive dendritic reference.
+                        inferred_use_shunting = None
 
                     if inferred_use_shunting is not None:
                         if (
