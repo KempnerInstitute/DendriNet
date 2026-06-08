@@ -57,8 +57,9 @@ Run a parameter sweep
 Example model runs
 ------------------
 
-The repository includes four primary runnable example configs. See
-:doc:`examples` for the same list with short notes.
+The repository includes four primary vision examples plus recurrent examples
+for the extended cell-type, synapse-type, connectivity, and spiking features.
+See :doc:`examples` for the full list.
 
 .. code-block:: bash
 
@@ -81,6 +82,16 @@ The repository includes four primary runnable example configs. See
    PYTHONPATH=src:$PYTHONPATH python \
      src/dendritic_modeling/scripts/training/train_experiments.py \
      configs/examples/alexnet_fc7_dendritic_500.yaml
+
+   # Named Pyr/PV/SST recurrent cell-type graph
+   PYTHONPATH=src:$PYTHONPATH python \
+     src/dendritic_modeling/scripts/training/train_experiments.py \
+     configs/examples/recurrent_population_graph_pyr_pv_sst.yaml
+
+   # Spiking soma with rate-decoded spike readout and spike-train analysis
+   PYTHONPATH=src:$PYTHONPATH python \
+     src/dendritic_modeling/scripts/training/train_experiments.py \
+     configs/examples/recurrent_spiking_population_graph.yaml
 
 Output structure
 ----------------
