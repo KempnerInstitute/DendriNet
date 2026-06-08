@@ -407,10 +407,13 @@ def create_nonlinear_separable_dataset(
         labels = (scores > (input_dim / 4)).long()
 
     elif nonlinearity_type == "multiplicative":
-        # Multiplicative interactions between E and I dimensions
-        e_product = torch.prod(data[:, :ne], dim=1)
-        i_product = torch.prod(data[:, ne:], dim=1)
-        labels = (e_product * i_product > 0.5 ** (input_dim)).long()
+        # Multiplicative interactions in log space avoid high-dimensional
+        # product underflow and keep the generated classes balanced.
+        eps = torch.finfo(data.dtype).tiny
+        scores = torch.log(data[:, :ne].clamp_min(eps)).sum(dim=1)
+        scores = scores + torch.log(data[:, ne:].clamp_min(eps)).sum(dim=1)
+        threshold = scores.median()
+        labels = (scores > threshold).long()
 
     elif nonlinearity_type == "radial":
         # Radial basis: distance from center

@@ -150,6 +150,21 @@ def test_nonlinear_separable_all_types(nltype):
     assert len(train) > 0
 
 
+def test_nonlinear_separable_multiplicative_stays_balanced_high_dimensional():
+    datasets = create_nonlinear_separable_dataset(
+        n_samples=300,
+        input_dim=200,
+        ne=100,
+        ni=100,
+        nonlinearity_type="multiplicative",
+        noise_std=0.0,
+        seed=0,
+    )
+    labels = torch.cat([dataset.tensors[1] for dataset in datasets])
+
+    assert labels.float().mean().item() == pytest.approx(0.5, abs=0.03)
+
+
 def test_nonlinear_separable_unknown_raises():
     with pytest.raises(ValueError, match="Unknown nonlinearity"):
         create_nonlinear_separable_dataset(

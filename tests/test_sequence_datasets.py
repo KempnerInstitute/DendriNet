@@ -22,6 +22,7 @@ from dendritic_modeling.datasets.sequence_datasets import (
     SwitchingLDSDataset,
     TimescaleGeneralizationDataset,
     VariableDelayDMSDataset,
+    get_sequence_datasets,
 )
 
 
@@ -29,6 +30,28 @@ from dendritic_modeling.datasets.sequence_datasets import (
 def _seed_rngs():
     torch.manual_seed(0)
     np.random.seed(0)
+
+
+def _write_tiny_stringer(tmp_path, *, n_neurons=4, n_trials=20):
+    responses = np.stack(
+        [
+            np.linspace(0.0, 1.0 + neuron, n_trials)
+            + (10.0 * (np.arange(n_trials) >= n_trials // 2))
+            for neuron in range(n_neurons)
+        ],
+        axis=0,
+    ).astype(np.float32)
+    orientations = np.linspace(0.0, 2 * np.pi, n_trials, endpoint=False).astype(
+        np.float32
+    )
+    np.save(
+        tmp_path / StringerV1Dataset._GRATING_FILE,
+        {"sresp": responses, "istim": orientations},
+        allow_pickle=True,
+    )
+    all_running = np.empty(1, dtype=object)
+    all_running[0] = np.linspace(0.0, 1.0, n_trials).astype(np.float32)
+    np.save(tmp_path / StringerV1Dataset._RUNNING_FILE, all_running, allow_pickle=True)
 
 
 def test_sequential_mnist_modes_and_invalid(monkeypatch):
@@ -294,6 +317,32 @@ def test_frequency_forecast_and_dynamical_sequence_datasets(tmp_path):
     )
     assert obs.shape[-1] == 2
 
+    lorenz_train = LorenzSequenceDataset(
+        n_samples=2,
+        seq_len=6,
+        rollout_horizon=2,
+        observation_mode="linear",
+        observation_dim=2,
+        burn_in_steps=3,
+        normalization_steps=20,
+        seed=10,
+        observation_seed=123,
+    )
+    lorenz_test = LorenzSequenceDataset(
+        n_samples=2,
+        seq_len=6,
+        rollout_horizon=2,
+        observation_mode="linear",
+        observation_dim=2,
+        burn_in_steps=3,
+        normalization_steps=20,
+        seed=11,
+        observation_seed=123,
+    )
+    assert torch.allclose(
+        lorenz_train.observation_matrix, lorenz_test.observation_matrix
+    )
+
     with pytest.raises(ValueError, match="latent_dim=4"):
         SwitchingLDSDataset(latent_dim=3)
     with pytest.raises(ValueError, match="n_modes must be >= 2"):
@@ -334,6 +383,61 @@ def test_frequency_forecast_and_dynamical_sequence_datasets(tmp_path):
         StringerV1Dataset(data_dir=str(tmp_path), poisson_rate_scale=0.0)
     with pytest.raises(FileNotFoundError, match="Stringer V1 data not found"):
         StringerV1Dataset(data_dir=str(tmp_path))
+
+
+def test_stringer_v1_uses_train_split_normalization_stats(tmp_path):
+    _write_tiny_stringer(tmp_path)
+    train_ds = StringerV1Dataset(
+        data_dir=str(tmp_path),
+        n_neurons=4,
+        n_classes=4,
+        split="train",
+        train_fraction=0.5,
+        normalize=True,
+        seed=3,
+        session_idx=0,
+    )
+    test_ds = StringerV1Dataset(
+        data_dir=str(tmp_path),
+        n_neurons=4,
+        n_classes=4,
+        split="test",
+        train_fraction=0.5,
+        normalize=True,
+        seed=3,
+        session_idx=0,
+    )
+
+    assert torch.allclose(train_ds.responses.mean(dim=0), torch.zeros(4), atol=1e-5)
+    assert torch.allclose(
+        train_ds.responses.std(dim=0, unbiased=False), torch.ones(4), atol=1e-5
+    )
+    train_mu, train_std = train_ds.normalization_stats
+    test_mu, test_std = test_ds.normalization_stats
+    assert np.allclose(train_mu, test_mu)
+    assert np.allclose(train_std, test_std)
+
+    raw = (
+        np.load(tmp_path / StringerV1Dataset._GRATING_FILE, allow_pickle=True)
+        .item()["sresp"][train_ds._neuron_indices]
+        .T
+    )
+    assert not np.allclose(train_mu, raw.mean(axis=0, keepdims=True))
+
+
+def test_stringer_v1_state_specific_overlap_is_rejected(tmp_path):
+    _write_tiny_stringer(tmp_path)
+    with pytest.raises(ValueError, match="disjoint"):
+        get_sequence_datasets(
+            "stringer_v1",
+            data_path=str(tmp_path),
+            n_neurons=4,
+            n_classes=4,
+            normalize=False,
+            session_idx=0,
+            train_running_state="all",
+            test_running_state="high",
+        )
 
 
 def test_context_and_timescale_datasets():
