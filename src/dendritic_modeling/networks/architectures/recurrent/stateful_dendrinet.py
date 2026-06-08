@@ -621,9 +621,11 @@ class StatefulDendriNet(nn.Module):
             or level_idx not in self.soma_feedback_level_indices
         ):
             return None
-        strength_idx = level_idx if self.soma_feedback_per_level else 0
-        if self.soma_feedback_per_level:
-            strength_idx = self._soma_feedback_strength_index[level_idx]
+        strength_idx = (
+            self._soma_feedback_strength_index[level_idx]
+            if self.soma_feedback_per_level
+            else 0
+        )
         strength = self.soma_feedback_strength[strength_idx].to(
             device=reference.device,
             dtype=reference.dtype,

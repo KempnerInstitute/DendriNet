@@ -159,6 +159,7 @@ model:
     #          flatten prefix tensor, run EINet, and optionally project core_dim -> flat suffix input dim
     #   "hierarchical_dendritic_conv" | "spatial_dendritic_conv"
     #       -> local spatial dendritic operator for convolutional suffixes
+    # Transformer-replacement FFN: "dendritic_ffn" (dendritic MLP replacing a transformer MLP block)
     # Classical: "alexnet" | "cnn" | "cnn_down" | "cnn_up" | "identity" | "none"
     type: "einet"
 
@@ -217,7 +218,7 @@ model:
     sparsity:
       init_method: "xavier_normal"      # str: "xavier_normal" | "kaiming_normal" | "uniform"
       noise_level: 0.0                  # float: Additive noise on init
-      type: "standard"                  # str: "standard" | "stochastic" | "variance" | "deepst" (legacy "topk" -> "standard")
+      type: "standard"                  # str: "standard" | "stochastic" | "variance" | "deepst" | "indexed" | "indexed_dynamic" | "dense_to_sparse" (legacy "topk" -> "standard")
       weight_norm_order: null           # int | null: Weight norm order (null = off)
       gamma: 1.0                        # float: TopK gamma
       temperature: 0.0                  # float: TopK temperature (0 = hard)

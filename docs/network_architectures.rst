@@ -134,6 +134,18 @@ morphology fields.
 recurrent E/I composition. The classical feedforward E/I layer is represented
 as two populations plus directional same-step edges:
 
+.. figure:: _static/architecture/multi-population-ei.svg
+   :alt: multi_population_ei schematic with named E/I populations per layer, same-step DAG edges, cross-layer routing, and delayed recurrent feedback
+   :width: 100%
+
+   A two-layer ``multi_population_ei`` example. Each layer holds named populations
+   (``e0``/``i0``, ``e1``/``i1``). Solid edges are *same-step* and must form an
+   acyclic DAG within a timestep (``input->i0``, ``input->e0``, ``i0->e0``;
+   cross-layer ``layer0.e0->layer1`` and ``layer0.i0->e1``). Dashed edges are
+   *delayed* (read the previous timestep), enabling recurrence and later->earlier
+   feedback (``e1->e1`` and ``layer1.e1->layer0.e0``). The readout population of
+   the final layer feeds the decoder.
+
 .. code-block:: yaml
 
    model:
