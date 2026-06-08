@@ -1156,8 +1156,15 @@ analysis:
     params:
       n_rows: 2                         # int: Grid rows for plotting
       n_cols: 2                         # int: Grid columns for plotting
+      rf_shape: null                    # list[int] | null: Shared RF shape [H, W]
       exc_rf_shape: null                # list[int] | null: Excitatory RF shape [H, W]
       inh_rf_shape: null                # list[int] | null: Inhibitory RF shape [H, W]
+      fig_save_format: png              # str: Figure extension, e.g. png or pdf
+      compute_activation_tuning: false  # bool: Class-tuning summaries from branch activations
+      save_raw_data: true               # bool: Save raw RF tensor checkpoint
+      load_raw_data: false              # bool: Reuse raw RF checkpoint if present
+      raw_filename: null                # str | null: Override raw RF checkpoint filename
+      epsilon: 0.00000001               # float: Numerical epsilon for tuning ratios
 
   # ---------- Single-layer contribution ----------
   single_layer_contribution:

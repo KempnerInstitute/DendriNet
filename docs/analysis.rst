@@ -317,7 +317,15 @@ Each module follows the same ``enabled``/``training``/``params`` pattern.
    Records which branches are active per input class.
 
 ``receptive_field``
-   Computes effective receptive fields per neuron.
+   Computes dendritic receptive-field weight maps for all branch layers. Use
+   ``params.rf_shape`` when excitatory and inhibitory receptive fields share one
+   image shape, or ``params.exc_rf_shape`` / ``params.inh_rf_shape`` when the two
+   streams have different shapes. The analyzer saves a raw tensor checkpoint
+   (``<filename>_raw_receptive_fields.pt`` by default) so plots can be regenerated
+   without re-reading model weights; set ``params.load_raw_data: true`` to reuse
+   it. Set ``params.compute_activation_tuning: true`` to also summarize
+   class-preferred branch excitation, inhibition, E/I ratio, and output activation
+   from the provided test split.
 
 ``adversarial_robustness``
    FGSM attack evaluation at configurable epsilon values.

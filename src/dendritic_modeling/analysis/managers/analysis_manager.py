@@ -457,8 +457,12 @@ class AnalysisManager:
         ):
             self.receptive_field_analyzer.analyze(
                 model=self.model,
+                test_dataset=self.data["test"],
+                device=self.device,
                 save_path=os.path.join(self.save_root, "receptive_field_analysis"),
                 filename=filename,
+                training=training,
+                runtime=runtime,
             )
 
         # Synaptic Activation Analysis

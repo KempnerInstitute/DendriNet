@@ -1,0 +1,121 @@
+import torch
+from torch.utils.data import TensorDataset
+
+from dendritic_modeling.analysis.tools.compartment_snr import CompartmentSNRAnalyzer
+from dendritic_modeling.analysis.tools.receptive_fields import ReceptiveFieldAnalyzer
+from dendritic_modeling.config.analysis import (
+    CompartmentSNRAnalysisParams,
+    ReceptiveFieldAnalysisParams,
+)
+from dendritic_modeling.models import Classifier
+from dendritic_modeling.networks import Identity
+from dendritic_modeling.networks.architectures.factory import get_architecture
+
+
+def _direct_inhibitory_model() -> Classifier:
+    config = {
+        "architecture": {
+            "excitatory_layer_sizes": [4],
+            "inhibitory_layer_sizes": [],
+            "excitatory_branch_factors": [2],
+            "inhibitory_branch_factors": [],
+            "inhibitory_network_type": "dendritic",
+        },
+        "connectivity": {
+            "ee_synapses_per_branch_per_layer": [2],
+            "ei_synapses_per_branch_per_layer": [0],
+            "ie_synapses_per_branch_per_layer": [2],
+            "ii_synapses_per_branch_per_layer": [0],
+        },
+        "transfer": {
+            "input_mode": 1,
+            "independent_pathways": True,
+            "excitatory_dim": 3,
+            "inhibitory_dim": 3,
+            "allow_direct_inhibitory_stream": True,
+        },
+        "morphology": {
+            "use_shunting": True,
+            "weight_transform": "softplus",
+            "dbl_init_method": "analytical_expectation",
+            "somatic_synapses": False,
+        },
+        "sparsity": {
+            "init_method": "xavier_normal",
+            "noise_level": 0.0,
+            "type": "standard",
+        },
+        "reactivation": {
+            "enabled": True,
+            "type": "param_tanh",
+            "init_m": 1.5,
+            "init_b": 0.5,
+        },
+        "blocklinear": {"efficient": False},
+        "implementation": {},
+    }
+    core = get_architecture("dendritic_shunting", config, input_dim=6)
+    return Classifier(Identity(6), core, Identity(4))
+
+
+def _toy_dataset():
+    torch.manual_seed(3)
+    x = torch.rand(8, 6)
+    labels = torch.tensor([0, 0, 0, 0, 1, 1, 1, 1])
+    return x, labels, TensorDataset(x, labels)
+
+
+def test_compartment_snr_captures_direct_inhibitory_stream():
+    model = _direct_inhibitory_model()
+    x, labels, _dataset = _toy_dataset()
+    analyzer = CompartmentSNRAnalyzer(CompartmentSNRAnalysisParams())
+
+    analyzer.collect_raw_data(model, x)
+
+    assert hasattr(analyzer, "excitatory_inputs")
+    assert hasattr(analyzer, "inhibitory_inputs")
+    assert analyzer.excitatory_inputs.shape == (8, 3)
+    assert analyzer.inhibitory_inputs.shape == (8, 3)
+
+    stats = analyzer._input_analysis(labels)
+    assert "exc_inputs_d_total" in stats
+    assert "inh_inputs_d_total" in stats
+    assert torch.isfinite(torch.tensor(list(stats.values()))).all()
+
+
+def test_receptive_field_checkpoint_and_activation_tuning(tmp_path):
+    model = _direct_inhibitory_model()
+    _x, _labels, dataset = _toy_dataset()
+    params = ReceptiveFieldAnalysisParams(
+        n_rows=1,
+        n_cols=2,
+        compute_activation_tuning=True,
+    )
+    analyzer = ReceptiveFieldAnalyzer(params)
+
+    results = analyzer.analyze(
+        model=model,
+        test_dataset=dataset,
+        device="cpu",
+        save_path=str(tmp_path),
+        filename="rf",
+    )
+
+    assert results is not None
+    assert results["n_receptive_fields"] > 0
+    assert "activation_tuning" in results
+    assert (tmp_path / "rf_raw_receptive_fields.pt").exists()
+    assert (tmp_path / "rf_activation_tuning.json").exists()
+
+    loaded = ReceptiveFieldAnalyzer(
+        ReceptiveFieldAnalysisParams(load_raw_data=True, n_rows=1, n_cols=2)
+    )
+    loaded_results = loaded.analyze(
+        model=model,
+        save_path=str(tmp_path),
+        filename="rf",
+    )
+
+    assert loaded_results is not None
+    assert loaded_results["raw_checkpoint_loaded"]
+    assert loaded_results["n_receptive_fields"] == results["n_receptive_fields"]
