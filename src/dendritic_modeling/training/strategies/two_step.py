@@ -56,6 +56,51 @@ def _initialize_local_heads(net_obj, model, device):
     return local_heads
 
 
+def _make_local_optimizers(net_obj, local_heads, base_optimizer):
+    """Create per-layer optimizers that also own local-head parameters."""
+    torch_optimizer = (
+        base_optimizer.optimizer
+        if hasattr(base_optimizer, "optimizer")
+        and isinstance(base_optimizer.optimizer, torch.optim.Optimizer)
+        else base_optimizer
+    )
+    optimizer_cls = type(torch_optimizer)
+    defaults = dict(getattr(torch_optimizer, "defaults", {}))
+
+    local_optimizers = []
+    for layer, head in zip(net_obj.layers, local_heads):
+        layer_params = list(layer.parameters()) if hasattr(layer, "parameters") else []
+        params = [*layer_params, *list(head.parameters())]
+        local_optimizers.append(optimizer_cls(params, **defaults))
+    return local_optimizers
+
+
+def _set_only_current_layer_and_head_trainable(model, layer, local_head):
+    for param in model.parameters():
+        param.requires_grad = False
+    for param in local_head.parameters():
+        param.requires_grad = True
+    if hasattr(layer, "parameters"):
+        for param in layer.parameters():
+            param.requires_grad = True
+
+
+def _current_local_params(layer, local_head):
+    params = list(local_head.parameters())
+    if hasattr(layer, "parameters"):
+        params.extend(layer.parameters())
+    return [param for param in params if param.requires_grad]
+
+
+def _ensure_single_process_two_step(trainer_name: str, is_distributed: bool) -> None:
+    if is_distributed:
+        raise NotImplementedError(
+            f"{trainer_name} staged local pretraining is not supported under DDP. "
+            "Run the two-step pretraining phase on a single process or use "
+            "strategy='standard' for distributed end-to-end training."
+        )
+
+
 class TwoStepTrainer(Trainer):
     """
     Two-Step Training Strategy for dendritic networks.
@@ -86,6 +131,11 @@ class TwoStepTrainer(Trainer):
         Returns:
             Dictionary containing training results and metrics
         """
+        _ensure_single_process_two_step(
+            type(self).__name__,
+            self._is_distributed,
+        )
+
         # Get network object
         if hasattr(model, "core_network"):
             net_obj = model.core_network
@@ -111,6 +161,10 @@ class TwoStepTrainer(Trainer):
 
         if not hasattr(self, "local_heads"):
             self.local_heads = _initialize_local_heads(net_obj, model, self.device)
+        if not hasattr(self, "local_optimizers"):
+            self.local_optimizers = _make_local_optimizers(
+                net_obj, self.local_heads, self.optimizer
+            )
 
         # Phase 1: Local pretraining
         logger.info(
@@ -127,23 +181,11 @@ class TwoStepTrainer(Trainer):
 
             # Train each layer with its local head
             for layer_idx in range(n_layers):
-                # Freeze all parameters
-                for param in model.parameters():
-                    param.requires_grad = False
-
-                # Unfreeze current layer
-                if hasattr(net_obj.layers[layer_idx], "weight"):
-                    net_obj.layers[layer_idx].weight.requires_grad = True
-                if (
-                    hasattr(net_obj.layers[layer_idx], "bias")
-                    and net_obj.layers[layer_idx].bias is not None
-                ):
-                    net_obj.layers[layer_idx].bias.requires_grad = True
-
-                # Unfreeze local head
+                layer = net_obj.layers[layer_idx]
                 local_head: torch.nn.Module = self.local_heads[layer_idx]
-                for param in local_head.parameters():
-                    param.requires_grad = True
+                local_optimizer = self.local_optimizers[layer_idx]
+                _set_only_current_layer_and_head_trainable(model, layer, local_head)
+                local_params = _current_local_params(layer, local_head)
 
                 # Train on batches
                 for batch in train_loader:
@@ -163,10 +205,10 @@ class TwoStepTrainer(Trainer):
                     loss: torch.Tensor = self.loss_function(
                         local_head, h_batch, y_batch
                     )
-                    self.optimizer.zero_grad()
+                    local_optimizer.zero_grad()
                     loss.backward()
-                    clip_grad_value_(model.parameters(), self.grad_clip_value)
-                    self.optimizer.step()
+                    clip_grad_value_(local_params, self.grad_clip_value)
+                    local_optimizer.step()
 
                     epoch_loss_accum += loss.item()
                     batch_counter += 1
@@ -248,6 +290,11 @@ class TwoStepTrainerWithKL(Trainer):
         Returns:
             Dictionary containing training results and metrics
         """
+        _ensure_single_process_two_step(
+            type(self).__name__,
+            self._is_distributed,
+        )
+
         # Get network object
         if hasattr(model, "core_network"):
             net_obj = model.core_network
@@ -273,6 +320,10 @@ class TwoStepTrainerWithKL(Trainer):
 
         if not hasattr(self, "local_heads"):
             self.local_heads = _initialize_local_heads(net_obj, model, self.device)
+        if not hasattr(self, "local_optimizers"):
+            self.local_optimizers = _make_local_optimizers(
+                net_obj, self.local_heads, self.optimizer
+            )
 
         # Phase 1: Local pretraining with KL divergence
         logger.info(
@@ -290,23 +341,11 @@ class TwoStepTrainerWithKL(Trainer):
 
             # Train each layer with its local head
             for layer_idx in range(n_layers):
-                # Freeze all parameters
-                for param in model.parameters():
-                    param.requires_grad = False
-
-                # Unfreeze current layer
-                if hasattr(net_obj.layers[layer_idx], "weight"):
-                    net_obj.layers[layer_idx].weight.requires_grad = True
-                if (
-                    hasattr(net_obj.layers[layer_idx], "bias")
-                    and net_obj.layers[layer_idx].bias is not None
-                ):
-                    net_obj.layers[layer_idx].bias.requires_grad = True
-
-                # Unfreeze local head
+                layer = net_obj.layers[layer_idx]
                 local_head: torch.nn.Module = self.local_heads[layer_idx]
-                for param in local_head.parameters():
-                    param.requires_grad = True
+                local_optimizer = self.local_optimizers[layer_idx]
+                _set_only_current_layer_and_head_trainable(model, layer, local_head)
+                local_params = _current_local_params(layer, local_head)
 
                 # Train on batches
                 for batch in train_loader:
@@ -338,10 +377,10 @@ class TwoStepTrainerWithKL(Trainer):
                     )
                     loss = ce_loss + self.kl_weight * kl_loss
 
-                    self.optimizer.zero_grad()
+                    local_optimizer.zero_grad()
                     loss.backward()
-                    clip_grad_value_(model.parameters(), self.grad_clip_value)
-                    self.optimizer.step()
+                    clip_grad_value_(local_params, self.grad_clip_value)
+                    local_optimizer.step()
 
                     epoch_loss_accum += loss.item()
                     batch_counter += 1

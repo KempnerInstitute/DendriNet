@@ -15,6 +15,7 @@ import torch
 import torch.nn as nn
 
 from dendritic_modeling.config import TransferFunctionConfig
+from dendritic_modeling.config.training import PruningConfig
 from dendritic_modeling.models import Classifier
 from dendritic_modeling.networks import ExcitationInhibitionNetwork, Identity
 from dendritic_modeling.networks.activations.parametric import (
@@ -26,6 +27,10 @@ from dendritic_modeling.training.strategies import (
     LocalCreditAssignment,
     TwoStepTrainer,
     TwoStepTrainerWithKL,
+)
+from dendritic_modeling.training.strategies.two_step import (
+    _initialize_local_heads,
+    _make_local_optimizers,
 )
 
 
@@ -189,6 +194,103 @@ class TestTrainer(unittest.TestCase):
         # Check that we have at least one loss value
         self.assertGreater(len(results["train_losses"]), 0)
         self.assertGreater(len(results["valid_losses"]), 0)
+
+    def test_apply_pruning_and_evaluate_returns_pre_post_metrics(self):
+        """Test separate pruning step used by train_experiments."""
+        trainer = Trainer(
+            optimizer=torch.optim.Adam(self.model.parameters(), lr=0.01),
+            loss_function="cross_entropy",
+            pruning_config=PruningConfig(enabled=True, threshold=1e9),
+            batch_size=8,
+            suppress_prints=True,
+            num_workers=0,
+        )
+
+        results = trainer._apply_pruning_and_evaluate(
+            self.model, self.train_data, self.valid_data
+        )
+
+        self.assertIn("pre_pruning_performance", results)
+        self.assertIn("post_pruning_performance", results)
+        self.assertIn("valid_loss", results["pre_pruning_performance"])
+        self.assertIn("valid_loss", results["post_pruning_performance"])
+        self.assertGreater(results["pruning_stats"]["pruned_params"], 0)
+
+
+class _TinyLayeredCore(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.layers = nn.ModuleList([nn.Linear(4, 3)])
+        self.output_dim = 3
+
+    def forward(self, x):
+        for layer in self.layers:
+            x = torch.relu(layer(x))
+        return x
+
+
+class _TinyLayeredModel(nn.Module):
+    output_dim = 2
+
+    def __init__(self):
+        super().__init__()
+        self.core_network = _TinyLayeredCore()
+        self.decoder = nn.Linear(3, 2)
+
+    def forward(self, x):
+        return self.decoder(self.core_network(x))
+
+
+class TestTwoStepLocalHeads(unittest.TestCase):
+    @patch("torch.distributed.is_initialized", return_value=True)
+    def test_two_step_raises_explicitly_under_ddp(self, _mock_dist):
+        model = _TinyLayeredModel()
+        optimizer = torch.optim.Adam(model.parameters(), lr=0.05)
+        trainer = TwoStepTrainer(
+            optimizer=optimizer,
+            loss_function="cross_entropy",
+            epochs=1,
+            batch_size=4,
+            suppress_prints=True,
+            num_workers=0,
+        )
+        train_data = torch.utils.data.TensorDataset(
+            torch.randn(4, 4), torch.randint(0, 2, (4,))
+        )
+
+        with self.assertRaisesRegex(NotImplementedError, "not supported under DDP"):
+            trainer.train(model, train_data, train_data)
+
+    def test_local_heads_are_optimizer_owned_and_updated(self):
+        model = _TinyLayeredModel()
+        optimizer = torch.optim.Adam(model.parameters(), lr=0.05)
+        trainer = TwoStepTrainer(
+            optimizer=optimizer,
+            loss_function="cross_entropy",
+            epochs=1,
+            batch_size=4,
+            suppress_prints=True,
+            num_workers=0,
+        )
+        trainer.pretrain_epochs = 1
+        trainer.device = "cpu"
+        trainer.local_heads = _initialize_local_heads(
+            model.core_network, model, trainer.device
+        )
+        trainer.local_optimizers = _make_local_optimizers(
+            model.core_network, trainer.local_heads, trainer.optimizer
+        )
+        before = trainer.local_heads[0].weight.detach().clone()
+
+        train_data = torch.utils.data.TensorDataset(
+            torch.randn(12, 4), torch.randint(0, 2, (12,))
+        )
+        valid_data = torch.utils.data.TensorDataset(
+            torch.randn(8, 4), torch.randint(0, 2, (8,))
+        )
+        trainer.train(model, train_data, valid_data)
+
+        self.assertFalse(torch.allclose(before, trainer.local_heads[0].weight))
 
 
 if __name__ == "__main__":

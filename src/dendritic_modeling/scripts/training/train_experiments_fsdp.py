@@ -70,6 +70,9 @@ logger_manager = LoggerManager()
 canonicalize_model_core_flags = getattr(
     _config_utils, "canonicalize_model_core_flags", None
 )
+canonicalize_rnn_core_flags = getattr(
+    _config_utils, "canonicalize_rnn_core_flags", None
+)
 
 # WandB import (optional)
 try:
@@ -314,6 +317,7 @@ def setup_data_loaders(config, rank, world_size):
                 **processing_params,
                 **dataset_specific_params,
                 "label_noise_seed": config.experiment.seed,
+                "split_seed": config.experiment.seed,
             },
         },
     )()
@@ -325,7 +329,11 @@ def setup_data_loaders(config, rank, world_size):
     # shard *without* padding, and the trainer reduces exact counts
     # (loss_sum, correct, total_examples) via all-reduce SUM.
     train_sampler = DistributedSampler(
-        train_ds, num_replicas=world_size, rank=rank, shuffle=True
+        train_ds,
+        num_replicas=world_size,
+        rank=rank,
+        shuffle=True,
+        seed=int(config.experiment.seed),
     )
 
     # PaddedDistributedEvalSampler gives each rank an equal number of
@@ -397,6 +405,8 @@ def main(config_path):
         config_payload = asdict(config)
         if canonicalize_model_core_flags is not None:
             config_payload = canonicalize_model_core_flags(config_payload)
+        if canonicalize_rnn_core_flags is not None:
+            config_payload = canonicalize_rnn_core_flags(config_payload)
         save_dict(config_payload, run_save_path, "config.json")
     else:
         run_save_path = None
@@ -579,6 +589,7 @@ def main(config_path):
         save_checkpoints=True,
         plot_losses=getattr(train_common, "plot_losses", False),
         save_path=run_save_path if rank == 0 else None,
+        seed=int(config.experiment.seed),
     )
 
     if rank == 0:

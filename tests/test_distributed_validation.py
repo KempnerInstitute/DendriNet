@@ -5,11 +5,17 @@ from torch.utils.data import DataLoader, TensorDataset
 from dendritic_modeling.training.distributed_samplers import (
     PaddedDistributedEvalSampler,
 )
+from dendritic_modeling.training.strategies.recurrent_trainer import RecurrentTrainer
 from dendritic_modeling.training.strategies.standard import Trainer
 
 
 class FixedLogitModel(torch.nn.Module):
     def forward(self, x):
+        return x
+
+
+class FixedSequenceLogitModel(torch.nn.Module):
+    def forward(self, x, seq_lengths=None):
         return x
 
 
@@ -51,6 +57,31 @@ def test_epoch_valid_distributed_excludes_padding_examples(monkeypatch):
 
     loss_fn = torch.nn.CrossEntropyLoss()
     manual_loss = loss_fn(model(x[[1, 3]]), y[[1, 3]]).item()
+
+    assert valid_loss == pytest.approx(manual_loss)
+
+
+def test_recurrent_epoch_valid_distributed_uses_sequence_loss(monkeypatch):
+    x = torch.randn(5, 3, 2)
+    y = torch.randint(0, 2, (5, 3))
+    seq_lengths = torch.full((5,), 3, dtype=torch.long)
+    dataset = TensorDataset(x, y, seq_lengths)
+    sampler = PaddedDistributedEvalSampler(dataset, num_replicas=2, rank=1)
+    loader = DataLoader(dataset, batch_size=2, sampler=sampler, shuffle=False)
+
+    trainer = RecurrentTrainer(
+        optimizer=torch.optim.Adam([torch.tensor(1.0, requires_grad=True)]),
+        task="classification",
+        batch_size=2,
+        suppress_prints=True,
+    )
+    trainer.device = "cpu"
+
+    monkeypatch.setattr(torch.distributed, "all_reduce", lambda tensor, op=None: None)
+    valid_loss = trainer._epoch_valid_distributed(FixedSequenceLogitModel(), loader)
+
+    loss_fn = torch.nn.CrossEntropyLoss()
+    manual_loss = loss_fn(x[[1, 3]].reshape(-1, 2), y[[1, 3]].reshape(-1)).item()
 
     assert valid_loss == pytest.approx(manual_loss)
 
