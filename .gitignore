@@ -218,6 +218,7 @@ scripts_backup/
 
 # Local scratch + external dependencies (kept untracked in this repo).
 drafts/
+review_round2/
 external/
 /scripts/
 !/scripts/ci/
