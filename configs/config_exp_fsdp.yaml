@@ -341,6 +341,7 @@ model:
       independent_pathways: false
       inhibitory_dim: null
       input_mode: 1
+      allow_direct_inhibitory_stream: true
       output_activation: null
     type: einet
   decoder:

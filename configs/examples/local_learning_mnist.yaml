@@ -38,7 +38,7 @@ model:
       inhibitory_network_type: "dendritic"
     connectivity:
       ee_synapses_per_branch_per_layer: [40]
-      ei_synapses_per_branch_per_layer: [0]
+      ei_synapses_per_branch_per_layer: [10]
       ie_synapses_per_branch_per_layer: [10]
       ii_synapses_per_branch_per_layer: [0]
     morphology:

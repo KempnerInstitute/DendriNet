@@ -184,10 +184,20 @@ model:
       rec_ie_synapses_per_branch: [0]   # list[int]: Recurrent I->E synapses per branch per layer
       rec_ei_synapses_per_branch: [0]   # list[int]: Recurrent E->I synapses per branch per layer
       rec_ii_synapses_per_branch: [0]   # list[int]: Recurrent I->I synapses per branch per layer
+      structured:
+        enabled: false                  # bool: Hard mask allowed synapse locations before TopK/DeepST
+        seed: null                      # int | null: Random seed for sampled masks
+        method: "bernoulli"             # str: "bernoulli" | "fixed_indegree" | "distance"
+        probability: null               # float | list[float] | null: Default Bernoulli p
+        indegree: null                  # int | list[int] | null: Default fixed incoming degree
+        distance_kernel: "none"         # str: "none" | "gaussian" | "exponential"
+        distance_sigma: 1.0             # float: Spatial kernel width for distance masks
+        pathways: {}                    # dict: Optional per-pathway overrides: ee, ie, ei, ii, rec_ee, rec_ie, rec_ei, rec_ii
 
     # ---- Transfer function ----
     transfer:
       input_mode: 1                     # int: Input routing mode (1, 2, 3, ...)
+      allow_direct_inhibitory_stream: true  # bool: Explicitly use transferred inhibitory stream without I cells
       independent_pathways: false       # bool: Independent pathway processing
       excitatory_dim: null              # int | null: Override excitatory dim
       inhibitory_dim: null              # int | null: Override inhibitory dim
@@ -199,6 +209,7 @@ model:
       somatic_synapses: false           # bool: Direct somatic synapses
       use_shunting: true                # bool: Shunting inhibition
       use_additive_normalization: false  # bool: Normalize voltage in additive mode
+      allow_self_recurrence: true       # bool: Allow same-neuron recurrent self-connections in translated recurrent cores
       weight_transform: "softplus"      # str: "exp" | "softplus" | "relu" | "identity"
       dbl_init_method: "analytical_expectation"  # str: "analytical_expectation" | "uniform" | "ones"
 
@@ -250,6 +261,68 @@ model:
       kernel_size: 3                    # int: Receptive field size (unfold kernel)
       stride: 1                         # int: Stride for unfold
       padding: 0                        # int: Padding before unfold (set = kernel_size//2 for same-size)
+
+    # ---- Synapse types / receptor kinetics (opt-in recurrent cores) ----
+    synapse_types:
+      enabled: false                    # bool: Enable receptor/conductance-style synapse mixtures
+      excitatory:
+        - name: "AMPA"                  # str: Synapse/receptor name
+          fraction: 1.0                 # float: Mixture weight within excitatory input
+          tau: null                     # float | null: Single exponential tau (legacy if null)
+          tau_rise: null                # float | null: Double-exponential rise tau
+          tau_decay: null               # float | null: Double-exponential decay tau
+          reversal_potential: 1.0       # float: Driving-force reversal potential
+          nonlinearity: "linear"        # str: "linear" | "relu" | "sigmoid" | "tanh" | "softplus"
+          conductance_power: 1.0        # float: Optional conductance exponent
+          magnesium_block: false        # bool: Alias for voltage_gate="nmda_magnesium"
+          voltage_gate: "none"          # str: "none" | "nmda_magnesium" | "sigmoid"
+          mg_concentration: 1.0         # float: NMDA magnesium concentration
+          mg_scale: 3.57                # float: NMDA Mg-block scale
+          mg_slope: 16.13               # float: NMDA Mg-block voltage slope
+          mg_v_offset: 0.0              # float: NMDA Mg-block voltage offset
+          voltage_scale_mv: 100.0       # float: Unitless branch voltage -> mV scale for voltage gates
+          stp:
+            enabled: false              # bool: Enable short-term plasticity gate
+            u0: 0.2                     # float: Baseline utilization
+            tau_u: 200.0                # float: Facilitation recovery tau
+            tau_x: 700.0                # float: Depression recovery tau
+            facilitation: 0.0           # float: Facilitation strength
+            depression: 1.0             # float: Depression strength
+            differentiable_state: false  # bool: Let BPTT flow through STP state history
+      inhibitory:
+        - name: "GABA_A"
+          fraction: 1.0
+          tau: null
+          tau_rise: null
+          tau_decay: null
+          reversal_potential: 0.0
+          nonlinearity: "linear"
+          conductance_power: 1.0
+          voltage_gate: "none"
+
+    # ---- Soma dynamics (opt-in recurrent cores) ----
+    dynamics:
+      mode: "rate"                      # str: "rate" | "spike"; rate preserves legacy behavior
+      threshold: 1.0                    # float: LIF spike threshold when mode="spike"
+      reset: 0.0                        # float: LIF reset voltage
+      tau: 20.0                         # float: LIF membrane tau
+      refractory_steps: 0               # int: Refractory steps after spike
+      surrogate_beta: 10.0              # float: Surrogate-gradient sharpness
+      readout: "spikes"                 # str: "spikes" | "rate" | "membrane"
+      readout_tau: 20.0                 # float: Rate-decoded spike trace tau
+
+    # ---- Population graph / named cell types (core.type: population_graph) ----
+    population_graph:
+      cell_types: []                    # list[dict]: {name, polarity, n_neurons, branch_factors, population}
+      connections: []                   # list[dict]: {source, target, enabled, probability, seed}
+      input_dim: 64                     # int: Sequence input dimension
+      readout_population: null          # str | null: Population decoded by the classifier
+      output_mode: "last"               # str: "last" | "mean" | "all"
+      dt: 1.0                           # float: Recurrent integration timestep
+      input_projection_dims: []         # list[int]: Optional input projection MLP dims
+      population_defaults: {}           # dict: Shared PopulationConfig fields for all cell types
+      connection_seed: null             # int | null: Default seed for probabilistic population masks
+      store_routing: false              # bool: Store routing metadata for compatible analyses
 
     # ---- Recurrent (DEPRECATED -- use unified_ei instead) ----
     recurrent:
@@ -636,7 +709,7 @@ training:
 
     # ---- Learning strategy config (for local_ca rules) ----
     learning_strategy_config:
-      rule_variant: "3f"                # str: "3f" | "4f" | "5f" | "3f_vh" | "4f_vh" | "5f_vh"
+      rule_variant: "3f"                # str: "3f" | "4f" | "5f" | "stdp" | "3f_vh" | "4f_vh" | "5f_vh"
       error_mode: "auto"               # str: "auto" | "mse" | "ce" | "bce"
       error_broadcast_mode: "scalar"    # str: "scalar" | "per_soma" | "local_mismatch" | "low_rank" | "path_transport" | "pathway_vector"
       error_noise_sigma: 0.0           # float: Additive Gaussian noise on broadcast error (0 = off)
@@ -707,6 +780,23 @@ training:
         warmup_epochs: 0                # int: HSIC warmup epochs
         apply_last_layer_only: false    # bool: HSIC last layer only
 
+      stdp:
+        enabled: false                  # bool: Enable trace-based STDP as auxiliary rule; auto true for rule_variant="stdp"
+        apply_to: ["exc", "rec_exc"]    # list[str]: "exc" | "inh" | "rec_exc" | "rec_inh"
+        activity_mode: "relu"           # str: "relu" | "identity" | "binary" | "abs"
+        pre_threshold: 0.0              # float: Presynaptic activity threshold
+        post_threshold: 0.0             # float: Postsynaptic activity threshold
+        tau_pre: 20.0                   # float: Presynaptic trace tau
+        tau_post: 20.0                  # float: Postsynaptic trace tau
+        a_plus: 1.0                     # float: Potentiation scale
+        a_minus: 0.5                    # float: Depression scale
+        learning_rate_scale: 1.0        # float: Multiplier on optimizer LR for STDP update
+        inhibitory_update_sign: -1.0    # float: Sign multiplier for inhibitory pathways
+        use_error_modulation: false     # bool: Modulate STDP by broadcast task error
+        error_modulation_mode: "scalar_abs"  # str: "scalar_abs" | "scalar_signed"
+        clamp_update: 0.0               # float: Absolute update clamp (0 = off)
+        detach_traces: true             # bool: Detach local traces from autograd graph
+
       inhibitory_homeostasis:
         enabled: false                  # bool: Enable inhibitory homeostasis
         mode: "r_tot"                   # str: "r_tot" | "voltage"
@@ -721,8 +811,19 @@ training:
         # NOTE: *_vh rule aliases auto-enable this block with a conservative
         # default (weight=0.02, target_voltage=0.5) unless you override it here.
 
+      gate_homeostasis:
+        enabled: false                  # bool: Enable local gate-occupancy auxiliary update
+        center_weight: 0.0              # float: Weight for mean gate occupancy target
+        saturation_weight: 0.0          # float: Weight for saturation-control target
+        target_mean: 0.5                # float: Desired mean reactivation gate value
+        target_saturation: 0.2          # float: Desired fraction of saturated gates
+        low_threshold: 0.1              # float: Low gate threshold for saturation metric
+        high_threshold: 0.9             # float: High gate threshold for saturation metric
+        saturation_slope: 20.0          # float: Smooth saturation indicator slope
+
       update_inactive_weights: false    # bool: Update inactive weights
       update_reactivation: true         # bool: Update reactivation params
+      explicit_inhibitory_update_mode: "local_ca"  # str: "local_ca" | "freeze" for explicit I-cell dendrites
       encoder_update_mode: "none"       # str: "backprop" | "none"
       decoder_update_mode: "backprop"   # str: "backprop" | "local" | "none"
       freeze_encoder_epochs: 0          # int: Freeze encoder for N epochs
@@ -1115,6 +1216,18 @@ analysis:
       save_json: true                   # bool: Save per-snapshot JSON
       save_csv: true                    # bool: Save per-snapshot CSV
       append_training_csv: true         # bool: Append training snapshots to trajectory.csv
+
+  # ---------- Spike train ----------
+  spike_train:
+    enabled: false                      # bool: Enable LIF spike-train analysis
+    training: false                     # bool: Run during training for epoch trajectories
+    params:
+      dt: 1.0                           # float: Time per recurrent step for rate reporting
+      threshold: 0.5                    # float: Binarization threshold for recorded spike outputs
+      max_samples: 512                  # int | null: Cap examples used for analysis
+      include_raster: true              # bool: Include compact raster event lists
+      max_raster_samples: 8             # int: Number of examples to include in raster events
+      include_per_timestep_rate: true   # bool: Include population firing-rate traces over time
 
   # ---------- Routing ----------
   routing:
