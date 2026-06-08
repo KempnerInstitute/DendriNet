@@ -181,11 +181,21 @@ class AblationAnalyzer(AbstractAnalyzer):
                 getattr(params, "pred_label_mi_bits", False)
                 or getattr(params, "pred_label_mi", False)
             )
+        self.lesion_value = -1000.0
 
     @staticmethod
     def _normalize_ablation_target(target: str) -> str:
         """Normalize ablation target names (spaces -> underscores)."""
         return str(target).replace(" ", "_")
+
+    @staticmethod
+    def _resolve_lesion_value(model: BaseModel) -> float:
+        """Return a weight-space lesion value matched to the model transform."""
+        core_network = getattr(model, "core_network", None)
+        weight_transform = str(getattr(core_network, "weight_transform", "")).lower()
+        if weight_transform in {"identity", "relu"}:
+            return 0.0
+        return -1000.0
 
     def _make_signal_intervention_pre_hook(
         self,
@@ -338,17 +348,19 @@ class AblationAnalyzer(AbstractAnalyzer):
                         if module.branch_excitation is not None and hasattr(
                             module.branch_excitation, "pre_w"
                         ):
-                            module.branch_excitation.pre_w.data.fill_(-1000)
+                            module.branch_excitation.pre_w.data.fill_(self.lesion_value)
                     if target_type_norm in {"all_synapses", "inhibition"}:
                         if module.branch_inhibition is not None and hasattr(
                             module.branch_inhibition, "pre_w"
                         ):
-                            module.branch_inhibition.pre_w.data.fill_(-1000)
+                            module.branch_inhibition.pre_w.data.fill_(self.lesion_value)
                     if target_type_norm == "upstream":
                         if hasattr(module, "branches_to_output") and hasattr(
                             module.branches_to_output, "log_weight"
                         ):
-                            module.branches_to_output.log_weight.data.fill_(-1000)
+                            module.branches_to_output.log_weight.data.fill_(
+                                self.lesion_value
+                            )
 
                 elif ablation_method in {"shuffle", "mean_clamp"}:
                     # Signal-level intervention: manipulate the input signals, not weights.
@@ -473,11 +485,17 @@ class AblationAnalyzer(AbstractAnalyzer):
         for branch_ix in range(n_branches):
             try:
                 if target_type_norm in {"all_synapses", "excitation"}:
-                    module.branch_excitation.pre_w.data[branch_ix, :] = -1000
+                    module.branch_excitation.pre_w.data[branch_ix, :] = (
+                        self.lesion_value
+                    )
                 if target_type_norm in {"all_synapses", "inhibition"}:
-                    module.branch_inhibition.pre_w.data[branch_ix, :] = -1000
+                    module.branch_inhibition.pre_w.data[branch_ix, :] = (
+                        self.lesion_value
+                    )
                 if target_type_norm == "upstream":
-                    module.branches_to_output.log_weight.data[branch_ix, :] = -1000
+                    module.branches_to_output.log_weight.data[branch_ix, :] = (
+                        self.lesion_value
+                    )
 
                 if self.accuracy:
                     _evaluate_metric(
@@ -577,6 +595,8 @@ class AblationAnalyzer(AbstractAnalyzer):
         """Perform ablation analysis and return results."""
         if not has_einet_core(model):
             return
+
+        self.lesion_value = self._resolve_lesion_value(model)
 
         eval_kwargs = evaluation_kwargs_from_runtime(runtime)
         test_dataset = subset_dataset_for_runtime(test_dataset, runtime)
