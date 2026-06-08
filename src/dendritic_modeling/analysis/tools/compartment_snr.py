@@ -81,6 +81,14 @@ class CompartmentSNRAnalyzer(AbstractAnalyzer):
                 for branch_idx in range(module.n_branches):
                     self.raw_dict[key][branch_idx] = {"depth": module.layer_idx}
 
+                if self.input_analysis:
+                    handle = module.register_forward_pre_hook(
+                        lambda module, input, layer_key=key: self.branch_input_hook(
+                            module, input, layer_key
+                        )
+                    )
+                    handles.append(handle)
+
                 if module.branch_excitation is not None:
                     handle = module.branch_excitation.register_forward_hook(
                         lambda module, input, output, layer_key=key: self.forward_hook(
@@ -128,6 +136,35 @@ class CompartmentSNRAnalyzer(AbstractAnalyzer):
         for handle in handles:
             handle.remove()
 
+    def _capture_input_once(self, name: str, tensor: torch.Tensor | None) -> None:
+        if tensor is None or hasattr(self, name):
+            return
+        if not torch.is_tensor(tensor):
+            return
+        setattr(self, name, tensor.detach().cpu())
+
+    def branch_input_hook(
+        self,
+        module: DendriticBranchLayer,
+        input: tuple[torch.Tensor, ...],
+        key: str,
+    ) -> None:
+        """Capture the actual tensors entering a branch layer.
+
+        This is intentionally attached to ``DendriticBranchLayer`` rather than
+        to the whole E/I network.  It therefore records direct inhibitory
+        streams from ``input_mode=1`` as inhibitory inputs, while explicit
+        inhibitory-cell outputs are captured only when they are actually passed
+        into the analyzed excitatory dendrites.
+        """
+        if not input:
+            return
+        self._capture_input_once("excitatory_inputs", input[0])
+        if len(input) > 1:
+            self._capture_input_once("inhibitory_inputs", input[1])
+        if len(input) > 2:
+            self._capture_input_once("upstream_inputs", input[2])
+
     def forward_hook(
         self,
         module: Union[TopKLinear, ParametricActivation, torch.nn.Identity],
@@ -138,9 +175,9 @@ class CompartmentSNRAnalyzer(AbstractAnalyzer):
     ):
         if self.input_analysis:
             if activation_type == "exc" and not hasattr(self, "excitatory_inputs"):
-                self.excitatory_inputs = input[0].detach().cpu()
+                self._capture_input_once("excitatory_inputs", input[0])
             elif activation_type == "inh" and not hasattr(self, "inhibitory_inputs"):
-                self.inhibitory_inputs = input[0].detach().cpu()
+                self._capture_input_once("inhibitory_inputs", input[0])
 
         for branch_idx in range(output.shape[-1]):
             if activation_type == "vinf":
@@ -170,6 +207,15 @@ class CompartmentSNRAnalyzer(AbstractAnalyzer):
                 stats_dict=results,
             )
             delattr(self, "inhibitory_inputs")
+
+        if hasattr(self, "upstream_inputs"):
+            results = self._compute_discriminability_multivariate(
+                data_tensor=self.upstream_inputs,
+                labels=labels,
+                prefix="upstream_inputs",
+                stats_dict=results,
+            )
+            delattr(self, "upstream_inputs")
 
         return results
 
