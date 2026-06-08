@@ -418,6 +418,23 @@ class TestWithInhibitoryNeurons:
         out = net(x)
         assert out.shape == (BATCH, OUTPUT_DIM)
 
+    def test_transfer_legacy_aliases_still_work_for_direct_dicts(self):
+        config = _config_with_inhibitory_layers(
+            input_mode=1, inhibitory_layer_sizes=[5]
+        )
+        config["transfer"].pop("allow_direct_inhibitory_stream", None)
+        config["transfer"]["allow_direct_inhibitory_input"] = True
+        config["transfer"]["build_inhibitory_population_for_input_mode1"] = True
+
+        torch.manual_seed(42)
+        net = ConfigurableEINetwork(config=config, input_dim=INPUT_DIM)
+
+        assert net.transfer_params["allow_direct_inhibitory_stream"] is True
+        assert "allow_direct_inhibitory_input" not in net.transfer_params
+        assert net.layers[0].inhibitory_cells is not None
+        out = net(torch.rand(BATCH, INPUT_DIM))
+        assert out.shape == (BATCH, OUTPUT_DIM)
+
 
 # ---------------------------------------------------------------------------
 # Transfer function

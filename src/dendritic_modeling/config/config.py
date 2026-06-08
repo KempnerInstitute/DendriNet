@@ -27,6 +27,7 @@ from dendritic_modeling.config.analysis import (
 )
 from dendritic_modeling.config.base import BaseConfig
 from dendritic_modeling.config.conversion import to_plain_dict
+from dendritic_modeling.config.legacy import normalize_transfer_config
 from dendritic_modeling.config.model import (
     ArchitectureConfig,
     BlockLinearConfig,
@@ -322,7 +323,7 @@ def _build_core_config(core_data: Any) -> CoreConfig:
             ),
         ),
         transfer=TransferFunctionConfig(
-            **_to_plain_dict(core_dict.get("transfer", {}))
+            **normalize_transfer_config(core_dict.get("transfer", {}))
         ),
         morphology=MorphologyConfig(**_to_plain_dict(core_dict.get("morphology", {}))),
         sparsity=SparsityConfig(**_to_plain_dict(core_dict.get("sparsity", {}))),

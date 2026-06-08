@@ -14,6 +14,7 @@ from dendritic_modeling.config.conversion import (
     normalize_sparsity_type as _normalize_sparsity_type,
     to_plain_dict,
 )
+from dendritic_modeling.config.legacy import normalize_transfer_config
 from dendritic_modeling.config.model_aliases import (
     canonicalize_model_core_flags as _canonicalize_model_core_flags,
     canonicalize_rnn_core_flags as _canonicalize_rnn_core_flags,
@@ -145,7 +146,7 @@ def prepare_ei_network_params(
         config_dict = OmegaConf.to_container(config, resolve=True)
         architecture_dict = config_dict.get("architecture", {})
         connectivity_dict = config_dict.get("connectivity", {})
-        transfer_dict = config_dict.get("transfer", {})
+        transfer_dict = normalize_transfer_config(config_dict.get("transfer", {}))
         morphology_dict = config_dict.get("morphology", {})
         implementation_dict = config_dict.get("implementation", {})
         sparsity_dict = config_dict.get("sparsity", {})
@@ -154,7 +155,7 @@ def prepare_ei_network_params(
     else:
         architecture_dict = config.get("architecture", {})
         connectivity_dict = config.get("connectivity", {})
-        transfer_dict = config.get("transfer", {})
+        transfer_dict = normalize_transfer_config(config.get("transfer", {}))
         morphology_dict = config.get("morphology", {})
         implementation_dict = config.get("implementation", {})
         sparsity_dict = config.get("sparsity", {})

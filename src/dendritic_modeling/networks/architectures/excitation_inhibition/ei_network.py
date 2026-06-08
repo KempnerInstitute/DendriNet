@@ -13,6 +13,8 @@ import torch
 import torch.nn as nn
 from omegaconf import DictConfig
 
+from dendritic_modeling.config.legacy import normalize_transfer_config
+
 # Import dynamo config for JIT compilation optimization
 try:
     import torch._dynamo.config
@@ -132,7 +134,7 @@ class ExcitationInhibitionNetwork(BaseNetwork):
     ):
         super().__init__()
         self.input_dim = input_dim
-        self.transfer_params = transfer_params
+        self.transfer_params = normalize_transfer_config(transfer_params)
         self.output_dim = excitatory_layer_sizes[-1]
         self.excitatory_layer_sizes = excitatory_layer_sizes
         self.inhibitory_layer_sizes = inhibitory_layer_sizes
@@ -242,13 +244,7 @@ class ExcitationInhibitionNetwork(BaseNetwork):
 
         input_mode = self.transfer_params.get("input_mode", 0)
         input_mode1_builds_i = bool(
-            self.transfer_params.get(
-                "input_mode1_build_inhibitory_population",
-                self.transfer_params.get(
-                    "build_inhibitory_population_for_input_mode1",
-                    False,
-                ),
-            )
+            self.transfer_params.get("input_mode1_build_inhibitory_population", False)
         )
 
         # Preserve the legacy feedforward contract: input_mode=1 uses the
@@ -284,7 +280,6 @@ class ExcitationInhibitionNetwork(BaseNetwork):
         )
         allow_direct_inhibitory_stream = bool(
             self.transfer_params.get("allow_direct_inhibitory_stream", False)
-            or self.transfer_params.get("allow_direct_inhibitory_input", False)
         )
         require_direct_stream_opt_in = bool(
             self.transfer_params.get("require_explicit_direct_inhibitory_stream", False)

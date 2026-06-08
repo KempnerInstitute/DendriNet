@@ -22,7 +22,7 @@ rules stay aligned unless recurrence genuinely requires something extra
 Unified E-I:
 
 - `ei_unified`
-- aliases: `unified_ei`, `ei_net`, `unified_einet`
+- `unified_ei`
 - recurrent-default aliases: `rnn_dendritic_shunting`, `rnn_dendritic_additive`,
   `rnn_flat_shunting`, `rnn_flat_additive`
 

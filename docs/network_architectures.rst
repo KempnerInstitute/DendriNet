@@ -88,7 +88,7 @@ Core Network Types
      -
    * - ``ei_unified``
      - Unified E-I, supports feedforward and recurrent
-     - ``unified_ei``, ``ei_net``, ``unified_einet``, ``rnn_dendritic_shunting``, ``rnn_dendritic_additive``, ``rnn_flat_shunting``, ``rnn_flat_additive``
+     - ``unified_ei``, ``rnn_dendritic_shunting``, ``rnn_dendritic_additive``, ``rnn_flat_shunting``, ``rnn_flat_additive``
    * - ``population_graph``
      - Named multi-population recurrent core for cell-type experiments
      - ``cell_type_graph``, ``cell_types``
@@ -325,9 +325,10 @@ Controls how input is routed to the E and I pathways.
 
 ``require_explicit_direct_inhibitory_stream``
    Optional safety flag. When ``true``, direct input-mode-1 inhibition requires
-   ``allow_direct_inhibitory_stream: true`` or
-   ``allow_direct_inhibitory_input: true``. The default is ``false`` for
-   compatibility with existing configs.
+   ``allow_direct_inhibitory_stream: true``. The deprecated
+   ``allow_direct_inhibitory_input`` spelling is still normalized by the legacy
+   config adapter, but new configs should not use it. The default is ``false``
+   for compatibility with existing configs.
 
 ``independent_pathways``
    Controls raw input routing independently of inhibitory-population

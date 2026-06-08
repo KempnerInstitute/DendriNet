@@ -94,7 +94,7 @@ Feedforward dendritic cores:
 Recurrent dendritic cores:
 
 - `unified_ei` — hierarchical recurrent E-I with learnable time constants
-- aliases: `ei_unified`, `ei_net`, `unified_einet`
+- `ei_unified` — equivalent canonical factory name
 
 Pretrained-replacement cores (vision):
 

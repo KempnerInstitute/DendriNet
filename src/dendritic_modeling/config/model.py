@@ -17,9 +17,7 @@ class TransferFunctionConfig(BaseConfig):
     output_activation: Optional[str] = None
     inhibitory_mode: str = "first"  # "none", "first", "all"
     allow_direct_inhibitory_stream: bool = False
-    allow_direct_inhibitory_input: bool = False
     input_mode1_build_inhibitory_population: bool = False
-    build_inhibitory_population_for_input_mode1: bool = False
     require_explicit_direct_inhibitory_stream: bool = False
 
 

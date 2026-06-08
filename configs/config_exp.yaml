@@ -148,7 +148,7 @@ model:
   core:
     # Legacy EI (feedforward / recurrent-capable via core.recurrent_ei or connectivity.rec_*):
     #   "einet" | "dendritic_shunting" | "dendritic_additive" | "flat_shunting" | "flat_additive" | "dendritic_mlp" | "flat_mlp"
-    # Unified EI (recommended): "unified_ei" | "ei_unified" | "ei_net" | "unified_einet"
+    # Unified EI (recommended): "unified_ei" | "ei_unified"
     # Recurrent unified-EI aliases:
     #   "rnn_dendritic_shunting" | "rnn_dendritic_additive" | "rnn_flat_shunting" | "rnn_flat_additive"
     # Baseline RNN: "gru" | "lstm" | "vanilla_rnn" | "rnn"
@@ -324,73 +324,8 @@ model:
       connection_seed: null             # int | null: Default seed for probabilistic population masks
       store_routing: false              # bool: Store routing metadata for compatible analyses
 
-    # ---- Recurrent (DEPRECATED -- use unified_ei instead) ----
-    recurrent:
-      enabled: false                    # bool: Enable recurrent mode (DEPRECATED)
-      cell_type: "dendritic"            # str: "dendritic" | "gru" | "lstm"
-      n_excitatory: 64                  # int: Number of excitatory neurons
-      n_inhibitory: 16                  # int: Number of inhibitory neurons
-      num_layers: 1                     # int: Number of recurrent layers
-      branches:                         # list[BranchConfig]: Branch definitions
-        - tau: 10.0                     # float: Time constant (ms)
-          ff_synapses: 12               # int: Feedforward synapses
-          rec_synapses: 0               # int: Recurrent synapses
-          ie_synapses: 4                # int: Inhibitory->excitatory synapses
-          rec_i_synapses: 0             # int: Recurrent inhibitory synapses
-          compartment: "topk"           # str: "topk" | "dendritic_branch" | "dendrinet" | "linear"
-          activation: "relu"            # str: "relu" | "tanh" | "sigmoid"
-          dendrinet_branch_factors: [2] # list[int]: Branch factors for dendrinet compartment
-          use_shunting: true            # bool: Shunting inhibition (dendritic_branch only)
-          reactivate: false             # bool: Apply reactivation
-          reactivation_type: "param_tanh"  # str: "param_tanh" | "relu" | "sigmoid"
-          reactivation_init_m: 1.0      # float: Reactivation slope init
-          reactivation_init_b: 0.5      # float: Reactivation bias init
-          topk_init_method: "xavier_normal"  # str: Init method for topk
-          epsilon: 0.00000001           # float: Numerical epsilon
-          weight_transform: "exp"       # str: "exp" | "softplus" | "relu" | "identity"
-        - tau: 50.0
-          ff_synapses: 6
-          rec_synapses: 6
-          ie_synapses: 4
-          rec_i_synapses: 0
-          compartment: "topk"
-          activation: "relu"
-          dendrinet_branch_factors: [2]
-          use_shunting: true
-          reactivate: false
-          reactivation_type: "param_tanh"
-          reactivation_init_m: 1.0
-          reactivation_init_b: 0.5
-          topk_init_method: "xavier_normal"
-          epsilon: 0.00000001
-          weight_transform: "exp"
-        - tau: 200.0
-          ff_synapses: 0
-          rec_synapses: 10
-          ie_synapses: 4
-          rec_i_synapses: 0
-          compartment: "topk"
-          activation: "relu"
-          dendrinet_branch_factors: [2]
-          use_shunting: true
-          reactivate: false
-          reactivation_type: "param_tanh"
-          reactivation_init_m: 1.0
-          reactivation_init_b: 0.5
-          topk_init_method: "xavier_normal"
-          epsilon: 0.00000001
-          weight_transform: "exp"
-      i_tau: 10.0                       # float: Inhibitory time constant
-      i_compartment: "topk"             # str: "topk" | "dendritic_branch" | "dendrinet" | "linear"
-      dt: 1.0                           # float: Integration time step
-      learn_taus: false                 # bool: Learnable time constants
-      g_leak: 1.0                       # float: Leak conductance
-      soma_mode: "shunting"             # str: "shunting" | "additive" | "sum"
-      output_mode: "last"               # str: "last" | "all" | "mean"
-      input_projection_layers: [64]     # list[int]: Input projection MLP layers
-      dropout: 0.0                      # float: Dropout rate
-      grad_clip: 1.0                    # float: Gradient clipping value
-      store_routing: false              # bool: Store routing info
+    # Old core.recurrent/BranchConfig payloads are deprecated and intentionally
+    # omitted from this template. Use unified_ei, recurrent_ei, or baseline_rnn.
 
     # ---- Unified EI (dict, structure depends on architecture) ----
     unified_ei: {}                      # dict: Unified E-I architecture config payload

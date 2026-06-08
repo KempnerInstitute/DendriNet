@@ -268,6 +268,36 @@ class TestConfigLoading(unittest.TestCase):
             StructuredConnectivityConfig,
         )
 
+    def test_transfer_legacy_aliases_load_as_canonical_fields(self):
+        load_config.cache_clear()
+        alias_config = {
+            **self.sample_config,
+            "model": {
+                **self.sample_config["model"],
+                "core": {
+                    **self.sample_config["model"]["core"],
+                    "transfer": {
+                        "input_mode": 1,
+                        "allow_direct_inhibitory_input": True,
+                        "build_inhibitory_population_for_input_mode1": True,
+                    },
+                },
+            },
+        }
+        alias_file = os.path.join(self.temp_dir, "transfer_alias_config.yaml")
+        with open(alias_file, "w") as f:
+            yaml.safe_dump(alias_config, f)
+
+        config = load_config(alias_file)
+        transfer = config.model.core.transfer
+
+        self.assertTrue(transfer.allow_direct_inhibitory_stream)
+        self.assertTrue(transfer.input_mode1_build_inhibitory_population)
+        self.assertFalse(hasattr(transfer, "allow_direct_inhibitory_input"))
+        self.assertFalse(
+            hasattr(transfer, "build_inhibitory_population_for_input_mode1")
+        )
+
     def test_load_config_with_structured_connectivity(self):
         load_config.cache_clear()
         structured_config = {
