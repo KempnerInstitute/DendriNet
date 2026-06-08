@@ -32,6 +32,9 @@ from typing import Any
 import torch
 
 from dendritic_modeling.analysis.core.base import AbstractAnalyzer
+from dendritic_modeling.analysis.utils.recurrent_introspection import (
+    iter_recurrent_populations,
+)
 from dendritic_modeling.config.analysis import DendriticTimetracesAnalysisParams
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.utils import save_dict
@@ -71,17 +74,14 @@ def _simulate_cascade(
     L = len(tau)
     rho = [math.exp(-1.0 / max(tau_l, 1e-6)) for tau_l in tau]
     V = [[0.0] * T for _ in range(L)]
-    # Convention: level 0 = most-distal, level L-1 = soma.
-    # The cascade propagates the input into the soma first, then
-    # downstream towards the distal compartments, matching the
-    # forward-pass semantics used by StatefulDendriNet.
-    soma = L - 1
+    # Convention: level 0 = most-distal, level L-1 = soma. StatefulDendriNet
+    # integrates distal compartments first, then aggregates toward the soma.
     for t in range(1, T):
-        V[soma][t] = rho[soma] * V[soma][t - 1] + (1.0 - rho[soma]) * u[t]
-        for level_idx in range(L - 2, -1, -1):
+        V[0][t] = rho[0] * V[0][t - 1] + (1.0 - rho[0]) * u[t]
+        for level_idx in range(1, L):
             V[level_idx][t] = (
                 rho[level_idx] * V[level_idx][t - 1]
-                + (1.0 - rho[level_idx]) * V[level_idx + 1][t]
+                + (1.0 - rho[level_idx]) * V[level_idx - 1][t]
             )
     V_hat = [
         [
@@ -97,11 +97,14 @@ def _timetraces_for_population(
     e_population: torch.nn.Module,
     params: DendriticTimetracesAnalysisParams,
 ) -> dict[str, Any] | None:
-    log_tau = getattr(e_population, "log_tau", None)
-    if log_tau is None:
-        return None
     with torch.no_grad():
-        tau = torch.exp(log_tau.detach().cpu()).tolist()
+        if hasattr(e_population, "current_taus"):
+            tau = e_population.current_taus.detach().cpu().tolist()
+        else:
+            log_tau = getattr(e_population, "log_tau", None)
+            if log_tau is None:
+                return None
+            tau = torch.exp(log_tau.detach().cpu()).tolist()
 
     branch_layers = getattr(e_population, "branch_layers", None)
     if branch_layers is None or len(branch_layers) != len(tau):
@@ -165,23 +168,26 @@ class DendriticTimetracesAnalyzer(AbstractAnalyzer):
         self.log_analysis_start("dendritic_timetraces")
 
         core = getattr(model, "core_network", model)
-        layers = getattr(core, "layers", None)
-        if layers is None or len(layers) == 0:
-            self.logger.info("Skipping dendritic timetraces: core has no `layers`")
-            return {}
-
         per_layer: dict[str, dict[str, Any]] = {}
-        for idx, layer in enumerate(layers):
-            e_pop = getattr(layer, "e_population", None)
-            if e_pop is None:
+        for record in iter_recurrent_populations(core):
+            if record.polarity != "excitatory":
                 continue
-            entry = _timetraces_for_population(e_pop, self.params)
+            entry = _timetraces_for_population(record.population, self.params)
             if entry is not None:
-                per_layer[f"layer_{idx}"] = entry
+                entry["population"] = record.population_name
+                entry["polarity"] = record.polarity
+                key = (
+                    f"layer_{record.layer_index}"
+                    if record.layer_index is not None
+                    and record.population_name == "excitatory"
+                    else record.key
+                )
+                per_layer[key] = entry
 
         if not per_layer:
             self.logger.info(
-                "Skipping dendritic timetraces: no dendritic layer with log_tau"
+                "Skipping dendritic timetraces: no excitatory recurrent dendritic "
+                "population with tau/readout parameters"
             )
             return {}
 

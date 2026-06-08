@@ -16,7 +16,7 @@ from typing import Any, ClassVar, Optional, Union
 
 import numpy as np
 from scipy import stats
-from sklearn.feature_selection import mutual_info_classif, mutual_info_regression
+from sklearn.feature_selection import mutual_info_classif
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import log_loss, mutual_info_score
 from sklearn.model_selection import StratifiedKFold
@@ -673,10 +673,11 @@ class SklearnEstimator(BaseInformationEstimator):
         elif not x_discrete and y_discrete:
             # X continuous, Y discrete (classification)
             y_labels = self._to_labels(y_orig.ravel() if y_orig.ndim == 1 else y)
-            mi_scores = mutual_info_classif(
-                x, y_labels, n_neighbors=self.config.n_neighbors
-            )
-            return float(np.mean(mi_scores))
+            k = min(max(1, int(self.config.n_neighbors)), max(1, x.shape[0] - 1))
+            if x.shape[1] > 1:
+                return float(compute_mi_cd(x, y_labels, k))
+            mi_scores = mutual_info_classif(x, y_labels, n_neighbors=k)
+            return float(mi_scores[0])
 
         elif not x_discrete and not y_discrete:
             # Both continuous (regression)
@@ -684,11 +685,9 @@ class SklearnEstimator(BaseInformationEstimator):
                 # Both univariate - use histogram-based estimation
                 return self._histogram_mi(x.ravel(), y.ravel())
             else:
-                # Multivariate - use mutual_info_regression
-                mi_scores = mutual_info_regression(
-                    x, y.ravel() if y.shape[1] == 1 else y
-                )
-                return float(np.mean(mi_scores))
+                # Multivariate - estimate joint I(X;Y), not mean feature-wise MI.
+                k = min(max(1, int(self.config.n_neighbors)), max(1, x.shape[0] - 1))
+                return float(compute_mi_cc(x, y, k))
 
         else:
             # X discrete, Y continuous - swap and compute
@@ -733,10 +732,8 @@ class SklearnEstimator(BaseInformationEstimator):
         """Convert continuous values to discrete labels."""
         if x.ndim > 1:
             # For multi-dimensional, create composite labels
-            x_str = [str(tuple(row)) for row in x]
-            unique_labels = list(set(x_str))
-            label_map = {label: i for i, label in enumerate(unique_labels)}
-            return np.array([label_map[s] for s in x_str])
+            _, inverse = np.unique(x, axis=0, return_inverse=True)
+            return inverse.astype(int)
         else:
             # For 1D, use unique value mapping
             unique_vals = np.unique(x)

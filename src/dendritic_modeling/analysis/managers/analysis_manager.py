@@ -47,6 +47,7 @@ from dendritic_modeling.analysis.tools.reactivation_dynamics import (
 )
 from dendritic_modeling.analysis.tools.receptive_fields import ReceptiveFieldAnalyzer
 from dendritic_modeling.analysis.tools.routing_analysis import RoutingAnalyzer
+from dendritic_modeling.analysis.tools.spike_trains import SpikeTrainAnalyzer
 from dendritic_modeling.analysis.tools.synaptic_activation import (
     SynapticActivationAnalyzer,
 )
@@ -212,6 +213,11 @@ class AnalysisManager:
             self.dendritic_timetraces_analyzer = DendriticTimetracesAnalyzer(
                 ddt_cfg.params
             )
+
+        # Initialize Spike Train Analysis (spiking recurrent models only)
+        spike_cfg = getattr(self.config, "spike_train_analysis", None)
+        if spike_cfg is not None and spike_cfg.enabled:
+            self.spike_train_analyzer = SpikeTrainAnalyzer(spike_cfg.params)
 
         # Initialize Adversarial Robustness Analysis
         if (
@@ -601,6 +607,25 @@ class AnalysisManager:
                 filename=filename,
             )
             self.logger.info("Dendritic timetraces analysis completed successfully")
+
+        # Spike Train Analysis (spiking recurrent models)
+        spike_cfg = getattr(self.config, "spike_train_analysis", None)
+        if (
+            spike_cfg is not None
+            and spike_cfg.enabled
+            and hasattr(self, "spike_train_analyzer")
+            and ((getattr(spike_cfg, "training", False) and training) or not training)
+        ):
+            self.logger.info("Starting spike train analysis...")
+            self.spike_train_analyzer.analyze(
+                model=self.model,
+                data=self.data["test"],
+                device=self.device,
+                save_path=os.path.join(self.save_root, "spike_train_analysis"),
+                filename=filename,
+                runtime=runtime,
+            )
+            self.logger.info("Spike train analysis completed successfully")
 
         # Adversarial Robustness Analysis
         if (

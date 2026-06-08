@@ -17,6 +17,7 @@ import numpy as np
 import torch
 
 from dendritic_modeling.analysis.core.base import AbstractAnalyzer
+from dendritic_modeling.analysis.utils.einet_core import has_einet_core
 from dendritic_modeling.analysis.utils.runtime import (
     analysis_device_context,
     evaluation_kwargs_from_runtime,
@@ -28,7 +29,6 @@ from dendritic_modeling.config.analysis import (
     EvaluationRuntimeConfig,
 )
 from dendritic_modeling.models import BaseModel, Classifier, Regressor
-from dendritic_modeling.networks import ExcitationInhibitionNetwork
 from dendritic_modeling.networks.architectures import DendriticBranchLayer
 from dendritic_modeling.plotting.visualizations.general_analysis_plots import (
     plot_ablation_results,
@@ -575,9 +575,7 @@ class AblationAnalyzer(AbstractAnalyzer):
         runtime: Optional[EvaluationRuntimeConfig] = None,
     ):
         """Perform ablation analysis and return results."""
-        try:
-            assert isinstance(model.core_network, ExcitationInhibitionNetwork)
-        except AssertionError:
+        if not has_einet_core(model):
             return
 
         eval_kwargs = evaluation_kwargs_from_runtime(runtime)

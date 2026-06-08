@@ -646,8 +646,7 @@ class InformationAnalysisPlotter(BasePlotter):
 
                         if mean_key in layer_results[layer_name]:
                             means.append(layer_results[layer_name][mean_key])
-                            # Reduce error bar size by dividing by 5
-                            stds.append(layer_results[layer_name].get(std_key, 0) / 5.0)
+                            stds.append(layer_results[layer_name].get(std_key, 0))
                             valid_layers.append(layer_name)
 
                 if means:
@@ -662,7 +661,7 @@ class InformationAnalysisPlotter(BasePlotter):
                         capsize=5,
                         linewidth=2,
                         markersize=6,
-                        label=f"{metric} (mean ± std/5)",
+                        label=f"{metric} (mean ± std)",
                     )
 
                     # Plot variance as filled area
@@ -995,8 +994,7 @@ def _generate_layer_comparison_plots(
                             if f"{metric}_mean" in depth_stats:
                                 x_positions.append(depth_idx)
                                 values.append(depth_stats[f"{metric}_mean"])
-                                # Use std/5 for smaller error bars
-                                errors.append(depth_stats.get(f"{metric}_std", 0) / 5.0)
+                                errors.append(depth_stats.get(f"{metric}_std", 0))
 
                     if x_positions and values:
                         x_pos = np.asarray(x_positions)
@@ -1407,8 +1405,7 @@ def plot_info_vs_ei_depth_per_dendritic_layer(
 
                                 if mean_key in layer_stats:
                                     values.append(layer_stats[mean_key])
-                                    # Use std/5 for smaller error bars like in layer_comparison
-                                    errors.append(layer_stats.get(std_key, 0) / 5.0)
+                                    errors.append(layer_stats.get(std_key, 0))
                                 else:
                                     values.append(0)
                                     errors.append(0)
@@ -2779,19 +2776,6 @@ def plot_fully_aggregated_analysis(
         else:
             axes = axes.flatten()
 
-        # Proxy plots should show larger (unscaled) error bars for readability.
-        std_divisor = (
-            1.0
-            if metric_category
-            in {
-                "ablation_proxy_sum",
-                "ablation_proxy_union",
-                "ablation_proxy_topk_sum",
-                "ablation_proxy_branch_mean",
-            }
-            else 5.0
-        )
-
         for idx, (plot_title, metrics_list) in enumerate(metric_groups):
             if idx >= len(axes):
                 break
@@ -2830,9 +2814,7 @@ def plot_fully_aggregated_analysis(
                         if chosen is not None:
                             x_positions.append(depth_idx)
                             values.append(depth_stats[f"{chosen}_mean"])
-                            errors.append(
-                                depth_stats.get(f"{chosen}_std", 0) / std_divisor
-                            )
+                            errors.append(depth_stats.get(f"{chosen}_std", 0))
 
                 if x_positions and values:
                     valid_points = [
