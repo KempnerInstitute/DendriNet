@@ -186,7 +186,7 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
-
+.claude/
 # pytype static type analyzer
 .pytype/
 
@@ -227,8 +227,12 @@ figures/
 outputs_smoke/
 outputs_sweep_smoke/
 tmp/
-analysis/
+.claude/*.lock
+/analysis/
 !src/dendritic_modeling/analysis/
 !src/dendritic_modeling/analysis/**
 src/dendritic_modeling/analysis/**/__pycache__/
 src/dendritic_modeling/analysis/**/*.py[cod]
+
+# Internal code-review working docs (keep out of version control)
+CODEBASE_REVIEW_*.md

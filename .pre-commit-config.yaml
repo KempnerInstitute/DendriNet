@@ -38,7 +38,7 @@ repos:
           tests/test_training_stability_validator.py
           tests/test_config_validation_utils.py
           tests/test_model_architecture_validator_utils.py
-          -q'
+          -q --no-cov'
         language: system
         pass_filenames: false
         stages: [pre-commit]
