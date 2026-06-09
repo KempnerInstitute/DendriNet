@@ -1159,6 +1159,19 @@ concatenated into the recurrent inhibitory stream. Updates are synchronous:
 every population uses previous-timestep recurrent outputs, so the order of
 ``cell_types`` does not create hidden same-timestep dependencies.
 
+.. figure:: _static/architecture/multi-population-cell-types.svg
+   :alt: Pyr/PV/SST multi-population schematic where each population is a distinct cell type with its own morphology, dynamics, and targeting
+   :width: 100%
+
+   A multi-population layer with three **distinct cell types**. ``pyr`` is the
+   excitatory readout population with a two-layer dendritic tree
+   (``branch_factors: [2, 2]``); ``pv`` and ``sst`` are inhibitory populations
+   with flat morphology (``branch_factors: [1]``). Each cell type carries its own
+   polarity, neuron count, dendritic morphology, dynamics, and projection pattern
+   (PV perisomatic vs. SST dendrite-targeting inhibition onto ``pyr``), plus a
+   recurrent ``pyr->pyr`` pathway. Per-cell-type overrides live in each
+   ``cell_types[].population`` block.
+
 .. code-block:: yaml
 
    model:
@@ -1227,6 +1240,38 @@ Each ``cell_types`` entry has:
    Optional nested dict of any ``PopulationConfig`` field, such as
    ``rec_excitatory_synapses``, ``rec_inhibitory_synapses``, ``tau_base``,
    ``weight_transform``, or reactivation settings.
+
+Use the per-cell ``population`` block to make each named population a genuinely
+distinct cell type — its own dendritic morphology, time constant, synapse counts,
+and integration. For example, a pyramidal cell with rich dendrites and a slow
+time constant, a fast perisomatic PV interneuron, and a slower dendrite-targeting
+SST interneuron:
+
+.. code-block:: yaml
+
+   cell_types:
+     - name: pyr            # excitatory pyramidal: rich dendrites, slow integration
+       polarity: excitatory
+       n_neurons: 64
+       branch_factors: [3, 3]
+       population:
+         tau_base: 20.0
+         rec_excitatory_synapses: 8
+         rec_inhibitory_synapses: 4
+     - name: pv             # fast perisomatic interneuron: flat, fast
+       polarity: inhibitory
+       n_neurons: 16
+       branch_factors: [1]
+       population:
+         tau_base: 5.0
+         rec_excitatory_synapses: 6
+     - name: sst            # dendrite-targeting interneuron: slower
+       polarity: inhibitory
+       n_neurons: 16
+       branch_factors: [1]
+       population:
+         tau_base: 12.0
+         rec_excitatory_synapses: 4
 
 The population graph backend uses ``population_defaults`` and per-cell
 ``population`` blocks as the population source of truth. Top-level feedforward
