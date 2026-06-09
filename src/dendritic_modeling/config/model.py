@@ -184,7 +184,12 @@ class BlockLinearConfig(BaseConfig):
 class ImplementationConfig(BaseConfig):
     """Implementation optimization settings."""
 
-    adaptive_initialization: bool = True
+    # Default False (develop-compatible, opt-in). When True, the adaptive
+    # network-scale factor log((K_exc+K_inh)*sqrt(branches)/5) is subtracted from
+    # excitatory pre-weights, which collapses leaf-layer shunting conductances
+    # (~25x smaller weights, gate center ~0.19 vs ~0.49) and degrades shunting
+    # learning. Configs that omit this field must keep the develop-scale init.
+    adaptive_initialization: bool = False
     print_hooks: bool = False
     store_routing: bool = False
     compile_forward: bool = False

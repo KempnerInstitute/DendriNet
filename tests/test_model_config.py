@@ -104,7 +104,9 @@ def test_transfer_function_config_defaults():
 
 def test_implementation_config_defaults():
     cfg = ImplementationConfig()
-    assert cfg.adaptive_initialization is True
+    # Default False (develop-compatible, opt-in) — adaptive init collapses
+    # leaf-layer shunting conductances, so it must not be on by default.
+    assert cfg.adaptive_initialization is False
     assert cfg.compile_forward is False
 
 
