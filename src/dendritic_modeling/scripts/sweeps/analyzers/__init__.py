@@ -8,6 +8,7 @@ from .branch_analyzer import BranchSweepAnalyzer
 from .ei_analyzer import EISweepAnalyzer
 from .general_analyzer import GeneralSweepAnalyzer
 from .local_learning_analyzer import LocalLearningSweepAnalyzer
+from .noise_analyzer import NoiseSweepAnalyzer
 from .stoch_analyzer import StochasticDatasetSweepAnalyzer
 
 # Analyzer registry
@@ -17,6 +18,7 @@ ANALYZER_REGISTRY = {
     "local_learning": LocalLearningSweepAnalyzer,
     "branch": BranchSweepAnalyzer,
     "general": GeneralSweepAnalyzer,
+    "noise": NoiseSweepAnalyzer,
 }
 
 
@@ -68,6 +70,7 @@ __all__ = [
     "EISweepAnalyzer",
     "GeneralSweepAnalyzer",
     "LocalLearningSweepAnalyzer",
+    "NoiseSweepAnalyzer",
     "StochasticDatasetSweepAnalyzer",
     "auto_detect_sweep_type",
     "get_analyzer",
