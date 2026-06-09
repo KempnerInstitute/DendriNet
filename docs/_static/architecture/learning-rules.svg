@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1240" height="520" viewBox="0 0 1240 520">
+  <defs>
+    <style>
+      .title { font: 700 28px "DejaVu Sans", Arial, sans-serif; fill: #12324d; }
+      .subtitle { font: 500 17px "DejaVu Sans", Arial, sans-serif; fill: #45637a; }
+      .card { fill: #f8fbfd; stroke: #8eafc3; stroke-width: 2; }
+      .name { font: 700 18px "DejaVu Sans", Arial, sans-serif; fill: #143350; }
+      .layer { fill: #e8eef4; stroke: #6f8aa0; stroke-width: 1.8; }
+      .kv { font: 400 14px "DejaVu Sans", Arial, sans-serif; fill: #2d4b62; }
+      .small { font: 400 12px "DejaVu Sans", Arial, sans-serif; fill: #546c7e; }
+      .fwd { stroke: #2f6fb0; stroke-width: 2.6; fill: none; }
+      .bwd { stroke: #b0433a; stroke-width: 2.6; fill: none; }
+      .rand { stroke: #c98a1e; stroke-width: 2.6; fill: none; stroke-dasharray: 7 5; }
+      .loc { stroke: #4f8a5b; stroke-width: 2.6; fill: none; }
+    </style>
+    <marker id="f" markerWidth="10" markerHeight="10" refX="8" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#2f6fb0"/></marker>
+    <marker id="b" markerWidth="10" markerHeight="10" refX="8" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#b0433a"/></marker>
+    <marker id="r" markerWidth="10" markerHeight="10" refX="8" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#c98a1e"/></marker>
+    <marker id="g" markerWidth="10" markerHeight="10" refX="8" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#4f8a5b"/></marker>
+  </defs>
+  <text class="title" x="40" y="42">Learning rules / credit assignment (training strategies)</text>
+  <text class="subtitle" x="40" y="70">How the weight update reaches each layer: exact backprop, random feedback (FA/DFA), or local plasticity (Hebbian/STDP + error broadcast).</text>
+
+  <!-- helper: 3 stacked layers per column -->
+  <!-- BACKPROP -->
+  <rect class="card" x="40" y="100" width="370" height="380" rx="16"/>
+  <text class="name" x="60" y="132">Backprop (standard / shunting)</text>
+  <rect class="layer" x="150" y="160" width="150" height="36" rx="8"/><text class="kv" x="225" y="184" text-anchor="middle">layer 1</text>
+  <rect class="layer" x="150" y="240" width="150" height="36" rx="8"/><text class="kv" x="225" y="264" text-anchor="middle">layer 2</text>
+  <rect class="layer" x="150" y="320" width="150" height="36" rx="8"/><text class="kv" x="225" y="344" text-anchor="middle">readout</text>
+  <path class="fwd" d="M225,196 L225,238" marker-end="url(#f)"/>
+  <path class="fwd" d="M225,276 L225,318" marker-end="url(#f)"/>
+  <path class="bwd" d="M312,338 C360,300 360,200 312,178" marker-end="url(#b)"/>
+  <path class="bwd" d="M312,338 C345,300 345,260 312,258" marker-end="url(#b)"/>
+  <text class="kv" x="60" y="392">Exact gradient flows back through</text>
+  <text class="kv" x="60" y="412">every layer (chain rule, weight transport).</text>
+  <text class="small" x="60" y="440">strategy: standard / shunting_fa uses true W^T</text>
+  <text class="small" x="60" y="458">Most accurate; least biological.</text>
+
+  <!-- FEEDBACK ALIGNMENT -->
+  <rect class="card" x="435" y="100" width="370" height="380" rx="16"/>
+  <text class="name" x="455" y="132">Feedback alignment (fa / dfa)</text>
+  <rect class="layer" x="545" y="160" width="150" height="36" rx="8"/><text class="kv" x="620" y="184" text-anchor="middle">layer 1</text>
+  <rect class="layer" x="545" y="240" width="150" height="36" rx="8"/><text class="kv" x="620" y="264" text-anchor="middle">layer 2</text>
+  <rect class="layer" x="545" y="320" width="150" height="36" rx="8"/><text class="kv" x="620" y="344" text-anchor="middle">readout</text>
+  <path class="fwd" d="M620,196 L620,238" marker-end="url(#f)"/>
+  <path class="fwd" d="M620,276 L620,318" marker-end="url(#f)"/>
+  <path class="rand" d="M707,338 C760,290 760,200 707,178" marker-end="url(#r)"/>
+  <path class="rand" d="M707,338 C745,300 745,262 707,258" marker-end="url(#r)"/>
+  <text class="kv" x="455" y="392">Error projected back via FIXED RANDOM</text>
+  <text class="kv" x="455" y="412">feedback weights B (no weight transport).</text>
+  <text class="small" x="455" y="440">dfa: broadcast the output error directly to</text>
+  <text class="small" x="455" y="458">each layer. shunting_fa/dfa: shunting-aware.</text>
+
+  <!-- LOCAL PLASTICITY -->
+  <rect class="card" x="830" y="100" width="370" height="380" rx="16"/>
+  <text class="name" x="850" y="132">Local credit assignment (local_ca)</text>
+  <rect class="layer" x="940" y="160" width="150" height="36" rx="8"/><text class="kv" x="1015" y="184" text-anchor="middle">layer 1</text>
+  <rect class="layer" x="940" y="240" width="150" height="36" rx="8"/><text class="kv" x="1015" y="264" text-anchor="middle">layer 2</text>
+  <rect class="layer" x="940" y="320" width="150" height="36" rx="8"/><text class="kv" x="1015" y="344" text-anchor="middle">readout</text>
+  <path class="fwd" d="M1015,196 L1015,238" marker-end="url(#f)"/>
+  <path class="fwd" d="M1015,276 L1015,318" marker-end="url(#f)"/>
+  <!-- local update loops at each layer -->
+  <path class="loc" d="M1098,178 C1140,168 1140,200 1100,190" marker-end="url(#g)"/>
+  <path class="loc" d="M1098,258 C1140,248 1140,280 1100,270" marker-end="url(#g)"/>
+  <text class="kv" x="850" y="392">Each layer updates from LOCAL signals:</text>
+  <text class="kv" x="850" y="412">pre x post activity (Hebbian/STDP) + an</text>
+  <text class="kv" x="850" y="430">error broadcast / HSIC auxiliary signal.</text>
+  <text class="small" x="850" y="456">Rule variants: hebbian, STDP, error-broadcast,</text>
+  <text class="small" x="850" y="474">HSIC. No global backward pass; most biological.</text>
+</svg>

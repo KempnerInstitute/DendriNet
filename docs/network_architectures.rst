@@ -1380,6 +1380,16 @@ Config-to-code map
 Synapse Types / Receptor Kinetics
 ---------------------------------
 
+.. figure:: _static/architecture/synapse-types.svg
+   :alt: Receptor-kinetics comparison of AMPA, NMDA, GABA-A and GABA-B synapse types (tau, reversal potential, voltage-gating) and how they combine into branch conductance
+   :width: 100%
+
+   Receptor kinetics of the named synapse types. AMPA (fast excitatory), NMDA
+   (slow, voltage-gated excitatory), GABA-A (fast inhibitory) and GABA-B (slow
+   inhibitory) each carry their own ``tau``, reversal potential, and fraction;
+   per-branch conductance is the fraction-weighted sum of the typed traces, and
+   the shunting/additive voltage uses the summed E vs I conductances.
+
 The recurrent dendritic backend supports optional named synapse types inside a
 population. This extends the old E/I distinction without removing it: E and I
 still define the sign/polarity and source streams, while named synapse types
@@ -1507,6 +1517,18 @@ an experiment should backpropagate through the STP state history.
 Spiking Soma Dynamics
 ---------------------
 
+.. figure:: _static/architecture/spiking-modes.svg
+   :alt: Comparison of rate soma, somatic LIF spikes, and dendritic plateau spikes — their signals, loci, and parameters
+   :width: 100%
+
+   The three dynamics modes. **Rate** soma emits a graded, differentiable
+   activation (default). **Somatic spikes** (``dynamics_mode: spike``) integrate
+   the membrane to ``spike_threshold``, emit a (surrogate-gradient) spike, and
+   reset. **Dendritic plateau spikes** (``dendritic_spikes``) are a *different
+   locus*: a branch voltage crossing ``dendritic_spike_threshold`` triggers a
+   sustained NMDA-like plateau that propagates to the soma. Soma and dendritic
+   spikes are independent and can be combined.
+
 Set ``dynamics_mode: spike`` on a recurrent ``PopulationConfig`` to route the
 post-dendritic soma voltage through a leaky integrate-and-fire soma. This is
 opt-in; ``dynamics_mode: rate`` is the default and preserves the original
@@ -1612,6 +1634,17 @@ is analysis-only and does not change training or recurrent state updates.
 
 Soma-to-Dendrite Feedback
 ~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. figure:: _static/architecture/soma-dendrite-feedback.svg
+   :alt: Soma-to-dendrite feedback loop — the soma output at the previous timestep projects back onto selected dendritic levels via additive, shunting, or gated modes
+   :width: 100%
+
+   The apical backward effect: the soma output (or spike readout) at timestep
+   ``t-1`` projects back onto selected dendritic levels, modulating their
+   integration at ``t`` via ``additive`` (extra current), ``shunting`` (a
+   conductance with ``soma_feedback_reversal``), or ``gated`` (multiplicative)
+   mode. Source, levels, and (optionally learnable) per-level strength are
+   configurable; ``init_std=0`` keeps the loop inert at initialization.
 
 Recurrent ``StatefulDendriNet`` populations can optionally send a delayed soma
 signal back into dendritic branch levels. This is disabled by default and uses

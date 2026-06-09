@@ -12,6 +12,18 @@ the core network and decoder. The main trainer strategy is set via
 Available Strategies
 --------------------
 
+.. figure:: _static/architecture/learning-rules.svg
+   :alt: Credit-assignment comparison — backprop (exact gradient), feedback alignment/DFA (fixed random feedback), and local credit assignment (Hebbian/STDP + error broadcast)
+   :width: 100%
+
+   How the weight update reaches each layer across the available strategies:
+   **backprop** (``standard``) flows the exact gradient back through every layer;
+   **feedback alignment** (``fa``/``dfa``, plus shunting-aware ``shunting_fa``/
+   ``shunting_dfa``) uses fixed random feedback weights with no weight transport;
+   **local credit assignment** (``local_ca``) updates each layer from local
+   pre/post activity (Hebbian/STDP) plus an error-broadcast/HSIC signal, with no
+   global backward pass.
+
 .. list-table::
    :header-rows: 1
    :widths: 20 80

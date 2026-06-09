@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1240" height="560" viewBox="0 0 1240 560">
+  <defs>
+    <style>
+      .title { font: 700 28px "DejaVu Sans", Arial, sans-serif; fill: #12324d; }
+      .subtitle { font: 500 17px "DejaVu Sans", Arial, sans-serif; fill: #45637a; }
+      .card { fill: #f8fbfd; stroke: #8eafc3; stroke-width: 2; }
+      .ecard { fill: #eef5fc; stroke: #2f6fb0; stroke-width: 2.2; }
+      .icard { fill: #fdeeed; stroke: #b0433a; stroke-width: 2.2; }
+      .name { font: 700 20px "DejaVu Sans", Arial, sans-serif; fill: #143350; }
+      .kv { font: 400 15px "DejaVu Sans", Arial, sans-serif; fill: #2d4b62; }
+      .small { font: 400 13px "DejaVu Sans", Arial, sans-serif; fill: #546c7e; }
+      .axis { stroke: #9bb1c0; stroke-width: 1.4; }
+      .ecurve { stroke: #2f6fb0; stroke-width: 2.6; fill: none; }
+      .icurve { stroke: #b0433a; stroke-width: 2.6; fill: none; }
+    </style>
+  </defs>
+  <text class="title" x="40" y="42">Synapse types — receptor kinetics (config: synapse_types)</text>
+  <text class="subtitle" x="40" y="70">Each typed conductance has its own time constant (tau), reversal potential (Erev), and fraction; NMDA adds voltage-gating. Excitatory (blue) vs inhibitory (red).</text>
+
+  <!-- AMPA -->
+  <rect class="ecard" x="40" y="100" width="280" height="200" rx="14"/>
+  <text class="name" x="60" y="132">AMPA  (excitatory, fast)</text>
+  <path class="axis" d="M60,250 L300,250 M60,250 L60,160"/>
+  <path class="ecurve" d="M60,250 C70,250 74,168 92,168 C140,168 200,246 300,249"/>
+  <text class="kv" x="60" y="276">tau ~ 5 ms · Erev ~ 0 mV</text>
+  <text class="small" x="60" y="294">fast rise + decay, linear drive</text>
+
+  <!-- NMDA -->
+  <rect class="ecard" x="340" y="100" width="280" height="200" rx="14"/>
+  <text class="name" x="360" y="132">NMDA  (excitatory, slow)</text>
+  <path class="axis" d="M360,250 L600,250 M360,250 L360,160"/>
+  <path class="ecurve" d="M360,250 C372,250 378,186 398,180 C460,168 520,200 600,232"/>
+  <text class="kv" x="360" y="276">tau ~ 50-150 ms · Erev ~ 0 mV</text>
+  <text class="small" x="360" y="294">slow, voltage-gated (Mg block)</text>
+
+  <!-- GABA-A -->
+  <rect class="icard" x="640" y="100" width="280" height="200" rx="14"/>
+  <text class="name" x="660" y="132">GABA-A  (inhibitory, fast)</text>
+  <path class="axis" d="M660,250 L900,250 M660,250 L660,160"/>
+  <path class="icurve" d="M660,250 C670,250 674,172 692,172 C740,172 800,246 900,249"/>
+  <text class="kv" x="660" y="276">tau ~ 8-12 ms · Erev ~ -70 mV</text>
+  <text class="small" x="660" y="294">fast shunting / hyperpolarizing</text>
+
+  <!-- GABA-B -->
+  <rect class="icard" x="940" y="100" width="260" height="200" rx="14"/>
+  <text class="name" x="960" y="132">GABA-B  (inhibitory, slow)</text>
+  <path class="axis" d="M960,250 L1180,250 M960,250 L960,160"/>
+  <path class="icurve" d="M960,250 C972,250 978,190 998,184 C1055,172 1110,206 1180,234"/>
+  <text class="kv" x="960" y="276">tau ~ 150 ms · Erev ~ -90 mV</text>
+  <text class="small" x="960" y="294">slow K+ inhibition</text>
+
+  <!-- how they combine -->
+  <rect class="card" x="40" y="330" width="1160" height="190" rx="16"/>
+  <text class="name" x="62" y="362">Per-branch conductance integration</text>
+  <text class="kv" x="62" y="392">Each enabled receptor contributes a fraction of the branch conductance with its own trace:</text>
+  <text class="kv" x="62" y="420" font-family="monospace">g_branch(t) = sum_r  fraction_r * g_r(t),   g_r decays with tau_r,   drive uses (V - Erev_r)</text>
+  <text class="kv" x="62" y="452">Shunting voltage V = E / (1 + E + I) uses the summed E (AMPA+NMDA) and I (GABA-A+GABA-B) conductances;</text>
+  <text class="kv" x="62" y="476">additive voltage V = E - I. NMDA's voltage-gating makes its effective conductance depend on the current V.</text>
+  <text class="small" x="62" y="500">Config: core.synapse_types.types: [{name: ampa, polarity: excitatory, fraction, tau, reversal}, ...]; set enabled per type.</text>
+</svg>
