@@ -119,6 +119,10 @@ from dendritic_modeling.config.training import (
     TransformerReplacementTrainingConfig,
     VoltageStabilizationStrategyConfig,
 )
+from dendritic_modeling.config.validation import (
+    ConfigValidationError,
+    validate_loaded_config,
+)
 
 __all__ = [
     "AblationAnalysisConfig",
@@ -139,6 +143,7 @@ __all__ = [
     "CompartmentStatisticsAnalysisConfig",
     "CompartmentStatisticsAnalysisParams",
     "Config",
+    "ConfigValidationError",
     "ConnectivityConfig",
     "CoreConfig",
     "CorrelationAnalysisConfig",
@@ -223,4 +228,5 @@ __all__ = [
     "load_config",
     "normalize_sparsity_type",
     "to_plain_dict",
+    "validate_loaded_config",
 ]

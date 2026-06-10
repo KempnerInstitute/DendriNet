@@ -9,10 +9,6 @@ import torch
 import torch.nn as nn
 
 from dendritic_modeling.config.base import BaseConfig
-from dendritic_modeling.config.conversion import (
-    deep_merge_dicts,
-    has_enabled_synapse_types,
-)
 from dendritic_modeling.networks.architectures.excitation_inhibition.input_transform.transfer import (
     TransferLayer,
 )
@@ -23,9 +19,12 @@ from dendritic_modeling.networks.architectures.recurrent.ei_config import (
     PopulationConfig,
 )
 from dendritic_modeling.networks.architectures.recurrent.ei_state import DendriNetState
-from dendritic_modeling.networks.architectures.recurrent.population_graph import (
+from dendritic_modeling.networks.architectures.recurrent.population_common import (
     CellTypeConfig,
-    _population_level_dims,
+    as_cell_type_config as _as_cell_type_config,
+    population_config_from_cell as _population_config_from_cell,
+    population_level_dims as _population_level_dims,
+    population_requires_temporal_state as _population_requires_temporal_state,
 )
 from dendritic_modeling.networks.architectures.recurrent.stateful_dendrinet import (
     StatefulDendriNet,
@@ -177,17 +176,6 @@ class PopulationLayerState:
         )
 
 
-def _as_cell_type_config(cell_type: CellTypeConfig | dict[str, Any]) -> CellTypeConfig:
-    if isinstance(cell_type, CellTypeConfig):
-        return cell_type
-    if isinstance(cell_type, dict):
-        return CellTypeConfig(**cell_type)
-    raise TypeError(
-        "populations entries must be CellTypeConfig or dict, "
-        f"got {type(cell_type).__name__}"
-    )
-
-
 def _as_projection_config(
     connection: PopulationProjectionConfig | dict[str, Any],
 ) -> PopulationProjectionConfig:
@@ -201,29 +189,6 @@ def _as_projection_config(
     raise TypeError(
         "connections entries must be PopulationProjectionConfig or dict, "
         f"got {type(connection).__name__}"
-    )
-
-
-def _population_config_from_cell(
-    cell: CellTypeConfig,
-    defaults: dict[str, Any],
-    *,
-    layer_idx: int,
-) -> PopulationConfig:
-    payload = deep_merge_dicts(defaults, dict(cell.population))
-    payload["n_neurons"] = int(cell.n_neurons)
-    payload["branch_factors"] = list(cell.branch_factors)
-    payload.setdefault("structured_layer_idx", layer_idx)
-    return PopulationConfig(**payload)
-
-
-def _population_requires_temporal_state(pop_config: PopulationConfig) -> bool:
-    """Return whether population dynamics need recurrent state over time."""
-    return (
-        str(pop_config.dynamics_mode).lower() == "spike"
-        or has_enabled_synapse_types(pop_config.synapse_types)
-        or bool(pop_config.dendritic_spikes_enabled)
-        or bool(pop_config.soma_feedback_enabled)
     )
 
 

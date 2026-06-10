@@ -59,6 +59,13 @@ def _make_layer(
     )
 
 
+def test_quantile_reactivation_policy_warns_and_normalizes():
+    with pytest.warns(DeprecationWarning, match="occupancy_quantile"):
+        policy = init_mod.normalize_reactivation_init_policy("quantile")
+
+    assert policy == "occupancy_quantile"
+
+
 # ---------------------------------------------------------------------------
 # Truncated expectation helper functions
 # ---------------------------------------------------------------------------

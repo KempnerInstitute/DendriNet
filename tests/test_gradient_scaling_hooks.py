@@ -69,6 +69,20 @@ def test_topk_forward_param_scale_is_per_call_and_bypasses_stale_param_hook():
     torch.testing.assert_close(layer.pre_w.grad, torch.tensor([[31.0]]))
 
 
+def test_topk_drops_dense_forward_tensor_without_dynamic_param_scaling():
+    layer = TopKLinear(
+        in_features=2,
+        out_features=2,
+        K=1,
+        weight_transform="identity",
+    )
+
+    y = layer(torch.ones(1, 2))
+
+    assert layer._last_forward_param_tensor is None
+    y.sum().backward()
+
+
 def test_blocklinear_forward_scales_param_and_input_per_call():
     layer = BlockLinear(in_features=1, out_features=1, weight_transform="identity")
     with torch.no_grad():

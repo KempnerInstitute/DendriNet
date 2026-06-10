@@ -9,6 +9,10 @@ from dendritic_modeling.networks.architectures.recurrent import (
     PopulationConnectionConfig,
     PopulationGraphConfig,
     PopulationGraphNetwork,
+    PopulationNetwork,
+)
+from dendritic_modeling.networks.architectures.recurrent.population_graph import (
+    _lower_population_graph_config,
 )
 
 
@@ -153,6 +157,32 @@ def test_population_graph_factory_builds_core():
     assert net.is_recurrent
     assert net.output_dim == 6
     assert y.shape == (3, 6)
+
+
+def test_population_graph_lowers_to_population_network_equivalent_forward():
+    cfg = _small_population_graph_config()
+    cfg.connection_seed = 17
+    cfg.connections = [
+        PopulationConnectionConfig(source="pv", target="pyr", probability=0.5),
+        PopulationConnectionConfig(source="sst", target="pyr", enabled=False),
+    ]
+    x = torch.rand(2, 4, 6)
+
+    torch.manual_seed(123)
+    graph = PopulationGraphNetwork(cfg)
+    torch.manual_seed(123)
+    direct = PopulationNetwork(
+        _lower_population_graph_config(
+            cfg,
+            graph.cell_types,
+            graph.connection_specs,
+            graph.readout_population,
+        )
+    )
+
+    torch.testing.assert_close(graph(x), direct(x))
+    assert graph.is_recurrent == direct.is_recurrent
+    assert graph.output_dim == direct.output_dim
 
 
 def test_population_graph_without_recurrent_synapses_is_static_feedforward():

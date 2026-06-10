@@ -467,6 +467,9 @@ class GradientScaler:
                 return grad
 
         if self.topk_strategy != "none":
+            if self.topk_strategy == "conductance_dynamic":
+                topk_layer._use_forward_dynamic_grad_scaling = True
+
             # First remove any existing hooks to prevent conflicts
             if hasattr(topk_layer, "_backward_hooks"):
                 topk_layer._backward_hooks.clear()

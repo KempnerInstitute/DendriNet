@@ -39,6 +39,13 @@ def normalize_reactivation_init_policy(policy: str | None) -> str:
     """Return the canonical reactivation-init policy name."""
 
     key = "analytical" if policy is None else str(policy).strip().lower()
+    if key == "quantile":
+        warnings.warn(
+            "reactivation init policy 'quantile' is deprecated; use "
+            "'occupancy_quantile' for the canonical occupancy-calibration rule.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
     return REACTIVATION_INIT_POLICY_ALIASES.get(key, key)
 
 

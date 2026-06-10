@@ -591,6 +591,13 @@ TopK Variants
 
 Set via ``model.core.sparsity.type``:
 
+``standard``, ``stochastic``, ``variance``, and ``dense_to_sparse`` all keep a
+dense trainable score/weight matrix and apply sparse selection on top of it.
+They are biologically useful sparse-selection models, but they do not reduce
+the underlying matrix-multiply memory/compute in proportion to ``K``. For very
+large, high-sparsity networks where memory is the bottleneck, prefer
+``indexed`` or ``indexed_dynamic``.
+
 ``standard``
    Dense-score deterministic TopK (default).  Stores an
    ``out_features x in_features`` trainable score/weight matrix and selects
@@ -1183,6 +1190,11 @@ populations. It supports feedforward stacks and recurrent layers with the same
 layers use delayed edges so every population reads previous-timestep recurrent
 state; same-step edges must form a directed acyclic graph within a layer, which
 keeps local E/I wiring explicit and prevents hidden algebraic loops.
+The older ``core.type: population_graph`` spelling remains accepted for
+backward compatibility, but it is lowered internally to a single recurrent
+``population_network`` layer. New configs should use ``population_network`` so
+feedforward stacks, recurrent microcircuits, spiking soma, synapse types, and
+soma feedback all use the same notation.
 
 .. figure:: _static/architecture/cell-type-populations.svg
    :alt: Pyr/PV/SST population-network schematic where each population is a distinct cell type with its own morphology, dynamics, and targeting

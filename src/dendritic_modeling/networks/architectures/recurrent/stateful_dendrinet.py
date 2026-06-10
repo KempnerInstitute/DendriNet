@@ -436,6 +436,8 @@ class StatefulDendriNet(nn.Module):
                 layer_idx=self.n_levels - level_idx,
                 **common_kwargs,
             )
+            if pop_config.topk_strategy == "conductance_dynamic":
+                branch_layer.set_forward_dynamic_grad_scaling(True)
             self.branch_layers.append(branch_layer)
 
     @property

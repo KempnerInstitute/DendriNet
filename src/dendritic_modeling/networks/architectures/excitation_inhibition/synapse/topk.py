@@ -59,6 +59,9 @@ class TopKLinear(nn.Module):
     -----
     - All weights are constrained to be positive.
     - The pruning is done dynamically during the forward pass.
+    - The masked matrix is still materialized densely. For very sparse large
+      layers, use the indexed sparse layers instead of expecting this module
+      to reduce matrix-multiply memory/compute.
     """
 
     def __init__(
@@ -272,7 +275,9 @@ class TopKLinear(nn.Module):
         pruned_weight = mask * self.weight()
 
         pruned_weight = self._apply_weight_norm(pruned_weight)
-        self._last_forward_param_tensor = pruned_weight
+        self._last_forward_param_tensor = (
+            pruned_weight if self._use_forward_dynamic_grad_scaling else None
+        )
 
         return torch.matmul(x, pruned_weight.t())
 

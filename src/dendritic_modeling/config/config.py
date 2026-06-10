@@ -81,6 +81,7 @@ from dendritic_modeling.config.training import (
     TransformerReplacementTrainingConfig,
     VoltageStabilizationStrategyConfig,
 )
+from dendritic_modeling.config.validation import validate_loaded_config
 
 logger = logging.getLogger(__name__)
 
@@ -666,7 +667,7 @@ def _load_config_cached(path: Optional[str] = None) -> Config:
             transformer_replacement=transformer_training,
         )
 
-        return Config(
+        config = Config(
             experiment=ExperimentConfig(
                 **_filter_dataclass_kwargs(
                     ExperimentConfig, conf_data.get("experiment", {})
@@ -682,7 +683,11 @@ def _load_config_cached(path: Optional[str] = None) -> Config:
             outputs=OutputsConfig(**conf_data.get("outputs", {})),
             distributed=distributed_config,
         )
-    return Config()
+        validate_loaded_config(config)
+        return config
+    config = Config()
+    validate_loaded_config(config)
+    return config
 
 
 def load_config(path: Optional[str] = None) -> Config:

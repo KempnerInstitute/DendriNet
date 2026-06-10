@@ -110,11 +110,19 @@ For additive modes, prefer ``reactivation.init_policy: "occupancy_quantile"``.
 When an additive YAML config omits ``reactivation.init_policy``, typed config
 loading chooses ``occupancy_quantile`` by default; explicit policies such as
 ``analytical`` or ``fixed`` are preserved for reproduction. The legacy spelling
-``quantile`` is accepted as an alias for ``occupancy_quantile``. When you use a
-data-driven gate init policy (``occupancy_quantile`` or ``empirical``), each
-run also writes
+``quantile`` is accepted as a deprecated alias for ``occupancy_quantile``.
+When you use a data-driven gate init policy
+(``occupancy_quantile`` or ``empirical``), each run also writes
 ``init_gate_stats.json`` into its run directory. Use that artifact to confirm
 that reactivation gates were initialized sensibly before trusting the run.
+
+Config loading validates structural model contracts before model creation.
+For example, invalid ``input_mode`` values, impossible per-layer synapse-list
+lengths, duplicate population names, unknown connection endpoints, delayed
+population edges without ``recurrent: true``, and same-step population cycles
+raise a clear ``ConfigValidationError`` from ``load_config``. Training-stability
+and scientific plausibility checks remain in the training validators so older
+experiments are not rejected for warning-level choices.
 
 Canonical Config Choices
 ------------------------

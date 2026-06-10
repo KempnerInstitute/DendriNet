@@ -345,7 +345,23 @@ class DendriticBranchLayer(nn.Module):
             self.reactivation = nn.Identity()
         self.reactivate = reactivate
 
+        self.set_forward_dynamic_grad_scaling(False)
         self.initialize()
+
+    def set_forward_dynamic_grad_scaling(self, enabled: bool) -> None:
+        """Opt TopK sublayers into per-forward parameter-gradient hooks."""
+
+        for attr in (
+            "branch_excitation",
+            "branch_inhibition",
+            "branch_recurrent",
+            "branch_rec_inhibition",
+        ):
+            layer = getattr(self, attr, None)
+            if layer is not None and hasattr(
+                layer, "_use_forward_dynamic_grad_scaling"
+            ):
+                layer._use_forward_dynamic_grad_scaling = bool(enabled)
 
     def _create_topk_layer(
         self,
