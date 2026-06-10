@@ -63,6 +63,8 @@ class ExcitationInhibitionLayer(nn.Module):
         init_method="xavier_normal",
         weight_threshold=1e-6,
         adaptive_initialization=True,
+        adaptive_initialization_policy="legacy_scale",
+        adaptive_target_conductance=5.0,
         structured_connectivity=None,
         structured_layer_idx: int = 0,
         **kwargs,
@@ -129,6 +131,8 @@ class ExcitationInhibitionLayer(nn.Module):
                         init_method=init_method,
                         weight_threshold=weight_threshold,
                         adaptive_initialization=adaptive_initialization,
+                        adaptive_initialization_policy=adaptive_initialization_policy,
+                        adaptive_target_conductance=adaptive_target_conductance,
                         structured_connectivity=structured_connectivity,
                         structured_layer_idx=structured_layer_idx,
                         structured_excitatory_pathway="ei",
@@ -181,6 +185,8 @@ class ExcitationInhibitionLayer(nn.Module):
                         init_method=init_method,
                         weight_threshold=weight_threshold,
                         adaptive_initialization=adaptive_initialization,
+                        adaptive_initialization_policy=adaptive_initialization_policy,
+                        adaptive_target_conductance=adaptive_target_conductance,
                         **kwargs,
                     )
             elif inhibitory_network_type == "mlp":
@@ -257,6 +263,8 @@ class ExcitationInhibitionLayer(nn.Module):
                 init_method=init_method,
                 weight_threshold=weight_threshold,
                 adaptive_initialization=adaptive_initialization,
+                adaptive_initialization_policy=adaptive_initialization_policy,
+                adaptive_target_conductance=adaptive_target_conductance,
                 **kwargs,
             )
         else:
@@ -304,6 +312,8 @@ class ExcitationInhibitionLayer(nn.Module):
                 init_method=init_method,
                 weight_threshold=weight_threshold,
                 adaptive_initialization=adaptive_initialization,
+                adaptive_initialization_policy=adaptive_initialization_policy,
+                adaptive_target_conductance=adaptive_target_conductance,
                 **kwargs,
             )
 

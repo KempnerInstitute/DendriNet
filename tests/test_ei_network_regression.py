@@ -714,14 +714,29 @@ class TestShuntingNonnegInputCheck:
         assert out.shape == (BATCH, OUTPUT_DIM)
         assert torch.isfinite(out).all()
 
-    def test_additive_alias_canonicalizes_safe_gate_init(self):
+    def test_additive_alias_is_raw_without_hidden_fixed_gate(self):
         config = _minimal_config()
         net = get_architecture("dendritic_additive", config, input_dim=INPUT_DIM)
         layer = net.layers[0].excitatory_cells.branch_layers[0]
+        # dendritic_additive is now RAW additive: no implicit normalization and
+        # no hidden fixed reactivation gate (the old init_m=0.1/init_b=0.0/
+        # init_policy="fixed" bootstrap was removed).
         assert layer.use_shunting is False
-        assert layer.reactivation_init_policy == "fixed"
-        assert layer.reactivation_init_m == 0.1
-        assert layer.reactivation_init_b == 0.0
+        assert layer.use_additive_normalization is False
+        assert not (
+            layer.reactivation_init_policy == "fixed"
+            and layer.reactivation_init_m == 0.1
+            and layer.reactivation_init_b == 0.0
+        )
+
+    def test_normalized_additive_alias_enables_normalization(self):
+        config = _minimal_config()
+        net = get_architecture(
+            "dendritic_normalized_additive", config, input_dim=INPUT_DIM
+        )
+        layer = net.layers[0].excitatory_cells.branch_layers[0]
+        assert layer.use_shunting is False
+        assert layer.use_additive_normalization is True
 
     def test_shunting_identity_transform_accepts_signed_input(self):
         """identity weight_transform produces signed weights, so the

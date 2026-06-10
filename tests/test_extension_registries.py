@@ -136,5 +136,7 @@ def test_config_alias_canonicalization_is_config_level_and_script_compatible():
     assert config_result == script_result
     morphology = config_result["model"]["core"]["morphology"]
     assert morphology["use_shunting"] is False
-    assert morphology["use_additive_normalization"] is True
+    # dendritic_additive is raw additive now (normalization is opt-in via
+    # dendritic_normalized_additive).
+    assert morphology["use_additive_normalization"] is False
     assert payload["model"]["core"]["morphology"]["use_shunting"] is True

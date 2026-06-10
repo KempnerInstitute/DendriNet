@@ -187,7 +187,7 @@ class TestConfigCaching(unittest.TestCase):
     """Test configuration caching functionality."""
 
     def test_config_load_cache(self):
-        """Test that config loading is cached."""
+        """Test that config loading is cached without sharing mutable objects."""
         import os
         import tempfile
 
@@ -205,14 +205,21 @@ data:
             temp_config_path = f.name
 
         try:
+            load_config.cache_clear()
+
             # Load config twice
             config1 = load_config(temp_config_path)
             config2 = load_config(temp_config_path)
 
-            # Should be the same object (cached)
-            self.assertIs(config1, config2)
+            # The parsed source is cached, but callers receive independent
+            # copies so accidental mutation cannot leak across runs.
+            self.assertIsNot(config1, config2)
             self.assertEqual(config1.experiment.seed, 42)
             self.assertEqual(config1.data.dataset_name, "mnist")
+            config1.experiment.seed = 99
+            config3 = load_config(temp_config_path)
+            self.assertEqual(config3.experiment.seed, 42)
+            self.assertGreaterEqual(load_config.cache_info().hits, 1)
 
         finally:
             # Clean up temp file

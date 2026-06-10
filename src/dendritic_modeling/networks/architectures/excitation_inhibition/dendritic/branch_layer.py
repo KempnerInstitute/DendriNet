@@ -129,6 +129,8 @@ class DendriticBranchLayer(nn.Module):
         init_method=None,
         weight_threshold=1e-6,
         adaptive_initialization=True,
+        adaptive_initialization_policy="legacy_scale",
+        adaptive_target_conductance=5.0,
         branch_factors=None,  # Add branch_factors parameter
         epsilon=1e-8,  # Add configurable epsilon for numerical stability
         weight_transform="exp",  # Weight transformation for positive weights
@@ -192,6 +194,8 @@ class DendriticBranchLayer(nn.Module):
         self.init_method = init_method
         self.weight_threshold = weight_threshold
         self.adaptive_initialization = adaptive_initialization
+        self.adaptive_initialization_policy = adaptive_initialization_policy
+        self.adaptive_target_conductance = adaptive_target_conductance
         self.branch_factors = branch_factors  # Store branch_factors
         self.weight_transform = weight_transform
         self.dendritic_activation = reactivation_type if reactivate else "none"

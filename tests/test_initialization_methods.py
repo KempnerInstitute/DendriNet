@@ -32,11 +32,14 @@ def _make_layer(
     inhibitory_input_dim=None,
     inhibitory_synapses_per_branch=None,
     input_branch_factor=None,
+    branch_factors=None,
     use_shunting=True,
     reactivate=True,
     dbl_init_method="analytical_expectation",
     weight_transform="exp",
     adaptive_initialization=True,
+    adaptive_initialization_policy="legacy_scale",
+    adaptive_target_conductance=5.0,
 ):
     return DendriticBranchLayer(
         output_dim=output_dim,
@@ -45,11 +48,14 @@ def _make_layer(
         inhibitory_input_dim=inhibitory_input_dim,
         inhibitory_synapses_per_branch=inhibitory_synapses_per_branch,
         input_branch_factor=input_branch_factor,
+        branch_factors=branch_factors,
         use_shunting=use_shunting,
         reactivate=reactivate,
         dbl_init_method=dbl_init_method,
         weight_transform=weight_transform,
         adaptive_initialization=adaptive_initialization,
+        adaptive_initialization_policy=adaptive_initialization_policy,
+        adaptive_target_conductance=adaptive_target_conductance,
     )
 
 
@@ -152,6 +158,7 @@ class TestAnalyticalExpectationInit:
         layer_adaptive = _make_layer(
             dbl_init_method="analytical_expectation",
             adaptive_initialization=True,
+            adaptive_initialization_policy="legacy_scale",
         )
         torch.manual_seed(42)
         layer_nonadaptive = _make_layer(
@@ -162,6 +169,36 @@ class TestAnalyticalExpectationInit:
         # or same if scale factor is 0 for small networks
         assert layer_adaptive.branch_excitation.pre_w.mean() <= (
             layer_nonadaptive.branch_excitation.pre_w.mean() + 0.01
+        )
+
+    def test_adaptive_preserve_shunting_center_keeps_gate_center(self):
+        """Center-preserving adaptive init should reduce scale without moving b."""
+        kwargs = {
+            "output_dim": 16,
+            "excitatory_input_dim": 784,
+            "excitatory_synapses_per_branch": 30,
+            "inhibitory_input_dim": 784,
+            "inhibitory_synapses_per_branch": 15,
+            "weight_transform": "softplus",
+            "branch_factors": [4, 4],
+            "reactivate": True,
+        }
+
+        torch.manual_seed(42)
+        nonadaptive = _make_layer(adaptive_initialization=False, **kwargs)
+        torch.manual_seed(42)
+        adaptive = _make_layer(
+            adaptive_initialization=True,
+            adaptive_initialization_policy="preserve_shunting_center",
+            adaptive_target_conductance=5.0,
+            **kwargs,
+        )
+
+        nonadaptive_b = float(nonadaptive.reactivation.b.mean().item())
+        adaptive_b = float(adaptive.reactivation.b.mean().item())
+        assert adaptive_b == pytest.approx(nonadaptive_b, rel=1e-3, abs=1e-3)
+        assert adaptive.branch_excitation.weight().mean() < (
+            nonadaptive.branch_excitation.weight().mean()
         )
 
 
@@ -199,7 +236,11 @@ class TestDefaultInit:
 
     @pytest.mark.parametrize(
         ("policy", "canonical"),
-        [("auto", "analytical"), ("manual", "fixed")],
+        [
+            ("auto", "analytical"),
+            ("manual", "fixed"),
+            ("quantile", "occupancy_quantile"),
+        ],
     )
     def test_legacy_policy_aliases_normalize_to_canonical_names(
         self, policy, canonical

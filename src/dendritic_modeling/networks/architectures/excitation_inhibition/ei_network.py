@@ -127,7 +127,9 @@ class ExcitationInhibitionNetwork(BaseNetwork):
         freeze_inhibitory_connectivity=False,
         init_method="xavier_normal",
         weight_threshold=1e-6,
-        adaptive_initialization=True,
+        adaptive_initialization=False,
+        adaptive_initialization_policy="preserve_shunting_center",
+        adaptive_target_conductance=5.0,
         compile_forward: bool = False,
         structured_connectivity=None,
         **kwargs,
@@ -186,6 +188,8 @@ class ExcitationInhibitionNetwork(BaseNetwork):
         self.init_method = init_method
         self.weight_threshold = weight_threshold
         self.adaptive_initialization = adaptive_initialization
+        self.adaptive_initialization_policy = adaptive_initialization_policy
+        self.adaptive_target_conductance = adaptive_target_conductance
         self.compile_forward = compile_forward
         self.structured_connectivity = structured_connectivity
 
@@ -429,6 +433,8 @@ class ExcitationInhibitionNetwork(BaseNetwork):
                 weight_threshold=self.weight_threshold,
                 efficient_blocklinear=self.efficient_blocklinear,
                 adaptive_initialization=self.adaptive_initialization,
+                adaptive_initialization_policy=self.adaptive_initialization_policy,
+                adaptive_target_conductance=self.adaptive_target_conductance,
                 structured_connectivity=self.structured_connectivity,
                 structured_layer_idx=i,
                 **kwargs,

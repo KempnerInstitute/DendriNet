@@ -73,6 +73,8 @@ class DendriNet(nn.Module):
         init_method=None,
         weight_threshold=1e-6,
         adaptive_initialization=True,  # Add adaptive initialization parameter
+        adaptive_initialization_policy="legacy_scale",
+        adaptive_target_conductance=5.0,
         structured_connectivity=None,
         structured_layer_idx: int = 0,
         structured_excitatory_pathway: str = "ee",
@@ -205,6 +207,8 @@ class DendriNet(nn.Module):
                 init_method=init_method,
                 weight_threshold=weight_threshold,
                 adaptive_initialization=adaptive_initialization,
+                adaptive_initialization_policy=adaptive_initialization_policy,
+                adaptive_target_conductance=adaptive_target_conductance,
                 branch_factors=self.branch_factors,  # Pass branch_factors
                 **kwargs,
             )
@@ -271,6 +275,8 @@ class DendriNet(nn.Module):
                     init_method=init_method,
                     weight_threshold=weight_threshold,
                     adaptive_initialization=adaptive_initialization,
+                    adaptive_initialization_policy=adaptive_initialization_policy,
+                    adaptive_target_conductance=adaptive_target_conductance,
                     branch_factors=self.branch_factors,  # Pass branch_factors
                     **kwargs,
                 )
@@ -319,6 +325,8 @@ class DendriNet(nn.Module):
                     init_method=init_method,
                     weight_threshold=weight_threshold,
                     adaptive_initialization=adaptive_initialization,
+                    adaptive_initialization_policy=adaptive_initialization_policy,
+                    adaptive_target_conductance=adaptive_target_conductance,
                     branch_factors=self.branch_factors,  # Pass branch_factors
                     **kwargs,
                 )

@@ -14,8 +14,24 @@ REACTIVATION_INIT_POLICY_ALIASES = {
     "fixed": "fixed",
     "manual": "fixed",
     "empirical": "empirical",
-    "quantile": "quantile",
+    # Backward-compatible alias. The canonical public name is
+    # occupancy_quantile because the rule maps voltage quantiles to target
+    # reactivation occupancies.
+    "quantile": "occupancy_quantile",
     "occupancy_quantile": "occupancy_quantile",
+}
+
+ADAPTIVE_INITIALIZATION_POLICY_ALIASES = {
+    None: "preserve_shunting_center",
+    "preserve": "preserve_shunting_center",
+    "preserve_center": "preserve_shunting_center",
+    "preserve_shunting": "preserve_shunting_center",
+    "preserve_shunting_center": "preserve_shunting_center",
+    "center_preserving": "preserve_shunting_center",
+    "legacy": "legacy_scale",
+    "legacy_scale": "legacy_scale",
+    "scale": "legacy_scale",
+    "scale_conductance": "legacy_scale",
 }
 
 
@@ -26,13 +42,25 @@ def normalize_reactivation_init_policy(policy: str | None) -> str:
     return REACTIVATION_INIT_POLICY_ALIASES.get(key, key)
 
 
+def normalize_adaptive_initialization_policy(policy: str | None) -> str:
+    """Return the canonical adaptive-initialization policy name."""
+
+    key = None if policy is None else str(policy).strip().lower()
+    canonical = ADAPTIVE_INITIALIZATION_POLICY_ALIASES.get(key, key)
+    if canonical not in {"preserve_shunting_center", "legacy_scale"}:
+        raise ValueError(
+            "Unknown adaptive_initialization_policy "
+            f"{policy!r}; expected 'preserve_shunting_center' or 'legacy_scale'."
+        )
+    return canonical
+
+
 def reactivation_policy_to_calibration_mode(policy: str | None) -> str | None:
     """Map a canonical init policy to its data-driven calibration mode."""
 
     canonical = normalize_reactivation_init_policy(policy)
     return {
         "empirical": "median_mad",
-        "quantile": "occupancy_quantile",
         "occupancy_quantile": "occupancy_quantile",
     }.get(canonical)
 
@@ -266,6 +294,71 @@ def _expected_weight_for_transform(
     return compute_expectation_truncated_log_normal(
         mean=mean, std=std, upper_quantile=upper_quantile
     )
+
+
+def _mean_for_expected_weight(
+    transform: str,
+    std: float,
+    upper_quantile: float,
+    target_weight: float,
+    *,
+    reference_mean: float = 0.0,
+) -> float:
+    """Find a raw-weight mean whose transformed top-K expectation hits target."""
+
+    target = max(float(target_weight), 1e-12)
+    t = (transform or "exp").lower()
+
+    if t == "exp":
+        reference = _expected_weight_for_transform(
+            transform=t,
+            mean=reference_mean,
+            std=std,
+            upper_quantile=upper_quantile,
+        )
+        return reference_mean + log(target / max(reference, 1e-12))
+
+    low, high = -80.0, 80.0
+    for _ in range(96):
+        mid = 0.5 * (low + high)
+        value = _expected_weight_for_transform(
+            transform=t,
+            mean=mid,
+            std=std,
+            upper_quantile=upper_quantile,
+        )
+        if value < target:
+            low = mid
+        else:
+            high = mid
+    return 0.5 * (low + high)
+
+
+def _center_preserving_shunting_conductances(
+    E_g_exc: float,
+    E_g_inh: float,
+    target_conductance: float,
+) -> tuple[float, float]:
+    """Reduce total conductance while preserving the shunting voltage center."""
+
+    E_g_exc = max(float(E_g_exc), 0.0)
+    E_g_inh = max(float(E_g_inh), 0.0)
+    total = E_g_exc + E_g_inh
+    if E_g_exc <= 0.0 or total <= 0.0:
+        return E_g_exc, E_g_inh
+
+    center = E_g_exc / (total + 1.0)
+    if center <= 0.0 or center >= 1.0:
+        return E_g_exc, E_g_inh
+
+    target_total = min(total, max(float(target_conductance), 1e-12))
+    min_total_for_center = center / (1.0 - center)
+    target_total = max(target_total, min_total_for_center)
+    target_total = min(target_total, total)
+
+    target_exc = center * (target_total + 1.0)
+    target_inh = target_total - target_exc
+    return max(target_exc, 0.0), max(target_inh, 0.0)
 
 
 def _apply_reactivation_init(
@@ -851,7 +944,7 @@ def calibrate_reactivation_empirical(*args, **kwargs):
     return calibrate_reactivation_from_data(*args, **kwargs)
 
 
-def compute_network_scale_factor(dbl, branch_factors=None):
+def compute_network_scale_factor(dbl, branch_factors=None, target_conductance=5.0):
     """
     Compute a scale factor based on the total network architecture.
     This prevents overflow when many branches accumulate in shunting computation.
@@ -859,6 +952,7 @@ def compute_network_scale_factor(dbl, branch_factors=None):
     Args:
         dbl: DendriticBranchLayer to initialize
         branch_factors: List of branch factors from the parent network
+        target_conductance: Conductance budget used by legacy scale mode
 
     Returns a scale factor to reduce initial weights in log space.
     """
@@ -887,8 +981,6 @@ def compute_network_scale_factor(dbl, branch_factors=None):
     total_conductance = (k_exc + k_rec + k_inh + k_rec_inh) * sqrt(total_branches)
 
     # Target a reasonable initial total conductance
-    target_conductance = 5.0
-
     if total_conductance > target_conductance:
         scale_factor = log(total_conductance / target_conductance)
     else:
@@ -945,11 +1037,31 @@ def analytical_expectation_dbl_init(dbl, adaptive=True, branch_factors=None):
     with torch.no_grad():
         E_g_exc = 0
         E_g_inh = 0
+        E_w_exc = 0
+        E_w_inh = 0
+        exc_mean = 0
+        inh_mean = 0
+        exc_std = None
+        inh_std = None
+        exc_upper_quantile = None
+        inh_upper_quantile = None
         weight_transform = dbl.weight_transform
+        adaptive_policy = normalize_adaptive_initialization_policy(
+            getattr(dbl, "adaptive_initialization_policy", "preserve_shunting_center")
+        )
+        adaptive_target_conductance = float(
+            getattr(dbl, "adaptive_target_conductance", 5.0)
+        )
 
         # Compute network-aware scale factor if adaptive mode is enabled
         network_scale_factor = (
-            compute_network_scale_factor(dbl, branch_factors) if adaptive else 0.0
+            compute_network_scale_factor(
+                dbl,
+                branch_factors,
+                target_conductance=adaptive_target_conductance,
+            )
+            if adaptive
+            else 0.0
         )
 
         if dbl.input_excitatory:
@@ -980,26 +1092,7 @@ def analytical_expectation_dbl_init(dbl, adaptive=True, branch_factors=None):
                     upper_quantile=exc_upper_quantile,
                 )
 
-            # Apply the network scale factor to reduce initial weights
-            exc_mean_adjusted = exc_mean - network_scale_factor
-
-            _no_grad_normal_(dbl.branch_excitation.pre_w, exc_mean_adjusted, exc_std)
-            # Adjust expected conductance by the scale factor
-            E_g_exc = (
-                0.5 * dbl.branch_excitation.K * E_w_exc * exp(-network_scale_factor)
-            )
-
-        if dbl.branch_recurrent is not None:
-            rec_std = sqrt(2 / (dbl.recurrent_input_dim + 1))
-            rec_mean_adjusted = -network_scale_factor
-            _no_grad_normal_(dbl.branch_recurrent.pre_w, rec_mean_adjusted, rec_std)
-
-        if dbl.branch_rec_inhibition is not None:
-            rec_inh_std = sqrt(2 / (dbl.rec_inhibitory_input_dim + 1))
-            rec_inh_mean_adjusted = -network_scale_factor
-            _no_grad_normal_(
-                dbl.branch_rec_inhibition.pre_w, rec_inh_mean_adjusted, rec_inh_std
-            )
+            E_g_exc = 0.5 * dbl.branch_excitation.K * E_w_exc
 
         if dbl.input_inhibitory:
             inh_upper_quantile = dbl.branch_inhibition.K / dbl.inhibitory_input_dim
@@ -1051,14 +1144,78 @@ def analytical_expectation_dbl_init(dbl, adaptive=True, branch_factors=None):
                     upper_quantile=inh_upper_quantile,
                 )
 
-            # Apply the network scale factor to reduce initial weights
-            inh_mean_adjusted = inh_mean - network_scale_factor
+            E_g_inh = 0.5 * dbl.branch_inhibition.K * E_w_inh
 
-            _no_grad_normal_(dbl.branch_inhibition.pre_w, inh_mean_adjusted, inh_std)
-            # Adjust expected conductance by the scale factor
-            E_g_inh = (
-                0.5 * dbl.branch_inhibition.K * E_w_inh * exp(-network_scale_factor)
+        E_g_exc_target = E_g_exc
+        E_g_inh_target = E_g_inh
+
+        if adaptive and network_scale_factor > 0.0:
+            if adaptive_policy == "preserve_shunting_center" and dbl.use_shunting:
+                E_g_exc_target, E_g_inh_target = (
+                    _center_preserving_shunting_conductances(
+                        E_g_exc,
+                        E_g_inh,
+                        adaptive_target_conductance,
+                    )
+                )
+            else:
+                scale = exp(-network_scale_factor)
+                E_g_exc_target = E_g_exc * scale
+                E_g_inh_target = E_g_inh * scale
+
+        if dbl.input_excitatory:
+            if (
+                adaptive
+                and adaptive_policy == "legacy_scale"
+                and network_scale_factor > 0.0
+            ):
+                exc_mean_adjusted = exc_mean - network_scale_factor
+            elif E_g_exc > 0.0 and E_g_exc_target != E_g_exc:
+                target_w_exc = 2.0 * E_g_exc_target / dbl.branch_excitation.K
+                exc_mean_adjusted = _mean_for_expected_weight(
+                    weight_transform,
+                    exc_std,
+                    exc_upper_quantile,
+                    target_w_exc,
+                    reference_mean=exc_mean,
+                )
+            else:
+                exc_mean_adjusted = exc_mean
+            _no_grad_normal_(dbl.branch_excitation.pre_w, exc_mean_adjusted, exc_std)
+            E_g_exc = E_g_exc_target
+
+        if dbl.branch_recurrent is not None:
+            rec_std = sqrt(2 / (dbl.recurrent_input_dim + 1))
+            rec_mean_adjusted = -network_scale_factor if adaptive else 0.0
+            _no_grad_normal_(dbl.branch_recurrent.pre_w, rec_mean_adjusted, rec_std)
+
+        if dbl.branch_rec_inhibition is not None:
+            rec_inh_std = sqrt(2 / (dbl.rec_inhibitory_input_dim + 1))
+            rec_inh_mean_adjusted = -network_scale_factor if adaptive else 0.0
+            _no_grad_normal_(
+                dbl.branch_rec_inhibition.pre_w, rec_inh_mean_adjusted, rec_inh_std
             )
+
+        if dbl.input_inhibitory:
+            if (
+                adaptive
+                and adaptive_policy == "legacy_scale"
+                and network_scale_factor > 0.0
+            ):
+                inh_mean_adjusted = inh_mean - network_scale_factor
+            elif E_g_inh > 0.0 and E_g_inh_target != E_g_inh:
+                target_w_inh = 2.0 * E_g_inh_target / dbl.branch_inhibition.K
+                inh_mean_adjusted = _mean_for_expected_weight(
+                    weight_transform,
+                    inh_std,
+                    inh_upper_quantile,
+                    target_w_inh,
+                    reference_mean=inh_mean,
+                )
+            else:
+                inh_mean_adjusted = inh_mean
+            _no_grad_normal_(dbl.branch_inhibition.pre_w, inh_mean_adjusted, inh_std)
+            E_g_inh = E_g_inh_target
 
         if dbl.input_branches:
             if dbl.use_shunting:
