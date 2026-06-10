@@ -1,4 +1,4 @@
-"""Multi-population feedforward/recurrent dendritic layers."""
+"""Population-network feedforward/recurrent dendritic layers."""
 
 from __future__ import annotations
 
@@ -89,7 +89,7 @@ class PopulationProjectionConfig(BaseConfig):
 
 
 @dataclass
-class MultiPopulationLayerConfig(BaseConfig):
+class PopulationLayerConfig(BaseConfig):
     """One layer containing multiple named dendritic populations."""
 
     name: str = "layer0"
@@ -109,18 +109,16 @@ class MultiPopulationLayerConfig(BaseConfig):
         if not self.name:
             raise ValueError("layer name must be non-empty")
         if not self.populations:
-            raise ValueError("multi-population layer requires populations")
+            raise ValueError("population-network layer requires populations")
         if self.dt <= 0:
             raise ValueError(f"dt must be > 0, got {self.dt}")
 
 
 @dataclass
-class MultiPopulationNetworkConfig(BaseConfig):
-    """Stack of multi-population dendritic layers."""
+class PopulationNetworkConfig(BaseConfig):
+    """Stack of population-network dendritic layers."""
 
-    layers: list[MultiPopulationLayerConfig | dict[str, Any]] = field(
-        default_factory=list
-    )
+    layers: list[PopulationLayerConfig | dict[str, Any]] = field(default_factory=list)
     input_dim: int = 64
     use_transfer: bool = False
     transfer_params: dict[str, Any] = field(default_factory=dict)
@@ -134,7 +132,7 @@ class MultiPopulationNetworkConfig(BaseConfig):
         if self.input_dim <= 0:
             raise ValueError(f"input_dim must be > 0, got {self.input_dim}")
         if not self.layers:
-            raise ValueError("multi-population network requires at least one layer")
+            raise ValueError("population network requires at least one layer")
         for hidden_dim in self.input_projection_dims:
             if int(hidden_dim) <= 0:
                 raise ValueError(
@@ -148,30 +146,30 @@ class MultiPopulationNetworkConfig(BaseConfig):
 
 
 @dataclass
-class MultiPopulationLayerState:
-    """Runtime state for one multi-population layer."""
+class PopulationLayerState:
+    """Runtime state for one population-network layer."""
 
     population_states: dict[str, DendriNetState]
     outputs: dict[str, torch.Tensor]
 
-    def detach(self) -> MultiPopulationLayerState:
-        return MultiPopulationLayerState(
+    def detach(self) -> PopulationLayerState:
+        return PopulationLayerState(
             population_states={
                 name: state.detach() for name, state in self.population_states.items()
             },
             outputs={name: output.detach() for name, output in self.outputs.items()},
         )
 
-    def clone(self) -> MultiPopulationLayerState:
-        return MultiPopulationLayerState(
+    def clone(self) -> PopulationLayerState:
+        return PopulationLayerState(
             population_states={
                 name: state.clone() for name, state in self.population_states.items()
             },
             outputs={name: output.clone() for name, output in self.outputs.items()},
         )
 
-    def to(self, device: torch.device) -> MultiPopulationLayerState:
-        return MultiPopulationLayerState(
+    def to(self, device: torch.device) -> PopulationLayerState:
+        return PopulationLayerState(
             population_states={
                 name: state.to(device) for name, state in self.population_states.items()
             },
@@ -253,8 +251,8 @@ def _split_qualified_source(source: str) -> tuple[str, str] | None:
     return layer_name, population_name
 
 
-class MultiPopulationLayer(nn.Module):
-    """A directional multi-population layer.
+class PopulationLayer(nn.Module):
+    """A directional population-network layer.
 
     Same-step population-to-population edges must form a DAG. Delayed edges use
     previous-timestep outputs and may be cyclic.
@@ -262,7 +260,7 @@ class MultiPopulationLayer(nn.Module):
 
     def __init__(
         self,
-        config: MultiPopulationLayerConfig,
+        config: PopulationLayerConfig,
         input_dim: int | dict[str, int],
         external_source_polarities: dict[str, str] | None = None,
     ):
@@ -291,7 +289,9 @@ class MultiPopulationLayer(nn.Module):
             cell.name for cell in self.cell_types if cell.polarity == "inhibitory"
         ]
         if not self.excitatory_names:
-            raise ValueError("multi-population layer requires an excitatory population")
+            raise ValueError(
+                "population-network layer requires an excitatory population"
+            )
 
         self.readout_population = config.readout_population or self.excitatory_names[0]
         if self.readout_population not in self._cell_by_name:
@@ -418,7 +418,7 @@ class MultiPopulationLayer(nn.Module):
             key = (conn.source, conn.target, conn.timing, conn.pathway)
             if key in seen:
                 raise ValueError(
-                    "duplicate multi-population connection "
+                    "duplicate population-network connection "
                     f"{conn.source}->{conn.target} ({conn.timing}, {conn.pathway})"
                 )
             seen.add(key)
@@ -539,7 +539,7 @@ class MultiPopulationLayer(nn.Module):
             expected = self.external_input_dims[source]
             if value.shape[-1] != expected:
                 raise ValueError(
-                    "MultiPopulationLayer expected external source "
+                    "PopulationLayer expected external source "
                     f"{source!r} to have last dimension {expected}, "
                     f"got {value.shape[-1]}"
                 )
@@ -548,7 +548,7 @@ class MultiPopulationLayer(nn.Module):
                 reference_shape = prefix_shape
             elif prefix_shape != reference_shape:
                 raise ValueError(
-                    "MultiPopulationLayer external sources must share batch/time "
+                    "PopulationLayer external sources must share batch/time "
                     f"dimensions, got {reference_shape} and {prefix_shape}"
                 )
         return external_inputs
@@ -702,7 +702,7 @@ class MultiPopulationLayer(nn.Module):
         batch_size: int,
         device: torch.device,
         dtype: torch.dtype = torch.float32,
-    ) -> MultiPopulationLayerState:
+    ) -> PopulationLayerState:
         population_states = {
             name: population.init_state(
                 batch_size=batch_size, device=device, dtype=dtype
@@ -718,7 +718,7 @@ class MultiPopulationLayer(nn.Module):
             )
             for name in self.populations
         }
-        return MultiPopulationLayerState(
+        return PopulationLayerState(
             population_states=population_states,
             outputs=outputs,
         )
@@ -756,9 +756,9 @@ class MultiPopulationLayer(nn.Module):
     def forward(
         self,
         x: torch.Tensor | dict[str, torch.Tensor],
-        state: MultiPopulationLayerState | None = None,
+        state: PopulationLayerState | None = None,
         delayed_external_inputs: dict[str, torch.Tensor] | None = None,
-    ) -> tuple[torch.Tensor, MultiPopulationLayerState | None]:
+    ) -> tuple[torch.Tensor, PopulationLayerState | None]:
         if self.is_recurrent:
             return self.step(
                 x,
@@ -801,9 +801,9 @@ class MultiPopulationLayer(nn.Module):
     def step(
         self,
         x: torch.Tensor | dict[str, torch.Tensor],
-        state: MultiPopulationLayerState | None = None,
+        state: PopulationLayerState | None = None,
         delayed_external_inputs: dict[str, torch.Tensor] | None = None,
-    ) -> tuple[torch.Tensor, MultiPopulationLayerState]:
+    ) -> tuple[torch.Tensor, PopulationLayerState]:
         external_inputs = self._normalize_external_inputs(x)
         delayed_external_inputs = self._normalize_external_inputs(
             delayed_external_inputs or {}
@@ -870,7 +870,7 @@ class MultiPopulationLayer(nn.Module):
             current_outputs[name] = out
             new_population_states[name] = new_state
 
-        new_layer_state = MultiPopulationLayerState(
+        new_layer_state = PopulationLayerState(
             population_states=new_population_states,
             outputs=current_outputs,
         )
@@ -883,10 +883,10 @@ class MultiPopulationLayer(nn.Module):
         return current_outputs[self.readout_population], new_layer_state
 
 
-class MultiPopulationNetwork(BaseNetwork):
-    """Stack of multi-population dendritic layers."""
+class PopulationNetwork(BaseNetwork):
+    """Stack of population-network dendritic layers."""
 
-    def __init__(self, config: MultiPopulationNetworkConfig):
+    def __init__(self, config: PopulationNetworkConfig):
         super().__init__()
         self.config = config
         self.input_dim = int(config.input_dim)
@@ -918,15 +918,15 @@ class MultiPopulationNetwork(BaseNetwork):
         self.layer_configs = [
             (
                 layer
-                if isinstance(layer, MultiPopulationLayerConfig)
-                else MultiPopulationLayerConfig(**layer)
+                if isinstance(layer, PopulationLayerConfig)
+                else PopulationLayerConfig(**layer)
             )
             for layer in config.layers
         ]
         layer_names = [layer.name for layer in self.layer_configs]
         if len(set(layer_names)) != len(layer_names):
             raise ValueError(
-                f"multi-population layer names must be unique, got {layer_names}"
+                f"population-network layer names must be unique, got {layer_names}"
             )
 
         self.readout_layer = config.readout_layer or layer_names[-1]
@@ -971,7 +971,7 @@ class MultiPopulationNetwork(BaseNetwork):
                 layer_idx,
                 current_external_dims,
             )
-            layer = MultiPopulationLayer(
+            layer = PopulationLayer(
                 layer_cfg,
                 input_dim=layer_external_dims,
                 external_source_polarities=self._layer_external_polarities(layer_idx),
@@ -1023,7 +1023,7 @@ class MultiPopulationNetwork(BaseNetwork):
         batch_size: int,
         device: torch.device,
         dtype: torch.dtype = torch.float32,
-    ) -> list[MultiPopulationLayerState]:
+    ) -> list[PopulationLayerState]:
         return [
             layer.init_state(batch_size=batch_size, device=device, dtype=dtype)
             for layer in self.layers
@@ -1037,7 +1037,7 @@ class MultiPopulationNetwork(BaseNetwork):
         for layer_cfg in self.layer_configs:
             if "." in layer_cfg.name:
                 raise ValueError(
-                    "multi-population layer names may not contain '.', "
+                    "population-network layer names may not contain '.', "
                     f"got {layer_cfg.name!r}"
                 )
             cells = [_as_cell_type_config(cell) for cell in layer_cfg.populations]
@@ -1183,7 +1183,7 @@ class MultiPopulationNetwork(BaseNetwork):
     def _project_external_inputs(self, x: torch.Tensor) -> dict[str, torch.Tensor]:
         if x.shape[-1] != self.input_dim:
             raise ValueError(
-                "MultiPopulationNetwork expected last input dimension "
+                "PopulationNetwork expected last input dimension "
                 f"{self.input_dim}, got {x.shape[-1]}"
             )
         if self.transfer_fn is not None:
@@ -1240,10 +1240,10 @@ class MultiPopulationNetwork(BaseNetwork):
     def forward(
         self,
         x: torch.Tensor,
-        hidden: list[MultiPopulationLayerState] | None = None,
+        hidden: list[PopulationLayerState] | None = None,
         return_hidden: bool = False,
         seq_lengths: torch.Tensor | None = None,
-    ) -> torch.Tensor | tuple[torch.Tensor, list[MultiPopulationLayerState] | None]:
+    ) -> torch.Tensor | tuple[torch.Tensor, list[PopulationLayerState] | None]:
         if self.is_recurrent:
             if x.dim() == 2:
                 x = x.unsqueeze(1)
@@ -1280,9 +1280,9 @@ class MultiPopulationNetwork(BaseNetwork):
     def _forward_recurrent(
         self,
         x: torch.Tensor,
-        hidden: list[MultiPopulationLayerState] | None = None,
+        hidden: list[PopulationLayerState] | None = None,
         seq_lengths: torch.Tensor | None = None,
-    ) -> tuple[torch.Tensor, list[MultiPopulationLayerState]]:
+    ) -> tuple[torch.Tensor, list[PopulationLayerState]]:
         batch_size, seq_len, _ = x.shape
         if hidden is None:
             hidden = self.init_state(
@@ -1319,7 +1319,7 @@ class MultiPopulationNetwork(BaseNetwork):
                     delayed_external_inputs=delayed_external_inputs,
                 )
                 if new_layer_state is None:
-                    new_layer_state = MultiPopulationLayerState(
+                    new_layer_state = PopulationLayerState(
                         population_states=hidden[layer_idx].population_states,
                         outputs=layer._last_outputs,
                     )
@@ -1340,10 +1340,10 @@ class MultiPopulationNetwork(BaseNetwork):
 
 
 __all__ = [
-    "MultiPopulationLayer",
-    "MultiPopulationLayerConfig",
-    "MultiPopulationLayerState",
-    "MultiPopulationNetwork",
-    "MultiPopulationNetworkConfig",
+    "PopulationLayer",
+    "PopulationLayerConfig",
+    "PopulationLayerState",
+    "PopulationNetwork",
+    "PopulationNetworkConfig",
     "PopulationProjectionConfig",
 ]

@@ -27,6 +27,9 @@ from dendritic_modeling.networks.architectures.recurrent import (
     CellTypeConfig,
     PopulationGraphConfig,
     PopulationGraphNetwork,
+    PopulationLayerConfig,
+    PopulationNetwork,
+    PopulationNetworkConfig,
 )
 
 
@@ -67,6 +70,55 @@ def _population_graph():
     )
 
 
+def _population_network():
+    return PopulationNetwork(
+        PopulationNetworkConfig(
+            input_dim=5,
+            output_mode="last",
+            layers=[
+                PopulationLayerConfig(
+                    name="microcircuit",
+                    recurrent=True,
+                    readout_population="pyr",
+                    population_defaults={
+                        "ff_excitatory_synapses": 2,
+                        "ff_inhibitory_synapses": 0,
+                        "rec_excitatory_synapses": 0,
+                        "rec_inhibitory_synapses": 0,
+                        "somatic_synapses": True,
+                        "reactivate": True,
+                        "dbl_init_method": "default",
+                        "weight_transform": "exp",
+                        "dynamics_mode": "spike",
+                        "spike_readout": "rate",
+                        "spike_threshold": -0.1,
+                    },
+                    populations=[
+                        {
+                            "name": "pyr",
+                            "polarity": "excitatory",
+                            "n_neurons": 4,
+                            "branch_factors": [1],
+                            "population": {"rec_inhibitory_synapses": 1},
+                        },
+                        {
+                            "name": "pv",
+                            "polarity": "inhibitory",
+                            "n_neurons": 2,
+                            "branch_factors": [1],
+                        },
+                    ],
+                    connections=[
+                        {"source": "input", "target": "pyr"},
+                        {"source": "input", "target": "pv"},
+                        {"source": "pv", "target": "pyr", "timing": "delayed"},
+                    ],
+                )
+            ],
+        )
+    )
+
+
 def test_recurrent_population_summary_reports_new_components():
     core = _population_graph()
 
@@ -76,6 +128,16 @@ def test_recurrent_population_summary_reports_new_components():
     assert summary["population_graph/pyr"]["spiking_enabled"]
     assert summary["population_graph/pyr"]["spike_readout"] == "rate"
     assert summary["population_graph/pv"]["polarity"] == "inhibitory"
+
+
+def test_recurrent_population_summary_reports_population_network_components():
+    core = _population_network()
+
+    summary = recurrent_population_summary(core)
+
+    assert summary["population_network/microcircuit.pyr"]["polarity"] == "excitatory"
+    assert summary["population_network/microcircuit.pyr"]["spiking_enabled"]
+    assert summary["population_network/microcircuit.pv"]["polarity"] == "inhibitory"
 
 
 def test_routing_analyzer_collects_population_graph_entries():
@@ -124,6 +186,23 @@ def test_inhibitory_specialization_collects_population_graph_target():
     results = InhibitorySpecializationAnalyzer(params).analyze(model)
 
     entry = results["layers"]["population_graph/pyr"]
+    assert entry["n_E"] == 4
+    assert entry["n_I"] == 2
+    assert entry["source_populations"] == ["pv"]
+
+
+def test_inhibitory_specialization_collects_population_network_target():
+    core = _population_network()
+    model = Classifier(
+        encoder_network=Identity(input_dim=5),
+        core_network=core,
+        decoder_network=Identity(input_dim=4),
+    )
+    params = InhibitorySpecializationAnalysisParams(save_figures=False)
+
+    results = InhibitorySpecializationAnalyzer(params).analyze(model)
+
+    entry = results["layers"]["population_network/microcircuit.pyr"]
     assert entry["n_E"] == 4
     assert entry["n_I"] == 2
     assert entry["source_populations"] == ["pv"]

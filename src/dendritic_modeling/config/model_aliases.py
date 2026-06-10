@@ -10,16 +10,33 @@ from typing import Any
 
 from omegaconf import DictConfig, OmegaConf
 
+# Retained for backward-compatible imports. Additive aliases no longer inject a
+# hidden fixed reactivation gate; typed YAML loading defaults additive configs
+# that omit ``reactivation.init_policy`` to ``occupancy_quantile``.
 RECURRENT_ADDITIVE_REACTIVATION_INIT_M = 1.0
 
+# Public morphology aliases. Additive comes in two EXPLICIT flavors:
+#   * ``dendritic_additive`` / ``flat_additive``       -> raw additive V = E - I
+#   * ``dendritic_normalized_additive`` /
+#     ``flat_normalized_additive``                     -> additive + normalization
+# Normalization is no longer implied by the bare ``*_additive`` names; opt in by
+# using the ``*_normalized_additive`` alias.
 _CORE_MORPHOLOGY_ALIAS_OVERRIDES: dict[str, dict[str, object]] = {
     "dendritic_shunting": {"use_shunting": True},
     "flat_shunting": {"use_shunting": True},
     "dendritic_additive": {
         "use_shunting": False,
-        "use_additive_normalization": True,
+        "use_additive_normalization": False,
     },
     "flat_additive": {
+        "use_shunting": False,
+        "use_additive_normalization": False,
+    },
+    "dendritic_normalized_additive": {
+        "use_shunting": False,
+        "use_additive_normalization": True,
+    },
+    "flat_normalized_additive": {
         "use_shunting": False,
         "use_additive_normalization": True,
     },
@@ -28,16 +45,21 @@ _CORE_MORPHOLOGY_ALIAS_OVERRIDES: dict[str, dict[str, object]] = {
     "mlp": {"use_shunting": False},
 }
 
+# Recurrent (unified-EI) parallel aliases. These no longer force a fixed
+# reactivation gate; they only set the morphology (shunting vs additive vs
+# normalized additive). Pick ``reactivation_init_policy`` explicitly per
+# population when using raw unified-EI dictionaries.
 _UNIFIED_EI_ALIAS_OVERRIDES: dict[str, dict[str, object]] = {
     "rnn_dendritic_shunting": {
         "use_shunting": True,
     },
     "rnn_dendritic_additive": {
         "use_shunting": False,
+        "use_additive_normalization": False,
+    },
+    "rnn_dendritic_normalized_additive": {
+        "use_shunting": False,
         "use_additive_normalization": True,
-        "reactivation_init_m": RECURRENT_ADDITIVE_REACTIVATION_INIT_M,
-        "reactivation_init_b": 0.0,
-        "reactivation_init_policy": "fixed",
     },
     "rnn_flat_shunting": {
         "use_shunting": True,
@@ -45,16 +67,19 @@ _UNIFIED_EI_ALIAS_OVERRIDES: dict[str, dict[str, object]] = {
     },
     "rnn_flat_additive": {
         "use_shunting": False,
+        "use_additive_normalization": False,
+        "branch_factors": [1],
+    },
+    "rnn_flat_normalized_additive": {
+        "use_shunting": False,
         "use_additive_normalization": True,
-        "reactivation_init_m": RECURRENT_ADDITIVE_REACTIVATION_INIT_M,
-        "reactivation_init_b": 0.0,
-        "reactivation_init_policy": "fixed",
         "branch_factors": [1],
     },
 }
 
 _STRUCTURED_RECURRENT_ALIAS_MAP: dict[str, str] = {
     "dendritic_additive": "rnn_dendritic_additive",
+    "dendritic_normalized_additive": "rnn_dendritic_normalized_additive",
 }
 
 
@@ -117,24 +142,21 @@ def _copy_config_payload(config: Any) -> dict[str, Any]:
     return result if isinstance(result, dict) else {}
 
 
-def _has_recurrent_connectivity(core: dict[str, Any]) -> bool:
-    connectivity = core.get("connectivity", {})
-    if not isinstance(connectivity, dict):
-        return False
-    for key in (
-        "rec_ee_synapses_per_branch",
-        "rec_ie_synapses_per_branch",
-        "rec_ei_synapses_per_branch",
-        "rec_ii_synapses_per_branch",
-    ):
-        value = connectivity.get(key, 0)
-        if isinstance(value, (list, tuple)):
-            if any(float(v or 0) > 0 for v in value):
-                return True
-        elif float(value or 0) > 0:
-            return True
-    recurrent_ei = core.get("recurrent_ei", {})
-    return isinstance(recurrent_ei, dict) and bool(recurrent_ei.get("enabled", False))
+def _normalize_reactivation_policy_fields(config: dict[str, Any]) -> None:
+    """Normalize legacy reactivation policy aliases in mutable config payloads."""
+
+    policy = config.get("reactivation_init_policy")
+    if isinstance(policy, str) and policy.strip().lower() == "quantile":
+        config["reactivation_init_policy"] = "occupancy_quantile"
+
+    nested = config.get("reactivation")
+    if isinstance(nested, dict):
+        nested_policy = nested.get("init_policy")
+        if (
+            isinstance(nested_policy, str)
+            and nested_policy.strip().lower() == "quantile"
+        ):
+            nested["init_policy"] = "occupancy_quantile"
 
 
 def canonicalize_model_core_flags(config: Any) -> dict[str, Any]:
@@ -172,36 +194,16 @@ def canonicalize_model_core_flags(config: Any) -> dict[str, Any]:
             context="model.core.morphology",
         )
         morphology_cfg.update(overrides)
+    _normalize_reactivation_policy_fields(core_cfg)
 
-    # Feedforward additive aliases historically needed an additive-safe fixed
-    # gate bootstrap only when no explicit initialization policy was present.
-    if core_type == "dendritic_additive" and _has_recurrent_connectivity(core_cfg):
-        reactivation_cfg = core_cfg.setdefault("reactivation", {})
-        if not isinstance(reactivation_cfg, dict):
-            reactivation_cfg = {}
-            core_cfg["reactivation"] = reactivation_cfg
-        recurrent_additive_reactivation = {
-            "init_m": RECURRENT_ADDITIVE_REACTIVATION_INIT_M,
-            "init_b": 0.0,
-            "init_policy": "fixed",
-        }
-        warn_alias_conflicts(
-            core_type,
-            reactivation_cfg,
-            recurrent_additive_reactivation,
-            context="model.core.reactivation",
-        )
-        morphology_cfg["use_additive_normalization"] = True
-        reactivation_cfg.update(recurrent_additive_reactivation)
-    elif core_type in {"dendritic_additive", "flat_additive"}:
-        reactivation_cfg = core_cfg.setdefault("reactivation", {})
-        if not isinstance(reactivation_cfg, dict):
-            reactivation_cfg = {}
-            core_cfg["reactivation"] = reactivation_cfg
-        if not reactivation_cfg.get("init_policy"):
-            reactivation_cfg["init_m"] = 0.1
-            reactivation_cfg["init_b"] = 0.0
-            reactivation_cfg["init_policy"] = "fixed"
+    # NOTE: additive aliases no longer inject a hidden fixed reactivation gate
+    # (previously init_m=0.1, init_b=0.0, init_policy="fixed" for the
+    # feedforward additive aliases, and m=1.0/b=0.0/fixed plus forced
+    # normalization for the recurrent-connectivity case). Empirically the fixed
+    # gate is a poor default. Typed YAML loading uses occupancy_quantile for
+    # additive configs that omit init_policy; explicit analytical/fixed policies
+    # are preserved for reproduction. Use the ``*_normalized_additive`` alias
+    # when normalization is wanted.
 
     return result
 
@@ -246,6 +248,7 @@ def canonicalize_rnn_core_flags(config: Any) -> dict[str, Any]:
                 context=f"model.core.unified_ei.layers[].{population_key}",
             )
             population.update(overrides)
+            _normalize_reactivation_policy_fields(population)
 
     return result
 

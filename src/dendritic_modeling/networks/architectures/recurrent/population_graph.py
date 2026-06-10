@@ -1,4 +1,4 @@
-"""Named multi-population recurrent dendritic network."""
+"""Named-cell recurrent dendritic network."""
 
 from __future__ import annotations
 

@@ -21,20 +21,20 @@ from dendritic_modeling.networks.architectures.recurrent.ei_state import (
     DendriNetState,
     EIState,
 )
-from dendritic_modeling.networks.architectures.recurrent.multi_population import (
-    MultiPopulationLayer,
-    MultiPopulationLayerConfig,
-    MultiPopulationLayerState,
-    MultiPopulationNetwork,
-    MultiPopulationNetworkConfig,
-    PopulationProjectionConfig,
-)
 from dendritic_modeling.networks.architectures.recurrent.population_graph import (
     CellTypeConfig,
     PopulationConnectionConfig,
     PopulationGraphConfig,
     PopulationGraphNetwork,
     PopulationGraphState,
+)
+from dendritic_modeling.networks.architectures.recurrent.population_network import (
+    PopulationLayer,
+    PopulationLayerConfig,
+    PopulationLayerState,
+    PopulationNetwork,
+    PopulationNetworkConfig,
+    PopulationProjectionConfig,
 )
 from dendritic_modeling.networks.architectures.recurrent.protocol import (
     RecurrentCore,
@@ -65,16 +65,16 @@ __all__ = [
     "EINetworkConfig",
     "EIState",
     "LIFSoma",
-    "MultiPopulationLayer",
-    "MultiPopulationLayerConfig",
-    "MultiPopulationLayerState",
-    "MultiPopulationNetwork",
-    "MultiPopulationNetworkConfig",
     "PopulationConfig",
     "PopulationConnectionConfig",
     "PopulationGraphConfig",
     "PopulationGraphNetwork",
     "PopulationGraphState",
+    "PopulationLayer",
+    "PopulationLayerConfig",
+    "PopulationLayerState",
+    "PopulationNetwork",
+    "PopulationNetworkConfig",
     "PopulationProjectionConfig",
     "RecurrentCore",
     "StatefulDendriNet",

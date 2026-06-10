@@ -19,6 +19,9 @@ from dendritic_modeling.config.model import (
 from dendritic_modeling.networks.architectures.classical.pathway_router import (
     PathwayRouter,
 )
+from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_layer import (
+    DendriticBranchLayer,
+)
 from dendritic_modeling.networks.architectures.factory import get_architecture
 from dendritic_modeling.scripts.script_utils.config_utils import (
     canonicalize_model_core_flags,
@@ -108,11 +111,42 @@ def test_canonicalize_rnn_additive_alias_saved_config() -> None:
         out = canonicalize_rnn_core_flags(payload)
     exc = out["model"]["core"]["unified_ei"]["layers"][0]["excitatory"]
 
+    # rnn_dendritic_additive is now RAW additive (no implicit normalization) and
+    # no longer injects a hidden fixed reactivation gate. The explicit
+    # Legacy quantile alias is normalized to the canonical occupancy policy.
+    assert exc["use_shunting"] is False
+    assert exc["use_additive_normalization"] is False
+    assert exc["reactivation_init_policy"] == "occupancy_quantile"
+    assert "reactivation_init_m" not in exc
+    assert "reactivation_init_b" not in exc
+
+
+def test_canonicalize_rnn_normalized_additive_alias_sets_normalization() -> None:
+    payload = {
+        "model": {
+            "core": {
+                "type": "rnn_dendritic_normalized_additive",
+                "unified_ei": {
+                    "layers": [
+                        {
+                            "excitatory": {
+                                "n_neurons": 6,
+                                "branch_factors": [2],
+                            }
+                        }
+                    ]
+                },
+            }
+        }
+    }
+
+    out = canonicalize_rnn_core_flags(payload)
+    exc = out["model"]["core"]["unified_ei"]["layers"][0]["excitatory"]
+
     assert exc["use_shunting"] is False
     assert exc["use_additive_normalization"] is True
-    assert exc["reactivation_init_policy"] == "fixed"
-    assert exc["reactivation_init_m"] == 1.0
-    assert exc["reactivation_init_b"] == 0.0
+    # No hidden fixed reactivation gate is injected by the alias.
+    assert "reactivation_init_policy" not in exc
 
 
 def test_canonicalize_preserves_point_mlp_reference_use_shunting() -> None:
@@ -153,11 +187,14 @@ def test_canonicalize_structured_recurrent_additive_saved_config() -> None:
         out = canonicalize_model_core_flags(payload)
     core = out["model"]["core"]
 
+    # dendritic_additive is now RAW additive even with recurrent connectivity:
+    # no forced normalization and no hidden fixed reactivation gate. The
+    # explicitly configured reactivation is preserved.
     assert core["morphology"]["use_shunting"] is False
-    assert core["morphology"]["use_additive_normalization"] is True
-    assert core["reactivation"]["init_policy"] == "fixed"
-    assert core["reactivation"]["init_m"] == 1.0
-    assert core["reactivation"]["init_b"] == 0.0
+    assert core["morphology"]["use_additive_normalization"] is False
+    assert core["reactivation"]["init_policy"] == "analytical"
+    assert core["reactivation"]["init_m"] == 1.5
+    assert core["reactivation"]["init_b"] == 0.5
 
 
 def test_canonicalize_rnn_flat_alias_overrides_branch_factors() -> None:
@@ -228,13 +265,42 @@ def test_initialize_model_accepts_default_model_config() -> None:
     assert torch.isfinite(logits).all()
 
 
-def test_initialize_model_accepts_typed_point_mlp_example_config() -> None:
-    cfg = load_config("configs/branch_comparison/tc3_matched_mlp.yaml")
+def test_initialize_model_accepts_typed_point_mlp_config() -> None:
+    cfg_model = ModelConfig()
+    cfg_model.encoder.params.input_dim = 18
+    cfg_model.core.type = "point_mlp"
+    cfg_model.core.architecture.excitatory_layer_sizes = [32]
+    cfg_model.core.architecture.inhibitory_layer_sizes = []
+    cfg_model.core.architecture.excitatory_branch_factors = [2]
+    cfg_model.core.architecture.inhibitory_branch_factors = [1]
+    cfg_model.core.connectivity.ee_synapses_per_branch_per_layer = [4]
+    cfg_model.core.connectivity.ei_synapses_per_branch_per_layer = [0]
+    cfg_model.core.connectivity.ie_synapses_per_branch_per_layer = [2]
+    cfg_model.core.connectivity.ii_synapses_per_branch_per_layer = [0]
 
-    model, _ = initialize_model(cfg.model)
+    model, _ = initialize_model(cfg_model)
 
     assert model is not None
-    assert model.core_network.output_dim == 256
+    assert model.core_network.output_dim == 32
+
+
+def test_standard_mnist_uses_develop_scale_shunting_init_by_default() -> None:
+    cfg = load_config("configs/examples/standard_mnist.yaml")
+
+    torch.manual_seed(0)
+    model, _ = initialize_model(cfg.model)
+
+    first_branch = next(
+        module
+        for module in model.core_network.modules()
+        if isinstance(module, DendriticBranchLayer)
+        and getattr(module, "branch_excitation", None) is not None
+    )
+    assert first_branch.adaptive_initialization is False
+    assert first_branch.branch_excitation.weight().mean().item() == pytest.approx(
+        0.693, rel=0.05
+    )
+    assert first_branch.reactivation.b.mean().item() == pytest.approx(0.478, rel=0.05)
 
 
 def test_initialize_model_rejects_transformer_replacement_with_runner_hint() -> None:
@@ -506,7 +572,7 @@ def _temporal_population_feature_cases() -> list[dict]:
     ]
 
 
-def _multi_population_temporal_core(population_overrides: dict) -> CoreConfig:
+def _population_network_temporal_core(population_overrides: dict) -> CoreConfig:
     population_defaults = {
         "ff_excitatory_synapses": 2,
         "ff_inhibitory_synapses": 1,
@@ -519,8 +585,8 @@ def _multi_population_temporal_core(population_overrides: dict) -> CoreConfig:
         **population_overrides,
     }
     return CoreConfig(
-        type="multi_population_ei",
-        multi_population={
+        type="population_network",
+        population_network={
             "output_mode": "last",
             "layers": [
                 {
@@ -554,10 +620,10 @@ def _multi_population_temporal_core(population_overrides: dict) -> CoreConfig:
 
 
 @pytest.mark.parametrize("population_overrides", _temporal_population_feature_cases())
-def test_multi_population_temporal_features_use_recurrent_wrapper(
+def test_population_network_temporal_features_use_recurrent_wrapper(
     population_overrides: dict,
 ) -> None:
-    core = _multi_population_temporal_core(population_overrides)
+    core = _population_network_temporal_core(population_overrides)
     cfg_model = ModelConfig(
         task="classification",
         encoder=EncoderConfig(

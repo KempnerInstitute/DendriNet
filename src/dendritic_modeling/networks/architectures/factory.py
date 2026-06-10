@@ -58,10 +58,12 @@ _EINET_TYPES: set[str] = {
     "einet",
     "dendritic_shunting",
     "dendritic_additive",
+    "dendritic_normalized_additive",
     "dendritic_mlp",
     "dendritic_signed",
     "flat_shunting",
     "flat_additive",
+    "flat_normalized_additive",
     "flat_mlp",
     "flat_signed",
 }
@@ -80,8 +82,10 @@ _UNIFIED_EI_TYPES: set[str] = {
     # unchanged for backward compatibility.
     "rnn_dendritic_shunting",
     "rnn_dendritic_additive",
+    "rnn_dendritic_normalized_additive",
     "rnn_flat_shunting",
     "rnn_flat_additive",
+    "rnn_flat_normalized_additive",
 }
 
 # Spatial dendritic cores: flatten encoder spatial output → EINet → project.
@@ -109,15 +113,10 @@ _BASELINE_RNN_TYPES: dict[str, str] = {
 
 _POPULATION_GRAPH_TYPES: set[str] = {
     "population_graph",
-    "cell_type_graph",
-    "cell_types",
 }
 
-_MULTI_POPULATION_TYPES: set[str] = {
-    "multi_population_ei",
-    "multi_pop_ei",
-    "multi_population",
-    "population_layers",
+_POPULATION_NETWORK_TYPES: set[str] = {
+    "population_network",
 }
 
 _BUILTIN_ARCHITECTURE_TYPES: frozenset[str] = frozenset(
@@ -125,7 +124,7 @@ _BUILTIN_ARCHITECTURE_TYPES: frozenset[str] = frozenset(
     | set(_UNIFIED_EI_TYPES)
     | set(_BASELINE_RNN_TYPES)
     | set(_POPULATION_GRAPH_TYPES)
-    | set(_MULTI_POPULATION_TYPES)
+    | set(_POPULATION_NETWORK_TYPES)
     | set(_SPATIAL_DENDRITIC_TYPES)
     | set(_SPATIAL_DENDRITIC_CONV_TYPES)
     | {
@@ -320,10 +319,16 @@ def _build_recurrent_einet_from_structured_config(
     if not has_rec_synapses and not explicit_enabled and not has_stateful_features:
         return None
 
-    if type in {"dendritic_mlp", "flat_shunting", "flat_additive"}:
+    if type in {
+        "dendritic_mlp",
+        "flat_shunting",
+        "flat_additive",
+        "flat_normalized_additive",
+    }:
         raise ValueError(
             f"Recurrent mode is not supported for architecture type '{type}'. "
-            "Use 'EINet', 'dendritic_shunting', or 'dendritic_additive'."
+            "Use 'EINet', 'dendritic_shunting', 'dendritic_additive', or "
+            "'dendritic_normalized_additive'."
         )
 
     excitatory_sizes = list(architecture.get("excitatory_layer_sizes", []))
@@ -505,7 +510,7 @@ def _build_recurrent_einet_from_structured_config(
             topk_type=_normalize_sparsity_type(sparsity.get("type", "standard")),
             topk_weight_norm_order=sparsity.get("weight_norm_order"),
             topk_gamma=float(sparsity.get("gamma", 1.0)),
-            topk_temperature=float(sparsity.get("temperature", 0.5)),
+            topk_temperature=float(sparsity.get("temperature", 0.0)),
             topk_ultrafast=bool(sparsity.get("ultrafast", False)),
             topk_strategy=str(sparsity.get("gradient_scaling", "none")),
             dense_to_sparse_initial_density=float(
@@ -589,7 +594,16 @@ def _build_recurrent_einet_from_structured_config(
             init_method=str(deepst.get("init_method", "xavier_normal")),
             weight_threshold=float(deepst.get("weight_threshold", 1e-6)),
             adaptive_initialization=bool(
-                implementation.get("adaptive_initialization", True)
+                implementation.get("adaptive_initialization", False)
+            ),
+            adaptive_initialization_policy=str(
+                implementation.get(
+                    "adaptive_initialization_policy",
+                    "preserve_shunting_center",
+                )
+            ),
+            adaptive_target_conductance=float(
+                implementation.get("adaptive_target_conductance", 5.0)
             ),
             structured_connectivity=_to_plain_mapping(structured_connectivity),
             structured_layer_idx=layer_idx,
@@ -1003,25 +1017,22 @@ def get_architecture(
         return PopulationGraphNetwork(PopulationGraphConfig(**graph_cfg))
 
     # ------------------------------------------------------------------
-    # Multi-population E-I layers with directional same-step edges
+    # Canonical population-network layers with directional same-step edges
     # ------------------------------------------------------------------
-    if type in _MULTI_POPULATION_TYPES:
+    if type in _POPULATION_NETWORK_TYPES:
         from dendritic_modeling.networks.architectures.recurrent import (
-            MultiPopulationLayerConfig,
-            MultiPopulationNetwork,
-            MultiPopulationNetworkConfig,
+            PopulationLayerConfig,
+            PopulationNetwork,
+            PopulationNetworkConfig,
         )
 
         if input_dim is None:
             raise ValueError(
-                f"input_dim required when creating multi-population E-I architecture (type='{type}')"
+                f"input_dim required when creating population-network architecture (type='{type}')"
             )
 
         raw_params = _to_plain_mapping(parameters)
-        mp_cfg = raw_params.get(
-            "multi_population",
-            raw_params.get("multi_population_ei", raw_params),
-        )
+        mp_cfg = raw_params.get("population_network") or raw_params
         if not isinstance(mp_cfg, dict):
             mp_cfg = {}
         mp_cfg = dict(mp_cfg)
@@ -1033,12 +1044,12 @@ def get_architecture(
         mp_cfg["layers"] = [
             (
                 layer
-                if isinstance(layer, MultiPopulationLayerConfig)
-                else MultiPopulationLayerConfig(**layer)
+                if isinstance(layer, PopulationLayerConfig)
+                else PopulationLayerConfig(**layer)
             )
             for layer in mp_cfg.get("layers", [])
         ]
-        return MultiPopulationNetwork(MultiPopulationNetworkConfig(**mp_cfg))
+        return PopulationNetwork(PopulationNetworkConfig(**mp_cfg))
 
     # ------------------------------------------------------------------
     # Legacy recurrent type aliases (removed -- use unified E-I instead)

@@ -836,11 +836,11 @@ def test_recurrent_additive_alias_uses_responsive_fixed_gate():
         net = get_architecture("rnn_dendritic_additive", params, input_dim=8)
     layer = net.layers[0].e_population.branch_layers[0]
 
+    # rnn_dendritic_additive is now RAW additive (no implicit normalization) and
+    # no longer forces a fixed reactivation gate: the explicit policy survives.
     assert layer.use_shunting is False
-    assert layer.use_additive_normalization is True
-    assert layer.reactivation_init_policy == "fixed"
-    assert layer.reactivation_init_m == pytest.approx(1.0)
-    assert layer.reactivation_init_b == pytest.approx(0.0)
+    assert layer.use_additive_normalization is False
+    assert layer.reactivation_init_policy == "occupancy_quantile"
 
     y = net(torch.rand(2, 5, 8))
     assert y.shape == (2, 6)
@@ -879,10 +879,10 @@ def test_recurrent_additive_alias_applies_to_inhibitory_population():
     layer = net.layers[0]
 
     assert layer.e_population.pop_config.use_shunting is False
-    assert layer.e_population.pop_config.use_additive_normalization is True
+    assert layer.e_population.pop_config.use_additive_normalization is False
     assert layer.i_population is not None
     assert layer.i_population.pop_config.use_shunting is False
-    assert layer.i_population.pop_config.use_additive_normalization is True
+    assert layer.i_population.pop_config.use_additive_normalization is False
 
 
 def test_additive_shunt_from_currents_applies_safe_normalization():
@@ -929,7 +929,7 @@ def test_additive_normalization_is_finite_for_singleton_population():
     torch.testing.assert_close(voltage, torch.zeros_like(voltage))
 
 
-def test_structured_dendritic_additive_recurrent_uses_rnn_additive_defaults():
+def test_structured_dendritic_additive_recurrent_is_raw_additive():
     params = {
         "architecture": {
             "excitatory_layer_sizes": [4],
@@ -959,11 +959,40 @@ def test_structured_dendritic_additive_recurrent_uses_rnn_additive_defaults():
         net = get_architecture("dendritic_additive", params, input_dim=5)
     layer = net.layers[0].e_population.branch_layers[0]
 
+    # dendritic_additive (even recurrent) is RAW additive now: no forced
+    # normalization, no hidden fixed gate; the explicit reactivation survives.
+    assert layer.use_shunting is False
+    assert layer.use_additive_normalization is False
+    assert layer.reactivation_init_policy == "analytical"
+    assert layer.reactivation_init_m == pytest.approx(1.5)
+    assert layer.reactivation_init_b == pytest.approx(0.5)
+
+
+def test_structured_dendritic_normalized_additive_enables_normalization():
+    params = {
+        "architecture": {
+            "excitatory_layer_sizes": [4],
+            "inhibitory_layer_sizes": [],
+            "excitatory_branch_factors": [1],
+        },
+        "connectivity": {
+            "ee_synapses_per_branch_per_layer": [2],
+            "ie_synapses_per_branch_per_layer": [0],
+            "rec_ee_synapses_per_branch": [1],
+        },
+        "transfer": {"input_mode": 0},
+        "morphology": {"somatic_synapses": True},
+        "reactivation": {"enabled": True, "init_policy": "occupancy_quantile"},
+    }
+
+    net = get_architecture("dendritic_normalized_additive", params, input_dim=5)
+    layer = net.layers[0].e_population.branch_layers[0]
+
+    # dendritic_normalized_additive == additive + normalization (explicit), and
+    # the alias does NOT override the explicitly chosen data-driven policy.
     assert layer.use_shunting is False
     assert layer.use_additive_normalization is True
-    assert layer.reactivation_init_policy == "fixed"
-    assert layer.reactivation_init_m == pytest.approx(1.0)
-    assert layer.reactivation_init_b == pytest.approx(0.0)
+    assert layer.reactivation_init_policy == "occupancy_quantile"
 
 
 def test_recurrent_alias_applies_to_typed_layer_population_config():
@@ -986,9 +1015,10 @@ def test_recurrent_alias_applies_to_typed_layer_population_config():
     pop_config = net.layers[0].e_population.pop_config
 
     assert pop_config.use_shunting is False
-    assert pop_config.use_additive_normalization is True
+    assert pop_config.use_additive_normalization is False
     assert pop_config.branch_factors == [1]
-    assert pop_config.reactivation_init_policy == "fixed"
+    # rnn_flat_additive no longer forces a fixed reactivation gate
+    assert pop_config.reactivation_init_policy != "fixed"
 
 
 def test_structured_recurrent_inhibitory_copies_reactivation_calibration_fields():

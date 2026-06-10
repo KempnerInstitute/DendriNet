@@ -1,7 +1,7 @@
 """Duck-typed introspection helpers for recurrent dendritic analysis.
 
 These utilities keep the analysis stack compatible with both the legacy
-``EINetwork``/``EILayer`` layout and the newer named-population graph backend.
+``EINetwork``/``EILayer`` layout and named-population recurrent backends.
 They intentionally avoid importing concrete architecture classes so analyzers
 can use them on lightweight fakes in tests and on checkpoint-loaded modules.
 """
@@ -57,6 +57,7 @@ def iter_recurrent_populations(core: Any) -> Iterator[PopulationRecord]:
 
     Supported layouts:
     - ``EINetwork.layers[i].e_population`` / ``i_population``
+    - ``PopulationNetwork.layers[i].populations[name]``
     - ``PopulationGraphNetwork.populations[name]``
 
     Unknown cores simply yield nothing.
@@ -64,6 +65,23 @@ def iter_recurrent_populations(core: Any) -> Iterator[PopulationRecord]:
     layers = getattr(core, "layers", None)
     if layers is not None:
         for idx, layer in enumerate(layers):
+            named_populations = getattr(layer, "populations", None)
+            if named_populations is not None:
+                layer_name = str(getattr(getattr(layer, "config", None), "name", idx))
+                polarities = _population_graph_polarities(layer)
+                for name, population in named_populations.items():
+                    name_str = str(name)
+                    polarity = polarities.get(name_str, "excitatory")
+                    yield PopulationRecord(
+                        key=f"population_network/{layer_name}.{name_str}",
+                        population=population,
+                        polarity=polarity,
+                        n_neurons=_n_soma(population),
+                        layer_index=idx,
+                        population_name=name_str,
+                    )
+                continue
+
             e_pop = getattr(layer, "e_population", None)
             if e_pop is not None:
                 yield PopulationRecord(

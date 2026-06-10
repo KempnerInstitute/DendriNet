@@ -328,6 +328,8 @@ class StatefulDendriNet(nn.Module):
             "init_method": pop_config.init_method,
             "weight_threshold": pop_config.weight_threshold,
             "adaptive_initialization": pop_config.adaptive_initialization,
+            "adaptive_initialization_policy": pop_config.adaptive_initialization_policy,
+            "adaptive_target_conductance": pop_config.adaptive_target_conductance,
             "branch_factors": pop_config.branch_factors,
         }
 

@@ -51,9 +51,9 @@ def test_fsdp_launcher_exposes_rnn_alias_canonicalizer():
     inh = layer["inhibitory"]
 
     assert exc["use_shunting"] is False
-    assert exc["use_additive_normalization"] is True
+    assert exc["use_additive_normalization"] is False
     assert inh["use_shunting"] is False
-    assert inh["use_additive_normalization"] is True
+    assert inh["use_additive_normalization"] is False
 
 
 def test_dendritic_activation_none_preserves_reactivation_type():
@@ -267,6 +267,95 @@ class TestConfigLoading(unittest.TestCase):
             config.model.core.connectivity.structured,
             StructuredConnectivityConfig,
         )
+
+    def test_load_config_returns_independent_objects(self):
+        """Cached config parsing must not leak runtime mutations."""
+        load_config.cache_clear()
+        config1 = load_config(self.config_file)
+        config1.training.main.common.batch_size = 12345
+
+        config2 = load_config(self.config_file)
+
+        self.assertIsNot(config1, config2)
+        self.assertEqual(config2.training.main.common.batch_size, 64)
+
+    def test_training_dataloader_fields_are_preserved(self):
+        """Large-data loader controls should survive typed config loading."""
+        load_config.cache_clear()
+        dataloader_config = {
+            **self.sample_config,
+            "training": {
+                "main": {
+                    "strategy": "standard",
+                    "common": {
+                        "epochs": 1,
+                        "batch_size": 16,
+                        "num_workers": 6,
+                        "pin_memory": False,
+                        "persistent_workers": True,
+                        "prefetch_factor": 3,
+                    },
+                }
+            },
+        }
+        config_path = os.path.join(self.temp_dir, "dataloader_config.yaml")
+        with open(config_path, "w") as f:
+            yaml.safe_dump(dataloader_config, f)
+
+        config = load_config(config_path)
+        common = config.training.main.common
+
+        self.assertEqual(common.num_workers, 6)
+        self.assertFalse(common.pin_memory)
+        self.assertTrue(common.persistent_workers)
+        self.assertEqual(common.prefetch_factor, 3)
+
+    def test_additive_alias_defaults_to_occupancy_quantile_when_policy_omitted(self):
+        """Additive configs should not silently use weak analytical gates."""
+        load_config.cache_clear()
+        additive_config = {
+            **self.sample_config,
+            "model": {
+                **self.sample_config["model"],
+                "core": {
+                    **self.sample_config["model"]["core"],
+                    "type": "dendritic_additive",
+                },
+            },
+        }
+        config_path = os.path.join(self.temp_dir, "additive_config.yaml")
+        with open(config_path, "w") as f:
+            yaml.safe_dump(additive_config, f)
+
+        config = load_config(config_path)
+
+        self.assertEqual(
+            config.model.core.reactivation.init_policy,
+            "occupancy_quantile",
+        )
+
+    def test_explicit_additive_init_policy_is_preserved(self):
+        """Users can still reproduce analytical/fixed additive experiments."""
+        load_config.cache_clear()
+        additive_config = {
+            **self.sample_config,
+            "model": {
+                **self.sample_config["model"],
+                "core": {
+                    **self.sample_config["model"]["core"],
+                    "type": "einet",
+                    "morphology": {"use_shunting": False},
+                    "reactivation": {"init_policy": "analytical"},
+                },
+            },
+        }
+        config_path = os.path.join(self.temp_dir, "additive_analytical.yaml")
+        with open(config_path, "w") as f:
+            yaml.safe_dump(additive_config, f)
+
+        config = load_config(config_path)
+
+        self.assertEqual(config.model.core.reactivation.init_policy, "analytical")
 
     def test_transfer_legacy_aliases_load_as_canonical_fields(self):
         load_config.cache_clear()

@@ -8,6 +8,7 @@ It loads and saves configurations using OmegaConf.
 
 import logging
 from collections.abc import Mapping
+from copy import deepcopy
 from dataclasses import dataclass, field, fields
 from functools import lru_cache
 from typing import Any, Optional
@@ -305,14 +306,35 @@ def _to_plain_dict(data: Any) -> dict[str, Any]:
 def _build_core_config(core_data: Any) -> CoreConfig:
     """Build a typed CoreConfig from possibly nested dict/OmegaConf payload."""
     core_dict = _to_plain_dict(core_data)
+    core_type = str(core_dict.get("type", "einet"))
     unified_ei = core_dict.get("unified_ei", core_dict.get("ei_unified", {}))
     connectivity_dict = _to_plain_dict(core_dict.get("connectivity", {}))
     structured_connectivity = connectivity_dict.pop(
         "structured",
         connectivity_dict.pop("structured_connectivity", {}),
     )
+    morphology_dict = _to_plain_dict(core_dict.get("morphology", {}))
+    reactivation_dict = _to_plain_dict(core_dict.get("reactivation", {}))
+    additive_aliases = {
+        "dendritic_additive",
+        "flat_additive",
+        "dendritic_normalized_additive",
+        "flat_normalized_additive",
+    }
+    lower_core_type = core_type.lower()
+    is_explicit_additive_einet = (
+        lower_core_type in {"einet", "ei_net", "unified_einet"}
+        and morphology_dict.get("use_shunting") is False
+    )
+    if "init_policy" not in reactivation_dict and (
+        lower_core_type in additive_aliases or is_explicit_additive_einet
+    ):
+        reactivation_dict["init_policy"] = "occupancy_quantile"
+    elif str(reactivation_dict.get("init_policy", "")).lower() == "quantile":
+        reactivation_dict["init_policy"] = "occupancy_quantile"
+
     return CoreConfig(
-        type=str(core_dict.get("type", "einet")),
+        type=core_type,
         architecture=ArchitectureConfig(
             **_to_plain_dict(core_dict.get("architecture", {}))
         ),
@@ -325,11 +347,9 @@ def _build_core_config(core_data: Any) -> CoreConfig:
         transfer=TransferFunctionConfig(
             **normalize_transfer_config(core_dict.get("transfer", {}))
         ),
-        morphology=MorphologyConfig(**_to_plain_dict(core_dict.get("morphology", {}))),
+        morphology=MorphologyConfig(**morphology_dict),
         sparsity=SparsityConfig(**_to_plain_dict(core_dict.get("sparsity", {}))),
-        reactivation=ReactivationConfig(
-            **_to_plain_dict(core_dict.get("reactivation", {}))
-        ),
+        reactivation=ReactivationConfig(**reactivation_dict),
         blocklinear=BlockLinearConfig(
             **_to_plain_dict(core_dict.get("blocklinear", {}))
         ),
@@ -348,12 +368,7 @@ def _build_core_config(core_data: Any) -> CoreConfig:
         recurrent_ei=_to_plain_dict(core_dict.get("recurrent_ei", {})),
         baseline_rnn=_to_plain_dict(core_dict.get("baseline_rnn", {})),
         population_graph=_to_plain_dict(core_dict.get("population_graph", {})),
-        multi_population=_to_plain_dict(
-            core_dict.get(
-                "multi_population",
-                core_dict.get("multi_population_ei", {}),
-            )
-        ),
+        population_network=_to_plain_dict(core_dict.get("population_network", {})),
     )
 
 
@@ -604,8 +619,13 @@ def _filter_dataclass_kwargs(config_cls: type, raw_data: Any) -> dict[str, Any]:
 
 
 @lru_cache(maxsize=10)
-def load_config(path: Optional[str] = None) -> Config:
-    """Load configuration from a file or use defaults."""
+def _load_config_cached(path: Optional[str] = None) -> Config:
+    """Load configuration from a file or use defaults.
+
+    This internal helper is cached because YAML parsing and typed conversion are
+    relatively expensive. Public callers receive a deepcopy via ``load_config``
+    so runtime mutations cannot leak into later loads of the same path.
+    """
     if path:
         raw_conf = OmegaConf.load(path)
 
@@ -663,6 +683,16 @@ def load_config(path: Optional[str] = None) -> Config:
             distributed=distributed_config,
         )
     return Config()
+
+
+def load_config(path: Optional[str] = None) -> Config:
+    """Load configuration from a file or defaults as an independent object."""
+    return deepcopy(_load_config_cached(path))
+
+
+# Preserve the lru_cache testing/debug interface that callers already use.
+load_config.cache_clear = _load_config_cached.cache_clear  # type: ignore[attr-defined]
+load_config.cache_info = _load_config_cached.cache_info  # type: ignore[attr-defined]
 
 
 def _build_distributed_config(conf_data: dict) -> DistributedConfig:

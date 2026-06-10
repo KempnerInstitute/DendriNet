@@ -11,12 +11,9 @@ from dendritic_modeling.config.conversion import (
 )
 
 _BASELINE_RNN_TYPES = {"gru", "lstm", "vanilla_rnn", "rnn"}
-_POPULATION_GRAPH_TYPES = {"population_graph", "cell_type_graph", "cell_types"}
-_MULTI_POPULATION_TYPES = {
-    "multi_population_ei",
-    "multi_pop_ei",
-    "multi_population",
-    "population_layers",
+_POPULATION_GRAPH_TYPES = {"population_graph"}
+_POPULATION_NETWORK_TYPES = {
+    "population_network",
 }
 _UNIFIED_EI_TYPES = {
     "ei_unified",
@@ -25,15 +22,19 @@ _UNIFIED_EI_TYPES = {
     "unified_einet",
     "rnn_dendritic_shunting",
     "rnn_dendritic_additive",
+    "rnn_dendritic_normalized_additive",
     "rnn_flat_shunting",
     "rnn_flat_additive",
+    "rnn_flat_normalized_additive",
 }
 _STRUCTURED_EI_TYPES = {
     "einet",
     "dendritic_shunting",
     "dendritic_additive",
+    "dendritic_normalized_additive",
     "flat_shunting",
     "flat_additive",
+    "flat_normalized_additive",
     "dendritic_mlp",
 }
 
@@ -216,10 +217,8 @@ def _population_graph_requires_recurrent_wrapper(core_cfg: Any) -> bool:
     return False
 
 
-def _multi_population_requires_recurrent_wrapper(core_cfg: Any) -> bool:
-    mp = to_plain_dict(_get_value(core_cfg, "multi_population", {}))
-    if not mp:
-        mp = to_plain_dict(_get_value(core_cfg, "multi_population_ei", {}))
+def _population_network_requires_recurrent_wrapper(core_cfg: Any) -> bool:
+    mp = to_plain_dict(_get_value(core_cfg, "population_network", {}))
     if not mp:
         mp = to_plain_dict(core_cfg)
     output_mode = str(mp.get("output_mode", "last")).lower()
@@ -254,8 +253,8 @@ def is_recurrent_core_config(core_cfg: Any) -> bool:
         return True
     if core_type in _POPULATION_GRAPH_TYPES:
         return _population_graph_requires_recurrent_wrapper(core_cfg)
-    if core_type in _MULTI_POPULATION_TYPES:
-        return _multi_population_requires_recurrent_wrapper(core_cfg)
+    if core_type in _POPULATION_NETWORK_TYPES:
+        return _population_network_requires_recurrent_wrapper(core_cfg)
     if core_type in _UNIFIED_EI_TYPES:
         return _has_unified_recurrent_layers(core_cfg)
     if core_type in _STRUCTURED_EI_TYPES:

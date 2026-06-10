@@ -9,7 +9,7 @@ from dendritic_modeling.config.recurrent import RecurrentConfig
 class TransferFunctionConfig(BaseConfig):
     """Transfer function parameters."""
 
-    input_mode: int = 0
+    input_mode: int = 1
     input_transform: Optional[str] = None
     independent_pathways: bool = False
     excitatory_dim: Optional[int] = None
@@ -97,7 +97,7 @@ class SparsityConfig(BaseConfig):
     type: str = "standard"
     weight_norm_order: Optional[int] = None
     gamma: float = 1.0
-    temperature: float = 0.5
+    temperature: float = 0.0
     ultrafast: bool = False
     gradient_scaling: str = "none"
 
@@ -153,9 +153,8 @@ class ReactivationConfig(BaseConfig):
     # - "analytical": initialize from the selected DBL init rule.
     # - "fixed": use init_m and init_b exactly as provided.
     # - "empirical": robust median/MAD calibration from sampled voltages.
-    # - "quantile": q10/q90 -> 0.1/0.9 occupancy calibration.
     # - "occupancy_quantile": generalized q_low/q_high -> r_low/r_high rule.
-    # Common aliases are accepted for compatibility.
+    # Legacy alias: "quantile" is accepted and normalized to "occupancy_quantile".
     init_policy: str = "analytical"
     init_m: float = 1.5
     init_b: float = 0.5
@@ -190,6 +189,10 @@ class ImplementationConfig(BaseConfig):
     # (~25x smaller weights, gate center ~0.19 vs ~0.49) and degrades shunting
     # learning. Configs that omit this field must keep the develop-scale init.
     adaptive_initialization: bool = False
+    # Explicit adaptive opt-ins should preserve the shunting operating point by
+    # default. "legacy_scale" is kept for reproducing the old raw-weight shrink.
+    adaptive_initialization_policy: str = "preserve_shunting_center"
+    adaptive_target_conductance: float = 5.0
     print_hooks: bool = False
     store_routing: bool = False
     compile_forward: bool = False
@@ -280,8 +283,9 @@ class CoreConfig(BaseConfig):
     baseline_rnn: dict[str, Any] = field(default_factory=dict)
     # Optional config payload for named cell-type / population-graph recurrent cores.
     population_graph: dict[str, Any] = field(default_factory=dict)
-    # Optional config payload for multi-population feedforward/recurrent layers.
-    multi_population: dict[str, Any] = field(default_factory=dict)
+    # Canonical population/layer/connection schema for feedforward or recurrent
+    # named-population dendritic networks.
+    population_network: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass

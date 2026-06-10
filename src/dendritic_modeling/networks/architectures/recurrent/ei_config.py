@@ -29,7 +29,7 @@ class PopulationConfig(BaseConfig):
     topk_type: str = "standard"
     topk_weight_norm_order: Optional[int] = None
     topk_gamma: float = 1.0
-    topk_temperature: float = 0.5
+    topk_temperature: float = 0.0
     topk_ultrafast: bool = False
     topk_strategy: str = "none"
     dense_to_sparse_initial_density: float = 1.0
@@ -86,7 +86,9 @@ class PopulationConfig(BaseConfig):
     freeze_inhibitory_connectivity: bool = False
     init_method: str = "xavier_normal"
     weight_threshold: float = 1e-6
-    adaptive_initialization: bool = True
+    adaptive_initialization: bool = False
+    adaptive_initialization_policy: str = "preserve_shunting_center"
+    adaptive_target_conductance: float = 5.0
 
     # Optional structured topology constraints. Pathway names are interpreted
     # from the target population's point of view (ee/ie for E targets,

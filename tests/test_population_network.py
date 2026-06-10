@@ -1,10 +1,12 @@
 import pytest
 import torch
 
+from dendritic_modeling.config import CoreConfig
+from dendritic_modeling.config.recurrence import is_recurrent_core_config
 from dendritic_modeling.models import Classifier
 from dendritic_modeling.networks import Identity
 from dendritic_modeling.networks.architectures.factory import get_architecture
-from dendritic_modeling.networks.architectures.recurrent import MultiPopulationNetwork
+from dendritic_modeling.networks.architectures.recurrent import PopulationNetwork
 from dendritic_modeling.training.strategies.local_learning import LocalCreditAssignment
 
 
@@ -26,7 +28,7 @@ def _base_population(overrides=None):
 
 def _single_layer_temporal_population_config(population_overrides):
     return {
-        "multi_population": {
+        "population_network": {
             "output_mode": "last",
             "layers": [
                 {
@@ -66,9 +68,9 @@ def _single_layer_temporal_population_config(population_overrides):
     }
 
 
-def test_multi_population_two_pop_feedforward_matches_current_ei_pattern():
+def test_population_network_two_pop_feedforward_matches_current_ei_pattern():
     cfg = {
-        "multi_population": {
+        "population_network": {
             "layers": [
                 {
                     "name": "layer0",
@@ -102,12 +104,102 @@ def test_multi_population_two_pop_feedforward_matches_current_ei_pattern():
             ]
         }
     }
-    net = get_architecture("multi_population_ei", cfg, input_dim=4)
-    assert isinstance(net, MultiPopulationNetwork)
+    net = get_architecture("population_network", cfg, input_dim=4)
+    assert isinstance(net, PopulationNetwork)
     assert net.output_dim == 5
     assert net.is_recurrent is False
 
     y = net(torch.randn(2, 4))
+    assert y.shape == (2, 5)
+    assert torch.isfinite(y).all()
+
+
+def test_population_network_canonical_key_builds_feedforward():
+    cfg = {
+        "population_network": {
+            "layers": [
+                {
+                    "name": "layer0",
+                    "readout_population": "e",
+                    "population_defaults": _base_population(
+                        {
+                            "rec_excitatory_synapses": 0,
+                            "rec_inhibitory_synapses": 0,
+                        }
+                    ),
+                    "populations": [
+                        {
+                            "name": "i",
+                            "polarity": "inhibitory",
+                            "n_neurons": 3,
+                            "branch_factors": [1],
+                        },
+                        {
+                            "name": "e",
+                            "polarity": "excitatory",
+                            "n_neurons": 5,
+                            "branch_factors": [2],
+                        },
+                    ],
+                    "connections": [
+                        {"source": "input", "target": "i"},
+                        {"source": "input", "target": "e"},
+                        {"source": "i", "target": "e"},
+                    ],
+                }
+            ]
+        }
+    }
+    net = get_architecture("population_network", cfg, input_dim=4)
+
+    assert isinstance(net, PopulationNetwork)
+    assert net.is_recurrent is False
+    y = net(torch.randn(2, 4))
+    assert y.shape == (2, 5)
+    assert torch.isfinite(y).all()
+
+
+def test_population_network_typed_config_detects_delayed_recurrence():
+    core = CoreConfig(
+        type="population_network",
+        population_network={
+            "output_mode": "last",
+            "layers": [
+                {
+                    "name": "layer0",
+                    "recurrent": True,
+                    "readout_population": "e",
+                    "population_defaults": _base_population(),
+                    "populations": [
+                        {
+                            "name": "e",
+                            "polarity": "excitatory",
+                            "n_neurons": 5,
+                            "branch_factors": [1],
+                        },
+                        {
+                            "name": "i",
+                            "polarity": "inhibitory",
+                            "n_neurons": 3,
+                            "branch_factors": [1],
+                        },
+                    ],
+                    "connections": [
+                        {"source": "input", "target": "e"},
+                        {"source": "input", "target": "i"},
+                        {"source": "e", "target": "i", "timing": "delayed"},
+                        {"source": "i", "target": "e", "timing": "delayed"},
+                    ],
+                }
+            ],
+        },
+    )
+
+    assert is_recurrent_core_config(core) is True
+    net = get_architecture(core.type, core, input_dim=4)
+    assert net.is_recurrent is True
+
+    y = net(torch.randn(2, 6, 4))
     assert y.shape == (2, 5)
     assert torch.isfinite(y).all()
 
@@ -127,12 +219,12 @@ def test_multi_population_two_pop_feedforward_matches_current_ei_pattern():
         {"soma_feedback_enabled": True, "soma_feedback_levels": "distal"},
     ],
 )
-def test_multi_population_temporal_features_force_recurrent_sequence_path(
+def test_population_network_temporal_features_force_recurrent_sequence_path(
     population_overrides,
 ):
     cfg = _single_layer_temporal_population_config(population_overrides)
 
-    net = get_architecture("multi_population_ei", cfg, input_dim=4)
+    net = get_architecture("population_network", cfg, input_dim=4)
 
     assert net.layers[0].is_recurrent is True
     assert net.is_recurrent is True
@@ -143,9 +235,9 @@ def test_multi_population_temporal_features_force_recurrent_sequence_path(
     assert torch.isfinite(y).all()
 
 
-def test_multi_population_four_pop_feedforward_with_distinct_morphologies():
+def test_population_network_four_pop_feedforward_with_distinct_morphologies():
     cfg = {
-        "multi_population": {
+        "population_network": {
             "layers": [
                 {
                     "name": "cortical",
@@ -197,7 +289,7 @@ def test_multi_population_four_pop_feedforward_with_distinct_morphologies():
             ]
         }
     }
-    net = get_architecture("multi_population_ei", cfg, input_dim=5)
+    net = get_architecture("population_network", cfg, input_dim=5)
     layer = net.layers[0]
     assert layer.population_configs["pyr"].branch_factors == [3, 2]
     assert layer.population_configs["sst"].branch_factors == [2]
@@ -207,9 +299,9 @@ def test_multi_population_four_pop_feedforward_with_distinct_morphologies():
     assert torch.isfinite(y).all()
 
 
-def test_multi_population_two_feedforward_layers_propagate_readout_dims():
+def test_population_network_two_feedforward_layers_propagate_readout_dims():
     cfg = {
-        "multi_population": {
+        "population_network": {
             "layers": [
                 {
                     "name": "layer0",
@@ -272,7 +364,7 @@ def test_multi_population_two_feedforward_layers_propagate_readout_dims():
             ]
         }
     }
-    net = get_architecture("multi_population_ei", cfg, input_dim=4)
+    net = get_architecture("population_network", cfg, input_dim=4)
     assert net.layers[0].input_dim == 4
     assert net.layers[1].input_dim == 5
     assert net.output_dim == 4
@@ -282,9 +374,9 @@ def test_multi_population_two_feedforward_layers_propagate_readout_dims():
     assert torch.isfinite(y).all()
 
 
-def test_multi_population_network_level_readout_population_fills_selected_layer():
+def test_population_network_level_readout_population_fills_selected_layer():
     cfg = {
-        "multi_population": {
+        "population_network": {
             "readout_layer": "layer0",
             "readout_population": "e",
             "layers": [
@@ -319,14 +411,14 @@ def test_multi_population_network_level_readout_population_fills_selected_layer(
             ],
         }
     }
-    net = get_architecture("multi_population_ei", cfg, input_dim=4)
+    net = get_architecture("population_network", cfg, input_dim=4)
     assert net.layers[0].readout_population == "e"
     assert net.output_dim == 5
 
 
-def test_multi_population_readout_layer_must_exist():
+def test_population_network_readout_layer_must_exist():
     cfg = {
-        "multi_population": {
+        "population_network": {
             "readout_layer": "missing",
             "layers": [
                 {
@@ -345,12 +437,12 @@ def test_multi_population_readout_layer_must_exist():
         }
     }
     with pytest.raises(ValueError, match="readout_layer"):
-        get_architecture("multi_population_ei", cfg, input_dim=3)
+        get_architecture("population_network", cfg, input_dim=3)
 
 
-def test_multi_population_network_readout_population_conflict_errors():
+def test_population_network_readout_population_conflict_errors():
     cfg = {
-        "multi_population": {
+        "population_network": {
             "readout_layer": "layer0",
             "readout_population": "e",
             "layers": [
@@ -380,12 +472,12 @@ def test_multi_population_network_readout_population_conflict_errors():
         }
     }
     with pytest.raises(ValueError, match="conflicts"):
-        get_architecture("multi_population_ei", cfg, input_dim=3)
+        get_architecture("population_network", cfg, input_dim=3)
 
 
-def test_multi_population_missing_required_drive_errors_at_build():
+def test_population_network_missing_required_drive_errors_at_build():
     cfg = {
-        "multi_population": {
+        "population_network": {
             "layers": [
                 {
                     "name": "bad",
@@ -403,12 +495,12 @@ def test_multi_population_missing_required_drive_errors_at_build():
         }
     }
     with pytest.raises(ValueError, match="ff_excitatory"):
-        get_architecture("multi_population_ei", cfg, input_dim=3)
+        get_architecture("population_network", cfg, input_dim=3)
 
 
-def test_multi_population_rejects_runtime_input_dim_mismatch():
+def test_population_network_rejects_runtime_input_dim_mismatch():
     cfg = {
-        "multi_population": {
+        "population_network": {
             "layers": [
                 {
                     "name": "layer0",
@@ -425,14 +517,14 @@ def test_multi_population_rejects_runtime_input_dim_mismatch():
             ]
         }
     }
-    net = get_architecture("multi_population_ei", cfg, input_dim=3)
+    net = get_architecture("population_network", cfg, input_dim=3)
     with pytest.raises(ValueError, match="expected last input dimension 3"):
         net(torch.randn(2, 4))
 
 
-def test_multi_population_input_projection_dims_must_be_positive():
+def test_population_network_input_projection_dims_must_be_positive():
     cfg = {
-        "multi_population": {
+        "population_network": {
             "input_projection_dims": [0],
             "layers": [
                 {
@@ -451,12 +543,12 @@ def test_multi_population_input_projection_dims_must_be_positive():
         }
     }
     with pytest.raises(ValueError, match="input_projection_dims"):
-        get_architecture("multi_population_ei", cfg, input_dim=3)
+        get_architecture("population_network", cfg, input_dim=3)
 
 
-def test_multi_population_transfer_named_input_streams_split_first_layer():
+def test_population_network_transfer_named_input_streams_split_first_layer():
     cfg = {
-        "multi_population": {
+        "population_network": {
             "use_transfer": True,
             "transfer_params": {
                 "input_mode": 0,
@@ -490,7 +582,7 @@ def test_multi_population_transfer_named_input_streams_split_first_layer():
             ],
         }
     }
-    net = get_architecture("multi_population_ei", cfg, input_dim=5)
+    net = get_architecture("population_network", cfg, input_dim=5)
     layer = net.layers[0]
     assert layer.input_dim == 3
     assert layer.external_input_dims["input_e"] == 3
@@ -503,9 +595,9 @@ def test_multi_population_transfer_named_input_streams_split_first_layer():
     assert torch.isfinite(y).all()
 
 
-def test_multi_population_input_i_defaults_to_inhibitory_pathway():
+def test_population_network_input_i_defaults_to_inhibitory_pathway():
     cfg = {
-        "multi_population": {
+        "population_network": {
             "use_transfer": True,
             "transfer_params": {
                 "input_mode": 1,
@@ -539,15 +631,15 @@ def test_multi_population_input_i_defaults_to_inhibitory_pathway():
             ],
         }
     }
-    net = get_architecture("multi_population_ei", cfg, input_dim=5)
+    net = get_architecture("population_network", cfg, input_dim=5)
     layer = net.layers[0]
     assert layer._stream_sources("e", "same_step", "ff_excitatory") == ["input_e"]
     assert layer._stream_sources("e", "same_step", "ff_inhibitory") == ["input_i"]
 
 
-def test_multi_population_input_aliases_share_stream_without_transfer():
+def test_population_network_input_aliases_share_stream_without_transfer():
     cfg = {
-        "multi_population": {
+        "population_network": {
             "layers": [
                 {
                     "name": "layer0",
@@ -573,7 +665,7 @@ def test_multi_population_input_aliases_share_stream_without_transfer():
             ]
         }
     }
-    net = get_architecture("multi_population_ei", cfg, input_dim=3)
+    net = get_architecture("population_network", cfg, input_dim=3)
     layer = net.layers[0]
     assert layer.external_input_dims["input"] == 3
     assert layer.external_input_dims["input_e"] == 3
@@ -584,9 +676,9 @@ def test_multi_population_input_aliases_share_stream_without_transfer():
     assert torch.isfinite(y).all()
 
 
-def test_multi_population_delayed_external_input_sources_error():
+def test_population_network_delayed_external_input_sources_error():
     cfg = {
-        "multi_population": {
+        "population_network": {
             "layers": [
                 {
                     "name": "bad",
@@ -612,12 +704,12 @@ def test_multi_population_delayed_external_input_sources_error():
         }
     }
     with pytest.raises(ValueError, match="cannot use timing='delayed'"):
-        get_architecture("multi_population_ei", cfg, input_dim=3)
+        get_architecture("population_network", cfg, input_dim=3)
 
 
-def test_multi_population_second_layer_input_streams_are_previous_readout():
+def test_population_network_second_layer_input_streams_are_previous_readout():
     cfg = {
-        "multi_population": {
+        "population_network": {
             "layers": [
                 {
                     "name": "layer0",
@@ -663,7 +755,7 @@ def test_multi_population_second_layer_input_streams_are_previous_readout():
             ]
         }
     }
-    net = get_architecture("multi_population_ei", cfg, input_dim=3)
+    net = get_architecture("population_network", cfg, input_dim=3)
     layer1 = net.layers[1]
     assert layer1.input_dim == 5
     assert layer1.external_input_dims["input_e"] == 5
@@ -674,9 +766,9 @@ def test_multi_population_second_layer_input_streams_are_previous_readout():
     assert torch.isfinite(y).all()
 
 
-def test_multi_population_qualified_cross_layer_sources_and_gradients():
+def test_population_network_qualified_cross_layer_sources_and_gradients():
     cfg = {
-        "multi_population": {
+        "population_network": {
             "layers": [
                 {
                     "name": "layer0",
@@ -735,7 +827,7 @@ def test_multi_population_qualified_cross_layer_sources_and_gradients():
             ]
         }
     }
-    net = get_architecture("multi_population_ei", cfg, input_dim=4)
+    net = get_architecture("population_network", cfg, input_dim=4)
     layer1 = net.layers[1]
     assert layer1._stream_sources("e1", "same_step", "ff_excitatory") == ["layer0.e0"]
     assert layer1._stream_sources("e1", "same_step", "ff_inhibitory") == ["layer0.i0"]
@@ -761,9 +853,9 @@ def test_multi_population_qualified_cross_layer_sources_and_gradients():
     assert i0_grad.item() > 0.0
 
 
-def test_multi_population_layer_state_has_recurrent_state_helpers():
+def test_population_network_layer_state_has_recurrent_state_helpers():
     cfg = _single_layer_temporal_population_config({"soma_feedback_enabled": True})
-    net = get_architecture("multi_population_ei", cfg, input_dim=4)
+    net = get_architecture("population_network", cfg, input_dim=4)
     state = net.init_state(batch_size=2, device=torch.device("cpu"))[0]
 
     cloned = state.clone()
@@ -777,9 +869,9 @@ def test_multi_population_layer_state_has_recurrent_state_helpers():
     assert set(moved.population_states) == set(state.population_states)
 
 
-def test_multi_population_probability_masks_include_pathway_in_seed():
+def test_population_network_probability_masks_include_pathway_in_seed():
     cfg = {
-        "multi_population": {
+        "population_network": {
             "layers": [
                 {
                     "name": "layer0",
@@ -820,7 +912,7 @@ def test_multi_population_probability_masks_include_pathway_in_seed():
         }
     }
 
-    net = get_architecture("multi_population_ei", cfg, input_dim=8)
+    net = get_architecture("population_network", cfg, input_dim=8)
     branch = net.layers[0].populations["e"].branch_layers[0]
     exc_mask = branch.branch_excitation.connection_mask
     inh_mask = branch.branch_inhibition.connection_mask
@@ -829,9 +921,9 @@ def test_multi_population_probability_masks_include_pathway_in_seed():
     assert not torch.equal(exc_mask, inh_mask)
 
 
-def test_multi_population_qualified_sources_validate_layer_order_and_names():
+def test_population_network_qualified_sources_validate_layer_order_and_names():
     future_cfg = {
-        "multi_population": {
+        "population_network": {
             "layers": [
                 {
                     "name": "layer0",
@@ -864,10 +956,10 @@ def test_multi_population_qualified_sources_validate_layer_order_and_names():
         }
     }
     with pytest.raises(ValueError, match="earlier layers"):
-        get_architecture("multi_population_ei", future_cfg, input_dim=3)
+        get_architecture("population_network", future_cfg, input_dim=3)
 
     missing_cfg = {
-        "multi_population": {
+        "population_network": {
             "layers": [
                 {
                     "name": "layer0",
@@ -900,12 +992,12 @@ def test_multi_population_qualified_sources_validate_layer_order_and_names():
         }
     }
     with pytest.raises(ValueError, match="unknown population"):
-        get_architecture("multi_population_ei", missing_cfg, input_dim=3)
+        get_architecture("population_network", missing_cfg, input_dim=3)
 
 
-def test_multi_population_delayed_qualified_future_source_is_recurrent_safe():
+def test_population_network_delayed_qualified_future_source_is_recurrent_safe():
     cfg = {
-        "multi_population": {
+        "population_network": {
             "output_mode": "last",
             "layers": [
                 {
@@ -952,7 +1044,7 @@ def test_multi_population_delayed_qualified_future_source_is_recurrent_safe():
             ],
         }
     }
-    net = get_architecture("multi_population_ei", cfg, input_dim=3)
+    net = get_architecture("population_network", cfg, input_dim=3)
     assert net.is_recurrent is True
     assert net.layers[0]._stream_sources("e0", "delayed", "rec_excitatory") == [
         "layer1.e1"
@@ -968,9 +1060,9 @@ def test_multi_population_delayed_qualified_future_source_is_recurrent_safe():
     assert torch.isfinite(x.grad).all()
 
 
-def test_multi_population_local_learning_recorders_see_qualified_streams():
+def test_population_network_local_learning_recorders_see_qualified_streams():
     cfg = {
-        "multi_population": {
+        "population_network": {
             "layers": [
                 {
                     "name": "layer0",
@@ -1027,7 +1119,7 @@ def test_multi_population_local_learning_recorders_see_qualified_streams():
             ]
         }
     }
-    core = get_architecture("multi_population_ei", cfg, input_dim=4)
+    core = get_architecture("population_network", cfg, input_dim=4)
     model = Classifier(
         encoder_network=Identity(input_dim=4),
         core_network=core,
@@ -1056,9 +1148,9 @@ def test_multi_population_local_learning_recorders_see_qualified_streams():
     )
 
 
-def test_multi_population_same_step_bidirectional_cycle_errors():
+def test_population_network_same_step_bidirectional_cycle_errors():
     cfg = {
-        "multi_population": {
+        "population_network": {
             "layers": [
                 {
                     "name": "bad",
@@ -1087,12 +1179,12 @@ def test_multi_population_same_step_bidirectional_cycle_errors():
         }
     }
     with pytest.raises(ValueError, match="acyclic"):
-        get_architecture("multi_population_ei", cfg, input_dim=3)
+        get_architecture("population_network", cfg, input_dim=3)
 
 
-def test_multi_population_recurrent_delayed_bidirectional_edges_are_allowed():
+def test_population_network_recurrent_delayed_bidirectional_edges_are_allowed():
     cfg = {
-        "multi_population": {
+        "population_network": {
             "output_mode": "last",
             "layers": [
                 {
@@ -1132,7 +1224,7 @@ def test_multi_population_recurrent_delayed_bidirectional_edges_are_allowed():
             ],
         }
     }
-    net = get_architecture("multi_population_ei", cfg, input_dim=4)
+    net = get_architecture("population_network", cfg, input_dim=4)
     assert net.is_recurrent is True
 
     y = net(torch.randn(2, 6, 4))
@@ -1140,9 +1232,9 @@ def test_multi_population_recurrent_delayed_bidirectional_edges_are_allowed():
     assert torch.isfinite(y).all()
 
 
-def test_multi_population_delayed_edges_require_recurrent_layer():
+def test_population_network_delayed_edges_require_recurrent_layer():
     cfg = {
-        "multi_population": {
+        "population_network": {
             "layers": [
                 {
                     "name": "bad",
@@ -1170,4 +1262,4 @@ def test_multi_population_delayed_edges_require_recurrent_layer():
         }
     }
     with pytest.raises(ValueError, match="recurrent=true"):
-        get_architecture("multi_population_ei", cfg, input_dim=3)
+        get_architecture("population_network", cfg, input_dim=3)

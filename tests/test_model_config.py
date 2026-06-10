@@ -65,7 +65,7 @@ def test_sparsity_config_defaults():
     assert cfg.init_method == "xavier_normal"
     assert cfg.noise_level == 0.0
     assert cfg.type == "standard"
-    assert cfg.temperature == 0.5
+    assert cfg.temperature == 0.0
     assert cfg.ultrafast is False
     assert isinstance(cfg.deepst, dict)
     assert isinstance(cfg.indexed, dict)
@@ -97,7 +97,7 @@ def test_reactivation_config_defaults():
 
 def test_transfer_function_config_defaults():
     cfg = TransferFunctionConfig()
-    assert cfg.input_mode == 0
+    assert cfg.input_mode == 1
     assert cfg.input_transform is None
     assert cfg.independent_pathways is False
 
@@ -182,7 +182,7 @@ def test_core_config_asdict_keys():
         "recurrent_ei",
         "baseline_rnn",
         "population_graph",
-        "multi_population",
+        "population_network",
     }
     assert expected_keys == set(d.keys())
 
