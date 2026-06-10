@@ -254,16 +254,48 @@ def _population_graph_source_groups(core: torch.nn.Module) -> dict[str, list[str
     return groups
 
 
+def _population_network_source_groups(
+    core: torch.nn.Module,
+    record_key: str,
+) -> tuple[dict[str, list[str]], dict[str, int]]:
+    _, _, suffix = record_key.partition("/")
+    layer_name, sep, _population_name = suffix.partition(".")
+    if not sep:
+        return {"excitatory": [], "inhibitory": []}, {}
+
+    for layer in getattr(core, "layers", []) or []:
+        config = getattr(layer, "config", None)
+        if str(getattr(config, "name", "")) != layer_name:
+            continue
+        groups = {"excitatory": [], "inhibitory": []}
+        dims: dict[str, int] = {}
+        for cell in getattr(layer, "cell_types", []) or []:
+            name = getattr(cell, "name", None)
+            polarity = str(getattr(cell, "polarity", "")).lower()
+            if name is None or polarity not in groups:
+                continue
+            name_str = str(name)
+            groups[polarity].append(name_str)
+            dims[name_str] = int(getattr(layer, "_cell_dims", {}).get(name_str, 0))
+        return groups, dims
+
+    return {"excitatory": [], "inhibitory": []}, {}
+
+
 def _record_source_summary(core: torch.nn.Module, record_key: str) -> dict[str, Any]:
-    if not record_key.startswith("population_graph/"):
+    if record_key.startswith("population_network/"):
+        groups, dims = _population_network_source_groups(core, record_key)
+    elif record_key.startswith("population_graph/"):
+        groups = _population_graph_source_groups(core)
+        dims = {
+            name: int(getattr(core, "_cell_dims", {}).get(name, 0))
+            for name in groups["inhibitory"]
+        }
+    else:
         return {}
-    groups = _population_graph_source_groups(core)
+
     if not groups["inhibitory"]:
         return {}
-    dims = {
-        name: int(getattr(core, "_cell_dims", {}).get(name, 0))
-        for name in groups["inhibitory"]
-    }
     return {
         "source_populations": groups["inhibitory"],
         "source_population_dims": dims,
