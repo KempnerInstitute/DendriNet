@@ -4,12 +4,16 @@ Tests for training FSDP utils module to improve coverage.
 
 import os
 import tempfile
+from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 import pytest
 import torch
 import torch.nn as nn
 
+from dendritic_modeling.scripts.training.train_experiments_fsdp import (
+    _dataloader_kwargs_from_common,
+)
 from dendritic_modeling.training.fsdp_utils import (
     _apply_gradient_checkpointing,
     create_fsdp_wrap_policy,
@@ -20,6 +24,38 @@ from dendritic_modeling.training.fsdp_utils import (
     save_fsdp_checkpoint,
     wrap_model_with_fsdp,
 )
+
+
+def test_fsdp_dataloader_kwargs_from_common_config():
+    """FSDP script should preserve typed DataLoader tuning knobs."""
+    common = SimpleNamespace(
+        num_workers=1,
+        pin_memory=False,
+        persistent_workers=True,
+        prefetch_factor=3,
+    )
+
+    kwargs = _dataloader_kwargs_from_common(common)
+
+    assert kwargs == {
+        "num_workers": 1,
+        "pin_memory": False,
+        "persistent_workers": True,
+        "prefetch_factor": 3,
+    }
+
+
+def test_fsdp_dataloader_kwargs_reject_invalid_persistent_workers():
+    """persistent_workers=True is invalid when DataLoader has no workers."""
+    common = SimpleNamespace(
+        num_workers=0,
+        pin_memory=None,
+        persistent_workers=True,
+        prefetch_factor=None,
+    )
+
+    with pytest.raises(ValueError, match="persistent_workers"):
+        _dataloader_kwargs_from_common(common)
 
 
 class MockDendriticBranchLayer(nn.Module):

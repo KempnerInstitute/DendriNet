@@ -41,6 +41,11 @@ class CommonTrainerConfig(BaseConfig):
     plot_losses: bool = True
     suppress_prints: bool = False
     print_every: int = 10
+    # DataLoader controls. None keeps the trainer's automatic behavior.
+    num_workers: Optional[int] = None
+    pin_memory: Optional[bool] = None
+    persistent_workers: Optional[bool] = None
+    prefetch_factor: Optional[int] = None
     use_amp: bool = False
     lr_schedule: str = "none"
     lr_warmup_epochs: int = 0

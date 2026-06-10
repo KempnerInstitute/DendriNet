@@ -237,9 +237,27 @@ class Trainer:
                 total_cpus,
             )
 
-        # Check if we should use pinned memory and persistent workers
-        use_pin_memory = torch.cuda.is_available() and num_workers > 0
-        use_persistent = num_workers > 0
+        pin_memory_cfg = getattr(self, "pin_memory", None)
+        persistent_workers_cfg = getattr(self, "persistent_workers", None)
+        prefetch_factor_cfg = getattr(self, "prefetch_factor", None)
+
+        use_pin_memory = (
+            bool(pin_memory_cfg)
+            if pin_memory_cfg is not None
+            else torch.cuda.is_available() and num_workers > 0
+        )
+        if persistent_workers_cfg is None:
+            use_persistent = num_workers > 0
+        else:
+            use_persistent = bool(persistent_workers_cfg)
+            if use_persistent and num_workers == 0:
+                raise ValueError("persistent_workers=True requires num_workers > 0")
+        if prefetch_factor_cfg is not None and num_workers == 0:
+            raise ValueError("prefetch_factor requires num_workers > 0")
+
+        loader_kwargs = {}
+        if prefetch_factor_cfg is not None:
+            loader_kwargs["prefetch_factor"] = max(1, int(prefetch_factor_cfg))
 
         # Use distributed samplers for training and validation under DDP.
         # Validation uses an explicit padding sentinel sampler so every rank
@@ -274,6 +292,7 @@ class Trainer:
             num_workers=num_workers,
             pin_memory=use_pin_memory,
             persistent_workers=use_persistent,
+            **loader_kwargs,
         )
         valid_loader = DataLoader(
             valid_data,
@@ -283,6 +302,7 @@ class Trainer:
             num_workers=num_workers,
             pin_memory=use_pin_memory,
             persistent_workers=use_persistent,
+            **loader_kwargs,
         )
         return train_loader, valid_loader
 

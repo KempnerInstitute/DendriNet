@@ -299,6 +299,51 @@ def _get_analysis_encoder_network(encoder_network):
     return encoder_network
 
 
+def _dataloader_kwargs_from_common(common_config) -> dict:
+    """Build validated DataLoader kwargs from training.main.common."""
+    available_cpus = os.cpu_count() or 1
+    if hasattr(os, "sched_getaffinity"):
+        try:
+            available_cpus = len(os.sched_getaffinity(0))
+        except OSError:
+            pass
+
+    num_workers = getattr(common_config, "num_workers", None)
+    if num_workers is None:
+        num_workers = min(4, available_cpus)
+    else:
+        num_workers = max(0, int(num_workers))
+        num_workers = min(num_workers, available_cpus)
+
+    pin_memory_cfg = getattr(common_config, "pin_memory", None)
+    pin_memory = (
+        bool(pin_memory_cfg)
+        if pin_memory_cfg is not None
+        else torch.cuda.is_available() and num_workers > 0
+    )
+
+    persistent_cfg = getattr(common_config, "persistent_workers", None)
+    if persistent_cfg is None:
+        persistent_workers = num_workers > 0
+    else:
+        persistent_workers = bool(persistent_cfg)
+        if persistent_workers and num_workers == 0:
+            raise ValueError("persistent_workers=True requires num_workers > 0")
+
+    prefetch_factor = getattr(common_config, "prefetch_factor", None)
+    if prefetch_factor is not None and num_workers == 0:
+        raise ValueError("prefetch_factor requires num_workers > 0")
+
+    kwargs = {
+        "num_workers": num_workers,
+        "pin_memory": pin_memory,
+        "persistent_workers": persistent_workers,
+    }
+    if prefetch_factor is not None:
+        kwargs["prefetch_factor"] = max(1, int(prefetch_factor))
+    return kwargs
+
+
 def setup_data_loaders(config, rank, world_size):
     """Setup distributed data loaders."""
     data_config = config.data
@@ -349,23 +394,20 @@ def setup_data_loaders(config, rank, world_size):
 
     # Create data loaders
     batch_size = config.training.main.common.batch_size
+    loader_kwargs = _dataloader_kwargs_from_common(config.training.main.common)
 
     train_loader = DataLoader(
         train_ds,
         batch_size=batch_size,
         sampler=train_sampler,
-        num_workers=4,
-        pin_memory=True,
-        persistent_workers=True,
+        **loader_kwargs,
     )
 
     valid_loader = DataLoader(
         valid_ds,
         batch_size=batch_size,
         sampler=valid_sampler,
-        num_workers=4,
-        pin_memory=True,
-        persistent_workers=True,
+        **loader_kwargs,
     )
 
     return train_loader, valid_loader, test_ds, train_ds, valid_ds
