@@ -1,5 +1,6 @@
 import tempfile
 import unittest
+from unittest.mock import patch
 
 import numpy as np
 import torch
@@ -85,10 +86,53 @@ class TestLoadMNISTModulo10(unittest.TestCase):
     def setUp(self):
         # Create a temporary directory for caching during tests
         self.temp_dir = tempfile.TemporaryDirectory()
+        self._mnist_patch = patch(
+            "dendritic_modeling.datasets.standard_datasets.load_mnist_as_datasets",
+            side_effect=self._mock_mnist_as_datasets,
+        )
+        self._mnist_patch.start()
 
     def tearDown(self):
+        self._mnist_patch.stop()
         # Clean up the temporary directory after tests
         self.temp_dir.cleanup()
+
+    @staticmethod
+    def _make_dataset(n_samples: int, offset: int):
+        x = torch.arange(
+            offset,
+            offset + n_samples * 28 * 28,
+            dtype=torch.float32,
+        ).view(n_samples, 1, 28, 28)
+        y = (torch.arange(n_samples, dtype=torch.long) + offset) % 10
+        return torch.utils.data.TensorDataset(x, y)
+
+    def _mock_mnist_as_datasets(
+        self,
+        train_valid_split=0.8,
+        flatten=False,
+        normalize=False,
+        task_data_path=None,
+        split_seed: int = 0,
+    ):
+        del normalize, task_data_path, split_seed
+        total_train = 100
+        train_size = int(total_train * train_valid_split)
+        valid_size = total_train - train_size
+        train = self._make_dataset(train_size, 0)
+        valid = self._make_dataset(valid_size, 10_000)
+        test = self._make_dataset(40, 20_000)
+        if flatten:
+            train = torch.utils.data.TensorDataset(
+                train.tensors[0].view(train_size, -1), train.tensors[1]
+            )
+            valid = torch.utils.data.TensorDataset(
+                valid.tensors[0].view(valid_size, -1), valid.tensors[1]
+            )
+            test = torch.utils.data.TensorDataset(
+                test.tensors[0].view(40, -1), test.tensors[1]
+            )
+        return train, valid, test
 
     def test_data_loading_no_split(self):
         """Test data loading with no train/validation split."""
