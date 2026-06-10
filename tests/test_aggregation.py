@@ -129,6 +129,28 @@ class TestAggregation(unittest.TestCase):
         self.assertEqual(result.iloc[0]["network_category"], "dendritic_signed")
         self.assertEqual(result.iloc[1]["network_category"], "flat_signed")
 
+    def test_extract_network_category_normalized_additive_aliases(self):
+        """Normalized-additive controls should be first-class sweep categories."""
+        data = pd.DataFrame(
+            {
+                "network_type": [
+                    "normalized_additive",
+                    "normadd",
+                    "flat_normalized_additive",
+                ],
+                "use_shunting": [False, False, False],
+            }
+        )
+
+        result = extract_network_category(data)
+        self.assertEqual(
+            result.iloc[0]["network_category"], "dendritic_normalized_additive"
+        )
+        self.assertEqual(
+            result.iloc[1]["network_category"], "dendritic_normalized_additive"
+        )
+        self.assertEqual(result.iloc[2]["network_category"], "flat_normalized_additive")
+
 
 if __name__ == "__main__":
     unittest.main()

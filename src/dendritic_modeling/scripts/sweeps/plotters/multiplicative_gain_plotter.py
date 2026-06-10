@@ -31,8 +31,10 @@ SCORE_MAPPING = {
 CATEGORY_MAP = {
     "dendritic_shunting": "Dendritic Shunting",
     "dendritic_additive": "Dendritic Additive",
+    "dendritic_normalized_additive": "Dendritic Normalized Additive",
     "flat_shunting": "Flat Shunting",
     "flat_additive": "Flat Additive",
+    "flat_normalized_additive": "Flat Normalized Additive",
     "dendritic_signed": "Dendritic Signed",
     "flat_signed": "Flat Signed",
     "dendritic_mlp": "Dendritic MLP",

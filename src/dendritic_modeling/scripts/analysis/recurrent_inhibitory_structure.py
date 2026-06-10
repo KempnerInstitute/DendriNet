@@ -77,8 +77,10 @@ def _get_unified_layer_cfg(config: dict[str, Any], layer_idx: int) -> dict[str, 
         # dispatch through the same factory branch and produce an EINetwork.
         "rnn_dendritic_shunting",
         "rnn_dendritic_additive",
+        "rnn_dendritic_normalized_additive",
         "rnn_flat_shunting",
         "rnn_flat_additive",
+        "rnn_flat_normalized_additive",
     }:
         raise ValueError(
             "This script currently supports only unified E-I recurrent models."

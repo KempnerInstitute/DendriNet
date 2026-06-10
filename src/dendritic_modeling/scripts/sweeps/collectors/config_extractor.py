@@ -82,6 +82,8 @@ class ConfigExtractor:
                         "einet_ns": "dendritic_additive",
                         "einet_sh_flat": "flat_shunting",
                         "einet_ns_flat": "flat_additive",
+                        "normadd": "dendritic_normalized_additive",
+                        "normalized_additive": "dendritic_normalized_additive",
                     }.get(core_type, core_type)
                     params["network_type"] = canonical_type
 
@@ -147,7 +149,9 @@ class ConfigExtractor:
                         inferred_use_shunting = True
                     elif nt in [
                         "dendritic_additive",
+                        "dendritic_normalized_additive",
                         "flat_additive",
+                        "flat_normalized_additive",
                         "dendritic_mlp",
                         "flat_mlp",
                         "mlp",
