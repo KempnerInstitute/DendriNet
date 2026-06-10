@@ -37,6 +37,35 @@ Built-in architecture names are reserved and cannot be shadowed by extension
 registrations. This keeps existing experiments reproducible while allowing new
 components to be introduced cleanly.
 
+Extension workflow:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 22 38 40
+
+   * - New component
+     - Add
+     - Keep stable
+   * - Architecture or layer family
+     - Register with ``register_architecture`` and expose a YAML type string
+     - Existing ``model.core.type`` aliases and typed-config defaults
+   * - Synapse or receptor kinetics
+     - Add a ``synapse_types`` entry or a typed-synapse implementation behind
+       the recurrent population path
+     - Source-population polarity and target synapse-count semantics
+   * - Neuron or soma dynamics
+     - Add a population-level dynamics mode or module, selected from
+       ``PopulationConfig``
+     - Rate-mode behavior and state ``to``/``detach``/``clone`` contracts
+   * - Learning rule
+     - Add a strategy/rule object under training and connect it through the
+       strategy config
+     - Optimizer parameter groups and saved resolved configs
+   * - Analyzer
+     - Register metadata and route execution through ``AnalysisManager``
+     - Analysis output names, runtime streaming/materialization behavior, and
+       device restoration
+
 Core Network Types
 ------------------
 

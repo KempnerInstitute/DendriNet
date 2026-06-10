@@ -1,69 +1,141 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="760" viewBox="0 0 1200 760">
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="900" viewBox="0 0 1400 900" role="img" aria-labelledby="title desc">
+  <title id="title">Experiment lifecycle</title>
+  <desc id="desc">A YAML experiment is resolved, initialized, trained, analyzed, swept, and saved into reproducible artifacts.</desc>
   <defs>
-    <style>
-      .title { font: 700 34px "DejaVu Sans", Arial, sans-serif; fill: #16324f; }
-      .label { font: 600 22px "DejaVu Sans", Arial, sans-serif; fill: #16324f; }
-      .body { font: 400 18px "DejaVu Sans", Arial, sans-serif; fill: #284b63; }
-      .small { font: 400 16px "DejaVu Sans", Arial, sans-serif; fill: #3c5666; }
-      .box { fill: #f8fbfd; stroke: #89a9bf; stroke-width: 2.5; rx: 22; }
-      .accent { fill: #e8f3f8; stroke: #4b8aa8; stroke-width: 2.5; rx: 22; }
-      .artifact { fill: #fff8ec; stroke: #c18b3b; stroke-width: 2.5; rx: 22; }
-      .arrow { stroke: #4b6f88; stroke-width: 4; fill: none; marker-end: url(#arrowhead); }
-    </style>
-    <marker id="arrowhead" markerWidth="14" markerHeight="10" refX="10" refY="5" orient="auto">
-      <polygon points="0 0, 10 5, 0 10" fill="#4b6f88"/>
+    <linearGradient id="cfg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#e8f2ff"/>
+      <stop offset="100%" stop-color="#f8fbff"/>
+    </linearGradient>
+    <linearGradient id="train" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#e8f8ef"/>
+      <stop offset="100%" stop-color="#fbfffd"/>
+    </linearGradient>
+    <linearGradient id="analysis" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#f2ecff"/>
+      <stop offset="100%" stop-color="#fffaff"/>
+    </linearGradient>
+    <linearGradient id="artifact" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#fff2d7"/>
+      <stop offset="100%" stop-color="#fffaf0"/>
+    </linearGradient>
+    <filter id="shadow" x="-12%" y="-16%" width="124%" height="134%">
+      <feDropShadow dx="0" dy="8" stdDeviation="8" flood-color="#173451" flood-opacity="0.14"/>
+    </filter>
+    <marker id="arrow" markerWidth="14" markerHeight="12" refX="11" refY="6" orient="auto">
+      <path d="M0,0 L12,6 L0,12 z" fill="#42657e"/>
     </marker>
+    <marker id="arrowSoft" markerWidth="14" markerHeight="12" refX="11" refY="6" orient="auto">
+      <path d="M0,0 L12,6 L0,12 z" fill="#8269a8"/>
+    </marker>
+    <style>
+      .title { font: 700 34px "DejaVu Sans", Arial, sans-serif; fill: #12324d; }
+      .subtitle { font: 400 16px "DejaVu Sans", Arial, sans-serif; fill: #4e6678; }
+      .box { filter: url(#shadow); stroke-width: 2.1; rx: 18; }
+      .head { font: 700 19px "DejaVu Sans", Arial, sans-serif; fill: #173451; }
+      .body { font: 400 13.5px "DejaVu Sans", Arial, sans-serif; fill: #334f63; }
+      .small { font: 400 12.5px "DejaVu Sans", Arial, sans-serif; fill: #617587; }
+      .code { font: 400 12.5px "DejaVu Sans Mono", Consolas, monospace; fill: #294b60; }
+      .lane { fill: #f5f8fb; stroke: #d9e4ec; stroke-width: 1.4; rx: 24; }
+      .label { font: 700 13px "DejaVu Sans", Arial, sans-serif; fill: #607787; letter-spacing: .04em; }
+      .arrow { stroke: #42657e; stroke-width: 3.2; fill: none; marker-end: url(#arrow); }
+      .softArrow { stroke: #8269a8; stroke-width: 2.8; stroke-dasharray: 8 7; fill: none; marker-end: url(#arrowSoft); }
+      .loop { stroke: #7890a2; stroke-width: 2.5; stroke-dasharray: 5 6; fill: none; marker-end: url(#arrow); }
+    </style>
   </defs>
-  <rect width="1200" height="760" fill="#ffffff"/>
-  <text x="60" y="70" class="title">Experiment Lifecycle: Build, Train, Analyze, Save</text>
 
-  <rect x="80" y="140" width="220" height="100" class="accent"/>
-  <text x="110" y="185" class="label">Load YAML</text>
-  <text x="110" y="216" class="small">OmegaConf + config dataclasses</text>
+  <rect width="1400" height="900" fill="#ffffff"/>
+  <text class="title" x="52" y="52">Experiment lifecycle: build, train, analyze, sweep, reproduce</text>
+  <text class="subtitle" x="52" y="80">The same resolved config drives model construction, initialization diagnostics, optimizers, local rules, recurrent state, analyzers, and saved artifacts.</text>
 
-  <rect x="360" y="140" width="260" height="100" class="box"/>
-  <text x="390" y="185" class="label">Canonicalize Flags</text>
-  <text x="390" y="216" class="small">config_utils helpers</text>
+  <rect class="lane" x="42" y="118" width="1316" height="164"/>
+  <text class="label" x="66" y="148">BUILD AND INITIALIZATION</text>
+  <rect class="box" x="70" y="176" width="188" height="72" fill="url(#cfg)" stroke="#77a3c4"/>
+  <text class="head" x="92" y="204">Load YAML</text>
+  <text class="body" x="92" y="228">OmegaConf + dataclasses</text>
+  <rect class="box" x="304" y="176" width="222" height="72" fill="url(#cfg)" stroke="#77a3c4"/>
+  <text class="head" x="326" y="204">Resolve Contract</text>
+  <text class="body" x="326" y="228">aliases, typed defaults, seeds</text>
+  <rect class="box" x="572" y="164" width="226" height="96" fill="url(#cfg)" stroke="#77a3c4"/>
+  <text class="head" x="594" y="194">Build Model</text>
+  <text class="body" x="594" y="218">encoder/core/decoder</text>
+  <text class="body" x="594" y="238">registries + factory</text>
+  <rect class="box" x="846" y="164" width="232" height="96" fill="url(#cfg)" stroke="#77a3c4"/>
+  <text class="head" x="868" y="194">Gate Calibration</text>
+  <text class="body" x="868" y="218">occupancy_quantile</text>
+  <text class="body" x="868" y="238">init_gate_stats.json</text>
+  <rect class="box" x="1124" y="176" width="190" height="72" fill="url(#cfg)" stroke="#77a3c4"/>
+  <text class="head" x="1146" y="204">Data Loaders</text>
+  <text class="body" x="1146" y="228">train/valid/test</text>
+  <path class="arrow" d="M258,212 L304,212"/>
+  <path class="arrow" d="M526,212 L572,212"/>
+  <path class="arrow" d="M798,212 L846,212"/>
+  <path class="arrow" d="M1078,212 L1124,212"/>
 
-  <rect x="680" y="140" width="220" height="100" class="box"/>
-  <text x="710" y="185" class="label">Build Model</text>
-  <text x="710" y="216" class="small">setup_utils + factory</text>
+  <rect class="lane" x="42" y="322" width="1316" height="248"/>
+  <text class="label" x="66" y="352">TRAINING PATHS</text>
+  <rect class="box" x="72" y="390" width="224" height="122" fill="url(#train)" stroke="#69a77f"/>
+  <text class="head" x="96" y="420">Standard BP</text>
+  <text class="body" x="96" y="446">loss -> autograd -> optimizer</text>
+  <text class="body" x="96" y="468">param groups for gates</text>
+  <text class="body" x="96" y="490">regularization and pruning</text>
+  <rect class="box" x="340" y="390" width="224" height="122" fill="url(#train)" stroke="#69a77f"/>
+  <text class="head" x="364" y="420">Local Rules</text>
+  <text class="body" x="364" y="446">local CA / FA / DFA / STDP</text>
+  <text class="body" x="364" y="468">branch-level signals</text>
+  <text class="body" x="364" y="490">gates learn or refresh</text>
+  <rect class="box" x="608" y="390" width="224" height="122" fill="url(#train)" stroke="#69a77f"/>
+  <text class="head" x="632" y="420">Recurrent BPTT</text>
+  <text class="body" x="632" y="446">sequence unroll</text>
+  <text class="body" x="632" y="468">state detach/truncation</text>
+  <text class="body" x="632" y="490">delayed population edges</text>
+  <rect class="box" x="876" y="390" width="214" height="122" fill="url(#train)" stroke="#69a77f"/>
+  <text class="head" x="900" y="420">Distributed</text>
+  <text class="body" x="900" y="446">DDP/FSDP launchers</text>
+  <text class="body" x="900" y="468">rank-safe checkpoints</text>
+  <text class="body" x="900" y="490">streamed analysis</text>
+  <rect class="box" x="1134" y="390" width="180" height="122" fill="url(#train)" stroke="#69a77f"/>
+  <text class="head" x="1158" y="420">Metrics</text>
+  <text class="body" x="1158" y="446">accuracy/loss</text>
+  <text class="body" x="1158" y="468">grad flow</text>
+  <text class="body" x="1158" y="490">gate health</text>
+  <path class="arrow" d="M296,451 L340,451"/>
+  <path class="arrow" d="M564,451 L608,451"/>
+  <path class="arrow" d="M832,451 L876,451"/>
+  <path class="arrow" d="M1090,451 L1134,451"/>
+  <path class="loop" d="M720,512 C690,558 450,558 452,512"/>
+  <text class="small" x="516" y="550">multi-stage training can hand off between strategies</text>
 
-  <rect x="960" y="140" width="200" height="100" class="artifact"/>
-  <text x="990" y="185" class="label">Init Stats</text>
-  <text x="990" y="216" class="small">init_gate_stats.json</text>
+  <rect class="lane" x="42" y="610" width="1316" height="222"/>
+  <text class="label" x="66" y="640">ANALYSIS, SWEEPS, AND REPRODUCIBILITY</text>
+  <rect class="box" x="72" y="676" width="240" height="112" fill="url(#analysis)" stroke="#9075c5"/>
+  <text class="head" x="96" y="706">Analysis Runtime</text>
+  <text class="body" x="96" y="732">auto / stream / materialize</text>
+  <text class="body" x="96" y="754">device-safe model movement</text>
+  <rect class="box" x="356" y="676" width="240" height="112" fill="url(#analysis)" stroke="#9075c5"/>
+  <text class="head" x="380" y="706">Analyzers</text>
+  <text class="body" x="380" y="732">performance, MI, ablation</text>
+  <text class="body" x="380" y="754">routing, gates, spikes, spectra</text>
+  <rect class="box" x="640" y="676" width="224" height="112" fill="url(#analysis)" stroke="#9075c5"/>
+  <text class="head" x="664" y="706">Sweeps</text>
+  <text class="body" x="664" y="732">dot-path overrides</text>
+  <text class="body" x="664" y="754">E/I filters and branch grids</text>
+  <rect class="box" x="908" y="676" width="222" height="112" fill="url(#artifact)" stroke="#c69742"/>
+  <text class="head" x="932" y="706">Run Artifacts</text>
+  <text class="body" x="932" y="732">resolved config, checkpoints</text>
+  <text class="body" x="932" y="754">metrics, JSON, figures</text>
+  <rect class="box" x="1174" y="676" width="140" height="112" fill="url(#artifact)" stroke="#c69742"/>
+  <text class="head" x="1198" y="706">Compare</text>
+  <text class="body" x="1198" y="732">branch parity</text>
+  <text class="body" x="1198" y="754">numerical drift</text>
+  <path class="arrow" d="M312,732 L356,732"/>
+  <path class="softArrow" d="M596,732 L640,732"/>
+  <path class="arrow" d="M864,732 L908,732"/>
+  <path class="arrow" d="M1130,732 L1174,732"/>
 
-  <rect x="180" y="350" width="240" height="130" class="box"/>
-  <text x="210" y="395" class="label">Trainer Setup</text>
-  <text x="210" y="424" class="small">strategy, optimizer, loaders</text>
-  <text x="210" y="448" class="small">optional calibration</text>
+  <path class="softArrow" d="M758,260 C768,316 742,344 720,388"/>
+  <text class="small" x="784" y="318">resolved model enters chosen trainer</text>
+  <path class="softArrow" d="M1224,512 C1224,590 192,592 192,676"/>
+  <text class="small" x="764" y="598">trained model and saved states feed analysis</text>
 
-  <rect x="490" y="330" width="260" height="170" class="accent"/>
-  <text x="520" y="375" class="label">Training Loop</text>
-  <text x="520" y="408" class="body">forward / loss / update</text>
-  <text x="520" y="434" class="body">backprop or local rule</text>
-  <text x="520" y="460" class="body">checkpoint + metrics</text>
-
-  <rect x="820" y="350" width="260" height="130" class="box"/>
-  <text x="850" y="395" class="label">Analysis Manager</text>
-  <text x="850" y="424" class="small">routing, spectra, gates, motifs</text>
-  <text x="850" y="448" class="small">runtime-controlled analyzers</text>
-
-  <rect x="350" y="580" width="520" height="110" class="artifact"/>
-  <text x="380" y="620" class="label">Run Artifacts</text>
-  <text x="380" y="650" class="body">config.json, checkpoints, performance,</text>
-  <text x="380" y="676" class="body">analyzer JSON, figures, logs</text>
-
-  <path d="M300 190 L360 190" class="arrow"/>
-  <path d="M620 190 L680 190" class="arrow"/>
-  <path d="M900 190 L960 190" class="arrow"/>
-  <path d="M790 240 L790 300 L620 300 L620 330" class="arrow"/>
-  <path d="M790 240 L790 300 L300 300 L300 350" class="arrow"/>
-  <path d="M420 415 L490 415" class="arrow"/>
-  <path d="M750 415 L820 415" class="arrow"/>
-  <path d="M620 500 L620 580" class="arrow"/>
-  <path d="M950 480 L950 535 L800 535 L800 580" class="arrow"/>
-
-  <text x="85" y="715" class="small">Engineering checkpoints: compare resolved config, init_gate_stats.json,</text>
-  <text x="85" y="735" class="small">first epochs, and analyzer outputs when debugging regressions.</text>
+  <text class="small" x="70" y="858">Debug order: resolved config -> init_gate_stats.json -> first-epoch metrics -> gradient flow -> analysis JSON/figures.</text>
 </svg>

@@ -1,75 +1,156 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="720" viewBox="0 0 1200 720">
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="860" viewBox="0 0 1400 860" role="img" aria-labelledby="title desc">
+  <title id="title">Dendritic Modeling system overview</title>
+  <desc id="desc">Configuration flows through typed canonicalization, registries, architecture factory, model modules, training, analysis, and saved artifacts.</desc>
   <defs>
-    <style>
-      .title { font: 700 34px "DejaVu Sans", Arial, sans-serif; fill: #16324f; }
-      .label { font: 600 22px "DejaVu Sans", Arial, sans-serif; fill: #16324f; }
-      .body { font: 400 18px "DejaVu Sans", Arial, sans-serif; fill: #284b63; }
-      .small { font: 400 16px "DejaVu Sans", Arial, sans-serif; fill: #3c5666; }
-      .box { fill: #f8fbfd; stroke: #89a9bf; stroke-width: 2.5; rx: 22; }
-      .accent { fill: #e8f3f8; stroke: #4b8aa8; stroke-width: 2.5; rx: 22; }
-      .artifact { fill: #fff8ec; stroke: #c18b3b; stroke-width: 2.5; rx: 22; }
-      .arrow { stroke: #4b6f88; stroke-width: 4; fill: none; marker-end: url(#arrowhead); }
-    </style>
-    <marker id="arrowhead" markerWidth="14" markerHeight="10" refX="10" refY="5" orient="auto">
-      <polygon points="0 0, 10 5, 0 10" fill="#4b6f88"/>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#f7fbff"/>
+      <stop offset="100%" stop-color="#ffffff"/>
+    </linearGradient>
+    <linearGradient id="blue" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#e8f2ff"/>
+      <stop offset="100%" stop-color="#f7fbff"/>
+    </linearGradient>
+    <linearGradient id="green" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#e8f8ef"/>
+      <stop offset="100%" stop-color="#f8fffb"/>
+    </linearGradient>
+    <linearGradient id="amber" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#fff3d6"/>
+      <stop offset="100%" stop-color="#fffaf0"/>
+    </linearGradient>
+    <linearGradient id="violet" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#f0ecff"/>
+      <stop offset="100%" stop-color="#fbfaff"/>
+    </linearGradient>
+    <filter id="shadow" x="-12%" y="-18%" width="124%" height="140%">
+      <feDropShadow dx="0" dy="8" stdDeviation="8" flood-color="#17405f" flood-opacity="0.14"/>
+    </filter>
+    <marker id="arrow" markerWidth="14" markerHeight="12" refX="11" refY="6" orient="auto">
+      <path d="M0,0 L12,6 L0,12 z" fill="#42657e"/>
     </marker>
+    <marker id="arrowSoft" markerWidth="14" markerHeight="12" refX="11" refY="6" orient="auto">
+      <path d="M0,0 L12,6 L0,12 z" fill="#7a6a9d"/>
+    </marker>
+    <style>
+      .title { font: 700 36px "DejaVu Sans", Arial, sans-serif; fill: #12324d; }
+      .subtitle { font: 400 17px "DejaVu Sans", Arial, sans-serif; fill: #4f677c; }
+      .lane { fill: #f3f7fa; stroke: #d5e1ea; stroke-width: 1.4; rx: 24; }
+      .stage { filter: url(#shadow); stroke-width: 2.2; rx: 18; }
+      .stageTitle { font: 700 19px "DejaVu Sans", Arial, sans-serif; fill: #173451; }
+      .body { font: 400 14.5px "DejaVu Sans", Arial, sans-serif; fill: #304e63; }
+      .small { font: 400 13px "DejaVu Sans", Arial, sans-serif; fill: #5d7281; }
+      .tag { fill: #ffffff; stroke: #c8d8e4; stroke-width: 1.2; rx: 10; }
+      .tagText { font: 600 12.5px "DejaVu Sans", Arial, sans-serif; fill: #35556c; }
+      .arrow { stroke: #42657e; stroke-width: 3.2; fill: none; marker-end: url(#arrow); }
+      .softArrow { stroke: #7a6a9d; stroke-width: 2.6; stroke-dasharray: 8 7; fill: none; marker-end: url(#arrowSoft); }
+      .thin { stroke: #7f9bad; stroke-width: 1.8; fill: none; marker-end: url(#arrow); }
+      .label { font: 700 13px "DejaVu Sans", Arial, sans-serif; fill: #5b7180; letter-spacing: .04em; }
+    </style>
   </defs>
-  <rect width="1200" height="720" fill="#ffffff"/>
-  <text x="60" y="70" class="title">Dendritic Modeling: Engineering System Overview</text>
 
-  <rect x="60" y="130" width="220" height="130" class="accent"/>
-  <text x="90" y="175" class="label">Configs</text>
-  <text x="90" y="208" class="body">YAML experiments</text>
-  <text x="90" y="234" class="body">Structured defaults</text>
+  <rect width="1400" height="860" fill="url(#bg)"/>
+  <text class="title" x="56" y="58">Dendritic Modeling Framework</text>
+  <text class="subtitle" x="56" y="86">One YAML control plane for feedforward E/I, recurrent population networks, typed synapses, spiking dynamics, sweeps, and analysis.</text>
 
-  <rect x="340" y="130" width="240" height="130" class="box"/>
-  <text x="370" y="175" class="label">Scripts + Setup</text>
-  <text x="370" y="208" class="body">Canonicalize aliases</text>
-  <text x="370" y="234" class="body">Initialize environment</text>
+  <rect class="lane" x="44" y="120" width="1312" height="160"/>
+  <text class="label" x="68" y="150">CONFIGURATION AND COMPATIBILITY</text>
+  <rect class="stage" x="72" y="174" width="208" height="74" fill="url(#blue)" stroke="#77a3c4"/>
+  <text class="stageTitle" x="92" y="202">Example YAML</text>
+  <text class="body" x="92" y="225">configs/examples/*.yaml</text>
+  <text class="body" x="92" y="244">sweep_config.yaml</text>
+  <rect class="stage" x="330" y="174" width="230" height="74" fill="url(#blue)" stroke="#77a3c4"/>
+  <text class="stageTitle" x="350" y="202">Typed Config</text>
+  <text class="body" x="350" y="225">ModelConfig dataclasses</text>
+  <text class="body" x="350" y="244">validated defaults</text>
+  <rect class="stage" x="610" y="174" width="250" height="74" fill="url(#blue)" stroke="#77a3c4"/>
+  <text class="stageTitle" x="630" y="202">Canonicalization</text>
+  <text class="body" x="630" y="225">aliases -> one contract</text>
+  <text class="body" x="630" y="244">occupancy init defaults</text>
+  <rect class="stage" x="910" y="174" width="218" height="74" fill="url(#blue)" stroke="#77a3c4"/>
+  <text class="stageTitle" x="930" y="202">Registries</text>
+  <text class="body" x="930" y="225">architecture, dataset,</text>
+  <text class="body" x="930" y="244">optimizer, loss, analyzer</text>
+  <rect class="stage" x="1170" y="174" width="150" height="74" fill="url(#blue)" stroke="#77a3c4"/>
+  <text class="stageTitle" x="1190" y="202">Factory</text>
+  <text class="body" x="1190" y="225">builds by</text>
+  <text class="body" x="1190" y="244">core.type</text>
 
-  <rect x="640" y="130" width="240" height="130" class="box"/>
-  <text x="670" y="175" class="label">Datasets</text>
-  <text x="670" y="208" class="body">Standard loaders</text>
-  <text x="670" y="234" class="body">Synthetic tasks</text>
+  <path class="arrow" d="M280,211 L330,211"/>
+  <path class="arrow" d="M560,211 L610,211"/>
+  <path class="arrow" d="M860,211 L910,211"/>
+  <path class="arrow" d="M1128,211 L1170,211"/>
 
-  <rect x="940" y="130" width="200" height="130" class="accent"/>
-  <text x="970" y="175" class="label">Factory</text>
-  <text x="970" y="208" class="body">Dispatch by</text>
-  <text x="970" y="234" class="body">core.type</text>
+  <rect class="lane" x="44" y="318" width="1312" height="230"/>
+  <text class="label" x="68" y="348">MODEL MODULES</text>
+  <rect class="stage" x="76" y="380" width="210" height="112" fill="url(#green)" stroke="#66a980"/>
+  <text class="stageTitle" x="96" y="410">Encoder</text>
+  <text class="body" x="96" y="434">Identity, MLP, CNN</text>
+  <text class="body" x="96" y="454">pretrained prefix</text>
+  <rect class="stage" x="334" y="360" width="272" height="150" fill="url(#green)" stroke="#66a980"/>
+  <text class="stageTitle" x="354" y="390">Population Core</text>
+  <text class="body" x="354" y="414">population_network layers</text>
+  <text class="body" x="354" y="434">named E/I cell types</text>
+  <text class="body" x="354" y="454">same-step and delayed edges</text>
+  <text class="body" x="354" y="474">per-population morphology</text>
+  <rect class="stage" x="654" y="360" width="268" height="150" fill="url(#green)" stroke="#66a980"/>
+  <text class="stageTitle" x="674" y="390">Biophysical Add-ons</text>
+  <text class="body" x="674" y="414">AMPA/NMDA/GABA traces</text>
+  <text class="body" x="674" y="434">dense-to-sparse TopK</text>
+  <text class="body" x="674" y="454">LIF soma, dendritic spikes</text>
+  <text class="body" x="674" y="474">soma-to-dendrite feedback</text>
+  <rect class="stage" x="970" y="380" width="194" height="112" fill="url(#green)" stroke="#66a980"/>
+  <text class="stageTitle" x="990" y="410">Decoder</text>
+  <text class="body" x="990" y="434">Identity, MLP</text>
+  <text class="body" x="990" y="454">classifier/readout</text>
+  <rect class="stage" x="1206" y="380" width="112" height="112" fill="url(#green)" stroke="#66a980"/>
+  <text class="stageTitle" x="1224" y="410">Output</text>
+  <text class="body" x="1224" y="434">logits</text>
+  <text class="body" x="1224" y="454">states</text>
 
-  <rect x="120" y="350" width="240" height="150" class="box"/>
-  <text x="150" y="395" class="label">Feedforward Cores</text>
-  <text x="150" y="428" class="body">E/I networks</text>
-  <text x="150" y="454" class="body">Dendritic MLPs</text>
+  <path class="arrow" d="M286,436 L334,436"/>
+  <path class="arrow" d="M606,436 L654,436"/>
+  <path class="arrow" d="M922,436 L970,436"/>
+  <path class="arrow" d="M1164,436 L1206,436"/>
+  <path class="softArrow" d="M1245,248 C1245,300 505,304 505,360"/>
+  <text class="small" x="1035" y="304">factory selects core implementation</text>
 
-  <rect x="420" y="350" width="360" height="150" class="accent"/>
-  <text x="450" y="395" class="label">Recurrent Cores</text>
-  <text x="450" y="428" class="body">Unified recurrent E/I</text>
-  <text x="450" y="454" class="body">GRU / LSTM / vanilla RNN</text>
+  <rect class="lane" x="44" y="588" width="1312" height="190"/>
+  <text class="label" x="68" y="618">TRAINING, SWEEPS, ANALYSIS, AND ARTIFACTS</text>
+  <rect class="stage" x="78" y="650" width="230" height="82" fill="url(#amber)" stroke="#c79842"/>
+  <text class="stageTitle" x="98" y="680">Data Loaders</text>
+  <text class="body" x="98" y="704">vision, sequence, synthetic</text>
+  <rect class="stage" x="354" y="638" width="244" height="106" fill="url(#amber)" stroke="#c79842"/>
+  <text class="stageTitle" x="374" y="668">Trainers</text>
+  <text class="body" x="374" y="692">backprop, local CA, STDP</text>
+  <text class="body" x="374" y="712">recurrent BPTT, DDP/FSDP</text>
+  <rect class="stage" x="642" y="638" width="236" height="106" fill="url(#violet)" stroke="#8e78c5"/>
+  <text class="stageTitle" x="662" y="668">Sweeps</text>
+  <text class="body" x="662" y="692">dot-path overrides</text>
+  <text class="body" x="662" y="712">E/I filters and branch grids</text>
+  <rect class="stage" x="922" y="638" width="218" height="106" fill="url(#violet)" stroke="#8e78c5"/>
+  <text class="stageTitle" x="942" y="668">Analysis Manager</text>
+  <text class="body" x="942" y="692">performance, MI, ablation</text>
+  <text class="body" x="942" y="712">routing, spikes, spectra</text>
+  <rect class="stage" x="1184" y="638" width="130" height="106" fill="url(#amber)" stroke="#c79842"/>
+  <text class="stageTitle" x="1204" y="668">Artifacts</text>
+  <text class="body" x="1204" y="692">checkpoints</text>
+  <text class="body" x="1204" y="712">JSON, plots</text>
 
-  <rect x="840" y="350" width="240" height="150" class="box"/>
-  <text x="870" y="395" class="label">Training</text>
-  <text x="870" y="428" class="body">Backprop</text>
-  <text x="870" y="454" class="body">Local rules</text>
+  <path class="arrow" d="M308,691 L354,691"/>
+  <path class="arrow" d="M598,691 L642,691"/>
+  <path class="arrow" d="M878,691 L922,691"/>
+  <path class="arrow" d="M1140,691 L1184,691"/>
+  <path class="thin" d="M1026,638 C1016,588 710,566 475,638"/>
+  <text class="small" x="676" y="575">analysis can run during or after training</text>
 
-  <rect x="180" y="560" width="300" height="110" class="box"/>
-  <text x="210" y="605" class="label">Analysis Manager</text>
-  <text x="210" y="638" class="body">Reusable analyzers</text>
-
-  <rect x="620" y="560" width="360" height="110" class="artifact"/>
-  <text x="650" y="605" class="label">Artifacts</text>
-  <text x="650" y="632" class="body">config.json, checkpoints, metrics,</text>
-  <text x="650" y="656" class="body">init_gate_stats.json, figures</text>
-
-  <path d="M280 195 L340 195" class="arrow"/>
-  <path d="M580 195 L640 195" class="arrow"/>
-  <path d="M880 195 L940 195" class="arrow"/>
-  <path d="M1040 260 L1040 330 L600 330 L600 350" class="arrow"/>
-  <path d="M1040 260 L1040 330 L240 330 L240 350" class="arrow"/>
-  <path d="M1040 260 L1040 330 L960 330 L960 350" class="arrow"/>
-  <path d="M960 500 L960 535 L820 535 L820 560" class="arrow"/>
-  <path d="M600 500 L600 535 L330 535 L330 560" class="arrow"/>
-  <path d="M480 615 L620 615" class="arrow"/>
-
-  <text x="62" y="705" class="small">Shared control plane: configuration -&gt; factory -&gt; model/training -&gt; analysis/artifacts</text>
+  <rect class="tag" x="92" y="804" width="184" height="28"/>
+  <text class="tagText" x="110" y="823">canonical new configs</text>
+  <rect class="tag" x="296" y="804" width="196" height="28"/>
+  <text class="tagText" x="314" y="823">legacy aliases preserved</text>
+  <rect class="tag" x="512" y="804" width="232" height="28"/>
+  <text class="tagText" x="530" y="823">typed defaults + validation</text>
+  <rect class="tag" x="764" y="804" width="230" height="28"/>
+  <text class="tagText" x="782" y="823">reproducible masks/seeds</text>
+  <rect class="tag" x="1014" y="804" width="250" height="28"/>
+  <text class="tagText" x="1032" y="823">resolved config saved per run</text>
 </svg>

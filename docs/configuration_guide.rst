@@ -72,6 +72,10 @@ Set ``model.core.type`` to one of:
      - Unified E-I, supports feedforward and recurrent
    * - ``rnn_dendritic_shunting``, ``rnn_dendritic_additive``, ``rnn_dendritic_normalized_additive``
      - Unified recurrent E-I aliases with shunting/raw-additive/normalized-additive defaults applied
+   * - ``population_network``
+     - Canonical notation for feedforward stacks and recurrent microcircuits
+       with named E/I populations, per-population morphology, explicit
+       directed connections, synapse types, spiking soma, and feedback
    * - ``gru``, ``lstm``
      - Baseline RNNs
    * - ``vanilla_rnn``
@@ -111,6 +115,54 @@ data-driven gate init policy (``occupancy_quantile`` or ``empirical``), each
 run also writes
 ``init_gate_stats.json`` into its run directory. Use that artifact to confirm
 that reactivation gates were initialized sensibly before trusting the run.
+
+Canonical Config Choices
+------------------------
+
+Use these defaults when writing new configs. They keep the code path modular
+and make feedforward, recurrent, additive, shunting, local-learning, and sweep
+runs easier to compare.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 28 34 38
+
+   * - Decision
+     - Preferred setting
+     - Rationale
+   * - Architecture notation
+     - ``model.core.type: population_network``
+     - One schema covers original E/I layers, heterogeneous cell types,
+       multilayer feedforward routing, delayed recurrent edges, spiking, typed
+       synapses, and feedback.
+   * - Shunting vs additive
+     - Choose the type or per-population ``use_shunting`` directly; use
+       ``dendritic_normalized_additive`` only when normalization is the
+       intended model
+     - Raw additive and normalized additive are scientifically different
+       models, so normalization should be explicit.
+   * - Gate initialization
+     - ``reactivation.init_policy: occupancy_quantile``
+     - Data-driven gate placement is the fairest default across shunting,
+       raw additive, normalized additive, shallow, and deep networks.
+   * - Positive conductances
+     - ``weight_transform: softplus``
+     - Keeps conductances positive with smoother gradients than ``exp``.
+   * - Developmental sparsity
+     - ``topk_type: dense_to_sparse``
+     - Lets all weights receive gradient early, then prunes to the target
+       sparse budget on a controlled schedule.
+   * - Multilayer routing
+     - Qualified sources such as ``layer0.e0`` and ``layer0.i0``
+     - Avoids hidden broadcasting assumptions and supports multiple readout
+       streams from earlier layers.
+   * - Recurrence
+     - ``timing: delayed`` on a recurrent layer
+     - Delayed edges read previous-timestep state and avoid same-step
+       algebraic loops.
+   * - Sweeps
+     - Dot paths under ``model.core.population_network``
+     - The same field names work for training, sweeps, and analysis metadata.
 
 Training Strategies
 -------------------

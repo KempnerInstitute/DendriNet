@@ -1,60 +1,143 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1240" height="560" viewBox="0 0 1240 560">
+<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="780" viewBox="0 0 1500 780" role="img" aria-labelledby="title desc">
+  <title id="title">Typed synapse kinetics in dendritic populations</title>
+  <desc id="desc">Excitatory and inhibitory source streams are split into receptor-specific traces before entering the dendritic shunting or additive operator.</desc>
   <defs>
+    <linearGradient id="blueCard" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#e0eeff"/>
+      <stop offset="100%" stop-color="#f7fbff"/>
+    </linearGradient>
+    <linearGradient id="redCard" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#ffe4e1"/>
+      <stop offset="100%" stop-color="#fff8f6"/>
+    </linearGradient>
+    <linearGradient id="neutral" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#f6f9fb"/>
+      <stop offset="100%" stop-color="#ffffff"/>
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-15%" width="120%" height="134%">
+      <feDropShadow dx="0" dy="7" stdDeviation="7" flood-color="#173451" flood-opacity="0.13"/>
+    </filter>
+    <marker id="arrow" markerWidth="13" markerHeight="11" refX="10" refY="5.5" orient="auto">
+      <path d="M0,0 L11,5.5 L0,11 z" fill="#48677e"/>
+    </marker>
+    <marker id="eArrow" markerWidth="13" markerHeight="11" refX="10" refY="5.5" orient="auto">
+      <path d="M0,0 L11,5.5 L0,11 z" fill="#2f6fb0"/>
+    </marker>
+    <marker id="iArrow" markerWidth="13" markerHeight="11" refX="10" refY="5.5" orient="auto">
+      <path d="M0,0 L11,5.5 L0,11 z" fill="#b84a43"/>
+    </marker>
     <style>
-      .title { font: 700 28px "DejaVu Sans", Arial, sans-serif; fill: #12324d; }
-      .subtitle { font: 500 17px "DejaVu Sans", Arial, sans-serif; fill: #45637a; }
-      .card { fill: #f8fbfd; stroke: #8eafc3; stroke-width: 2; }
-      .ecard { fill: #eef5fc; stroke: #2f6fb0; stroke-width: 2.2; }
-      .icard { fill: #fdeeed; stroke: #b0433a; stroke-width: 2.2; }
-      .name { font: 700 20px "DejaVu Sans", Arial, sans-serif; fill: #143350; }
-      .kv { font: 400 15px "DejaVu Sans", Arial, sans-serif; fill: #2d4b62; }
-      .small { font: 400 13px "DejaVu Sans", Arial, sans-serif; fill: #546c7e; }
-      .axis { stroke: #9bb1c0; stroke-width: 1.4; }
-      .ecurve { stroke: #2f6fb0; stroke-width: 2.6; fill: none; }
-      .icurve { stroke: #b0433a; stroke-width: 2.6; fill: none; }
+      .title { font: 700 34px "DejaVu Sans", Arial, sans-serif; fill: #12324d; }
+      .subtitle { font: 400 16px "DejaVu Sans", Arial, sans-serif; fill: #4e6678; }
+      .card { filter: url(#shadow); stroke-width: 2.1; rx: 18; }
+      .name { font: 700 19px "DejaVu Sans", Arial, sans-serif; fill: #173451; }
+      .body { font: 400 13.5px "DejaVu Sans", Arial, sans-serif; fill: #334f63; }
+      .small { font: 400 12.5px "DejaVu Sans", Arial, sans-serif; fill: #617587; }
+      .code { font: 400 12.5px "DejaVu Sans Mono", Consolas, monospace; fill: #2d4c62; }
+      .axis { stroke: #9fb2c1; stroke-width: 1.4; }
+      .eCurve { stroke: #2f6fb0; stroke-width: 3; fill: none; }
+      .iCurve { stroke: #b84a43; stroke-width: 3; fill: none; }
+      .arrow { stroke: #48677e; stroke-width: 3; fill: none; marker-end: url(#arrow); }
+      .eArrow { stroke: #2f6fb0; stroke-width: 3; fill: none; marker-end: url(#eArrow); }
+      .iArrow { stroke: #b84a43; stroke-width: 3; fill: none; marker-end: url(#iArrow); }
+      .sum { fill: #ffffff; stroke: #cad9e5; stroke-width: 2; rx: 14; filter: url(#shadow); }
+      .formula { font: 400 15px "DejaVu Sans Mono", Consolas, monospace; fill: #1f3d52; }
     </style>
   </defs>
-  <text class="title" x="40" y="42">Synapse types — receptor kinetics (config: synapse_types)</text>
-  <text class="subtitle" x="40" y="70">Each typed conductance has its own time constant (tau), reversal potential (Erev), and fraction; NMDA adds voltage-gating. Excitatory (blue) vs inhibitory (red).</text>
 
-  <!-- AMPA -->
-  <rect class="ecard" x="40" y="100" width="280" height="200" rx="14"/>
-  <text class="name" x="60" y="132">AMPA  (excitatory, fast)</text>
-  <path class="axis" d="M60,250 L300,250 M60,250 L60,160"/>
-  <path class="ecurve" d="M60,250 C70,250 74,168 92,168 C140,168 200,246 300,249"/>
-  <text class="kv" x="60" y="276">tau ~ 5 ms · Erev ~ 0 mV</text>
-  <text class="small" x="60" y="294">fast rise + decay, linear drive</text>
+  <rect width="1500" height="780" fill="#ffffff"/>
+  <text class="title" x="46" y="52">Synapse types: receptor kinetics before dendritic integration</text>
+  <text class="subtitle" x="46" y="80">Source-population polarity selects E or I. Within each stream, synapse_types split conductance into receptor-like traces with fractions, taus, reversals, voltage gates, and optional STP.</text>
 
-  <!-- NMDA -->
-  <rect class="ecard" x="340" y="100" width="280" height="200" rx="14"/>
-  <text class="name" x="360" y="132">NMDA  (excitatory, slow)</text>
-  <path class="axis" d="M360,250 L600,250 M360,250 L360,160"/>
-  <path class="ecurve" d="M360,250 C372,250 378,186 398,180 C460,168 520,200 600,232"/>
-  <text class="kv" x="360" y="276">tau ~ 50-150 ms · Erev ~ 0 mV</text>
-  <text class="small" x="360" y="294">slow, voltage-gated (Mg block)</text>
+  <rect class="card" x="48" y="138" width="180" height="92" fill="url(#neutral)" stroke="#89a8bb"/>
+  <text class="name" x="74" y="172">E source stream</text>
+  <text class="body" x="74" y="198">from excitatory</text>
+  <text class="body" x="74" y="216">populations or input_e</text>
+  <rect class="card" x="48" y="300" width="180" height="92" fill="url(#neutral)" stroke="#89a8bb"/>
+  <text class="name" x="74" y="334">I source stream</text>
+  <text class="body" x="74" y="360">from inhibitory</text>
+  <text class="body" x="74" y="378">populations or input_i</text>
 
-  <!-- GABA-A -->
-  <rect class="icard" x="640" y="100" width="280" height="200" rx="14"/>
-  <text class="name" x="660" y="132">GABA-A  (inhibitory, fast)</text>
-  <path class="axis" d="M660,250 L900,250 M660,250 L660,160"/>
-  <path class="icurve" d="M660,250 C670,250 674,172 692,172 C740,172 800,246 900,249"/>
-  <text class="kv" x="660" y="276">tau ~ 8-12 ms · Erev ~ -70 mV</text>
-  <text class="small" x="660" y="294">fast shunting / hyperpolarizing</text>
+  <rect class="card" x="302" y="112" width="238" height="150" fill="url(#blueCard)" stroke="#2f6fb0"/>
+  <text class="name" x="326" y="144">AMPA</text>
+  <path class="axis" d="M326,226 L508,226 M326,226 L326,168"/>
+  <path class="eCurve" d="M326,226 C336,226 342,174 356,174 C386,176 432,220 508,225"/>
+  <text class="body" x="326" y="246">fast excitation, linear</text>
+  <text class="small" x="326" y="264">fraction, tau or tau_decay</text>
 
-  <!-- GABA-B -->
-  <rect class="icard" x="940" y="100" width="260" height="200" rx="14"/>
-  <text class="name" x="960" y="132">GABA-B  (inhibitory, slow)</text>
-  <path class="axis" d="M960,250 L1180,250 M960,250 L960,160"/>
-  <path class="icurve" d="M960,250 C972,250 978,190 998,184 C1055,172 1110,206 1180,234"/>
-  <text class="kv" x="960" y="276">tau ~ 150 ms · Erev ~ -90 mV</text>
-  <text class="small" x="960" y="294">slow K+ inhibition</text>
+  <rect class="card" x="582" y="112" width="238" height="150" fill="url(#blueCard)" stroke="#2f6fb0"/>
+  <text class="name" x="606" y="144">NMDA</text>
+  <path class="axis" d="M606,226 L788,226 M606,226 L606,168"/>
+  <path class="eCurve" d="M606,226 C620,226 626,190 644,184 C690,170 742,192 788,214"/>
+  <text class="body" x="606" y="246">slow excitation, Mg block</text>
+  <text class="small" x="606" y="264">voltage-gated conductance</text>
 
-  <!-- how they combine -->
-  <rect class="card" x="40" y="330" width="1160" height="190" rx="16"/>
-  <text class="name" x="62" y="362">Per-branch conductance integration</text>
-  <text class="kv" x="62" y="392">Each enabled receptor contributes a fraction of the branch conductance with its own trace:</text>
-  <text class="kv" x="62" y="420" font-family="monospace">g_branch(t) = sum_r  fraction_r * g_r(t),   g_r decays with tau_r,   drive uses (V - Erev_r)</text>
-  <text class="kv" x="62" y="452">Shunting voltage V = E / (1 + E + I) uses the summed E (AMPA+NMDA) and I (GABA-A+GABA-B) conductances;</text>
-  <text class="kv" x="62" y="476">additive voltage V = E - I. NMDA's voltage-gating makes its effective conductance depend on the current V.</text>
-  <text class="small" x="62" y="500">Config: core.synapse_types.types: [{name: ampa, polarity: excitatory, fraction, tau, reversal}, ...]; set enabled per type.</text>
+  <rect class="card" x="302" y="278" width="238" height="150" fill="url(#redCard)" stroke="#b84a43"/>
+  <text class="name" x="326" y="310">GABA_A</text>
+  <path class="axis" d="M326,392 L508,392 M326,392 L326,334"/>
+  <path class="iCurve" d="M326,392 C336,392 342,340 356,340 C386,342 432,386 508,391"/>
+  <text class="body" x="326" y="412">fast inhibition</text>
+  <text class="small" x="326" y="430">shunting or hyperpolarizing</text>
+
+  <rect class="card" x="582" y="278" width="238" height="150" fill="url(#redCard)" stroke="#b84a43"/>
+  <text class="name" x="606" y="310">GABA_B</text>
+  <path class="axis" d="M606,392 L788,392 M606,392 L606,334"/>
+  <path class="iCurve" d="M606,392 C620,392 626,356 644,350 C690,336 742,358 788,380"/>
+  <text class="body" x="606" y="412">slow inhibition</text>
+  <text class="small" x="606" y="430">long tau, lower reversal</text>
+
+  <path class="eArrow" d="M228,184 C260,184 268,178 300,178"/>
+  <path class="eArrow" d="M228,184 C268,184 536,178 580,178"/>
+  <path class="iArrow" d="M228,346 C260,346 268,344 300,344"/>
+  <path class="iArrow" d="M228,346 C268,346 536,344 580,344"/>
+
+  <rect class="sum" x="888" y="128" width="228" height="112"/>
+  <text class="name" x="914" y="160">E conductance bank</text>
+  <text class="code" x="914" y="188">g_E = sum_r f_r g_r</text>
+  <text class="body" x="914" y="214">AMPA + NMDA + custom E</text>
+  <rect class="sum" x="888" y="292" width="228" height="112"/>
+  <text class="name" x="914" y="324">I conductance bank</text>
+  <text class="code" x="914" y="352">g_I = sum_r f_r g_r</text>
+  <text class="body" x="914" y="378">GABA_A + GABA_B + custom I</text>
+
+  <path class="eArrow" d="M820,186 L886,186"/>
+  <path class="iArrow" d="M820,352 L886,352"/>
+
+  <rect class="sum" x="1192" y="174" width="242" height="190"/>
+  <text class="name" x="1218" y="208">Dendritic operator</text>
+  <text class="formula" x="1218" y="240">shunting:</text>
+  <text class="formula" x="1218" y="264">V = E / (1 + E + I)</text>
+  <text class="formula" x="1218" y="302">additive:</text>
+  <text class="formula" x="1218" y="326">V = E - I</text>
+  <text class="small" x="1218" y="352">then reactivation gate per branch</text>
+
+  <path class="arrow" d="M1116,184 C1152,184 1158,230 1190,238"/>
+  <path class="arrow" d="M1116,348 C1152,348 1158,308 1190,300"/>
+
+  <rect class="sum" x="48" y="496" width="420" height="206"/>
+  <text class="name" x="74" y="530">Where synapse_types live</text>
+  <text class="code" x="74" y="560">model.core.synapse_types</text>
+  <text class="code" x="74" y="584">population_defaults.synapse_types</text>
+  <text class="code" x="74" y="608">populations[].population.synapse_types</text>
+  <text class="body" x="74" y="640">Population-level blocks override defaults, so</text>
+  <text class="body" x="74" y="662">PV and SST can use different GABA kinetics.</text>
+  <text class="small" x="74" y="686">Disabled synapse_types preserve the original single E/I traces.</text>
+
+  <rect class="sum" x="526" y="496" width="432" height="206"/>
+  <text class="name" x="552" y="530">Scientific separation</text>
+  <text class="body" x="552" y="560">Population polarity says who sends the signal:</text>
+  <text class="code" x="552" y="584">pyr -> target E stream</text>
+  <text class="code" x="552" y="608">pv/sst -> target I stream</text>
+  <text class="body" x="552" y="640">Synapse type says how the selected stream is filtered:</text>
+  <text class="code" x="552" y="664">AMPA, NMDA, GABA_A, GABA_B, custom</text>
+  <text class="small" x="552" y="688">Do not create a new population just to change receptor kinetics.</text>
+
+  <rect class="sum" x="1016" y="496" width="418" height="206"/>
+  <text class="name" x="1042" y="530">Training and gradients</text>
+  <text class="body" x="1042" y="560">Fractions, traces, voltage gates, STP states,</text>
+  <text class="body" x="1042" y="582">and dendritic weights stay inside the target</text>
+  <text class="body" x="1042" y="604">population's differentiable forward path.</text>
+  <text class="code" x="1042" y="636">TopK selects source slots.</text>
+  <text class="code" x="1042" y="660">synapse_types filter selected current.</text>
+  <text class="small" x="1042" y="688">For recurrent runs, traces update at each timestep.</text>
 </svg>

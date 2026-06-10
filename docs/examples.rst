@@ -5,6 +5,49 @@ These YAML files are copy-paste starting points for local runs. The first four
 are the primary vision examples; the recurrent examples exercise the newer
 cell-type, synapse-type, structured-connectivity, and spiking components.
 
+Recommended Example Ladder
+--------------------------
+
+The examples are organized so a user can move from the original E/I model to
+the fully compositional population-network notation without changing more
+than one idea at a time.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 18 35 47
+
+   * - Step
+     - Config
+     - What it teaches
+   * - 1. Original feedforward E/I
+     - ``configs/examples/standard_mnist.yaml``
+     - Legacy-compatible shunting MNIST with the current recommended
+       ``occupancy_quantile`` gate initialization.
+   * - 2. Same model, canonical notation
+     - ``configs/examples/standard_mnist_population_network.yaml``
+     - The same E/I computation written as named populations and explicit
+       directed connections.
+   * - 3. Multiple cell types in one feedforward layer
+     - ``configs/examples/population_network_heterogeneous_feedforward.yaml``
+     - PV/SST-like inhibitory populations and multiple excitatory morphologies
+       in one layer.
+   * - 4. Explicit multilayer routing
+     - ``configs/examples/population_network_two_layer.yaml``
+     - Cross-layer sources such as ``layer0.e0`` and local same-step
+       inhibition in each layer.
+   * - 5. Recurrent microcircuit
+     - ``configs/examples/population_network_recurrent_pyr_pv_sst.yaml``
+     - Delayed recurrent edges, connection probabilities, and recurrent
+       training.
+   * - 6. Biophysics extensions
+     - ``population_network_synapse_types_ampa_nmda_gaba.yaml``,
+       ``population_network_spiking.yaml``, ``population_network_soma_feedback.yaml``
+     - Typed conductance traces, LIF soma output, and previous-timestep
+       soma-to-dendrite feedback.
+   * - 7. Developmental sparsity
+     - ``configs/examples/standard_cifar10_dense_to_sparse_population_network.yaml``
+     - Dense-to-sparse TopK warmup and pruning in the population schema.
+
 Feature Map
 -----------
 
@@ -448,12 +491,6 @@ Component Coverage
      - Structured masks
      - Spikes
      - Soma feedback
-   * - ``population_network_recurrent_pyr_pv_sst.yaml``
-     - yes
-     - no
-     - source-target
-     - no
-     - no
    * - ``population_network_feedforward.yaml``
      - yes
      - no
