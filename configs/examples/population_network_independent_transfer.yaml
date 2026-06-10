@@ -1,14 +1,14 @@
 # ============================================================================
-# Multi-Population E/I DendriNet with independent TransferLayer streams
+# Population Network DendriNet with independent TransferLayer streams
 # ============================================================================
 # Demonstrates the legacy TransferLayer independent-pathway split in the
-# multi-population schema. The first layer can address the split streams as
+# population-network schema. The first layer can address the split streams as
 # input_e and input_i while still using named E/I cell populations.
 #
 # Run:
 #   PYTHONPATH=src:$PYTHONPATH python \
 #     src/dendritic_modeling/scripts/training/train_experiments.py \
-#     configs/examples/multi_population_ei_independent_transfer.yaml
+#     configs/examples/population_network_independent_transfer.yaml
 # ============================================================================
 
 experiment:
@@ -29,8 +29,8 @@ model:
   encoder:
     type: "identity"
   core:
-    type: "multi_population_ei"
-    multi_population:
+    type: "population_network"
+    population_network:
       use_transfer: true
       transfer_params:
         input_mode: 0
@@ -48,6 +48,7 @@ model:
             somatic_synapses: true
             reactivate: true
             reactivation_type: "param_tanh"
+            reactivation_init_policy: "occupancy_quantile"
             dbl_init_method: "analytical_expectation"
             weight_transform: "softplus"
           populations:
@@ -91,6 +92,8 @@ training:
       early_stopping: true
       patience: 20
       load_best_state_dict: true
+      weight_decay_rate: 0.01
+      weight_boosting: true
       param_groups:
         lr: 0.001
         split_params: true
@@ -115,7 +118,7 @@ wandb:
   use_wandb: false
 
 outputs:
-  run_name: "multi_population_ei_independent_transfer"
+  run_name: "population_network_independent_transfer"
   results_dir: "outputs"
 
 distributed:

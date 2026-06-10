@@ -318,6 +318,7 @@ model:
       init_m: 1.5
       gradient_scaling: none
       type: param_tanh
+      init_policy: "occupancy_quantile"
     sparsity:
       deepst:
         excitatory_target_density: 0.1
@@ -363,6 +364,10 @@ training:
     strategy: standard
   main:
     common:
+      num_workers: 4
+      pin_memory: true
+      persistent_workers: true
+      prefetch_factor: null
       param_groups: {}
       weight_decay_rate: 0.0
     pruning: {}

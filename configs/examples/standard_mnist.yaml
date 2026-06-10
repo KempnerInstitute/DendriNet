@@ -53,6 +53,7 @@ model:
     reactivation:
       enabled: true                     # parametric activation after shunting
       type: "param_tanh"                # (tanh(m*(V-b))+1)/2
+      init_policy: "occupancy_quantile"
       init_m: 1.5                       # initial slope
       init_b: 0.5                       # initial bias
     blocklinear:

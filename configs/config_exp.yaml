@@ -77,6 +77,9 @@ data:
       repeat_layers: false              # bool: Repeat layers cyclically
       noise_std: 0.1                    # float: Additive noise std
     imagenet:
+      transform_preset: "legacy_resize"      # str: "legacy_resize" (compat) | "pretrained" (torchvision backbone)
+      allow_fake_data: false                 # bool: Explicit fake ImageNet smoke data only
+      allow_flatten_materialize: false       # bool: Opt in before flattening full ImageNet tensors
       train_samples_per_class: null     # int | null: Subsample train (null = all)
       val_samples_per_class: null       # int | null: Subsample val (null = all)
 
@@ -147,10 +150,10 @@ model:
   # ---------- Core network ----------
   core:
     # Legacy EI (feedforward / recurrent-capable via core.recurrent_ei or connectivity.rec_*):
-    #   "einet" | "dendritic_shunting" | "dendritic_additive" | "flat_shunting" | "flat_additive" | "dendritic_mlp" | "flat_mlp"
+    #   "einet" | "dendritic_shunting" | "dendritic_additive" | "dendritic_normalized_additive" | "flat_shunting" | "flat_additive" | "flat_normalized_additive" | "dendritic_mlp" | "flat_mlp"
     # Unified EI (recommended): "unified_ei" | "ei_unified"
     # Recurrent unified-EI aliases:
-    #   "rnn_dendritic_shunting" | "rnn_dendritic_additive" | "rnn_flat_shunting" | "rnn_flat_additive"
+    #   "rnn_dendritic_shunting" | "rnn_dendritic_additive" | "rnn_dendritic_normalized_additive" | "rnn_flat_shunting" | "rnn_flat_additive" | "rnn_flat_normalized_additive"
     # Baseline RNN: "gru" | "lstm" | "vanilla_rnn" | "rnn"
     # Point neuron MLP: "mlp" | "point_mlp" | "total_param_mlp" | "active_param_mlp" | "ss_mlp" | "ss_mlp_flat"
     # Spatial dendritic pretrained-replacement cores:
@@ -240,6 +243,7 @@ model:
     reactivation:
       enabled: true                     # bool: Enable reactivation function
       type: "param_tanh"                # str: "param_tanh" | "relu" | "sigmoid" | "none"
+      init_policy: "occupancy_quantile"
       init_m: 1.5                       # float: Initial slope (m)
       init_b: 0.5                       # float: Initial bias (b)
       gradient_scaling: "none"          # str: "none" | "fan_in" | "fan_out"
@@ -252,6 +256,8 @@ model:
     # ---- Implementation ----
     implementation:
       adaptive_initialization: false    # bool: Adaptive weight initialization
+      adaptive_initialization_policy: "preserve_shunting_center"  # str: "preserve_shunting_center" | "legacy_scale"
+      adaptive_target_conductance: 5.0   # float: Conductance budget for adaptive initialization
       print_hooks: false                # bool: Print hook debug info
       store_routing: false              # bool: Store routing (alpha) info for analysis
 
@@ -312,18 +318,15 @@ model:
       readout: "spikes"                 # str: "spikes" | "rate" | "membrane"
       readout_tau: 20.0                 # float: Rate-decoded spike trace tau
 
-    # ---- Population graph / named cell types (core.type: population_graph) ----
-    population_graph:
-      cell_types: []                    # list[dict]: {name, polarity, n_neurons, branch_factors, population}
-      connections: []                   # list[dict]: {source, target, enabled, probability, seed}
-      input_dim: 64                     # int: Sequence input dimension
-      readout_population: null          # str | null: Population decoded by the classifier
-      output_mode: "last"               # str: "last" | "mean" | "all"
-      dt: 1.0                           # float: Recurrent integration timestep
+    # ---- Population network / named populations (core.type: population_network) ----
+    population_network:
+      use_transfer: false               # bool: use legacy TransferLayer before first population layer
+      transfer_params: {}               # dict: input_mode, independent_pathways, output_activation, etc.
+      output_mode: "last"               # str: "last" | "mean" | "all" for recurrent sequence output
       input_projection_dims: []         # list[int]: Optional input projection MLP dims
-      population_defaults: {}           # dict: Shared PopulationConfig fields for all cell types
-      connection_seed: null             # int | null: Default seed for probabilistic population masks
+      connection_seed: null             # int | null: Default seed for probabilistic masks
       store_routing: false              # bool: Store routing metadata for compatible analyses
+      layers: []                        # list[dict]: {name, recurrent, readout_population, population_defaults, populations, connections}
 
     # Old core.recurrent/BranchConfig payloads are deprecated and intentionally
     # omitted from this template. Use unified_ei, recurrent_ei, or baseline_rnn.
@@ -378,6 +381,10 @@ training:
     common:
       epochs: 500                       # int: Training epochs
       batch_size: 512                   # int: Batch size
+      num_workers: null                 # int | null: DataLoader workers (null = auto)
+      pin_memory: null                  # bool | null: Pin batches when useful (null = auto)
+      persistent_workers: null          # bool | null: Keep workers alive (requires num_workers > 0)
+      prefetch_factor: null             # int | null: DataLoader prefetch factor (requires num_workers > 0)
       shuffle: true                     # bool: Shuffle training data
       grad_clip_value: 5.0              # float: Gradient clipping value
       loss_function: "log_mse"          # str: "ce" | "mse" | "log_mse" | "bce"
@@ -490,6 +497,10 @@ training:
     common:
       epochs: 1000                      # int: Training epochs
       batch_size: 512                   # int: Batch size
+      num_workers: null                 # int | null: DataLoader workers (null = auto)
+      pin_memory: null                  # bool | null: Pin batches when useful (null = auto)
+      persistent_workers: null          # bool | null: Keep workers alive (requires num_workers > 0)
+      prefetch_factor: null             # int | null: DataLoader prefetch factor (requires num_workers > 0)
       shuffle: true                     # bool: Shuffle training data
       grad_clip_value: 2.0              # float: Gradient clipping value
       loss_function: "ce"               # str: "ce" | "mse" | "log_mse" | "bce"

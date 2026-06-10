@@ -49,6 +49,7 @@ model:
     reactivation:
       enabled: true
       type: "param_tanh"
+      init_policy: "occupancy_quantile"
   decoder:
     type: "MLP"
     params:

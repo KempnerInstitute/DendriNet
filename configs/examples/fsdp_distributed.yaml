@@ -28,6 +28,11 @@ data:
   processing:
     flatten: false
     normalize: true
+  dataset_params:
+    imagenet:
+      transform_preset: "pretrained"
+      allow_fake_data: false
+      allow_flatten_materialize: false
 
 model:
   task: "classification"
@@ -62,6 +67,7 @@ model:
     reactivation:
       enabled: true
       type: "param_tanh"
+      init_policy: "occupancy_quantile"
 
 training:
   encoder:

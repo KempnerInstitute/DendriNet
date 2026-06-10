@@ -56,6 +56,7 @@ model:
     reactivation:
       enabled: true
       type: "param_tanh"
+      init_policy: "occupancy_quantile"
       init_m: 1.5
       init_b: 0.5
     blocklinear:

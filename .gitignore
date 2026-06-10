@@ -6,7 +6,8 @@ results/*
 slurm_jobs/  # Generated SLURM script directories
 dendritic_modeling.egg-info/*
 dendritic_modeling/__pycache__/*
-*.sh
+# Ignore ad-hoc root shell scripts; keep scripts under src/ addable.
+/*.sh
 *.out
 *.sbatch  # Generated SLURM batch scripts
 notebooks/data/*
@@ -17,6 +18,14 @@ notebook/test/*
 # experiments/* - now using submodule
 data/*
 configs/*.txt
+# Private merge/runtime comparison configs belong under ignored projects/ or
+# external review folders, not in the public configs/ namespace.
+configs/branch_comparison/
+configs/examples/*_multi_population_ei.yaml
+configs/examples/recurrent_population_graph_pyr_pv_sst.yaml
+configs/examples/recurrent_synapse_types_ampa_nmda_gaba.yaml
+configs/examples/recurrent_spiking_population_graph.yaml
+configs/examples/recurrent_soma_feedback.yaml
 src/data/*
 cifar-10-*
 wandb/*

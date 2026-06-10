@@ -47,6 +47,7 @@ model:
     reactivation:
       enabled: true
       type: "param_tanh"
+      init_policy: "occupancy_quantile"
 
 training:
   main:

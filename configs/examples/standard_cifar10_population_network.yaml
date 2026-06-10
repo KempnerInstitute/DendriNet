@@ -1,14 +1,15 @@
 # ============================================================================
-# CIFAR-10 two-layer DendriNet using the multi-population E/I schema
+# Standard CIFAR-10 DendriNet using the population-network schema
 # ============================================================================
-# Population-format mirror of cifar10_two_layer.yaml. Layer 1 consumes the
-# previous layer's excitatory readout explicitly as source: "layer0.e0"; local
-# I -> E inhibition is still represented as a same-step directed edge.
+# Population-format mirror of standard_cifar10.yaml. This keeps the old
+# [4, 4] morphology and 60E/30I synapse counts. Because the old config uses
+# input_mode=1, no explicit I cells are built; the transfer layer's inhibitory
+# stream drives the E dendrites directly.
 #
 # Run:
 #   PYTHONPATH=src:$PYTHONPATH python \
 #     src/dendritic_modeling/scripts/training/train_experiments.py \
-#     configs/examples/cifar10_two_layer_multi_population_ei.yaml
+#     configs/examples/standard_cifar10_population_network.yaml
 # ============================================================================
 
 experiment:
@@ -29,25 +30,26 @@ model:
   encoder:
     type: "identity"
   core:
-    type: "multi_population_ei"
-    multi_population:
+    type: "population_network"
+    population_network:
       use_transfer: true
       transfer_params:
-        input_mode: 0
+        input_mode: 1
         independent_pathways: false
         output_activation: "relu"
       layers:
         - name: "layer0"
-          readout_population: "e0"
+          readout_population: "e"
           population_defaults:
-            ff_excitatory_synapses: 40
-            ff_inhibitory_synapses: 10
+            ff_excitatory_synapses: 60
+            ff_inhibitory_synapses: 30
             rec_excitatory_synapses: 0
             rec_inhibitory_synapses: 0
             somatic_synapses: false
             use_shunting: true
             reactivate: true
             reactivation_type: "param_tanh"
+            reactivation_init_policy: "occupancy_quantile"
             reactivation_init_m: 1.5
             reactivation_init_b: 0.5
             dbl_init_method: "analytical_expectation"
@@ -58,61 +60,15 @@ model:
             reactivation_strategy: "none"
             efficient_blocklinear: false
           populations:
-            - name: "i0"
-              polarity: "inhibitory"
-              n_neurons: 32
-              branch_factors: [1]
-              population:
-                ff_inhibitory_synapses: 0
-            - name: "e0"
+            - name: "e"
               polarity: "excitatory"
-              n_neurons: 128
-              branch_factors: [3, 3, 3]
+              n_neurons: 256
+              branch_factors: [4, 4]
           connections:
-            - source: "input"
-              target: "i0"
-            - source: "input"
-              target: "e0"
-            - source: "i0"
-              target: "e0"
-        - name: "layer1"
-          readout_population: "e1"
-          population_defaults:
-            ff_excitatory_synapses: 40
-            ff_inhibitory_synapses: 10
-            rec_excitatory_synapses: 0
-            rec_inhibitory_synapses: 0
-            somatic_synapses: false
-            use_shunting: true
-            reactivate: true
-            reactivation_type: "param_tanh"
-            reactivation_init_m: 1.5
-            reactivation_init_b: 0.5
-            dbl_init_method: "analytical_expectation"
-            weight_transform: "softplus"
-            topk_type: "standard"
-            topk_init_method: "xavier_normal"
-            blocklinear_strategy: "none"
-            reactivation_strategy: "none"
-            efficient_blocklinear: false
-          populations:
-            - name: "i1"
-              polarity: "inhibitory"
-              n_neurons: 16
-              branch_factors: [1]
-              population:
-                ff_inhibitory_synapses: 0
-            - name: "e1"
-              polarity: "excitatory"
-              n_neurons: 64
-              branch_factors: [3, 3, 3]
-          connections:
-            - source: "layer0.e0"
-              target: "i1"
-            - source: "layer0.e0"
-              target: "e1"
-            - source: "i1"
-              target: "e1"
+            - source: "input_e"
+              target: "e"
+            - source: "input_i"
+              target: "e"
   decoder:
     type: "MLP"
     params:
@@ -136,6 +92,8 @@ training:
       early_stopping: true
       patience: 50
       load_best_state_dict: true
+      weight_decay_rate: 0.01
+      weight_boosting: true
       param_groups:
         lr: 0.001
         split_params: true
@@ -161,7 +119,7 @@ wandb:
   use_wandb: false
 
 outputs:
-  run_name: "cifar10_two_layer_multi_population_ei"
+  run_name: "standard_cifar10_population_network"
   results_dir: "outputs"
 
 distributed:
