@@ -24,8 +24,8 @@ export HF_DATASETS_CACHE="${HF_DATASETS_CACHE:-${HF_HOME}/datasets}"
 export TRANSFORMERS_CACHE="${TRANSFORMERS_CACHE:-${HF_HOME}/hub}"
 
 CONFIGS=(
-  "configs/benchmarks/transformer_replacement/pythia70m_wikitext_layer0_standard_topk.yaml"
-  "configs/benchmarks/transformer_replacement/pythia70m_wikitext_layer0_large_deep.yaml"
+  "jobs/transformer_replacement_benchmarks/configs/pythia70m_wikitext_layer0_standard_topk.yaml"
+  "jobs/transformer_replacement_benchmarks/configs/pythia70m_wikitext_layer0_large_deep.yaml"
 )
 CONFIG="${CONFIGS[${SLURM_ARRAY_TASK_ID}]}"
 PYTHON_BIN="${PYTHON:-$(command -v python)}"

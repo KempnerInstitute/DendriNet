@@ -24,8 +24,8 @@ export HF_DATASETS_CACHE="${HF_DATASETS_CACHE:-${HF_HOME}/datasets}"
 unset TRANSFORMERS_CACHE
 
 CONFIGS=(
-  "configs/benchmarks/transformer_replacement/deepseek_v3_layers0_2_dendrinet_4096_hidden_cache.yaml"
-  "configs/benchmarks/transformer_replacement/deepseek_v3_layers0_2_dendrinet_8192_hidden_cache.yaml"
+  "jobs/transformer_replacement_benchmarks/configs/deepseek_v3_layers0_2_dendrinet_4096_hidden_cache.yaml"
+  "jobs/transformer_replacement_benchmarks/configs/deepseek_v3_layers0_2_dendrinet_8192_hidden_cache.yaml"
 )
 CONFIG="${CONFIGS[${SLURM_ARRAY_TASK_ID}]}"
 PYTHON_BIN="${PYTHON:-$(command -v python)}"

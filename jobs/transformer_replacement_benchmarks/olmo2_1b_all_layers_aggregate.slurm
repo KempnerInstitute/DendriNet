@@ -25,7 +25,7 @@ export HF_DATASETS_CACHE="${HF_DATASETS_CACHE:-${HF_HOME}/datasets}"
 unset TRANSFORMERS_CACHE
 
 PYTHON_BIN="${PYTHON:-$(command -v python)}"
-CONFIG_DIR="configs/benchmarks/transformer_replacement/generated/olmo2_1b_dolmino_all_layers"
+CONFIG_DIR="jobs/transformer_replacement_benchmarks/configs/generated/olmo2_1b_dolmino_all_layers"
 RESULT_ROOT="results/transformer_replacement_benchmarks/olmo2_1b_dolmino_all_layers"
 COMBINED_CKPT_DIR="${RESULT_ROOT}/all_layer_checkpoints"
 ALL_LAYERS_CONFIG="${CONFIG_DIR}/olmo2_1b_dolmino_all_layers.yaml"
@@ -33,9 +33,9 @@ ALL_LAYERS_CONFIG="${CONFIG_DIR}/olmo2_1b_dolmino_all_layers.yaml"
 mkdir -p results/transformer_replacement_benchmarks/slurm "${RESULT_ROOT}" "${COMBINED_CKPT_DIR}"
 
 echo "[$(date)] generating OLMo-2 1B all-layer configs"
-"${PYTHON_BIN}" scripts/transformer_replacement/generate_olmo_all_layer_configs.py \
+"${PYTHON_BIN}" -m dendritic_modeling.scripts.transformer_replacement.generate_olmo_all_layer_configs \
   --variant 1b \
-  --config-root configs/benchmarks/transformer_replacement/generated \
+  --config-root jobs/transformer_replacement_benchmarks/configs/generated \
   --results-root results/transformer_replacement_benchmarks
 
 echo "[$(date)] collecting trained layer checkpoints"

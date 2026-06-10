@@ -21,9 +21,9 @@ export PYTHONPATH="${REPO_ROOT}/src:${PYTHONPATH:-}"
 export OMP_NUM_THREADS="${SLURM_CPUS_PER_TASK:-8}"
 
 CONFIGS=(
-  "configs/benchmarks/transformer_replacement/synthetic_linear_projection.yaml"
-  "configs/benchmarks/transformer_replacement/synthetic_gelu_mlp.yaml"
-  "configs/benchmarks/transformer_replacement/synthetic_gated_silu_mlp.yaml"
+  "jobs/transformer_replacement_benchmarks/configs/synthetic_linear_projection.yaml"
+  "jobs/transformer_replacement_benchmarks/configs/synthetic_gelu_mlp.yaml"
+  "jobs/transformer_replacement_benchmarks/configs/synthetic_gated_silu_mlp.yaml"
 )
 
 CONFIG="${CONFIGS[$SLURM_ARRAY_TASK_ID]}"

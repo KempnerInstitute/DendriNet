@@ -25,18 +25,18 @@ export HF_DATASETS_CACHE="${HF_DATASETS_CACHE:-${HF_HOME}/datasets}"
 unset TRANSFORMERS_CACHE
 
 PYTHON_BIN="${PYTHON:-$(command -v python)}"
-CONFIG_ROOT="configs/benchmarks/transformer_replacement/generated"
+CONFIG_ROOT="jobs/transformer_replacement_benchmarks/configs/generated"
 RESULT_ROOT="results/transformer_replacement_benchmarks"
 
 mkdir -p results/transformer_replacement_benchmarks/slurm
 
 echo "[$(date)] host=$(hostname)"
 echo "[$(date)] generating OLMo-2 1B EI-stack config"
-"${PYTHON_BIN}" scripts/transformer_replacement/generate_olmo_ei_stack_configs.py \
+"${PYTHON_BIN}" -m dendritic_modeling.scripts.transformer_replacement.generate_olmo_ei_stack_configs \
   --config-root "${CONFIG_ROOT}" \
   --results-root "${RESULT_ROOT}"
 
-CONFIG="$("${PYTHON_BIN}" scripts/transformer_replacement/generate_olmo_ei_stack_configs.py \
+CONFIG="$("${PYTHON_BIN}" -m dendritic_modeling.scripts.transformer_replacement.generate_olmo_ei_stack_configs \
   --config-root "${CONFIG_ROOT}" \
   --results-root "${RESULT_ROOT}" \
   --print-config)"

@@ -29,7 +29,7 @@ unset TRANSFORMERS_CACHE
 
 PYTHON_BIN="${PYTHON:-$(command -v python)}"
 PREFLIGHT_TIMEOUT="${PREFLIGHT_TIMEOUT:-600s}"
-CONFIG_DIR="configs/benchmarks/transformer_replacement/generated/olmo2_1b_dolmino_all_layers"
+CONFIG_DIR="jobs/transformer_replacement_benchmarks/configs/generated/olmo2_1b_dolmino_all_layers"
 CONFIG="${CONFIG_DIR}/olmo2_1b_dolmino_layer$(printf '%02d' "${SLURM_ARRAY_TASK_ID}").yaml"
 RESULT_ROOT="results/transformer_replacement_benchmarks/olmo2_1b_dolmino_all_layers"
 
@@ -38,9 +38,9 @@ mkdir -p results/transformer_replacement_benchmarks/slurm "${RESULT_ROOT}"
 echo "[$(date)] host=$(hostname)"
 echo "[$(date)] preflight_timeout=${PREFLIGHT_TIMEOUT}"
 echo "[$(date)] generating OLMo-2 1B all-layer configs"
-"${PYTHON_BIN}" scripts/transformer_replacement/generate_olmo_all_layer_configs.py \
+"${PYTHON_BIN}" -m dendritic_modeling.scripts.transformer_replacement.generate_olmo_all_layer_configs \
   --variant 1b \
-  --config-root configs/benchmarks/transformer_replacement/generated \
+  --config-root jobs/transformer_replacement_benchmarks/configs/generated \
   --results-root results/transformer_replacement_benchmarks
 
 echo "[$(date)] config=${CONFIG}"

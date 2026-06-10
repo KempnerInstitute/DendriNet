@@ -73,13 +73,13 @@ To sweep every OLMo-2 1B MLP layer independently, then evaluate a model with
 all trained dendritic replacements patched in together:
 
 ```bash
-python scripts/transformer_replacement/generate_olmo_all_layer_configs.py --variant 1b
+python -m dendritic_modeling.scripts.transformer_replacement.generate_olmo_all_layer_configs --variant 1b
 ARRAY_JOB=$(sbatch --parsable jobs/transformer_replacement_benchmarks/olmo2_1b_all_layers_dolmino_array.slurm)
 sbatch --dependency=afterok:${ARRAY_JOB} jobs/transformer_replacement_benchmarks/olmo2_1b_all_layers_aggregate.slurm
 ```
 
 The per-layer configs and manifest are written under
-`configs/benchmarks/transformer_replacement/generated/olmo2_1b_dolmino_all_layers/`.
+`jobs/transformer_replacement_benchmarks/configs/generated/olmo2_1b_dolmino_all_layers/`.
 The per-layer and all-layer parameter/loss summaries are written under
 `results/transformer_replacement_benchmarks/olmo2_1b_dolmino_all_layers/`.
 
@@ -94,12 +94,12 @@ losses.  The array currently includes:
 - `[2, 2, 2]` morphology trained jointly from scratch.
 
 ```bash
-python scripts/transformer_replacement/generate_olmo_joint_configs.py --variant 1b
+python -m dendritic_modeling.scripts.transformer_replacement.generate_olmo_joint_configs --variant 1b
 sbatch jobs/transformer_replacement_benchmarks/olmo2_1b_joint_all_layers_array.slurm
 ```
 
 The joint configs and manifest are written under
-`configs/benchmarks/transformer_replacement/generated/olmo2_1b_joint_all_layers/`.
+`jobs/transformer_replacement_benchmarks/configs/generated/olmo2_1b_joint_all_layers/`.
 The joint run outputs are written under
 `results/transformer_replacement_benchmarks/olmo2_1b_joint_all_layers/`.
 
@@ -107,7 +107,7 @@ To remove all OLMo-2 1B dense MLPs and replace the set with one shared
 layerwise EI stack, use:
 
 ```bash
-python scripts/transformer_replacement/generate_olmo_ei_stack_configs.py
+python -m dendritic_modeling.scripts.transformer_replacement.generate_olmo_ei_stack_configs
 sbatch jobs/transformer_replacement_benchmarks/olmo2_1b_ei_stack_all_mlp.slurm
 ```
 

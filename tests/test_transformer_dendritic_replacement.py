@@ -1,7 +1,10 @@
+from pathlib import Path
+
 import pytest
 import torch
 import torch.nn as nn
 
+from dendritic_modeling.config import load_config
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic import (
     DendriticBranchLayer,
 )
@@ -22,6 +25,10 @@ from dendritic_modeling.networks.architectures.transformer import (
     estimate_deepseek_dense_ffn_params,
     estimate_dendritic_ffn_params,
     replace_transformer_mlp_layers,
+)
+
+TRANSFORMER_BENCHMARK_CONFIGS = sorted(
+    Path("jobs/transformer_replacement_benchmarks/configs").rglob("*.yaml")
 )
 
 
@@ -57,6 +64,19 @@ class TinyHFLikeModel(nn.Module):
         for layer in self.model.layers:
             x = layer(x)
         return x
+
+
+@pytest.mark.parametrize(
+    "config_path",
+    TRANSFORMER_BENCHMARK_CONFIGS,
+    ids=[p.name for p in TRANSFORMER_BENCHMARK_CONFIGS],
+)
+def test_transformer_benchmark_job_config_loads(config_path):
+    """Benchmark job configs live with the job package, but remain normal configs."""
+    load_config.cache_clear()
+    cfg = load_config(str(config_path))
+
+    assert cfg.model.transformer_replacement.enabled
 
 
 @pytest.mark.parametrize(
@@ -363,12 +383,14 @@ def test_transformer_replacement_core_alias_overrides_morphology_shunting():
     with pytest.warns(UserWarning, match="dendritic_additive"):
         kwargs = build_dendritic_ffn_kwargs_from_core_config(core_config)
 
+    # dendritic_additive overrides use_shunting -> False but is now RAW additive
+    # (normalization is opt-in via dendritic_normalized_additive).
     assert kwargs["use_shunting"] is False
-    assert kwargs["use_additive_normalization"] is True
+    assert kwargs["use_additive_normalization"] is False
 
     replacement = DendriticFFNReplacement(hidden_size=8, **kwargs)
     assert replacement.core.branch_layers[0].use_shunting is False
-    assert replacement.core.branch_layers[0].use_additive_normalization is True
+    assert replacement.core.branch_layers[0].use_additive_normalization is False
 
 
 def test_transformer_ei_stack_core_alias_overrides_morphology_shunting():

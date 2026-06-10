@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Jointly fine-tune all OLMo-2 1B dendritic MLP replacements through the full
 # language-modeling objective. Each array task runs one morphology/warm-start
-# condition from scripts/transformer_replacement/generate_olmo_joint_configs.py.
+# condition from dendritic_modeling.scripts.transformer_replacement.generate_olmo_joint_configs.
 #SBATCH --job-name=olmo2_1b_joint
 #SBATCH --account=kempner_dev
 #SBATCH --partition=kempner_h100
@@ -27,20 +27,20 @@ export HF_DATASETS_CACHE="${HF_DATASETS_CACHE:-${HF_HOME}/datasets}"
 unset TRANSFORMERS_CACHE
 
 PYTHON_BIN="${PYTHON:-$(command -v python)}"
-CONFIG_ROOT="configs/benchmarks/transformer_replacement/generated"
+CONFIG_ROOT="jobs/transformer_replacement_benchmarks/configs/generated"
 RESULT_ROOT="results/transformer_replacement_benchmarks"
 
 mkdir -p results/transformer_replacement_benchmarks/slurm
 
 echo "[$(date)] host=$(hostname)"
 echo "[$(date)] generating OLMo-2 1B joint all-layer configs"
-"${PYTHON_BIN}" scripts/transformer_replacement/generate_olmo_joint_configs.py \
+"${PYTHON_BIN}" -m dendritic_modeling.scripts.transformer_replacement.generate_olmo_joint_configs \
   --variant 1b \
   --config-root "${CONFIG_ROOT}" \
   --results-root "${RESULT_ROOT}"
 
 mapfile -t CONFIGS < <(
-  "${PYTHON_BIN}" scripts/transformer_replacement/generate_olmo_joint_configs.py \
+  "${PYTHON_BIN}" -m dendritic_modeling.scripts.transformer_replacement.generate_olmo_joint_configs \
     --variant 1b \
     --config-root "${CONFIG_ROOT}" \
     --results-root "${RESULT_ROOT}" \

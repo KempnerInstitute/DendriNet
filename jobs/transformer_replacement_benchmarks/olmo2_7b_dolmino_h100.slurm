@@ -22,7 +22,7 @@ export HF_HOME="${HF_HOME:-/n/holylabs/kempner_dev/Users/hsafaai/.cache/huggingf
 export HF_DATASETS_CACHE="${HF_DATASETS_CACHE:-${HF_HOME}/datasets}"
 unset TRANSFORMERS_CACHE
 
-CONFIG="configs/benchmarks/transformer_replacement/olmo2_7b_dolmino_layer0_2048.yaml"
+CONFIG="jobs/transformer_replacement_benchmarks/configs/olmo2_7b_dolmino_layer0_2048.yaml"
 PYTHON_BIN="${PYTHON:-$(command -v python)}"
 
 mkdir -p results/transformer_replacement_benchmarks/slurm
