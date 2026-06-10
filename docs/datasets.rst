@@ -22,9 +22,17 @@ Standard Datasets
    CIFAR-10. 32x32 color, 10 classes.
 
 ``imagenet``
-   ImageNet classification with torchvision-compatible preprocessing.
-   Parameters: ``train_samples_per_class``, ``val_samples_per_class`` for
-   reduced local/debug subsets.
+   ImageNet classification. By default, preprocessing uses the historical
+   ``legacy_resize`` preset for backward-compatible configs. Pretrained
+   backbone runs should set ``transform_preset: "pretrained"`` for
+   RandomResizedCrop/flip training transforms and Resize/CenterCrop eval
+   transforms. Missing ImageNet roots raise an error unless
+   ``allow_fake_data: true`` is set explicitly for smoke tests. Flattening is
+   rejected unless ``allow_flatten_materialize: true`` is set because full
+   ImageNet tensors can materialize tens of GB. Parameters:
+   ``transform_preset``, ``allow_fake_data``,
+   ``allow_flatten_materialize``, ``train_samples_per_class``,
+   ``val_samples_per_class``.
 
 ``mnist_modulo10``
    Two random MNIST images concatenated; label = ``(label_a + label_b) % 10``.
@@ -231,3 +239,32 @@ Set under ``data.processing``:
        flatten: true
        normalize: false
        label_noise_rate: 0.0
+
+ImageNet / Pretrained Backbones
+-------------------------------
+
+Use the pretrained preset whenever ImageNet enters a torchvision pretrained
+backbone such as AlexNet:
+
+.. code-block:: yaml
+
+   data:
+     dataset_name: imagenet
+     base_dir: "/path/to/imagenet"
+     processing:
+       flatten: false
+       normalize: true
+     dataset_params:
+       imagenet:
+         transform_preset: "pretrained"
+         allow_fake_data: false
+         allow_flatten_materialize: false
+
+For loader smoke tests without the real dataset, opt in explicitly:
+
+.. code-block:: yaml
+
+   data:
+     dataset_params:
+       imagenet:
+         allow_fake_data: true

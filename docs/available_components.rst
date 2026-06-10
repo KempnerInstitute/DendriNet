@@ -49,11 +49,15 @@ Core Network Types
    * - ``dendritic_shunting``
      - E-I network with shunting (divisive) inhibition
    * - ``dendritic_additive``
-     - E-I network with additive (subtractive) inhibition
+     - E-I network with raw additive (subtractive) inhibition, ``V = E - I``
+   * - ``dendritic_normalized_additive``
+     - E-I network with additive inhibition plus explicit voltage normalization
    * - ``flat_shunting``
      - Flattened dendrites (single level) with shunting
    * - ``flat_additive``
-     - Flattened dendrites with additive inhibition
+     - Flattened dendrites with raw additive inhibition
+   * - ``flat_normalized_additive``
+     - Flattened dendrites with normalized additive inhibition
    * - ``dendritic_mlp``
      - E-I with signed weights (identity transform)
    * - ``flat_mlp``
@@ -62,16 +66,12 @@ Core Network Types
      - Generic E-I; reads use_shunting from config
    * - ``ei_unified``
      - Unified E-I (feedforward + recurrent capable)
-   * - ``population_graph``
-     - Named recurrent dendritic populations for cell-type experiments
-   * - ``cell_type_graph``, ``cell_types``
-     - Aliases for ``population_graph``
-   * - ``multi_population_ei``
-     - Multi-population feedforward/recurrent dendritic layers with named
+   * - ``population_network``
+     - Canonical feedforward/recurrent dendritic layers with named
        populations, per-population morphology, and validated directional
        same-step connections
-   * - ``rnn_dendritic_shunting``, ``rnn_dendritic_additive``
-     - Unified recurrent-EI aliases with type-implied shunting/additive defaults
+   * - ``rnn_dendritic_shunting``, ``rnn_dendritic_additive``, ``rnn_dendritic_normalized_additive``, ``rnn_flat_shunting``, ``rnn_flat_additive``, ``rnn_flat_normalized_additive``
+     - Unified recurrent-EI aliases with explicit shunting, raw-additive, or normalized-additive defaults
    * - ``point_mlp``
      - Plain point-neuron MLP baseline
    * - ``total_param_mlp``
@@ -178,11 +178,11 @@ Recurrent Extensions
      - Config keys
      - Notes
    * - Named cell types
-     - ``model.core.population_graph.cell_types``
+     - ``model.core.population_network.layers[].populations``
      - Each entry defines ``name``, ``polarity``, ``n_neurons``, and
        ``branch_factors``.
    * - Source-target cell-type masks
-     - ``model.core.population_graph.connections``
+     - ``model.core.population_network.layers[].connections``
      - Optional ``source``, ``target``, ``enabled``, ``probability`` /
        ``p_connect``, and ``seed``.
    * - Structured TopK masks
@@ -227,10 +227,10 @@ Recurrent Extensions
      - Small structural interfaces for trainer-facing sequence cores and
        one-step recurrent dendritic populations.
 
-Multi-Population Layers
------------------------
+Population Network Layers
+-------------------------
 
-Set ``model.core.type: multi_population_ei`` to define layers with more than
+Set ``model.core.type: population_network`` to define layers with more than
 one named cell population. Each population owns its own ``PopulationConfig``
 payload, so morphology and dynamics can differ by population.
 
@@ -240,8 +240,8 @@ The current two-population E/I feedforward layer is the simple special case:
 
    model:
      core:
-       type: multi_population_ei
-       multi_population:
+       type: population_network
+       population_network:
          layers:
            - name: layer0
              readout_population: e
@@ -277,8 +277,8 @@ inhibitory tensors returned by ``TransferLayer`` on the first layer:
 
    model:
      core:
-       type: multi_population_ei
-       multi_population:
+       type: population_network
+       population_network:
          use_transfer: true
          transfer_params:
            input_mode: 0
@@ -343,6 +343,16 @@ population outputs.
 If ``input_projection_dims`` is combined with ``use_transfer: true``, the
 projection applies to ``input``/``input_e``. ``input_i`` keeps the inhibitory
 dimension produced by ``TransferLayer``.
+
+Canonical examples cover the main cases:
+``population_network_feedforward.yaml`` for the standard E/I layer,
+``population_network_heterogeneous_feedforward.yaml`` for multiple cell types
+with distinct morphologies in one feedforward layer,
+``population_network_two_layer.yaml`` for explicit cross-layer routing,
+``population_network_recurrent_pyr_pv_sst.yaml`` for delayed recurrent
+microcircuits, and the ``population_network_synapse_types_*``,
+``population_network_spiking.yaml``, and ``population_network_soma_feedback.yaml``
+files for biophysical recurrent options.
 
 Activation Types
 ----------------

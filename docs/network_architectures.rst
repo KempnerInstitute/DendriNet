@@ -72,13 +72,19 @@ Core Network Types
      - E-I network with shunting (divisive) inhibition
      -
    * - ``dendritic_additive``
-     - E-I network with additive (subtractive) inhibition
+     - E-I network with raw additive (subtractive) inhibition, ``V = E - I``
+     -
+   * - ``dendritic_normalized_additive``
+     - E-I network with additive inhibition plus explicit voltage normalization
      -
    * - ``flat_shunting``
      - Flattened dendrites with shunting inhibition
      -
    * - ``flat_additive``
-     - Flattened dendrites with additive inhibition
+     - Flattened dendrites with raw additive inhibition
+     -
+   * - ``flat_normalized_additive``
+     - Flattened dendrites with normalized additive inhibition
      -
    * - ``einet``
      - Generic E-I; reads ``use_shunting`` from morphology config
@@ -88,14 +94,11 @@ Core Network Types
      -
    * - ``ei_unified``
      - Unified E-I, supports feedforward and recurrent
-     - ``unified_ei``, ``rnn_dendritic_shunting``, ``rnn_dendritic_additive``, ``rnn_flat_shunting``, ``rnn_flat_additive``
-   * - ``population_graph``
-     - Named multi-population recurrent core for cell-type experiments
-     - ``cell_type_graph``, ``cell_types``
-   * - ``multi_population_ei``
-     - Opt-in feedforward/recurrent layers with multiple named populations,
-       per-population morphology, and directional same-step edges
-     - ``multi_pop_ei``, ``multi_population``, ``population_layers``
+     - ``unified_ei``, ``rnn_dendritic_shunting``, ``rnn_dendritic_additive``, ``rnn_dendritic_normalized_additive``, ``rnn_flat_shunting``, ``rnn_flat_additive``, ``rnn_flat_normalized_additive``
+   * - ``population_network``
+     - Canonical feedforward/recurrent layers with multiple named
+       populations, per-population morphology, and directed edges
+     -
    * - ``gru``
      - Gated Recurrent Unit
      -
@@ -114,31 +117,39 @@ Shunting/additive mode selection
 
 For structured feedforward E-I networks, ``model.core.type`` is the canonical
 selector. ``dendritic_shunting`` and ``flat_shunting`` run divisive shunting;
-``dendritic_additive`` and ``flat_additive`` run additive/subtractive
-integration and enable additive voltage normalization. If the morphology block
-contains a contradictory ``use_shunting`` or ``use_additive_normalization``
+``dendritic_additive`` and ``flat_additive`` run raw additive/subtractive
+integration. ``dendritic_normalized_additive`` and
+``flat_normalized_additive`` opt into additive voltage normalization. If the
+morphology block contains a contradictory ``use_shunting`` or
+``use_additive_normalization``
 value, the builder emits a warning and the type alias wins. Use the generic
 ``einet`` type when you intentionally want ``morphology.use_shunting`` to be
-the selector.
+the selector. For additive modes, prefer
+``reactivation.init_policy: "occupancy_quantile"``; additive YAML configs that
+omit ``init_policy`` use this data-driven policy by default, while explicit
+policies remain reproducible.
 
 For recurrent unified E-I networks, plain ``ei_unified`` keeps the
 population-level fields as the source of truth. The convenience aliases
-``rnn_dendritic_shunting``, ``rnn_dendritic_additive``, ``rnn_flat_shunting``,
-and ``rnn_flat_additive`` rewrite every excitatory and inhibitory population to
-the alias contract; the flat aliases force ``branch_factors: [1]``. The
-``population_graph`` backend likewise uses ``population_defaults`` and per-cell
+``rnn_dendritic_shunting``, ``rnn_dendritic_additive``,
+``rnn_dendritic_normalized_additive``, ``rnn_flat_shunting``,
+``rnn_flat_additive``, and ``rnn_flat_normalized_additive`` rewrite every
+excitatory and inhibitory
+population to the alias contract; the flat aliases force
+``branch_factors: [1]``. The
+``population_network`` likewise uses ``population_defaults`` and per-population
 ``population`` blocks as the source of truth rather than inheriting top-level
 morphology fields.
 
-``multi_population_ei`` is the more general layer schema for feedforward or
+``population_network`` is the canonical layer schema for feedforward or
 recurrent E/I composition. The classical feedforward E/I layer is represented
 as two populations plus directional same-step edges:
 
-.. figure:: _static/architecture/multi-population-ei.svg
-   :alt: multi_population_ei schematic with named E/I populations per layer, same-step DAG edges, cross-layer routing, and delayed recurrent feedback
+.. figure:: _static/architecture/population-network.svg
+   :alt: population_network schematic with named E/I populations per layer, same-step DAG edges, cross-layer routing, and delayed recurrent feedback
    :width: 100%
 
-   A two-layer ``multi_population_ei`` example. Each layer holds named populations
+   A two-layer ``population_network`` example. Each layer holds named populations
    (``e0``/``i0``, ``e1``/``i1``). Solid edges are *same-step* and must form an
    acyclic DAG within a timestep (``input->i0``, ``input->e0``, ``i0->e0``;
    cross-layer ``layer0.e0->layer1`` and ``layer0.i0->e1``). Dashed edges are
@@ -150,8 +161,8 @@ as two populations plus directional same-step edges:
 
    model:
      core:
-       type: multi_population_ei
-       multi_population:
+       type: population_network
+       population_network:
          layers:
            - name: layer0
              readout_population: e
@@ -172,13 +183,18 @@ as two populations plus directional same-step edges:
                - source: i
                  target: e
 
-Same-step population-to-population edges are validated as an acyclic directed
-graph. Bidirectional E/I interactions are supported by setting
-``timing: delayed`` on recurrent layers, so the feedback uses previous
-timestep outputs instead of an instantaneous algebraic loop.
+Connections are directed records with ``source`` and ``target`` population
+names. ``timing: same_step`` is the feedforward/default edge and is validated
+as an acyclic directed graph within each layer. ``timing: delayed`` is the
+recurrent edge and reads the source population's previous-timestep output, so
+bidirectional E/I interactions are possible without an instantaneous
+algebraic loop. ``probability`` optionally samples a frozen structural mask;
+the target population's E/I synapse-count fields determine how many active
+synapses per branch are selected inside the allowed mask. Pathway polarity is
+inferred from the source population or named input stream.
 
 External sources are named. ``source: input`` is the compatibility stream and
-keeps the old behavior. When ``multi_population.use_transfer: true`` is set,
+keeps the old behavior. When ``population_network.use_transfer: true`` is set,
 ``source: input_e`` receives the excitatory stream returned by
 ``TransferLayer`` and ``source: input_i`` receives the inhibitory stream. This
 allows an old independent-pathway transfer split to be represented explicitly:
@@ -187,8 +203,8 @@ allows an old independent-pathway transfer split to be represented explicitly:
 
    model:
      core:
-       type: multi_population_ei
-       multi_population:
+       type: population_network
+       population_network:
          use_transfer: true
          transfer_params:
            input_mode: 0
@@ -218,10 +234,10 @@ allows an old independent-pathway transfer split to be represented explicitly:
                  target: e
 
 If ``use_transfer`` is false, ``input``, ``input_e``, and ``input_i`` all
-refer to the same projected input tensor. In stacked multi-population
-networks, ``source: input`` remains a compatibility shorthand for the previous
-layer readout stream. For explicit cross-layer routing, use qualified sources
-of the form ``source: layer_name.population_name``:
+refer to the same projected input tensor. In stacked population networks,
+``source: input`` remains a compatibility shorthand for the previous layer
+readout stream. For explicit cross-layer routing, use qualified sources of the
+form ``source: layer_name.population_name``:
 
 .. code-block:: yaml
 
@@ -269,15 +285,16 @@ source population's previous-timestep output, so they do not create an
 instantaneous algebraic loop.
 
 For migration from the older feedforward ``einet`` examples, see
-``configs/examples/standard_mnist_multi_population_ei.yaml``,
-``configs/examples/standard_cifar10_multi_population_ei.yaml``,
-``configs/examples/cifar10_128_333_40e10i_multi_population_ei.yaml``, and
-``configs/examples/cifar10_two_layer_multi_population_ei.yaml``. These keep
+``configs/examples/standard_mnist_population_network.yaml``,
+``configs/examples/standard_mnist_normalized_additive_population_network.yaml``,
+``configs/examples/standard_cifar10_population_network.yaml``,
+``configs/examples/cifar10_128_333_40e10i_population_network.yaml``, and
+``configs/examples/cifar10_two_layer_population_network.yaml``. These keep
 the old sizes, synapse counts, transfer settings, and readout heads aligned
 while moving the computation into explicit named-population routing. For
 legacy ``input_mode=1`` configs, this means a single E population with direct
 ``input_i`` inhibition rather than explicit I cells. The separate
-``configs/examples/multi_population_ei_two_layer.yaml`` file intentionally
+``configs/examples/population_network_two_layer.yaml`` file intentionally
 demonstrates additional cross-layer population routing beyond the old
 two-layer feedforward path.
 
@@ -286,6 +303,16 @@ the projection is applied to the compatibility/excitatory stream
 (``input``/``input_e``). The inhibitory transfer stream (``input_i``) keeps the
 dimension produced by ``TransferLayer``, matching the unified E/I stack's
 existing convention.
+
+Canonical examples are
+``configs/examples/population_network_feedforward.yaml``,
+``configs/examples/population_network_heterogeneous_feedforward.yaml``,
+``configs/examples/population_network_recurrent_pyr_pv_sst.yaml``,
+``configs/examples/population_network_synapse_types_ampa_nmda_gaba.yaml``,
+``configs/examples/population_network_spiking.yaml``, and
+``configs/examples/population_network_soma_feedback.yaml``. The
+``standard_*_population_network.yaml`` files are parity examples that mirror
+older ``einet`` configurations using the canonical population-network schema.
 
 Transformer MLP/FFN replacement follows the same shared ``model.core.type``
 aliases when a shunting/additive alias is present. If ``model.core.type`` is a
@@ -846,12 +873,12 @@ keeps the same interface usable across shunting and additive morphologies.
 
 ``init_policy`` selects the initialization strategy:
 
-``quantile`` **(backprop starting point; validate with init diagnostics)**
+``occupancy_quantile`` **(recommended data-driven default)**
    Post-init calibration using quantile-occupancy. After the model is built,
    a few training batches are run through it. For each reactivation layer,
-   the 10th and 90th percentiles of the pre-reactivation voltage ``V`` are
-   measured, and ``(m, b)`` are set to pin those quantiles to the [0.1, 0.9]
-   gate-output interval:
+   the low/high percentiles of the pre-reactivation voltage ``V`` are
+   measured, and ``(m, b)`` are set to pin those quantiles to target
+   gate-output occupancies. By default this maps q10/q90 to [0.1, 0.9]:
 
    - ``b = (q10 + q90) / 2``
    - ``m = atanh(0.8) / ((q90 - q10) / 2)``
@@ -863,7 +890,7 @@ keeps the same interface usable across shunting and additive morphologies.
    (``n_iterations=3``) because updating upstream layers reshapes downstream
    voltage distributions.
 
-   The outer tails are allowed to saturate on purpose. ``quantile`` is not
+   The outer tails are allowed to saturate on purpose. This policy is not
    trying to use the entire gate range uniformly; it is trying to place the
    bulk of the observed voltage mass into the gate's sensitive region while
    keeping the tails as margin.
@@ -885,13 +912,12 @@ keeps the same interface usable across shunting and additive morphologies.
    automatically written ``init_gate_stats.json`` artifact in the run
    directory before treating a run as healthy.
 
-``occupancy_quantile`` **(recommended for local learning)**
-   Generalized quantile-occupancy calibration with configurable quantile and
-   target pairs. For local learning, use ``q_low=0.05, q_high=0.95`` mapping
-   to gate outputs ``r_low=0.2, r_high=0.8``. This gives the gate a wider
-   active region than ``quantile``, which gives the gate room to self-organize
-   under noisier local credit signals. This is the recommended local-learning
-   default for both shunting and additive.
+   ``quantile`` is accepted as a legacy alias and is normalized to
+   ``occupancy_quantile``. New configs should use ``occupancy_quantile``.
+
+   For local learning, use ``q_low=0.05, q_high=0.95`` mapping to gate outputs
+   ``r_low=0.2, r_high=0.8``. This gives the gate a wider active region and
+   room to self-organize under noisier local credit signals.
 
 ``empirical``
    Robust median/MAD calibration from sampled voltages.
@@ -918,7 +944,7 @@ Recommended default choices are:
      - Default
      - Settings
    * - **Backprop**
-     - ``quantile``
+     - ``occupancy_quantile``
      - ``reactivation_lr = 1e-4`` or ``1e-5``; standard optimizer recipe
    * - **Local CA**
      - ``occupancy_quantile``
@@ -938,8 +964,8 @@ module and flags suspicious patterns such as:
 - repeated identical values across a full layer combined with saturation
 - gate centers pushed to the voltage-range edge
 
-This diagnostic is especially useful when using ``quantile`` or
-``occupancy_quantile`` policies on new datasets or new recurrent settings.
+This diagnostic is especially useful when using ``occupancy_quantile`` on new
+datasets or new recurrent settings.
 
 **Standard backprop** (both morphologies):
 
@@ -948,7 +974,7 @@ This diagnostic is especially useful when using ``quantile`` or
    model:
      core:
        reactivation:
-         init_policy: "quantile"
+         init_policy: "occupancy_quantile"
    training:
      main:
        common:
@@ -980,7 +1006,7 @@ configuration shown above.
 Recommended defaults
 ^^^^^^^^^^^^^^^^^^^^
 
-- ``quantile`` for backprop, with a small ``reactivation_lr``
+- ``occupancy_quantile`` for backprop, with a small ``reactivation_lr``
 - ``occupancy_quantile`` for local CA, using q05/q95 -> 0.2/0.8
 
 These defaults apply across both shunting and additive settings.
@@ -992,12 +1018,13 @@ Initialization and training-time gate updates are separate controls.
 
 For the paper-facing backprop settings, the recommended default is:
 
-- use ``init_policy: "quantile"`` once at the start of training
+- use ``init_policy: "occupancy_quantile"`` once at the start of training
 - keep ``reactivation_update_mode: "backprop"``
 - leave ``recalibrate_reactivation_every: 0``
 
-This uses quantile only to place the gate initially. After that, ``(m, b)``
-continue to learn through the optimizer like the rest of the model.
+This uses occupancy-quantile calibration only to place the gate initially.
+After that, ``(m, b)`` continue to learn through the optimizer like the rest of
+the model.
 
 For local learning, the recommended default is:
 
@@ -1037,9 +1064,9 @@ and diagnostics. The relevant trainer fields live under
    newly calibrated ``(m, b)``. Values in ``(0, 1)`` apply an EMA-style
    update toward the calibrated target.
 
-In short: quantile initialization is the default paper recipe for backprop,
-while periodic quantile maintenance is a supported experimental option for
-studying simplified gate learning.
+In short: ``occupancy_quantile`` initialization is the default paper recipe
+for backprop, while periodic quantile maintenance is a supported experimental
+option for studying simplified gate learning.
 
 Recurrent E-I Network
 ---------------------
@@ -1096,8 +1123,8 @@ for legacy parity, so a TransferLayer is built for both ``input_mode=1`` and
 ``input_mode=0``.
 Set ``recurrent_ei.use_transfer: false`` to disable it explicitly.
 
-Population Graph / Cell Types
------------------------------
+Population Network / Named Populations
+--------------------------------------
 
 .. figure:: _static/architecture/extended-recurrent-components.svg
    :alt: Extended recurrent dendritic components showing named populations, connectivity masks, synapse types, dendrites, optional spiking soma, decoder, and analysis readouts.
@@ -1117,20 +1144,20 @@ Terminology and computation boundaries:
    * - Concept
      - Config object
      - Computation it controls
-   * - Population graph
-     - ``PopulationGraphNetwork``
-     - The full recurrent circuit. It constructs named populations, manages
-       recurrent state, applies source-target masks, chooses the readout
-       population, and returns ``last``, ``mean``, or ``all`` sequence output.
-   * - Cell type
+   * - Population network
+     - ``PopulationNetwork``
+     - The full feedforward or recurrent circuit. It constructs named
+       populations inside ordered layers, manages recurrent state when enabled,
+       applies source-target masks, chooses the readout population, and returns
+       feedforward outputs or ``last``, ``mean``, or ``all`` sequence output.
+   * - Named population
      - ``CellTypeConfig``
-     - One named dendritic population inside the graph. It sets neuron count,
+     - One named dendritic population inside a layer. It sets neuron count,
        polarity, morphology, and optional population-specific overrides.
    * - Population connection
      - ``PopulationConnectionConfig``
-     - A recurrent source-target rule between named cell types. It gates
-       whether the previous output of one population can enter another
-       population's recurrent E or I stream.
+     - A directed source-target rule between named populations. Same-step edges
+       define feedforward/local layer flow; delayed edges define recurrent flow.
    * - Structured mask
      - ``StructuredConnectivityConfig``
      - A hard mask over individual presynaptic indices for TopK/DeepST
@@ -1144,89 +1171,98 @@ Terminology and computation boundaries:
      - ``LIFSoma`` or legacy rate output
      - The final population output rule after dendritic integration.
 
-These concepts compose but do not replace each other. A PV cell type can send
-inhibitory recurrent input to a pyramidal cell type; that pathway can be
+These concepts compose but do not replace each other. A PV population can send
+inhibitory input to a pyramidal population; that pathway can be
 restricted by a population-level connection and by a lower-level structured
 mask; once the signal arrives, it can be split into ``GABA_A`` and ``GABA_B``
 synapse types; the target soma can still output either a rate value or spikes.
 
-``core.type: population_graph`` is the first opt-in backend for named cell
-types. It is a recurrent core that reuses ``StatefulDendriNet`` for each
-population while allowing more than one excitatory or inhibitory population.
-At each timestep, all excitatory population outputs are concatenated into the
-recurrent excitatory stream and all inhibitory population outputs are
-concatenated into the recurrent inhibitory stream. Updates are synchronous:
-every population uses previous-timestep recurrent outputs, so the order of
-``cell_types`` does not create hidden same-timestep dependencies.
+``core.type: population_network`` is the canonical backend for named
+populations. It supports feedforward stacks and recurrent layers with the same
+``layers[].populations`` and ``layers[].connections`` notation. Recurrent
+layers use delayed edges so every population reads previous-timestep recurrent
+state; same-step edges must form a directed acyclic graph within a layer, which
+keeps local E/I wiring explicit and prevents hidden algebraic loops.
 
-.. figure:: _static/architecture/multi-population-cell-types.svg
-   :alt: Pyr/PV/SST multi-population schematic where each population is a distinct cell type with its own morphology, dynamics, and targeting
+.. figure:: _static/architecture/cell-type-populations.svg
+   :alt: Pyr/PV/SST population-network schematic where each population is a distinct cell type with its own morphology, dynamics, and targeting
    :width: 100%
 
-   A multi-population layer with three **distinct cell types**. ``pyr`` is the
+   A population-network layer with three **distinct populations**. ``pyr`` is the
    excitatory readout population with a two-layer dendritic tree
    (``branch_factors: [2, 2]``); ``pv`` and ``sst`` are inhibitory populations
-   with flat morphology (``branch_factors: [1]``). Each cell type carries its own
+   with flat morphology (``branch_factors: [1]``). Each population carries its own
    polarity, neuron count, dendritic morphology, dynamics, and projection pattern
    (PV perisomatic vs. SST dendrite-targeting inhibition onto ``pyr``), plus a
-   recurrent ``pyr->pyr`` pathway. Per-cell-type overrides live in each
-   ``cell_types[].population`` block.
+   delayed recurrent ``pyr->pyr`` pathway. Per-population overrides live in each
+   ``populations[].population`` block.
 
 .. code-block:: yaml
 
    model:
      core:
-       type: population_graph
-       population_graph:
-         readout_population: pyr
-         output_mode: last          # last, mean, all
-         dt: 1.0
+       type: population_network
+       population_network:
+         output_mode: last          # last, mean, all for recurrent layers
          connection_seed: 123
-         population_defaults:
-           ff_excitatory_synapses: 12
-           rec_excitatory_synapses: 8
-           rec_inhibitory_synapses: 4
-           branch_factors: [1]
-           somatic_synapses: true
-           reactivate: true
-         cell_types:
-           - name: pyr
-             polarity: excitatory
-             n_neurons: 64
-             branch_factors: [3, 3]
-           - name: pv
-             polarity: inhibitory
-             n_neurons: 16
-             branch_factors: [1]
-           - name: sst
-             polarity: inhibitory
-             n_neurons: 16
-             branch_factors: [1]
-         connections:
-           - source: pv
-             target: pyr
-             probability: 0.45
-           - source: sst
-             target: pyr
-             probability: 0.25
-           - source: pyr
-             target: pyr
-             enabled: false
+         layers:
+           - name: microcircuit
+             recurrent: true
+             readout_population: pyr
+             dt: 1.0
+             population_defaults:
+               ff_excitatory_synapses: 12
+               rec_excitatory_synapses: 8
+               rec_inhibitory_synapses: 4
+               branch_factors: [1]
+               somatic_synapses: true
+               reactivate: true
+             populations:
+               - name: pyr
+                 polarity: excitatory
+                 n_neurons: 64
+                 branch_factors: [3, 3]
+               - name: pv
+                 polarity: inhibitory
+                 n_neurons: 16
+                 branch_factors: [1]
+               - name: sst
+                 polarity: inhibitory
+                 n_neurons: 16
+                 branch_factors: [1]
+             connections:
+               - source: input
+                 target: pyr
+               - source: input
+                 target: pv
+               - source: input
+                 target: sst
+               - source: pv
+                 target: pyr
+                 probability: 0.45
+               - source: sst
+                 target: pyr
+                 probability: 0.25
+               - source: pyr
+                 target: pyr
+                 timing: delayed
+                 probability: 0.75
 
    training:
      main:
        strategy: recurrent
 
-Each ``cell_types`` entry has:
+Each ``populations`` entry has:
 
 ``name``
    Stable population name used by ``readout_population``, ``connections``,
    recurrent state dictionaries, routing metadata, and analysis outputs.
 
 ``polarity``
-   ``"excitatory"`` or ``"inhibitory"``. This determines which recurrent stream
-   the population contributes to. It is not the same as a synapse type:
-   polarity says whether the population is an E or I source, while synapse
+   ``"excitatory"`` or ``"inhibitory"``. This determines whether outgoing
+   connections enter the target's excitatory or inhibitory stream. It is not
+   the same as a synapse type: polarity says whether the source population is
+   E or I, while synapse
    types say how the source current is filtered after it is selected.
 
 ``n_neurons``
@@ -1241,15 +1277,15 @@ Each ``cell_types`` entry has:
    ``rec_excitatory_synapses``, ``rec_inhibitory_synapses``, ``tau_base``,
    ``weight_transform``, or reactivation settings.
 
-Use the per-cell ``population`` block to make each named population a genuinely
-distinct cell type — its own dendritic morphology, time constant, synapse counts,
+Use the per-population ``population`` block to make each named population a
+genuinely distinct cell type — its own dendritic morphology, time constant, synapse counts,
 and integration. For example, a pyramidal cell with rich dendrites and a slow
 time constant, a fast perisomatic PV interneuron, and a slower dendrite-targeting
 SST interneuron:
 
 .. code-block:: yaml
 
-   cell_types:
+   populations:
      - name: pyr            # excitatory pyramidal: rich dendrites, slow integration
        polarity: excitatory
        n_neurons: 64
@@ -1273,13 +1309,13 @@ SST interneuron:
          tau_base: 12.0
          rec_excitatory_synapses: 4
 
-The population graph backend uses ``population_defaults`` and per-cell
+The population-network backend uses ``population_defaults`` and per-population
 ``population`` blocks as the population source of truth. Top-level feedforward
 fields such as ``model.core.morphology.use_shunting`` are not automatically
 inherited; set the corresponding ``PopulationConfig`` fields directly in
 ``population_defaults`` when they should apply to every named population.
 
-``cell_types`` describes neuron populations, not receptor mechanisms. If two
+``populations`` describes neuron populations, not receptor mechanisms. If two
 populations should share the same morphology but differ only in receptor
 kinetics, keep one cell type definition pattern and put different
 ``synapse_types`` blocks in their ``population`` overrides. If two populations
@@ -1287,14 +1323,54 @@ should differ in neuron count, polarity, morphology, recurrent sources, or
 analysis identity, define separate cell types.
 
 ``connections``
-   Optional list of recurrent source-target rules between named populations.
-   Omitted pairs are fully allowed by default. Set ``enabled: false`` to remove
-   a pair, or set ``probability`` / ``p_connect`` to sample a fixed hard mask
-   within that source-target block. Use ``connection_seed`` to choose the
-   reproducible mask family. If no seed is supplied, population-graph
-   probabilistic masks still use a deterministic internal seed and a stable
-   source-target offset; they do not consume PyTorch's global RNG during model
-   construction.
+   List of directed source-target rules between named populations or from
+   ``input``/``input_e``/``input_i``. Same-step connections drive the current
+   layer in topological order; delayed connections drive recurrent layers from
+   previous state. Set ``enabled: false`` to remove a pair, or set
+   ``probability`` / ``p_connect`` to sample a fixed hard mask within that
+   source-target block. Use ``connection_seed`` to choose the reproducible mask
+   family. If no seed is supplied, probabilistic masks still use a deterministic
+   internal seed and a stable source-target offset; they do not consume
+   PyTorch's global RNG during model construction.
+
+Temporal Constants and Delays
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Population-network timing is split into three independent pieces:
+
+``layers[].dt``
+   The recurrent integration step for every population in that layer. Decays
+   are computed as ``exp(-dt / tau)``.
+
+``population_defaults.tau_base`` / ``tau_ratio``
+   The default dendritic trace constants for each ``StatefulDendriNet``
+   population. If ``level_taus`` is omitted, the code uses geometrically spaced
+   constants: distal levels are slower and the soma level equals
+   ``tau_base``. For a three-level population, ``tau_base: 20`` and
+   ``tau_ratio: 2`` produce ``[80, 40, 20]`` from distal to soma.
+
+``population.level_taus``
+   Optional explicit per-level taus for one population. The list length must
+   match the number of dendritic levels for that population.
+
+``connections[].timing``
+   ``same_step`` is the default and uses the current timestep source. These
+   edges must be directional/acyclic within a layer. ``delayed`` reads the
+   previous-timestep output of the source population and is the way to express
+   recurrent loops or delayed cross-layer feedback.
+
+``synapse_types.*.tau`` / ``tau_rise`` / ``tau_decay``
+   Optional receptor/conductance trace constants. These are separate from the
+   population dendritic taus: they filter the selected E/I current before it is
+   combined into the branch conductance.
+
+``dynamics_mode: spike`` and ``spike_tau``
+   Optional LIF soma dynamics. ``spike_tau`` controls the soma membrane/spike
+   trace, while the dendritic ``tau_*`` fields above still control dendritic
+   integration.
+
+See ``configs/examples/population_network_taus_and_delays.yaml`` for a compact
+configuration that uses all of these fields together.
 
 Component summary
 ~~~~~~~~~~~~~~~~~
@@ -1307,12 +1383,13 @@ Component summary
      - Config location
      - What it changes
    * - Named cell types
-     - ``population_graph.cell_types``
-     - Creates one recurrent dendritic population per named type, such as
-       ``pyr``, ``pv``, ``sst``, or ``vip``.
+     - ``population_network.layers[].populations``
+     - Creates one dendritic population per named type, such as ``pyr``,
+       ``pv``, ``sst``, or ``vip``.
    * - Source-target masks
-     - ``population_graph.connections``
-     - Adds pair-specific recurrent topology inside the grouped E/I streams.
+     - ``population_network.layers[].connections``
+     - Adds pair-specific same-step or delayed topology inside the grouped E/I
+       streams.
    * - Structured masks
      - ``connectivity.structured``
      - Adds hard allowed-connection masks to TopK, stochastic TopK, variance
@@ -1336,9 +1413,9 @@ Component summary
        ``SteppableRecurrentCore`` for one-step dendritic populations.
 
 This backend is intentionally separate from legacy ``EILayer`` so existing E/I
-configs and analysis assumptions remain untouched. The first implementation
-keeps recurrent inputs grouped by polarity for compatibility, while
-``connections`` adds pair-specific hard masks inside those grouped streams.
+configs and analysis assumptions remain untouched. The implementation keeps
+inputs grouped by polarity for compatibility, while ``connections`` adds
+pair-specific hard masks inside those grouped streams.
 
 Config-to-code map
 ~~~~~~~~~~~~~~~~~~
@@ -1350,13 +1427,12 @@ Config-to-code map
    * - Config path
      - Implementation
      - Notes
-   * - ``population_graph.cell_types``
-     - ``recurrent.population_graph.PopulationGraphNetwork``
+   * - ``population_network.layers[].populations``
+     - ``recurrent.population_network.PopulationNetwork``
      - Builds one ``StatefulDendriNet`` per named population.
-   * - ``population_graph.connections``
-     - ``PopulationGraphNetwork._build_recurrent_masks``
-     - Adds deterministic source-target masks inside grouped recurrent E/I
-       streams.
+   * - ``population_network.layers[].connections``
+     - ``PopulationLayer`` connection routing and masks
+     - Adds deterministic source-target masks inside grouped E/I streams.
    * - ``population_defaults.synapse_types`` or
        ``model.core.synapse_types``
      - ``recurrent.synapse_types.TypedSynapseBank``
@@ -1482,9 +1558,9 @@ Important fields on each synapse type:
              tau_decay: 150.0
              reversal_potential: -0.25
 
-For ``population_graph`` models, the same block can live in
-``population_defaults`` or inside an individual cell type's ``population``
-block, allowing different cell types to use different receptor mixtures.
+For ``population_network`` models, the same block can live in a layer's
+``population_defaults`` or inside an individual population's ``population``
+block, allowing different named populations to use different receptor mixtures.
 
 When ``enabled`` is false, the code uses the legacy trace path. When enabled,
 both ``excitatory`` and ``inhibitory`` lists must be configured explicitly, and
@@ -1538,17 +1614,21 @@ rate-valued recurrent dynamics.
 
    model:
      core:
-       type: population_graph
-       population_graph:
-         population_defaults:
-           dynamics_mode: spike
-           spike_threshold: 0.6
-           spike_reset: 0.0
-           spike_tau: 20.0
-           spike_refractory_steps: 2
-           spike_surrogate_beta: 10.0
-           spike_readout: rate       # spikes, rate, membrane
-           spike_readout_tau: 20.0
+       type: population_network
+       population_network:
+         layers:
+           - name: recurrent_layer
+             recurrent: true
+             readout_population: pyr
+             population_defaults:
+               dynamics_mode: spike
+               spike_threshold: 0.6
+               spike_reset: 0.0
+               spike_tau: 20.0
+               spike_refractory_steps: 2
+               spike_surrogate_beta: 10.0
+               spike_readout: rate       # spikes, rate, membrane
+               spike_readout_tau: 20.0
 
 For recurrent EINet-family configs translated from the structured core config,
 the same fields can be supplied under ``model.core.dynamics``:
@@ -1609,18 +1689,22 @@ soma spike and can enforce a local refractory counter.
 
    model:
      core:
-       type: population_graph
-       population_graph:
-         population_defaults:
-           dendritic_spikes_enabled: true
-           dendritic_spike_mode: plateau
-           dendritic_spike_levels: non_soma    # all dendritic levels, no soma
-           dendritic_spike_threshold: 0.7
-           dendritic_spike_plateau_amplitude: 1.0
-           dendritic_spike_plateau_tau: 20.0
-           dendritic_spike_refractory_steps: 5
-           dendritic_spike_surrogate_beta: 10.0
-           dendritic_spike_propagation: additive
+       type: population_network
+       population_network:
+         layers:
+           - name: recurrent_layer
+             recurrent: true
+             readout_population: pyr
+             population_defaults:
+               dendritic_spikes_enabled: true
+               dendritic_spike_mode: plateau
+               dendritic_spike_levels: non_soma    # all dendritic levels, no soma
+               dendritic_spike_threshold: 0.7
+               dendritic_spike_plateau_amplitude: 1.0
+               dendritic_spike_plateau_tau: 20.0
+               dendritic_spike_refractory_steps: 5
+               dendritic_spike_surrogate_beta: 10.0
+               dendritic_spike_propagation: additive
 
 ``dendritic_spike_levels`` accepts ``non_soma``/``all``, ``distal``,
 ``proximal``, ``none``, or a list of distal-to-soma non-soma level indices.  The
@@ -1656,17 +1740,21 @@ modulate dendrites on the next recurrent step.
 
    model:
      core:
-       type: population_graph
-       population_graph:
-         population_defaults:
-           soma_feedback_enabled: true
-           soma_feedback_mode: additive      # additive, shunting, gated
-           soma_feedback_source: output      # output, voltage, spike_readout
-           soma_feedback_levels: non_soma    # non_soma, all, distal, proximal, soma, none
-           soma_feedback_strength: 0.15
-           soma_feedback_learnable_strength: true
-           soma_feedback_per_level: true
-           soma_feedback_init_std: 0.01
+       type: population_network
+       population_network:
+         layers:
+           - name: recurrent_layer
+             recurrent: true
+             readout_population: pyr
+             population_defaults:
+               soma_feedback_enabled: true
+               soma_feedback_mode: additive      # additive, shunting, gated
+               soma_feedback_source: output      # output, voltage, spike_readout
+               soma_feedback_levels: non_soma    # non_soma, all, distal, proximal, soma, none
+               soma_feedback_strength: 0.15
+               soma_feedback_learnable_strength: true
+               soma_feedback_per_level: true
+               soma_feedback_init_std: 0.01
 
 For recurrent EINet-style configs translated through the factory, prefer the
 canonical ``model.core.soma_feedback`` block. The older
@@ -1905,7 +1993,7 @@ EINetworkConfig fields
 
 ``transfer_params``
    TransferLayer parameters (``input_mode``, ``independent_pathways``, etc.).
-   The first multi-population layer may reference the resulting streams as
+   The first population-network layer may reference the resulting streams as
    ``source: input_e`` and ``source: input_i``. ``source: input`` remains the
    compatibility stream and maps to the excitatory/projected stream when a
    transfer layer is enabled.

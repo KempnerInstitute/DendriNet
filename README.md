@@ -88,13 +88,15 @@ Start with:
 Feedforward dendritic cores:
 
 - `einet` / `dendritic_shunting` — shunting (divisive) inhibition
-- `dendritic_additive` — additive inhibition
-- `flat_shunting` / `flat_additive` — single-compartment variants
+- `dendritic_additive` — raw additive inhibition, `V = E - I`
+- `dendritic_normalized_additive` — additive inhibition with explicit voltage normalization
+- `flat_shunting` / `flat_additive` / `flat_normalized_additive` — single-compartment variants
 
 Recurrent dendritic cores:
 
 - `unified_ei` — hierarchical recurrent E-I with learnable time constants
 - `ei_unified` — equivalent canonical factory name
+- `rnn_dendritic_*` / `rnn_flat_*` — recurrent shunting, raw additive, and normalized-additive aliases
 
 Pretrained-replacement cores (vision):
 

@@ -24,7 +24,8 @@ Unified E-I:
 - `ei_unified`
 - `unified_ei`
 - recurrent-default aliases: `rnn_dendritic_shunting`, `rnn_dendritic_additive`,
-  `rnn_flat_shunting`, `rnn_flat_additive`
+  `rnn_dendritic_normalized_additive`, `rnn_flat_shunting`,
+  `rnn_flat_additive`, `rnn_flat_normalized_additive`
 
 Baseline recurrent models:
 
@@ -56,10 +57,12 @@ Unified E-I configuration lives under `model.core.unified_ei`.
   (`last`, `mean`, or `all`).
 - Structured EI defaults stay on the smoother positive transform (`softplus`);
   biology-facing recurrent runs can opt into `exp` explicitly when needed.
-- Recurrent additive aliases (`rnn_dendritic_additive`,
-  `rnn_flat_additive`) enable additive voltage normalization and use a fixed
-  reactivation gate (`m=1.0`, `b=0.0`) so normalized additive voltages keep
-  useful gate contrast without the non-leaf analytical-init saturation trap.
+- Recurrent additive aliases are explicit: `rnn_dendritic_additive` and
+  `rnn_flat_additive` are raw additive (`V = E - I`), while
+  `rnn_dendritic_normalized_additive` and `rnn_flat_normalized_additive` opt
+  into additive voltage normalization. These aliases do not inject a fixed
+  reactivation gate; use `reactivation_init_policy: occupancy_quantile` for a
+  data-calibrated operating point.
 - For paper-style recurrent runs, a common recipe is `weight_transform: exp`,
   `allow_self_recurrence: false`, and review of the post-build
   `init_gate_stats.json` artifact when using data-driven gate initialization.

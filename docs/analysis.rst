@@ -357,8 +357,8 @@ Each module follows the same ``enabled``/``training``/``params`` pattern.
    local recurrent I->E route, computes soma-vs-distal targeting indices per
    ``(I, E)`` pair and summarizes inhibitory neurons into targeting motifs such
    as ``mixed-conditional`` and ``context-specialist``. For named
-   ``population_graph`` cores, the analyzer reports the excitatory target
-   population key, such as ``population_graph/pyr``, and includes the
+   ``population_network`` cores, the analyzer reports the excitatory target
+   population key, such as ``population_network/microcircuit.pyr``, and includes the
    contributing inhibitory source populations.
 
    .. code-block:: yaml
@@ -391,8 +391,8 @@ Each module follows the same ``enabled``/``training``/``params`` pattern.
    Synthetic time-trace simulator that uses the trained per-level ``tau`` and
    reactivation parameters to illustrate how a learned dendritic cascade
    responds to a configurable input protocol. Legacy recurrent E/I layers keep
-   their historical ``layer_N`` keys; named population graphs report keys such
-   as ``population_graph/pyr``.
+   their historical ``layer_N`` keys; named population networks report keys such
+   as ``population_network/microcircuit.pyr``.
 
    .. code-block:: yaml
 

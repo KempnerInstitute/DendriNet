@@ -83,15 +83,15 @@ See :doc:`examples` for the full list.
      src/dendritic_modeling/scripts/training/train_experiments.py \
      configs/examples/alexnet_fc7_dendritic_500.yaml
 
-   # Named Pyr/PV/SST recurrent cell-type graph
+   # Named Pyr/PV/SST recurrent population network
    PYTHONPATH=src:$PYTHONPATH python \
      src/dendritic_modeling/scripts/training/train_experiments.py \
-     configs/examples/recurrent_population_graph_pyr_pv_sst.yaml
+     configs/examples/population_network_recurrent_pyr_pv_sst.yaml
 
    # Spiking soma with rate-decoded spike readout and spike-train analysis
    PYTHONPATH=src:$PYTHONPATH python \
      src/dendritic_modeling/scripts/training/train_experiments.py \
-     configs/examples/recurrent_spiking_population_graph.yaml
+     configs/examples/population_network_spiking.yaml
 
 Output structure
 ----------------

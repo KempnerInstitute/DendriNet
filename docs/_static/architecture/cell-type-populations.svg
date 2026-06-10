@@ -18,7 +18,7 @@
     <marker id="ci" markerWidth="12" markerHeight="12" refX="2" refY="5" orient="auto"><rect x="0" y="1" width="3.4" height="9" fill="#b0433a"/></marker>
   </defs>
 
-  <text class="title" x="40" y="42">Multi-population layer — distinct cell types (population_graph: Pyr / PV / SST)</text>
+  <text class="title" x="40" y="42">Population-network layer - distinct populations (Pyr / PV / SST)</text>
   <text class="subtitle" x="40" y="70">Each named population is a different cell type: its own polarity, dendritic morphology (branch_factors), dynamics, and targeting</text>
 
   <!-- PYR (excitatory, pyramidal, 2-layer dendrites) -->
@@ -81,5 +81,5 @@
   <text class="small" x="948" y="503">inhibitory projection</text>
   <line class="rec" x1="900" y1="526" x2="940" y2="526" marker-end="url(#ce)"/>
   <text class="small" x="948" y="531">recurrent (delayed)</text>
-  <text class="small" x="900" y="560">Per-cell-type overrides go in each cell_types[].population block.</text>
+  <text class="small" x="900" y="560">Per-population overrides go in each populations[].population block.</text>
 </svg>

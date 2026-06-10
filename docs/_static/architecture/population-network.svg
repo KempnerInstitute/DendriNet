@@ -20,7 +20,7 @@
     <marker id="aI" markerWidth="12" markerHeight="12" refX="2" refY="5" orient="auto"><rect x="0" y="1" width="3" height="9" fill="#b0433a"/></marker>
   </defs>
 
-  <text class="title" x="40" y="44">multi_population_ei — populations per layer · multilayer · recurrent routing</text>
+  <text class="title" x="40" y="44">population_network — populations per layer · multilayer · recurrent routing</text>
   <text class="subtitle" x="40" y="72">Named E/I populations within each layer; solid = same-step (acyclic DAG), dashed = delayed (previous timestep)</text>
 
   <!-- input -->
