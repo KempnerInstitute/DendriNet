@@ -6,41 +6,54 @@ from torch.utils.data import TensorDataset
 from dendritic_modeling.analysis.tools.spike_trains import SpikeTrainAnalyzer
 from dendritic_modeling.config.analysis import SpikeTrainAnalysisParams
 from dendritic_modeling.networks.architectures.recurrent import (
-    CellTypeConfig,
-    PopulationConnectionConfig,
-    PopulationGraphConfig,
-    PopulationGraphNetwork,
+    PopulationLayerConfig,
+    PopulationNetwork,
+    PopulationNetworkConfig,
+    PopulationProjectionConfig,
 )
 
 
-def _spiking_population_graph() -> PopulationGraphNetwork:
-    return PopulationGraphNetwork(
-        PopulationGraphConfig(
+def _spiking_population_network() -> PopulationNetwork:
+    return PopulationNetwork(
+        PopulationNetworkConfig(
             input_dim=3,
-            readout_population="pyr",
             output_mode="all",
-            cell_types=[
-                CellTypeConfig(
-                    name="pyr",
-                    polarity="excitatory",
-                    n_neurons=4,
-                    branch_factors=[1],
+            layers=[
+                PopulationLayerConfig(
+                    name="microcircuit",
+                    recurrent=True,
+                    readout_population="pyr",
+                    populations=[
+                        {
+                            "name": "pyr",
+                            "polarity": "excitatory",
+                            "n_neurons": 4,
+                            "branch_factors": [1],
+                        }
+                    ],
+                    population_defaults={
+                        "ff_excitatory_synapses": 1,
+                        "ff_inhibitory_synapses": 0,
+                        "rec_excitatory_synapses": 1,
+                        "rec_inhibitory_synapses": 0,
+                        "somatic_synapses": True,
+                        "reactivate": False,
+                        "dbl_init_method": "default",
+                        "dynamics_mode": "spike",
+                        "spike_threshold": -0.1,
+                        "spike_tau": 2.0,
+                        "spike_readout": "spikes",
+                    },
+                    connections=[
+                        PopulationProjectionConfig(source="input", target="pyr"),
+                        PopulationProjectionConfig(
+                            source="pyr",
+                            target="pyr",
+                            timing="delayed",
+                            probability=1.0,
+                        ),
+                    ],
                 )
-            ],
-            population_defaults={
-                "ff_excitatory_synapses": 1,
-                "ff_inhibitory_synapses": 0,
-                "rec_excitatory_synapses": 1,
-                "rec_inhibitory_synapses": 0,
-                "somatic_synapses": True,
-                "reactivate": False,
-                "dynamics_mode": "spike",
-                "spike_threshold": -0.1,
-                "spike_tau": 2.0,
-                "spike_readout": "spikes",
-            },
-            connections=[
-                PopulationConnectionConfig(source="pyr", target="pyr", probability=1.0)
             ],
         )
     )
@@ -48,7 +61,7 @@ def _spiking_population_graph() -> PopulationGraphNetwork:
 
 def test_spike_train_analyzer_reports_population_statistics():
     torch.manual_seed(0)
-    model = _spiking_population_graph()
+    model = _spiking_population_network()
     dataset = TensorDataset(torch.ones(5, 6, 3), torch.zeros(5, dtype=torch.long))
     analyzer = SpikeTrainAnalyzer(
         SpikeTrainAnalysisParams(max_samples=5, include_raster=True)

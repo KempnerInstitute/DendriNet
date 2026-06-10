@@ -27,7 +27,11 @@ _LEGACY_EI_TYPES = {
     "dendritic_mlp",
 }
 _POPULATION_NETWORK_TYPES = {"population_network"}
-_POPULATION_GRAPH_TYPES = {"population_graph"}
+_REMOVED_STRUCTURED_TYPES = {
+    "population_graph": "Use core.type: population_network with population_network.layers[].populations.",
+    "cell_type_graph": "Use core.type: population_network with population_network.layers[].populations.",
+    "cell_types": "Use core.type: population_network with population_network.layers[].populations.",
+}
 _EXTERNAL_POLARITIES = {
     "input": "excitatory",
     "input_e": "excitatory",
@@ -572,62 +576,6 @@ def _validate_population_network_core(core: Any, errors: list[str]) -> None:
         )
 
 
-def _validate_population_graph_core(core: Any, errors: list[str]) -> None:
-    config = to_plain_dict(_get(core, "population_graph", {}))
-    cell_types = [to_plain_dict(cell) for cell in config.get("cell_types", []) or []]
-    if not cell_types:
-        errors.append("population_graph.cell_types must contain at least one cell type")
-        return
-    names: set[str] = set()
-    has_excitatory = False
-    for idx, cell in enumerate(cell_types):
-        parsed = _validate_population_entry(
-            cell,
-            context=f"population_graph.cell_types[{idx}]",
-            errors=errors,
-        )
-        if parsed is None:
-            continue
-        name, polarity, _n_neurons = parsed
-        if name in names:
-            errors.append(f"duplicate population_graph cell type name {name!r}")
-        names.add(name)
-        has_excitatory = has_excitatory or polarity == "excitatory"
-    if not has_excitatory:
-        errors.append("population_graph requires an excitatory population")
-    readout = config.get("readout_population")
-    if readout is not None and str(readout) not in names:
-        errors.append(
-            f"population_graph.readout_population {readout!r} is not a cell type"
-        )
-
-    seen: set[tuple[str, str]] = set()
-    for idx, connection in enumerate(config.get("connections", []) or []):
-        payload = to_plain_dict(connection)
-        source = str(payload.get("source", ""))
-        target = str(payload.get("target", ""))
-        if source not in names:
-            errors.append(
-                f"population_graph.connections[{idx}].source {source!r} "
-                "is not a cell type"
-            )
-        if target not in names:
-            errors.append(
-                f"population_graph.connections[{idx}].target {target!r} "
-                "is not a cell type"
-            )
-        key = (source, target)
-        if key in seen:
-            errors.append(f"duplicate population_graph connection {source}->{target}")
-        seen.add(key)
-        probability = payload.get("probability", payload.get("p_connect"))
-        _validate_probability(
-            probability,
-            context=f"population_graph connection {source}->{target}",
-            errors=errors,
-        )
-
-
 def validate_loaded_config(config: Any) -> None:
     """Raise ``ConfigValidationError`` if a loaded config is structurally invalid."""
 
@@ -639,8 +587,11 @@ def validate_loaded_config(config: Any) -> None:
         _validate_legacy_ei_core(core, errors)
     elif core_type in _POPULATION_NETWORK_TYPES:
         _validate_population_network_core(core, errors)
-    elif core_type in _POPULATION_GRAPH_TYPES:
-        _validate_population_graph_core(core, errors)
+    elif core_type in _REMOVED_STRUCTURED_TYPES:
+        errors.append(
+            f"core.type {core_type!r} has been removed. "
+            f"{_REMOVED_STRUCTURED_TYPES[core_type]}"
+        )
 
     if errors:
         raise ConfigValidationError(errors)

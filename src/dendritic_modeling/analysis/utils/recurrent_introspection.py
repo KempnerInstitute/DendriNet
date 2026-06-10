@@ -1,7 +1,7 @@
 """Duck-typed introspection helpers for recurrent dendritic analysis.
 
 These utilities keep the analysis stack compatible with both the legacy
-``EINetwork``/``EILayer`` layout and named-population recurrent backends.
+``EINetwork``/``EILayer`` layout and the canonical population-network backend.
 They intentionally avoid importing concrete architecture classes so analyzers
 can use them on lightweight fakes in tests and on checkpoint-loaded modules.
 """
@@ -42,11 +42,11 @@ def _n_soma(population: Any) -> int:
     return 0
 
 
-def _population_graph_polarities(core: Any) -> dict[str, str]:
+def _population_network_polarities(layer: Any) -> dict[str, str]:
     polarities: dict[str, str] = {}
-    for cell in getattr(core, "cell_types", []) or []:
-        name = getattr(cell, "name", None)
-        polarity = getattr(cell, "polarity", None)
+    for population in getattr(layer, "population_definitions", []) or []:
+        name = getattr(population, "name", None)
+        polarity = getattr(population, "polarity", None)
         if name is not None and polarity is not None:
             polarities[str(name)] = str(polarity).lower()
     return polarities
@@ -58,7 +58,6 @@ def iter_recurrent_populations(core: Any) -> Iterator[PopulationRecord]:
     Supported layouts:
     - ``EINetwork.layers[i].e_population`` / ``i_population``
     - ``PopulationNetwork.layers[i].populations[name]``
-    - ``PopulationGraphNetwork.populations[name]``
 
     Unknown cores simply yield nothing.
     """
@@ -68,7 +67,7 @@ def iter_recurrent_populations(core: Any) -> Iterator[PopulationRecord]:
             named_populations = getattr(layer, "populations", None)
             if named_populations is not None:
                 layer_name = str(getattr(getattr(layer, "config", None), "name", idx))
-                polarities = _population_graph_polarities(layer)
+                polarities = _population_network_polarities(layer)
                 for name, population in named_populations.items():
                     name_str = str(name)
                     polarity = polarities.get(name_str, "excitatory")
@@ -102,20 +101,6 @@ def iter_recurrent_populations(core: Any) -> Iterator[PopulationRecord]:
                     layer_index=idx,
                     population_name="inhibitory",
                 )
-
-    populations = getattr(core, "populations", None)
-    if populations is not None:
-        polarities = _population_graph_polarities(core)
-        for name, population in populations.items():
-            polarity = polarities.get(str(name), "excitatory")
-            yield PopulationRecord(
-                key=f"population_graph/{name}",
-                population=population,
-                polarity=polarity,
-                n_neurons=_n_soma(population),
-                layer_index=None,
-                population_name=str(name),
-            )
 
 
 def recurrent_population_summary(core: Any) -> dict[str, dict[str, Any]]:

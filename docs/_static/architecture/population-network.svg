@@ -53,7 +53,7 @@
   </defs>
 
   <rect width="1500" height="860" fill="#ffffff"/>
-  <text class="title" x="46" y="52">population_network: one schema for feedforward and recurrent cell-type layers</text>
+  <text class="title" x="46" y="52">population_network: one schema for feedforward and recurrent population layers</text>
   <text class="subtitle" x="46" y="80">Populations define cell identity and dendritic morphology. Connections define explicit source-target routing, timing, probability masks, and cross-layer sources.</text>
 
   <rect class="input" x="46" y="230" width="136" height="78"/>

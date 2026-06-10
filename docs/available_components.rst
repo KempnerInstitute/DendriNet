@@ -206,11 +206,11 @@ Recurrent Extensions
    * - Component
      - Config keys
      - Notes
-   * - Named cell types
+   * - Named populations
      - ``model.core.population_network.layers[].populations``
      - Each entry defines ``name``, ``polarity``, ``n_neurons``, and
        ``branch_factors``.
-   * - Source-target cell-type masks
+   * - Source-target population masks
      - ``model.core.population_network.layers[].connections``
      - Optional ``source``, ``target``, ``enabled``, ``probability`` /
        ``p_connect``, and ``seed``.
@@ -375,7 +375,7 @@ dimension produced by ``TransferLayer``.
 
 Canonical examples cover the main cases:
 ``population_network_feedforward.yaml`` for the standard E/I layer,
-``population_network_heterogeneous_feedforward.yaml`` for multiple cell types
+``population_network_heterogeneous_feedforward.yaml`` for multiple populations
 with distinct morphologies in one feedforward layer,
 ``population_network_two_layer.yaml`` for explicit cross-layer routing,
 ``population_network_recurrent_pyr_pv_sst.yaml`` for delayed recurrent

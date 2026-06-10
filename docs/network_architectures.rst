@@ -1158,11 +1158,11 @@ Terminology and computation boundaries:
        applies source-target masks, chooses the readout population, and returns
        feedforward outputs or ``last``, ``mean``, or ``all`` sequence output.
    * - Named population
-     - ``CellTypeConfig``
+     - ``PopulationDefinitionConfig``
      - One named dendritic population inside a layer. It sets neuron count,
        polarity, morphology, and optional population-specific overrides.
    * - Population connection
-     - ``PopulationConnectionConfig``
+     - ``PopulationProjectionConfig``
      - A directed source-target rule between named populations. Same-step edges
        define feedforward/local layer flow; delayed edges define recurrent flow.
    * - Structured mask
@@ -1190,14 +1190,9 @@ populations. It supports feedforward stacks and recurrent layers with the same
 layers use delayed edges so every population reads previous-timestep recurrent
 state; same-step edges must form a directed acyclic graph within a layer, which
 keeps local E/I wiring explicit and prevents hidden algebraic loops.
-The older ``core.type: population_graph`` spelling remains accepted for
-backward compatibility, but it is lowered internally to a single recurrent
-``population_network`` layer. New configs should use ``population_network`` so
-feedforward stacks, recurrent microcircuits, spiking soma, synapse types, and
-soma feedback all use the same notation.
 
-.. figure:: _static/architecture/cell-type-populations.svg
-   :alt: Pyr/PV/SST population-network schematic where each population is a distinct cell type with its own morphology, dynamics, and targeting
+.. figure:: _static/architecture/population-network-populations.svg
+   :alt: Pyr/PV/SST population-network schematic where each population has its own morphology, dynamics, and targeting
    :width: 100%
 
    A population-network layer with three **distinct populations**. ``pyr`` is the
@@ -1290,7 +1285,7 @@ Each ``populations`` entry has:
    ``weight_transform``, or reactivation settings.
 
 Use the per-population ``population`` block to make each named population a
-genuinely distinct cell type — its own dendritic morphology, time constant, synapse counts,
+genuinely distinct population — its own dendritic morphology, time constant, synapse counts,
 and integration. For example, a pyramidal cell with rich dendrites and a slow
 time constant, a fast perisomatic PV interneuron, and a slower dendrite-targeting
 SST interneuron:
@@ -1329,10 +1324,10 @@ inherited; set the corresponding ``PopulationConfig`` fields directly in
 
 ``populations`` describes neuron populations, not receptor mechanisms. If two
 populations should share the same morphology but differ only in receptor
-kinetics, keep one cell type definition pattern and put different
+kinetics, keep one population definition pattern and put different
 ``synapse_types`` blocks in their ``population`` overrides. If two populations
 should differ in neuron count, polarity, morphology, recurrent sources, or
-analysis identity, define separate cell types.
+analysis identity, define separate populations.
 
 ``connections``
    List of directed source-target rules between named populations or from
@@ -1394,7 +1389,7 @@ Component summary
    * - Component
      - Config location
      - What it changes
-   * - Named cell types
+   * - Named populations
      - ``population_network.layers[].populations``
      - Creates one dendritic population per named type, such as ``pyr``,
        ``pv``, ``sst``, or ``vip``.
@@ -1493,7 +1488,7 @@ Definition levels:
    * - Level
      - Defines
      - Does not define
-   * - Cell type
+   * - Population
      - A neuron population: name, polarity, neuron count, morphology, and
        population-level integration parameters.
      - Receptor kinetics or the fraction of AMPA vs NMDA conductance.

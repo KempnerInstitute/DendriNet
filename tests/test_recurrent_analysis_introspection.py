@@ -24,50 +24,10 @@ from dendritic_modeling.config.analysis import (
 from dendritic_modeling.models import Classifier
 from dendritic_modeling.networks import Identity
 from dendritic_modeling.networks.architectures.recurrent import (
-    CellTypeConfig,
-    PopulationGraphConfig,
-    PopulationGraphNetwork,
     PopulationLayerConfig,
     PopulationNetwork,
     PopulationNetworkConfig,
 )
-
-
-def _population_graph():
-    return PopulationGraphNetwork(
-        PopulationGraphConfig(
-            input_dim=5,
-            readout_population="pyr",
-            output_mode="last",
-            population_defaults={
-                "ff_excitatory_synapses": 2,
-                "ff_inhibitory_synapses": 0,
-                "rec_excitatory_synapses": 1,
-                "rec_inhibitory_synapses": 1,
-                "somatic_synapses": True,
-                "reactivate": True,
-                "dbl_init_method": "default",
-                "weight_transform": "exp",
-                "dynamics_mode": "spike",
-                "spike_readout": "rate",
-                "spike_threshold": -0.1,
-            },
-            cell_types=[
-                CellTypeConfig(
-                    name="pyr",
-                    polarity="excitatory",
-                    n_neurons=4,
-                    branch_factors=[1],
-                ),
-                CellTypeConfig(
-                    name="pv",
-                    polarity="inhibitory",
-                    n_neurons=2,
-                    branch_factors=[1],
-                ),
-            ],
-        )
-    )
 
 
 def _population_network():
@@ -119,17 +79,6 @@ def _population_network():
     )
 
 
-def test_recurrent_population_summary_reports_new_components():
-    core = _population_graph()
-
-    summary = recurrent_population_summary(core)
-
-    assert summary["population_graph/pyr"]["polarity"] == "excitatory"
-    assert summary["population_graph/pyr"]["spiking_enabled"]
-    assert summary["population_graph/pyr"]["spike_readout"] == "rate"
-    assert summary["population_graph/pv"]["polarity"] == "inhibitory"
-
-
 def test_recurrent_population_summary_reports_population_network_components():
     core = _population_network()
 
@@ -140,8 +89,8 @@ def test_recurrent_population_summary_reports_population_network_components():
     assert summary["population_network/microcircuit.pv"]["polarity"] == "inhibitory"
 
 
-def test_routing_analyzer_collects_population_graph_entries():
-    core = _population_graph()
+def test_routing_analyzer_collects_population_network_entries():
+    core = _population_network()
     model = Classifier(
         encoder_network=Identity(input_dim=5),
         core_network=core,
@@ -153,13 +102,13 @@ def test_routing_analyzer_collects_population_graph_entries():
 
     results = RoutingAnalyzer().analyze(model, data, batch_size=3)
 
-    assert "pyr" in results
-    assert "pv" in results
-    assert results["pyr"]["n_levels"] == 2
+    assert "microcircuit/pyr" in results
+    assert "microcircuit/pv" in results
+    assert results["microcircuit/pyr"]["n_levels"] == 2
 
 
-def test_dendritic_timetraces_collects_population_graph_excitatory_population():
-    core = _population_graph()
+def test_dendritic_timetraces_collects_population_network_excitatory_population():
+    core = _population_network()
     model = Classifier(
         encoder_network=Identity(input_dim=5),
         core_network=core,
@@ -169,26 +118,9 @@ def test_dendritic_timetraces_collects_population_graph_excitatory_population():
 
     results = DendriticTimetracesAnalyzer(params).analyze(model)
 
-    assert "population_graph/pyr" in results["layers"]
-    assert results["layers"]["population_graph/pyr"]["n_levels"] == 2
-    assert "population_graph/pv" not in results["layers"]
-
-
-def test_inhibitory_specialization_collects_population_graph_target():
-    core = _population_graph()
-    model = Classifier(
-        encoder_network=Identity(input_dim=5),
-        core_network=core,
-        decoder_network=Identity(input_dim=4),
-    )
-    params = InhibitorySpecializationAnalysisParams(save_figures=False)
-
-    results = InhibitorySpecializationAnalyzer(params).analyze(model)
-
-    entry = results["layers"]["population_graph/pyr"]
-    assert entry["n_E"] == 4
-    assert entry["n_I"] == 2
-    assert entry["source_populations"] == ["pv"]
+    assert "population_network/microcircuit.pyr" in results["layers"]
+    assert results["layers"]["population_network/microcircuit.pyr"]["n_levels"] == 2
+    assert "population_network/microcircuit.pv" not in results["layers"]
 
 
 def test_inhibitory_specialization_collects_population_network_target():
@@ -208,8 +140,8 @@ def test_inhibitory_specialization_collects_population_network_target():
     assert entry["source_populations"] == ["pv"]
 
 
-def test_synaptic_activation_supports_population_graph_topk_hooks():
-    core = _population_graph()
+def test_synaptic_activation_supports_population_network_topk_hooks():
+    core = _population_network()
     dataset = TensorDataset(torch.ones(4, 5, 5), torch.zeros(4, dtype=torch.long))
     analyzer = SynapticActivationAnalyzer(
         SynapticActivationAnalysisParams(raw_summary=False, downsample=False)

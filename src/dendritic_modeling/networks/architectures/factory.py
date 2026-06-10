@@ -111,10 +111,6 @@ _BASELINE_RNN_TYPES: dict[str, str] = {
     "rnn": "vanilla",
 }
 
-_POPULATION_GRAPH_TYPES: set[str] = {
-    "population_graph",
-}
-
 _POPULATION_NETWORK_TYPES: set[str] = {
     "population_network",
 }
@@ -123,7 +119,6 @@ _BUILTIN_ARCHITECTURE_TYPES: frozenset[str] = frozenset(
     set(_EINET_TYPES)
     | set(_UNIFIED_EI_TYPES)
     | set(_BASELINE_RNN_TYPES)
-    | set(_POPULATION_GRAPH_TYPES)
     | set(_POPULATION_NETWORK_TYPES)
     | set(_SPATIAL_DENDRITIC_TYPES)
     | set(_SPATIAL_DENDRITIC_CONV_TYPES)
@@ -988,33 +983,6 @@ def get_architecture(
         baseline_cfg["cell_type"] = _BASELINE_RNN_TYPES[type]
         baseline_cfg["input_dim"] = input_dim
         return BaselineRNN(BaselineRNNConfig(**baseline_cfg))
-
-    # ------------------------------------------------------------------
-    # Named cell-type / population-graph recurrent core
-    # ------------------------------------------------------------------
-    if type in _POPULATION_GRAPH_TYPES:
-        from dendritic_modeling.networks.architectures.recurrent import (
-            CellTypeConfig,
-            PopulationGraphConfig,
-            PopulationGraphNetwork,
-        )
-
-        if input_dim is None:
-            raise ValueError(
-                f"input_dim required when creating population graph (type='{type}')"
-            )
-
-        raw_params = _to_plain_mapping(parameters)
-        graph_cfg = raw_params.get("population_graph", raw_params)
-        if not isinstance(graph_cfg, dict):
-            graph_cfg = {}
-        graph_cfg = dict(graph_cfg)
-        graph_cfg["input_dim"] = input_dim
-        graph_cfg["cell_types"] = [
-            cell if isinstance(cell, CellTypeConfig) else CellTypeConfig(**cell)
-            for cell in graph_cfg.get("cell_types", [])
-        ]
-        return PopulationGraphNetwork(PopulationGraphConfig(**graph_cfg))
 
     # ------------------------------------------------------------------
     # Canonical population-network layers with directional same-step edges

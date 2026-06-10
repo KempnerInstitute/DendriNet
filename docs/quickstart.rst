@@ -58,7 +58,7 @@ Example model runs
 ------------------
 
 The repository includes legacy-compatible vision examples, population-network
-mirrors, and recurrent examples for the extended cell-type, synapse-type,
+mirrors, and recurrent examples for the extended population, synapse-type,
 connectivity, and spiking features. See :doc:`examples` for the full list.
 
 .. code-block:: bash

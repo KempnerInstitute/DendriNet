@@ -16,8 +16,8 @@ from dendritic_modeling.networks.architectures.recurrent.ei_config import (
 
 
 @dataclass
-class CellTypeConfig(BaseConfig):
-    """Configuration for one named cell type/population."""
+class PopulationDefinitionConfig(BaseConfig):
+    """Configuration for one named population in a population-network layer."""
 
     name: str = "pyr"
     polarity: str = "excitatory"  # excitatory | inhibitory
@@ -28,7 +28,7 @@ class CellTypeConfig(BaseConfig):
     def __post_init__(self) -> None:
         self.name = str(self.name)
         if not self.name:
-            raise ValueError("cell type name must be non-empty")
+            raise ValueError("population name must be non-empty")
         self.polarity = str(self.polarity).lower()
         if self.polarity not in {"excitatory", "inhibitory"}:
             raise ValueError(
@@ -40,20 +40,20 @@ class CellTypeConfig(BaseConfig):
             raise ValueError("branch_factors must be non-empty")
 
 
-def as_cell_type_config(
-    cell_type: CellTypeConfig | dict[str, Any],
+def as_population_definition_config(
+    population: PopulationDefinitionConfig | dict[str, Any],
     *,
     field_name: str = "populations",
-) -> CellTypeConfig:
-    """Coerce a population/cell-type payload into ``CellTypeConfig``."""
+) -> PopulationDefinitionConfig:
+    """Coerce a population payload into ``PopulationDefinitionConfig``."""
 
-    if isinstance(cell_type, CellTypeConfig):
-        return cell_type
-    if isinstance(cell_type, dict):
-        return CellTypeConfig(**cell_type)
+    if isinstance(population, PopulationDefinitionConfig):
+        return population
+    if isinstance(population, dict):
+        return PopulationDefinitionConfig(**population)
     raise TypeError(
-        f"{field_name} entries must be CellTypeConfig or dict, "
-        f"got {type(cell_type).__name__}"
+        f"{field_name} entries must be PopulationDefinitionConfig or dict, "
+        f"got {type(population).__name__}"
     )
 
 
@@ -67,17 +67,17 @@ def population_level_dims(n_soma: int, branch_factors: list[int]) -> list[int]:
     return sizes
 
 
-def population_config_from_cell(
-    cell: CellTypeConfig,
+def population_config_from_definition(
+    population: PopulationDefinitionConfig,
     defaults: dict[str, Any],
     *,
     layer_idx: int,
 ) -> PopulationConfig:
-    """Merge layer defaults with a cell override and build ``PopulationConfig``."""
+    """Merge layer defaults with a population override and build config."""
 
-    payload = deep_merge_dicts(defaults, dict(cell.population))
-    payload["n_neurons"] = int(cell.n_neurons)
-    payload["branch_factors"] = list(cell.branch_factors)
+    payload = deep_merge_dicts(defaults, dict(population.population))
+    payload["n_neurons"] = int(population.n_neurons)
+    payload["branch_factors"] = list(population.branch_factors)
     payload.setdefault("structured_layer_idx", layer_idx)
     return PopulationConfig(**payload)
 
@@ -94,9 +94,9 @@ def population_requires_temporal_state(pop_config: PopulationConfig) -> bool:
 
 
 __all__ = [
-    "CellTypeConfig",
-    "as_cell_type_config",
-    "population_config_from_cell",
+    "PopulationDefinitionConfig",
+    "as_population_definition_config",
+    "population_config_from_definition",
     "population_level_dims",
     "population_requires_temporal_state",
 ]

@@ -281,8 +281,6 @@ class CoreConfig(BaseConfig):
     recurrent_ei: dict[str, Any] = field(default_factory=dict)
     # Optional config payload for baseline recurrent cores (gru/lstm/vanilla_rnn).
     baseline_rnn: dict[str, Any] = field(default_factory=dict)
-    # Optional config payload for named cell-type / population-graph recurrent cores.
-    population_graph: dict[str, Any] = field(default_factory=dict)
     # Canonical population/layer/connection schema for feedforward or recurrent
     # named-population dendritic networks.
     population_network: dict[str, Any] = field(default_factory=dict)

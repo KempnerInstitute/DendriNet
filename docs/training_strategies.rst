@@ -309,7 +309,7 @@ The local learning recorder now captures all TopK pathways on a
 
    * - Component
      - Local-learning behavior
-   * - Cell types / population graph
+   * - Population network
      - Branch-local rules operate on each population's dendritic branch layers.
        Named populations are compatible as long as they use the shared
        ``DendriticBranchLayer`` / ``TopKLinear`` modules.

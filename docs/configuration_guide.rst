@@ -140,7 +140,7 @@ runs easier to compare.
      - Rationale
    * - Architecture notation
      - ``model.core.type: population_network``
-     - One schema covers original E/I layers, heterogeneous cell types,
+     - One schema covers original E/I layers, heterogeneous populations,
        multilayer feedforward routing, delayed recurrent edges, spiking, typed
        synapses, and feedback.
    * - Shunting vs additive
@@ -680,10 +680,10 @@ The recurrent extensions use a few related terms that are easy to mix up:
      - ``model.core.connectivity.structured``
      - A lower-level TopK/DeepST mask on E/I pathways such as ``ee``,
        ``ie``, and ``rec_ee``. It controls which presynaptic units are
-       eligible for sparse synapses, independent of biological cell-type
+       eligible for sparse synapses, independent of biological population
        names.
    * - Synapse type
-     - ``synapse_types`` inside ``population_defaults``, a cell type's
+     - ``synapse_types`` inside ``population_defaults``, a population's
        ``population`` block, or ``model.core.synapse_types``
      - A conductance/receptor subtype within an excitatory or inhibitory
        stream, such as ``AMPA``, ``NMDA``, ``GABA_A``, or a custom continuous
@@ -694,7 +694,7 @@ The recurrent extensions use a few related terms that are easy to mix up:
      - The output rule for each dendritic population. ``rate`` is legacy;
        ``spike`` routes the soma through a LIF module.
 
-In short: cell types define **who the neurons are**, population connections
+In short: populations define **who the neurons are**, population connections
 define **who can talk to whom**, structured connectivity defines **which
 individual synapse slots are allowed**, synapse types define **how a signal is
 filtered and driven once it arrives**, and soma dynamics define **how the

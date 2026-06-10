@@ -34,7 +34,7 @@ Start here:
    * - Run the original E/I MNIST model
      - :doc:`quickstart`
      - ``configs/examples/standard_mnist.yaml``
-   * - Write new feedforward or recurrent cell-type models
+   * - Write new feedforward or recurrent population models
      - :doc:`network_architectures`
      - ``configs/examples/population_network_feedforward.yaml``
    * - Compare old E/I configs to the canonical population schema
@@ -52,7 +52,7 @@ Start here:
 
 For new architecture work, prefer ``model.core.type: population_network``. It
 is the single notation for feedforward stacks, recurrent microcircuits, named
-E/I cell types, per-population morphologies, typed synapses, spiking soma, and
+E/I populations, per-population morphologies, typed synapses, spiking soma, and
 soma-to-dendrite feedback. Older E/I aliases remain supported so published and
 in-progress runs can still be reproduced.
 

@@ -11,7 +11,6 @@ from dendritic_modeling.config.conversion import (
 )
 
 _BASELINE_RNN_TYPES = {"gru", "lstm", "vanilla_rnn", "rnn"}
-_POPULATION_GRAPH_TYPES = {"population_graph"}
 _POPULATION_NETWORK_TYPES = {
     "population_network",
 }
@@ -181,42 +180,6 @@ def _population_has_temporal_state(population: dict[str, Any]) -> bool:
     return False
 
 
-def _population_graph_requires_recurrent_wrapper(core_cfg: Any) -> bool:
-    graph = to_plain_dict(_get_value(core_cfg, "population_graph", {}))
-    if not graph:
-        graph = to_plain_dict(core_cfg)
-
-    output_mode = str(graph.get("output_mode", "last")).lower()
-    if output_mode in {"all", "mean"}:
-        return True
-
-    def _has_rec_synapses(population: dict[str, Any]) -> bool:
-        return any(
-            _is_positive(population.get(key, 0))
-            for key in (
-                "rec_excitatory_synapses",
-                "rec_inhibitory_synapses",
-                "rec_excitatory_synapses_by_level",
-                "rec_inhibitory_synapses_by_level",
-            )
-        )
-
-    defaults = to_plain_dict(graph.get("population_defaults", {}))
-    cell_types = graph.get("cell_types", []) or []
-    if not cell_types:
-        return _has_rec_synapses(defaults) or _population_has_temporal_state(defaults)
-
-    for cell in cell_types:
-        cell_payload = to_plain_dict(cell)
-        population = deep_merge_dicts(
-            defaults,
-            to_plain_dict(cell_payload.get("population", {})),
-        )
-        if _has_rec_synapses(population) or _population_has_temporal_state(population):
-            return True
-    return False
-
-
 def _population_network_requires_recurrent_wrapper(core_cfg: Any) -> bool:
     mp = to_plain_dict(_get_value(core_cfg, "population_network", {}))
     if not mp:
@@ -251,8 +214,6 @@ def is_recurrent_core_config(core_cfg: Any) -> bool:
     core_type = _core_type(core_cfg)
     if core_type in _BASELINE_RNN_TYPES:
         return True
-    if core_type in _POPULATION_GRAPH_TYPES:
-        return _population_graph_requires_recurrent_wrapper(core_cfg)
     if core_type in _POPULATION_NETWORK_TYPES:
         return _population_network_requires_recurrent_wrapper(core_cfg)
     if core_type in _UNIFIED_EI_TYPES:

@@ -21,14 +21,8 @@ from dendritic_modeling.networks.architectures.recurrent.ei_state import (
     DendriNetState,
     EIState,
 )
-from dendritic_modeling.networks.architectures.recurrent.population_graph import (
-    CellTypeConfig,
-    PopulationConnectionConfig,
-    PopulationGraphConfig,
-    PopulationGraphNetwork,
-    PopulationGraphState,
-)
 from dendritic_modeling.networks.architectures.recurrent.population_network import (
+    PopulationDefinitionConfig,
     PopulationLayer,
     PopulationLayerConfig,
     PopulationLayerState,
@@ -57,7 +51,6 @@ from dendritic_modeling.networks.architectures.recurrent.synapse_types import (
 __all__ = [
     "BaselineRNN",
     "BaselineRNNConfig",
-    "CellTypeConfig",
     "DendriNetState",
     "EILayer",
     "EILayerConfig",
@@ -66,10 +59,7 @@ __all__ = [
     "EIState",
     "LIFSoma",
     "PopulationConfig",
-    "PopulationConnectionConfig",
-    "PopulationGraphConfig",
-    "PopulationGraphNetwork",
-    "PopulationGraphState",
+    "PopulationDefinitionConfig",
     "PopulationLayer",
     "PopulationLayerConfig",
     "PopulationLayerState",

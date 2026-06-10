@@ -181,7 +181,6 @@ def test_core_config_asdict_keys():
         "unified_ei",
         "recurrent_ei",
         "baseline_rnn",
-        "population_graph",
         "population_network",
     }
     assert expected_keys == set(d.keys())

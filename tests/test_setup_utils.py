@@ -312,37 +312,50 @@ def test_initialize_model_rejects_transformer_replacement_with_runner_hint() -> 
         initialize_model(cfg_model)
 
 
-def test_initialize_model_accepts_population_graph_recurrent_core() -> None:
+def test_initialize_model_accepts_population_network_recurrent_core() -> None:
     cfg_model = OmegaConf.create(
         {
             "task": "classification",
             "encoder": {"type": "identity", "params": {"input_dim": 5}},
             "core": {
-                "type": "population_graph",
-                "population_graph": {
-                    "readout_population": "pyr",
+                "type": "population_network",
+                "population_network": {
                     "output_mode": "last",
-                    "population_defaults": {
-                        "ff_excitatory_synapses": 2,
-                        "rec_excitatory_synapses": 1,
-                        "rec_inhibitory_synapses": 1,
-                        "somatic_synapses": True,
-                        "reactivate": False,
-                        "dbl_init_method": "default",
-                    },
-                    "cell_types": [
+                    "layers": [
                         {
-                            "name": "pyr",
-                            "polarity": "excitatory",
-                            "n_neurons": 4,
-                            "branch_factors": [1],
-                        },
-                        {
-                            "name": "pv",
-                            "polarity": "inhibitory",
-                            "n_neurons": 2,
-                            "branch_factors": [1],
-                        },
+                            "name": "microcircuit",
+                            "recurrent": True,
+                            "readout_population": "pyr",
+                            "population_defaults": {
+                                "ff_excitatory_synapses": 2,
+                                "ff_inhibitory_synapses": 0,
+                                "rec_excitatory_synapses": 1,
+                                "rec_inhibitory_synapses": 1,
+                                "somatic_synapses": True,
+                                "reactivate": False,
+                                "dbl_init_method": "default",
+                            },
+                            "populations": [
+                                {
+                                    "name": "pyr",
+                                    "polarity": "excitatory",
+                                    "n_neurons": 4,
+                                    "branch_factors": [1],
+                                },
+                                {
+                                    "name": "pv",
+                                    "polarity": "inhibitory",
+                                    "n_neurons": 2,
+                                    "branch_factors": [1],
+                                },
+                            ],
+                            "connections": [
+                                {"source": "input", "target": "pyr"},
+                                {"source": "input", "target": "pv"},
+                                {"source": "pyr", "target": "pyr", "timing": "delayed"},
+                                {"source": "pv", "target": "pyr", "timing": "delayed"},
+                            ],
+                        }
                     ],
                 },
             },
@@ -360,32 +373,38 @@ def test_initialize_model_accepts_population_graph_recurrent_core() -> None:
     assert model._is_recurrent_core
 
 
-def test_initialize_model_accepts_population_graph_feedforward_core() -> None:
+def test_initialize_model_accepts_population_network_feedforward_core() -> None:
     cfg_model = OmegaConf.create(
         {
             "task": "classification",
             "encoder": {"type": "identity", "params": {"input_dim": 5}},
             "core": {
-                "type": "population_graph",
-                "population_graph": {
-                    "readout_population": "pyr",
+                "type": "population_network",
+                "population_network": {
                     "output_mode": "last",
-                    "population_defaults": {
-                        "ff_excitatory_synapses": 2,
-                        "ff_inhibitory_synapses": 0,
-                        "rec_excitatory_synapses": 0,
-                        "rec_inhibitory_synapses": 0,
-                        "somatic_synapses": True,
-                        "reactivate": False,
-                        "dbl_init_method": "default",
-                    },
-                    "cell_types": [
+                    "layers": [
                         {
-                            "name": "pyr",
-                            "polarity": "excitatory",
-                            "n_neurons": 4,
-                            "branch_factors": [1],
-                        },
+                            "name": "microcircuit",
+                            "readout_population": "pyr",
+                            "population_defaults": {
+                                "ff_excitatory_synapses": 2,
+                                "ff_inhibitory_synapses": 0,
+                                "rec_excitatory_synapses": 0,
+                                "rec_inhibitory_synapses": 0,
+                                "somatic_synapses": True,
+                                "reactivate": False,
+                                "dbl_init_method": "default",
+                            },
+                            "populations": [
+                                {
+                                    "name": "pyr",
+                                    "polarity": "excitatory",
+                                    "n_neurons": 4,
+                                    "branch_factors": [1],
+                                },
+                            ],
+                            "connections": [{"source": "input", "target": "pyr"}],
+                        }
                     ],
                 },
             },
@@ -533,30 +552,6 @@ def test_initialize_model_typed_soma_feedback_core_uses_recurrent_wrapper() -> N
     assert model._is_recurrent_core
 
 
-def test_population_graph_soma_feedback_core_requires_recurrent_wrapper() -> None:
-    core = CoreConfig(
-        type="population_graph",
-        population_graph={
-            "output_mode": "last",
-            "population_defaults": {
-                "ff_excitatory_synapses": 1,
-                "soma_feedback_enabled": True,
-                "soma_feedback_levels": "distal",
-            },
-            "cell_types": [
-                {
-                    "name": "pyr",
-                    "polarity": "excitatory",
-                    "n_neurons": 4,
-                    "branch_factors": [1],
-                }
-            ],
-        },
-    )
-
-    assert _is_recurrent_core_config(core) is True
-
-
 def _temporal_population_feature_cases() -> list[dict]:
     return [
         {"dynamics_mode": "spike", "spike_readout": "rate"},
@@ -649,37 +644,6 @@ def test_population_network_temporal_features_use_recurrent_wrapper(
     logits = model(torch.rand(3, 4, 5))
     assert logits.shape == (3, 2)
     assert torch.isfinite(logits).all()
-
-
-@pytest.mark.parametrize("population_overrides", _temporal_population_feature_cases())
-def test_population_graph_temporal_features_require_recurrent_wrapper(
-    population_overrides: dict,
-) -> None:
-    core = CoreConfig(
-        type="population_graph",
-        population_graph={
-            "output_mode": "last",
-            "population_defaults": {
-                "ff_excitatory_synapses": 2,
-                "rec_excitatory_synapses": 0,
-                "rec_inhibitory_synapses": 0,
-                "use_shunting": True,
-                **population_overrides,
-            },
-            "cell_types": [
-                {
-                    "name": "pyr",
-                    "polarity": "excitatory",
-                    "n_neurons": 4,
-                    "branch_factors": [1],
-                }
-            ],
-        },
-    )
-
-    assert _is_recurrent_core_config(core) is True
-    net = get_architecture(core.type, core, input_dim=5)
-    assert net.is_recurrent is True
 
 
 def test_pathway_router_fixed_and_learned_modes() -> None:

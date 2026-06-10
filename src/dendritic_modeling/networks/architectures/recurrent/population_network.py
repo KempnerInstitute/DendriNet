@@ -20,9 +20,9 @@ from dendritic_modeling.networks.architectures.recurrent.ei_config import (
 )
 from dendritic_modeling.networks.architectures.recurrent.ei_state import DendriNetState
 from dendritic_modeling.networks.architectures.recurrent.population_common import (
-    CellTypeConfig,
-    as_cell_type_config as _as_cell_type_config,
-    population_config_from_cell as _population_config_from_cell,
+    PopulationDefinitionConfig,
+    as_population_definition_config as _as_population_definition_config,
+    population_config_from_definition as _population_config_from_definition,
     population_level_dims as _population_level_dims,
     population_requires_temporal_state as _population_requires_temporal_state,
 )
@@ -92,7 +92,9 @@ class PopulationLayerConfig(BaseConfig):
     """One layer containing multiple named dendritic populations."""
 
     name: str = "layer0"
-    populations: list[CellTypeConfig | dict[str, Any]] = field(default_factory=list)
+    populations: list[PopulationDefinitionConfig | dict[str, Any]] = field(
+        default_factory=list
+    )
     connections: list[PopulationProjectionConfig | dict[str, Any]] = field(
         default_factory=list
     )
@@ -241,17 +243,29 @@ class PopulationLayer(nn.Module):
         self._last_routing_info: dict[str, dict] = {}
         self._last_outputs: dict[str, torch.Tensor] = {}
 
-        self.cell_types = [_as_cell_type_config(cell) for cell in config.populations]
-        names = [cell.name for cell in self.cell_types]
+        self.population_definitions = [
+            _as_population_definition_config(population)
+            for population in config.populations
+        ]
+        names = [population.name for population in self.population_definitions]
         if len(set(names)) != len(names):
             raise ValueError(f"population names must be unique per layer, got {names}")
-        self._cell_by_name = {cell.name: cell for cell in self.cell_types}
-        self._cell_dims = {cell.name: int(cell.n_neurons) for cell in self.cell_types}
+        self._population_by_name = {
+            population.name: population for population in self.population_definitions
+        }
+        self._population_dims = {
+            population.name: int(population.n_neurons)
+            for population in self.population_definitions
+        }
         self.excitatory_names = [
-            cell.name for cell in self.cell_types if cell.polarity == "excitatory"
+            population.name
+            for population in self.population_definitions
+            if population.polarity == "excitatory"
         ]
         self.inhibitory_names = [
-            cell.name for cell in self.cell_types if cell.polarity == "inhibitory"
+            population.name
+            for population in self.population_definitions
+            if population.polarity == "inhibitory"
         ]
         if not self.excitatory_names:
             raise ValueError(
@@ -259,7 +273,7 @@ class PopulationLayer(nn.Module):
             )
 
         self.readout_population = config.readout_population or self.excitatory_names[0]
-        if self.readout_population not in self._cell_by_name:
+        if self.readout_population not in self._population_by_name:
             raise ValueError(
                 f"readout_population {self.readout_population!r} is not a population"
             )
@@ -283,33 +297,41 @@ class PopulationLayer(nn.Module):
             self._connection_by_target_pathway_source[
                 (conn.target, conn.timing, conn.pathway, conn.source)
             ] = conn
-        for cell in self.cell_types:
-            if not self._stream_sources(cell.name, _SAME_STEP, _FF_EXC):
+        for population in self.population_definitions:
+            if not self._stream_sources(population.name, _SAME_STEP, _FF_EXC):
                 raise ValueError(
-                    f"population {cell.name!r} has no same-step ff_excitatory input"
+                    f"population {population.name!r} has no same-step ff_excitatory input"
                 )
 
         self.population_configs: dict[str, PopulationConfig] = {}
         self.populations = nn.ModuleDict()
         self._has_temporal_population_state = False
         defaults = dict(config.population_defaults)
-        for idx, cell in enumerate(self.cell_types):
-            pop_cfg = _population_config_from_cell(cell, defaults, layer_idx=idx)
-            self.population_configs[cell.name] = pop_cfg
+        for idx, population in enumerate(self.population_definitions):
+            pop_cfg = _population_config_from_definition(
+                population, defaults, layer_idx=idx
+            )
+            self.population_configs[population.name] = pop_cfg
             self._has_temporal_population_state = (
                 self._has_temporal_population_state
                 or _population_requires_temporal_state(pop_cfg)
             )
-            connection_masks = self._build_connection_masks_for_cell(cell, pop_cfg)
-            self.populations[cell.name] = StatefulDendriNet(
+            connection_masks = self._build_connection_masks_for_population(
+                population, pop_cfg
+            )
+            self.populations[population.name] = StatefulDendriNet(
                 pop_config=pop_cfg,
-                excitatory_input_dim=self._stream_dim(cell.name, _SAME_STEP, _FF_EXC),
-                inhibitory_input_dim=self._stream_dim(cell.name, _SAME_STEP, _FF_INH),
+                excitatory_input_dim=self._stream_dim(
+                    population.name, _SAME_STEP, _FF_EXC
+                ),
+                inhibitory_input_dim=self._stream_dim(
+                    population.name, _SAME_STEP, _FF_INH
+                ),
                 recurrent_excitatory_input_dim=self._stream_dim(
-                    cell.name, _DELAYED, _REC_EXC
+                    population.name, _DELAYED, _REC_EXC
                 ),
                 recurrent_inhibitory_input_dim=self._stream_dim(
-                    cell.name, _DELAYED, _REC_INH
+                    population.name, _DELAYED, _REC_INH
                 ),
                 recurrent_excitatory_is_self_population=False,
                 recurrent_inhibitory_is_self_population=False,
@@ -317,7 +339,7 @@ class PopulationLayer(nn.Module):
                 dt=config.dt,
             )
 
-        self.output_dim = self._cell_dims[self.readout_population]
+        self.output_dim = self._population_dims[self.readout_population]
         self._is_recurrent = (
             self.recurrent
             or self._has_temporal_population_state
@@ -344,9 +366,9 @@ class PopulationLayer(nn.Module):
     ) -> PopulationProjectionConfig:
         source = _canonical_external_source(conn.source) or conn.source
         source_is_external = source in self.external_input_dims
-        if not source_is_external and source not in self._cell_by_name:
+        if not source_is_external and source not in self._population_by_name:
             raise ValueError(f"connection source {source!r} is not a population")
-        if conn.target not in self._cell_by_name:
+        if conn.target not in self._population_by_name:
             raise ValueError(f"connection target {conn.target!r} is not a population")
         if source in _EXTERNAL_INPUT_SOURCES and conn.timing == _DELAYED:
             raise ValueError(
@@ -393,8 +415,8 @@ class PopulationLayer(nn.Module):
                 )
 
     def _topological_same_step_order(self) -> list[str]:
-        incoming = dict.fromkeys(self._cell_by_name, 0)
-        outgoing = {name: [] for name in self._cell_by_name}
+        incoming = dict.fromkeys(self._population_by_name, 0)
+        outgoing = {name: [] for name in self._population_by_name}
         for conn in self.connections:
             if not conn.enabled or conn.timing != _SAME_STEP:
                 continue
@@ -403,7 +425,7 @@ class PopulationLayer(nn.Module):
             outgoing[conn.source].append(conn.target)
             incoming[conn.target] += 1
 
-        queue = [name for name in self._cell_by_name if incoming[name] == 0]
+        queue = [name for name in self._population_by_name if incoming[name] == 0]
         order = []
         while queue:
             name = queue.pop(0)
@@ -413,7 +435,7 @@ class PopulationLayer(nn.Module):
                 if incoming[target] == 0:
                     queue.append(target)
 
-        if len(order) != len(self._cell_by_name):
+        if len(order) != len(self._population_by_name):
             cyclic = [name for name, degree in incoming.items() if degree > 0]
             raise ValueError(
                 "Same-step within-layer population connections must be acyclic; "
@@ -424,12 +446,12 @@ class PopulationLayer(nn.Module):
     def _source_dim(self, source: str) -> int:
         if source in self.external_input_dims:
             return self.external_input_dims[source]
-        return self._cell_dims[source]
+        return self._population_dims[source]
 
     def _source_polarity(self, source: str) -> str:
         if source in self.external_input_dims:
             return self.external_source_polarities.get(source, "excitatory")
-        return self._cell_by_name[source].polarity
+        return self._population_by_name[source].polarity
 
     def _normalize_external_input_dims(
         self,
@@ -527,12 +549,12 @@ class PopulationLayer(nn.Module):
             return None
         return sum(self._source_dim(source) for source in sources)
 
-    def _level_dims(self, cell: CellTypeConfig) -> list[int]:
-        return _population_level_dims(cell.n_neurons, cell.branch_factors)
+    def _level_dims(self, population: PopulationDefinitionConfig) -> list[int]:
+        return _population_level_dims(population.n_neurons, population.branch_factors)
 
-    def _build_connection_masks_for_cell(
+    def _build_connection_masks_for_population(
         self,
-        cell: CellTypeConfig,
+        population: PopulationDefinitionConfig,
         pop_cfg: PopulationConfig,
     ) -> dict[str, list[torch.Tensor]]:
         masks_by_pathway = {}
@@ -543,10 +565,10 @@ class PopulationLayer(nn.Module):
             (_DELAYED, _REC_INH, pop_cfg.rec_inhibitory_pathway),
         ):
             masks = self._build_masks_for_stream(
-                target=cell.name,
+                target=population.name,
                 timing=timing,
                 pathway=pathway,
-                level_dims=self._level_dims(cell),
+                level_dims=self._level_dims(population),
             )
             if masks is not None:
                 masks_by_pathway[pop_pathway] = masks
@@ -677,7 +699,7 @@ class PopulationLayer(nn.Module):
         outputs = {
             name: torch.zeros(
                 batch_size,
-                self._cell_dims[name],
+                self._population_dims[name],
                 device=device,
                 dtype=dtype,
             )
@@ -1005,21 +1027,25 @@ class PopulationNetwork(BaseNetwork):
                     "population-network layer names may not contain '.', "
                     f"got {layer_cfg.name!r}"
                 )
-            cells = [_as_cell_type_config(cell) for cell in layer_cfg.populations]
+            population_defs = [
+                _as_population_definition_config(population)
+                for population in layer_cfg.populations
+            ]
             dims: dict[str, int] = {}
             polarities: dict[str, str] = {}
-            for cell in cells:
-                if "." in cell.name:
+            for population in population_defs:
+                if "." in population.name:
                     raise ValueError(
                         "population names may not contain '.' when qualified "
-                        f"sources are enabled, got {cell.name!r}"
+                        f"sources are enabled, got {population.name!r}"
                     )
-                if cell.name in dims:
+                if population.name in dims:
                     raise ValueError(
-                        f"population names must be unique per layer, got {cell.name!r}"
+                        "population names must be unique per layer, "
+                        f"got {population.name!r}"
                     )
-                dims[cell.name] = int(cell.n_neurons)
-                polarities[cell.name] = cell.polarity
+                dims[population.name] = int(population.n_neurons)
+                polarities[population.name] = population.polarity
             dims_by_layer[layer_cfg.name] = dims
             polarities_by_layer[layer_cfg.name] = polarities
         return dims_by_layer, polarities_by_layer
@@ -1305,6 +1331,7 @@ class PopulationNetwork(BaseNetwork):
 
 
 __all__ = [
+    "PopulationDefinitionConfig",
     "PopulationLayer",
     "PopulationLayerConfig",
     "PopulationLayerState",

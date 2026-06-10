@@ -109,7 +109,7 @@ def test_load_config_rejects_population_network_delayed_without_recurrent(tmp_pa
         load_config(str(path))
 
 
-def test_load_config_rejects_population_graph_bad_endpoint(tmp_path):
+def test_load_config_rejects_removed_population_graph_type(tmp_path):
     path = _write_config(
         tmp_path,
         _base_config(
@@ -130,5 +130,5 @@ def test_load_config_rejects_population_graph_bad_endpoint(tmp_path):
         ),
     )
 
-    with pytest.raises(ConfigValidationError, match="source 'pv'"):
+    with pytest.raises(ConfigValidationError, match=r"population_graph.*removed"):
         load_config(str(path))

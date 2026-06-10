@@ -368,7 +368,6 @@ def _build_core_config(core_data: Any) -> CoreConfig:
         unified_ei=_to_plain_dict(unified_ei),
         recurrent_ei=_to_plain_dict(core_dict.get("recurrent_ei", {})),
         baseline_rnn=_to_plain_dict(core_dict.get("baseline_rnn", {})),
-        population_graph=_to_plain_dict(core_dict.get("population_graph", {})),
         population_network=_to_plain_dict(core_dict.get("population_network", {})),
     )
 

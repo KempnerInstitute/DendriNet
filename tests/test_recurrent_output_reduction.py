@@ -4,8 +4,8 @@ import torch
 
 from dendritic_modeling.networks.architectures.recurrent.baseline_rnn import BaselineRNN
 from dendritic_modeling.networks.architectures.recurrent.ei_network import EINetwork
-from dendritic_modeling.networks.architectures.recurrent.population_graph import (
-    PopulationGraphNetwork,
+from dendritic_modeling.networks.architectures.recurrent.population_network import (
+    PopulationNetwork,
 )
 
 
@@ -59,8 +59,8 @@ def test_ei_network_masks_mean_and_all_outputs_with_seq_lengths():
     _check_zero_length_policy(reducer, "output_mode", "all")
 
 
-def test_population_graph_masks_mean_and_all_outputs_with_seq_lengths():
-    reducer = PopulationGraphNetwork.__new__(PopulationGraphNetwork)
+def test_population_network_masks_mean_and_all_outputs_with_seq_lengths():
+    reducer = PopulationNetwork.__new__(PopulationNetwork)
 
     _check_reducer(reducer, "output_mode", "mean")
     _check_reducer(reducer, "output_mode", "all")

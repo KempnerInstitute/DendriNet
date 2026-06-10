@@ -3,7 +3,7 @@ Runnable Config Examples
 
 These YAML files are copy-paste starting points for local runs. The first four
 are the primary vision examples; the recurrent examples exercise the newer
-cell-type, synapse-type, structured-connectivity, and spiking components.
+population, synapse-type, structured-connectivity, and spiking components.
 
 Recommended Example Ladder
 --------------------------
@@ -27,7 +27,7 @@ than one idea at a time.
      - ``configs/examples/standard_mnist_population_network.yaml``
      - The same E/I computation written as named populations and explicit
        directed connections.
-   * - 3. Multiple cell types in one feedforward layer
+   * - 3. Multiple populations in one feedforward layer
      - ``configs/examples/population_network_heterogeneous_feedforward.yaml``
      - PV/SST-like inhibitory populations and multiple excitatory morphologies
        in one layer.
@@ -74,7 +74,7 @@ implementation path:
        ``population_network.layers[].connections``
      - ``configs/examples/population_network_feedforward.yaml``
      - ``train_experiments.py``
-   * - Heterogeneous feedforward cell types
+   * - Heterogeneous feedforward populations
      - ``population_network.layers[].populations[].population`` with
        per-population morphology and dynamics overrides
      - ``configs/examples/population_network_heterogeneous_feedforward.yaml``
@@ -486,7 +486,7 @@ Component Coverage
    :widths: 38 12 12 12 12 14
 
    * - Config
-     - Cell types
+     - Populations
      - Synapse types
      - Structured masks
      - Spikes

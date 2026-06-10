@@ -89,7 +89,7 @@
   <rect class="stage" x="334" y="360" width="272" height="150" fill="url(#green)" stroke="#66a980"/>
   <text class="stageTitle" x="354" y="390">Population Core</text>
   <text class="body" x="354" y="414">population_network layers</text>
-  <text class="body" x="354" y="434">named E/I cell types</text>
+  <text class="body" x="354" y="434">named E/I populations</text>
   <text class="body" x="354" y="454">same-step and delayed edges</text>
   <text class="body" x="354" y="474">per-population morphology</text>
   <rect class="stage" x="654" y="360" width="268" height="150" fill="url(#green)" stroke="#66a980"/>

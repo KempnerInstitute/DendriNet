@@ -4,7 +4,7 @@
       .title { font: 700 29px "DejaVu Sans", Arial, sans-serif; fill: #12324d; }
       .subtitle { font: 500 18px "DejaVu Sans", Arial, sans-serif; fill: #45637a; }
       .panel { fill: #f8fbfd; stroke: #8eafc3; stroke-width: 2.0; }
-      .celllabel { font: 700 19px "DejaVu Sans", Arial, sans-serif; fill: #153450; }
+      .poplabel { font: 700 19px "DejaVu Sans", Arial, sans-serif; fill: #153450; }
       .body { font: 400 14px "DejaVu Sans", Arial, sans-serif; fill: #2d4b62; }
       .small { font: 400 13px "DejaVu Sans", Arial, sans-serif; fill: #51697d; }
       .esoma { fill: #cfe0f5; stroke: #2f6fb0; stroke-width: 2.4; }
@@ -19,11 +19,11 @@
   </defs>
 
   <text class="title" x="40" y="42">Population-network layer - distinct populations (Pyr / PV / SST)</text>
-  <text class="subtitle" x="40" y="70">Each named population is a different cell type: its own polarity, dendritic morphology (branch_factors), dynamics, and targeting</text>
+  <text class="subtitle" x="40" y="70">Each named population has its own polarity, dendritic morphology (branch_factors), dynamics, and targeting</text>
 
   <!-- PYR (excitatory, pyramidal, 2-layer dendrites) -->
   <rect class="panel" x="470" y="120" width="300" height="430" rx="20"/>
-  <text class="celllabel" x="490" y="152">pyr — excitatory</text>
+  <text class="poplabel" x="490" y="152">pyr — excitatory</text>
   <text class="small" x="490" y="172">n=32 · branch_factors [2,2] · rate soma</text>
   <!-- apical dendrite tree -->
   <path class="dend" d="M620,230 L620,300 M620,250 L585,210 M620,250 L655,210 M585,210 L568,185 M585,210 L602,185 M655,210 L638,185 M655,210 L672,185"/>
@@ -38,7 +38,7 @@
 
   <!-- PV (inhibitory, basket, perisomatic) -->
   <rect class="panel" x="120" y="150" width="280" height="180" rx="18"/>
-  <text class="celllabel" x="140" y="182">pv — inhibitory</text>
+  <text class="poplabel" x="140" y="182">pv — inhibitory</text>
   <text class="small" x="140" y="202">n=8 · branch_factors [1] · fast</text>
   <circle class="isoma" cx="200" cy="262" r="26"/>
   <text class="body" x="250" y="250">basket-like:</text>
@@ -47,7 +47,7 @@
 
   <!-- SST (inhibitory, Martinotti, dendrite-targeting) -->
   <rect class="panel" x="120" y="360" width="280" height="180" rx="18"/>
-  <text class="celllabel" x="140" y="392">sst — inhibitory</text>
+  <text class="poplabel" x="140" y="392">sst — inhibitory</text>
   <text class="small" x="140" y="412">n=8 · branch_factors [1] · slow</text>
   <circle class="isoma" cx="200" cy="472" r="26"/>
   <text class="body" x="250" y="460">Martinotti-like:</text>
@@ -56,7 +56,7 @@
 
   <!-- decoder -->
   <rect class="panel" x="900" y="300" width="150" height="70" rx="14"/>
-  <text class="celllabel" x="975" y="333" text-anchor="middle">decoder</text>
+  <text class="poplabel" x="975" y="333" text-anchor="middle">decoder</text>
   <text class="small" x="975" y="354" text-anchor="middle">readout_population: pyr</text>
 
   <!-- connections -->

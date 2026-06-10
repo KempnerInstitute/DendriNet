@@ -921,6 +921,103 @@ def test_population_network_probability_masks_include_pathway_in_seed():
     assert not torch.equal(exc_mask, inh_mask)
 
 
+def test_population_network_probability_masks_repair_empty_rows():
+    cfg = {
+        "population_network": {
+            "layers": [
+                {
+                    "name": "layer0",
+                    "readout_population": "e",
+                    "connection_seed": 3,
+                    "population_defaults": _base_population(
+                        {
+                            "ff_excitatory_synapses": 2,
+                            "ff_inhibitory_synapses": 1,
+                            "rec_excitatory_synapses": 0,
+                            "rec_inhibitory_synapses": 0,
+                        }
+                    ),
+                    "populations": [
+                        {
+                            "name": "i",
+                            "polarity": "inhibitory",
+                            "n_neurons": 3,
+                            "branch_factors": [1],
+                            "population": {"ff_inhibitory_synapses": 0},
+                        },
+                        {
+                            "name": "e",
+                            "polarity": "excitatory",
+                            "n_neurons": 8,
+                            "branch_factors": [1],
+                        },
+                    ],
+                    "connections": [
+                        {"source": "input", "target": "i"},
+                        {"source": "input", "target": "e"},
+                        {"source": "i", "target": "e", "probability": 1e-6},
+                    ],
+                }
+            ]
+        }
+    }
+
+    net = get_architecture("population_network", cfg, input_dim=5)
+    mask = (
+        net.layers[0]
+        .populations["e"]
+        .branch_layers[0]
+        .branch_inhibition.connection_mask
+    )
+
+    assert mask.any(dim=1).all()
+
+
+def test_population_network_population_override_deep_merges_nested_defaults():
+    cfg = {
+        "population_network": {
+            "layers": [
+                {
+                    "name": "layer0",
+                    "readout_population": "e",
+                    "population_defaults": _base_population(
+                        {
+                            "rec_excitatory_synapses": 0,
+                            "rec_inhibitory_synapses": 0,
+                            "synapse_types": {
+                                "enabled": True,
+                                "excitatory": [{"name": "AMPA", "fraction": 1.0}],
+                                "inhibitory": [{"name": "GABA_A", "fraction": 1.0}],
+                            },
+                        }
+                    ),
+                    "populations": [
+                        {
+                            "name": "e",
+                            "polarity": "excitatory",
+                            "n_neurons": 4,
+                            "branch_factors": [1],
+                            "population": {
+                                "synapse_types": {
+                                    "excitatory": [{"name": "NMDA", "fraction": 1.0}]
+                                }
+                            },
+                        }
+                    ],
+                    "connections": [{"source": "input", "target": "e"}],
+                }
+            ]
+        }
+    }
+
+    net = get_architecture("population_network", cfg, input_dim=3)
+    synapse_types = net.layers[0].population_configs["e"].synapse_types
+
+    assert synapse_types["enabled"] is True
+    assert synapse_types["excitatory"] == [{"name": "NMDA", "fraction": 1.0}]
+    assert synapse_types["inhibitory"] == [{"name": "GABA_A", "fraction": 1.0}]
+
+
 def test_population_network_qualified_sources_validate_layer_order_and_names():
     future_cfg = {
         "population_network": {

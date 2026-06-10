@@ -244,16 +244,6 @@ def _analyze_layer(
     }
 
 
-def _population_graph_source_groups(core: torch.nn.Module) -> dict[str, list[str]]:
-    groups = {"excitatory": [], "inhibitory": []}
-    for cell in getattr(core, "cell_types", []) or []:
-        name = getattr(cell, "name", None)
-        polarity = str(getattr(cell, "polarity", "")).lower()
-        if name is not None and polarity in groups:
-            groups[polarity].append(str(name))
-    return groups
-
-
 def _population_network_source_groups(
     core: torch.nn.Module,
     record_key: str,
@@ -269,14 +259,16 @@ def _population_network_source_groups(
             continue
         groups = {"excitatory": [], "inhibitory": []}
         dims: dict[str, int] = {}
-        for cell in getattr(layer, "cell_types", []) or []:
-            name = getattr(cell, "name", None)
-            polarity = str(getattr(cell, "polarity", "")).lower()
+        for population in getattr(layer, "population_definitions", []) or []:
+            name = getattr(population, "name", None)
+            polarity = str(getattr(population, "polarity", "")).lower()
             if name is None or polarity not in groups:
                 continue
             name_str = str(name)
             groups[polarity].append(name_str)
-            dims[name_str] = int(getattr(layer, "_cell_dims", {}).get(name_str, 0))
+            dims[name_str] = int(
+                getattr(layer, "_population_dims", {}).get(name_str, 0)
+            )
         return groups, dims
 
     return {"excitatory": [], "inhibitory": []}, {}
@@ -285,12 +277,6 @@ def _population_network_source_groups(
 def _record_source_summary(core: torch.nn.Module, record_key: str) -> dict[str, Any]:
     if record_key.startswith("population_network/"):
         groups, dims = _population_network_source_groups(core, record_key)
-    elif record_key.startswith("population_graph/"):
-        groups = _population_graph_source_groups(core)
-        dims = {
-            name: int(getattr(core, "_cell_dims", {}).get(name, 0))
-            for name in groups["inhibitory"]
-        }
     else:
         return {}
 
@@ -507,8 +493,6 @@ class InhibitorySpecializationAnalyzer(AbstractAnalyzer):
                 continue
             n_E = record.n_neurons
             n_I = total_inhibitory_by_layer.get(record.layer_index, 0)
-            if record.key.startswith("population_graph/"):
-                n_I = int(getattr(core, "_inh_rec_dim", n_I))
             if n_E == 0 or n_I == 0:
                 continue
             entry = _analyze_layer(

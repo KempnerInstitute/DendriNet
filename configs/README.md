@@ -20,7 +20,7 @@ reference configs and reusable examples, not one-off personal runs.
 | --- | --- |
 | Original feedforward E/I MNIST | `examples/standard_mnist.yaml` |
 | Same E/I model in canonical notation | `examples/standard_mnist_population_network.yaml` |
-| Heterogeneous E/I cell types in one layer | `examples/population_network_heterogeneous_feedforward.yaml` |
+| Heterogeneous E/I populations in one layer | `examples/population_network_heterogeneous_feedforward.yaml` |
 | Explicit two-layer population routing | `examples/population_network_two_layer.yaml` |
 | Recurrent Pyr/PV/SST microcircuit | `examples/population_network_recurrent_pyr_pv_sst.yaml` |
 | AMPA/NMDA/GABA kinetics | `examples/population_network_synapse_types_ampa_nmda_gaba.yaml` |
