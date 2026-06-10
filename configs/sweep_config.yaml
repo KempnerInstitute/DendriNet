@@ -90,34 +90,37 @@ experiment_settings:
 #   Scalars:    training.main.common.param_groups.lr: [0.001, 0.01, 0.1]
 #   Strings:    model.core.type: ["dendritic_shunting", "dendritic_additive"]
 #   Booleans:   model.core.morphology.somatic_synapses: [true, false]
-#   Lists:      model.core.connectivity.ee_synapses_per_branch_per_layer: [[10], [20], [40]]
-#   Nested:     model.core.architecture.excitatory_layer_sizes: [[10], [20], [50]]
+#   Lists:      model.core.population_network.layers.0.populations.0.branch_factors: [[3, 3], [4, 4]]
+#   Nested:     model.core.population_network.layers.0.population_defaults.ff_excitatory_synapses: [20, 30, 40]
 #
 # EXAMPLES:
 #   # Sweep learning rate and batch size (2 x 3 = 6 conditions):
 #   # training.main.common.param_groups.lr: [0.001, 0.01]
 #   # training.main.common.batch_size: [128, 256, 512]
 #
-#   # Sweep core type and layer sizes (3 x 2 = 6 conditions):
-#   # model.core.type: ["dendritic_shunting", "dendritic_additive", "point_mlp"]
-#   # model.core.architecture.excitatory_layer_sizes: [[20], [50]]
+#   # Sweep population size and morphology (2 x 2 = 4 conditions):
+#   # model.core.population_network.layers.0.populations.0.n_neurons: [64, 128]
+#   # model.core.population_network.layers.0.populations.0.branch_factors: [[3, 3], [4, 4]]
 #
-#   # Sweep EI synapse counts (for use with filter_config):
-#   # model.core.connectivity.ee_synapses_per_branch_per_layer: [[5],[10],[15],[20]]
-#   # model.core.connectivity.ie_synapses_per_branch_per_layer: [[5],[10],[15],[20]]
+#   # Sweep E/I synapse counts in population-network defaults:
+#   # model.core.population_network.layers.0.population_defaults.ff_excitatory_synapses: [20, 30, 40]
+#   # model.core.population_network.layers.0.population_defaults.ff_inhibitory_synapses: [10, 15, 20]
 
 sweep_config:
-  # Core network type: shunting vs additive (2 values)
-  model.core.type:
-    - "dendritic_shunting"
-    - "dendritic_additive"
+  # Population-network synapse counts and morphology. Numeric path components
+  # index YAML lists, so layers.0 is the first population-network layer and
+  # populations.0 is its first named population.
+  model.core.population_network.layers.0.population_defaults.ff_excitatory_synapses:
+    - 20
+    - 30
 
-  # Excitatory synapse count per branch (3 values)
-  # Total conditions: 2 x 3 = 6, total jobs: 6 x 5 seeds = 30
-  model.core.connectivity.ee_synapses_per_branch_per_layer:
-    - [10]
-    - [20]
-    - [40]
+  model.core.population_network.layers.0.population_defaults.ff_inhibitory_synapses:
+    - 10
+    - 15
+
+  model.core.population_network.layers.0.populations.0.branch_factors:
+    - [3, 3]
+    - [4, 4]
 
 
 # ============================================================================
@@ -245,12 +248,12 @@ base_config:
 
   # ---------- Data ----------
   data:
-    dataset_name: "cifar10"
+    dataset_name: "mnist"
     base_dir: ""
 
     processing:
       flatten: true
-      normalize: false
+      normalize: true
 
   # ---------- Model ----------
   model:
@@ -260,63 +263,51 @@ base_config:
       type: "identity"
       load_save_root: "./.trained_encoder_networks/"
       params:
-        input_dim: null
-        input_shape: [3, 32, 32]
+        input_dim: 784
+        input_shape: [1, 28, 28]
         latent_dim: null
 
     core:
-      type: "einet"
-
-      architecture:
-        excitatory_layer_sizes: [20]
-        inhibitory_layer_sizes: []
-        excitatory_branch_factors: [3, 3, 3, 3]
-        inhibitory_branch_factors: [1]
-        inhibitory_network_type: "dendritic"
-
-      connectivity:
-        ee_synapses_per_branch_per_layer: [40]
-        ei_synapses_per_branch_per_layer: [0]
-        ie_synapses_per_branch_per_layer: [10]
-        ii_synapses_per_branch_per_layer: [0]
-
-      transfer:
-        input_mode: 1
-        allow_direct_inhibitory_stream: true
-        independent_pathways: false
-        excitatory_dim: null
-        inhibitory_dim: null
-        output_activation: null
-        inhibitory_mode: "first"
-
-      morphology:
-        somatic_synapses: false
-        use_shunting: true
-        use_additive_normalization: false
-        weight_transform: "softplus"
-        dbl_init_method: "analytical_expectation"
-
-      sparsity:
-        init_method: "xavier_normal"
-        noise_level: 0.0
-        type: "standard"
-        temperature: 0.0
-        gradient_scaling: "none"
-
-      reactivation:
-        enabled: true
-        type: "param_tanh"
-        init_m: 1.5
-        init_b: 0.5
-        gradient_scaling: "none"
-
-      blocklinear:
-        gradient_scaling: "none"
-        efficient: false
-
-      implementation:
-        adaptive_initialization: false
-        print_hooks: false
+      type: "population_network"
+      population_network:
+        use_transfer: true
+        transfer_params:
+          input_mode: 1
+          independent_pathways: false
+          output_activation: "relu"
+        layers:
+          - name: "layer0"
+            readout_population: "e"
+            population_defaults:
+              ff_excitatory_synapses: 30
+              ff_inhibitory_synapses: 15
+              rec_excitatory_synapses: 0
+              rec_inhibitory_synapses: 0
+              somatic_synapses: false
+              use_shunting: true
+              use_additive_normalization: false
+              reactivate: true
+              reactivation_type: "param_tanh"
+              reactivation_init_policy: "occupancy_quantile"
+              reactivation_init_m: 1.5
+              reactivation_init_b: 0.5
+              dbl_init_method: "analytical_expectation"
+              weight_transform: "softplus"
+              topk_type: "standard"
+              topk_init_method: "xavier_normal"
+              blocklinear_strategy: "none"
+              reactivation_strategy: "none"
+              efficient_blocklinear: false
+            populations:
+              - name: "e"
+                polarity: "excitatory"
+                n_neurons: 128
+                branch_factors: [4, 4]
+            connections:
+              - source: "input_e"
+                target: "e"
+              - source: "input_i"
+                target: "e"
 
     decoder:
       type: "MLP"
@@ -354,7 +345,7 @@ base_config:
         batch_size: 512
         shuffle: true
         grad_clip_value: 5.0
-        loss_function: "cat_nll"
+        loss_function: "ce"
         early_stopping: false
         patience: 500
         load_best_state_dict: true
@@ -364,12 +355,16 @@ base_config:
         use_amp: false
         enable_nan_checking: false
         enable_adaptive_clipping: false
-        weight_decay_rate: 0.0
-        weight_boosting: false
+        weight_decay_rate: 0.01
+        weight_boosting: true
 
         param_groups:
           lr: 0.001
-          split_params: false
+          split_params: true
+          topk_lr: 0.001
+          blocklinear_lr: 0.0001
+          reactivation_lr: 0.0001
+          decoder_lr: 0.001
 
       regularization:
         l1_weight: 0.0
@@ -481,120 +476,80 @@ base_config:
 # Result: 3 x 3 = 9 conditions
 #
 # --------------------------------------------------------------------------
-# Example 2: EI synapse sweep with sum constraint
+# Example 2: Population-network E/I synapse sweep with sum constraint
 # --------------------------------------------------------------------------
 # sweep_config:
-#   model.core.connectivity.ee_synapses_per_branch_per_layer:
-#     - [5]
-#     - [10]
-#     - [15]
-#     - [20]
-#     - [25]
-#     - [30]
-#     - [35]
-#     - [40]
-#     - [45]
-#     - [50]
-#   model.core.connectivity.ie_synapses_per_branch_per_layer:
-#     - [5]
-#     - [10]
-#     - [15]
-#     - [20]
-#     - [25]
-#     - [30]
-#     - [35]
-#     - [40]
-#     - [45]
-#     - [50]
+#   model.core.population_network.layers.0.population_defaults.ff_excitatory_synapses: [10, 20, 30, 40]
+#   model.core.population_network.layers.0.population_defaults.ff_inhibitory_synapses: [10, 20, 30, 40]
 # filter_config:
 #   mode: "ei-sum"
 #   value: 50
 #   tolerance: 0
-# Result: Only 9 EE/IE combos where EE + IE = 50
+# Result: Only E/I combos where E + I = 50
 #
 # --------------------------------------------------------------------------
-# Example 3: Architecture comparison (shunting vs additive vs MLP)
+# Example 3: Population size and morphology comparison
 # --------------------------------------------------------------------------
 # sweep_config:
-#   model.core.type:
-#     - "dendritic_shunting"
-#     - "dendritic_additive"
-#     - "dendritic_mlp"
-#     - "point_mlp"
+#   model.core.population_network.layers.0.populations.0.n_neurons: [64, 128]
+#   model.core.population_network.layers.0.populations.0.branch_factors:
+#     - [3, 3]
+#     - [4, 4]
 # filter_config:
 #   mode: "all"
 # Result: 4 conditions
 #
 # --------------------------------------------------------------------------
-# Example 4: Branch depth sweep
+# Example 4: Population-network branch depth sweep
 # --------------------------------------------------------------------------
 # sweep_config:
-#   model.core.type: ["dendritic_shunting"]
+#   {}
 # filter_config:
-#   mode: "all"
+#   mode: "branch_sweep"
 #   branch_sweep_mode: "depth_sweep"
 #   dendrite_tree_depth: [1, 6, 1]
 #   uniform_branches_per_layer: 3
-# Result: 1 type x 6 depths = 6 conditions
+# Result: first-layer excitatory population branch_factors become [3], [3,3], ...
 #
 # --------------------------------------------------------------------------
-# Example 5: Branch width sweep at fixed depth
+# Example 5: Recurrent tau and delay sweep
 # --------------------------------------------------------------------------
 # sweep_config:
-#   model.core.type: ["dendritic_shunting"]
+#   model.core.population_network.layers.0.dt: [0.5, 1.0]
+#   model.core.population_network.layers.0.population_defaults.tau_base: [10.0, 20.0, 40.0]
+#   model.core.population_network.layers.0.connections.3.probability: [0.3, 0.6, 0.9]
 # filter_config:
 #   mode: "all"
-#   branch_sweep_mode: "width_sweep"
-#   fixed_dendrite_tree_depth: 4
-#   dendrite_branches_per_layer: [2, 8, 2]
-# Result: 1 type x 4 widths (2,4,6,8) = 4 conditions
+# Use this with a recurrent population-network base config such as
+# configs/examples/population_network_taus_and_delays.yaml.
 #
 # --------------------------------------------------------------------------
-# Example 6: Pattern sweep across depths
+# Example 6: Spiking population sweep
 # --------------------------------------------------------------------------
 # sweep_config:
-#   model.core.type: ["dendritic_shunting"]
+#   model.core.population_network.layers.0.population_defaults.dynamics_mode: ["rate", "spike"]
+#   model.core.population_network.layers.0.population_defaults.spike_threshold: [0.5, 0.7]
 # filter_config:
 #   mode: "all"
-#   branch_sweep_mode: "pattern_sweep"
-#   dendrite_tree_depth: [2, 5, 1]
-#   base_branches: 3
-#   branch_patterns:
-#     - "uniform"
-#     - "decreasing"
-#     - "increasing"
-#     - "bottleneck"
-# Result: 1 type x 4 depths x 4 patterns = 16 conditions
+# Use this with a recurrent/spiking-ready base config. For feedforward image
+# configs, a one-step spiking run is valid but usually less informative.
 #
 # --------------------------------------------------------------------------
-# Example 7: Custom branch configs
+# Example 7: Synapse-type kinetics sweep
 # --------------------------------------------------------------------------
 # sweep_config:
-#   model.core.type: ["dendritic_shunting", "dendritic_additive"]
+#   model.core.population_network.layers.0.population_defaults.synapse_types.excitatory.1.fraction: [0.1, 0.25, 0.4]
+#   model.core.population_network.layers.0.population_defaults.synapse_types.excitatory.1.tau_decay: [40.0, 70.0, 100.0]
 # filter_config:
 #   mode: "all"
-#   branch_sweep_mode: "custom_configs"
-#   custom_branch_configs:
-#     - [4, 4, 4, 4]
-#     - [8, 4, 2, 1]
-#     - [1, 2, 4, 8]
-#     - [4, 2, 4, 2]
-# Result: 2 types x 4 custom configs = 8 conditions
+# Use this with configs/examples/population_network_synapse_types_ampa_nmda_gaba.yaml.
 #
 # --------------------------------------------------------------------------
-# Example 8: Combined EI filter + branch sweep
+# Example 8: Combined population E/I filter + branch sweep
 # --------------------------------------------------------------------------
 # sweep_config:
-#   model.core.connectivity.ee_synapses_per_branch_per_layer:
-#     - [10]
-#     - [20]
-#     - [30]
-#     - [40]
-#   model.core.connectivity.ie_synapses_per_branch_per_layer:
-#     - [10]
-#     - [20]
-#     - [30]
-#     - [40]
+#   model.core.population_network.layers.0.population_defaults.ff_excitatory_synapses: [10, 20, 30, 40]
+#   model.core.population_network.layers.0.population_defaults.ff_inhibitory_synapses: [10, 20, 30, 40]
 # filter_config:
 #   mode: "ei-sum"
 #   value: 50
@@ -602,28 +557,29 @@ base_config:
 #   branch_sweep_mode: "depth_sweep"
 #   dendrite_tree_depth: [2, 4, 1]
 #   uniform_branches_per_layer: 3
-# Result: 3 EI combos (that sum to 50) x 3 depths = 9 conditions
+# Result: EI combos that sum to 50 x 3 branch depths
 #
 # --------------------------------------------------------------------------
 # Example 9: Dataset comparison sweep
 # --------------------------------------------------------------------------
 # sweep_config:
-#   data.dataset_name: ["cifar10", "mnist", "fashion_mnist"]
-#   model.core.type: ["dendritic_shunting", "point_mlp"]
+#   data.dataset_name: ["mnist", "fashion_mnist"]
+#   model.core.population_network.layers.0.population_defaults.ff_excitatory_synapses: [20, 30]
 # filter_config:
 #   mode: "all"
 # Result: 3 datasets x 2 types = 6 conditions
 #
 # --------------------------------------------------------------------------
-# Example 10: Full mixed sweep (type x EI x depth x lr)
+# Example 10: Full mixed population-network sweep
 # --------------------------------------------------------------------------
 # sweep_config:
-#   model.core.type: ["dendritic_shunting", "dendritic_additive"]
-#   model.core.connectivity.ee_synapses_per_branch_per_layer: [[20], [40]]
+#   model.core.population_network.layers.0.population_defaults.ff_excitatory_synapses: [20, 40]
+#   model.core.population_network.layers.0.population_defaults.ff_inhibitory_synapses: [10, 20]
+#   model.core.population_network.layers.0.population_defaults.tau_base: [20.0, 50.0]
 #   training.main.common.param_groups.lr: [0.001, 0.01]
 # filter_config:
 #   mode: "all"
 #   branch_sweep_mode: "depth_sweep"
 #   dendrite_tree_depth: [2, 4, 1]
 #   uniform_branches_per_layer: 3
-# Result: 2 types x 2 EE x 2 lr x 3 depths = 24 conditions
+# Result: E x I x tau x lr x branch-depth conditions

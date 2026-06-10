@@ -348,6 +348,146 @@ class TestUnifiedSweepGenerator:
             )
         assert len(learning_rates) > 0  # At least one learning rate should be present
 
+    def test_generate_configs_with_population_network_list_paths(self, generator):
+        """Population-network sweeps can address layers by numeric dot-path index."""
+        base_config = OmegaConf.load(
+            "configs/examples/standard_mnist_population_network.yaml"
+        )
+        sweep_config = OmegaConf.create(
+            {
+                "sweep_config": {
+                    "model.core.population_network.layers.0.population_defaults.ff_excitatory_synapses": [
+                        20,
+                        30,
+                    ],
+                    "model.core.population_network.layers.0.population_defaults.use_shunting": [
+                        True,
+                        False,
+                    ],
+                },
+                "filter_config": {},
+                "experiment_settings": {
+                    "seeds_per_condition": 1,
+                    "base_seed": 123,
+                },
+            }
+        )
+
+        request_config = _build_sweep_request(sweep_config, base_config)
+        configs = generator.generate_configs(request_config)
+
+        values = {
+            (
+                cfg.model.core.population_network.layers[
+                    0
+                ].population_defaults.ff_excitatory_synapses,
+                cfg.model.core.population_network.layers[
+                    0
+                ].population_defaults.use_shunting,
+                cfg.experiment.seed,
+            )
+            for cfg in configs
+        }
+        assert values == {
+            (20, True, 123),
+            (20, False, 123),
+            (30, True, 123),
+            (30, False, 123),
+        }
+
+    def test_generate_configs_with_population_network_ei_filter(self, generator):
+        """EI filtering works with population-network population_defaults paths."""
+        base_config = OmegaConf.load(
+            "configs/examples/standard_mnist_population_network.yaml"
+        )
+        sweep_config = OmegaConf.create(
+            {
+                "sweep_config": {
+                    "model.core.population_network.layers.0.population_defaults.ff_excitatory_synapses": [
+                        20,
+                        30,
+                    ],
+                    "model.core.population_network.layers.0.population_defaults.ff_inhibitory_synapses": [
+                        10,
+                        20,
+                    ],
+                },
+                "filter_config": {"mode": "ei-sum", "value": 40},
+                "experiment_settings": {
+                    "seeds_per_condition": 1,
+                    "base_seed": 123,
+                },
+            }
+        )
+
+        request_config = _build_sweep_request(sweep_config, base_config)
+        configs = generator.generate_configs(request_config)
+
+        values = {
+            (
+                cfg.model.core.population_network.layers[
+                    0
+                ].population_defaults.ff_excitatory_synapses,
+                cfg.model.core.population_network.layers[
+                    0
+                ].population_defaults.ff_inhibitory_synapses,
+            )
+            for cfg in configs
+        }
+        assert values == {(20, 20), (30, 10)}
+
+    def test_generate_configs_with_population_network_branch_sweep(self, generator):
+        """Branch sweeps update population-network branch_factors."""
+        base_config = OmegaConf.load(
+            "configs/examples/standard_mnist_population_network.yaml"
+        )
+        sweep_config = OmegaConf.create(
+            {
+                "sweep_config": {},
+                "filter_config": {
+                    "mode": "branch_sweep",
+                    "branch_sweep_mode": "depth_sweep",
+                    "dendrite_tree_depth": [1, 2, 1],
+                    "uniform_branches_per_layer": 3,
+                },
+                "experiment_settings": {
+                    "seeds_per_condition": 1,
+                    "base_seed": 123,
+                },
+            }
+        )
+
+        request_config = _build_sweep_request(sweep_config, base_config)
+        configs = generator.generate_configs(request_config)
+
+        branch_configs = {
+            tuple(
+                cfg.model.core.population_network.layers[0]
+                .populations[0]
+                .branch_factors
+            )
+            for cfg in configs
+        }
+        assert branch_configs == {(3,), (3, 3)}
+
+    def test_maintained_sweep_config_generates_population_network_configs(
+        self, generator
+    ):
+        """The public sweep_config.yaml template targets the canonical schema."""
+        request_config = OmegaConf.load("configs/sweep_config.yaml")
+
+        configs = generator.generate_configs(request_config)
+
+        assert len(configs) == 40
+        for cfg in configs[:3]:
+            assert cfg.model.core.type == "population_network"
+            assert (
+                cfg.model.core.population_network.layers[
+                    0
+                ].population_defaults.reactivation_init_policy
+                == "occupancy_quantile"
+            )
+
     def test_generate_configs_with_ei_filter(self, generator, base_model_config):
         """Test config generation with EI filtering."""
         config_with_ei = OmegaConf.create(
