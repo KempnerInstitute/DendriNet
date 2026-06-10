@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from dataclasses import asdict, replace
 from typing import Any, Optional, Union
 
@@ -134,8 +135,6 @@ _BUILTIN_ARCHITECTURE_TYPES: frozenset[str] = frozenset(
         "cnnvariationalautoencoder",
         "cnndownsample",
         "cnnupsample",
-        "dendritic_rnn",
-        "dendrnn",
         "effectivematchedparammlp",
         "identity",
         "mlp",
@@ -844,6 +843,462 @@ def _build_recurrent_einet_from_structured_config(
     return EINetwork(cfg)
 
 
+ArchitectureBuilder = Callable[
+    [str, Union[dict[str, Any], DictConfig], Optional[int], Optional[int]],
+    nn.Module,
+]
+
+
+def _build_unified_ei_architecture(
+    type: str,
+    parameters: Union[dict[str, Any], DictConfig],
+    input_dim: Optional[int],
+    suffix_input_dim: Optional[int],
+) -> nn.Module:
+    """Build the unified recurrent E/I architecture family."""
+    del suffix_input_dim
+    from dendritic_modeling.networks.architectures.recurrent import (
+        EILayerConfig,
+        EINetwork,
+        EINetworkConfig,
+        PopulationConfig,
+    )
+
+    if input_dim is None:
+        raise ValueError(
+            f"input_dim required when creating unified E-I architecture (type='{type}')"
+        )
+
+    raw_params = _to_plain_mapping(parameters)
+    unified_cfg = raw_params.get("unified_ei", raw_params.get("ei_unified", {}))
+    if not unified_cfg and "layers" in raw_params:
+        # Allow passing EINetworkConfig-shaped dict directly.
+        unified_cfg = raw_params
+
+    if not isinstance(unified_cfg, dict):
+        raise ValueError(
+            "Unified E-I config must be a mapping, got "
+            f"{unified_cfg.__class__.__name__}"
+        )
+
+    unified_cfg = canonicalize_unified_ei_config(unified_cfg)
+    unified_cfg["input_dim"] = input_dim
+
+    alias_overrides = get_unified_ei_alias_overrides(type)
+    layers_cfg = []
+    for layer_idx, layer in enumerate(unified_cfg.get("layers", [])):
+        if isinstance(layer, EILayerConfig):
+            if not alias_overrides:
+                layers_cfg.append(layer)
+                continue
+            layer = asdict(layer)
+        if not isinstance(layer, dict):
+            raise ValueError(
+                "Each unified E-I layer config must be a dict or EILayerConfig"
+            )
+        layer = dict(layer)
+        exc = layer.get("excitatory")
+        inh = layer.get("inhibitory")
+        if exc is not None and not isinstance(exc, dict):
+            exc_plain = _to_plain_mapping(exc)
+            if exc_plain:
+                exc = exc_plain
+        if inh is not None and not isinstance(inh, dict):
+            inh_plain = _to_plain_mapping(inh)
+            if inh_plain:
+                inh = inh_plain
+        if isinstance(exc, dict):
+            exc = _apply_population_alias_overrides(
+                exc,
+                alias_overrides,
+                core_type=type,
+                context=f"model.core.unified_ei.layers[{layer_idx}].excitatory",
+            )
+            layer["excitatory"] = PopulationConfig(**exc)
+        if isinstance(inh, dict):
+            inh = _apply_population_alias_overrides(
+                inh,
+                alias_overrides,
+                core_type=type,
+                context=f"model.core.unified_ei.layers[{layer_idx}].inhibitory",
+            )
+            layer["inhibitory"] = PopulationConfig(**inh)
+        layers_cfg.append(EILayerConfig(**layer))
+
+    if not layers_cfg:
+        raise ValueError(
+            "Unified E-I architecture requires at least one layer in unified_ei.layers"
+        )
+
+    unified_cfg["layers"] = layers_cfg
+    return EINetwork(EINetworkConfig(**unified_cfg))
+
+
+def _build_baseline_rnn_architecture(
+    type: str,
+    parameters: Union[dict[str, Any], DictConfig],
+    input_dim: Optional[int],
+    suffix_input_dim: Optional[int],
+) -> nn.Module:
+    """Build baseline GRU/LSTM/vanilla RNN cores."""
+    del suffix_input_dim
+    from dendritic_modeling.networks.architectures.recurrent import (
+        BaselineRNN,
+        BaselineRNNConfig,
+    )
+
+    if input_dim is None:
+        raise ValueError(
+            f"input_dim required when creating baseline RNN (type='{type}')"
+        )
+
+    raw_params = _to_plain_mapping(parameters)
+    baseline_cfg = raw_params.get("baseline_rnn", raw_params)
+    if not isinstance(baseline_cfg, dict):
+        baseline_cfg = {}
+    baseline_cfg = dict(baseline_cfg)
+    baseline_cfg["cell_type"] = _BASELINE_RNN_TYPES[type]
+    baseline_cfg["input_dim"] = input_dim
+    return BaselineRNN(BaselineRNNConfig(**baseline_cfg))
+
+
+def _build_population_network_architecture(
+    type: str,
+    parameters: Union[dict[str, Any], DictConfig],
+    input_dim: Optional[int],
+    suffix_input_dim: Optional[int],
+) -> nn.Module:
+    """Build canonical population-network layers."""
+    del suffix_input_dim
+    from dendritic_modeling.networks.architectures.recurrent import (
+        PopulationLayerConfig,
+        PopulationNetwork,
+        PopulationNetworkConfig,
+    )
+
+    if input_dim is None:
+        raise ValueError(
+            f"input_dim required when creating population-network architecture (type='{type}')"
+        )
+
+    raw_params = _to_plain_mapping(parameters)
+    mp_cfg = raw_params.get("population_network") or raw_params
+    if not isinstance(mp_cfg, dict):
+        mp_cfg = {}
+    mp_cfg = dict(mp_cfg)
+    if "transfer_params" in mp_cfg:
+        mp_cfg["transfer_params"] = normalize_transfer_config(mp_cfg["transfer_params"])
+    mp_cfg["input_dim"] = input_dim
+    mp_cfg["layers"] = [
+        (
+            layer
+            if isinstance(layer, PopulationLayerConfig)
+            else PopulationLayerConfig(**layer)
+        )
+        for layer in mp_cfg.get("layers", [])
+    ]
+    return PopulationNetwork(PopulationNetworkConfig(**mp_cfg))
+
+
+def _build_spatial_dendritic_architecture(
+    type: str,
+    parameters: Union[dict[str, Any], DictConfig],
+    input_dim: Optional[int],
+    suffix_input_dim: Optional[int],
+) -> nn.Module:
+    """Build flattened spatial dendritic tensor-map cores."""
+    from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.spatial_dendritic import (
+        HierarchicalDendriticTensorMap,
+    )
+
+    if input_dim is None:
+        raise ValueError(
+            f"input_dim required when creating spatial dendritic core (type='{type}')"
+        )
+
+    return HierarchicalDendriticTensorMap(
+        config=parameters,
+        input_dim=input_dim,
+        suffix_input_dim=suffix_input_dim,
+    )
+
+
+def _build_spatial_dendritic_conv_architecture(
+    type: str,
+    parameters: Union[dict[str, Any], DictConfig],
+    input_dim: Optional[int],
+    suffix_input_dim: Optional[int],
+) -> nn.Module:
+    """Build shared-patch spatial dendritic convolution cores."""
+    del suffix_input_dim
+    from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.spatial_dendritic import (
+        HierarchicalDendriticConv,
+    )
+
+    raw_params = _to_plain_mapping(parameters)
+    spatial_cfg = _to_plain_mapping(raw_params.get("spatial", {}))
+    kernel_size = spatial_cfg.get("kernel_size", 3)
+    stride = spatial_cfg.get("stride", 1)
+    padding = spatial_cfg.get("padding", 0)
+
+    if input_dim is None:
+        raise ValueError(
+            f"input_dim required when creating spatial dendritic conv (type='{type}')"
+        )
+
+    # input_dim here is the number of input channels (C_in). For spatial
+    # cores, input_dim = prefix_output_spec.channels.
+    return HierarchicalDendriticConv(
+        config=parameters,
+        in_channels=input_dim,
+        kernel_size=kernel_size,
+        stride=stride,
+        padding=padding,
+    )
+
+
+def _build_einet_architecture(
+    type: str,
+    parameters: Union[dict[str, Any], DictConfig],
+    input_dim: Optional[int],
+    suffix_input_dim: Optional[int],
+) -> nn.Module:
+    """Build structured feedforward/recurrent E/I architectures."""
+    del suffix_input_dim
+    raw_params = _to_plain_mapping(parameters)
+    if not ("architecture" in raw_params and "connectivity" in raw_params):
+        raise ValueError(
+            "EINet now requires structured config with 'architecture', "
+            "'connectivity', etc. sections. Flat parameters are no longer supported."
+        )
+    if input_dim is None:
+        raise ValueError("input_dim required when passing structured config to EINet")
+
+    recurrent_einet = _build_recurrent_einet_from_structured_config(
+        type=type, raw_params=raw_params, input_dim=input_dim
+    )
+    if recurrent_einet is not None:
+        return recurrent_einet
+
+    synapse_mode: Optional[str] = None
+    use_shunting: Optional[bool] = None
+    weight_transform: Optional[str] = None
+    flatten_dendrites = False
+    core_morphology_overrides = get_core_morphology_alias_overrides(type)
+
+    if "use_shunting" in core_morphology_overrides:
+        use_shunting = bool(core_morphology_overrides["use_shunting"])
+
+    if "flat" in type:
+        flatten_dendrites = True
+
+    if "signed" in type:
+        weight_transform = "identity"
+        use_shunting = False
+
+    if "mlp" in type:
+        synapse_mode = "mlp"
+        weight_transform = "identity"
+        use_shunting = False
+
+    params_for_build = _to_plain_mapping(parameters)
+    params_for_build.setdefault("type", type)
+
+    return ConfigurableEINetwork(
+        config=params_for_build,
+        input_dim=input_dim,
+        synapse_mode=synapse_mode,
+        use_shunting=use_shunting,
+        weight_transform=weight_transform,
+        flatten_dendrites=flatten_dendrites,
+    )
+
+
+def _build_point_mlp_architecture(
+    type: str,
+    parameters: Union[dict[str, Any], DictConfig],
+    input_dim: Optional[int],
+    suffix_input_dim: Optional[int],
+) -> nn.Module:
+    """Build the point-neuron MLP baseline from structured E/I config."""
+    del type, suffix_input_dim
+    raw_params = _to_plain_mapping(parameters)
+    if not ("architecture" in raw_params and "connectivity" in raw_params):
+        raise ValueError(
+            "point_mlp requires structured architecture/connectivity config"
+        )
+    if input_dim is None:
+        raise ValueError(
+            "input_dim required when passing structured config to point_mlp"
+        )
+
+    from dendritic_modeling.scripts.script_utils.config_utils import (
+        prepare_ei_network_params,
+    )
+
+    params = prepare_ei_network_params(raw_params, input_dim)
+    return PointMatchedParamMLP(**params)
+
+
+def _ensure_flat_parameters(
+    type: str,
+    parameters: Union[dict[str, Any], DictConfig],
+) -> dict[str, Any]:
+    if isinstance(parameters, DictConfig):
+        raise ValueError(
+            f"Architecture {type} expects flat parameters, not structured config"
+        )
+    return parameters
+
+
+def _build_flat_mlp_architecture(
+    type: str,
+    parameters: Union[dict[str, Any], DictConfig],
+    input_dim: Optional[int],
+    suffix_input_dim: Optional[int],
+) -> nn.Module:
+    """Build flat MLP, or point-MLP when passed structured config."""
+    del suffix_input_dim
+    raw_params = _to_plain_mapping(parameters)
+    if "architecture" in raw_params and "connectivity" in raw_params:
+        return _build_point_mlp_architecture(type, parameters, input_dim, None)
+    return MLP(**_ensure_flat_parameters(type, parameters))
+
+
+def _build_flat_architecture(
+    cls: type[nn.Module],
+) -> ArchitectureBuilder:
+    def _builder(
+        type: str,
+        parameters: Union[dict[str, Any], DictConfig],
+        input_dim: Optional[int],
+        suffix_input_dim: Optional[int],
+    ) -> nn.Module:
+        del input_dim, suffix_input_dim
+        return cls(**_ensure_flat_parameters(type, parameters))
+
+    return _builder
+
+
+def _build_total_param_mlp(
+    type: str,
+    parameters: Union[dict[str, Any], DictConfig],
+    input_dim: Optional[int],
+    suffix_input_dim: Optional[int],
+) -> nn.Module:
+    del type, suffix_input_dim
+    return MatchedTotalParamMLP(parameters, input_dim)
+
+
+def _build_active_param_mlp(
+    type: str,
+    parameters: Union[dict[str, Any], DictConfig],
+    input_dim: Optional[int],
+    suffix_input_dim: Optional[int],
+) -> nn.Module:
+    del type, suffix_input_dim
+    return MatchedActiveParamMLP(parameters, input_dim)
+
+
+def _build_sparse_structured_mlp(
+    type: str,
+    parameters: Union[dict[str, Any], DictConfig],
+    input_dim: Optional[int],
+    suffix_input_dim: Optional[int],
+) -> nn.Module:
+    del type, suffix_input_dim
+    return SparseStructuredMLP(parameters, input_dim)
+
+
+def _build_sparse_structured_flat_mlp(
+    type: str,
+    parameters: Union[dict[str, Any], DictConfig],
+    input_dim: Optional[int],
+    suffix_input_dim: Optional[int],
+) -> nn.Module:
+    del type, suffix_input_dim
+    return SparseStructuredMLP(parameters, input_dim, flatten_dendrites=True)
+
+
+def _build_pathway_router(
+    type: str,
+    parameters: Union[dict[str, Any], DictConfig],
+    input_dim: Optional[int],
+    suffix_input_dim: Optional[int],
+) -> nn.Module:
+    del input_dim, suffix_input_dim
+    return PathwayRouter(**_ensure_flat_parameters(type, parameters))
+
+
+def _build_identity(
+    type: str,
+    parameters: Union[dict[str, Any], DictConfig],
+    input_dim: Optional[int],
+    suffix_input_dim: Optional[int],
+) -> nn.Module:
+    del input_dim, suffix_input_dim
+    return Identity(**_ensure_flat_parameters(type, parameters))
+
+
+def _build_builtin_architecture_registry() -> dict[str, ArchitectureBuilder]:
+    builders: dict[str, ArchitectureBuilder] = {}
+    builders.update(dict.fromkeys(_UNIFIED_EI_TYPES, _build_unified_ei_architecture))
+    builders.update(
+        dict.fromkeys(_BASELINE_RNN_TYPES, _build_baseline_rnn_architecture)
+    )
+    builders.update(
+        dict.fromkeys(_POPULATION_NETWORK_TYPES, _build_population_network_architecture)
+    )
+    builders.update(
+        dict.fromkeys(_SPATIAL_DENDRITIC_TYPES, _build_spatial_dendritic_architecture)
+    )
+    builders.update(
+        dict.fromkeys(
+            _SPATIAL_DENDRITIC_CONV_TYPES, _build_spatial_dendritic_conv_architecture
+        )
+    )
+    builders.update(dict.fromkeys(_EINET_TYPES, _build_einet_architecture))
+    builders.update(
+        {
+            "point_mlp": _build_point_mlp_architecture,
+            "mlp": _build_flat_mlp_architecture,
+            "total_param_mlp": _build_total_param_mlp,
+            "active_param_mlp": _build_active_param_mlp,
+            "ss_mlp": _build_sparse_structured_mlp,
+            "ss_mlp_flat": _build_sparse_structured_flat_mlp,
+            "alexnet": _build_flat_architecture(AlexNet),
+            "cnn": _build_flat_architecture(CNNDownsample),
+            "cnn_down": _build_flat_architecture(CNNDownsample),
+            "cnndownsample": _build_flat_architecture(CNNDownsample),
+            "cnn_downsample": _build_flat_architecture(CNNDownsample),
+            "cnn_up": _build_flat_architecture(CNNUpsample),
+            "cnnupsample": _build_flat_architecture(CNNUpsample),
+            "cnn_upsample": _build_flat_architecture(CNNUpsample),
+            "effectivematchedparammlp": _build_flat_architecture(
+                EffectiveMatchedParamMLP
+            ),
+            "mlpautoencoder": _build_flat_architecture(MLPAutoencoder),
+            "cnnautoencoder": _build_flat_architecture(CNNAutoencoder),
+            "mlpvariationalautoencoder": _build_flat_architecture(
+                MLPVariationalAutoencoder
+            ),
+            "cnnvariationalautoencoder": _build_flat_architecture(
+                CNNVariationalAutoencoder
+            ),
+            "pathway_router": _build_pathway_router,
+            "router": _build_pathway_router,
+            "identity": _build_identity,
+            "none": _build_identity,
+        }
+    )
+    return builders
+
+
+_BUILTIN_ARCHITECTURE_BUILDERS: dict[str, ArchitectureBuilder] = (
+    _build_builtin_architecture_registry()
+)
+
+
 def get_architecture(
     type: str,
     parameters: Union[dict[str, Any], DictConfig],
@@ -866,333 +1321,17 @@ def get_architecture(
         Initialized network module
     """
     type = (type or "").lower()
-    if type not in _BUILTIN_ARCHITECTURE_TYPES:
-        registered = build_registered_architecture(
-            type,
-            parameters,
-            input_dim=input_dim,
-            suffix_input_dim=suffix_input_dim,
-        )
-        if registered is not None:
-            return registered
+    builder = _BUILTIN_ARCHITECTURE_BUILDERS.get(type)
+    if builder is not None:
+        return builder(type, parameters, input_dim, suffix_input_dim)
 
-    # ------------------------------------------------------------------
-    # Unified E-I architecture (opt-in, isolated from legacy code paths)
-    # ------------------------------------------------------------------
-    if type in _UNIFIED_EI_TYPES:
-        from dendritic_modeling.networks.architectures.recurrent import (
-            EILayerConfig,
-            EINetwork,
-            EINetworkConfig,
-            PopulationConfig,
-        )
+    registered = build_registered_architecture(
+        type,
+        parameters,
+        input_dim=input_dim,
+        suffix_input_dim=suffix_input_dim,
+    )
+    if registered is not None:
+        return registered
 
-        if input_dim is None:
-            raise ValueError(
-                f"input_dim required when creating unified E-I architecture (type='{type}')"
-            )
-
-        raw_params = _to_plain_mapping(parameters)
-        unified_cfg = raw_params.get("unified_ei", raw_params.get("ei_unified", {}))
-        if not unified_cfg and "layers" in raw_params:
-            # Allow passing EINetworkConfig-shaped dict directly.
-            unified_cfg = raw_params
-
-        if not isinstance(unified_cfg, dict):
-            raise ValueError(
-                "Unified E-I config must be a mapping, got "
-                f"{unified_cfg.__class__.__name__}"
-            )
-
-        unified_cfg = canonicalize_unified_ei_config(unified_cfg)
-        unified_cfg["input_dim"] = input_dim
-
-        # Resolve recurrent-type aliases to explicit population flags. When
-        # `type` is `ei_unified` / `unified_ei`, this is a no-op;
-        # otherwise it sets use_shunting / use_additive_normalization / flat
-        # branch_factors to match the alias on E and I populations.
-        alias_overrides = get_unified_ei_alias_overrides(type)
-
-        layers_cfg = []
-        for layer_idx, layer in enumerate(unified_cfg.get("layers", [])):
-            if isinstance(layer, EILayerConfig):
-                if not alias_overrides:
-                    layers_cfg.append(layer)
-                    continue
-                layer = asdict(layer)
-            if not isinstance(layer, dict):
-                raise ValueError(
-                    "Each unified E-I layer config must be a dict or EILayerConfig"
-                )
-            layer = dict(layer)
-            exc = layer.get("excitatory")
-            inh = layer.get("inhibitory")
-            if exc is not None and not isinstance(exc, dict):
-                exc_plain = _to_plain_mapping(exc)
-                if exc_plain:
-                    exc = exc_plain
-            if inh is not None and not isinstance(inh, dict):
-                inh_plain = _to_plain_mapping(inh)
-                if inh_plain:
-                    inh = inh_plain
-            if isinstance(exc, dict):
-                exc = _apply_population_alias_overrides(
-                    exc,
-                    alias_overrides,
-                    core_type=type,
-                    context=(f"model.core.unified_ei.layers[{layer_idx}].excitatory"),
-                )
-                layer["excitatory"] = PopulationConfig(**exc)
-            if isinstance(inh, dict):
-                inh = _apply_population_alias_overrides(
-                    inh,
-                    alias_overrides,
-                    core_type=type,
-                    context=(f"model.core.unified_ei.layers[{layer_idx}].inhibitory"),
-                )
-                layer["inhibitory"] = PopulationConfig(**inh)
-            layers_cfg.append(EILayerConfig(**layer))
-
-        if not layers_cfg:
-            raise ValueError(
-                "Unified E-I architecture requires at least one layer in unified_ei.layers"
-            )
-
-        unified_cfg["layers"] = layers_cfg
-        return EINetwork(EINetworkConfig(**unified_cfg))
-
-    # ------------------------------------------------------------------
-    # Baseline RNN models (GRU, LSTM, Vanilla RNN)
-    # ------------------------------------------------------------------
-    if type in _BASELINE_RNN_TYPES:
-        from dendritic_modeling.networks.architectures.recurrent import (
-            BaselineRNN,
-            BaselineRNNConfig,
-        )
-
-        if input_dim is None:
-            raise ValueError(
-                f"input_dim required when creating baseline RNN (type='{type}')"
-            )
-
-        raw_params = _to_plain_mapping(parameters)
-        baseline_cfg = raw_params.get("baseline_rnn", raw_params)
-        if not isinstance(baseline_cfg, dict):
-            baseline_cfg = {}
-        baseline_cfg = dict(baseline_cfg)
-        baseline_cfg["cell_type"] = _BASELINE_RNN_TYPES[type]
-        baseline_cfg["input_dim"] = input_dim
-        return BaselineRNN(BaselineRNNConfig(**baseline_cfg))
-
-    # ------------------------------------------------------------------
-    # Canonical population-network layers with directional same-step edges
-    # ------------------------------------------------------------------
-    if type in _POPULATION_NETWORK_TYPES:
-        from dendritic_modeling.networks.architectures.recurrent import (
-            PopulationLayerConfig,
-            PopulationNetwork,
-            PopulationNetworkConfig,
-        )
-
-        if input_dim is None:
-            raise ValueError(
-                f"input_dim required when creating population-network architecture (type='{type}')"
-            )
-
-        raw_params = _to_plain_mapping(parameters)
-        mp_cfg = raw_params.get("population_network") or raw_params
-        if not isinstance(mp_cfg, dict):
-            mp_cfg = {}
-        mp_cfg = dict(mp_cfg)
-        if "transfer_params" in mp_cfg:
-            mp_cfg["transfer_params"] = normalize_transfer_config(
-                mp_cfg["transfer_params"]
-            )
-        mp_cfg["input_dim"] = input_dim
-        mp_cfg["layers"] = [
-            (
-                layer
-                if isinstance(layer, PopulationLayerConfig)
-                else PopulationLayerConfig(**layer)
-            )
-            for layer in mp_cfg.get("layers", [])
-        ]
-        return PopulationNetwork(PopulationNetworkConfig(**mp_cfg))
-
-    # ------------------------------------------------------------------
-    # Legacy recurrent type aliases (removed -- use unified E-I instead)
-    # ------------------------------------------------------------------
-    if type in ("dendritic_rnn", "dendrnn"):
-        raise ValueError(
-            f"Architecture type '{type}' has been removed. "
-            f"Use 'ei_unified' or 'unified_ei' with the new "
-            f"EINetworkConfig format instead."
-        )
-
-    # ------------------------------------------------------------------
-    # Spatial dendritic cores (flatten → EINet → project)
-    # ------------------------------------------------------------------
-    if type in _SPATIAL_DENDRITIC_TYPES:
-        from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.spatial_dendritic import (
-            HierarchicalDendriticTensorMap,
-        )
-
-        if input_dim is None:
-            raise ValueError(
-                f"input_dim required when creating spatial dendritic core (type='{type}')"
-            )
-
-        return HierarchicalDendriticTensorMap(
-            config=parameters,
-            input_dim=input_dim,
-            suffix_input_dim=suffix_input_dim,
-        )
-
-    # ------------------------------------------------------------------
-    # Spatial dendritic conv (unfold → shared DendriNet → spatial output)
-    # ------------------------------------------------------------------
-    if type in _SPATIAL_DENDRITIC_CONV_TYPES:
-        from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.spatial_dendritic import (
-            HierarchicalDendriticConv,
-        )
-
-        raw_params = _to_plain_mapping(parameters)
-        spatial_cfg = _to_plain_mapping(raw_params.get("spatial", {}))
-        kernel_size = spatial_cfg.get("kernel_size", 3)
-        stride = spatial_cfg.get("stride", 1)
-        padding = spatial_cfg.get("padding", 0)
-
-        if input_dim is None:
-            raise ValueError(
-                f"input_dim required when creating spatial dendritic conv (type='{type}')"
-            )
-
-        # input_dim here is the number of input channels (C_in).
-        # For spatial cores, input_dim = prefix_output_spec.channels.
-        return HierarchicalDendriticConv(
-            config=parameters,
-            in_channels=input_dim,
-            kernel_size=kernel_size,
-            stride=stride,
-            padding=padding,
-        )
-
-    # ------------------------------------------------------------------
-    # EINet variants (require structured config)
-    # ------------------------------------------------------------------
-    if type in _EINET_TYPES:
-        raw_params = _to_plain_mapping(parameters)
-        if not ("architecture" in raw_params and "connectivity" in raw_params):
-            raise ValueError(
-                "EINet now requires structured config with 'architecture', 'connectivity', etc. "
-                "sections. Flat parameters are no longer supported."
-            )
-        if input_dim is None:
-            raise ValueError(
-                "input_dim required when passing structured config to EINet"
-            )
-
-        recurrent_einet = _build_recurrent_einet_from_structured_config(
-            type=type, raw_params=raw_params, input_dim=input_dim
-        )
-        if recurrent_einet is not None:
-            return recurrent_einet
-
-        # Derive shunting/additive settings from the shared type-alias table.
-        synapse_mode: Optional[str] = None
-        use_shunting: Optional[bool] = None
-        weight_transform: Optional[str] = None
-        flatten_dendrites: bool = False
-        core_morphology_overrides = get_core_morphology_alias_overrides(type)
-
-        if "use_shunting" in core_morphology_overrides:
-            use_shunting = bool(core_morphology_overrides["use_shunting"])
-
-        if "flat" in type:
-            flatten_dendrites = True
-
-        if "signed" in type:
-            weight_transform = "identity"
-            use_shunting = False
-
-        if "mlp" in type:
-            synapse_mode = "mlp"
-            weight_transform = "identity"
-            use_shunting = False
-
-        params_for_build = _to_plain_mapping(parameters)
-        params_for_build.setdefault("type", type)
-
-        return ConfigurableEINetwork(
-            config=params_for_build,
-            input_dim=input_dim,
-            synapse_mode=synapse_mode,
-            use_shunting=use_shunting,
-            weight_transform=weight_transform,
-            flatten_dendrites=flatten_dendrites,
-        )
-
-    # ------------------------------------------------------------------
-    # Point-neuron MLP baseline (parameter-matched, structured config)
-    # ------------------------------------------------------------------
-    raw_params = _to_plain_mapping(parameters)
-    if type in ["point_mlp", "mlp"] and (
-        "architecture" in raw_params and "connectivity" in raw_params
-    ):
-        if input_dim is None:
-            raise ValueError("input_dim required when passing structured config to mlp")
-
-        from dendritic_modeling.scripts.script_utils.config_utils import (
-            prepare_ei_network_params,
-        )
-
-        params = prepare_ei_network_params(raw_params, input_dim)
-        return PointMatchedParamMLP(**params)
-
-    # ------------------------------------------------------------------
-    # MR-style structured-config MLP baselines
-    # ------------------------------------------------------------------
-    if type == "total_param_mlp":
-        return MatchedTotalParamMLP(parameters, input_dim)
-
-    if type == "active_param_mlp":
-        return MatchedActiveParamMLP(parameters, input_dim)
-
-    if type == "ss_mlp":
-        return SparseStructuredMLP(parameters, input_dim)
-
-    if type == "ss_mlp_flat":
-        return SparseStructuredMLP(parameters, input_dim, flatten_dendrites=True)
-
-    # ------------------------------------------------------------------
-    # All other architectures expect flat parameters
-    # ------------------------------------------------------------------
-    if isinstance(parameters, DictConfig):
-        raise ValueError(
-            f"Architecture {type} expects flat parameters, not structured config"
-        )
-
-    if type == "alexnet":
-        return AlexNet(**parameters)
-    elif type in ["cnn", "cnn_down", "cnndownsample", "cnn_downsample"]:
-        return CNNDownsample(**parameters)
-    elif type in ["cnn_up", "cnnupsample", "cnn_upsample"]:
-        return CNNUpsample(**parameters)
-    elif type == "mlp":
-        return MLP(**parameters)
-    elif type == "effectivematchedparammlp":
-        return EffectiveMatchedParamMLP(**parameters)
-    elif type == "mlpautoencoder":
-        return MLPAutoencoder(**parameters)
-    elif type == "cnnautoencoder":
-        return CNNAutoencoder(**parameters)
-    elif type == "mlpvariationalautoencoder":
-        return MLPVariationalAutoencoder(**parameters)
-    elif type == "cnnvariationalautoencoder":
-        return CNNVariationalAutoencoder(**parameters)
-    elif type in ["pathway_router", "router"]:
-        return PathwayRouter(**parameters)
-    elif type in ["identity", "none", None]:
-        return Identity(**parameters)
-    else:
-        raise ValueError(f"Invalid architecture type: {type}")
+    raise ValueError(f"Invalid architecture type: {type}")

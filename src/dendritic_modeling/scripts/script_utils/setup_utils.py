@@ -271,7 +271,7 @@ def initialize_model(model_config: ModelConfig):
         # Create decoder
         decoder_network = get_architecture(decoder_config.type, decoder_params)
 
-    # Detect recurrent mode (supports dendritic_rnn and ei_unified paths).
+    # Detect recurrent mode across structured E/I and population-network cores.
     is_recurrent = _is_recurrent_core_config(model_config.core)
 
     # Create model based on task

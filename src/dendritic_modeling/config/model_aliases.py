@@ -10,6 +10,8 @@ from typing import Any
 
 from omegaconf import DictConfig, OmegaConf
 
+from dendritic_modeling.config.reactivation import normalize_reactivation_init_policy
+
 # Retained for backward-compatible imports. Additive aliases no longer inject a
 # hidden fixed reactivation gate; typed YAML loading defaults additive configs
 # that omit ``reactivation.init_policy`` to ``occupancy_quantile``.
@@ -146,17 +148,14 @@ def _normalize_reactivation_policy_fields(config: dict[str, Any]) -> None:
     """Normalize legacy reactivation policy aliases in mutable config payloads."""
 
     policy = config.get("reactivation_init_policy")
-    if isinstance(policy, str) and policy.strip().lower() == "quantile":
-        config["reactivation_init_policy"] = "occupancy_quantile"
+    if policy is not None:
+        config["reactivation_init_policy"] = normalize_reactivation_init_policy(policy)
 
     nested = config.get("reactivation")
     if isinstance(nested, dict):
         nested_policy = nested.get("init_policy")
-        if (
-            isinstance(nested_policy, str)
-            and nested_policy.strip().lower() == "quantile"
-        ):
-            nested["init_policy"] = "occupancy_quantile"
+        if nested_policy is not None:
+            nested["init_policy"] = normalize_reactivation_init_policy(nested_policy)
 
 
 def canonicalize_model_core_flags(config: Any) -> dict[str, Any]:

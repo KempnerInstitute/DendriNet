@@ -52,6 +52,7 @@ from dendritic_modeling.config.model import (
     TransferFunctionConfig,
     TransformerReplacementConfig,
 )
+from dendritic_modeling.config.reactivation import normalize_reactivation_init_policy
 from dendritic_modeling.config.recurrent import RecurrentConfig
 from dendritic_modeling.config.training import (
     CommonTrainerConfig,
@@ -331,8 +332,10 @@ def _build_core_config(core_data: Any) -> CoreConfig:
         lower_core_type in additive_aliases or is_explicit_additive_einet
     ):
         reactivation_dict["init_policy"] = "occupancy_quantile"
-    elif str(reactivation_dict.get("init_policy", "")).lower() == "quantile":
-        reactivation_dict["init_policy"] = "occupancy_quantile"
+    elif "init_policy" in reactivation_dict:
+        reactivation_dict["init_policy"] = normalize_reactivation_init_policy(
+            reactivation_dict.get("init_policy")
+        )
 
     return CoreConfig(
         type=core_type,

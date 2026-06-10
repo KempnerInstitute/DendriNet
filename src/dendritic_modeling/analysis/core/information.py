@@ -7,7 +7,6 @@ with the main configuration system.
 
 import logging
 import os
-import re
 import time
 import traceback
 from typing import Any, Optional, Union
@@ -17,6 +16,17 @@ import torch
 from tqdm import tqdm
 
 from dendritic_modeling.analysis.core.base import AbstractAnalyzer
+from dendritic_modeling.analysis.core.information_helpers import (
+    convert_information_units_in_place,
+    discrete_entropy_nats,
+    ensure_2d,
+    extract_metric_tokens,
+    is_discrete_class_labels,
+    keep_metric_key_given_availability,
+    metric_targets_class,
+    rename_metric_key_tokens,
+    should_convert_information_key_to_bits,
+)
 from dendritic_modeling.analysis.utils.einet_core import has_einet_core
 from dendritic_modeling.analysis.utils.runtime import (
     get_model_device,
@@ -1371,9 +1381,7 @@ class InformationAnalyzer(AbstractAnalyzer):
     @staticmethod
     def _ensure_2d(arr: np.ndarray) -> np.ndarray:
         """Ensure array is 2D."""
-        if arr.ndim == 1:
-            return arr.reshape(-1, 1)
-        return arr
+        return ensure_2d(arr)
 
     def get_summary(self, results: dict[str, dict[str, Union[dict, float]]]) -> str:
         """Generate a summary string of the results."""
@@ -1615,49 +1623,17 @@ class InformationAnalyzer(AbstractAnalyzer):
     @staticmethod
     def _is_discrete_class_labels(labels: np.ndarray) -> bool:
         """Heuristic: decide whether labels are discrete class IDs."""
-        labels = np.asarray(labels).ravel()
-        if labels.size == 0:
-            return False
-        unique = np.unique(labels)
-        # Typical classification: small number of unique values
-        if unique.size <= 50:
-            return True
-        # If the labels are integer-like and the number of unique labels is still smallish
-        if unique.size <= 200 and np.allclose(unique, np.round(unique), atol=1e-6):
-            return True
-        return False
+        return is_discrete_class_labels(labels)
 
     @staticmethod
     def _discrete_entropy_nats(labels: np.ndarray) -> float:
         """Discrete entropy H(C) in natural units (nats)."""
-        labels = np.asarray(labels).ravel()
-        if labels.size == 0:
-            return 0.0
-        _, counts = np.unique(labels, return_counts=True)
-        p = counts.astype(float) / float(counts.sum())
-        # Natural log: matches the Kraskov MI units (nats)
-        return float(-np.sum(p * np.log(p + 1e-12)))
+        return discrete_entropy_nats(labels)
 
     @staticmethod
     def _metric_targets_class(metric_key: str) -> bool:
         """Return True if the metric is of the form I(X;C) or I(X;C|...)."""
-        if (
-            not isinstance(metric_key, str)
-            or "I(" not in metric_key
-            or ")" not in metric_key
-        ):
-            return False
-        lpar = metric_key.find("I(")
-        lpar = metric_key.find("(", lpar)
-        rpar = metric_key.find(")", lpar)
-        if lpar == -1 or rpar == -1 or rpar <= lpar + 1:
-            return False
-        inside = metric_key[lpar + 1 : rpar]
-        main = inside.split("|", 1)[0]
-        parts = [p.strip() for p in main.split(";")]
-        if len(parts) < 2:
-            return False
-        return parts[1] == "C"
+        return metric_targets_class(metric_key)
 
     def _compute_layer_statistics(
         self,
@@ -1812,21 +1788,7 @@ class InformationAnalyzer(AbstractAnalyzer):
 
         Returns an empty list for non-metric keys.
         """
-        if not isinstance(metric_key, str):
-            return []
-        if "I(" not in metric_key or ")" not in metric_key:
-            return []
-
-        lpar = metric_key.find("I(")
-        lpar = metric_key.find("(", lpar)
-        rpar = metric_key.find(")", lpar)
-        if lpar == -1 or rpar == -1 or rpar <= lpar + 1:
-            return []
-
-        inside = metric_key[lpar + 1 : rpar]
-        inside = inside.replace("|", ";").replace(",", ";")
-        tokens = [t.strip() for t in inside.split(";") if t.strip()]
-        return tokens
+        return extract_metric_tokens(metric_key)
 
     @staticmethod
     def _rename_metric_key_tokens(metric_key: str, token_map: dict[str, str]) -> str:
@@ -1836,21 +1798,7 @@ class InformationAnalyzer(AbstractAnalyzer):
         preserving separators, and it works for tokens in both the main and
         conditioning parts (after '|').
         """
-        if not isinstance(metric_key, str):
-            return metric_key
-        if "I(" not in metric_key:
-            return metric_key
-
-        renamed = metric_key
-        for src, dst in token_map.items():
-            # Replace full-token occurrences inside the I( ... ) block.
-            # Tokens are delimited by one of: (, ;, ,, |, )
-            renamed = re.sub(
-                rf"(?<=[(;,|]){re.escape(src)}(?=[,;|)])",
-                dst,
-                renamed,
-            )
-        return renamed
+        return rename_metric_key_tokens(metric_key, token_map)
 
     def _keep_metric_key_given_availability(
         self,
@@ -1867,18 +1815,12 @@ class InformationAnalyzer(AbstractAnalyzer):
         - I / I_* when there are no inhibitory synapses
         - Vb / Vb_* when branch input does not exist (e.g., outermost distal layer)
         """
-        tokens = self._extract_metric_tokens(metric_key)
-        if not tokens:
-            return True
-
-        if (not has_exc_synapses) and any(t.startswith("E") for t in tokens):
-            return False
-        if (not has_inh_synapses) and any(t.startswith("I") for t in tokens):
-            return False
-        if (not has_branch_input) and any(t.startswith("Vb") for t in tokens):
-            return False
-
-        return True
+        return keep_metric_key_given_availability(
+            metric_key,
+            has_exc_synapses=has_exc_synapses,
+            has_inh_synapses=has_inh_synapses,
+            has_branch_input=has_branch_input,
+        )
 
     def _filter_result_metrics_in_place(
         self,
@@ -1917,20 +1859,7 @@ class InformationAnalyzer(AbstractAnalyzer):
         We convert keys that contain an MI-style token (e.g. "I(E;C)") and are
         *not* clearly dimensionless or in non-MI units.
         """
-        if not isinstance(key, str):
-            return False
-        if "I(" not in key:
-            return False
-        # Dimensionless ratios; do not convert.
-        if "_normalized" in key:
-            return False
-        # Fisher discriminability proxies (d'^2-like); not information units.
-        if "_fisher" in key:
-            return False
-        # Counts used for proxy bookkeeping.
-        if key.endswith("_n"):
-            return False
-        return True
+        return should_convert_information_key_to_bits(key)
 
     def _convert_information_units_in_place(self, obj: Any) -> None:
         """Convert MI/CMI-like quantities in-place from nats -> bits.
@@ -1939,32 +1868,10 @@ class InformationAnalyzer(AbstractAnalyzer):
         so we convert any MI/CMI-like metrics (including *_std and *_null variants)
         before saving/plotting when `compute.output_units="bits"`.
         """
-        if getattr(self, "output_units", "bits") != "bits":
-            return
-
-        nat_to_bit = 1.0 / float(np.log(2.0))
-        nat_to_bit_sq = nat_to_bit * nat_to_bit
-
-        def _convert_any(x: Any) -> None:
-            if isinstance(x, dict):
-                for k in list(x.keys()):
-                    v = x.get(k)
-                    if isinstance(v, (dict, list)):
-                        _convert_any(v)
-                    elif isinstance(v, (int, float, np.floating)):
-                        if not self._should_convert_information_key_to_bits(k):
-                            continue
-                        scale = (
-                            nat_to_bit_sq
-                            if isinstance(k, str) and k.endswith(("_var", "_variance"))
-                            else nat_to_bit
-                        )
-                        x[k] = float(v) * scale
-            elif isinstance(x, list):
-                for item in x:
-                    _convert_any(item)
-
-        _convert_any(obj)
+        convert_information_units_in_place(
+            obj,
+            output_units=getattr(self, "output_units", "bits"),
+        )
 
     def _add_label_shuffle_null_baselines_in_place(
         self,
