@@ -24,3 +24,12 @@
 - Expanded information analysis and training optimization options.
 - Added computation-level controls and multivariate aggregation options.
 - Added encoder-network caching and split encoder/main trainer flow.
+
+## 2026-06
+
+- Added population-network configs for feedforward, recurrent, spiking, synapse-type, and heterogeneous-cell examples.
+- Standardized additive aliases and occupancy-quantile reactivation initialization.
+- Added recurrent TopK weight caching and dense-to-sparse sparsity examples.
+- Consolidated population-network config validation and warning-only legacy alias handling.
+- Refactored local-learning and information-analysis helper modules.
+- Verified feedforward and population-format numerical behavior against develop and pre-cleanup baselines.
