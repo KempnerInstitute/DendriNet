@@ -155,9 +155,7 @@ def compute_dendritic_normalization(
     g_den_total = blk_layer.sum_conductances().detach()
     norm_factor = 1.0 / (g_den_total.unsqueeze(-1) + 1e-8)
 
-    if grad_g_den.dim() == 2:
-        norm_factor = norm_factor
-    elif grad_g_den.dim() == 3:
+    if grad_g_den.dim() == 3:
         norm_factor = norm_factor.unsqueeze(0)
 
     return grad_g_den * norm_factor
