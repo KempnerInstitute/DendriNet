@@ -9,7 +9,6 @@ by a broadcast soma error and optional morphology/information factors.
 """
 
 import logging
-import math
 from typing import Any, Optional
 
 import torch
@@ -21,7 +20,6 @@ from dendritic_modeling.networks import (
     DendriticBranchLayer,
     ExcitationInhibitionNetwork,
     ParametricActivation,
-    PathwayRouter,
 )
 from dendritic_modeling.networks.activations.parametric import (
     ParametricTanh,
@@ -29,6 +27,18 @@ from dendritic_modeling.networks.activations.parametric import (
 )
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.topk import (
     TopKLinear,
+)
+from dendritic_modeling.training.strategies.local_learning_broadcast import (
+    apply_broadcast_bandwidth,
+    compute_layer_total_conductance,
+    compute_pathway_activity,
+    compute_role_selectivity,
+    effective_topk_weight,
+    expand_parent_signal_to_children,
+    normalize_role_mass,
+    resolve_recent_role_profile,
+    resolve_router_output_roles,
+    role_mass_from_weight_matrix,
 )
 from dendritic_modeling.training.strategies.local_learning_config import (
     build_local_rule_config,
@@ -802,108 +812,36 @@ class LocalCreditAssignment(Trainer):
     def _apply_broadcast_bandwidth(
         self, e_n: torch.Tensor, bandwidth: str
     ) -> torch.Tensor:
-        """Apply bandwidth reduction to the broadcast error signal.
-
-        Simulates biologically plausible low-bandwidth feedback channels.
-
-        Args:
-            e_n: Error signal tensor [B, out_features].
-            bandwidth: One of "sign_only", "quantized", "sparse_topk".
-
-        Returns:
-            Bandwidth-reduced error signal (same shape as input).
-        """
-        if bandwidth == "sign_only":
-            # Only transmit the sign of the error (1-bit)
-            magnitude = e_n.abs().mean()
-            return torch.sign(e_n) * magnitude
-
-        elif bandwidth == "quantized":
-            # Uniform quantization to N bits
-            bits = getattr(self.local_cfg, "broadcast_bits", 8)
-            n_levels = 2**bits
-            e_min = e_n.min()
-            e_max = e_n.max()
-            e_range = e_max - e_min + 1e-8
-            # Quantize to [0, n_levels-1] then rescale back
-            quantized = torch.round((e_n - e_min) / e_range * (n_levels - 1))
-            return quantized / (n_levels - 1) * e_range + e_min
-
-        elif bandwidth == "sparse_topk":
-            # Only broadcast top-k% of neurons (by magnitude), zero the rest
-            frac = getattr(self.local_cfg, "broadcast_topk_fraction", 0.3)
-            k = max(1, int(e_n.shape[-1] * frac))
-            # Per-sample top-k
-            _, topk_idx = torch.topk(e_n.abs(), k, dim=-1)
-            mask = torch.zeros_like(e_n)
-            mask.scatter_(-1, topk_idx, 1.0)
-            return e_n * mask
-
-        else:
-            return e_n
+        """Apply bandwidth reduction to the broadcast error signal."""
+        return apply_broadcast_bandwidth(self.local_cfg, e_n, bandwidth)
 
     @staticmethod
     def _compute_layer_total_conductance(
         rec: dict[str, Any], v_n: torch.Tensor
     ) -> torch.Tensor:
         """Compute total conductance used by conductance-aware local rules."""
-        g_tot = torch.ones_like(v_n)
-
-        exc_out = rec.get("exc_out")
-        if exc_out is not None:
-            g_tot = g_tot + functional.relu(exc_out)
-
-        inh_out = rec.get("inh_out")
-        if inh_out is not None:
-            g_tot = g_tot + functional.relu(inh_out)
-
-        blk_module = rec.get("blk_module")
-        if blk_module is not None and hasattr(blk_module, "sum_conductances"):
-            g_blk = blk_module.sum_conductances().detach()[None, :].expand_as(v_n)
-            g_tot = g_tot + functional.relu(g_blk)
-
-        return g_tot
+        return compute_layer_total_conductance(rec, v_n)
 
     @staticmethod
     def _expand_parent_signal_to_children(
         signal: torch.Tensor, block_size: int, child_out_features: int
     ) -> torch.Tensor:
         """Broadcast a parent-layer signal to its grouped child branches."""
-        expanded = signal.repeat_interleave(block_size, dim=1)
-        if expanded.size(1) == child_out_features:
-            return expanded
-
-        if expanded.size(1) > child_out_features:
-            return expanded[:, :child_out_features]
-
-        repeats = math.ceil(float(child_out_features) / float(max(1, expanded.size(1))))
-        tiled = expanded.repeat(1, repeats)
-        return tiled[:, :child_out_features]
+        return expand_parent_signal_to_children(signal, block_size, child_out_features)
 
     @staticmethod
     def _normalize_role_mass(
         role_mass: torch.Tensor, eps: float = 1e-8
     ) -> torch.Tensor:
         """Normalize non-negative role mass into a role profile."""
-        denom = role_mass.sum(dim=-1, keepdim=True).clamp_min(eps)
-        return role_mass / denom
+        return normalize_role_mass(role_mass, eps)
 
     @staticmethod
     def _compute_role_selectivity(
         role_profile: torch.Tensor, eps: float = 1e-8
     ) -> torch.Tensor:
         """Measure pathway selectivity from normalized role profiles."""
-        n_roles = role_profile.size(-1)
-        if n_roles <= 1:
-            return torch.ones(
-                role_profile.size(0),
-                device=role_profile.device,
-                dtype=role_profile.dtype,
-            )
-        probs = role_profile.clamp_min(eps)
-        entropy = -(probs * probs.log()).sum(dim=-1)
-        max_entropy = math.log(float(n_roles))
-        return 1.0 - entropy / max(max_entropy, eps)
+        return compute_role_selectivity(role_profile, eps)
 
     @staticmethod
     def _resolve_recent_role_profile(
@@ -912,27 +850,16 @@ class LocalCreditAssignment(Trainer):
         prior_output_roles: list[torch.Tensor],
     ) -> Optional[torch.Tensor]:
         """Resolve the most plausible role basis for a layer input size."""
-        if (
-            isinstance(base_input_roles, torch.Tensor)
-            and base_input_roles.dim() == 2
-            and base_input_roles.size(0) == input_dim
-        ):
-            return base_input_roles
-
-        for role_profile in reversed(prior_output_roles):
-            if role_profile.dim() == 2 and role_profile.size(0) == input_dim:
-                return role_profile
-        return None
+        return resolve_recent_role_profile(
+            input_dim, base_input_roles, prior_output_roles
+        )
 
     @staticmethod
     def _effective_topk_weight(
         layer: TopKLinear, mask: Optional[torch.Tensor]
     ) -> torch.Tensor:
         """Return masked effective synaptic weights."""
-        eff_weight = layer.weight().detach()
-        if mask is None:
-            mask = layer.weight_mask().detach()
-        return eff_weight * mask.to(device=eff_weight.device, dtype=eff_weight.dtype)
+        return effective_topk_weight(layer, mask)
 
     @staticmethod
     def _role_mass_from_weight_matrix(
@@ -940,31 +867,11 @@ class LocalCreditAssignment(Trainer):
         input_roles: Optional[torch.Tensor],
     ) -> Optional[torch.Tensor]:
         """Aggregate pathway-role mass through a synaptic weight matrix."""
-        if input_roles is None or input_roles.dim() != 2:
-            return None
-        if weight_matrix.dim() != 2 or weight_matrix.size(1) != input_roles.size(0):
-            return None
-        roles = input_roles.to(device=weight_matrix.device, dtype=weight_matrix.dtype)
-        return weight_matrix.abs() @ roles
+        return role_mass_from_weight_matrix(weight_matrix, input_roles)
 
     def _resolve_router_output_roles(self, model: BaseModel) -> Optional[torch.Tensor]:
         """Return pathway ownership for encoder outputs when available."""
-        source = str(
-            getattr(
-                self.local_cfg.morphology_aware, "branch_role_source", "router_pathways"
-            )
-        ).lower()
-        if source != "router_pathways":
-            logger.warning(
-                "Unknown branch_role_source='%s'; disabling pathway-role inference.",
-                source,
-            )
-            return None
-
-        encoder = getattr(model, "encoder_network", None)
-        if not isinstance(encoder, PathwayRouter):
-            return None
-        return encoder.get_output_role_matrix().detach()
+        return resolve_router_output_roles(self.local_cfg, model)
 
     def _compute_pathway_activity(
         self,
@@ -974,44 +881,7 @@ class LocalCreditAssignment(Trainer):
         eps: float = 1e-8,
     ) -> Optional[torch.Tensor]:
         """Compute a sample-wise local pathway activity gate."""
-        candidates: list[torch.Tensor] = []
-
-        x_exc = rec.get("x_exc")
-        if isinstance(x_exc, torch.Tensor) and isinstance(
-            stats.input_role_profile, torch.Tensor
-        ):
-            if x_exc.size(1) == stats.input_role_profile.size(0):
-                act_exc = x_exc.abs() @ stats.input_role_profile.to(
-                    device=x_exc.device, dtype=x_exc.dtype
-                )
-                candidates.append(act_exc)
-
-        x_blk_raw = rec.get("x_blk_raw")
-        if (
-            isinstance(x_blk_raw, torch.Tensor)
-            and isinstance(stats.block_input_role_profile, torch.Tensor)
-            and x_blk_raw.size(1) == stats.block_input_role_profile.size(0)
-        ):
-            act_blk = x_blk_raw.abs() @ stats.block_input_role_profile.to(
-                device=x_blk_raw.device, dtype=x_blk_raw.dtype
-            )
-            candidates.append(act_blk)
-
-        if isinstance(stats.branch_role_profile, torch.Tensor):
-            denom = stats.branch_role_profile.sum(dim=0, keepdim=True).clamp_min(eps)
-            act_v = functional.relu(v_n) @ stats.branch_role_profile.to(
-                device=v_n.device, dtype=v_n.dtype
-            )
-            candidates.append(act_v / denom.to(device=v_n.device, dtype=v_n.dtype))
-
-        if not candidates:
-            return None
-
-        normalized: list[torch.Tensor] = []
-        for candidate in candidates:
-            denom = candidate.mean(dim=1, keepdim=True).clamp_min(eps)
-            normalized.append(candidate / denom)
-        return torch.stack(normalized, dim=0).mean(dim=0)
+        return compute_pathway_activity(rec, stats, v_n, eps)
 
     def _compute_pathway_vector_broadcast(
         self,
