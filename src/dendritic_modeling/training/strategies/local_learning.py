@@ -36,6 +36,12 @@ from dendritic_modeling.training.strategies.local_learning_config import (
     section_to_dict,
 )
 from dendritic_modeling.training.strategies.local_learning_state import _LayerStats
+from dendritic_modeling.training.strategies.local_learning_stdp import (
+    stdp_activity,
+    stdp_decay,
+    stdp_enabled,
+    stdp_pathway_enabled,
+)
 from dendritic_modeling.training.strategies.standard import Trainer
 
 logger = logging.getLogger(__name__)
@@ -522,45 +528,22 @@ class LocalCreditAssignment(Trainer):
 
     def _stdp_enabled(self) -> bool:
         """Return whether trace-based STDP updates should be applied."""
-        stdp_cfg = getattr(self.local_cfg, "stdp", None)
-        return bool(
-            getattr(stdp_cfg, "enabled", False)
-            or str(getattr(self.local_cfg, "rule_variant", "")).lower() == "stdp"
-        )
+        return stdp_enabled(self.local_cfg)
 
     def _stdp_pathway_enabled(self, pathway: str) -> bool:
         """Return whether STDP is configured for a recorded synaptic pathway."""
-        stdp_cfg = getattr(self.local_cfg, "stdp", None)
-        apply_to = getattr(stdp_cfg, "apply_to", ("exc", "rec_exc"))
-        if isinstance(apply_to, str):
-            apply_to = (apply_to,)
-        normalized = {str(item).strip().lower().replace("-", "_") for item in apply_to}
-        return "all" in normalized or pathway in normalized
+        return stdp_pathway_enabled(self.local_cfg, pathway)
 
     def _stdp_activity(
         self, values: torch.Tensor, threshold: float, mode: str
     ) -> torch.Tensor:
         """Convert raw local values to non-backpropagating STDP activities."""
-        activity = values.detach()
-        if activity.dim() != 2:
-            activity = activity.reshape(activity.size(0), -1)
-        centered = activity - float(threshold)
-        mode = (mode or "relu").lower()
-        if mode == "identity":
-            return centered
-        if mode == "binary":
-            return (centered > 0).to(dtype=activity.dtype)
-        if mode in {"abs", "absolute"}:
-            return centered.abs()
-        if mode != "relu":
-            logger.warning("Unknown stdp.activity_mode=%r; using relu.", mode)
-        return functional.relu(centered)
+        return stdp_activity(values, threshold, mode)
 
     @staticmethod
     def _stdp_decay(tau: float) -> float:
         """Single-step exponential decay for an STDP eligibility trace."""
-        tau = max(float(tau), 1e-6)
-        return math.exp(-1.0 / tau)
+        return stdp_decay(tau)
 
     def _add_topk_grad(
         self,
