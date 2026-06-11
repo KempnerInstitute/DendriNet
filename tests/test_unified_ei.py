@@ -2,6 +2,9 @@ import pytest
 import torch
 from omegaconf import OmegaConf
 
+from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.branch_layer import (
+    DendriticBranchLayer,
+)
 from dendritic_modeling.networks.architectures.excitation_inhibition.ei_network import (
     ConfigurableEINetwork,
 )
@@ -77,6 +80,325 @@ def test_stateful_dendrinet_recurrent_step_shape():
     assert new_state.trace_E[0].shape == (2, 32)
     assert new_state.trace_E[1].shape == (2, 16)
     assert new_state.trace_E[2].shape == (2, 8)
+
+
+def test_stateful_dendrinet_step_uses_explicit_branch_conductance():
+    """Recurrent shunting must use branch current and branch conductance separately."""
+    pop = PopulationConfig(
+        n_neurons=4,
+        branch_factors=[2],
+        ff_excitatory_synapses=4,
+        ff_inhibitory_synapses=2,
+        rec_excitatory_synapses=3,
+        rec_inhibitory_synapses=2,
+        use_shunting=True,
+    )
+    net = StatefulDendriNet(
+        pop_config=pop,
+        excitatory_input_dim=6,
+        inhibitory_input_dim=3,
+        recurrent_excitatory_input_dim=4,
+        recurrent_inhibitory_input_dim=3,
+        dt=1.0,
+    )
+
+    calls = []
+    for layer in net.branch_layers:
+        original = layer.voltage_from_currents
+
+        def wrapped_voltage_from_currents(*args, _original=original, **kwargs):
+            calls.append(
+                (
+                    kwargs.get("trace_branch"),
+                    kwargs.get("branch_conductance"),
+                )
+            )
+            return _original(*args, **kwargs)
+
+        layer.voltage_from_currents = wrapped_voltage_from_currents
+
+    state = net.init_state(batch_size=2, device=torch.device("cpu"))
+    net.step(
+        torch.rand(2, 6),
+        torch.rand(2, 3),
+        torch.rand(2, 4),
+        torch.rand(2, 3),
+        state,
+    )
+
+    assert calls
+    for trace_branch, branch_conductance in calls:
+        assert torch.is_tensor(trace_branch)
+        assert torch.is_tensor(branch_conductance)
+        assert branch_conductance.shape[-1] == trace_branch.shape[-1]
+        assert branch_conductance.shape[0] in {1, trace_branch.shape[0]}
+    assert any(branch_conductance.abs().sum() > 0 for _, branch_conductance in calls)
+
+
+def test_voltage_from_currents_does_not_use_branch_current_as_conductance():
+    layer = DendriticBranchLayer(
+        output_dim=3,
+        excitatory_input_dim=4,
+        excitatory_synapses_per_branch=2,
+        inhibitory_input_dim=4,
+        inhibitory_synapses_per_branch=2,
+        input_branch_factor=1,
+        use_shunting=True,
+    )
+    trace_E = torch.full((2, 3), 2.0)
+    trace_E_rec = torch.zeros(2, 3)
+    trace_I = torch.ones(2, 3)
+    trace_I_rec = torch.zeros(2, 3)
+    trace_branch = torch.full((2, 3), 5.0)
+
+    _voltage, denominator = layer.voltage_from_currents(
+        trace_E=trace_E,
+        trace_E_rec=trace_E_rec,
+        trace_I=trace_I,
+        trace_I_rec=trace_I_rec,
+        trace_branch=trace_branch,
+    )
+
+    assert torch.allclose(denominator, 1 + trace_E + trace_I)
+
+
+def _copy_stateful_dendrinet_branch_state(source, target):
+    target.branch_layers.load_state_dict(source.branch_layers.state_dict())
+    if hasattr(source, "decays") and hasattr(target, "decays"):
+        target.decays.copy_(source.decays)
+
+
+def test_soma_feedback_zero_init_preserves_existing_recurrent_behavior():
+    base_pop = PopulationConfig(
+        n_neurons=4,
+        branch_factors=[1],
+        ff_excitatory_synapses=2,
+        ff_inhibitory_synapses=0,
+        rec_excitatory_synapses=0,
+        rec_inhibitory_synapses=0,
+        somatic_synapses=False,
+        reactivate=False,
+    )
+    feedback_pop = PopulationConfig(
+        n_neurons=4,
+        branch_factors=[1],
+        ff_excitatory_synapses=2,
+        ff_inhibitory_synapses=0,
+        rec_excitatory_synapses=0,
+        rec_inhibitory_synapses=0,
+        somatic_synapses=False,
+        reactivate=False,
+        soma_feedback_enabled=True,
+        soma_feedback_levels="non_soma",
+        soma_feedback_init_std=0.0,
+    )
+    torch.manual_seed(10)
+    control = StatefulDendriNet(base_pop, excitatory_input_dim=6, dt=1.0)
+    torch.manual_seed(11)
+    feedback = StatefulDendriNet(feedback_pop, excitatory_input_dim=6, dt=1.0)
+    _copy_stateful_dendrinet_branch_state(control, feedback)
+
+    x = torch.rand(2, 6)
+    control_state = control.init_state(batch_size=2, device=torch.device("cpu"))
+    feedback_state = feedback.init_state(batch_size=2, device=torch.device("cpu"))
+
+    for _ in range(3):
+        control_out, control_state = control.step(x, state=control_state)
+        feedback_out, feedback_state = feedback.step(x, state=feedback_state)
+        torch.testing.assert_close(feedback_out, control_out)
+
+
+def test_soma_feedback_additive_uses_previous_soma_output():
+    base_kwargs = {
+        "n_neurons": 4,
+        "branch_factors": [1],
+        "ff_excitatory_synapses": 2,
+        "ff_inhibitory_synapses": 0,
+        "rec_excitatory_synapses": 0,
+        "rec_inhibitory_synapses": 0,
+        "somatic_synapses": False,
+        "reactivate": False,
+    }
+    control_pop = PopulationConfig(**base_kwargs)
+    feedback_pop = PopulationConfig(
+        **base_kwargs,
+        soma_feedback_enabled=True,
+        soma_feedback_mode="additive",
+        soma_feedback_source="output",
+        soma_feedback_levels=[0],
+        soma_feedback_strength=1.0,
+        soma_feedback_init_std=0.0,
+    )
+    torch.manual_seed(20)
+    control = StatefulDendriNet(control_pop, excitatory_input_dim=6, dt=1.0)
+    torch.manual_seed(21)
+    feedback = StatefulDendriNet(feedback_pop, excitatory_input_dim=6, dt=1.0)
+    _copy_stateful_dendrinet_branch_state(control, feedback)
+    with torch.no_grad():
+        feedback.soma_feedback_projections[0].weight.fill_(0.5)
+
+    x = torch.rand(2, 6)
+    control_state = control.init_state(batch_size=2, device=torch.device("cpu"))
+    feedback_state = feedback.init_state(batch_size=2, device=torch.device("cpu"))
+
+    control_t0, control_state = control.step(x, state=control_state)
+    feedback_t0, feedback_state = feedback.step(x, state=feedback_state)
+    torch.testing.assert_close(feedback_t0, control_t0)
+    torch.testing.assert_close(feedback_state.soma_output, feedback_t0)
+
+    control_t1, _ = control.step(x, state=control_state)
+    feedback_t1, _ = feedback.step(x, state=feedback_state)
+    assert not torch.allclose(feedback_t1, control_t1)
+
+
+def test_soma_feedback_shunting_requires_shunting_population():
+    with pytest.raises(ValueError, match="requires use_shunting=True"):
+        PopulationConfig(
+            n_neurons=4,
+            branch_factors=[1],
+            ff_excitatory_synapses=2,
+            ff_inhibitory_synapses=0,
+            use_shunting=False,
+            soma_feedback_enabled=True,
+            soma_feedback_mode="shunting",
+        )
+
+
+def test_soma_feedback_spike_readout_source_falls_back_in_rate_mode():
+    pop = PopulationConfig(
+        n_neurons=3,
+        branch_factors=[1],
+        ff_excitatory_synapses=1,
+        ff_inhibitory_synapses=0,
+        dynamics_mode="rate",
+        soma_feedback_enabled=True,
+        soma_feedback_source="spike_readout",
+    )
+    net = StatefulDendriNet(pop, excitatory_input_dim=3)
+    state = net.init_state(batch_size=2, device=torch.device("cpu"))
+    assert state.spike_readout is not None
+    state.soma_output = torch.ones(2, 3)
+    state.spike_readout = torch.zeros(2, 3)
+
+    source = net._previous_soma_feedback_source(
+        state,
+        batch_size=2,
+        device=torch.device("cpu"),
+        dtype=torch.float32,
+    )
+
+    torch.testing.assert_close(source, state.soma_output)
+
+
+def test_soma_feedback_disabled_levels_have_no_trainable_projection():
+    pop = PopulationConfig(
+        n_neurons=4,
+        branch_factors=[2, 2],
+        ff_excitatory_synapses=2,
+        ff_inhibitory_synapses=0,
+        soma_feedback_enabled=True,
+        soma_feedback_levels="non_soma",
+        soma_feedback_learnable_strength=True,
+    )
+    net = StatefulDendriNet(pop, excitatory_input_dim=5)
+
+    assert net.soma_feedback_level_indices == {0, 1}
+    assert isinstance(net.soma_feedback_projections[0], torch.nn.Linear)
+    assert isinstance(net.soma_feedback_projections[1], torch.nn.Linear)
+    assert isinstance(net.soma_feedback_projections[2], torch.nn.Identity)
+    assert net.soma_feedback_strength.shape == (2,)
+    assert "soma_feedback_projections.2.weight" not in dict(net.named_parameters())
+
+
+def test_legacy_unified_ei_tau_schema_builds_canonical_recurrent_network():
+    params = {
+        "unified_ei": {
+            "n_excitatory": 8,
+            "n_inhibitory": 3,
+            "output_mode": "last",
+            "dt": 1.0,
+            "learn_taus": True,
+            "i_tau": 7.0,
+            "input_projection_layers": [6],
+            "layers": [
+                {
+                    "tau": 15.0,
+                    "ff_synapses": 3,
+                    "rec_synapses": 2,
+                    "ie_synapses": 1,
+                    "compartment": "topk",
+                    "use_shunting": True,
+                    "reactivate": True,
+                    "reactivation_type": "param_tanh",
+                    "weight_transform": "softplus",
+                }
+            ],
+        }
+    }
+    core_cfg = {"type": "unified_ei", **params}
+
+    assert _is_recurrent_core_config(core_cfg)
+
+    net = get_architecture("unified_ei", params, input_dim=4)
+    layer = net.layers[0]
+
+    assert isinstance(net, EINetwork)
+    assert net.is_recurrent
+    assert net.config.input_projection_dims == [6]
+    assert layer.config.excitatory.n_neurons == 8
+    assert layer.config.excitatory.tau_base == pytest.approx(15.0)
+    assert layer.config.excitatory.learnable_tau is True
+    assert layer.config.inhibitory is not None
+    assert layer.config.inhibitory.n_neurons == 3
+    assert layer.config.inhibitory.tau_base == pytest.approx(7.0)
+
+    y = net(torch.rand(2, 5, 4))
+    assert y.shape == (2, 8)
+    assert torch.isfinite(y).all()
+
+
+def test_legacy_unified_ei_recurrent_only_layer_gets_trainable_upstream_drive():
+    params = {
+        "unified_ei": {
+            "n_excitatory": 6,
+            "n_inhibitory": 2,
+            "input_projection_layers": [5],
+            "layers": [
+                {
+                    "tau": 10.0,
+                    "ff_synapses": 2,
+                    "rec_synapses": 1,
+                    "ie_synapses": 1,
+                    "use_shunting": True,
+                },
+                {
+                    "tau": 50.0,
+                    "ff_synapses": 0,
+                    "rec_synapses": 1,
+                    "ie_synapses": 1,
+                    "use_shunting": True,
+                },
+            ],
+        }
+    }
+
+    net = get_architecture("unified_ei", params, input_dim=4)
+
+    assert net.layers[1].config.excitatory.ff_excitatory_synapses == 2
+    assert net.layers[1].config.inhibitory is not None
+    assert net.layers[1].config.inhibitory.ff_excitatory_synapses == 2
+
+    y = net(torch.rand(2, 4, 4))
+    y.sum().backward()
+    missing = [name for name, param in net.named_parameters() if param.grad is None]
+    zero = [
+        name
+        for name, param in net.named_parameters()
+        if param.grad is not None and param.grad.detach().float().norm().item() == 0.0
+    ]
+
+    assert missing == []
+    assert zero == []
 
 
 def test_stateful_dendrinet_can_mask_same_population_self_recurrence():
@@ -510,18 +832,354 @@ def test_recurrent_additive_alias_uses_responsive_fixed_gate():
         }
     )
 
-    net = get_architecture("rnn_dendritic_additive", params, input_dim=8)
+    with pytest.warns(UserWarning, match="rnn_dendritic_additive"):
+        net = get_architecture("rnn_dendritic_additive", params, input_dim=8)
     layer = net.layers[0].e_population.branch_layers[0]
 
+    # rnn_dendritic_additive is now RAW additive (no implicit normalization) and
+    # no longer forces a fixed reactivation gate: the explicit policy survives.
     assert layer.use_shunting is False
-    assert layer.use_additive_normalization is True
-    assert layer.reactivation_init_policy == "fixed"
-    assert layer.reactivation_init_m == pytest.approx(1.0)
-    assert layer.reactivation_init_b == pytest.approx(0.0)
+    assert layer.use_additive_normalization is False
+    assert layer.reactivation_init_policy == "occupancy_quantile"
 
     y = net(torch.rand(2, 5, 8))
     assert y.shape == (2, 6)
     assert torch.isfinite(y).all()
+
+
+def test_recurrent_additive_alias_applies_to_inhibitory_population():
+    params = {
+        "unified_ei": {
+            "output_mode": "last",
+            "layers": [
+                {
+                    "excitatory": {
+                        "n_neurons": 4,
+                        "branch_factors": [1],
+                        "ff_excitatory_synapses": 2,
+                        "rec_excitatory_synapses": 1,
+                        "use_shunting": True,
+                    },
+                    "inhibitory": {
+                        "n_neurons": 2,
+                        "branch_factors": [1],
+                        "ff_excitatory_synapses": 2,
+                        "rec_excitatory_synapses": 1,
+                        "use_shunting": True,
+                    },
+                    "recurrent": True,
+                    "dt": 1.0,
+                }
+            ],
+        }
+    }
+
+    with pytest.warns(UserWarning, match="rnn_dendritic_additive"):
+        net = get_architecture("rnn_dendritic_additive", params, input_dim=5)
+    layer = net.layers[0]
+
+    assert layer.e_population.pop_config.use_shunting is False
+    assert layer.e_population.pop_config.use_additive_normalization is False
+    assert layer.i_population is not None
+    assert layer.i_population.pop_config.use_shunting is False
+    assert layer.i_population.pop_config.use_additive_normalization is False
+
+
+def test_additive_shunt_from_currents_applies_safe_normalization():
+    layer = DendriticBranchLayer(
+        output_dim=3,
+        excitatory_input_dim=3,
+        excitatory_synapses_per_branch=1,
+        reactivate=False,
+        use_shunting=False,
+        use_additive_normalization=True,
+        dbl_init_method="default",
+    )
+
+    voltage = layer.shunt_from_currents(
+        trace_E=torch.tensor([[1.0, 2.0, 3.0]]),
+        trace_E_rec=0,
+        trace_I=0,
+        trace_I_rec=0,
+    )
+
+    expected = torch.tensor([[-1.2247449, 0.0, 1.2247449]])
+    torch.testing.assert_close(voltage, expected, atol=1e-6, rtol=1e-6)
+
+
+def test_additive_normalization_is_finite_for_singleton_population():
+    layer = DendriticBranchLayer(
+        output_dim=1,
+        excitatory_input_dim=1,
+        excitatory_synapses_per_branch=1,
+        reactivate=False,
+        use_shunting=False,
+        use_additive_normalization=True,
+        dbl_init_method="default",
+    )
+
+    voltage = layer.shunt_from_currents(
+        trace_E=torch.tensor([[1.0], [2.0]]),
+        trace_E_rec=0,
+        trace_I=0,
+        trace_I_rec=0,
+    )
+
+    assert torch.isfinite(voltage).all()
+    torch.testing.assert_close(voltage, torch.zeros_like(voltage))
+
+
+def test_structured_dendritic_additive_recurrent_is_raw_additive():
+    params = {
+        "architecture": {
+            "excitatory_layer_sizes": [4],
+            "inhibitory_layer_sizes": [],
+            "excitatory_branch_factors": [1],
+        },
+        "connectivity": {
+            "ee_synapses_per_branch_per_layer": [2],
+            "ie_synapses_per_branch_per_layer": [0],
+            "rec_ee_synapses_per_branch": [1],
+        },
+        "transfer": {"input_mode": 0},
+        "morphology": {
+            "use_shunting": True,
+            "use_additive_normalization": False,
+            "somatic_synapses": True,
+        },
+        "reactivation": {
+            "enabled": True,
+            "init_policy": "analytical",
+            "init_m": 1.5,
+            "init_b": 0.5,
+        },
+    }
+
+    with pytest.warns(UserWarning, match="dendritic_additive"):
+        net = get_architecture("dendritic_additive", params, input_dim=5)
+    layer = net.layers[0].e_population.branch_layers[0]
+
+    # dendritic_additive (even recurrent) is RAW additive now: no forced
+    # normalization, no hidden fixed gate; the explicit reactivation survives.
+    assert layer.use_shunting is False
+    assert layer.use_additive_normalization is False
+    assert layer.reactivation_init_policy == "analytical"
+    assert layer.reactivation_init_m == pytest.approx(1.5)
+    assert layer.reactivation_init_b == pytest.approx(0.5)
+
+
+def test_structured_dendritic_normalized_additive_enables_normalization():
+    params = {
+        "architecture": {
+            "excitatory_layer_sizes": [4],
+            "inhibitory_layer_sizes": [],
+            "excitatory_branch_factors": [1],
+        },
+        "connectivity": {
+            "ee_synapses_per_branch_per_layer": [2],
+            "ie_synapses_per_branch_per_layer": [0],
+            "rec_ee_synapses_per_branch": [1],
+        },
+        "transfer": {"input_mode": 0},
+        "morphology": {"somatic_synapses": True},
+        "reactivation": {"enabled": True, "init_policy": "occupancy_quantile"},
+    }
+
+    net = get_architecture("dendritic_normalized_additive", params, input_dim=5)
+    layer = net.layers[0].e_population.branch_layers[0]
+
+    # dendritic_normalized_additive == additive + normalization (explicit), and
+    # the alias does NOT override the explicitly chosen data-driven policy.
+    assert layer.use_shunting is False
+    assert layer.use_additive_normalization is True
+    assert layer.reactivation_init_policy == "occupancy_quantile"
+
+
+def test_recurrent_alias_applies_to_typed_layer_population_config():
+    layer_cfg = EILayerConfig(
+        excitatory=PopulationConfig(
+            n_neurons=4,
+            branch_factors=[2],
+            ff_excitatory_synapses=2,
+            rec_excitatory_synapses=1,
+            use_shunting=True,
+        ),
+        inhibitory=None,
+        recurrent=True,
+        dt=1.0,
+    )
+    params = {"unified_ei": {"output_mode": "last", "layers": [layer_cfg]}}
+
+    with pytest.warns(UserWarning, match="rnn_flat_additive"):
+        net = get_architecture("rnn_flat_additive", params, input_dim=5)
+    pop_config = net.layers[0].e_population.pop_config
+
+    assert pop_config.use_shunting is False
+    assert pop_config.use_additive_normalization is False
+    assert pop_config.branch_factors == [1]
+    # rnn_flat_additive no longer forces a fixed reactivation gate
+    assert pop_config.reactivation_init_policy != "fixed"
+
+
+def test_structured_recurrent_inhibitory_copies_reactivation_calibration_fields():
+    params = {
+        "architecture": {
+            "excitatory_layer_sizes": [4],
+            "inhibitory_layer_sizes": [2],
+            "excitatory_branch_factors": [1],
+            "inhibitory_branch_factors": [1],
+        },
+        "connectivity": {
+            "ee_synapses_per_branch_per_layer": [2],
+            "ie_synapses_per_branch_per_layer": [1],
+            "ei_synapses_per_branch_per_layer": [2],
+            "ii_synapses_per_branch_per_layer": [1],
+            "rec_ee_synapses_per_branch": [1],
+            "rec_ie_synapses_per_branch": [1],
+            "rec_ei_synapses_per_branch": [1],
+            "rec_ii_synapses_per_branch": [1],
+        },
+        "transfer": {"input_mode": 0},
+        "morphology": {"use_shunting": True, "somatic_synapses": True},
+        "reactivation": {
+            "enabled": True,
+            "init_policy": "occupancy_quantile",
+            "occupancy_quantile_low": 0.2,
+            "occupancy_quantile_high": 0.8,
+            "occupancy_target_low": 0.25,
+            "occupancy_target_high": 0.75,
+            "calibration_min_quantile_width": 0.01,
+            "calibration_max_m": 7.0,
+            "calibration_revert_on_invalid": False,
+        },
+    }
+
+    net = get_architecture("dendritic_shunting", params, input_dim=5)
+    exc_cfg = net.layers[0].e_population.pop_config
+    assert net.layers[0].i_population is not None
+    inh_cfg = net.layers[0].i_population.pop_config
+
+    assert inh_cfg.reactivation_occupancy_quantile_low == (
+        exc_cfg.reactivation_occupancy_quantile_low
+    )
+    assert inh_cfg.reactivation_occupancy_quantile_high == (
+        exc_cfg.reactivation_occupancy_quantile_high
+    )
+    assert inh_cfg.reactivation_occupancy_target_low == (
+        exc_cfg.reactivation_occupancy_target_low
+    )
+    assert inh_cfg.reactivation_occupancy_target_high == (
+        exc_cfg.reactivation_occupancy_target_high
+    )
+    assert inh_cfg.reactivation_calibration_min_quantile_width == pytest.approx(
+        exc_cfg.reactivation_calibration_min_quantile_width
+    )
+    assert inh_cfg.reactivation_calibration_max_m == pytest.approx(
+        exc_cfg.reactivation_calibration_max_m
+    )
+    assert inh_cfg.reactivation_calibration_revert_on_invalid is False
+
+
+def test_recurrent_conductance_dynamic_uses_forward_hooks_without_stale_scale_vectors():
+    params = {
+        "architecture": {
+            "excitatory_layer_sizes": [4],
+            "inhibitory_layer_sizes": [],
+            "excitatory_branch_factors": [1],
+        },
+        "connectivity": {
+            "ee_synapses_per_branch_per_layer": [2],
+            "ie_synapses_per_branch_per_layer": [0],
+            "rec_ee_synapses_per_branch": [1],
+        },
+        "transfer": {"input_mode": 0},
+        "morphology": {"use_shunting": True, "somatic_synapses": True},
+        "sparsity": {"gradient_scaling": "conductance_dynamic"},
+        "reactivation": {"enabled": False},
+    }
+
+    net = get_architecture("dendritic_shunting", params, input_dim=5)
+    layer = net.layers[0].e_population.branch_layers[0]
+    assert layer.branch_excitation.param_scale_vec is None
+    assert layer.branch_recurrent.param_scale_vec is None
+
+    net.train()
+    y = net(torch.rand(2, 3, 5))
+
+    assert torch.isfinite(y).all()
+    assert layer.branch_excitation.param_scale_vec is None
+    assert layer.branch_recurrent.param_scale_vec is None
+    assert layer.branch_excitation.input_scale_vec is None
+    assert layer.branch_recurrent.input_scale_vec is None
+    assert layer.branch_excitation._use_forward_dynamic_grad_scaling
+    assert layer.branch_recurrent._use_forward_dynamic_grad_scaling
+
+
+def test_structured_recurrent_factory_propagates_soma_feedback_config():
+    params = {
+        "architecture": {
+            "excitatory_layer_sizes": [4],
+            "inhibitory_layer_sizes": [],
+            "excitatory_branch_factors": [1],
+        },
+        "connectivity": {
+            "ee_synapses_per_branch_per_layer": [2],
+            "ie_synapses_per_branch_per_layer": [0],
+            "rec_ee_synapses_per_branch": [1],
+        },
+        "transfer": {"input_mode": 0},
+        "morphology": {"use_shunting": True, "somatic_synapses": True},
+        "recurrent_ei": {
+            "soma_feedback": {
+                "enabled": True,
+                "mode": "gated",
+                "source": "voltage",
+                "levels": "distal",
+                "strength": 0.25,
+                "learnable_strength": True,
+            }
+        },
+        "reactivation": {"enabled": False},
+    }
+
+    net = get_architecture("dendritic_shunting", params, input_dim=5)
+    population = net.layers[0].e_population
+
+    assert population.soma_feedback_enabled is True
+    assert population.soma_feedback_mode == "gated"
+    assert population.soma_feedback_source == "voltage"
+    assert population.soma_feedback_level_indices == {0}
+    assert isinstance(population.soma_feedback_strength, torch.nn.Parameter)
+    assert population.soma_feedback_strength.shape == (
+        len(population.soma_feedback_level_indices),
+    )
+    assert torch.allclose(
+        population.soma_feedback_strength,
+        torch.full_like(population.soma_feedback_strength, 0.25),
+    )
+
+
+def test_structured_soma_feedback_only_core_is_recurrent():
+    params = {
+        "architecture": {
+            "excitatory_layer_sizes": [4],
+            "inhibitory_layer_sizes": [],
+            "excitatory_branch_factors": [1],
+        },
+        "connectivity": {
+            "ee_synapses_per_branch_per_layer": [2],
+            "ie_synapses_per_branch_per_layer": [0],
+            "rec_ee_synapses_per_branch": [0],
+        },
+        "transfer": {"input_mode": 0},
+        "morphology": {"use_shunting": True, "somatic_synapses": True},
+        "soma_feedback": {"enabled": True, "levels": "distal"},
+        "reactivation": {"enabled": False},
+    }
+
+    net = get_architecture("dendritic_shunting", params, input_dim=5)
+
+    assert net.is_recurrent is True
 
 
 def test_factory_builds_einet_recurrent_option_with_transfer():
@@ -545,6 +1203,7 @@ def test_factory_builds_einet_recurrent_option_with_transfer():
             "transfer": {
                 "input_mode": 1,
                 "independent_pathways": False,
+                "allow_direct_inhibitory_stream": True,
             },
             "morphology": {
                 "use_shunting": True,
@@ -654,6 +1313,63 @@ def test_factory_recurrent_einet_input_mode0_uses_transfer_by_default():
     assert y.shape == (2, 3, 5)
 
 
+def test_factory_recurrent_einet_input_mode1_builds_defined_inhibitory_population():
+    params = OmegaConf.create(
+        {
+            "architecture": {
+                "excitatory_layer_sizes": [5],
+                "inhibitory_layer_sizes": [3],
+                "excitatory_branch_factors": [1],
+                "inhibitory_branch_factors": [1],
+            },
+            "connectivity": {
+                "ee_synapses_per_branch_per_layer": [3],
+                "ei_synapses_per_branch_per_layer": [2],
+                "ie_synapses_per_branch_per_layer": [2],
+                "ii_synapses_per_branch_per_layer": [1],
+                "rec_ee_synapses_per_branch": [1],
+                "rec_ie_synapses_per_branch": [1],
+                "rec_ei_synapses_per_branch": [1],
+                "rec_ii_synapses_per_branch": [1],
+            },
+            "transfer": {
+                "input_mode": 1,
+                "independent_pathways": False,
+            },
+            "morphology": {
+                "use_shunting": True,
+                "weight_transform": "softplus",
+                "somatic_synapses": False,
+                "dbl_init_method": "analytical_expectation",
+            },
+            "sparsity": {
+                "init_method": "xavier_normal",
+                "noise_level": 0.0,
+                "type": "standard",
+                "gamma": 1.0,
+                "temperature": 0.0,
+                "gradient_scaling": "none",
+                "deepst": {},
+            },
+            "reactivation": {
+                "enabled": True,
+                "type": "param_tanh",
+                "init_m": 1.0,
+                "init_b": 0.5,
+                "gradient_scaling": "none",
+            },
+            "blocklinear": {"gradient_scaling": "none", "efficient": False},
+            "implementation": {"adaptive_initialization": False, "print_hooks": False},
+            "recurrent_ei": {"dt": 1.0, "output_mode": "all"},
+        }
+    )
+    net = get_architecture("EINet", params, input_dim=6)
+    assert isinstance(net, EINetwork)
+    assert net.layers[0].i_population is not None
+    y = net(torch.rand(2, 3, 6))
+    assert y.shape == (2, 3, 5)
+
+
 def test_factory_builds_einet_recurrent_old_style_backward_compat():
     """Old-style: rec synapses in recurrent_ei with enabled flag (backward compat)."""
     params = OmegaConf.create(
@@ -670,7 +1386,11 @@ def test_factory_builds_einet_recurrent_old_style_backward_compat():
                 "ie_synapses_per_branch_per_layer": [2],
                 "ii_synapses_per_branch_per_layer": [0],
             },
-            "transfer": {"input_mode": 1, "independent_pathways": False},
+            "transfer": {
+                "input_mode": 1,
+                "independent_pathways": False,
+                "allow_direct_inhibitory_stream": True,
+            },
             "morphology": {
                 "use_shunting": True,
                 "weight_transform": "exp",
@@ -723,7 +1443,11 @@ def test_factory_einet_without_recurrent_option_stays_legacy():
                 "ie_synapses_per_branch_per_layer": [3],
                 "ii_synapses_per_branch_per_layer": [0],
             },
-            "transfer": {"input_mode": 1, "independent_pathways": False},
+            "transfer": {
+                "input_mode": 1,
+                "independent_pathways": False,
+                "allow_direct_inhibitory_stream": True,
+            },
             "morphology": {
                 "use_shunting": True,
                 "weight_transform": "exp",
@@ -803,7 +1527,10 @@ def test_factory_einet_recurrent_per_layer_tau():
                 "ie_synapses_per_branch_per_layer": [2],
                 "rec_ee_synapses_per_branch": [2, 3],
             },
-            "transfer": {"input_mode": 1},
+            "transfer": {
+                "input_mode": 1,
+                "allow_direct_inhibitory_stream": True,
+            },
             "morphology": {
                 "use_shunting": True,
                 "weight_transform": "exp",
@@ -874,6 +1601,7 @@ def _make_2layer_recurrent_params(inhibitory_mode="first"):
                 "input_mode": 1,
                 "independent_pathways": False,
                 "inhibitory_mode": inhibitory_mode,
+                "allow_direct_inhibitory_stream": True,
             },
             "morphology": {
                 "use_shunting": True,

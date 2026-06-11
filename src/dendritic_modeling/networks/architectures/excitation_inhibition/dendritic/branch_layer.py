@@ -11,7 +11,10 @@ from typing import Optional
 import torch
 import torch.nn as nn
 
-from dendritic_modeling.networks.activations import ActivationFactory
+from dendritic_modeling.networks.activations import (
+    ActivationFactory,
+    resolve_dendritic_activation,
+)
 from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.blocklinear import (
     BlockLinear,
     EfficientBlockLinear,
@@ -26,14 +29,6 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.i
     identity_weighttransform_dbl_init,
     naive_dbl_init,
     normalize_reactivation_init_policy,
-)
-
-# Import linear layer variants
-from dendritic_modeling.networks.architectures.excitation_inhibition.synapse import (
-    DeepstLinear,
-    StochasticTopKLinear,
-    TopKLinear,
-    VarianceTopKLinear,
 )
 
 
@@ -91,9 +86,19 @@ class DendriticBranchLayer(nn.Module):
         topk_temperature=0.5,  # For stochastic TopK
         topk_ultrafast=False,  # For much faster stochastic TopK
         topk_strategy="none",
+        dense_to_sparse_initial_density=1.0,
+        dense_to_sparse_initial_k=None,
+        dense_to_sparse_start_step=0,
+        dense_to_sparse_end_step=1000,
+        dense_to_sparse_update_interval=1,
+        dense_to_sparse_schedule="cubic",
+        dense_to_sparse_freeze_on_end=False,
+        dense_to_sparse_advance_on_forward=True,
+        dense_to_sparse_prune_metric="weight",
         use_shunting=True,
         reactivate=False,
         reactivation_type="param_tanh",
+        dendritic_activation=None,
         reactivation_init_m=1,
         reactivation_init_b=0.5,
         reactivation_init_policy="analytical",
@@ -124,12 +129,23 @@ class DendriticBranchLayer(nn.Module):
         init_method=None,
         weight_threshold=1e-6,
         adaptive_initialization=True,
+        adaptive_initialization_policy="legacy_scale",
+        adaptive_target_conductance=5.0,
         branch_factors=None,  # Add branch_factors parameter
         epsilon=1e-8,  # Add configurable epsilon for numerical stability
         weight_transform="exp",  # Weight transformation for positive weights
+        excitatory_connection_mask=None,
+        inhibitory_connection_mask=None,
+        recurrent_connection_mask=None,
+        rec_inhibitory_connection_mask=None,
         **kwargs,
     ):
         super().__init__()
+        reactivate, reactivation_type = resolve_dendritic_activation(
+            dendritic_activation,
+            reactivate,
+            reactivation_type,
+        )
         self.layer_idx = layer_idx
         self.n_branches = output_dim
         self.reactivation_strategy = reactivation_strategy
@@ -149,6 +165,19 @@ class DendriticBranchLayer(nn.Module):
         self.topk_temperature = topk_temperature  # Store the temperature
         self.topk_ultrafast = topk_ultrafast  # Store the ultrafast flag
         self.topk_strategy = topk_strategy  # Store the strategy
+        self.dense_to_sparse_initial_density = dense_to_sparse_initial_density
+        self.dense_to_sparse_initial_k = dense_to_sparse_initial_k
+        self.dense_to_sparse_start_step = dense_to_sparse_start_step
+        self.dense_to_sparse_end_step = dense_to_sparse_end_step
+        self.dense_to_sparse_update_interval = dense_to_sparse_update_interval
+        self.dense_to_sparse_schedule = dense_to_sparse_schedule
+        self.dense_to_sparse_freeze_on_end = dense_to_sparse_freeze_on_end
+        self.dense_to_sparse_advance_on_forward = dense_to_sparse_advance_on_forward
+        self.dense_to_sparse_prune_metric = dense_to_sparse_prune_metric
+        self.indexed_seed = kwargs.pop("indexed_seed", None)
+        self.indexed_output_chunk_size = kwargs.pop("indexed_output_chunk_size", 2048)
+        self.indexed_candidate_size = kwargs.pop("indexed_candidate_size", None)
+        self.indexed_selection = kwargs.pop("indexed_selection", "standard")
         self.input_excitatory = excitatory_input_dim is not None
         self.print_hooks = print_hooks
 
@@ -165,8 +194,11 @@ class DendriticBranchLayer(nn.Module):
         self.init_method = init_method
         self.weight_threshold = weight_threshold
         self.adaptive_initialization = adaptive_initialization
+        self.adaptive_initialization_policy = adaptive_initialization_policy
+        self.adaptive_target_conductance = adaptive_target_conductance
         self.branch_factors = branch_factors  # Store branch_factors
         self.weight_transform = weight_transform
+        self.dendritic_activation = reactivation_type if reactivate else "none"
 
         gradient_scaler = GradientScaler(
             topk_strategy=topk_strategy,
@@ -184,6 +216,7 @@ class DendriticBranchLayer(nn.Module):
                 init_method=topk_init_method,
                 noise_level=topk_noise_level,
                 synapse_type="exc",
+                connection_mask=excitatory_connection_mask,
             )
             gradient_scaler.register_topk_dynamic(self.branch_excitation)
             self.excitatory_input_dim = excitatory_input_dim
@@ -210,6 +243,7 @@ class DendriticBranchLayer(nn.Module):
                 init_method=topk_init_method,
                 noise_level=topk_noise_level,
                 synapse_type="inh",
+                connection_mask=inhibitory_connection_mask,
             )
             gradient_scaler.register_topk_dynamic(self.branch_inhibition)
             self.inhibitory_input_dim = inhibitory_input_dim
@@ -233,6 +267,7 @@ class DendriticBranchLayer(nn.Module):
                 noise_level=topk_noise_level,
                 synapse_type="exc",
                 forbidden_input_index_per_output=recurrent_forbidden_input_index_per_output,
+                connection_mask=recurrent_connection_mask,
             )
             gradient_scaler.register_topk_dynamic(self.branch_recurrent)
             self.recurrent_input_dim = recurrent_input_dim
@@ -256,6 +291,7 @@ class DendriticBranchLayer(nn.Module):
                 noise_level=topk_noise_level,
                 synapse_type="inh",
                 forbidden_input_index_per_output=rec_inhibitory_forbidden_input_index_per_output,
+                connection_mask=rec_inhibitory_connection_mask,
             )
             gradient_scaler.register_topk_dynamic(self.branch_rec_inhibition)
             self.rec_inhibitory_input_dim = rec_inhibitory_input_dim
@@ -309,7 +345,23 @@ class DendriticBranchLayer(nn.Module):
             self.reactivation = nn.Identity()
         self.reactivate = reactivate
 
+        self.set_forward_dynamic_grad_scaling(False)
         self.initialize()
+
+    def set_forward_dynamic_grad_scaling(self, enabled: bool) -> None:
+        """Opt TopK sublayers into per-forward parameter-gradient hooks."""
+
+        for attr in (
+            "branch_excitation",
+            "branch_inhibition",
+            "branch_recurrent",
+            "branch_rec_inhibition",
+        ):
+            layer = getattr(self, attr, None)
+            if layer is not None and hasattr(
+                layer, "_use_forward_dynamic_grad_scaling"
+            ):
+                layer._use_forward_dynamic_grad_scaling = bool(enabled)
 
     def _create_topk_layer(
         self,
@@ -320,6 +372,7 @@ class DendriticBranchLayer(nn.Module):
         noise_level,
         synapse_type="exc",
         forbidden_input_index_per_output=None,
+        connection_mask=None,
     ):
         """Helper function that picks which topk class to use based on strategy."""
         # Keep invalid sweep configs runnable by capping requested synapse count to
@@ -327,14 +380,31 @@ class DendriticBranchLayer(nn.Module):
         if K is not None and K > in_features:
             K = in_features
 
-        # For 'standard' strategy, use the original TopKLinear class exactly as before
-        # This provides a direct path with zero overhead compared to the original code
-        if self.topk_type is None or self.topk_type == "standard":
-            # Create directly without any strategy-specific logic
-            topk_layer = TopKLinear(
-                in_features=in_features,
-                out_features=out_features,
-                K=K,
+        layer_type = (
+            "standard" if self.topk_type is None else str(self.topk_type).lower()
+        )
+        if layer_type in {
+            "topk",
+            "indexed-dynamic",
+            "indexed_dynamic_topk",
+            "dense-to-sparse",
+            "dense_to_sparse_topk",
+            "annealed-topk",
+        }:
+            if layer_type == "topk":
+                layer_type = "standard"
+            elif layer_type in {"indexed-dynamic", "indexed_dynamic_topk"}:
+                layer_type = "indexed_dynamic"
+            else:
+                layer_type = "dense_to_sparse"
+        from dendritic_modeling.utils.sparse_ops import get_sparse_layer
+
+        if layer_type == "standard":
+            return get_sparse_layer(
+                layer_type,
+                in_features,
+                out_features,
+                K,
                 param_space="log",
                 init_method=init_method,
                 noise_level=noise_level,
@@ -342,20 +412,21 @@ class DendriticBranchLayer(nn.Module):
                 weight_norm_order=self.topk_weight_norm_order,
                 gamma=self.topk_gamma if synapse_type == "inh" else 1.0,
                 forbidden_input_index_per_output=forbidden_input_index_per_output,
+                connection_mask=connection_mask,
             )
-            return topk_layer
 
         # Alternative strategies only incur overhead if explicitly requested
-        elif self.topk_type == "stochastic":
+        elif layer_type == "stochastic":
             # Get temperature parameter if available
             temperature = getattr(self, "topk_temperature", 0.5)
             # Check if ultrafast mode is enabled
             ultrafast = getattr(self, "topk_ultrafast", False)
 
-            return StochasticTopKLinear(
-                in_features=in_features,
-                out_features=out_features,
-                K=K,
+            return get_sparse_layer(
+                layer_type,
+                in_features,
+                out_features,
+                K,
                 param_space="log",
                 init_method=init_method,
                 noise_level=noise_level,
@@ -363,23 +434,52 @@ class DendriticBranchLayer(nn.Module):
                 ultrafast=ultrafast,
                 weight_transform=self.weight_transform,
                 forbidden_input_index_per_output=forbidden_input_index_per_output,
+                connection_mask=connection_mask,
             )
-        elif self.topk_type == "variance":
-            return VarianceTopKLinear(
-                in_features=in_features,
-                out_features=out_features,
-                K=K,
+        elif layer_type == "variance":
+            return get_sparse_layer(
+                layer_type,
+                in_features,
+                out_features,
+                K,
                 param_space="log",
                 init_method=init_method,
                 noise_level=noise_level,
                 weight_transform=self.weight_transform,
                 forbidden_input_index_per_output=forbidden_input_index_per_output,
+                connection_mask=connection_mask,
             )
-        elif self.topk_type == "deepst":
+        elif layer_type in {"dense_to_sparse", "annealed_topk"}:
+            return get_sparse_layer(
+                layer_type,
+                in_features,
+                out_features,
+                K,
+                param_space="log",
+                init_method=init_method,
+                noise_level=noise_level,
+                weight_transform=self.weight_transform,
+                weight_norm_order=self.topk_weight_norm_order,
+                gamma=self.topk_gamma if synapse_type == "inh" else 1.0,
+                forbidden_input_index_per_output=forbidden_input_index_per_output,
+                connection_mask=connection_mask,
+                initial_density=self.dense_to_sparse_initial_density,
+                initial_k=self.dense_to_sparse_initial_k,
+                start_step=self.dense_to_sparse_start_step,
+                end_step=self.dense_to_sparse_end_step,
+                update_interval=self.dense_to_sparse_update_interval,
+                schedule=self.dense_to_sparse_schedule,
+                freeze_on_end=self.dense_to_sparse_freeze_on_end,
+                advance_on_forward=self.dense_to_sparse_advance_on_forward,
+                prune_metric=self.dense_to_sparse_prune_metric,
+            )
+        elif layer_type == "deepst":
             self.step_counter = 0
-            return DeepstLinear(
-                in_features=in_features,
-                out_features=out_features,
+            return get_sparse_layer(
+                layer_type,
+                in_features,
+                out_features,
+                K,
                 target_density=(
                     self.excitatory_target_density
                     if synapse_type == "exc"
@@ -399,21 +499,75 @@ class DendriticBranchLayer(nn.Module):
                 weight_threshold=self.weight_threshold,
                 weight_transform=self.weight_transform,
                 forbidden_input_index_per_output=forbidden_input_index_per_output,
+                connection_mask=connection_mask,
             )
-        else:
-            # Fallback for any unknown strategy - use standard
-            return TopKLinear(
-                in_features=in_features,
-                out_features=out_features,
-                K=K,
+        elif layer_type == "indexed":
+            seed = None
+            if self.indexed_seed is not None:
+                synapse_offset = {"exc": 0, "inh": 1}.get(synapse_type, 2)
+                seed = (
+                    int(self.indexed_seed)
+                    + (1009 * int(self.layer_idx))
+                    + synapse_offset
+                )
+            return get_sparse_layer(
+                layer_type,
+                in_features,
+                out_features,
+                K,
                 param_space="log",
                 init_method=init_method,
-                noise_level=noise_level,
                 weight_transform=self.weight_transform,
                 weight_norm_order=self.topk_weight_norm_order,
                 gamma=self.topk_gamma if synapse_type == "inh" else 1.0,
+                connection_mask=connection_mask,
                 forbidden_input_index_per_output=forbidden_input_index_per_output,
+                seed=seed,
+                output_chunk_size=self.indexed_output_chunk_size,
             )
+        elif layer_type == "indexed_dynamic":
+            seed = None
+            if self.indexed_seed is not None:
+                synapse_offset = {"exc": 0, "inh": 1}.get(synapse_type, 2)
+                seed = (
+                    int(self.indexed_seed)
+                    + (1009 * int(self.layer_idx))
+                    + synapse_offset
+                )
+            return get_sparse_layer(
+                layer_type,
+                in_features,
+                out_features,
+                K,
+                candidate_size=self.indexed_candidate_size,
+                selection=self.indexed_selection,
+                param_space="log",
+                init_method=init_method,
+                noise_level=noise_level,
+                temperature=self.topk_temperature,
+                ultrafast=self.topk_ultrafast,
+                weight_transform=self.weight_transform,
+                weight_norm_order=self.topk_weight_norm_order,
+                gamma=self.topk_gamma if synapse_type == "inh" else 1.0,
+                connection_mask=connection_mask,
+                forbidden_input_index_per_output=forbidden_input_index_per_output,
+                seed=seed,
+                output_chunk_size=self.indexed_output_chunk_size,
+            )
+        return get_sparse_layer(
+            layer_type,
+            in_features,
+            out_features,
+            K,
+            param_space="log",
+            init_method=init_method,
+            noise_level=noise_level,
+            weight_transform=self.weight_transform,
+            weight_norm_order=self.topk_weight_norm_order,
+            gamma=self.topk_gamma if synapse_type == "inh" else 1.0,
+            forbidden_input_index_per_output=forbidden_input_index_per_output,
+            connection_mask=connection_mask,
+        )
 
     def initialize(self):
         if (self.weight_transform or "").lower() == "identity":
@@ -561,10 +715,7 @@ class DendriticBranchLayer(nn.Module):
             # Optional voltage normalization for additive mode
             # (control experiment: tests whether normalization alone recovers
             # the gradient fidelity benefits of shunting inhibition)
-            if self.use_additive_normalization and torch.is_tensor(voltage):
-                voltage = (voltage - voltage.mean(dim=-1, keepdim=True)) / (
-                    voltage.std(dim=-1, keepdim=True) + self.epsilon
-                )
+            voltage = self.normalize_additive_voltage(voltage)
 
         if self.training and "conductance_dynamic" in [
             self.topk_strategy,
@@ -619,7 +770,65 @@ class DendriticBranchLayer(nn.Module):
 
         return raw_E, raw_E_rec, raw_I, raw_I_rec
 
-    def shunt_from_currents(self, trace_E, trace_E_rec, trace_I, trace_I_rec=0):
+    def normalize_additive_voltage(self, voltage):
+        """Normalize additive voltages safely across output features."""
+        if not self.use_additive_normalization or not torch.is_tensor(voltage):
+            return voltage
+        centered = voltage - voltage.mean(dim=-1, keepdim=True)
+        std = voltage.std(dim=-1, keepdim=True, unbiased=False)
+        return centered / std.clamp_min(self.epsilon)
+
+    def voltage_from_currents(
+        self,
+        trace_E,
+        trace_E_rec,
+        trace_I,
+        trace_I_rec=0,
+        trace_branch=0,
+        branch_conductance=None,
+    ):
+        """Compute pre-reactivation voltage from integrated recurrent traces.
+
+        Branch aggregation mirrors the feedforward shunting equation: branch
+        current contributes to the numerator, while branch coupling conductance
+        contributes separately to the denominator when provided.
+        """
+        denominator = None
+        if self.use_shunting:
+            numerator = trace_E + trace_E_rec
+            if torch.is_tensor(trace_branch):
+                numerator = numerator + trace_branch
+            elif trace_branch:
+                numerator = numerator + trace_branch
+
+            denominator = 1 + trace_E
+            if torch.is_tensor(trace_E_rec):
+                denominator = denominator + trace_E_rec
+            if torch.is_tensor(trace_I):
+                denominator = denominator + trace_I
+            if torch.is_tensor(trace_I_rec):
+                denominator = denominator + trace_I_rec
+            if branch_conductance is not None:
+                denominator = denominator + branch_conductance
+            voltage = numerator / (denominator + self.epsilon)
+        else:
+            voltage = trace_E + trace_E_rec - trace_I - trace_I_rec
+            if torch.is_tensor(trace_branch):
+                voltage = voltage + trace_branch
+            elif trace_branch:
+                voltage = voltage + trace_branch
+            voltage = self.normalize_additive_voltage(voltage)
+        return voltage, denominator
+
+    def shunt_from_currents(
+        self,
+        trace_E,
+        trace_E_rec,
+        trace_I,
+        trace_I_rec=0,
+        trace_branch=0,
+        branch_conductance=None,
+    ):
         """Apply shunting (or additive) computation on pre-integrated currents.
 
         Used by the RNN cell after temporal integration of traces.
@@ -634,22 +843,22 @@ class DendriticBranchLayer(nn.Module):
         Returns:
             voltage: Post-shunting, post-reactivation output [batch, output_dim]
         """
-        if self.use_shunting:
-            numerator = trace_E + trace_E_rec
-            denominator = 1 + trace_E
-            if isinstance(trace_E_rec, torch.Tensor):
-                denominator = denominator + trace_E_rec
-            if isinstance(trace_I, torch.Tensor):
-                denominator = denominator + trace_I
-            if isinstance(trace_I_rec, torch.Tensor):
-                denominator = denominator + trace_I_rec
-            voltage = numerator / (denominator + self.epsilon)
-        else:
-            voltage = trace_E + trace_E_rec - trace_I - trace_I_rec
-
+        voltage, _denominator = self.voltage_from_currents(
+            trace_E=trace_E,
+            trace_E_rec=trace_E_rec,
+            trace_I=trace_I,
+            trace_I_rec=trace_I_rec,
+            trace_branch=trace_branch,
+            branch_conductance=branch_conductance,
+        )
         return self.reactivation(voltage)
 
-    def compute_grad_scales(self, g_total: Optional[torch.Tensor] = None):
+    def compute_grad_scales(
+        self,
+        g_total: Optional[torch.Tensor] = None,
+        *,
+        use_forward_hooks: bool = False,
+    ):
         """
         A conduction-based dynamic scale, returning a flattened vector so each weight
         can get a distinct multiplier. shape [out_features * block_size].
@@ -663,46 +872,74 @@ class DendriticBranchLayer(nn.Module):
                     hasattr(self, "branches_to_output")
                     and self.blocklinear_strategy == "conductance_dynamic"
                 ):
-                    self.branches_to_output.input_scale_vec = (
-                        g_total[:, None] / self.branches_to_output.weight()
-                    ).flatten()
-                    self.branches_to_output.param_scale_vec = g_total[:, None]
+                    weight = self.branches_to_output.weight().clamp_min(self.epsilon)
+                    input_scale = (g_total[:, None] / weight).flatten()
+                    param_scale = g_total[:, None]
+                    if use_forward_hooks:
+                        self.branches_to_output.register_forward_gradient_scales(
+                            param_scale=param_scale,
+                            input_scale=input_scale,
+                        )
+                    else:
+                        self.branches_to_output.input_scale_vec = input_scale
+                        self.branches_to_output.param_scale_vec = param_scale
 
                 if (
                     self.branch_excitation is not None
                     and self.topk_strategy == "conductance_dynamic"
                 ):
-                    self.branch_excitation.input_scale_vec = (
-                        g_total[:, None] / self.branch_excitation.weight()
-                    ).mean(dim=0)
-                    self.branch_excitation.param_scale_vec = g_total[:, None]
+                    param_scale = g_total[:, None]
+                    if use_forward_hooks and hasattr(
+                        self.branch_excitation, "register_forward_param_gradient_scale"
+                    ):
+                        self.branch_excitation.register_forward_param_gradient_scale(
+                            param_scale
+                        )
+                    else:
+                        self.branch_excitation.param_scale_vec = param_scale
 
                 if (
                     self.branch_inhibition is not None
                     and self.topk_strategy == "conductance_dynamic"
                 ):
-                    self.branch_inhibition.input_scale_vec = (
-                        g_total[:, None] / self.branch_inhibition.weight()
-                    ).mean(dim=0)
-                    self.branch_inhibition.param_scale_vec = g_total[:, None]
+                    param_scale = g_total[:, None]
+                    if use_forward_hooks and hasattr(
+                        self.branch_inhibition, "register_forward_param_gradient_scale"
+                    ):
+                        self.branch_inhibition.register_forward_param_gradient_scale(
+                            param_scale
+                        )
+                    else:
+                        self.branch_inhibition.param_scale_vec = param_scale
 
                 if (
                     self.branch_recurrent is not None
                     and self.topk_strategy == "conductance_dynamic"
                 ):
-                    self.branch_recurrent.input_scale_vec = (
-                        g_total[:, None] / self.branch_recurrent.weight()
-                    ).mean(dim=0)
-                    self.branch_recurrent.param_scale_vec = g_total[:, None]
+                    param_scale = g_total[:, None]
+                    if use_forward_hooks and hasattr(
+                        self.branch_recurrent, "register_forward_param_gradient_scale"
+                    ):
+                        self.branch_recurrent.register_forward_param_gradient_scale(
+                            param_scale
+                        )
+                    else:
+                        self.branch_recurrent.param_scale_vec = param_scale
 
                 if (
                     self.branch_rec_inhibition is not None
                     and self.topk_strategy == "conductance_dynamic"
                 ):
-                    self.branch_rec_inhibition.input_scale_vec = (
-                        g_total[:, None] / self.branch_rec_inhibition.weight()
-                    ).mean(dim=0)
-                    self.branch_rec_inhibition.param_scale_vec = g_total[:, None]
+                    param_scale = g_total[:, None]
+                    if use_forward_hooks and hasattr(
+                        self.branch_rec_inhibition,
+                        "register_forward_param_gradient_scale",
+                    ):
+                        self.branch_rec_inhibition.register_forward_param_gradient_scale(
+                            param_scale
+                        )
+                    else:
+                        self.branch_rec_inhibition.param_scale_vec = param_scale
 
             else:
                 if (
@@ -715,9 +952,13 @@ class DendriticBranchLayer(nn.Module):
                     if (self.weight_transform or "").lower() == "identity":
                         w = w.abs() + self.epsilon
 
-                    self.branches_to_output.input_scale_vec = torch.exp(
-                        -1 * w.log()
-                    ).flatten()
+                    input_scale = torch.exp(-1 * w.log()).flatten()
+                    if use_forward_hooks:
+                        self.branches_to_output.register_forward_gradient_scales(
+                            input_scale=input_scale
+                        )
+                    else:
+                        self.branches_to_output.input_scale_vec = input_scale
 
     def _collect_from_layers(self, method_name):
         """Helper to collect a named attribute from all active TopK layers."""

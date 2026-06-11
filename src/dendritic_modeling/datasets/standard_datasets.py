@@ -19,6 +19,7 @@ import torch
 from torch.utils.data import Dataset, Subset, TensorDataset
 from torchvision import datasets, transforms
 
+from .registry import build_registered_dataset
 from .synthetic_datasets import get_synthetic_datasets
 
 _ds_logger = logging.getLogger(__name__)
@@ -210,6 +211,11 @@ def _load_torchvision_train_test_pair(dataset_cls, *, root, transform, dataset_n
                 root=root, train=False, download=True, transform=transform
             )
             return train_dataset, test_dataset
+
+
+def _split_generator(seed: int | None = 0) -> torch.Generator:
+    """Return a CPU generator for reproducible train/validation splits."""
+    return torch.Generator().manual_seed(int(seed or 0))
 
 
 def _normalize_dataset_index(idx: Any, length: int) -> tuple[Any, bool]:
@@ -477,6 +483,7 @@ def load_mnist_as_datasets(
     flatten=False,
     normalize=False,
     task_data_path=None,
+    split_seed: int = 0,
 ):
     """
     Load the MNIST dataset and split into train, validation, and test sets.
@@ -508,7 +515,9 @@ def load_mnist_as_datasets(
     valid_size = len(train_dataset) - train_size
 
     train_dataset, valid_dataset = torch.utils.data.random_split(
-        train_dataset, [train_size, valid_size]
+        train_dataset,
+        [train_size, valid_size],
+        generator=_split_generator(split_seed),
     )
 
     x_train, y_train = _dataset_to_tensors(train_dataset)
@@ -544,6 +553,7 @@ def load_fashion_mnist_as_datasets(
     flatten=False,
     normalize=False,
     task_data_path=None,
+    split_seed: int = 0,
 ):
     """
     Load the Fashion-MNIST dataset and split into train, validation, and test sets.
@@ -575,7 +585,9 @@ def load_fashion_mnist_as_datasets(
     valid_size = len(train_dataset) - train_size
 
     train_dataset, valid_dataset = torch.utils.data.random_split(
-        train_dataset, [train_size, valid_size]
+        train_dataset,
+        [train_size, valid_size],
+        generator=_split_generator(split_seed),
     )
 
     x_train, y_train = _dataset_to_tensors(train_dataset)
@@ -610,6 +622,8 @@ def load_mnist_modulo10(
     flatten=False,
     normalize=False,
     task_data_path=None,
+    split_seed: int = 0,
+    pair_seed: int = 0,
 ):
     """
     Load MNIST dataset with modulo 10 operation on labels.
@@ -629,17 +643,20 @@ def load_mnist_modulo10(
         flatten=flatten,
         normalize=normalize,
         task_data_path=task_data_path,
+        split_seed=split_seed,
     )
     data = {"train": train_ds, "valid": valid_ds, "test": test_ds}
 
-    for key, ds in data.items():
-        ix = torch.randperm(len(ds))
-        ix0 = ix[: int(len(ds) / 2)]
-        ix1 = ix[int(len(ds) / 2) :]
+    effective_pair_seed = int(pair_seed) + 1009 * max(1, int(shuffle_iterations))
+    for split_idx, (key, ds) in enumerate(data.items()):
+        generator = torch.Generator().manual_seed(effective_pair_seed + split_idx)
+        ix = torch.randperm(len(ds), generator=generator)
+        n_pairs = len(ds) // 2
+        ix0 = ix[:n_pairs]
+        ix1 = ix[n_pairs : n_pairs + n_pairs]
 
         input0, label0 = ds[ix0]
         input1, label1 = ds[ix1]
-        assert label0.shape[0] == label1.shape[0]
 
         inputs = []
         labels = []
@@ -647,11 +664,11 @@ def load_mnist_modulo10(
             inputs.append(torch.cat([input0, input1], dim=-1))
             labels.append((label0 + label1) % 10)
 
-            ix0 = torch.randperm(input0.shape[0])
+            ix0 = torch.randperm(input0.shape[0], generator=generator)
             input0 = input0[ix0]
             label0 = label0[ix0]
 
-            ix1 = torch.randperm(input1.shape[0])
+            ix1 = torch.randperm(input1.shape[0], generator=generator)
             input1 = input1[ix1]
             label1 = label1[ix1]
 
@@ -668,6 +685,7 @@ def load_cifar10_as_datasets(
     flatten=False,
     normalize=False,
     task_data_path=None,
+    split_seed: int = 0,
 ):
     """
     Load the CIFAR-10 dataset and split into train, validation, and test sets.
@@ -702,7 +720,9 @@ def load_cifar10_as_datasets(
         valid_size = len(train_dataset) - train_size
 
         train_dataset, valid_dataset = torch.utils.data.random_split(
-            train_dataset, [train_size, valid_size]
+            train_dataset,
+            [train_size, valid_size],
+            generator=_split_generator(split_seed),
         )
 
         x_train, y_train = _dataset_to_tensors(train_dataset, flatten=flatten)
@@ -731,6 +751,7 @@ def load_cifar10_modulo10(
     normalize=False,
     task_data_path=None,
     pair_seed: int = 0,
+    split_seed: int = 0,
 ):
     """Load paired CIFAR-10 where the label is the sum of two digits mod 10."""
     train_ds, valid_ds, test_ds = load_cifar10_as_datasets(
@@ -738,6 +759,7 @@ def load_cifar10_modulo10(
         flatten=False,
         normalize=normalize,
         task_data_path=task_data_path,
+        split_seed=split_seed,
     )
 
     return {
@@ -776,6 +798,7 @@ def load_double_cifar10_contextual_mod10(
     task_data_path=None,
     pair_seed: int = 0,
     context_seed: int = 123,
+    split_seed: int = 0,
 ):
     """Load paired CIFAR-10 with a context-controlled sum-or-difference label."""
     train_ds, valid_ds, test_ds = load_cifar10_as_datasets(
@@ -783,6 +806,7 @@ def load_double_cifar10_contextual_mod10(
         flatten=False,
         normalize=normalize,
         task_data_path=task_data_path,
+        split_seed=split_seed,
     )
 
     return {
@@ -824,6 +848,7 @@ def load_double_mnist_contextual_mod10(
     task_data_path=None,
     pair_seed: int = 0,
     context_seed: int = 123,
+    split_seed: int = 0,
 ):
     """Load paired MNIST with a context-controlled sum-or-difference label."""
     train_ds, valid_ds, test_ds = load_mnist_as_datasets(
@@ -831,6 +856,7 @@ def load_double_mnist_contextual_mod10(
         flatten=False,
         normalize=normalize,
         task_data_path=task_data_path,
+        split_seed=split_seed,
     )
 
     return {
@@ -881,12 +907,30 @@ class PoissonGeneratorDataset(Dataset):
     ):
         stimulus_duration = float(stimulus_duration)
 
-        if fixed_gain_factor:
+        if fixed_gain_factor is not None:
             fixed_gain_factor = float(fixed_gain_factor)
-        elif max_gain_factor:
+        elif max_gain_factor is not None:
             max_gain_factor = float(max_gain_factor)
-        elif max_gain_tau_ratio:
+        elif max_gain_tau_ratio is not None:
             max_gain_factor = float(max_gain_tau_ratio) * stimulus_duration
+
+        if (
+            multiplicative_gain
+            and fixed_gain_factor is None
+            and max_gain_factor is None
+        ):
+            if uniform_gain:
+                max_gain_factor = 1.0
+            else:
+                raise ValueError(
+                    "PoissonGeneratorDataset with multiplicative_gain=True and "
+                    "uniform_gain=False requires fixed_gain_factor, "
+                    "max_gain_factor, or max_gain_tau_ratio."
+                )
+        if max_gain_factor is not None and max_gain_factor < 1.0:
+            raise ValueError(
+                f"max_gain_factor must be >= 1.0 when provided, got {max_gain_factor}"
+            )
 
         self.base_inputs = base_inputs
         self.base_labels = base_labels
@@ -907,10 +951,43 @@ class PoissonGeneratorDataset(Dataset):
     def _set_max_gain_factor(self, max_gain_factor: float | torch.Tensor):
         self._max_gf = max_gain_factor
 
+    @staticmethod
+    def _is_batched_index(idx) -> bool:
+        if isinstance(idx, slice):
+            return True
+        if isinstance(idx, (list, tuple, np.ndarray)):
+            return True
+        if torch.is_tensor(idx):
+            return idx.ndim > 0
+        return False
+
+    @staticmethod
+    def _sample_uniform_gain(
+        input: torch.Tensor,
+        max_gain_factor: float | torch.Tensor,
+        *,
+        batched: bool,
+    ) -> torch.Tensor:
+        if not torch.is_tensor(max_gain_factor):
+            max_gain_factor = torch.as_tensor(
+                max_gain_factor, dtype=input.dtype, device=input.device
+            )
+        else:
+            max_gain_factor = max_gain_factor.to(dtype=input.dtype, device=input.device)
+
+        if batched and input.ndim > 0:
+            shape = (input.shape[0],) + (1,) * (input.ndim - 1)
+        else:
+            shape = ()
+
+        random_gain = torch.rand(shape, dtype=input.dtype, device=input.device)
+        return (random_gain * (max_gain_factor - 1)) + 1
+
     def __len__(self):
         return len(self.base_inputs)
 
     def __getitem__(self, idx):
+        batched = self._is_batched_index(idx)
         input = self.base_inputs[idx]
         label = self.base_labels[idx]
 
@@ -931,11 +1008,9 @@ class PoissonGeneratorDataset(Dataset):
                 gain_factor = self.fixed_gain_factor
 
             elif self.uniform_gain:
-                gain_factor = (
-                    torch.rand(input.shape[0]) * (self.max_gain_factor - 1)
-                ) + 1
-                while gain_factor.ndim < input.ndim:
-                    gain_factor = gain_factor[..., None]
+                gain_factor = self._sample_uniform_gain(
+                    input, self.max_gain_factor, batched=batched
+                )
 
             else:
                 # gain_factor = torch.exp(
@@ -973,6 +1048,7 @@ def load_poisson_generator_datasets(
     train_valid_split: float = 0.8,
     flatten: bool = False,
     task_data_path: Optional[str] = None,
+    split_seed: int = 0,
 ):
     """
     Generate a dataset of Poisson-distributed samples from a base dataset.
@@ -998,6 +1074,7 @@ def load_poisson_generator_datasets(
             flatten=flatten,
             normalize=False,
             task_data_path=task_data_path,
+            split_seed=split_seed,
         )
     elif base_dataset == "cifar10":
         train_ds, valid_ds, test_ds = load_cifar10_as_datasets(
@@ -1005,6 +1082,7 @@ def load_poisson_generator_datasets(
             flatten=flatten,
             normalize=False,
             task_data_path=task_data_path,
+            split_seed=split_seed,
         )
     else:
         raise ValueError(f"Unknown base dataset: {base_dataset}")
@@ -1050,6 +1128,10 @@ def load_imagenet_as_datasets(
     task_data_path=None,
     train_samples_per_class=None,
     val_samples_per_class=None,
+    split_seed: int = 0,
+    allow_fake_data: bool = False,
+    transform_preset: str = "legacy_resize",
+    allow_flatten_materialize: bool = False,
 ):
     """
     Load the ImageNet dataset and split into train, validation, and test sets.
@@ -1066,6 +1148,13 @@ def load_imagenet_as_datasets(
         task_data_path (str, optional): Path from task.data_path config
         train_samples_per_class (int, optional): Limit training samples per class.
         val_samples_per_class (int, optional): Limit validation/test samples per class.
+        allow_fake_data (bool): If True, missing ImageNet falls back to a small
+            FakeData smoke dataset. Real training should leave this False.
+        transform_preset (str): "legacy_resize" preserves the historical
+            Resize(224,224) transform; "pretrained" uses train/eval transforms
+            appropriate for pretrained torchvision backbones.
+        allow_flatten_materialize (bool): Explicit opt-in for the memory-heavy
+            ImageNet flatten path.
 
     Returns:
         tuple: (train_dataset, valid_dataset, test_dataset)
@@ -1112,10 +1201,16 @@ def load_imagenet_as_datasets(
         )
         return required_any and has_train and has_val
 
-    def _subset_by_class(dataset: Dataset, max_per_class: int | None, split_name: str):
-        """Limit a classification dataset to a fixed number of samples per class."""
+    def _class_subset_indices(
+        dataset: Dataset,
+        max_per_class: int | None,
+        split_name: str,
+        *,
+        seed: int,
+    ) -> list[int] | None:
+        """Return indices for a fixed number of samples per class."""
         if max_per_class is None:
-            return dataset
+            return None
         if max_per_class <= 0:
             raise ValueError(
                 f"{split_name}_samples_per_class must be positive, got {max_per_class}"
@@ -1129,26 +1224,55 @@ def load_imagenet_as_datasets(
                 split_name,
                 max_per_class,
             )
-            return dataset
+            return None
 
-        counts: dict[int, int] = {}
-        selected_indices = []
+        per_class_indices: dict[int, list[int]] = {}
         for idx, target in enumerate(targets):
-            label = int(target)
-            count = counts.get(label, 0)
-            if count >= max_per_class:
-                continue
-            selected_indices.append(idx)
-            counts[label] = count + 1
+            per_class_indices.setdefault(int(target), []).append(idx)
+
+        generator = _split_generator(seed)
+        selected_indices = []
+        for label in sorted(per_class_indices):
+            indices = per_class_indices[label]
+            order = torch.randperm(len(indices), generator=generator).tolist()
+            selected_indices.extend(indices[i] for i in order[:max_per_class])
+        selected_indices.sort()
 
         _ds_logger.info(
             "Subsetting %s split to %d samples across %d classes (%d per class cap)",
             split_name,
             len(selected_indices),
-            len(counts),
+            len(per_class_indices),
             max_per_class,
         )
-        return Subset(dataset, selected_indices)
+        return selected_indices
+
+    def _subset_by_indices(dataset: Dataset, indices: list[int] | None) -> Dataset:
+        return Subset(dataset, indices) if indices is not None else dataset
+
+    def _split_train_valid_pair(
+        train_dataset: Dataset,
+        train_eval_dataset: Dataset,
+    ) -> tuple[Dataset, Dataset]:
+        train_size = int(len(train_dataset) * train_valid_split)
+        valid_size = len(train_dataset) - train_size
+        indices = torch.randperm(
+            len(train_dataset), generator=_split_generator(split_seed)
+        ).tolist()
+        train_indices = indices[:train_size]
+        valid_indices = indices[train_size : train_size + valid_size]
+        return Subset(train_dataset, train_indices), Subset(
+            train_eval_dataset, valid_indices
+        )
+
+    if flatten and not allow_flatten_materialize:
+        raise ValueError(
+            "ImageNet with flatten=True materializes up to 50k 224x224x3 "
+            "samples and can consume tens of GB. Use flatten=False for "
+            "AlexNet/pretrained runs, or set "
+            "data.dataset_params.imagenet.allow_flatten_materialize=true "
+            "for an explicit debugging-only opt-in."
+        )
 
     # Check if we have a direct path to existing ImageNet data
     train_root, val_root = None, None
@@ -1166,22 +1290,57 @@ def load_imagenet_as_datasets(
             else:
                 train_root, val_root = _resolve_imagefolder_roots(imagenet_dir)
 
-    # ImageNet preprocessing
-    tf_list = [transforms.ToTensor()]
-    if normalize:
-        # ImageNet normalization values
-        tf_list.append(
-            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+    def _append_normalize(tf_list: list) -> list:
+        if normalize:
+            tf_list.append(
+                transforms.Normalize(
+                    mean=[0.485, 0.456, 0.406],
+                    std=[0.229, 0.224, 0.225],
+                )
+            )
+        return tf_list
+
+    preset = str(transform_preset or "legacy_resize").strip().lower()
+    preset = preset.replace("-", "_")
+    if preset in {"legacy", "legacy_resize", "resize", "resize_224"}:
+        transform = transforms.Compose(
+            _append_normalize([transforms.Resize((224, 224)), transforms.ToTensor()])
+        )
+        train_transform = transform
+        eval_transform = transform
+    elif preset in {"pretrained", "torchvision", "imagenet", "standard"}:
+        train_transform = transforms.Compose(
+            _append_normalize(
+                [
+                    transforms.RandomResizedCrop(224),
+                    transforms.RandomHorizontalFlip(),
+                    transforms.ToTensor(),
+                ]
+            )
+        )
+        eval_transform = transforms.Compose(
+            _append_normalize(
+                [
+                    transforms.Resize(256),
+                    transforms.CenterCrop(224),
+                    transforms.ToTensor(),
+                ]
+            )
+        )
+    else:
+        raise ValueError(
+            "Unknown ImageNet transform_preset "
+            f"{transform_preset!r}; expected 'legacy_resize' or 'pretrained'."
         )
 
-    # Add resize transform for ImageNet
-    tf_list.insert(0, transforms.Resize((224, 224)))
-    transform = transforms.Compose(tf_list)
-
-    fake_transform = transform
+    fake_train_transform = train_transform
+    fake_eval_transform = eval_transform
     if flatten:
-        fake_transform = transforms.Compose(
-            [transform, transforms.Lambda(lambda x: x.view(-1))]
+        fake_train_transform = transforms.Compose(
+            [train_transform, transforms.Lambda(lambda x: x.view(-1))]
+        )
+        fake_eval_transform = transforms.Compose(
+            [eval_transform, transforms.Lambda(lambda x: x.view(-1))]
         )
 
     try:
@@ -1191,50 +1350,82 @@ def load_imagenet_as_datasets(
                 train_root,
                 val_root,
             )
-            train_dataset = datasets.ImageFolder(root=train_root, transform=transform)
-            test_dataset = datasets.ImageFolder(root=val_root, transform=transform)
+            train_dataset = datasets.ImageFolder(
+                root=train_root, transform=train_transform
+            )
+            train_eval_dataset = datasets.ImageFolder(
+                root=train_root, transform=eval_transform
+            )
+            test_dataset = datasets.ImageFolder(root=val_root, transform=eval_transform)
         else:
             # Fall back to torchvision's official ImageNet loader when a devkit-based
             # root is available.
             train_dataset = datasets.ImageNet(
-                root=imagenet_dir, split="train", transform=transform
+                root=imagenet_dir, split="train", transform=train_transform
+            )
+            train_eval_dataset = datasets.ImageNet(
+                root=imagenet_dir, split="train", transform=eval_transform
             )
             test_dataset = datasets.ImageNet(
-                root=imagenet_dir, split="val", transform=transform
+                root=imagenet_dir, split="val", transform=eval_transform
             )
     except Exception as e:
+        if not allow_fake_data:
+            raise RuntimeError(
+                "Could not load ImageNet. Set data.base_dir or "
+                "IMAGENET_LOCAL_DIR to a valid ImageNet root. For smoke tests "
+                "only, set data.dataset_params.imagenet.allow_fake_data=true."
+            ) from e
+
         # If ImageNet is not available, fall back to a small lazy synthetic dataset
         # so smoke tests do not allocate tens of GB of host memory.
-        print(f"Warning: Could not load ImageNet from {imagenet_dir}: {e}")
-        print("Creating small FakeData ImageNet-like dataset for testing...")
+        _ds_logger.warning(
+            "Could not load ImageNet from %s; using FakeData because "
+            "allow_fake_data=True: %s",
+            imagenet_dir,
+            e,
+        )
 
         train_dataset = datasets.FakeData(
             size=512,
             image_size=(3, 224, 224),
             num_classes=1000,
-            transform=fake_transform,
+            transform=fake_train_transform,
+        )
+        train_eval_dataset = datasets.FakeData(
+            size=512,
+            image_size=(3, 224, 224),
+            num_classes=1000,
+            transform=fake_eval_transform,
         )
         test_dataset = datasets.FakeData(
             size=128,
             image_size=(3, 224, 224),
             num_classes=1000,
-            transform=fake_transform,
+            transform=fake_eval_transform,
         )
 
-    train_dataset = _subset_by_class(
-        train_dataset, train_samples_per_class, split_name="train"
+    train_indices = _class_subset_indices(
+        train_dataset,
+        train_samples_per_class,
+        split_name="train",
+        seed=int(split_seed),
     )
-    test_dataset = _subset_by_class(
-        test_dataset, val_samples_per_class, split_name="val"
+    train_dataset = _subset_by_indices(train_dataset, train_indices)
+    train_eval_dataset = _subset_by_indices(train_eval_dataset, train_indices)
+    test_indices = _class_subset_indices(
+        test_dataset,
+        val_samples_per_class,
+        split_name="val",
+        seed=int(split_seed) + 1,
     )
+    test_dataset = _subset_by_indices(test_dataset, test_indices)
 
     # Split training data into train and validation
     if hasattr(train_dataset, "__len__"):
-        train_size = int(len(train_dataset) * train_valid_split)
-        valid_size = len(train_dataset) - train_size
-
-        train_dataset, valid_dataset = torch.utils.data.random_split(
-            train_dataset, [train_size, valid_size]
+        train_dataset, valid_dataset = _split_train_valid_pair(
+            train_dataset,
+            train_eval_dataset,
         )
     else:
         # Fallback for when we can't determine size
@@ -1285,6 +1476,10 @@ def get_unified_datasets(task_cfg):
     task_data_path = _get_config_value(task_cfg, "data_path", None)
     p = _get_config_value(task_cfg, "parameters", {})
 
+    registered = build_registered_dataset(dataset_name, task_cfg)
+    if registered is not None:
+        return registered
+
     # If task_data_path is empty string, set it to None
     if task_data_path == "":
         task_data_path = None
@@ -1300,6 +1495,7 @@ def get_unified_datasets(task_cfg):
     max_gain_factor = p.get("max_gain_factor", None)
     max_gain_tau_ratio = p.get("max_gain_tau_ratio", None)
     uniform_gain = p.get("uniform_gain", True)
+    split_seed = int(p.get("split_seed", p.get("seed", 0)) or 0)
 
     label_noise_rate = p.get("label_noise_rate", 0.0)
     label_noise_seed = p.get("label_noise_seed", 0)
@@ -1321,6 +1517,7 @@ def get_unified_datasets(task_cfg):
             flatten=flatten,
             normalize=normalize,
             task_data_path=task_data_path,
+            split_seed=split_seed,
         )
         return _maybe_inject_label_noise(train_ds, valid_ds, test_ds)
     elif dataset_name == "fashion_mnist":
@@ -1329,6 +1526,7 @@ def get_unified_datasets(task_cfg):
             flatten=flatten,
             normalize=normalize,
             task_data_path=task_data_path,
+            split_seed=split_seed,
         )
         return _maybe_inject_label_noise(train_ds, valid_ds, test_ds)
     elif dataset_name == "cifar10":
@@ -1337,6 +1535,7 @@ def get_unified_datasets(task_cfg):
             flatten=flatten,
             normalize=normalize,
             task_data_path=task_data_path,
+            split_seed=split_seed,
         )
         return _maybe_inject_label_noise(train_ds, valid_ds, test_ds)
     elif dataset_name == "poisson_generator":
@@ -1352,6 +1551,7 @@ def get_unified_datasets(task_cfg):
             train_valid_split=train_valid_split,
             flatten=flatten,
             task_data_path=task_data_path,
+            split_seed=split_seed,
         )
     elif dataset_name == "imagenet":
         return load_imagenet_as_datasets(
@@ -1361,6 +1561,10 @@ def get_unified_datasets(task_cfg):
             task_data_path=task_data_path,
             train_samples_per_class=p.get("train_samples_per_class"),
             val_samples_per_class=p.get("val_samples_per_class"),
+            split_seed=split_seed,
+            allow_fake_data=bool(p.get("allow_fake_data", False)),
+            transform_preset=p.get("transform_preset", "legacy_resize"),
+            allow_flatten_materialize=bool(p.get("allow_flatten_materialize", False)),
         )
     elif dataset_name == "mnist_modulo10":
         data = load_mnist_modulo10(
@@ -1369,6 +1573,8 @@ def get_unified_datasets(task_cfg):
             normalize=normalize,
             task_data_path=task_data_path,
             shuffle_iterations=p.get("shuffle_iterations", 2),
+            split_seed=split_seed,
+            pair_seed=p.get("pair_seed", 0),
         )
         train_ds = data["train"]
         if "valid" in data:
@@ -1385,6 +1591,7 @@ def get_unified_datasets(task_cfg):
             task_data_path=task_data_path,
             shuffle_iterations=p.get("shuffle_iterations", 1),
             pair_seed=p.get("pair_seed", 0),
+            split_seed=split_seed,
         )
         train_ds = data["train"]
         valid_ds = data["valid"]
@@ -1399,6 +1606,7 @@ def get_unified_datasets(task_cfg):
             shuffle_iterations=p.get("shuffle_iterations", 1),
             pair_seed=p.get("pair_seed", 0),
             context_seed=p.get("context_seed", 123),
+            split_seed=split_seed,
         )
         train_ds = data["train"]
         valid_ds = data["valid"]
@@ -1413,6 +1621,7 @@ def get_unified_datasets(task_cfg):
             shuffle_iterations=p.get("shuffle_iterations", 1),
             pair_seed=p.get("pair_seed", 0),
             context_seed=p.get("context_seed", 123),
+            split_seed=split_seed,
         )
         train_ds = data["train"]
         valid_ds = data["valid"]

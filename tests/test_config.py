@@ -18,6 +18,7 @@ from dendritic_modeling.config import (
     LocalRuleConfig,
     ModelConfig,
     OutputsConfig,
+    StructuredConnectivityConfig,
     TrainingConfig,
     TransferFunctionConfig,
     WandbConfig,
@@ -30,6 +31,67 @@ def _get_field(obj, key):
     if isinstance(obj, dict):
         return obj[key]
     return getattr(obj, key)
+
+
+def test_fsdp_launcher_exposes_rnn_alias_canonicalizer():
+    from dendritic_modeling.scripts.training import train_experiments_fsdp
+
+    payload = {
+        "model": {
+            "core": {
+                "type": "rnn_dendritic_additive",
+                "unified_ei": {"layers": [{"excitatory": {}, "inhibitory": {}}]},
+            }
+        }
+    }
+
+    canonical = train_experiments_fsdp.canonicalize_rnn_core_flags(payload)
+    layer = canonical["model"]["core"]["unified_ei"]["layers"][0]
+    exc = layer["excitatory"]
+    inh = layer["inhibitory"]
+
+    assert exc["use_shunting"] is False
+    assert exc["use_additive_normalization"] is False
+    assert inh["use_shunting"] is False
+    assert inh["use_additive_normalization"] is False
+
+
+def test_dendritic_activation_none_preserves_reactivation_type():
+    from dendritic_modeling.scripts.script_utils.config_utils import (
+        prepare_ei_network_params,
+    )
+
+    params = prepare_ei_network_params(
+        {
+            "reactivation": {
+                "enabled": True,
+                "type": "param_tanh",
+                "dendritic_activation": None,
+            }
+        },
+        input_dim=4,
+    )
+
+    assert params["reactivation_type"] == "param_tanh"
+
+
+def test_dendritic_activation_alias_overrides_reactivation_type():
+    from dendritic_modeling.scripts.script_utils.config_utils import (
+        prepare_ei_network_params,
+    )
+
+    params = prepare_ei_network_params(
+        {
+            "reactivation": {
+                "enabled": True,
+                "type": "param_tanh",
+                "dendritic_activation": "tanh",
+            }
+        },
+        input_dim=4,
+    )
+
+    assert params["reactivation_type"] == "tanh"
 
 
 class TestConfigDataclasses(unittest.TestCase):
@@ -201,6 +263,466 @@ class TestConfigLoading(unittest.TestCase):
             [64, 32],
         )
         self.assertTrue(hasattr(config.model.core, "baseline_rnn"))
+        self.assertIsInstance(
+            config.model.core.connectivity.structured,
+            StructuredConnectivityConfig,
+        )
+
+    def test_load_config_returns_independent_objects(self):
+        """Cached config parsing must not leak runtime mutations."""
+        load_config.cache_clear()
+        config1 = load_config(self.config_file)
+        config1.training.main.common.batch_size = 12345
+
+        config2 = load_config(self.config_file)
+
+        self.assertIsNot(config1, config2)
+        self.assertEqual(config2.training.main.common.batch_size, 64)
+
+    def test_training_dataloader_fields_are_preserved(self):
+        """Large-data loader controls should survive typed config loading."""
+        load_config.cache_clear()
+        dataloader_config = {
+            **self.sample_config,
+            "training": {
+                "main": {
+                    "strategy": "standard",
+                    "common": {
+                        "epochs": 1,
+                        "batch_size": 16,
+                        "num_workers": 6,
+                        "pin_memory": False,
+                        "persistent_workers": True,
+                        "prefetch_factor": 3,
+                    },
+                }
+            },
+        }
+        config_path = os.path.join(self.temp_dir, "dataloader_config.yaml")
+        with open(config_path, "w") as f:
+            yaml.safe_dump(dataloader_config, f)
+
+        config = load_config(config_path)
+        common = config.training.main.common
+
+        self.assertEqual(common.num_workers, 6)
+        self.assertFalse(common.pin_memory)
+        self.assertTrue(common.persistent_workers)
+        self.assertEqual(common.prefetch_factor, 3)
+
+    def test_additive_alias_defaults_to_occupancy_quantile_when_policy_omitted(self):
+        """Additive configs should not silently use weak analytical gates."""
+        load_config.cache_clear()
+        additive_config = {
+            **self.sample_config,
+            "model": {
+                **self.sample_config["model"],
+                "core": {
+                    **self.sample_config["model"]["core"],
+                    "type": "dendritic_additive",
+                },
+            },
+        }
+        config_path = os.path.join(self.temp_dir, "additive_config.yaml")
+        with open(config_path, "w") as f:
+            yaml.safe_dump(additive_config, f)
+
+        config = load_config(config_path)
+
+        self.assertEqual(
+            config.model.core.reactivation.init_policy,
+            "occupancy_quantile",
+        )
+
+    def test_explicit_additive_init_policy_is_preserved(self):
+        """Users can still reproduce analytical/fixed additive experiments."""
+        load_config.cache_clear()
+        additive_config = {
+            **self.sample_config,
+            "model": {
+                **self.sample_config["model"],
+                "core": {
+                    **self.sample_config["model"]["core"],
+                    "type": "einet",
+                    "morphology": {"use_shunting": False},
+                    "reactivation": {"init_policy": "analytical"},
+                },
+            },
+        }
+        config_path = os.path.join(self.temp_dir, "additive_analytical.yaml")
+        with open(config_path, "w") as f:
+            yaml.safe_dump(additive_config, f)
+
+        config = load_config(config_path)
+
+        self.assertEqual(config.model.core.reactivation.init_policy, "analytical")
+
+    def test_transfer_legacy_aliases_load_as_canonical_fields(self):
+        load_config.cache_clear()
+        alias_config = {
+            **self.sample_config,
+            "model": {
+                **self.sample_config["model"],
+                "core": {
+                    **self.sample_config["model"]["core"],
+                    "transfer": {
+                        "input_mode": 1,
+                        "allow_direct_inhibitory_input": True,
+                        "build_inhibitory_population_for_input_mode1": True,
+                    },
+                },
+            },
+        }
+        alias_file = os.path.join(self.temp_dir, "transfer_alias_config.yaml")
+        with open(alias_file, "w") as f:
+            yaml.safe_dump(alias_config, f)
+
+        config = load_config(alias_file)
+        transfer = config.model.core.transfer
+
+        self.assertTrue(transfer.allow_direct_inhibitory_stream)
+        self.assertTrue(transfer.input_mode1_build_inhibitory_population)
+        self.assertFalse(hasattr(transfer, "allow_direct_inhibitory_input"))
+        self.assertFalse(
+            hasattr(transfer, "build_inhibitory_population_for_input_mode1")
+        )
+
+    def test_load_config_with_structured_connectivity(self):
+        load_config.cache_clear()
+        structured_config = {
+            **self.sample_config,
+            "model": {
+                **self.sample_config["model"],
+                "core": {
+                    **self.sample_config["model"]["core"],
+                    "connectivity": {
+                        **self.sample_config["model"]["core"]["connectivity"],
+                        "structured": {
+                            "enabled": True,
+                            "seed": 123,
+                            "pathways": {
+                                "ee": {
+                                    "method": "fixed_indegree",
+                                    "indegree": 4,
+                                }
+                            },
+                        },
+                    },
+                },
+            },
+        }
+        structured_file = os.path.join(self.temp_dir, "structured_config.yaml")
+        with open(structured_file, "w") as f:
+            yaml.safe_dump(structured_config, f)
+
+        config = load_config(structured_file)
+
+        structured = config.model.core.connectivity.structured
+        self.assertTrue(structured.enabled)
+        self.assertEqual(structured.seed, 123)
+        self.assertEqual(structured.pathways["ee"]["method"], "fixed_indegree")
+
+    def test_load_config_with_structured_connectivity_alias_warns(self):
+        load_config.cache_clear()
+        structured_config = {
+            **self.sample_config,
+            "model": {
+                **self.sample_config["model"],
+                "core": {
+                    **self.sample_config["model"]["core"],
+                    "connectivity": {
+                        **self.sample_config["model"]["core"]["connectivity"],
+                        "structured_connectivity": {
+                            "enabled": True,
+                            "seed": 123,
+                            "pathways": {
+                                "ee": {
+                                    "method": "fixed_indegree",
+                                    "indegree": 4,
+                                }
+                            },
+                        },
+                    },
+                },
+            },
+        }
+        structured_file = os.path.join(self.temp_dir, "structured_alias_config.yaml")
+        with open(structured_file, "w") as f:
+            yaml.safe_dump(structured_config, f)
+
+        with self.assertLogs(
+            "dendritic_modeling.config.config", level="WARNING"
+        ) as logs:
+            config = load_config(structured_file)
+
+        self.assertIn("structured_connectivity is deprecated", "\n".join(logs.output))
+        structured = config.model.core.connectivity.structured
+        self.assertTrue(structured.enabled)
+        self.assertEqual(structured.seed, 123)
+
+    def test_load_config_with_annealed_topk_block_alias_warns(self):
+        load_config.cache_clear()
+        sparse_config = {
+            **self.sample_config,
+            "model": {
+                **self.sample_config["model"],
+                "core": {
+                    **self.sample_config["model"]["core"],
+                    "sparsity": {
+                        "type": "dense_to_sparse",
+                        "annealed_topk": {
+                            "initial_density": 0.75,
+                            "end_step": 5,
+                        },
+                    },
+                },
+            },
+        }
+        sparse_file = os.path.join(self.temp_dir, "annealed_topk_alias_config.yaml")
+        with open(sparse_file, "w") as f:
+            yaml.safe_dump(sparse_config, f)
+
+        with self.assertLogs(
+            "dendritic_modeling.config.config", level="WARNING"
+        ) as logs:
+            config = load_config(sparse_file)
+
+        self.assertIn("sparsity.annealed_topk is deprecated", "\n".join(logs.output))
+        self.assertEqual(config.model.core.sparsity.dense_to_sparse["end_step"], 5)
+        self.assertEqual(
+            config.model.core.sparsity.dense_to_sparse["initial_density"], 0.75
+        )
+
+    def test_load_config_preserves_synapse_types(self):
+        load_config.cache_clear()
+        synapse_config = {
+            **self.sample_config,
+            "model": {
+                **self.sample_config["model"],
+                "core": {
+                    **self.sample_config["model"]["core"],
+                    "synapse_types": {
+                        "enabled": True,
+                        "excitatory": [
+                            {"name": "AMPA", "fraction": 0.8, "tau": 2.0},
+                            {"name": "NMDA", "fraction": 0.2, "tau": 70.0},
+                        ],
+                        "inhibitory": [{"name": "GABA_A", "fraction": 1.0, "tau": 7.0}],
+                    },
+                },
+            },
+        }
+        synapse_file = os.path.join(self.temp_dir, "synapse_types_config.yaml")
+        with open(synapse_file, "w") as f:
+            yaml.safe_dump(synapse_config, f)
+
+        config = load_config(synapse_file)
+
+        synapse_types = config.model.core.synapse_types
+        self.assertTrue(synapse_types["enabled"])
+        self.assertEqual(synapse_types["excitatory"][1]["name"], "NMDA")
+        self.assertEqual(synapse_types["inhibitory"][0]["tau"], 7.0)
+
+    def test_load_config_preserves_soma_feedback(self):
+        load_config.cache_clear()
+        feedback_config = {
+            **self.sample_config,
+            "model": {
+                **self.sample_config["model"],
+                "core": {
+                    **self.sample_config["model"]["core"],
+                    "soma_feedback": {
+                        "enabled": True,
+                        "mode": "additive",
+                        "source": "output",
+                        "strength": 0.2,
+                    },
+                },
+            },
+        }
+        feedback_file = os.path.join(self.temp_dir, "soma_feedback_config.yaml")
+        with open(feedback_file, "w") as f:
+            yaml.safe_dump(feedback_config, f)
+
+        config = load_config(feedback_file)
+
+        feedback = config.model.core.soma_feedback
+        self.assertTrue(feedback["enabled"])
+        self.assertEqual(feedback["mode"], "additive")
+        self.assertAlmostEqual(feedback["strength"], 0.2)
+
+    def test_load_config_preserves_dendritic_spikes(self):
+        load_config.cache_clear()
+        spikes_config = {
+            **self.sample_config,
+            "model": {
+                **self.sample_config["model"],
+                "core": {
+                    **self.sample_config["model"]["core"],
+                    "dendritic_spikes": {
+                        "enabled": True,
+                        "mode": "plateau",
+                        "levels": "distal",
+                        "threshold": 0.6,
+                    },
+                },
+            },
+        }
+        spikes_file = os.path.join(self.temp_dir, "dendritic_spikes_config.yaml")
+        with open(spikes_file, "w") as f:
+            yaml.safe_dump(spikes_config, f)
+
+        config = load_config(spikes_file)
+
+        dendritic_spikes = config.model.core.dendritic_spikes
+        self.assertTrue(dendritic_spikes["enabled"])
+        self.assertEqual(dendritic_spikes["levels"], "distal")
+        self.assertAlmostEqual(dendritic_spikes["threshold"], 0.6)
+
+    def test_load_config_preserves_sparsity_ultrafast(self):
+        load_config.cache_clear()
+        ultrafast_config = {
+            **self.sample_config,
+            "model": {
+                **self.sample_config["model"],
+                "core": {
+                    **self.sample_config["model"]["core"],
+                    "sparsity": {
+                        **self.sample_config["model"]["core"].get("sparsity", {}),
+                        "ultrafast": True,
+                    },
+                },
+            },
+        }
+        ultrafast_file = os.path.join(self.temp_dir, "ultrafast_config.yaml")
+        with open(ultrafast_file, "w") as f:
+            yaml.safe_dump(ultrafast_config, f)
+
+        config = load_config(ultrafast_file)
+
+        self.assertTrue(config.model.core.sparsity.ultrafast)
+
+    def test_load_config_preserves_spiking_dynamics(self):
+        load_config.cache_clear()
+        dynamics_config = {
+            **self.sample_config,
+            "model": {
+                **self.sample_config["model"],
+                "core": {
+                    **self.sample_config["model"]["core"],
+                    "dynamics": {
+                        "mode": "spike",
+                        "threshold": 0.6,
+                        "readout": "rate",
+                        "tau": 20.0,
+                        "refractory_steps": 2,
+                    },
+                },
+            },
+        }
+        dynamics_file = os.path.join(self.temp_dir, "spiking_dynamics_config.yaml")
+        with open(dynamics_file, "w") as f:
+            yaml.safe_dump(dynamics_config, f)
+
+        config = load_config(dynamics_file)
+
+        dynamics = config.model.core.dynamics
+        self.assertEqual(dynamics["mode"], "spike")
+        self.assertEqual(dynamics["readout"], "rate")
+        self.assertEqual(dynamics["refractory_steps"], 2)
+
+    def test_load_config_preserves_transformer_replacement(self):
+        load_config.cache_clear()
+        transformer_config = {
+            **self.sample_config,
+            "model": {
+                **self.sample_config["model"],
+                "transformer_replacement": {
+                    "enabled": True,
+                    "model_name": "deepseek-ai/DeepSeek-V3",
+                    "layers": [0, 1, 2],
+                    "target_module": "mlp",
+                    "layers_attr": "model.layers",
+                    "input_transform": "signed_split",
+                    "model_kwargs": {"torch_dtype": "auto"},
+                },
+            },
+        }
+        transformer_file = os.path.join(
+            self.temp_dir, "transformer_replacement_config.yaml"
+        )
+        with open(transformer_file, "w") as f:
+            yaml.safe_dump(transformer_config, f)
+
+        config = load_config(transformer_file)
+
+        replacement = config.model.transformer_replacement
+        self.assertTrue(replacement.enabled)
+        self.assertEqual(replacement.model_name, "deepseek-ai/DeepSeek-V3")
+        self.assertEqual(replacement.layers, [0, 1, 2])
+        self.assertEqual(replacement.layers_attr, "model.layers")
+        self.assertEqual(replacement.model_kwargs["torch_dtype"], "auto")
+
+    def test_load_config_preserves_transformer_replacement_training(self):
+        load_config.cache_clear()
+        transformer_training_config = {
+            **self.sample_config,
+            "training": {
+                "transformer_replacement": {
+                    "enabled": True,
+                    "mode": "layerwise_distillation",
+                    "teacher_source": "synthetic_mlp",
+                    "train_target": "replacement_only",
+                    "layers": [0],
+                    "hidden_size": 8,
+                    "intermediate_size": 32,
+                    "max_steps": 25,
+                    "synthetic_teacher": {"kind": "linear"},
+                }
+            },
+        }
+        transformer_training_file = os.path.join(
+            self.temp_dir, "transformer_replacement_training_config.yaml"
+        )
+        with open(transformer_training_file, "w") as f:
+            yaml.safe_dump(transformer_training_config, f)
+
+        config = load_config(transformer_training_file)
+
+        training = config.training.transformer_replacement
+        self.assertTrue(training.enabled)
+        self.assertEqual(training.teacher_source, "synthetic_mlp")
+        self.assertEqual(training.train_target, "replacement_only")
+        self.assertEqual(training.layers, [0])
+        self.assertEqual(training.hidden_size, 8)
+        self.assertEqual(training.synthetic_teacher["kind"], "linear")
+
+    def test_load_config_maps_spike_train_analysis(self):
+        load_config.cache_clear()
+        spike_config = {
+            **self.sample_config,
+            "analysis": {
+                "spike_train": {
+                    "enabled": True,
+                    "training": False,
+                    "params": {
+                        "max_samples": 32,
+                        "include_raster": False,
+                        "dt": 0.001,
+                    },
+                }
+            },
+        }
+        spike_file = os.path.join(self.temp_dir, "spike_analysis_config.yaml")
+        with open(spike_file, "w") as f:
+            yaml.safe_dump(spike_config, f)
+
+        config = load_config(spike_file)
+
+        self.assertTrue(config.analysis.spike_train_analysis.enabled)
+        self.assertEqual(config.analysis.spike_train_analysis.params.max_samples, 32)
+        self.assertFalse(config.analysis.spike_train_analysis.params.include_raster)
+        self.assertEqual(config.analysis.spike_train_analysis.params.dt, 0.001)
 
     def test_load_config_preserves_recurrent_strategy_config(self):
         load_config.cache_clear()

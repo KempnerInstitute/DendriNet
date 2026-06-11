@@ -14,7 +14,9 @@ from dendritic_modeling.config.model import (
     MorphologyConfig,
     ReactivationConfig,
     SparsityConfig,
+    StructuredConnectivityConfig,
     TransferFunctionConfig,
+    TransformerReplacementConfig,
 )
 
 # ---------------------------------------------------------------------------
@@ -28,6 +30,7 @@ def test_model_config_defaults():
     assert isinstance(cfg.encoder, EncoderConfig)
     assert isinstance(cfg.core, CoreConfig)
     assert isinstance(cfg.decoder, DecoderConfig)
+    assert isinstance(cfg.transformer_replacement, TransformerReplacementConfig)
 
 
 def test_architecture_config_defaults():
@@ -44,6 +47,8 @@ def test_connectivity_config_defaults():
     assert cfg.ei_synapses_per_branch_per_layer == [0]
     assert cfg.ie_synapses_per_branch_per_layer == [10]
     assert cfg.ii_synapses_per_branch_per_layer == [0]
+    assert isinstance(cfg.structured, StructuredConnectivityConfig)
+    assert cfg.structured.enabled is False
 
 
 def test_morphology_config_defaults():
@@ -60,8 +65,20 @@ def test_sparsity_config_defaults():
     assert cfg.init_method == "xavier_normal"
     assert cfg.noise_level == 0.0
     assert cfg.type == "standard"
+    assert cfg.temperature == 0.0
+    assert cfg.ultrafast is False
     assert isinstance(cfg.deepst, dict)
+    assert isinstance(cfg.indexed, dict)
     assert "excitatory_target_density" in cfg.deepst
+    assert cfg.indexed["selection"] == "standard"
+
+
+def test_transformer_replacement_config_defaults():
+    cfg = TransformerReplacementConfig()
+    assert cfg.enabled is False
+    assert cfg.layers == []
+    assert cfg.target_module == "mlp"
+    assert cfg.input_transform == "signed_split"
 
 
 def test_reactivation_config_defaults():
@@ -81,7 +98,16 @@ def test_reactivation_config_defaults():
 def test_transfer_function_config_defaults():
     cfg = TransferFunctionConfig()
     assert cfg.input_mode == 1
+    assert cfg.input_transform is None
     assert cfg.independent_pathways is False
+
+
+def test_implementation_config_defaults():
+    cfg = ImplementationConfig()
+    # Default False (develop-compatible, opt-in) — adaptive init collapses
+    # leaf-layer shunting conductances, so it must not be on by default.
+    assert cfg.adaptive_initialization is False
+    assert cfg.compile_forward is False
 
 
 def test_encoder_config_defaults():
@@ -147,10 +173,15 @@ def test_core_config_asdict_keys():
         "blocklinear",
         "implementation",
         "spatial",
+        "synapse_types",
+        "dynamics",
+        "dendritic_spikes",
+        "soma_feedback",
         "recurrent",
         "unified_ei",
         "recurrent_ei",
         "baseline_rnn",
+        "population_network",
     }
     assert expected_keys == set(d.keys())
 
@@ -182,3 +213,11 @@ def test_sparsity_deepst_dict():
     assert deepst["use_noise"] is True
     assert deepst["sigma"] == 0.05
     assert deepst["rewiring_mode"] == "global"
+
+
+def test_sparsity_indexed_dict():
+    cfg = SparsityConfig()
+    indexed = cfg.indexed
+    assert indexed["candidate_size"] is None
+    assert indexed["selection"] == "standard"
+    assert indexed["output_chunk_size"] == 2048

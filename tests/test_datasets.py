@@ -480,9 +480,11 @@ class TestRealDatasets(unittest.TestCase):
 
         train_mock = Mock()
         train_mock.__len__ = Mock(return_value=10)
+        train_eval_mock = Mock()
+        train_eval_mock.__len__ = Mock(return_value=10)
         test_mock = Mock()
         test_mock.__len__ = Mock(return_value=4)
-        mock_imagefolder.side_effect = [train_mock, test_mock]
+        mock_imagefolder.side_effect = [train_mock, train_eval_mock, test_mock]
 
         train_ds, valid_ds, test_ds = load_imagenet_as_datasets(
             train_valid_split=0.8,
@@ -515,9 +517,11 @@ class TestRealDatasets(unittest.TestCase):
 
         train_mock = Mock()
         train_mock.__len__ = Mock(return_value=10)
+        train_eval_mock = Mock()
+        train_eval_mock.__len__ = Mock(return_value=10)
         test_mock = Mock()
         test_mock.__len__ = Mock(return_value=4)
-        mock_imagenet.side_effect = [train_mock, test_mock]
+        mock_imagenet.side_effect = [train_mock, train_eval_mock, test_mock]
 
         train_ds, valid_ds, test_ds = load_imagenet_as_datasets(
             train_valid_split=0.8,
@@ -533,22 +537,84 @@ class TestRealDatasets(unittest.TestCase):
         self.assertEqual(len(valid_ds), 2)
         self.assertIs(test_ds, test_mock)
 
+    @patch("dendritic_modeling.datasets.standard_datasets.datasets.ImageNet")
+    @patch("dendritic_modeling.datasets.standard_datasets.datasets.ImageFolder")
+    def test_load_imagenet_pretrained_preset_uses_training_only_augmentations(
+        self, mock_imagefolder, mock_imagenet
+    ):
+        """Pretrained preset should match torchvision train/eval preprocessing."""
+        os.makedirs(os.path.join(self.temp_dir, "train", "class_a"))
+        os.makedirs(os.path.join(self.temp_dir, "val", "class_a"))
+
+        train_mock = Mock()
+        train_mock.__len__ = Mock(return_value=10)
+        train_eval_mock = Mock()
+        train_eval_mock.__len__ = Mock(return_value=10)
+        test_mock = Mock()
+        test_mock.__len__ = Mock(return_value=4)
+        mock_imagefolder.side_effect = [train_mock, train_eval_mock, test_mock]
+
+        load_imagenet_as_datasets(
+            train_valid_split=0.8,
+            flatten=False,
+            normalize=False,
+            task_data_path=self.temp_dir,
+            transform_preset="pretrained",
+        )
+
+        transforms_by_call = [
+            [t.__class__.__name__ for t in call.kwargs["transform"].transforms]
+            for call in mock_imagefolder.call_args_list
+        ]
+        self.assertIn("RandomResizedCrop", transforms_by_call[0])
+        self.assertIn("RandomHorizontalFlip", transforms_by_call[0])
+        self.assertIn("Resize", transforms_by_call[1])
+        self.assertIn("CenterCrop", transforms_by_call[1])
+        self.assertIn("Resize", transforms_by_call[2])
+        self.assertIn("CenterCrop", transforms_by_call[2])
+        mock_imagenet.assert_not_called()
+
     @patch(
         "dendritic_modeling.datasets.standard_datasets.datasets.ImageNet",
         side_effect=RuntimeError("missing devkit"),
     )
-    def test_load_imagenet_fallback_is_small(self, _mock_imagenet):
-        """Fallback ImageNet smoke dataset should stay small enough for tests."""
+    def test_load_imagenet_missing_requires_explicit_fake_data(self, _mock_imagenet):
+        """Missing ImageNet should fail for real runs unless fake data is explicit."""
+        with self.assertRaisesRegex(RuntimeError, "allow_fake_data=true"):
+            load_imagenet_as_datasets(
+                train_valid_split=0.8,
+                flatten=False,
+                normalize=False,
+                task_data_path=self.temp_dir,
+            )
+
+    @patch(
+        "dendritic_modeling.datasets.standard_datasets.datasets.ImageNet",
+        side_effect=RuntimeError("missing devkit"),
+    )
+    def test_load_imagenet_fallback_is_small_when_explicit(self, _mock_imagenet):
+        """Explicit FakeData ImageNet smoke dataset should stay small."""
         train_ds, valid_ds, test_ds = load_imagenet_as_datasets(
             train_valid_split=0.8,
             flatten=False,
             normalize=False,
             task_data_path=self.temp_dir,
+            allow_fake_data=True,
         )
 
         self.assertEqual(len(train_ds), 409)
         self.assertEqual(len(valid_ds), 103)
         self.assertEqual(len(test_ds), 128)
+
+    def test_load_imagenet_flatten_requires_explicit_opt_in(self):
+        """Flattening ImageNet is memory-heavy and should be explicit."""
+        with self.assertRaisesRegex(ValueError, "allow_flatten_materialize"):
+            load_imagenet_as_datasets(
+                train_valid_split=0.8,
+                flatten=True,
+                normalize=False,
+                task_data_path=self.temp_dir,
+            )
 
     @patch("dendritic_modeling.datasets.standard_datasets.datasets.ImageNet")
     def test_load_imagenet_applies_per_class_subset(self, mock_imagenet):
@@ -565,8 +631,9 @@ class TestRealDatasets(unittest.TestCase):
                 return torch.zeros(3, 224, 224), self.targets[idx]
 
         train_mock = DummyDataset([0, 0, 1, 1, 2, 2])
+        train_eval_mock = DummyDataset([0, 0, 1, 1, 2, 2])
         test_mock = DummyDataset([0, 0, 1, 1, 2, 2])
-        mock_imagenet.side_effect = [train_mock, test_mock]
+        mock_imagenet.side_effect = [train_mock, train_eval_mock, test_mock]
 
         with open(os.path.join(self.temp_dir, "meta.bin"), "wb") as f:
             f.write(b"meta")

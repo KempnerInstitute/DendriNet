@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from typing import Optional, Union
 
 import torch
@@ -13,6 +14,40 @@ from dendritic_modeling.networks import (
 from dendritic_modeling.networks.architectures.classical.autoencoder import (
     BaseVariationalAutoencoder,
 )
+
+LossBuilder = Callable[[], "LossFunction"]
+LOSS_FUNCTION_REGISTRY: dict[str, LossBuilder] = {}
+
+
+def register_loss_function(
+    name: str,
+    builder: LossBuilder,
+    *,
+    aliases: tuple[str, ...] | list[str] = (),
+    allow_override: bool = False,
+) -> None:
+    """Register a loss-function builder.
+
+    Loss names remain case-sensitive for backward compatibility.
+    Builders are zero-argument callables that return a ``LossFunction``.
+    """
+    names = [name, *aliases]
+    if not names or any(not str(item).strip() for item in names):
+        raise ValueError("loss function name and aliases must be non-empty")
+    for key in names:
+        if key in LOSS_FUNCTION_REGISTRY and not allow_override:
+            raise ValueError(f"Loss function '{key}' is already registered")
+        LOSS_FUNCTION_REGISTRY[str(key)] = builder
+
+
+def unregister_loss_function(name: str) -> None:
+    """Remove a registered loss function if present."""
+    LOSS_FUNCTION_REGISTRY.pop(str(name), None)
+
+
+def get_available_loss_functions() -> list[str]:
+    """Return registered loss function names."""
+    return sorted(LOSS_FUNCTION_REGISTRY)
 
 
 class LossFunction(nn.Module):
@@ -641,25 +676,54 @@ class EIWeightRatioLoss(LossFunction):
         return self._compute_per_layer_ratio_loss(exc_weights, inh_weights)
 
 
-def get_loss_function(loss_function: str) -> LossFunction:
-    if loss_function in ["mse", "mean_squared_error"]:
-        return MSELoss()
-    elif loss_function in ["log_mse", "log_mean_squared_error"]:
-        return LogMSELoss()
-    elif loss_function in ["ce", "cross_entropy"]:
-        return CrossEntropyLoss()
-    elif loss_function in ["bce", "binary_cross_entropy"]:
-        return BCELoss()
-    elif loss_function in ["cat_nll", "categorical_negative_log_likelihood"]:
-        return CategoricalNLLLoss()
-    elif loss_function in ["vae_elbo", "variational_autoencoder_elbo"]:
-        return VaeElboLoss()
-    elif loss_function in ["neg_cos_sim", "negative_cosine_similarity"]:
-        return NegativeCosineSimilarityLoss()
-    elif loss_function in [
+def _register_builtin_loss_functions() -> None:
+    register_loss_function(
+        "mse",
+        MSELoss,
+        aliases=("mean_squared_error",),
+    )
+    register_loss_function(
+        "log_mse",
+        LogMSELoss,
+        aliases=("log_mean_squared_error",),
+    )
+    register_loss_function(
+        "ce",
+        CrossEntropyLoss,
+        aliases=("cross_entropy",),
+    )
+    register_loss_function(
+        "bce",
+        BCELoss,
+        aliases=("binary_cross_entropy",),
+    )
+    register_loss_function(
+        "cat_nll",
+        CategoricalNLLLoss,
+        aliases=("categorical_negative_log_likelihood",),
+    )
+    register_loss_function(
+        "vae_elbo",
+        VaeElboLoss,
+        aliases=("variational_autoencoder_elbo",),
+    )
+    register_loss_function(
+        "neg_cos_sim",
+        NegativeCosineSimilarityLoss,
+        aliases=("negative_cosine_similarity",),
+    )
+    register_loss_function(
         "log_adj_neg_cos_sim",
-        "log_adjusted_negative_cosine_similarity",
-    ]:
-        return LogAdjustedNegativeCosineSimilarityLoss()
-    else:
+        LogAdjustedNegativeCosineSimilarityLoss,
+        aliases=("log_adjusted_negative_cosine_similarity",),
+    )
+
+
+_register_builtin_loss_functions()
+
+
+def get_loss_function(loss_function: str) -> LossFunction:
+    builder = LOSS_FUNCTION_REGISTRY.get(loss_function)
+    if builder is None:
         raise ValueError(f"Invalid loss function: {loss_function}")
+    return builder()

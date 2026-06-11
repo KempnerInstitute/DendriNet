@@ -317,7 +317,15 @@ Each module follows the same ``enabled``/``training``/``params`` pattern.
    Records which branches are active per input class.
 
 ``receptive_field``
-   Computes effective receptive fields per neuron.
+   Computes dendritic receptive-field weight maps for all branch layers. Use
+   ``params.rf_shape`` when excitatory and inhibitory receptive fields share one
+   image shape, or ``params.exc_rf_shape`` / ``params.inh_rf_shape`` when the two
+   streams have different shapes. The analyzer saves a raw tensor checkpoint
+   (``<filename>_raw_receptive_fields.pt`` by default) so plots can be regenerated
+   without re-reading model weights; set ``params.load_raw_data: true`` to reuse
+   it. Set ``params.compute_activation_tuning: true`` to also summarize
+   class-preferred branch excitation, inhibition, E/I ratio, and output activation
+   from the provided test split.
 
 ``adversarial_robustness``
    FGSM attack evaluation at configurable epsilon values.
@@ -348,7 +356,10 @@ Each module follows the same ``enabled``/``training``/``params`` pattern.
    Structural targeting analysis for recurrent inhibitory populations. For each
    local recurrent I->E route, computes soma-vs-distal targeting indices per
    ``(I, E)`` pair and summarizes inhibitory neurons into targeting motifs such
-   as ``mixed-conditional`` and ``context-specialist``.
+   as ``mixed-conditional`` and ``context-specialist``. For named
+   ``population_network`` cores, the analyzer reports the excitatory target
+   population key, such as ``population_network/microcircuit.pyr``, and includes the
+   contributing inhibitory source populations.
 
    .. code-block:: yaml
 
@@ -379,7 +390,9 @@ Each module follows the same ``enabled``/``training``/``params`` pattern.
 ``dendritic_timetraces``
    Synthetic time-trace simulator that uses the trained per-level ``tau`` and
    reactivation parameters to illustrate how a learned dendritic cascade
-   responds to a configurable input protocol.
+   responds to a configurable input protocol. Legacy recurrent E/I layers keep
+   their historical ``layer_N`` keys; named population networks report keys such
+   as ``population_network/microcircuit.pyr``.
 
    .. code-block:: yaml
 
@@ -391,8 +404,36 @@ Each module follows the same ``enabled``/``training``/``params`` pattern.
             n_timesteps: 80
             save_figures: true
 
+``spike_train``
+   Spike-specific summary for models with opt-in ``LIFSoma`` modules. The
+   analyzer hooks the soma directly, so it works with ``spike_readout`` set to
+   ``spikes``, ``rate``, or ``membrane``. It reports compact raster events,
+   mean firing rate, silent-unit and silent-trial fractions, spike-count Fano
+   factors, and ISI mean/CV.
+
+   .. code-block:: yaml
+
+      analysis:
+        spike_train:
+          enabled: true
+          training: false
+          params:
+            max_samples: 512
+            include_raster: true
+            max_raster_samples: 8
+            include_per_timestep_rate: true
+
 Compatibility Notes
 -------------------
+
+Recurrent analysis helpers now share a small duck-typed introspection layer in
+``dendritic_modeling.analysis.utils.recurrent_introspection``. This preserves
+legacy E/I analysis outputs while allowing new analyzers and scripts to discover
+named populations, synapse-type support, and spiking soma state without knowing
+the concrete core class.
+The same compatibility pass lets hook-based synaptic activation and compartment
+statistics run on named recurrent population graphs when their underlying
+``TopKLinear`` branch modules are present.
 
 Older configs that still use ``performance_analysis`` or the legacy
 ``training_runtime`` / ``final_runtime`` performance blocks are still accepted

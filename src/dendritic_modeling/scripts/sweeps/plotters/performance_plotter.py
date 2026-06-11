@@ -205,8 +205,10 @@ class PerformancePlotter(BasePlotter):
         possible_categories = [
             "dendritic_shunting",
             "dendritic_additive",
+            "dendritic_normalized_additive",
             "flat_shunting",
             "flat_additive",
+            "flat_normalized_additive",
             "dendritic_mlp",
             "flat_mlp",
             "point_mlp",

@@ -57,8 +57,9 @@ Run a parameter sweep
 Example model runs
 ------------------
 
-The repository includes four primary runnable example configs. See
-:doc:`examples` for the same list with short notes.
+The repository includes legacy-compatible vision examples, population-network
+mirrors, and recurrent examples for the extended population, synapse-type,
+connectivity, and spiking features. See :doc:`examples` for the full list.
 
 .. code-block:: bash
 
@@ -66,6 +67,11 @@ The repository includes four primary runnable example configs. See
    PYTHONPATH=src:$PYTHONPATH python \
      src/dendritic_modeling/scripts/training/train_experiments.py \
      configs/examples/standard_mnist.yaml
+
+   # Same single-layer E/I computation in the canonical population-network schema
+   PYTHONPATH=src:$PYTHONPATH python \
+     src/dendritic_modeling/scripts/training/train_experiments.py \
+     configs/examples/standard_mnist_population_network.yaml
 
    # CIFAR-10, one 128E/32I layer, [3, 3, 3] morphology, 40E/10I synapses
    PYTHONPATH=src:$PYTHONPATH python \
@@ -81,6 +87,16 @@ The repository includes four primary runnable example configs. See
    PYTHONPATH=src:$PYTHONPATH python \
      src/dendritic_modeling/scripts/training/train_experiments.py \
      configs/examples/alexnet_fc7_dendritic_500.yaml
+
+   # Named Pyr/PV/SST recurrent population network
+   PYTHONPATH=src:$PYTHONPATH python \
+     src/dendritic_modeling/scripts/training/train_experiments.py \
+     configs/examples/population_network_recurrent_pyr_pv_sst.yaml
+
+   # Spiking soma with rate-decoded spike readout and spike-train analysis
+   PYTHONPATH=src:$PYTHONPATH python \
+     src/dendritic_modeling/scripts/training/train_experiments.py \
+     configs/examples/population_network_spiking.yaml
 
 Output structure
 ----------------
@@ -115,13 +131,36 @@ Minimal configuration example
      encoder:
        type: Identity
      core:
-       type: dendritic_shunting
-       architecture:
-         excitatory_layer_sizes: [64, 32]
-         inhibitory_layer_sizes: [16, 8]
-       connectivity:
-         ee_synapses_per_branch_per_layer: [20]
-         ie_synapses_per_branch_per_layer: [5]
+       type: population_network
+       population_network:
+         layers:
+           - name: layer0
+             readout_population: e
+             population_defaults:
+               ff_excitatory_synapses: 20
+               ff_inhibitory_synapses: 5
+               rec_excitatory_synapses: 0
+               rec_inhibitory_synapses: 0
+               somatic_synapses: true
+               reactivate: true
+               reactivation_init_policy: occupancy_quantile
+               weight_transform: softplus
+             populations:
+               - name: i
+                 polarity: inhibitory
+                 n_neurons: 16
+                 branch_factors: [1]
+               - name: e
+                 polarity: excitatory
+                 n_neurons: 64
+                 branch_factors: [3, 3]
+             connections:
+               - source: input
+                 target: i
+               - source: input
+                 target: e
+               - source: i
+                 target: e
      decoder:
        type: Identity
 

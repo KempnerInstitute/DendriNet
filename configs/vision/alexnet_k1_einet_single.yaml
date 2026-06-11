@@ -66,7 +66,11 @@ data:
   processing:
     flatten: false
     normalize: true
-  dataset_params: {}
+  dataset_params:
+    imagenet:
+      transform_preset: "pretrained"
+      allow_fake_data: false
+      allow_flatten_materialize: false
 
 model:
   task: "classification"
@@ -156,6 +160,7 @@ model:
     reactivation:
       enabled: true
       type: "param_tanh"
+      init_policy: "occupancy_quantile"
       init_m: 1.5
       init_b: 0.5
       gradient_scaling: "none"

@@ -4,6 +4,13 @@ Datasets module for dendritic modeling.
 This module contains various synthetic and real dataset classes and utilities.
 """
 
+from .registry import (
+    DatasetSpec,
+    get_dataset_spec,
+    get_registered_dataset_names,
+    register_dataset,
+    unregister_dataset,
+)
 from .sequence_datasets import (
     AddingProblemDataset,
     CopyTaskDataset,
@@ -33,6 +40,7 @@ from .standard_datasets import (
 __all__ = [
     "AddingProblemDataset",
     "CopyTaskDataset",
+    "DatasetSpec",
     "GainModulatedContextualComparisonDataset",
     "LorenzSequenceDataset",
     "MultiFrequencyDataset",
@@ -43,6 +51,8 @@ __all__ = [
     "SwitchingLDSDataset",
     "VariableDelayDMSDataset",
     "get_data_directory",
+    "get_dataset_spec",
+    "get_registered_dataset_names",
     "get_sequence_datasets",
     "get_unified_datasets",
     "load_cifar10_as_datasets",
@@ -52,4 +62,6 @@ __all__ = [
     "load_imagenet_as_datasets",
     "load_mnist_as_datasets",
     "load_mnist_modulo10",
+    "register_dataset",
+    "unregister_dataset",
 ]

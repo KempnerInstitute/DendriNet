@@ -11,6 +11,9 @@ import torch.nn as nn
 from dendritic_modeling.networks.architectures.excitation_inhibition.input_transform.transfer import (
     TransferLayer,
 )
+from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.topk import (
+    apply_recurrent_weight_cache,
+)
 from dendritic_modeling.networks.architectures.recurrent.ei_config import (
     EILayerConfig,
     EINetworkConfig,
@@ -136,8 +139,24 @@ class EINetwork(BaseNetwork):
                 return outputs[torch.arange(B, device=outputs.device), idx]
             return outputs[:, -1, :]
         if self.output_mode == "mean":
+            if seq_lengths is not None:
+                _B, T, _ = outputs.shape
+                lengths = seq_lengths.to(device=outputs.device).long().clamp(0, T)
+                mask = torch.arange(T, device=outputs.device).unsqueeze(
+                    0
+                ) < lengths.unsqueeze(1)
+                masked = outputs * mask.unsqueeze(-1).to(dtype=outputs.dtype)
+                denom = lengths.clamp_min(1).unsqueeze(1).to(dtype=outputs.dtype)
+                return masked.sum(dim=1) / denom
             return outputs.mean(dim=1)
         if self.output_mode == "all":
+            if seq_lengths is not None:
+                _B, T, _ = outputs.shape
+                lengths = seq_lengths.to(device=outputs.device).long().clamp(0, T)
+                mask = torch.arange(T, device=outputs.device).unsqueeze(
+                    0
+                ) < lengths.unsqueeze(1)
+                return outputs * mask.unsqueeze(-1).to(dtype=outputs.dtype)
             return outputs
         raise ValueError(f"Unknown output_mode: {self.output_mode}")
 
@@ -192,6 +211,8 @@ class EINetwork(BaseNetwork):
             hidden: Final hidden state (only when return_hidden=True).
         """
         if self.is_recurrent:
+            if x.dim() == 2:
+                x = x.unsqueeze(1)
             out, hidden = self._forward_recurrent(
                 x, hidden=hidden, seq_lengths=seq_lengths
             )
@@ -234,30 +255,35 @@ class EINetwork(BaseNetwork):
 
         outputs = []
         self._routing_info = []
-        for t in range(seq_len):
-            transfer_inhibitory: torch.Tensor | None = None
-            if self.transfer_fn is not None:
-                h, transfer_inhibitory = self.transfer_fn(x[:, t, :])
-                h = self.input_projection(h)
-            else:
-                h = self.input_projection(x[:, t, :])
-            ff_I = None
-            for layer_idx, layer in enumerate(self.layers):
-                layer_inhibitory = self._select_layer_inhibitory_input(
-                    layer=layer,
-                    ff_inhibitory=ff_I,
-                    transfer_inhibitory=transfer_inhibitory,
-                )
-                h, ff_I, hidden[layer_idx] = layer(
-                    h, layer_inhibitory, hidden[layer_idx]
-                )
-            outputs.append(h)
-
-            if self._store_routing:
-                timestep_info = {}
+        # Reuse deterministic TopK selection across timesteps of this unroll.
+        # Always release it, including on shape/config errors.
+        apply_recurrent_weight_cache(self, True)
+        try:
+            for t in range(seq_len):
+                transfer_inhibitory: torch.Tensor | None = None
+                if self.transfer_fn is not None:
+                    h, transfer_inhibitory = self.transfer_fn(x[:, t, :])
+                    h = self.input_projection(h)
+                else:
+                    h = self.input_projection(x[:, t, :])
+                ff_I = None
                 for layer_idx, layer in enumerate(self.layers):
-                    timestep_info[f"layer_{layer_idx}"] = layer._last_routing_info
-                self._routing_info.append(timestep_info)
+                    layer_inhibitory = self._select_layer_inhibitory_input(
+                        layer=layer,
+                        ff_inhibitory=ff_I,
+                        transfer_inhibitory=transfer_inhibitory,
+                    )
+                    h, ff_I, hidden[layer_idx] = layer(
+                        h, layer_inhibitory, hidden[layer_idx]
+                    )
+                outputs.append(h)
 
+                if self._store_routing:
+                    timestep_info = {}
+                    for layer_idx, layer in enumerate(self.layers):
+                        timestep_info[f"layer_{layer_idx}"] = layer._last_routing_info
+                    self._routing_info.append(timestep_info)
+        finally:
+            apply_recurrent_weight_cache(self, False)
         stacked = torch.stack(outputs, dim=1)
         return self._reduce_outputs(stacked, seq_lengths=seq_lengths), hidden

@@ -158,18 +158,39 @@ class MultiplicativeGainAnalyzer(AbstractAnalyzer):
         else:
             gain_factors = torch.linspace(self.gain_min, self.gain_max, self.n_steps)
 
-        data_dict = {"gain_factors": gain_factors.tolist()}
+        gain_factor_values = gain_factors.tolist()
+        data_dict = {"gain_factors": gain_factor_values}
+        metric_funcs: list[tuple[str, Callable]] = []
 
         if self.accuracy:
             data_dict["accuracy"] = []
+            metric_funcs.append(("accuracy", evaluate_accuracy))
         if self.auc:
             data_dict["auc"] = []
+            metric_funcs.append(("auc", evaluate_auc))
         if self.categorical_loglikelihood:
             data_dict["categorical_loglikelihood"] = []
+            metric_funcs.append(
+                ("categorical_loglikelihood", evaluate_categorical_loglikelihood)
+            )
         if self.mse:
             data_dict["mse"] = []
+            metric_funcs.append(("mse", evaluate_mse))
         if self.cosine_similarity:
             data_dict["cosine_similarity"] = []
+            metric_funcs.append(("cosine_similarity", evaluate_cosine_similarity))
+
+        train_g_min = 1.0
+        train_g_max = 1.0
+        if (
+            isinstance(test_dataset, PoissonGeneratorDataset)
+            and test_dataset.multiplicative_gain
+        ):
+            if test_dataset.fixed_gain_factor is not None:
+                train_g_min = float(test_dataset.fixed_gain_factor)
+                train_g_max = float(test_dataset.fixed_gain_factor)
+            elif test_dataset.max_gain_factor is not None:
+                train_g_max = float(test_dataset.max_gain_factor)
 
         eval_kwargs = evaluation_kwargs_from_runtime(runtime)
         with analysis_device_context(model, device) as analysis_device:
@@ -181,17 +202,20 @@ class MultiplicativeGainAnalyzer(AbstractAnalyzer):
             base_inputs = base_items[0]
             test_labels: torch.Tensor = base_items[1].to(analysis_device)
 
-            def _evaluate_metric(
+            def _score_metric(
                 metric_func: Callable,
-                metric_key: str,
                 dataset: torch.utils.data.Dataset,
-            ):
-                metric_score = metric_func(
-                    model, test_ds=dataset, move_device=False, **eval_kwargs
-                )[-1]
-                data_dict[metric_key].append(metric_score)
+            ) -> float:
+                return float(
+                    metric_func(
+                        model,
+                        test_ds=dataset,
+                        move_device=False,
+                        **eval_kwargs,
+                    )[-1]
+                )
 
-            for gain_factor in data_dict["gain_factors"]:
+            def _scaled_dataset_for_gain(gain_factor: float):
                 scaled_test_inputs = self._apply_gain_to_inputs(
                     test_dataset,
                     gain_factor,
@@ -200,47 +224,75 @@ class MultiplicativeGainAnalyzer(AbstractAnalyzer):
                     device=analysis_device,
                 )
                 scaled_test_inputs = scaled_test_inputs.to(analysis_device)
-                scaled_test_dataset = TensorDataset(scaled_test_inputs, test_labels)
+                return TensorDataset(scaled_test_inputs, test_labels)
 
-                if self.accuracy:
+            def _evaluate_metric(
+                metric_func: Callable,
+                metric_key: str,
+                dataset: torch.utils.data.Dataset,
+            ):
+                metric_score = _score_metric(metric_func, dataset)
+                data_dict[metric_key].append(metric_score)
+
+            for gain_factor in gain_factor_values:
+                scaled_test_dataset = _scaled_dataset_for_gain(gain_factor)
+
+                for metric_key, metric_func in metric_funcs:
                     _evaluate_metric(
-                        metric_func=evaluate_accuracy,
-                        metric_key="accuracy",
+                        metric_func=metric_func,
+                        metric_key=metric_key,
                         dataset=scaled_test_dataset,
                     )
-                if self.auc:
-                    _evaluate_metric(
-                        metric_func=evaluate_auc,
-                        metric_key="auc",
-                        dataset=scaled_test_dataset,
+
+            id_dict: dict[str, float] = {}
+            if metric_funcs and train_g_min == train_g_max:
+                scaled_test_dataset = _scaled_dataset_for_gain(train_g_min)
+                for metric_key, metric_func in metric_funcs:
+                    id_dict[metric_key] = _score_metric(
+                        metric_func, scaled_test_dataset
                     )
-                if self.categorical_loglikelihood:
-                    _evaluate_metric(
-                        metric_func=evaluate_categorical_loglikelihood,
-                        metric_key="categorical_loglikelihood",
-                        dataset=scaled_test_dataset,
-                    )
-                if self.mse:
-                    _evaluate_metric(
-                        metric_func=evaluate_mse,
-                        metric_key="mse",
-                        dataset=scaled_test_dataset,
-                    )
-                if self.cosine_similarity:
-                    _evaluate_metric(
-                        metric_func=evaluate_cosine_similarity,
-                        metric_key="cosine_similarity",
-                        dataset=scaled_test_dataset,
-                    )
+            elif metric_funcs:
+                id_mask = (gain_factors >= train_g_min) & (gain_factors <= train_g_max)
+                if bool(id_mask.any()):
+                    for metric_key, _metric_func in metric_funcs:
+                        scores = torch.as_tensor(data_dict[metric_key])
+                        id_dict[metric_key] = float(scores[id_mask].mean())
+
+            def _mean_scores_for_mask(mask: torch.Tensor) -> dict[str, float]:
+                scores_dict: dict[str, float] = {}
+                if not bool(mask.any()):
+                    return scores_dict
+                for metric_key, _metric_func in metric_funcs:
+                    scores = torch.as_tensor(data_dict[metric_key])
+                    scores_dict[metric_key] = float(scores[mask].mean())
+                return scores_dict
+
+            ood_lower_dict: dict[str, float] = {}
+            if self.gain_min < train_g_min:
+                ood_lower_dict = _mean_scores_for_mask(
+                    (gain_factors >= self.gain_min) & (gain_factors < train_g_min)
+                )
+
+            ood_upper_dict: dict[str, float] = {}
+            if self.gain_max > train_g_max:
+                ood_upper_dict = _mean_scores_for_mask(
+                    (gain_factors > train_g_max) & (gain_factors <= self.gain_max)
+                )
+
+        if metric_funcs:
+            data_dict["raw_scores"] = {
+                metric_key: list(data_dict[metric_key])
+                for metric_key, _ in metric_funcs
+            }
+            data_dict["ID"] = id_dict
+            data_dict["OOD_lower"] = ood_lower_dict
+            data_dict["OOD_upper"] = ood_upper_dict
 
         if save_path is not None:
             if training:
                 save_path = os.path.join(save_path, "epochs")
             else:
-                metrics = list(data_dict.keys())
-                metrics.remove("gain_factors")
-
-                for metric in metrics:
+                for metric, _metric_func in metric_funcs:
                     plot_performance_vs_gain_final(
                         data_dict=data_dict,
                         metric=metric,
@@ -250,7 +302,7 @@ class MultiplicativeGainAnalyzer(AbstractAnalyzer):
 
                 epochs_data, epoch_numbers = self.load_epochs_data(save_path)
                 if epochs_data:
-                    for metric in metrics:
+                    for metric, _metric_func in metric_funcs:
                         plot_performance_vs_gain_training(
                             epochs_data=epochs_data,
                             epoch_numbers=epoch_numbers,

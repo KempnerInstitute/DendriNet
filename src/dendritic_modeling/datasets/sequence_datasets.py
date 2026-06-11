@@ -18,6 +18,8 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset, random_split
 
+from dendritic_modeling.datasets.registry import build_registered_dataset
+
 logger = logging.getLogger(__name__)
 
 
@@ -1006,6 +1008,7 @@ class LorenzSequenceDataset(Dataset):
         prediction_mode: str = "last",
         observation_mode: str = "full",
         observation_dim: int = 3,
+        observation_seed: Optional[int] = None,
         observation_noise_std: float = 0.0,
         burn_in_steps: int = 200,
         seed: int = 42,
@@ -1038,6 +1041,7 @@ class LorenzSequenceDataset(Dataset):
         self.prediction_mode = prediction_mode
         self.observation_mode = observation_mode
         self.observation_dim = 3 if observation_mode == "full" else observation_dim
+        self.observation_seed = seed if observation_seed is None else observation_seed
         self.observation_noise_std = observation_noise_std
         self.burn_in_steps = burn_in_steps
         self.seed = seed if test_seed is None else test_seed
@@ -1057,7 +1061,7 @@ class LorenzSequenceDataset(Dataset):
         self.observation_matrix = self._build_observation_matrix(
             mode=observation_mode,
             observation_dim=self.observation_dim,
-            seed=self.seed,
+            seed=self.observation_seed,
         )
         self.state_mean, self.state_std = self._compute_state_stats(
             n_steps=normalization_steps,
@@ -1614,6 +1618,7 @@ class StringerV1Dataset(Dataset):
         gain_seed: Optional[int] = None,
         poisson_sampling: bool = False,
         poisson_rate_scale: float = 1.0,
+        normalization_stats: Optional[tuple[np.ndarray, np.ndarray]] = None,
     ):
         super().__init__()
         if split not in ("train", "test", "all"):
@@ -1669,13 +1674,6 @@ class StringerV1Dataset(Dataset):
         self._neuron_indices = top_idx
         raw_responses = sresp[top_idx, :].T.astype(np.float32)  # (n_trials, n_select)
 
-        # --- Normalize ---
-        responses = raw_responses.copy()
-        if normalize:
-            mu = responses.mean(axis=0, keepdims=True)
-            std = responses.std(axis=0, keepdims=True) + 1e-8
-            responses = (responses - mu) / std
-
         # --- Bin orientations into classes ---
         # istim is in [0, 2*pi), bin into n_classes equal bins
         bin_edges = np.linspace(0, 2 * np.pi, n_classes + 1)
@@ -1707,24 +1705,51 @@ class StringerV1Dataset(Dataset):
             keep_mask = np.ones(n_trials, dtype=bool)
 
         available_idx = np.flatnonzero(keep_mask)
-        responses = responses[available_idx]
-        labels = labels[available_idx]
-        running_speed = running_speed_full[available_idx]
 
         # --- Train/test split ---
         if split == "all":
             idx = np.arange(len(labels))
         else:
             rng = np.random.RandomState(seed)
-            perm = rng.permutation(len(labels))
-            n_train = int(len(labels) * train_fraction)
+            perm = rng.permutation(len(available_idx))
+            n_train = int(len(available_idx) * train_fraction)
             if split == "train":
                 idx = perm[:n_train]
             else:
                 idx = perm[n_train:]
 
+        if split == "all":
+            selected_global_idx = available_idx
+        else:
+            selected_global_idx = available_idx[idx]
+
+        # --- Normalize ---
+        if normalize:
+            if normalization_stats is not None:
+                mu, std = normalization_stats
+            else:
+                if split == "all":
+                    stats_global_idx = available_idx
+                else:
+                    stats_global_idx = available_idx[perm[:n_train]]
+                mu = raw_responses[stats_global_idx].mean(axis=0, keepdims=True)
+                std = raw_responses[stats_global_idx].std(axis=0, keepdims=True) + 1e-8
+            mu = np.asarray(mu, dtype=np.float32).reshape(1, -1)
+            std = np.asarray(std, dtype=np.float32).reshape(1, -1)
+            responses = (raw_responses - mu) / std
+            self.normalization_stats = (mu.copy(), std.copy())
+        else:
+            responses = raw_responses.copy()
+            self.normalization_stats = None
+
+        labels = labels[available_idx]
+        running_speed = running_speed_full[available_idx]
+
+        if split == "all":
+            idx = np.arange(len(labels))
+
         selected_global_idx = available_idx[idx]
-        selected_responses = responses[idx]
+        selected_responses = responses[selected_global_idx]
         selected_labels = labels[idx]
         selected_running = running_speed[idx]
 
@@ -2538,6 +2563,19 @@ def get_sequence_datasets(
     Returns:
         Tuple of (train_ds, valid_ds, test_ds).
     """
+    registered = build_registered_dataset(
+        dataset_name,
+        {
+            "dataset": dataset_name,
+            "data_path": data_path,
+            "train_valid_split": train_valid_split,
+            "parameters": dict(kwargs),
+        },
+    )
+    if registered is not None:
+        return registered
+    split_seed = int(kwargs.get("split_seed", kwargs.get("seed", 42)) or 0)
+
     if dataset_name == "sequential_mnist":
         mode = kwargs.get("mode", "pixel")
         normalize = kwargs.get("normalize", True)
@@ -2947,6 +2985,7 @@ def get_sequence_datasets(
             "prediction_mode": kwargs.get("prediction_mode", "last"),
             "observation_mode": kwargs.get("observation_mode", "full"),
             "observation_dim": kwargs.get("observation_dim", 3),
+            "observation_seed": kwargs.get("observation_seed", kwargs.get("seed", 42)),
             "observation_noise_std": kwargs.get("observation_noise_std", 0.0),
             "burn_in_steps": kwargs.get("burn_in_steps", 200),
             "seed": kwargs.get("seed", 42),
@@ -3063,6 +3102,17 @@ def get_sequence_datasets(
             train_running_state != "all" or test_running_state != "all"
         )
         if use_state_specific_split:
+
+            def _state_set(state: str) -> set[str]:
+                return {"low", "high"} if state == "all" else {state}
+
+            if _state_set(train_running_state) & _state_set(test_running_state):
+                raise ValueError(
+                    "Stringer V1 state-specific train/test requests must be "
+                    "disjoint to avoid trial overlap. Use train_running_state='low' "
+                    "with test_running_state='high' (or the reverse), or set both "
+                    "states to 'all' for the standard fixed split."
+                )
             train_full = StringerV1Dataset(
                 split="all",
                 **common,
@@ -3072,7 +3122,25 @@ def get_sequence_datasets(
                 split="all",
                 **common,
                 **_state_kwargs("test_", test_running_state),
+                normalization_stats=getattr(train_full, "normalization_stats", None),
             )
+            # Name-level disjointness (above) is necessary but not sufficient: the
+            # low/high running-speed masks are both boundary-inclusive, so at the
+            # default running_quantile=0.5 (or with ties in a zero-inflated running
+            # trace) the realized "low" and "high" trial sets can still overlap.
+            # Enforce disjointness on the actual selected trial indices.
+            train_idx = set(np.asarray(train_full._split_indices).ravel().tolist())
+            test_idx = set(np.asarray(test_ds._split_indices).ravel().tolist())
+            overlap = train_idx & test_idx
+            if overlap:
+                raise ValueError(
+                    f"Stringer V1 state-specific split produced {len(overlap)} trial(s) "
+                    f"in both train (running_state={train_running_state!r}) and test "
+                    f"(running_state={test_running_state!r}). The running-speed thresholds "
+                    f"are inclusive, so trials tied at the quantile boundary fall into both "
+                    f"bands. Use a running_quantile < 0.5 so the low/high bands are strictly "
+                    f"separated (e.g. running_quantile=0.25 for bottom/top quartiles)."
+                )
         else:
             # Fixed 90/10 train/test split; train_valid_split handled by factory below
             test_fraction = 0.1
@@ -3098,7 +3166,7 @@ def get_sequence_datasets(
         train_ds, valid_ds = random_split(
             train_full,
             [n_train, n_valid],
-            generator=torch.Generator().manual_seed(42),
+            generator=torch.Generator().manual_seed(split_seed),
         )
     else:
         train_ds = train_full

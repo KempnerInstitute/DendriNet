@@ -12,6 +12,18 @@ the core network and decoder. The main trainer strategy is set via
 Available Strategies
 --------------------
 
+.. figure:: _static/architecture/learning-rules.svg
+   :alt: Credit-assignment comparison — backprop (exact gradient), feedback alignment/DFA (fixed random feedback), and local credit assignment (Hebbian/STDP + error broadcast)
+   :width: 100%
+
+   How the weight update reaches each layer across the available strategies:
+   **backprop** (``standard``) flows the exact gradient back through every layer;
+   **feedback alignment** (``fa``/``dfa``, plus shunting-aware ``shunting_fa``/
+   ``shunting_dfa``) uses fixed random feedback weights with no weight transport;
+   **local credit assignment** (``local_ca``) updates each layer from local
+   pre/post activity (Hebbian/STDP) plus an error-broadcast/HSIC signal, with no
+   global backward pass.
+
 .. list-table::
    :header-rows: 1
    :widths: 20 80
@@ -29,7 +41,7 @@ Available Strategies
    * - ``shunting_dfa``
      - DFA with conductance-based modulation
    * - ``local_ca``
-     - Local credit assignment (3/4/5-factor Hebbian rules)
+     - Local credit assignment (3/4/5-factor Hebbian rules and trace STDP)
    * - ``freeze_layers``
      - Progressive layer unfreezing
    * - ``freeze_branches``
@@ -47,6 +59,67 @@ Available Strategies
 
 Distributed launch mode is configured separately via ``distributed.mode``:
 ``none``, ``ddp``, or ``fsdp``.
+
+Transformer Replacement Distillation
+------------------------------------
+
+Transformer MLP/FFN replacement is trained with the dedicated
+``training.transformer_replacement`` block rather than the image-classification
+``training.main.strategy`` loop.  The target model and layers are defined in
+``model.transformer_replacement``; the dendritic FFN architecture is defined in
+``model.core``; and this block defines how teacher data are produced.
+
+The implemented mode is ``layerwise_distillation``:
+
+.. math::
+
+   h_{\ell} \mapsto \mathrm{MLP}_{\ell}(h_{\ell})
+   \quad\text{is approximated by}\quad
+   h_{\ell} \mapsto D_{\theta,\ell}(h_{\ell}).
+
+Only the dendritic replacement is trained by default
+(``train_target: replacement_only``).  This keeps the experiment interpretable:
+each loss value measures how well the dendritic module matches the original
+MLP block before any full-model language-model fine-tuning.
+
+.. code-block:: yaml
+
+   training:
+     main:
+       optimizer:
+         name: adamw
+         lr: 3.0e-4
+         weight_decay: 0.01
+
+     transformer_replacement:
+       enabled: true
+       mode: layerwise_distillation
+       teacher_source: hf_text          # synthetic_mlp | hidden_cache | hf_text
+       train_target: replacement_only
+       layers: [0, 1, 2]
+       device: cuda
+       dtype: bfloat16
+       sequence_length: 128
+       batch_size: 1
+       max_steps: 1000
+       eval_every: 100
+       loss: mse
+       text:
+         text_path: /path/to/text_corpus.txt
+         tokenizer_name: deepseek-ai/DeepSeek-V3
+
+Run it with:
+
+.. code-block:: bash
+
+   PYTHONPATH=src:$PYTHONPATH python -m \
+     dendritic_modeling.scripts.training.train_transformer_replacement \
+     configs/examples/transformer_replacement_synthetic_distillation.yaml
+
+For DeepSeek-scale runs, the recommended workflow is to start with
+``synthetic_mlp`` for a learning smoke test, then use ``hidden_cache`` if you
+can precompute teacher activations, and only then use ``hf_text`` for direct
+teacher-hook training.
 
 Standard Training
 -----------------
@@ -122,6 +195,60 @@ Rule Variants
    information content. Modes: ``"conditional"`` (conditional variance proxy)
    or ``"variance"`` (raw variance).
 
+``rule_variant: "stdp"`` -- trace-based STDP rule
+   Uses local pre/post activity traces at TopK synapses. This is a separate
+   local rule: no task-error term is required unless ``stdp.use_error_modulation``
+   is enabled. It can also be added as an auxiliary rule to ``3f``/``4f``/``5f``
+   by setting ``stdp.enabled: true``.
+
+STDP Rule
+~~~~~~~~~
+
+The STDP implementation keeps one pre-synaptic and one post-synaptic trace per
+recorded TopK synapse module. At each local update it applies:
+
+.. code-block:: text
+
+   Delta w_ij = A_plus * post_i(t) * pre_trace_j(t-1)
+              - A_minus * post_trace_i(t-1) * pre_j(t)
+
+Positive ``Delta w`` is converted to a negative optimizer gradient so standard
+PyTorch optimizers potentiate the underlying raw synapse parameter.
+
+.. code-block:: yaml
+
+   training:
+     main:
+       strategy: local_ca
+       learning_strategy_config:
+         rule_variant: stdp
+         stdp:
+           apply_to: [exc, rec_exc]
+           activity_mode: relu
+           tau_pre: 20.0
+           tau_post: 20.0
+           a_plus: 1.0
+           a_minus: 0.5
+           learning_rate_scale: 1.0
+
+Key STDP options:
+
+``apply_to``
+   Synaptic pathways to update. Supported values are ``exc``, ``inh``,
+   ``rec_exc``, ``rec_inh``, or ``all``. The default is ``[exc, rec_exc]``.
+
+``activity_mode``
+   How local tensors are converted to activities: ``relu`` (default),
+   ``identity``, ``binary``, or ``abs``.
+
+``use_error_modulation``
+   If true, scales the trace update by the broadcast soma error. This gives a
+   reward/error-modulated STDP variant while keeping the base rule local.
+
+``inhibitory_update_sign``
+   Sign multiplier for ``inh`` and ``rec_inh`` pathways. The default ``-1``
+   makes inhibitory STDP anti-Hebbian; set ``1`` for Hebbian inhibitory updates.
+
 Error Broadcast
 ~~~~~~~~~~~~~~~
 
@@ -162,6 +289,46 @@ representations. Enabled via ``hsic.enabled: true``. Kernel options:
          hsic:
            enabled: true
            weight: 0.01
+
+Compatibility with New Components
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The local learning recorder now captures all TopK pathways on a
+``DendriticBranchLayer``:
+
+.. code-block:: text
+
+   external E input  -> branch_excitation      -> exc
+   external I input  -> branch_inhibition      -> inh
+   recurrent E input -> branch_recurrent       -> rec_exc
+   recurrent I input -> branch_rec_inhibition  -> rec_inh
+
+.. list-table::
+   :header-rows: 1
+   :widths: 24 76
+
+   * - Component
+     - Local-learning behavior
+   * - Population network
+     - Branch-local rules operate on each population's dendritic branch layers.
+       Named populations are compatible as long as they use the shared
+       ``DendriticBranchLayer`` / ``TopKLinear`` modules.
+   * - General synapse types
+     - Local rules update the shared TopK synaptic weights. Receptor fractions,
+       reversal potentials, time constants, and short-term plasticity parameters
+       remain configured model dynamics, not learned by LocalCA/STDP.
+   * - Structured connectivity
+     - Connection masks are always respected. ``update_inactive_weights`` can
+       allow non-active TopK weights to move, but forbidden masked connections
+       stay frozen.
+   * - Recurrent pathways
+     - ``3f``/``4f``/``5f`` and STDP now update ``rec_exc`` and ``rec_inh``
+       pathways when those modules are present and enabled by config.
+   * - Spiking soma
+     - STDP can use spike-like or rate-like pre/post tensors depending on the
+       model readout and ``activity_mode``. Exact event timing is approximated
+       by the trainer's update steps; for finer time-bin STDP, use sequence
+       batches with recurrent outputs exposed at each step.
 
 Morphology-Aware Extensions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~

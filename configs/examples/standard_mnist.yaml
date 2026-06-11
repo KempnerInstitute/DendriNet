@@ -37,7 +37,7 @@ model:
       inhibitory_network_type: "dendritic"
     connectivity:
       ee_synapses_per_branch_per_layer: [30]   # excitatory -> excitatory synapses per branch
-      ei_synapses_per_branch_per_layer: [0]    # excitatory -> inhibitory (0 = no direct E->I)
+      ei_synapses_per_branch_per_layer: [15]   # excitatory -> inhibitory drive for explicit I cells
       ie_synapses_per_branch_per_layer: [15]   # inhibitory -> excitatory synapses per branch
       ii_synapses_per_branch_per_layer: [0]    # inhibitory -> inhibitory (0 = no I->I)
     transfer:
@@ -53,6 +53,7 @@ model:
     reactivation:
       enabled: true                     # parametric activation after shunting
       type: "param_tanh"                # (tanh(m*(V-b))+1)/2
+      init_policy: "occupancy_quantile"
       init_m: 1.5                       # initial slope
       init_b: 0.5                       # initial bias
     blocklinear:

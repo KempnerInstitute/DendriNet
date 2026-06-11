@@ -11,6 +11,9 @@ import torch
 from dendritic_modeling.networks.architectures.excitation_inhibition.ei_network import (
     ConfigurableEINetwork,
 )
+from dendritic_modeling.networks.architectures.excitation_inhibition.input_transform import (
+    TransferLayer,
+)
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.topk import (
     TopKLinear,
 )
@@ -44,6 +47,7 @@ def _minimal_config():
         "transfer": {
             "input_mode": 1,
             "independent_pathways": False,
+            "allow_direct_inhibitory_stream": True,
         },
         "morphology": {
             "use_shunting": True,
@@ -74,6 +78,27 @@ def _build_network(net_type, seed=42):
     torch.manual_seed(seed)
     config = _minimal_config()
     return get_architecture(net_type, config, input_dim=INPUT_DIM)
+
+
+def _config_with_inhibitory_layers(input_mode, inhibitory_layer_sizes):
+    """Return a minimal EI config with optional explicit inhibitory cells."""
+    config = _minimal_config()
+    config["transfer"]["input_mode"] = input_mode
+    config["transfer"]["allow_direct_inhibitory_stream"] = (
+        input_mode == 1 and not inhibitory_layer_sizes
+    )
+    config["architecture"]["inhibitory_layer_sizes"] = list(inhibitory_layer_sizes)
+    config["architecture"]["inhibitory_branch_factors"] = (
+        [2] if inhibitory_layer_sizes else []
+    )
+    config["connectivity"]["ei_synapses_per_branch_per_layer"] = [
+        3 if inhibitory_layer_sizes else 0
+    ]
+    config["connectivity"]["ii_synapses_per_branch_per_layer"] = [
+        2 if inhibitory_layer_sizes else 0
+    ]
+    config["implementation"]["compile_forward"] = False
+    return config
 
 
 # ---------------------------------------------------------------------------
@@ -162,6 +187,8 @@ class TestOutputShape:
             "dendritic_additive",
             "flat_shunting",
             "flat_additive",
+            "dendritic_signed",
+            "flat_signed",
             "dendritic_mlp",
         ],
     )
@@ -200,6 +227,8 @@ class TestFactoryDispatch:
             "dendritic_additive",
             "flat_shunting",
             "flat_additive",
+            "dendritic_signed",
+            "flat_signed",
             "dendritic_mlp",
             "einet",
         ],
@@ -221,6 +250,15 @@ class TestFactoryDispatch:
         config = _minimal_config()
         with pytest.raises(ValueError):
             get_architecture("nonexistent_type", config, input_dim=INPUT_DIM)
+
+    @pytest.mark.parametrize(
+        "alias",
+        ["matchedtotalparammlp", "matchedactiveparammlp"],
+    )
+    def test_removed_matched_mlp_aliases_raise(self, alias):
+        config = _minimal_config()
+        with pytest.raises(ValueError):
+            get_architecture(alias, config, input_dim=INPUT_DIM)
 
 
 # ---------------------------------------------------------------------------
@@ -305,6 +343,98 @@ class TestWithInhibitoryNeurons:
         out = net(x)
         assert out.shape == (BATCH, OUTPUT_DIM)
 
+    def test_input_mode1_empty_inhibitory_layers_uses_direct_inhibitory_stream(self):
+        config = _config_with_inhibitory_layers(input_mode=1, inhibitory_layer_sizes=[])
+        torch.manual_seed(42)
+        net = ConfigurableEINetwork(config=config, input_dim=INPUT_DIM)
+        assert net.layers[0].inhibitory_cells is None
+        x = torch.rand(BATCH, INPUT_DIM)
+        out = net(x)
+        assert out.shape == (BATCH, OUTPUT_DIM)
+
+    def test_input_mode1_direct_stream_can_require_explicit_opt_in(self):
+        config = _config_with_inhibitory_layers(input_mode=1, inhibitory_layer_sizes=[])
+        config["transfer"].pop("allow_direct_inhibitory_stream")
+        config["transfer"]["require_explicit_direct_inhibitory_stream"] = True
+        with pytest.raises(ValueError, match="allow_direct_inhibitory_stream"):
+            ConfigurableEINetwork(config=config, input_dim=INPUT_DIM)
+
+    @pytest.mark.parametrize("input_mode", [0])
+    def test_defined_inhibitory_layer_size_builds_inhibitory_population(
+        self, input_mode
+    ):
+        config = _config_with_inhibitory_layers(
+            input_mode=input_mode, inhibitory_layer_sizes=[5]
+        )
+        torch.manual_seed(42)
+        net = ConfigurableEINetwork(config=config, input_dim=INPUT_DIM)
+        assert net.layers[0].inhibitory_cells is not None
+        x = torch.rand(BATCH, INPUT_DIM)
+        out = net(x)
+        assert out.shape == (BATCH, OUTPUT_DIM)
+
+    def test_zero_drive_inhibitory_layer_size_uses_direct_inhibitory_stream(self):
+        config = _config_with_inhibitory_layers(
+            input_mode=0, inhibitory_layer_sizes=[5]
+        )
+        config["connectivity"]["ei_synapses_per_branch_per_layer"] = [0]
+        config["connectivity"]["ii_synapses_per_branch_per_layer"] = [0]
+        config["connectivity"]["ie_synapses_per_branch_per_layer"] = [3]
+
+        torch.manual_seed(42)
+        net = ConfigurableEINetwork(config=config, input_dim=INPUT_DIM)
+        layer = net.layers[0]
+
+        assert layer.inhibitory_cells is None
+        assert layer.excitatory_cells.branch_layers[0].branch_inhibition is not None
+
+        x = torch.rand(BATCH, INPUT_DIM)
+        out = net(x)
+        assert out.shape == (BATCH, OUTPUT_DIM)
+        assert torch.isfinite(out).all()
+
+    def test_input_mode1_defined_inhibitory_size_is_legacy_direct_stream_by_default(
+        self,
+    ):
+        config = _config_with_inhibitory_layers(
+            input_mode=1, inhibitory_layer_sizes=[5]
+        )
+        torch.manual_seed(42)
+        net = ConfigurableEINetwork(config=config, input_dim=INPUT_DIM)
+        assert net.layers[0].inhibitory_cells is None
+        x = torch.rand(BATCH, INPUT_DIM)
+        out = net(x)
+        assert out.shape == (BATCH, OUTPUT_DIM)
+
+    def test_input_mode1_can_opt_into_explicit_inhibitory_population(self):
+        config = _config_with_inhibitory_layers(
+            input_mode=1, inhibitory_layer_sizes=[5]
+        )
+        config["transfer"]["input_mode1_build_inhibitory_population"] = True
+        torch.manual_seed(42)
+        net = ConfigurableEINetwork(config=config, input_dim=INPUT_DIM)
+        assert net.layers[0].inhibitory_cells is not None
+        x = torch.rand(BATCH, INPUT_DIM)
+        out = net(x)
+        assert out.shape == (BATCH, OUTPUT_DIM)
+
+    def test_transfer_legacy_aliases_still_work_for_direct_dicts(self):
+        config = _config_with_inhibitory_layers(
+            input_mode=1, inhibitory_layer_sizes=[5]
+        )
+        config["transfer"].pop("allow_direct_inhibitory_stream", None)
+        config["transfer"]["allow_direct_inhibitory_input"] = True
+        config["transfer"]["build_inhibitory_population_for_input_mode1"] = True
+
+        torch.manual_seed(42)
+        net = ConfigurableEINetwork(config=config, input_dim=INPUT_DIM)
+
+        assert net.transfer_params["allow_direct_inhibitory_stream"] is True
+        assert "allow_direct_inhibitory_input" not in net.transfer_params
+        assert net.layers[0].inhibitory_cells is not None
+        out = net(torch.rand(BATCH, INPUT_DIM))
+        assert out.shape == (BATCH, OUTPUT_DIM)
+
 
 # ---------------------------------------------------------------------------
 # Transfer function
@@ -318,6 +448,72 @@ class TestTransferFunction:
         x = torch.rand(2, INPUT_DIM)
         exc, _inh = net.transfer_fn(x)
         assert exc.shape[-1] == INPUT_DIM
+
+    def test_transfer_input_mode0_duplicates_full_input(self):
+        transfer = TransferLayer(
+            input_dim=7,
+            transfer_params={"input_mode": 0, "independent_pathways": False},
+        )
+        x = torch.randn(3, 7)
+        exc, inh = transfer(x)
+        assert exc.shape == (3, 7)
+        assert inh.shape == (3, 7)
+        assert torch.allclose(exc, x)
+        assert torch.allclose(inh, x)
+
+    def test_transfer_input_mode0_allows_independent_split_shapes(self):
+        transfer = TransferLayer(
+            input_dim=7,
+            transfer_params={
+                "input_mode": 0,
+                "independent_pathways": True,
+                "excitatory_dim": 4,
+                "inhibitory_dim": 3,
+            },
+        )
+        x = torch.randn(3, 7)
+        exc, inh = transfer(x)
+        assert exc.shape == (3, 4)
+        assert inh.shape == (3, 3)
+        assert transfer.excitatory_dim == 4
+        assert transfer.inhibitory_dim == 3
+
+    def test_transfer_input_mode1_independent_split_shapes(self):
+        transfer = TransferLayer(
+            input_dim=7,
+            transfer_params={
+                "input_mode": 1,
+                "independent_pathways": True,
+                "excitatory_dim": 4,
+                "inhibitory_dim": 3,
+            },
+        )
+        x = torch.randn(3, 7)
+        exc, inh = transfer(x)
+        assert exc.shape == (3, 4)
+        assert inh.shape == (3, 3)
+        assert transfer.excitatory_dim == 4
+        assert transfer.inhibitory_dim == 3
+
+    def test_transfer_rejects_invalid_independent_split_dims(self):
+        with pytest.raises(ValueError, match="must equal input_dim"):
+            TransferLayer(
+                input_dim=7,
+                transfer_params={
+                    "input_mode": 1,
+                    "independent_pathways": True,
+                    "excitatory_dim": 5,
+                    "inhibitory_dim": 5,
+                },
+            )
+
+    def test_transfer_rejects_runtime_input_dim_mismatch(self):
+        transfer = TransferLayer(
+            input_dim=7,
+            transfer_params={"input_mode": 0, "independent_pathways": False},
+        )
+        with pytest.raises(ValueError, match="expected last input dimension 7"):
+            transfer(torch.randn(3, 8))
 
 
 # ---------------------------------------------------------------------------
@@ -343,6 +539,14 @@ class TestSynapseModeMLPNetwork:
         """dendritic_mlp uses identity weight transform (signed weights)."""
         net = _build_network("dendritic_mlp")
         assert net.weight_transform == "identity"
+
+    @pytest.mark.parametrize("net_type", ["dendritic_signed", "flat_signed"])
+    def test_signed_einet_identity_weights(self, net_type):
+        """Signed EINet aliases keep E/I mode but use identity weights."""
+        net = _build_network(net_type)
+        assert net.synapse_mode == "ei"
+        assert net.weight_transform == "identity"
+        assert net.use_shunting is False
 
     def test_dendritic_mlp_no_shunting(self):
         net = _build_network("dendritic_mlp")
@@ -510,14 +714,29 @@ class TestShuntingNonnegInputCheck:
         assert out.shape == (BATCH, OUTPUT_DIM)
         assert torch.isfinite(out).all()
 
-    def test_additive_alias_canonicalizes_safe_gate_init(self):
+    def test_additive_alias_is_raw_without_hidden_fixed_gate(self):
         config = _minimal_config()
         net = get_architecture("dendritic_additive", config, input_dim=INPUT_DIM)
         layer = net.layers[0].excitatory_cells.branch_layers[0]
+        # dendritic_additive is now RAW additive: no implicit normalization and
+        # no hidden fixed reactivation gate (the old init_m=0.1/init_b=0.0/
+        # init_policy="fixed" bootstrap was removed).
         assert layer.use_shunting is False
-        assert layer.reactivation_init_policy == "fixed"
-        assert layer.reactivation_init_m == 0.1
-        assert layer.reactivation_init_b == 0.0
+        assert layer.use_additive_normalization is False
+        assert not (
+            layer.reactivation_init_policy == "fixed"
+            and layer.reactivation_init_m == 0.1
+            and layer.reactivation_init_b == 0.0
+        )
+
+    def test_normalized_additive_alias_enables_normalization(self):
+        config = _minimal_config()
+        net = get_architecture(
+            "dendritic_normalized_additive", config, input_dim=INPUT_DIM
+        )
+        layer = net.layers[0].excitatory_cells.branch_layers[0]
+        assert layer.use_shunting is False
+        assert layer.use_additive_normalization is True
 
     def test_shunting_identity_transform_accepts_signed_input(self):
         """identity weight_transform produces signed weights, so the

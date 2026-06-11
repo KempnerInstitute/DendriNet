@@ -586,6 +586,7 @@ class NoisePerturbationAnalysisParams(BaseConfig):
     categorical_loglikelihood: bool = True
     mse: bool = True
     cosine_similarity: bool = True
+    seed: int = 0
 
 
 @dataclass
@@ -776,6 +777,7 @@ class CompartmentStatisticsAnalysisParams(BaseConfig):
 
     per_class_analysis: bool = False  # Analyze statistics separately for each class
     n_samples: Optional[int] = None  # Number of samples to analyze
+    seed: int = 0
 
 
 @dataclass
@@ -997,13 +999,23 @@ class ReceptiveFieldAnalysisParams(BaseConfig):
     """Parameters for receptive field visualization.
 
     - n_rows / n_cols: grid size for plotting receptive fields.
-    - exc_rf_shape / inh_rf_shape: optional (H, W) receptive field shapes if known.
+    - rf_shape: optional shared (H, W) shape for both E and I receptive fields.
+    - exc_rf_shape / inh_rf_shape: optional per-stream (H, W) receptive field shapes.
+    - compute_activation_tuning: also summarize class tuning from branch activations
+      when a dataset is supplied by the analysis manager.
     """
 
     n_rows: int = 2
     n_cols: int = 2
+    rf_shape: Optional[tuple[int, int]] = None
     exc_rf_shape: Optional[tuple[int, int]] = None
     inh_rf_shape: Optional[tuple[int, int]] = None
+    fig_save_format: str = "png"
+    compute_activation_tuning: bool = False
+    save_raw_data: bool = True
+    load_raw_data: bool = False
+    raw_filename: Optional[str] = None
+    epsilon: float = 1e-8
 
 
 @dataclass
@@ -1308,6 +1320,36 @@ class DendriticTimetracesAnalysisConfig(BaseConfig):
 
 
 @dataclass
+class SpikeTrainAnalysisParams(BaseConfig):
+    """Parameters for spike-train analysis of LIF recurrent populations.
+
+    - dt: seconds or arbitrary time units per recurrent step; rates are
+      reported as spikes per ``dt``.
+    - threshold: spike binarization threshold for recorded LIF outputs.
+    - max_samples: optional cap on dataset examples for analysis.
+    - include_raster: include compact event lists for the first
+      ``max_raster_samples`` examples.
+    - include_per_timestep_rate: include a population firing-rate trace.
+    """
+
+    dt: float = 1.0
+    threshold: float = 0.5
+    max_samples: Optional[int] = 512
+    include_raster: bool = True
+    max_raster_samples: int = 8
+    include_per_timestep_rate: bool = True
+
+
+@dataclass
+class SpikeTrainAnalysisConfig(BaseConfig):
+    """Enable/disable spike-train analysis for opt-in LIF recurrent cores."""
+
+    enabled: bool = False
+    training: bool = False
+    params: SpikeTrainAnalysisParams = field(default_factory=SpikeTrainAnalysisParams)
+
+
+@dataclass
 class AnalysisConfig(BaseConfig):
     """Top-level analysis configuration container.
 
@@ -1375,6 +1417,9 @@ class AnalysisConfig(BaseConfig):
     )
     dendritic_timetraces_analysis: DendriticTimetracesAnalysisConfig = field(
         default_factory=DendriticTimetracesAnalysisConfig
+    )
+    spike_train_analysis: SpikeTrainAnalysisConfig = field(
+        default_factory=SpikeTrainAnalysisConfig
     )
     adversarial_robustness_analysis: AdversarialRobustnessAnalysisConfig = field(
         default_factory=AdversarialRobustnessAnalysisConfig

@@ -20,7 +20,10 @@ from .functions import (
     NegativeCosineSimilarityLoss,
     VaeElboLoss,
     VoltageStabilizationLoss,
+    get_available_loss_functions,
     get_loss_function,
+    register_loss_function,
+    unregister_loss_function,
 )
 
 __all__ = [
@@ -35,6 +38,7 @@ __all__ = [
     "VaeElboLoss",
     "VoltageStabilizationLoss",
     "compute_bio_losses",
+    "get_available_loss_functions",
     "get_loss_function",
     "loss_dog",
     "loss_dsi",
@@ -42,4 +46,6 @@ __all__ = [
     "loss_osi",
     "loss_phase_invariance",
     "loss_sparsity",
+    "register_loss_function",
+    "unregister_loss_function",
 ]

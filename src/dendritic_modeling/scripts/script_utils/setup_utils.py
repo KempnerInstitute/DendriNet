@@ -15,7 +15,9 @@ import wandb
 from omegaconf import OmegaConf
 
 from dendritic_modeling.config import DataConfig, ModelConfig, TrainingConfig
+from dendritic_modeling.config.conversion import to_plain_dict
 from dendritic_modeling.config.model import DecoderConfig, EncoderConfig
+from dendritic_modeling.config.recurrence import is_recurrent_core_config
 from dendritic_modeling.datasets import get_unified_datasets
 from dendritic_modeling.models import Classifier, RecurrentClassifier, Regressor
 from dendritic_modeling.networks import Identity
@@ -29,19 +31,7 @@ logger_manager = LoggerManager()
 
 def _config_to_plain_dict(cfg) -> dict:
     """Convert config sections to plain dicts without leaking OmegaConf internals."""
-    if cfg is None:
-        return {}
-    if isinstance(cfg, dict):
-        return dict(cfg)
-    if OmegaConf.is_config(cfg):
-        resolved = OmegaConf.to_container(cfg, resolve=True)
-        return resolved if isinstance(resolved, dict) else {}
-    try:
-        return asdict(cfg)
-    except TypeError:
-        if hasattr(cfg, "__dict__"):
-            return {k: v for k, v in vars(cfg).items() if not k.startswith("_")}
-    return {}
+    return to_plain_dict(cfg)
 
 
 def _get_dataset_specific_params(data_config: DataConfig) -> dict:
@@ -92,137 +82,7 @@ def _warn_ignored_legacy_model_sections(model_config: ModelConfig) -> None:
 
 def _is_recurrent_core_config(core_cfg) -> bool:
     """Detect whether a core config describes a recurrent model."""
-
-    def _get_type(cfg) -> str:
-        if isinstance(cfg, dict):
-            return str(cfg.get("type", "")).lower()
-        return str(getattr(cfg, "type", "")).lower()
-
-    def _get_recurrent_enabled(cfg) -> bool:
-        rec = (
-            cfg.get("recurrent", {})
-            if isinstance(cfg, dict)
-            else getattr(cfg, "recurrent", None)
-        )
-        if isinstance(rec, dict):
-            return bool(rec.get("enabled", False))
-        return bool(getattr(rec, "enabled", False))
-
-    def _has_unified_recurrent_layers(cfg) -> bool:
-        unified = (
-            cfg.get("unified_ei", cfg.get("ei_unified", {}))
-            if isinstance(cfg, dict)
-            else getattr(cfg, "unified_ei", {})
-        )
-        if not unified:
-            return False
-        layers = (
-            unified.get("layers", [])
-            if isinstance(unified, dict)
-            else getattr(unified, "layers", [])
-        )
-        for layer in layers:
-            if isinstance(layer, dict) and layer.get("recurrent", False):
-                return True
-            if getattr(layer, "recurrent", False):
-                return True
-        return False
-
-    def _has_recurrent_einet_layers(cfg) -> bool:
-        def _any_positive_in(mapping, keys):
-            for key in keys:
-                val = (
-                    mapping.get(key, 0)
-                    if isinstance(mapping, dict)
-                    else getattr(mapping, key, 0)
-                )
-                if isinstance(val, list):
-                    if any(v > 0 for v in val):
-                        return True
-                elif val is not None and val > 0:
-                    return True
-            return False
-
-        # New path: check connectivity.rec_* fields
-        conn = (
-            cfg.get("connectivity", {})
-            if isinstance(cfg, dict)
-            else getattr(cfg, "connectivity", {})
-        )
-        if conn and _any_positive_in(
-            conn,
-            (
-                "rec_ee_synapses_per_branch",
-                "rec_ie_synapses_per_branch",
-                "rec_ei_synapses_per_branch",
-                "rec_ii_synapses_per_branch",
-            ),
-        ):
-            return True
-
-        # Old path (backward compat): check recurrent_ei block
-        recurrent_ei = (
-            cfg.get("recurrent_ei", {})
-            if isinstance(cfg, dict)
-            else getattr(cfg, "recurrent_ei", {})
-        )
-        if not recurrent_ei:
-            return False
-
-        enabled = (
-            recurrent_ei.get("enabled", False)
-            if isinstance(recurrent_ei, dict)
-            else getattr(recurrent_ei, "enabled", False)
-        )
-        if enabled:
-            per_layer = (
-                recurrent_ei.get("recurrent_layers", None)
-                if isinstance(recurrent_ei, dict)
-                else getattr(recurrent_ei, "recurrent_layers", None)
-            )
-            if per_layer is None:
-                return True
-            if isinstance(per_layer, list):
-                return any(bool(v) for v in per_layer)
-            return bool(per_layer)
-
-        # Also check old-style synapse fields in recurrent_ei
-        return _any_positive_in(
-            recurrent_ei,
-            (
-                "rec_excitatory_synapses",
-                "rec_inhibitory_synapses",
-                "rec_excitatory_synapses_per_layer",
-                "rec_inhibitory_synapses_per_layer",
-            ),
-        )
-
-    core_type = _get_type(core_cfg)
-    if core_type in {"gru", "lstm", "vanilla_rnn", "rnn"}:
-        return True
-    # Recurrent / unified-EI path: the canonical `ei_unified` family plus
-    # the `rnn_*` aliases that dispatch through the same factory branch.
-    if core_type in {
-        "ei_unified",
-        "unified_ei",
-        "ei_net",
-        "unified_einet",
-        "rnn_dendritic_shunting",
-        "rnn_dendritic_additive",
-        "rnn_flat_shunting",
-        "rnn_flat_additive",
-    }:
-        return _has_unified_recurrent_layers(core_cfg)
-    if core_type in {
-        "einet",
-        "dendritic_shunting",
-        "dendritic_additive",
-        "flat_shunting",
-        "flat_additive",
-        "dendritic_mlp",
-    }:
-        return _has_recurrent_einet_layers(core_cfg) or _get_recurrent_enabled(core_cfg)
-    return _get_recurrent_enabled(core_cfg)
+    return is_recurrent_core_config(core_cfg)
 
 
 def _build_from_pretrained_replacement(model_config: ModelConfig):
@@ -360,6 +220,15 @@ def initialize_model(model_config: ModelConfig):
             _build_from_pretrained_replacement(model_config)
         )
     else:
+        tr = getattr(model_config, "transformer_replacement", None)
+        if tr is not None and getattr(tr, "enabled", False):
+            raise ValueError(
+                "model.transformer_replacement.enabled=true uses the dedicated "
+                "transformer replacement training path. Run "
+                "`python -m dendritic_modeling.scripts.training.train_transformer_replacement "
+                "<config.yaml>` instead of initialize_model()."
+            )
+
         # Legacy path
         encoder_config = model_config.encoder
         core_config = model_config.core
@@ -381,10 +250,11 @@ def initialize_model(model_config: ModelConfig):
         else:
             encoder = encoder_network
 
-        # Create core network
-        core_params = _config_to_plain_dict(core_config)
+        # Create core network. Pass the typed CoreConfig through the factory so
+        # dataclass defaults and validation remain the canonical construction
+        # surface; the factory still accepts plain dicts for programmatic callers.
         core_network = get_architecture(
-            core_config.type, core_params, input_dim=encoder.output_dim
+            core_config.type, core_config, input_dim=encoder.output_dim
         )
 
         # Build decoder parameters
@@ -401,7 +271,7 @@ def initialize_model(model_config: ModelConfig):
         # Create decoder
         decoder_network = get_architecture(decoder_config.type, decoder_params)
 
-    # Detect recurrent mode (supports dendritic_rnn and ei_unified paths).
+    # Detect recurrent mode across structured E/I and population-network cores.
     is_recurrent = _is_recurrent_core_config(model_config.core)
 
     # Create model based on task
@@ -558,6 +428,7 @@ def setup_environment(
                 **processing_params,
                 **dataset_specific_params,
                 "label_noise_seed": experiment_config.seed,
+                "split_seed": experiment_config.seed,
             },
         },
     )()

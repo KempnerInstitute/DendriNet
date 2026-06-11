@@ -147,6 +147,34 @@ class TestDataCollector(unittest.TestCase):
             "ablation_mean_clamp_upstream_pred_label_mi_bits_drop_depth1", data
         )
 
+    def test_load_gain_enriched_schema_exports_raw_and_generalization_scores(self):
+        """New multiplicative-gain payloads should expose raw, ID, and OOD scores."""
+        collector = DataCollector(self.results_dir)
+        config_dir = self.results_dir / "results" / "config_0"
+
+        gain_dir = config_dir / "multiplicative_gain_analysis"
+        gain_dir.mkdir()
+        with open(gain_dir / "final.json", "w") as f:
+            json.dump(
+                {
+                    "gain_factors": [0.5, 1.0, 2.0],
+                    "accuracy": [0.2, 0.4, 0.6],
+                    "raw_scores": {"accuracy": [0.2, 0.4, 0.6]},
+                    "ID": {"accuracy": 0.4},
+                    "OOD_lower": {"accuracy": 0.2},
+                    "OOD_upper": {"accuracy": 0.6},
+                },
+                f,
+            )
+
+        data = collector._load_gain(config_dir)
+        self.assertEqual(data["mult_gain_accuracy_gf0.5"], 0.2)
+        self.assertEqual(data["mult_gain_accuracy_gf1.0"], 0.4)
+        self.assertEqual(data["mult_gain_accuracy_gf2.0"], 0.6)
+        self.assertEqual(data["mult_gain_accuracy_id"], 0.4)
+        self.assertEqual(data["mult_gain_accuracy_ood_lower"], 0.2)
+        self.assertEqual(data["mult_gain_accuracy_ood_upper"], 0.6)
+
 
 if __name__ == "__main__":
     unittest.main()

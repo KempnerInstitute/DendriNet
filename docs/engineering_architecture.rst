@@ -66,13 +66,16 @@ Most experiment entry points follow the same build sequence:
 
 The important engineering points are:
 
-- ``config_utils.canonicalize_model_core_flags`` and
+- ``config.model_aliases.canonicalize_model_core_flags`` and
   ``canonicalize_rnn_core_flags`` normalize alias-driven settings before model
-  construction.
+  construction. The older ``scripts.script_utils.config_utils`` names remain
+  compatibility wrappers.
 - ``setup_utils.initialize_model`` is the standard entry point for creating a
   model from the resolved config.
 - ``networks.architectures.factory.get_architecture`` is the central dispatch
-  point from config type strings to actual modules.
+  point from config type strings to actual modules. New project-local
+  architectures can register extension builders with
+  ``networks.architectures.register_architecture`` without editing the factory.
 - post-build gate diagnostics write ``init_gate_stats.json`` when learnable
   reactivation gates are present.
 
@@ -109,14 +112,26 @@ landmarks to keep in mind:
   : experiment entry point for standard training
 - ``src/dendritic_modeling/scripts/script_utils/setup_utils.py``
   : environment setup and model initialization
+- ``src/dendritic_modeling/config/model_aliases.py``
+  : config alias canonicalization and type-implied model defaults
 - ``src/dendritic_modeling/scripts/script_utils/config_utils.py``
-  : config alias canonicalization and compatibility helpers
+  : script compatibility wrappers and config-to-runtime flattening helpers
 - ``src/dendritic_modeling/networks/architectures/factory.py``
   : model factory and architecture dispatch
+- ``src/dendritic_modeling/networks/architectures/registry.py``
+  : extension registry for project-local architecture builders
 - ``src/dendritic_modeling/networks/architectures/excitation_inhibition``
   : feedforward E/I implementation
 - ``src/dendritic_modeling/networks/architectures/recurrent``
   : recurrent unified-EI implementation
+- ``src/dendritic_modeling/training/optimizers/factory.py``
+  : registry-backed optimizer construction
+- ``src/dendritic_modeling/training/loss/functions.py``
+  : registry-backed loss-function construction
+- ``src/dendritic_modeling/datasets/registry.py``
+  : extension registry for project-local dataset loaders
+- ``src/dendritic_modeling/analysis/registry.py``
+  : analyzer metadata registry for discovery and future manager refactors
 - ``src/dendritic_modeling/analysis/managers/analysis_manager.py``
   : lifecycle coordinator for analyzers
 
@@ -142,13 +157,51 @@ are usually:
 How To Extend Safely
 --------------------
 
-For new model or analysis work, the safest extension pattern is:
+For new model, data, optimizer, loss, or analysis work, the safest extension
+pattern is:
 
 1. add or extend a config field in ``src/dendritic_modeling/config``
-2. normalize any alias behavior in ``config_utils.py``
-3. wire the behavior into the relevant factory or training entry point
+2. normalize any alias behavior in ``config/model_aliases.py`` or the relevant
+   config helper
+3. register the new component when a registry exists:
+   ``register_architecture``, ``register_optimizer``, ``register_loss_function``,
+   or ``register_dataset``
 4. add at least one focused test near the changed subsystem
 5. document the new control point in the relevant doc page
 
 That sequence keeps feedforward and recurrent behavior aligned and reduces the
 chance of config-only drift.
+
+Current Safe Extension APIs
+---------------------------
+
+These extension points are intentionally compatibility layers: built-in
+behavior remains on the old path, and registered names add new capabilities
+without shadowing existing config strings.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 25 35 40
+
+   * - Component family
+     - API
+     - Builder contract
+   * - Architecture
+     - ``register_architecture(name, builder)``
+     - ``builder(parameters, input_dim=None, suffix_input_dim=None) -> nn.Module``
+   * - Optimizer
+     - ``register_optimizer(name, builder)``
+     - ``builder(model_parameters, optimizer_config) -> torch.optim.Optimizer``
+   * - Loss function
+     - ``register_loss_function(name, builder)``
+     - ``builder() -> LossFunction``
+   * - Dataset
+     - ``register_dataset(name, builder)``
+     - ``builder(task_cfg) -> (train_ds, valid_ds, test_ds)``
+   * - Analyzer metadata
+     - ``register_analyzer(name, ...)``
+     - Records config field, class path, save directory, and manager attribute
+
+The analyzer registry is metadata-only for now. ``AnalysisManager`` still owns
+execution order and analyzer-specific call signatures, so analysis output is not
+changed by the registry.

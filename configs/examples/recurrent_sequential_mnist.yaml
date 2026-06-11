@@ -28,40 +28,78 @@ model:
   task: "classification"
   encoder:
     type: "identity"
+    params:
+      input_dim: 1                       # pixel-wise sequential MNIST input
   core:
     type: "unified_ei"                  # recurrent dendritic E-I network
     unified_ei:
-      n_excitatory: 64                  # excitatory neurons per layer
-      n_inhibitory: 16                  # inhibitory neurons per layer
       output_mode: "last"               # "last" = classify from final time step only
-      dt: 1.0                           # simulation time step
-      g_leak: 1.0                       # leak conductance
-      learn_taus: true                  # learnable time constants (log-space nn.Parameter)
-      dropout: 0.0
-      grad_clip: 1.0                    # per-layer gradient clipping inside RNN
+      input_projection_dims: [16]       # project 1-dim pixel input before core
       layers:                           # hierarchical dendritic layers (proximal -> distal)
-        - tau: 10.0                     # fast layer: short time constant
-          ff_synapses: 8                # feedforward input synapses
-          rec_synapses: 6               # recurrent synapses
-          ie_synapses: 4                # inhibitory -> excitatory synapses
-          compartment: "topk"           # "topk" | "dendritic_branch" | "dendrinet" | "linear"
-          use_shunting: true            # shunting (divisive) inhibition
-          reactivate: true              # parametric reactivation after shunting
-          reactivation_type: "param_tanh"
-          weight_transform: "softplus"
-        - tau: 50.0                     # slow layer: long time constant
-          ff_synapses: 4
-          rec_synapses: 8
-          ie_synapses: 4
-          compartment: "topk"
-          use_shunting: true
-          reactivate: true
-          reactivation_type: "param_tanh"
-          weight_transform: "softplus"
-      i_tau: 10.0                       # inhibitory neuron time constant
-      i_compartment: "topk"             # inhibitory compartment type
-      soma_mode: "shunting"             # soma integration: "shunting" | "additive" | "sum"
-      input_projection_layers: [16]     # project 1-dim input to 16-dim before core
+        - recurrent: true
+          dt: 1.0
+          excitatory:
+            n_neurons: 64
+            branch_factors: [1]
+            ff_excitatory_synapses: 8
+            ff_inhibitory_synapses: 4
+            rec_excitatory_synapses: 6
+            rec_inhibitory_synapses: 4
+            use_shunting: true
+            reactivate: true
+            reactivation_type: "param_tanh"
+            weight_transform: "softplus"
+            tau_base: 10.0
+            tau_ratio: 1.0
+            learnable_tau: true
+            somatic_synapses: true
+          inhibitory:
+            n_neurons: 16
+            branch_factors: [1]
+            ff_excitatory_synapses: 8
+            ff_inhibitory_synapses: 0
+            rec_excitatory_synapses: 6
+            rec_inhibitory_synapses: 0
+            use_shunting: true
+            reactivate: true
+            reactivation_type: "param_tanh"
+            weight_transform: "softplus"
+            tau_base: 10.0
+            tau_ratio: 1.0
+            learnable_tau: true
+            somatic_synapses: true
+        - recurrent: true
+          dt: 1.0
+          excitatory:
+            n_neurons: 64
+            branch_factors: [1]
+            ff_excitatory_synapses: 4
+            ff_inhibitory_synapses: 4
+            rec_excitatory_synapses: 8
+            rec_inhibitory_synapses: 4
+            use_shunting: true
+            reactivate: true
+            reactivation_type: "param_tanh"
+            weight_transform: "softplus"
+            tau_base: 50.0
+            tau_ratio: 1.0
+            learnable_tau: true
+            somatic_synapses: true
+          inhibitory:
+            n_neurons: 16
+            branch_factors: [1]
+            ff_excitatory_synapses: 4
+            ff_inhibitory_synapses: 0
+            rec_excitatory_synapses: 8
+            rec_inhibitory_synapses: 0
+            use_shunting: true
+            reactivate: true
+            reactivation_type: "param_tanh"
+            weight_transform: "softplus"
+            tau_base: 10.0
+            tau_ratio: 1.0
+            learnable_tau: true
+            somatic_synapses: true
   decoder:
     type: "MLP"
     params:

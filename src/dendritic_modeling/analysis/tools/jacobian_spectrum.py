@@ -24,6 +24,9 @@ from typing import Any
 import torch
 
 from dendritic_modeling.analysis.core.base import AbstractAnalyzer
+from dendritic_modeling.analysis.utils.recurrent_introspection import (
+    iter_recurrent_populations,
+)
 from dendritic_modeling.config.analysis import JacobianSpectrumAnalysisParams
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.utils import save_dict
@@ -50,11 +53,15 @@ def _spectra_for_population(
     if branch_layers is None or len(branch_layers) == 0:
         return None
 
-    log_tau = getattr(e_population, "log_tau", None)
     tau_per_level: list[float] | None = None
-    if log_tau is not None:
+    if hasattr(e_population, "current_taus"):
         with torch.no_grad():
-            tau_per_level = torch.exp(log_tau.detach().cpu()).tolist()
+            tau_per_level = e_population.current_taus.detach().cpu().tolist()
+    else:
+        log_tau = getattr(e_population, "log_tau", None)
+        if log_tau is not None:
+            with torch.no_grad():
+                tau_per_level = torch.exp(log_tau.detach().cpu()).tolist()
 
     levels: list[dict[str, Any]] = []
     saw_any = False
@@ -123,22 +130,21 @@ class JacobianSpectrumAnalyzer(AbstractAnalyzer):
         self.log_analysis_start("jacobian_spectrum")
 
         core = getattr(model, "core_network", model)
-        layers = getattr(core, "layers", None)
-        if layers is None or len(layers) == 0:
-            self.logger.info(
-                "Skipping jacobian spectrum: core has no `layers` attribute"
-            )
-            return {}
 
         top_k = int(self.params.top_k)
         per_layer: dict[str, dict[str, Any]] = {}
-        for idx, layer in enumerate(layers):
-            e_pop = getattr(layer, "e_population", None)
-            if e_pop is None:
+        for record in iter_recurrent_populations(core):
+            if record.polarity != "excitatory":
                 continue
-            entry = _spectra_for_population(e_pop, top_k=top_k)
+            entry = _spectra_for_population(record.population, top_k=top_k)
             if entry is not None:
-                per_layer[f"layer_{idx}"] = entry
+                key = (
+                    f"layer_{record.layer_index}"
+                    if record.layer_index is not None
+                    and record.population_name == "excitatory"
+                    else record.key
+                )
+                per_layer[key] = entry
 
         if not per_layer:
             self.logger.info(

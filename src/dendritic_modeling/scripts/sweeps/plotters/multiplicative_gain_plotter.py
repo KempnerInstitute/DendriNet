@@ -22,11 +22,21 @@ METRIC_MAPPING = {
     "cosine_similarity": "Cosine Similarity",
 }
 
+SCORE_MAPPING = {
+    "id": "ID",
+    "ood_lower": "OOD Below Train",
+    "ood_upper": "OOD Above Train",
+}
+
 CATEGORY_MAP = {
-    "dendritic_shunting": "Shunting",
-    "dendritic_additive": "No Shunting",
-    "flat_shunting": "Shunting Flat",
-    "flat_additive": "No Shunting Flat",
+    "dendritic_shunting": "Dendritic Shunting",
+    "dendritic_additive": "Dendritic Additive",
+    "dendritic_normalized_additive": "Dendritic Normalized Additive",
+    "flat_shunting": "Flat Shunting",
+    "flat_additive": "Flat Additive",
+    "flat_normalized_additive": "Flat Normalized Additive",
+    "dendritic_signed": "Dendritic Signed",
+    "flat_signed": "Flat Signed",
     "dendritic_mlp": "Dendritic MLP",
     "flat_mlp": "Flat MLP",
     "ss_mlp": "Sparse Structured MLP",
@@ -65,23 +75,7 @@ class MultiplicativeGainPlotter(BasePlotter):
         plot_paths = []
 
         gain_cols: list[str] = [col for col in data.columns if "mult_gain_" in col]
-
-        gain_factors = []
-        metrics = []
-
-        for col in gain_cols:
-            if "_mean" in col:
-                parts = col.replace("mult_gain_", "").replace("_mean", "").split("_gf")
-
-                metric = parts[0]
-                gain_factor = float(parts[-1])
-
-                if metric not in metrics:
-                    metrics.append(metric)
-                if gain_factor not in gain_factors:
-                    gain_factors.append(gain_factor)
-
-        gain_factors.sort()
+        metrics, gain_factors = self._extract_metrics_and_gain_factors(gain_cols)
 
         sweep_types = self.detect_sweep_types(data)
 
@@ -98,7 +92,7 @@ class MultiplicativeGainPlotter(BasePlotter):
                     )
                 )
             except Exception as e:
-                logger.error(f"Error generating E/I gain plot for {metric}: {e}")
+                logger.error(f"Error generating E/I gain plot: {e}")
                 traceback.print_exc()
 
         if "stim_duration" in sweep_types:
@@ -114,9 +108,7 @@ class MultiplicativeGainPlotter(BasePlotter):
                     )
                 )
             except Exception as e:
-                logger.error(
-                    f"Error generating stimulus duration gain plot for {metric}: {e}"
-                )
+                logger.error(f"Error generating stimulus duration gain plot: {e}")
                 traceback.print_exc()
 
         if "max_gf" in sweep_types:
@@ -132,9 +124,7 @@ class MultiplicativeGainPlotter(BasePlotter):
                     )
                 )
             except Exception as e:
-                logger.error(
-                    f"Error generating max gain factor gain plot for {metric}: {e}"
-                )
+                logger.error(f"Error generating max gain factor gain plot: {e}")
                 traceback.print_exc()
 
         if "fixed_gf" in sweep_types:
@@ -150,9 +140,7 @@ class MultiplicativeGainPlotter(BasePlotter):
                     )
                 )
             except Exception as e:
-                logger.error(
-                    f"Error generating fixed gain factor gain plot for {metric}: {e}"
-                )
+                logger.error(f"Error generating fixed gain factor gain plot: {e}")
                 traceback.print_exc()
 
         if "nparams" in sweep_types:
@@ -168,7 +156,7 @@ class MultiplicativeGainPlotter(BasePlotter):
                     )
                 )
             except Exception as e:
-                logger.error(f"Error generating nparams gain plot for {metric}: {e}")
+                logger.error(f"Error generating nparams gain plot: {e}")
                 traceback.print_exc()
 
         if "stoch1" in sweep_types:
@@ -184,7 +172,7 @@ class MultiplicativeGainPlotter(BasePlotter):
                     )
                 )
             except Exception as e:
-                logger.error(f"Error generating stochastic gain plot for {metric}: {e}")
+                logger.error(f"Error generating stochastic gain plot: {e}")
                 traceback.print_exc()
 
         if "stoch2" in sweep_types:
@@ -200,9 +188,7 @@ class MultiplicativeGainPlotter(BasePlotter):
                     )
                 )
             except Exception as e:
-                logger.error(
-                    f"Error generating stochastic GV gain plot for {metric}: {e}"
-                )
+                logger.error(f"Error generating stochastic GV gain plot: {e}")
                 traceback.print_exc()
 
         if "network_type_comp" in sweep_types:
@@ -213,13 +199,44 @@ class MultiplicativeGainPlotter(BasePlotter):
                     )
                 )
             except Exception as e:
-                logger.error(
-                    f"Error generating shunting vs non-shunting gain plot for {metric}: {e}"
-                )
+                logger.error("Error generating network-type gain plot: %s", e)
                 traceback.print_exc()
 
         logger.info(f"Created {len(plot_paths)} multiplicative gain analysis plots")
         return plot_paths
+
+    def _extract_metrics_and_gain_factors(
+        self, gain_cols: list[str]
+    ) -> tuple[list[str], list[float]]:
+        metrics: list[str] = []
+        gain_factors: list[float] = []
+
+        for col in gain_cols:
+            if "_mean" not in col or "_gf" not in col:
+                continue
+
+            parts = col.replace("mult_gain_", "").replace("_mean", "").split("_gf")
+            metric = parts[0]
+            try:
+                gain_factor = float(parts[-1])
+            except ValueError:
+                continue
+
+            if metric not in metrics:
+                metrics.append(metric)
+            if gain_factor not in gain_factors:
+                gain_factors.append(gain_factor)
+
+        gain_factors.sort()
+        return metrics, gain_factors
+
+    def _detect_generalization_score_types(self, gain_cols: list[str]) -> list[str]:
+        detected = []
+        for score_type in ["id", "ood_lower", "ood_upper"]:
+            suffix = f"_{score_type}"
+            if any(col.replace("_mean", "").endswith(suffix) for col in gain_cols):
+                detected.append(score_type)
+        return detected
 
     def _create_gain_plots_1d_sweep(
         self,
@@ -243,6 +260,79 @@ class MultiplicativeGainPlotter(BasePlotter):
                 gain_factors=gain_factors,
             )
         )
+        gain_cols: list[str] = [col for col in data.columns if "mult_gain_" in col]
+        plot_paths.extend(
+            self._plot_gain_generalization_scores_1d_sweep(
+                data=data,
+                sweep_var=sweep_var,
+                var_name=var_name,
+                plots_dir=plots_dir,
+                metrics=metrics,
+                score_types=self._detect_generalization_score_types(gain_cols),
+                logscale=True,
+            )
+        )
+
+        return plot_paths
+
+    def _plot_gain_generalization_scores_1d_sweep(
+        self,
+        data: pd.DataFrame,
+        sweep_var: str,
+        var_name: str,
+        plots_dir: Path,
+        metrics: list[str],
+        score_types: list[str],
+        logscale: bool,
+    ) -> list[Path]:
+        """Create ID/OOD gain-generalization score plots."""
+        plot_paths = []
+        if not score_types:
+            return plot_paths
+
+        for metric in metrics:
+            available_scores = [
+                score_type
+                for score_type in score_types
+                if (
+                    f"mult_gain_{metric}_{score_type}_mean" in data.columns
+                    or f"mult_gain_{metric}_{score_type}" in data.columns
+                )
+            ]
+            if not available_scores:
+                continue
+
+            fig, axes = plt.subplots(
+                1,
+                len(available_scores),
+                figsize=(8 * len(available_scores), 6),
+                squeeze=False,
+            )
+
+            for ax, score_type in zip(axes[0], available_scores):
+                self.plot_by_category(
+                    ax=ax,
+                    data=data,
+                    x_col=sweep_var,
+                    y_col=f"mult_gain_{metric}_{score_type}",
+                    category_col="network_category",
+                    show_error=True,
+                )
+                self.setup_axes_style(
+                    ax=ax,
+                    xlabel=var_name,
+                    ylabel=f"{METRIC_MAPPING[metric]} Expectation",
+                    title=SCORE_MAPPING[score_type],
+                    use_log_x=logscale,
+                    grid=True,
+                )
+                ax.legend(fontsize=10)
+
+            fig.tight_layout()
+            plot_path = (
+                plots_dir / f"gain_{metric}_vs_{sweep_var}_generalization_scores.png"
+            )
+            plot_paths.append(self.save_figure(fig, plot_path))
 
         return plot_paths
 
@@ -266,6 +356,8 @@ class MultiplicativeGainPlotter(BasePlotter):
             "flat_shunting",
             "dendritic_additive",
             "flat_additive",
+            "dendritic_signed",
+            "flat_signed",
             "dendritic_mlp",
             "flat_mlp",
             "point_mlp",
@@ -442,6 +534,8 @@ class MultiplicativeGainPlotter(BasePlotter):
             "flat_shunting",
             "dendritic_additive",
             "flat_additive",
+            "dendritic_signed",
+            "flat_signed",
             "dendritic_mlp",
             "flat_mlp",
             "point_mlp",

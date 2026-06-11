@@ -80,7 +80,11 @@ class BasePlotter:
             and "network_category" in data.columns
             and data[
                 data["network_category"].isin(
-                    ["dendritic_shunting", "dendritic_additive"]
+                    [
+                        "dendritic_shunting",
+                        "dendritic_additive",
+                        "dendritic_signed",
+                    ]
                 )
             ]["nparams"]
             .dropna()
@@ -195,7 +199,11 @@ class BasePlotter:
             "dendritic_shunting",
             "flat_shunting",
             "dendritic_additive",
+            "dendritic_normalized_additive",
             "flat_additive",
+            "flat_normalized_additive",
+            "dendritic_signed",
+            "flat_signed",
             "dendritic_mlp",
             "flat_mlp",
             "point_mlp",

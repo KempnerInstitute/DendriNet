@@ -119,10 +119,10 @@ class SNRPlotter(BasePlotter):
 
         if (
             not valid_data["network_category"]
-            .isin(["dendritic_shunting", "dendritic_additive"])
+            .isin(["dendritic_shunting", "dendritic_additive", "dendritic_signed"])
             .any()
         ):
-            print("No dendritic_shunting/dendritic_additive data for SNR analysis")
+            print("No supported dendritic data for SNR analysis")
             return plot_paths
 
         sweep_types = self.detect_sweep_types(valid_data)
@@ -327,7 +327,7 @@ class SNRPlotter(BasePlotter):
         plot_paths = []
 
         # Create separate plots for each network category
-        categories = ["dendritic_shunting", "dendritic_additive"]
+        categories = ["dendritic_shunting", "dendritic_additive", "dendritic_signed"]
 
         # Choose a colormap (viridis, plasma, inferno, tab10, etc.)
         # cmap = plt.get_cmap("gnuplot2")
@@ -339,7 +339,7 @@ class SNRPlotter(BasePlotter):
 
         color_mapping = {"exc_inputs": "m", "inh_inputs": "g"}
 
-        fig, axes = plt.subplots(1, 2, figsize=(15, 6))
+        fig, axes = plt.subplots(1, len(categories), figsize=(7.5 * len(categories), 6))
         fig.suptitle(
             "Input Disciminability: " + f"{METRIC_MAPPING[input_metric]} vs {var_name}",
             fontsize=16,
@@ -430,13 +430,13 @@ class SNRPlotter(BasePlotter):
         plot_paths = []
 
         # Create separate plots for each network category
-        categories = ["dendritic_shunting", "dendritic_additive"]
+        categories = ["dendritic_shunting", "dendritic_additive", "dendritic_signed"]
 
         # Create color mapping for depths using a colormap
         cmap = plt.get_cmap("tab10")
         depth_colors = {depth: cmap(depth / 9.0) for depth in depths}
 
-        fig, axes = plt.subplots(1, 2, figsize=(15, 6))
+        fig, axes = plt.subplots(1, len(categories), figsize=(7.5 * len(categories), 6))
         fig.suptitle(
             f"{SNR_PREFIX_MAP[act_prefix]} Disciminability: "
             + f"{METRIC_MAPPING[act_metric]} vs {var_name} by Depth",
@@ -558,14 +558,19 @@ class SNRPlotter(BasePlotter):
             return plot_paths
 
         # Create separate plots for each network category
-        categories = ["dendritic_shunting", "dendritic_additive"]
+        categories = ["dendritic_shunting", "dendritic_additive", "dendritic_signed"]
 
-        d_prime_sq_str = r"d'$^2$"
+        heatmap_metric = "d_total"
+        d_prime_sq_str = r"$d_{total}$"
 
-        # Create subplot layout: len(depths) rows x 2 columns
-        fig, axes = plt.subplots(len(depths), 2, figsize=(15, 3 + 6 * len(depths)))
+        # Create subplot layout: len(depths) rows x one column per category
+        fig, axes = plt.subplots(
+            len(depths),
+            len(categories),
+            figsize=(7.5 * len(categories), 3 + 6 * len(depths)),
+        )
         fig.suptitle(
-            f"{SNR_PREFIX_MAP[prefix]} Disciminality: {d_prime_sq_str} Heatmap ({colx} vs {coly})",
+            f"{SNR_PREFIX_MAP[prefix]} Discriminability: {d_prime_sq_str} Heatmap ({colx} vs {coly})",
             fontsize=16,
         )
 
@@ -576,7 +581,7 @@ class SNRPlotter(BasePlotter):
         # Collect all values for consistent color scaling
         all_values = []
         for depth in depths:
-            depth_col = f"snr_{prefix}_d'^2_mean_depth{depth}_mean"
+            depth_col = f"snr_{prefix}_{heatmap_metric}_depth{depth}_mean"
             if depth_col in valid_data.columns:
                 for category in categories:
                     category_data = valid_data[
@@ -595,7 +600,7 @@ class SNRPlotter(BasePlotter):
             vmin, vmax = 0, 1
 
         for depth_idx, depth in enumerate(depths):
-            depth_col = f"snr_{prefix}_d'^2_mean_depth{depth}_mean"
+            depth_col = f"snr_{prefix}_{heatmap_metric}_depth{depth}_mean"
 
             if depth_col not in valid_data.columns:
                 # Fill empty subplots if depth column doesn't exist

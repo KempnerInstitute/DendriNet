@@ -470,14 +470,32 @@ class DataCollector:
 
         result = {}
 
-        gain_factors = data["gain_factors"]
+        gain_factors = data.get("gain_factors", [])
+        raw_scores = data.get("raw_scores")
+        if not isinstance(raw_scores, dict):
+            raw_scores = {
+                key: value
+                for key, value in data.items()
+                if key != "gain_factors" and isinstance(value, list)
+            }
 
-        metrics = list(data.keys())
-        metrics.remove("gain_factors")
-
-        for metric in metrics:
+        for metric, scores in raw_scores.items():
             for i, gain_factor in enumerate(gain_factors):
-                result[f"mult_gain_{metric}_gf{gain_factor}"] = data[metric][i]
+                if i < len(scores):
+                    result[f"mult_gain_{metric}_gf{gain_factor}"] = scores[i]
+
+        score_blocks = {
+            "ID": "id",
+            "OOD_lower": "ood_lower",
+            "OOD_upper": "ood_upper",
+        }
+        for block_name, suffix in score_blocks.items():
+            scores = data.get(block_name, {})
+            if not isinstance(scores, dict):
+                continue
+            for metric, value in scores.items():
+                if isinstance(value, (int, float)):
+                    result[f"mult_gain_{metric}_{suffix}"] = value
 
         return result
 

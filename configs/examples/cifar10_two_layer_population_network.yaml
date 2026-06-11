@@ -1,0 +1,172 @@
+# ============================================================================
+# CIFAR-10 two-layer DendriNet using the population-network schema
+# ============================================================================
+# Population-format mirror of cifar10_two_layer.yaml. Layer 1 consumes the
+# previous layer's excitatory readout explicitly as source: "layer0.e0"; local
+# I -> E inhibition is still represented as a same-step directed edge.
+#
+# Run:
+#   PYTHONPATH=src:$PYTHONPATH python \
+#     src/dendritic_modeling/scripts/training/train_experiments.py \
+#     configs/examples/cifar10_two_layer_population_network.yaml
+# ============================================================================
+
+experiment:
+  seed: 42
+  train_valid_split: 0.8
+  enable_hooks: false
+  checkpointing:
+    enabled: false
+
+data:
+  dataset_name: "cifar10"
+  processing:
+    flatten: true
+    normalize: true
+
+model:
+  task: "classification"
+  encoder:
+    type: "identity"
+  core:
+    type: "population_network"
+    population_network:
+      use_transfer: true
+      transfer_params:
+        input_mode: 0
+        independent_pathways: false
+        output_activation: "relu"
+      layers:
+        - name: "layer0"
+          readout_population: "e0"
+          population_defaults:
+            ff_excitatory_synapses: 40
+            ff_inhibitory_synapses: 10
+            rec_excitatory_synapses: 0
+            rec_inhibitory_synapses: 0
+            somatic_synapses: false
+            use_shunting: true
+            reactivate: true
+            reactivation_type: "param_tanh"
+            reactivation_init_policy: "occupancy_quantile"
+            reactivation_init_m: 1.5
+            reactivation_init_b: 0.5
+            dbl_init_method: "analytical_expectation"
+            weight_transform: "softplus"
+            topk_type: "standard"
+            topk_init_method: "xavier_normal"
+            blocklinear_strategy: "none"
+            reactivation_strategy: "none"
+            efficient_blocklinear: false
+          populations:
+            - name: "i0"
+              polarity: "inhibitory"
+              n_neurons: 32
+              branch_factors: [1]
+              population:
+                ff_inhibitory_synapses: 0
+            - name: "e0"
+              polarity: "excitatory"
+              n_neurons: 128
+              branch_factors: [3, 3, 3]
+          connections:
+            - source: "input"
+              target: "i0"
+            - source: "input"
+              target: "e0"
+            - source: "i0"
+              target: "e0"
+        - name: "layer1"
+          readout_population: "e1"
+          population_defaults:
+            ff_excitatory_synapses: 40
+            ff_inhibitory_synapses: 10
+            rec_excitatory_synapses: 0
+            rec_inhibitory_synapses: 0
+            somatic_synapses: false
+            use_shunting: true
+            reactivate: true
+            reactivation_type: "param_tanh"
+            reactivation_init_policy: "occupancy_quantile"
+            reactivation_init_m: 1.5
+            reactivation_init_b: 0.5
+            dbl_init_method: "analytical_expectation"
+            weight_transform: "softplus"
+            topk_type: "standard"
+            topk_init_method: "xavier_normal"
+            blocklinear_strategy: "none"
+            reactivation_strategy: "none"
+            efficient_blocklinear: false
+          populations:
+            - name: "i1"
+              polarity: "inhibitory"
+              n_neurons: 16
+              branch_factors: [1]
+              population:
+                ff_inhibitory_synapses: 0
+            - name: "e1"
+              polarity: "excitatory"
+              n_neurons: 64
+              branch_factors: [3, 3, 3]
+          connections:
+            - source: "layer0.e0"
+              target: "i1"
+            - source: "layer0.e0"
+              target: "e1"
+            - source: "i1"
+              target: "e1"
+  decoder:
+    type: "MLP"
+    params:
+      hidden_dims: [64]
+      activation: "relu"
+      output_dim: 10
+
+training:
+  encoder:
+    strategy: "standard"
+    common:
+      epochs: 0
+  main:
+    strategy: "standard"
+    common:
+      epochs: 200
+      batch_size: 512
+      shuffle: true
+      grad_clip_value: 5.0
+      loss_function: "ce"
+      early_stopping: true
+      patience: 50
+      load_best_state_dict: true
+      weight_decay_rate: 0.01
+      weight_boosting: true
+      param_groups:
+        lr: 0.001
+        split_params: true
+        topk_lr: 0.001
+        blocklinear_lr: 0.0001
+        reactivation_lr: 0.0001
+        decoder_lr: 0.001
+    optimizer:
+      name: "adam"
+    strategies:
+      standard: {}
+
+analysis:
+  performance:
+    enabled: true
+    training: false
+    params:
+      accuracy: true
+      auc: true
+      categorical_loglikelihood: true
+
+wandb:
+  use_wandb: false
+
+outputs:
+  run_name: "cifar10_two_layer_population_network"
+  results_dir: "outputs"
+
+distributed:
+  mode: none

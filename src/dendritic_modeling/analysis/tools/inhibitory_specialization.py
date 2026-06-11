@@ -53,6 +53,9 @@ from typing import Any
 import torch
 
 from dendritic_modeling.analysis.core.base import AbstractAnalyzer
+from dendritic_modeling.analysis.utils.recurrent_introspection import (
+    iter_recurrent_populations,
+)
 from dendritic_modeling.config.analysis import InhibitorySpecializationAnalysisParams
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.utils import save_dict
@@ -241,6 +244,50 @@ def _analyze_layer(
     }
 
 
+def _population_network_source_groups(
+    core: torch.nn.Module,
+    record_key: str,
+) -> tuple[dict[str, list[str]], dict[str, int]]:
+    _, _, suffix = record_key.partition("/")
+    layer_name, sep, _population_name = suffix.partition(".")
+    if not sep:
+        return {"excitatory": [], "inhibitory": []}, {}
+
+    for layer in getattr(core, "layers", []) or []:
+        config = getattr(layer, "config", None)
+        if str(getattr(config, "name", "")) != layer_name:
+            continue
+        groups = {"excitatory": [], "inhibitory": []}
+        dims: dict[str, int] = {}
+        for population in getattr(layer, "population_definitions", []) or []:
+            name = getattr(population, "name", None)
+            polarity = str(getattr(population, "polarity", "")).lower()
+            if name is None or polarity not in groups:
+                continue
+            name_str = str(name)
+            groups[polarity].append(name_str)
+            dims[name_str] = int(
+                getattr(layer, "_population_dims", {}).get(name_str, 0)
+            )
+        return groups, dims
+
+    return {"excitatory": [], "inhibitory": []}, {}
+
+
+def _record_source_summary(core: torch.nn.Module, record_key: str) -> dict[str, Any]:
+    if record_key.startswith("population_network/"):
+        groups, dims = _population_network_source_groups(core, record_key)
+    else:
+        return {}
+
+    if not groups["inhibitory"]:
+        return {}
+    return {
+        "source_populations": groups["inhibitory"],
+        "source_population_dims": dims,
+    }
+
+
 def extract_recurrent_inhibitory_compartment_weights_from_state_dict(
     state_dict: dict[str, torch.Tensor],
     prefix: str,
@@ -422,31 +469,44 @@ class InhibitorySpecializationAnalyzer(AbstractAnalyzer):
         self.log_analysis_start("inhibitory_specialization")
 
         core = getattr(model, "core_network", model)
-        layers = getattr(core, "layers", None)
-        if layers is None or len(layers) == 0:
-            self.logger.info("Skipping inhibitory specialization: core has no `layers`")
+        records = list(iter_recurrent_populations(core))
+        if not records:
+            self.logger.info(
+                "Skipping inhibitory specialization: no recurrent populations found"
+            )
             return {}
 
         hi = float(self.params.gate_threshold)
         sigma = float(self.params.std_threshold)
 
         per_layer: dict[str, dict[str, Any]] = {}
-        for idx, layer in enumerate(layers):
-            e_pop = getattr(layer, "e_population", None)
-            i_pop = getattr(layer, "i_population", None)
-            if e_pop is None or i_pop is None:
+        total_inhibitory_by_layer: dict[int | None, int] = {}
+        for record in records:
+            if record.polarity != "inhibitory":
                 continue
-            n_E = int(
-                getattr(e_pop, "n_soma", None) or getattr(e_pop, "output_dim", 0) or 0
+            total_inhibitory_by_layer[record.layer_index] = (
+                total_inhibitory_by_layer.get(record.layer_index, 0) + record.n_neurons
             )
-            n_I = int(
-                getattr(i_pop, "n_soma", None) or getattr(i_pop, "output_dim", 0) or 0
-            )
+
+        for record in records:
+            if record.polarity != "excitatory":
+                continue
+            n_E = record.n_neurons
+            n_I = total_inhibitory_by_layer.get(record.layer_index, 0)
             if n_E == 0 or n_I == 0:
                 continue
-            entry = _analyze_layer(e_pop, n_E=n_E, n_I=n_I, hi=hi, sigma=sigma)
+            entry = _analyze_layer(
+                record.population, n_E=n_E, n_I=n_I, hi=hi, sigma=sigma
+            )
             if entry is not None:
-                per_layer[f"layer_{idx}"] = entry
+                entry.update(_record_source_summary(core, record.key))
+                key = (
+                    f"layer_{record.layer_index}"
+                    if record.layer_index is not None
+                    and record.population_name == "excitatory"
+                    else record.key
+                )
+                per_layer[key] = entry
 
         if not per_layer:
             self.logger.info(

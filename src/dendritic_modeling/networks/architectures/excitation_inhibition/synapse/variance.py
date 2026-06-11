@@ -27,6 +27,10 @@ class VarianceTopKLinear(TopKLinear):
     3. Selects connections based on input variance * weight magnitude
     """
 
+    # Mask depends on running activation statistics that update per forward, so
+    # it must not be reused across recurrent timesteps.
+    _supports_recurrent_weight_cache = False
+
     def __init__(
         self,
         in_features,
@@ -38,6 +42,7 @@ class VarianceTopKLinear(TopKLinear):
         init_gain=1.0,
         noise_level=0.0,
         forbidden_input_index_per_output=None,
+        connection_mask=None,
         momentum=0.9,  # EMA momentum for tracking statistics
     ):
         super().__init__(
@@ -50,6 +55,7 @@ class VarianceTopKLinear(TopKLinear):
             init_gain=init_gain,
             noise_level=noise_level,
             forbidden_input_index_per_output=forbidden_input_index_per_output,
+            connection_mask=connection_mask,
         )
         self.momentum = momentum
 

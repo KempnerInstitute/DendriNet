@@ -13,6 +13,7 @@ import torch.nn as nn
 from dendritic_modeling.networks.utils.weight_transforms import (
     WeightTransformType,
     apply_weight_transform,
+    inverse_softplus,
     inverse_weight_transform,
 )
 
@@ -83,6 +84,9 @@ class BlockLinear(nn.Module):
         self.weight_transform = weight_transform
         self.input_scale_vec = None  # may be used for gradient scaling
         self.param_scale_vec = None  # may be used for gradient scaling
+        self._use_forward_dynamic_grad_scaling = False
+        self._last_forward_input_tensor = None
+        self._last_forward_param_tensor = None
 
     def initialize(self, g_branch: float = 1.0):
         """
@@ -118,7 +122,8 @@ class BlockLinear(nn.Module):
         col_ix = torch.arange(self.in_features, device=self.log_weight.device).view(
             self.out_features, self.block_size
         )
-        block[row_ix, col_ix] = self.weight()
+        weights = self.weight()
+        block[row_ix, col_ix] = weights
         return block
 
     def log_block(self):
@@ -161,7 +166,7 @@ class BlockLinear(nn.Module):
             elif self.weight_transform == "softplus":
                 w = nn.functional.softplus(self.log_weight.data)
                 decayed_w = w * (1 - weight_decay)
-                p_prime = torch.log(torch.exp(decayed_w) - 1 + 1e-8)
+                p_prime = inverse_softplus(decayed_w)
                 self.log_weight.data = p_prime
 
             if weight_boosting:
@@ -173,7 +178,7 @@ class BlockLinear(nn.Module):
                 elif self.weight_transform == "softplus":
                     w = nn.functional.softplus(self.log_weight.data)
                     boosted_w = w * (1 + weight_decay)
-                    p_prime = torch.log(torch.exp(boosted_w) - 1 + 1e-8)
+                    p_prime = inverse_softplus(boosted_w)
                     self.log_weight.data = p_prime
 
     def forward(self, x):
@@ -203,8 +208,21 @@ class BlockLinear(nn.Module):
                 f"Input feature dimension mismatch: got {x.shape[1]}, expected {self.in_features}"
             )
 
-        # Perform the forward computation
-        output = torch.matmul(x, self.block().t())
+        self._last_forward_input_tensor = x
+
+        block = torch.zeros(
+            (self.out_features, self.in_features),
+            device=self.log_weight.device,
+            dtype=self.log_weight.dtype,
+        )
+        row_ix = torch.arange(self.out_features, device=self.log_weight.device)[:, None]
+        col_ix = torch.arange(self.in_features, device=self.log_weight.device).view(
+            self.out_features, self.block_size
+        )
+        weights = self.weight() * 1.0
+        self._last_forward_param_tensor = weights
+        block[row_ix, col_ix] = weights
+        output = torch.matmul(x, block.t())
 
         # Reshape output to match input shape structure if needed
         if len(original_shape) > 2:
@@ -213,6 +231,29 @@ class BlockLinear(nn.Module):
             output = output.reshape(output_shape)
 
         return output
+
+    def register_forward_gradient_scales(
+        self,
+        *,
+        param_scale: torch.Tensor | None = None,
+        input_scale: torch.Tensor | None = None,
+    ) -> None:
+        """Scale input/parameter gradients for the most recent forward call only."""
+        self._use_forward_dynamic_grad_scaling = True
+        if param_scale is not None:
+            target = self._last_forward_param_tensor
+            if target is not None and target.requires_grad:
+                scale = param_scale.detach().to(
+                    device=target.device, dtype=target.dtype
+                )
+                target.register_hook(lambda grad, scale=scale: grad * scale)
+        if input_scale is not None:
+            target = self._last_forward_input_tensor
+            if target is not None and target.requires_grad:
+                scale = input_scale.detach().to(
+                    device=target.device, dtype=target.dtype
+                )
+                target.register_hook(lambda grad, scale=scale: grad * scale)
 
     def sum_conductances(self):
         return self.weight().sum(dim=1)
@@ -276,9 +317,11 @@ class EfficientBlockLinear(BlockLinear):
                 return torch.zeros(B, self.out_features, device=x.device, dtype=x.dtype)
 
         x_reshaped = x.view(B, self.out_features, self.block_size)
-        weights = apply_weight_transform(
-            self.log_weight, self.weight_transform
+        weights = (
+            apply_weight_transform(self.log_weight, self.weight_transform) * 1.0
         )  # (out_features, block_size)
+        self._last_forward_input_tensor = x
+        self._last_forward_param_tensor = weights
         output = (x_reshaped * weights).sum(dim=-1)  # (B, out_features)
 
         # Reshape output to match input shape structure if needed

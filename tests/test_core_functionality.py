@@ -249,6 +249,31 @@ def test_dataloader_optimization():
     assert override_train_loader.num_workers == 0
     assert not override_train_loader.pin_memory
 
+    tuned_trainer = Trainer(
+        optimizer=torch.optim.Adam([torch.tensor(1.0, requires_grad=True)]),
+        loss_function="mse",
+        batch_size=32,
+        num_workers=1,
+        pin_memory=False,
+        persistent_workers=True,
+        prefetch_factor=3,
+    )
+    tuned_train_loader, _ = tuned_trainer._dataloaders(small_data, small_data)
+    assert tuned_train_loader.num_workers == 1
+    assert tuned_train_loader.pin_memory is False
+    assert tuned_train_loader.persistent_workers is True
+    assert tuned_train_loader.prefetch_factor == 3
+
+    invalid_trainer = Trainer(
+        optimizer=torch.optim.Adam([torch.tensor(1.0, requires_grad=True)]),
+        loss_function="mse",
+        batch_size=32,
+        num_workers=0,
+        persistent_workers=True,
+    )
+    with pytest.raises(ValueError, match="persistent_workers"):
+        invalid_trainer._dataloaders(small_data, small_data)
+
     print("DataLoader optimization test passed")
 
 

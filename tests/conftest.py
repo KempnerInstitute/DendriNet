@@ -36,7 +36,12 @@ def sample_data():
 def sample_analyzer():
     """Create a sample analyzer configuration for testing."""
     return {
-        "layer_ablation": True,
-        "compartment_ablation": False,
-        "branch_ablation": False,
+        "selection": {
+            "levels": ["layer"],
+            "targets": ["all_synapses"],
+            "metrics": ["accuracy"],
+        },
+        "methods": {
+            "ablation_methods": ["lesion"],
+        },
     }

@@ -6,7 +6,8 @@ results/*
 slurm_jobs/  # Generated SLURM script directories
 dendritic_modeling.egg-info/*
 dendritic_modeling/__pycache__/*
-*.sh
+# Ignore ad-hoc root shell scripts; keep scripts under src/ addable.
+/*.sh
 *.out
 *.sbatch  # Generated SLURM batch scripts
 notebooks/data/*
@@ -17,6 +18,12 @@ notebook/test/*
 # experiments/* - now using submodule
 data/*
 configs/*.txt
+# Private merge/runtime comparison configs belong under ignored projects/ or
+# external review folders, not in the public configs/ namespace.
+configs/branch_comparison/
+configs/examples/*_multi_population_ei.yaml
+configs/examples/recurrent_synapse_types_ampa_nmda_gaba.yaml
+configs/examples/recurrent_soma_feedback.yaml
 src/data/*
 cifar-10-*
 wandb/*
@@ -186,7 +193,7 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
-
+.claude/
 # pytype static type analyzer
 .pytype/
 
@@ -218,6 +225,7 @@ scripts_backup/
 
 # Local scratch + external dependencies (kept untracked in this repo).
 drafts/
+review_round2/
 external/
 /scripts/
 !/scripts/ci/
@@ -227,8 +235,12 @@ figures/
 outputs_smoke/
 outputs_sweep_smoke/
 tmp/
-analysis/
+.claude/*.lock
+/analysis/
 !src/dendritic_modeling/analysis/
 !src/dendritic_modeling/analysis/**
 src/dendritic_modeling/analysis/**/__pycache__/
 src/dendritic_modeling/analysis/**/*.py[cod]
+
+# Internal code-review working docs (keep out of version control)
+CODEBASE_REVIEW_*.md

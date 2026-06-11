@@ -8,6 +8,7 @@ It loads and saves configurations using OmegaConf.
 
 import logging
 from collections.abc import Mapping
+from copy import deepcopy
 from dataclasses import dataclass, field, fields
 from functools import lru_cache
 from typing import Any, Optional
@@ -22,8 +23,15 @@ from dendritic_modeling.config.analysis import (
     LocalRuleComponentAnalysisParams,
     PerformanceAnalysisConfig,
     PerformanceAnalysisParams,
+    SpikeTrainAnalysisConfig,
+    SpikeTrainAnalysisParams,
 )
 from dendritic_modeling.config.base import BaseConfig
+from dendritic_modeling.config.conversion import to_plain_dict
+from dendritic_modeling.config.legacy import normalize_transfer_config
+from dendritic_modeling.config.local_learning import (
+    build_local_rule_config as _build_local_rule_config,
+)
 from dendritic_modeling.config.model import (
     ArchitectureConfig,
     BlockLinearConfig,
@@ -42,34 +50,36 @@ from dendritic_modeling.config.model import (
     SegmentTrainabilityConfig,
     SparsityConfig,
     SpatialConfig,
+    StructuredConnectivityConfig,
     TrainabilityConfig,
     TransferFunctionConfig,
+    TransformerReplacementConfig,
+)
+from dendritic_modeling.config.reactivation import (
+    DEFAULT_ADDITIVE_REACTIVATION_INIT_POLICY,
+    normalize_reactivation_init_policy,
 )
 from dendritic_modeling.config.recurrent import RecurrentConfig
 from dendritic_modeling.config.training import (
     CommonTrainerConfig,
     EncoderTrainingConfig,
-    FiveFactorConfig,
-    FourFactorConfig,
     FreezeBranchesStrategyConfig,
     FreezeBranchKLStrategyConfig,
     FreezeLayersStrategyConfig,
     HomeostaticControlStrategyConfig,
-    HSICConfig,
-    InhibitoryHomeostasisConfig,
     LocalRuleConfig,
     MainTrainingConfig,
-    MorphologyAwareConfig,
     MultiStageStrategyConfig,
     OptimizerConfig,
     ParamGroupsConfig,
     RecurrentStrategyConfig,
     StandardStrategyConfig,
-    ThreeFactorConfig,
     TrainingConfig,
     TrainingStrategiesConfig,
+    TransformerReplacementTrainingConfig,
     VoltageStabilizationStrategyConfig,
 )
+from dendritic_modeling.config.validation import validate_loaded_config
 
 logger = logging.getLogger(__name__)
 
@@ -241,6 +251,15 @@ class FSDPConfig(BaseConfig):
     use_orig_params: bool = True
     backward_prefetch: str = "BACKWARD_PRE"
     gradient_checkpointing: bool = False
+    # Mixed-precision dtype control (only used when mixed_precision=True). The
+    # single knob `mixed_precision_dtype` sets param/reduce/buffer together; the
+    # granular fields override it individually (None = follow the knob). Default
+    # "fp16" preserves historical behavior; set "bf16" (or reduce_dtype="fp32")
+    # to avoid fp16 gradient-all-reduce overflow on bf16-capable GPUs.
+    mixed_precision_dtype: str = "fp16"
+    param_dtype: Optional[str] = None
+    reduce_dtype: Optional[str] = None
+    buffer_dtype: Optional[str] = None
 
 
 @dataclass
@@ -280,43 +299,75 @@ class Config:
 
 def _to_plain_dict(data: Any) -> dict[str, Any]:
     """Convert OmegaConf/dict-like objects to a plain Python dict."""
-    if data is None:
-        return {}
-    if isinstance(data, dict):
-        return dict(data)
-    if hasattr(data, "_metadata"):
-        converted = OmegaConf.to_container(data, resolve=True)
-        return converted if isinstance(converted, dict) else {}
-    if hasattr(data, "asdict") and callable(data.asdict):
-        converted = data.asdict()
-        return converted if isinstance(converted, dict) else {}
-    if hasattr(data, "__dict__"):
-        return {
-            key: value for key, value in vars(data).items() if not key.startswith("_")
-        }
-    return {}
+    return to_plain_dict(data)
 
 
 def _build_core_config(core_data: Any) -> CoreConfig:
     """Build a typed CoreConfig from possibly nested dict/OmegaConf payload."""
     core_dict = _to_plain_dict(core_data)
+    core_type = str(core_dict.get("type", "einet"))
+    lower_core_type = core_type.lower()
+    if lower_core_type in {"ei_net", "unified_einet"}:
+        logger.warning(
+            "model.core.type=%r is deprecated; use 'unified_ei' instead.",
+            core_type,
+        )
     unified_ei = core_dict.get("unified_ei", core_dict.get("ei_unified", {}))
+    connectivity_dict = _to_plain_dict(core_dict.get("connectivity", {}))
+    structured_alias_present = "structured_connectivity" in connectivity_dict
+    structured_alias = connectivity_dict.pop("structured_connectivity", {})
+    if structured_alias_present:
+        logger.warning(
+            "model.core.connectivity.structured_connectivity is deprecated; "
+            "use model.core.connectivity.structured instead."
+        )
+    structured_connectivity = connectivity_dict.pop("structured", structured_alias)
+    morphology_dict = _to_plain_dict(core_dict.get("morphology", {}))
+    sparsity_dict = _to_plain_dict(core_dict.get("sparsity", {}))
+    annealed_topk_alias = sparsity_dict.pop("annealed_topk", None)
+    if annealed_topk_alias is not None:
+        logger.warning(
+            "model.core.sparsity.annealed_topk is deprecated; use "
+            "model.core.sparsity.dense_to_sparse instead."
+        )
+        sparsity_dict.setdefault("dense_to_sparse", annealed_topk_alias)
+    reactivation_dict = _to_plain_dict(core_dict.get("reactivation", {}))
+    additive_aliases = {
+        "dendritic_additive",
+        "flat_additive",
+        "dendritic_normalized_additive",
+        "flat_normalized_additive",
+    }
+    is_explicit_additive_einet = (
+        lower_core_type in {"einet", "ei_net", "unified_einet"}
+        and morphology_dict.get("use_shunting") is False
+    )
+    if "init_policy" not in reactivation_dict and (
+        lower_core_type in additive_aliases or is_explicit_additive_einet
+    ):
+        reactivation_dict["init_policy"] = DEFAULT_ADDITIVE_REACTIVATION_INIT_POLICY
+    elif "init_policy" in reactivation_dict:
+        reactivation_dict["init_policy"] = normalize_reactivation_init_policy(
+            reactivation_dict.get("init_policy")
+        )
+
     return CoreConfig(
-        type=str(core_dict.get("type", "einet")),
+        type=core_type,
         architecture=ArchitectureConfig(
             **_to_plain_dict(core_dict.get("architecture", {}))
         ),
         connectivity=ConnectivityConfig(
-            **_to_plain_dict(core_dict.get("connectivity", {}))
+            **connectivity_dict,
+            structured=StructuredConnectivityConfig(
+                **_to_plain_dict(structured_connectivity)
+            ),
         ),
         transfer=TransferFunctionConfig(
-            **_to_plain_dict(core_dict.get("transfer", {}))
+            **normalize_transfer_config(core_dict.get("transfer", {}))
         ),
-        morphology=MorphologyConfig(**_to_plain_dict(core_dict.get("morphology", {}))),
-        sparsity=SparsityConfig(**_to_plain_dict(core_dict.get("sparsity", {}))),
-        reactivation=ReactivationConfig(
-            **_to_plain_dict(core_dict.get("reactivation", {}))
-        ),
+        morphology=MorphologyConfig(**morphology_dict),
+        sparsity=SparsityConfig(**sparsity_dict),
+        reactivation=ReactivationConfig(**reactivation_dict),
         blocklinear=BlockLinearConfig(
             **_to_plain_dict(core_dict.get("blocklinear", {}))
         ),
@@ -324,10 +375,17 @@ def _build_core_config(core_data: Any) -> CoreConfig:
             **_to_plain_dict(core_dict.get("implementation", {}))
         ),
         spatial=SpatialConfig(**_to_plain_dict(core_dict.get("spatial", {}))),
+        synapse_types=_to_plain_dict(core_dict.get("synapse_types", {})),
+        dynamics=_to_plain_dict(
+            core_dict.get("dynamics", core_dict.get("spiking", {}))
+        ),
+        dendritic_spikes=_to_plain_dict(core_dict.get("dendritic_spikes", {})),
+        soma_feedback=_to_plain_dict(core_dict.get("soma_feedback", {})),
         recurrent=RecurrentConfig(**_to_plain_dict(core_dict.get("recurrent", {}))),
         unified_ei=_to_plain_dict(unified_ei),
         recurrent_ei=_to_plain_dict(core_dict.get("recurrent_ei", {})),
         baseline_rnn=_to_plain_dict(core_dict.get("baseline_rnn", {})),
+        population_network=_to_plain_dict(core_dict.get("population_network", {})),
     )
 
 
@@ -361,6 +419,41 @@ def _build_pretrained_replacement_config(
         ),
         omit_layers=list(pr_dict.get("omit_layers", [])),
         trainability=trainability,
+    )
+
+
+def _build_transformer_replacement_config(
+    tr_data: Any,
+) -> TransformerReplacementConfig:
+    """Build a typed TransformerReplacementConfig from dict/OmegaConf."""
+    tr_dict = _to_plain_dict(tr_data)
+    if "backbone" in tr_dict and "model_name" not in tr_dict:
+        logger.warning(
+            "model.transformer_replacement.backbone is deprecated; use "
+            "model.transformer_replacement.model_name instead."
+        )
+    if "layer_indices" in tr_dict and "layers" not in tr_dict:
+        logger.warning(
+            "model.transformer_replacement.layer_indices is deprecated; use "
+            "model.transformer_replacement.layers instead."
+        )
+    if "mlp_attr" in tr_dict and "target_module" not in tr_dict:
+        logger.warning(
+            "model.transformer_replacement.mlp_attr is deprecated; use "
+            "model.transformer_replacement.target_module instead."
+        )
+    return TransformerReplacementConfig(
+        enabled=bool(tr_dict.get("enabled", False)),
+        model_name=str(tr_dict.get("model_name", tr_dict.get("backbone", ""))),
+        layers=[
+            int(idx) for idx in tr_dict.get("layers", tr_dict.get("layer_indices", []))
+        ],
+        target_module=str(tr_dict.get("target_module", tr_dict.get("mlp_attr", "mlp"))),
+        layers_attr=tr_dict.get("layers_attr"),
+        input_transform=str(tr_dict.get("input_transform", "signed_split")),
+        preserve_device_dtype=bool(tr_dict.get("preserve_device_dtype", True)),
+        model_kwargs=_to_plain_dict(tr_dict.get("model_kwargs", {})),
+        replacement_kwargs=_to_plain_dict(tr_dict.get("replacement_kwargs", {})),
     )
 
 
@@ -478,6 +571,19 @@ def _build_main_training_config(main_data: Any) -> MainTrainingConfig:
     return main_config
 
 
+def _build_transformer_replacement_training_config(
+    training_data: Any,
+) -> TransformerReplacementTrainingConfig:
+    """Build typed config for transformer replacement distillation."""
+    training_dict = _to_plain_dict(training_data)
+    return TransformerReplacementTrainingConfig(
+        **_filter_dataclass_kwargs(
+            TransformerReplacementTrainingConfig,
+            training_dict,
+        )
+    )
+
+
 def _build_model_config(model_data: Any) -> ModelConfig:
     """Build a typed ModelConfig from possibly nested dict/OmegaConf payload."""
     model_dict = _to_plain_dict(model_data)
@@ -486,6 +592,8 @@ def _build_model_config(model_data: Any) -> ModelConfig:
 
     pr_data = model_dict.get("pretrained_replacement", {})
     pr_config = _build_pretrained_replacement_config(pr_data)
+    tr_data = model_dict.get("transformer_replacement", {})
+    tr_config = _build_transformer_replacement_config(tr_data)
 
     return ModelConfig(
         task=str(model_dict.get("task", "classification")),
@@ -506,6 +614,7 @@ def _build_model_config(model_data: Any) -> ModelConfig:
             ),
         ),
         pretrained_replacement=pr_config,
+        transformer_replacement=tr_config,
     )
 
 
@@ -542,8 +651,13 @@ def _filter_dataclass_kwargs(config_cls: type, raw_data: Any) -> dict[str, Any]:
 
 
 @lru_cache(maxsize=10)
-def load_config(path: Optional[str] = None) -> Config:
-    """Load configuration from a file or use defaults."""
+def _load_config_cached(path: Optional[str] = None) -> Config:
+    """Load configuration from a file or use defaults.
+
+    This internal helper is cached because YAML parsing and typed conversion are
+    relatively expensive. Public callers receive a deepcopy via ``load_config``
+    so runtime mutations cannot leak into later loads of the same path.
+    """
     if path:
         raw_conf = OmegaConf.load(path)
 
@@ -572,9 +686,24 @@ def load_config(path: Optional[str] = None) -> Config:
             mapped_training.get("encoder", {})
         )
         main_config = _build_main_training_config(mapped_training.get("main", {}))
-        training_config = TrainingConfig(encoder=encoder_config, main=main_config)
+        if "transformer_distillation" in mapped_training:
+            logger.warning(
+                "training.transformer_distillation is deprecated; use "
+                "training.transformer_replacement instead."
+            )
+        transformer_training = _build_transformer_replacement_training_config(
+            mapped_training.get(
+                "transformer_replacement",
+                mapped_training.get("transformer_distillation", {}),
+            )
+        )
+        training_config = TrainingConfig(
+            encoder=encoder_config,
+            main=main_config,
+            transformer_replacement=transformer_training,
+        )
 
-        return Config(
+        config = Config(
             experiment=ExperimentConfig(
                 **_filter_dataclass_kwargs(
                     ExperimentConfig, conf_data.get("experiment", {})
@@ -590,7 +719,21 @@ def load_config(path: Optional[str] = None) -> Config:
             outputs=OutputsConfig(**conf_data.get("outputs", {})),
             distributed=distributed_config,
         )
-    return Config()
+        validate_loaded_config(config)
+        return config
+    config = Config()
+    validate_loaded_config(config)
+    return config
+
+
+def load_config(path: Optional[str] = None) -> Config:
+    """Load configuration from a file or defaults as an independent object."""
+    return deepcopy(_load_config_cached(path))
+
+
+# Preserve the lru_cache testing/debug interface that callers already use.
+load_config.cache_clear = _load_config_cached.cache_clear  # type: ignore[attr-defined]
+load_config.cache_info = _load_config_cached.cache_info  # type: ignore[attr-defined]
 
 
 def _build_distributed_config(conf_data: dict) -> DistributedConfig:
@@ -667,6 +810,8 @@ def _map_analysis_config(
         "inhibitory_specialization": "inhibitory_specialization_analysis",
         "jacobian_spectrum": "jacobian_spectrum_analysis",
         "dendritic_timetraces": "dendritic_timetraces_analysis",
+        "spike_train": "spike_train_analysis",
+        "spike_trains": "spike_train_analysis",
         "adversarial_robustness": "adversarial_robustness_analysis",
     }
 
@@ -755,60 +900,15 @@ def _map_analysis_config(
             **lrc
         )
 
+    if "spike_train_analysis" in mapped and isinstance(
+        mapped["spike_train_analysis"], Mapping
+    ):
+        spike = dict(mapped["spike_train_analysis"])
+        if "params" in spike and isinstance(spike["params"], Mapping):
+            spike["params"] = SpikeTrainAnalysisParams(**spike["params"])
+        mapped["spike_train_analysis"] = SpikeTrainAnalysisConfig(**spike)
+
     return mapped
-
-
-def _build_local_rule_config(lsc_data: dict) -> LocalRuleConfig:
-    """Build LocalRuleConfig from dict data with nested configs."""
-    lsc_kwargs = dict(lsc_data)
-    alias_mode = lsc_kwargs.pop("inhibitory_cell_update_mode", None)
-    if alias_mode is not None:
-        existing_mode = lsc_kwargs.get("explicit_inhibitory_update_mode")
-        if (
-            existing_mode is not None
-            and LocalRuleConfig._normalize_explicit_inhibitory_update_mode(
-                existing_mode
-            )
-            != LocalRuleConfig._normalize_explicit_inhibitory_update_mode(alias_mode)
-        ):
-            raise ValueError(
-                "Conflicting inhibitory-cell update aliases in LocalRuleConfig"
-            )
-        lsc_kwargs["explicit_inhibitory_update_mode"] = alias_mode
-
-    # Handle nested three_factor config
-    if "three_factor" in lsc_kwargs and isinstance(lsc_kwargs["three_factor"], dict):
-        lsc_kwargs["three_factor"] = ThreeFactorConfig(**lsc_kwargs["three_factor"])
-
-    # Handle nested four_factor config
-    if "four_factor" in lsc_kwargs and isinstance(lsc_kwargs["four_factor"], dict):
-        lsc_kwargs["four_factor"] = FourFactorConfig(**lsc_kwargs["four_factor"])
-
-    # Handle nested five_factor config
-    if "five_factor" in lsc_kwargs and isinstance(lsc_kwargs["five_factor"], dict):
-        lsc_kwargs["five_factor"] = FiveFactorConfig(**lsc_kwargs["five_factor"])
-
-    # Handle nested morphology_aware config
-    if "morphology_aware" in lsc_kwargs and isinstance(
-        lsc_kwargs["morphology_aware"], dict
-    ):
-        lsc_kwargs["morphology_aware"] = MorphologyAwareConfig(
-            **lsc_kwargs["morphology_aware"]
-        )
-
-    # Handle nested hsic config
-    if "hsic" in lsc_kwargs and isinstance(lsc_kwargs["hsic"], dict):
-        lsc_kwargs["hsic"] = HSICConfig(**lsc_kwargs["hsic"])
-
-    # Handle nested inhibitory homeostasis config
-    if "inhibitory_homeostasis" in lsc_kwargs and isinstance(
-        lsc_kwargs["inhibitory_homeostasis"], dict
-    ):
-        lsc_kwargs["inhibitory_homeostasis"] = InhibitoryHomeostasisConfig(
-            **lsc_kwargs["inhibitory_homeostasis"]
-        )
-
-    return LocalRuleConfig(**lsc_kwargs)
 
 
 def _map_training_config(training_data: dict) -> dict:

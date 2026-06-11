@@ -687,6 +687,7 @@ def main(config_path: str, args=None):
         experiment_config=experiment_config,
         save_path=main_net_save_path,
     )
+    main_trainer_config_dict["seed"] = int(getattr(experiment_config, "seed", 0) or 0)
 
     # Extract config values (handle both dict from sweeps and object from single runs)
     if isinstance(main_train_config, dict):
@@ -871,7 +872,7 @@ def main(config_path: str, args=None):
         logger.info("Training experiment completed successfully")
 
 
-if __name__ == "__main__":
+def _parse_cli_args():
     parser = argparse.ArgumentParser(
         description="Run dendritic modeling training and evaluation."
     )
@@ -906,5 +907,14 @@ if __name__ == "__main__":
         help="Override experiment seed (for running multiple seeds per config).",
     )
 
-    args = parser.parse_args()
+    return parser.parse_args()
+
+
+def cli_main():
+    """Console-script entry point for ``dendritic-train``."""
+    args = _parse_cli_args()
     main(config_path=args.config, args=args)
+
+
+if __name__ == "__main__":
+    cli_main()

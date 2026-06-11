@@ -70,8 +70,12 @@ NETWORK_CATEGORY_COLORS: dict[str, str] = {
     # Canonical EINet categories
     "dendritic_shunting": "#1f77b4",  # Blue
     "dendritic_additive": "#ff0000",  # Red
+    "dendritic_normalized_additive": "#ff7f0e",  # Orange
     "flat_shunting": "#1f77b4",  # Blue (dashed line distinguishes)
     "flat_additive": "#ff0000",  # Red
+    "flat_normalized_additive": "#ff7f0e",  # Orange
+    "dendritic_signed": "#2ca02c",  # Green
+    "flat_signed": "#2ca02c",  # Green
     "dendritic_mlp": "#7f7f7f",  # Gray
     "flat_mlp": "#bcbd22",  # Olive
     # MLP baselines
@@ -93,8 +97,12 @@ NETWORK_CATEGORY_MARKERS: dict[str, str] = {
     # Canonical categories
     "dendritic_shunting": "o",  # Circle
     "dendritic_additive": "s",  # Square
+    "dendritic_normalized_additive": "X",  # Filled X
     "flat_shunting": "^",  # Triangle up
     "flat_additive": "+",  # Plus
+    "flat_normalized_additive": "x",  # X
+    "dendritic_signed": "D",  # Diamond
+    "flat_signed": "x",  # X
     "dendritic_mlp": "*",  # Star
     "flat_mlp": "p",  # Pentagon
     "point_mlp": "D",  # Diamond
@@ -115,8 +123,12 @@ NETWORK_CATEGORY_LINESTYLES: dict[str, str] = {
     # Canonical categories
     "dendritic_shunting": "-",  # Solid
     "dendritic_additive": "-",  # Solid
+    "dendritic_normalized_additive": "-.",  # Dash-dot
     "flat_shunting": "--",  # Dashed
     "flat_additive": "--",  # Dashed
+    "flat_normalized_additive": ":",  # Dotted
+    "dendritic_signed": "-",  # Solid
+    "flat_signed": "--",  # Dashed
     "dendritic_mlp": "-",  # Solid
     "flat_mlp": "--",  # Dashed
     "point_mlp": ":",  # Dotted

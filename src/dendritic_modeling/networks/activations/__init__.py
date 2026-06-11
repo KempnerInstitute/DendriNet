@@ -14,6 +14,9 @@ from dendritic_modeling.networks.activations.parametric import (
     ParametricTanh,
     ParametricTanhOnlyM,
 )
+from dendritic_modeling.networks.activations.resolution import (
+    resolve_dendritic_activation,
+)
 
 __all__ = [
     # Factory
@@ -25,4 +28,5 @@ __all__ = [
     "ParametricLinearTanhTransition",
     "ParametricTanh",
     "ParametricTanhOnlyM",
+    "resolve_dendritic_activation",
 ]

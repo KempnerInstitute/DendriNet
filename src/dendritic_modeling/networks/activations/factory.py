@@ -47,7 +47,12 @@ class ActivationFactory:
         nn.Module
             The activation module.
         """
-        act_type = act_type.lower()
+        if act_type is None:
+            raise ValueError(
+                "Activation type must be a string, got None. "
+                "Use 'none' for an identity/no-op activation."
+            )
+        act_type = str(act_type).lower()
         if act_type == "none":
             return nn.Identity()
         elif act_type == "param_tanh":

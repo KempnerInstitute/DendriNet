@@ -77,6 +77,9 @@ data:
       repeat_layers: false              # bool: Repeat layers cyclically
       noise_std: 0.1                    # float: Additive noise std
     imagenet:
+      transform_preset: "legacy_resize"      # str: "legacy_resize" (compat) | "pretrained" (torchvision backbone)
+      allow_fake_data: false                 # bool: Explicit fake ImageNet smoke data only
+      allow_flatten_materialize: false       # bool: Opt in before flattening full ImageNet tensors
       train_samples_per_class: null     # int | null: Subsample train (null = all)
       val_samples_per_class: null       # int | null: Subsample val (null = all)
 
@@ -147,10 +150,10 @@ model:
   # ---------- Core network ----------
   core:
     # Legacy EI (feedforward / recurrent-capable via core.recurrent_ei or connectivity.rec_*):
-    #   "einet" | "dendritic_shunting" | "dendritic_additive" | "flat_shunting" | "flat_additive" | "dendritic_mlp" | "flat_mlp"
-    # Unified EI (recommended): "unified_ei" | "ei_unified" | "ei_net" | "unified_einet"
+    #   "einet" | "dendritic_shunting" | "dendritic_additive" | "dendritic_normalized_additive" | "flat_shunting" | "flat_additive" | "flat_normalized_additive" | "dendritic_mlp" | "flat_mlp"
+    # Unified EI (recommended): "unified_ei" | "ei_unified"
     # Recurrent unified-EI aliases:
-    #   "rnn_dendritic_shunting" | "rnn_dendritic_additive" | "rnn_flat_shunting" | "rnn_flat_additive"
+    #   "rnn_dendritic_shunting" | "rnn_dendritic_additive" | "rnn_dendritic_normalized_additive" | "rnn_flat_shunting" | "rnn_flat_additive" | "rnn_flat_normalized_additive"
     # Baseline RNN: "gru" | "lstm" | "vanilla_rnn" | "rnn"
     # Point neuron MLP: "mlp" | "point_mlp" | "total_param_mlp" | "active_param_mlp" | "ss_mlp" | "ss_mlp_flat"
     # Spatial dendritic pretrained-replacement cores:
@@ -159,6 +162,7 @@ model:
     #          flatten prefix tensor, run EINet, and optionally project core_dim -> flat suffix input dim
     #   "hierarchical_dendritic_conv" | "spatial_dendritic_conv"
     #       -> local spatial dendritic operator for convolutional suffixes
+    # Transformer-replacement FFN: "dendritic_ffn" (dendritic MLP replacing a transformer MLP block)
     # Classical: "alexnet" | "cnn" | "cnn_down" | "cnn_up" | "identity" | "none"
     type: "einet"
 
@@ -184,10 +188,20 @@ model:
       rec_ie_synapses_per_branch: [0]   # list[int]: Recurrent I->E synapses per branch per layer
       rec_ei_synapses_per_branch: [0]   # list[int]: Recurrent E->I synapses per branch per layer
       rec_ii_synapses_per_branch: [0]   # list[int]: Recurrent I->I synapses per branch per layer
+      structured:
+        enabled: false                  # bool: Hard mask allowed synapse locations before TopK/DeepST
+        seed: null                      # int | null: Random seed for sampled masks
+        method: "bernoulli"             # str: "bernoulli" | "fixed_indegree" | "distance"
+        probability: null               # float | list[float] | null: Default Bernoulli p
+        indegree: null                  # int | list[int] | null: Default fixed incoming degree
+        distance_kernel: "none"         # str: "none" | "gaussian" | "exponential"
+        distance_sigma: 1.0             # float: Spatial kernel width for distance masks
+        pathways: {}                    # dict: Optional per-pathway overrides: ee, ie, ei, ii, rec_ee, rec_ie, rec_ei, rec_ii
 
     # ---- Transfer function ----
     transfer:
       input_mode: 1                     # int: Input routing mode (1, 2, 3, ...)
+      allow_direct_inhibitory_stream: true  # bool: Explicitly use transferred inhibitory stream without I cells
       independent_pathways: false       # bool: Independent pathway processing
       excitatory_dim: null              # int | null: Override excitatory dim
       inhibitory_dim: null              # int | null: Override inhibitory dim
@@ -199,6 +213,7 @@ model:
       somatic_synapses: false           # bool: Direct somatic synapses
       use_shunting: true                # bool: Shunting inhibition
       use_additive_normalization: false  # bool: Normalize voltage in additive mode
+      allow_self_recurrence: true       # bool: Allow same-neuron recurrent self-connections in translated recurrent cores
       weight_transform: "softplus"      # str: "exp" | "softplus" | "relu" | "identity"
       dbl_init_method: "analytical_expectation"  # str: "analytical_expectation" | "uniform" | "ones"
 
@@ -206,7 +221,7 @@ model:
     sparsity:
       init_method: "xavier_normal"      # str: "xavier_normal" | "kaiming_normal" | "uniform"
       noise_level: 0.0                  # float: Additive noise on init
-      type: "standard"                  # str: "standard" | "stochastic" | "variance" | "deepst" (legacy "topk" -> "standard")
+      type: "standard"                  # str: "standard" | "stochastic" | "variance" | "deepst" | "indexed" | "indexed_dynamic" | "dense_to_sparse" (legacy "topk" -> "standard")
       weight_norm_order: null           # int | null: Weight norm order (null = off)
       gamma: 1.0                        # float: TopK gamma
       temperature: 0.0                  # float: TopK temperature (0 = hard)
@@ -228,6 +243,7 @@ model:
     reactivation:
       enabled: true                     # bool: Enable reactivation function
       type: "param_tanh"                # str: "param_tanh" | "relu" | "sigmoid" | "none"
+      init_policy: "occupancy_quantile"
       init_m: 1.5                       # float: Initial slope (m)
       init_b: 0.5                       # float: Initial bias (b)
       gradient_scaling: "none"          # str: "none" | "fan_in" | "fan_out"
@@ -240,6 +256,8 @@ model:
     # ---- Implementation ----
     implementation:
       adaptive_initialization: false    # bool: Adaptive weight initialization
+      adaptive_initialization_policy: "preserve_shunting_center"  # str: "preserve_shunting_center" | "legacy_scale"
+      adaptive_target_conductance: 5.0   # float: Conductance budget for adaptive initialization
       print_hooks: false                # bool: Print hook debug info
       store_routing: false              # bool: Store routing (alpha) info for analysis
 
@@ -251,73 +269,67 @@ model:
       stride: 1                         # int: Stride for unfold
       padding: 0                        # int: Padding before unfold (set = kernel_size//2 for same-size)
 
-    # ---- Recurrent (DEPRECATED -- use unified_ei instead) ----
-    recurrent:
-      enabled: false                    # bool: Enable recurrent mode (DEPRECATED)
-      cell_type: "dendritic"            # str: "dendritic" | "gru" | "lstm"
-      n_excitatory: 64                  # int: Number of excitatory neurons
-      n_inhibitory: 16                  # int: Number of inhibitory neurons
-      num_layers: 1                     # int: Number of recurrent layers
-      branches:                         # list[BranchConfig]: Branch definitions
-        - tau: 10.0                     # float: Time constant (ms)
-          ff_synapses: 12               # int: Feedforward synapses
-          rec_synapses: 0               # int: Recurrent synapses
-          ie_synapses: 4                # int: Inhibitory->excitatory synapses
-          rec_i_synapses: 0             # int: Recurrent inhibitory synapses
-          compartment: "topk"           # str: "topk" | "dendritic_branch" | "dendrinet" | "linear"
-          activation: "relu"            # str: "relu" | "tanh" | "sigmoid"
-          dendrinet_branch_factors: [2] # list[int]: Branch factors for dendrinet compartment
-          use_shunting: true            # bool: Shunting inhibition (dendritic_branch only)
-          reactivate: false             # bool: Apply reactivation
-          reactivation_type: "param_tanh"  # str: "param_tanh" | "relu" | "sigmoid"
-          reactivation_init_m: 1.0      # float: Reactivation slope init
-          reactivation_init_b: 0.5      # float: Reactivation bias init
-          topk_init_method: "xavier_normal"  # str: Init method for topk
-          epsilon: 0.00000001           # float: Numerical epsilon
-          weight_transform: "exp"       # str: "exp" | "softplus" | "relu" | "identity"
-        - tau: 50.0
-          ff_synapses: 6
-          rec_synapses: 6
-          ie_synapses: 4
-          rec_i_synapses: 0
-          compartment: "topk"
-          activation: "relu"
-          dendrinet_branch_factors: [2]
-          use_shunting: true
-          reactivate: false
-          reactivation_type: "param_tanh"
-          reactivation_init_m: 1.0
-          reactivation_init_b: 0.5
-          topk_init_method: "xavier_normal"
-          epsilon: 0.00000001
-          weight_transform: "exp"
-        - tau: 200.0
-          ff_synapses: 0
-          rec_synapses: 10
-          ie_synapses: 4
-          rec_i_synapses: 0
-          compartment: "topk"
-          activation: "relu"
-          dendrinet_branch_factors: [2]
-          use_shunting: true
-          reactivate: false
-          reactivation_type: "param_tanh"
-          reactivation_init_m: 1.0
-          reactivation_init_b: 0.5
-          topk_init_method: "xavier_normal"
-          epsilon: 0.00000001
-          weight_transform: "exp"
-      i_tau: 10.0                       # float: Inhibitory time constant
-      i_compartment: "topk"             # str: "topk" | "dendritic_branch" | "dendrinet" | "linear"
-      dt: 1.0                           # float: Integration time step
-      learn_taus: false                 # bool: Learnable time constants
-      g_leak: 1.0                       # float: Leak conductance
-      soma_mode: "shunting"             # str: "shunting" | "additive" | "sum"
-      output_mode: "last"               # str: "last" | "all" | "mean"
-      input_projection_layers: [64]     # list[int]: Input projection MLP layers
-      dropout: 0.0                      # float: Dropout rate
-      grad_clip: 1.0                    # float: Gradient clipping value
-      store_routing: false              # bool: Store routing info
+    # ---- Synapse types / receptor kinetics (opt-in recurrent cores) ----
+    synapse_types:
+      enabled: false                    # bool: Enable receptor/conductance-style synapse mixtures
+      excitatory:
+        - name: "AMPA"                  # str: Synapse/receptor name
+          fraction: 1.0                 # float: Mixture weight within excitatory input
+          tau: null                     # float | null: Single exponential tau (legacy if null)
+          tau_rise: null                # float | null: Double-exponential rise tau
+          tau_decay: null               # float | null: Double-exponential decay tau
+          reversal_potential: 1.0       # float: Driving-force reversal potential
+          nonlinearity: "linear"        # str: "linear" | "relu" | "sigmoid" | "tanh" | "softplus"
+          conductance_power: 1.0        # float: Optional conductance exponent
+          magnesium_block: false        # bool: Alias for voltage_gate="nmda_magnesium"
+          voltage_gate: "none"          # str: "none" | "nmda_magnesium" | "sigmoid"
+          mg_concentration: 1.0         # float: NMDA magnesium concentration
+          mg_scale: 3.57                # float: NMDA Mg-block scale
+          mg_slope: 16.13               # float: NMDA Mg-block voltage slope
+          mg_v_offset: 0.0              # float: NMDA Mg-block voltage offset
+          voltage_scale_mv: 100.0       # float: Unitless branch voltage -> mV scale for voltage gates
+          stp:
+            enabled: false              # bool: Enable short-term plasticity gate
+            u0: 0.2                     # float: Baseline utilization
+            tau_u: 200.0                # float: Facilitation recovery tau
+            tau_x: 700.0                # float: Depression recovery tau
+            facilitation: 0.0           # float: Facilitation strength
+            depression: 1.0             # float: Depression strength
+            differentiable_state: false  # bool: Let BPTT flow through STP state history
+      inhibitory:
+        - name: "GABA_A"
+          fraction: 1.0
+          tau: null
+          tau_rise: null
+          tau_decay: null
+          reversal_potential: 0.0
+          nonlinearity: "linear"
+          conductance_power: 1.0
+          voltage_gate: "none"
+
+    # ---- Soma dynamics (opt-in recurrent cores) ----
+    dynamics:
+      mode: "rate"                      # str: "rate" | "spike"; rate preserves legacy behavior
+      threshold: 1.0                    # float: LIF spike threshold when mode="spike"
+      reset: 0.0                        # float: LIF reset voltage
+      tau: 20.0                         # float: LIF membrane tau
+      refractory_steps: 0               # int: Refractory steps after spike
+      surrogate_beta: 10.0              # float: Surrogate-gradient sharpness
+      readout: "spikes"                 # str: "spikes" | "rate" | "membrane"
+      readout_tau: 20.0                 # float: Rate-decoded spike trace tau
+
+    # ---- Population network / named populations (core.type: population_network) ----
+    population_network:
+      use_transfer: false               # bool: use legacy TransferLayer before first population layer
+      transfer_params: {}               # dict: input_mode, independent_pathways, output_activation, etc.
+      output_mode: "last"               # str: "last" | "mean" | "all" for recurrent sequence output
+      input_projection_dims: []         # list[int]: Optional input projection MLP dims
+      connection_seed: null             # int | null: Default seed for probabilistic masks
+      store_routing: false              # bool: Store routing metadata for compatible analyses
+      layers: []                        # list[dict]: {name, recurrent, readout_population, population_defaults, populations, connections}
+
+    # Old core.recurrent/BranchConfig payloads are deprecated and intentionally
+    # omitted from this template. Use unified_ei, recurrent_ei, or baseline_rnn.
 
     # ---- Unified EI (dict, structure depends on architecture) ----
     unified_ei: {}                      # dict: Unified E-I architecture config payload
@@ -369,6 +381,10 @@ training:
     common:
       epochs: 500                       # int: Training epochs
       batch_size: 512                   # int: Batch size
+      num_workers: null                 # int | null: DataLoader workers (null = auto)
+      pin_memory: null                  # bool | null: Pin batches when useful (null = auto)
+      persistent_workers: null          # bool | null: Keep workers alive (requires num_workers > 0)
+      prefetch_factor: null             # int | null: DataLoader prefetch factor (requires num_workers > 0)
       shuffle: true                     # bool: Shuffle training data
       grad_clip_value: 5.0              # float: Gradient clipping value
       loss_function: "log_mse"          # str: "ce" | "mse" | "log_mse" | "bce"
@@ -481,6 +497,10 @@ training:
     common:
       epochs: 1000                      # int: Training epochs
       batch_size: 512                   # int: Batch size
+      num_workers: null                 # int | null: DataLoader workers (null = auto)
+      pin_memory: null                  # bool | null: Pin batches when useful (null = auto)
+      persistent_workers: null          # bool | null: Keep workers alive (requires num_workers > 0)
+      prefetch_factor: null             # int | null: DataLoader prefetch factor (requires num_workers > 0)
       shuffle: true                     # bool: Shuffle training data
       grad_clip_value: 2.0              # float: Gradient clipping value
       loss_function: "ce"               # str: "ce" | "mse" | "log_mse" | "bce"
@@ -636,7 +656,7 @@ training:
 
     # ---- Learning strategy config (for local_ca rules) ----
     learning_strategy_config:
-      rule_variant: "3f"                # str: "3f" | "4f" | "5f" | "3f_vh" | "4f_vh" | "5f_vh"
+      rule_variant: "3f"                # str: "3f" | "4f" | "5f" | "stdp" | "3f_vh" | "4f_vh" | "5f_vh"
       error_mode: "auto"               # str: "auto" | "mse" | "ce" | "bce"
       error_broadcast_mode: "scalar"    # str: "scalar" | "per_soma" | "local_mismatch" | "low_rank" | "path_transport" | "pathway_vector"
       error_noise_sigma: 0.0           # float: Additive Gaussian noise on broadcast error (0 = off)
@@ -707,6 +727,23 @@ training:
         warmup_epochs: 0                # int: HSIC warmup epochs
         apply_last_layer_only: false    # bool: HSIC last layer only
 
+      stdp:
+        enabled: false                  # bool: Enable trace-based STDP as auxiliary rule; auto true for rule_variant="stdp"
+        apply_to: ["exc", "rec_exc"]    # list[str]: "exc" | "inh" | "rec_exc" | "rec_inh"
+        activity_mode: "relu"           # str: "relu" | "identity" | "binary" | "abs"
+        pre_threshold: 0.0              # float: Presynaptic activity threshold
+        post_threshold: 0.0             # float: Postsynaptic activity threshold
+        tau_pre: 20.0                   # float: Presynaptic trace tau
+        tau_post: 20.0                  # float: Postsynaptic trace tau
+        a_plus: 1.0                     # float: Potentiation scale
+        a_minus: 0.5                    # float: Depression scale
+        learning_rate_scale: 1.0        # float: Multiplier on optimizer LR for STDP update
+        inhibitory_update_sign: -1.0    # float: Sign multiplier for inhibitory pathways
+        use_error_modulation: false     # bool: Modulate STDP by broadcast task error
+        error_modulation_mode: "scalar_abs"  # str: "scalar_abs" | "scalar_signed"
+        clamp_update: 0.0               # float: Absolute update clamp (0 = off)
+        detach_traces: true             # bool: Detach local traces from autograd graph
+
       inhibitory_homeostasis:
         enabled: false                  # bool: Enable inhibitory homeostasis
         mode: "r_tot"                   # str: "r_tot" | "voltage"
@@ -721,8 +758,19 @@ training:
         # NOTE: *_vh rule aliases auto-enable this block with a conservative
         # default (weight=0.02, target_voltage=0.5) unless you override it here.
 
+      gate_homeostasis:
+        enabled: false                  # bool: Enable local gate-occupancy auxiliary update
+        center_weight: 0.0              # float: Weight for mean gate occupancy target
+        saturation_weight: 0.0          # float: Weight for saturation-control target
+        target_mean: 0.5                # float: Desired mean reactivation gate value
+        target_saturation: 0.2          # float: Desired fraction of saturated gates
+        low_threshold: 0.1              # float: Low gate threshold for saturation metric
+        high_threshold: 0.9             # float: High gate threshold for saturation metric
+        saturation_slope: 20.0          # float: Smooth saturation indicator slope
+
       update_inactive_weights: false    # bool: Update inactive weights
       update_reactivation: true         # bool: Update reactivation params
+      explicit_inhibitory_update_mode: "local_ca"  # str: "local_ca" | "freeze" for explicit I-cell dendrites
       encoder_update_mode: "none"       # str: "backprop" | "none"
       decoder_update_mode: "backprop"   # str: "backprop" | "local" | "none"
       freeze_encoder_epochs: 0          # int: Freeze encoder for N epochs
@@ -1055,8 +1103,15 @@ analysis:
     params:
       n_rows: 2                         # int: Grid rows for plotting
       n_cols: 2                         # int: Grid columns for plotting
+      rf_shape: null                    # list[int] | null: Shared RF shape [H, W]
       exc_rf_shape: null                # list[int] | null: Excitatory RF shape [H, W]
       inh_rf_shape: null                # list[int] | null: Inhibitory RF shape [H, W]
+      fig_save_format: png              # str: Figure extension, e.g. png or pdf
+      compute_activation_tuning: false  # bool: Class-tuning summaries from branch activations
+      save_raw_data: true               # bool: Save raw RF tensor checkpoint
+      load_raw_data: false              # bool: Reuse raw RF checkpoint if present
+      raw_filename: null                # str | null: Override raw RF checkpoint filename
+      epsilon: 0.00000001               # float: Numerical epsilon for tuning ratios
 
   # ---------- Single-layer contribution ----------
   single_layer_contribution:
@@ -1115,6 +1170,18 @@ analysis:
       save_json: true                   # bool: Save per-snapshot JSON
       save_csv: true                    # bool: Save per-snapshot CSV
       append_training_csv: true         # bool: Append training snapshots to trajectory.csv
+
+  # ---------- Spike train ----------
+  spike_train:
+    enabled: false                      # bool: Enable LIF spike-train analysis
+    training: false                     # bool: Run during training for epoch trajectories
+    params:
+      dt: 1.0                           # float: Time per recurrent step for rate reporting
+      threshold: 0.5                    # float: Binarization threshold for recorded spike outputs
+      max_samples: 512                  # int | null: Cap examples used for analysis
+      include_raster: true              # bool: Include compact raster event lists
+      max_raster_samples: 8             # int: Number of examples to include in raster events
+      include_per_timestep_rate: true   # bool: Include population firing-rate traces over time
 
   # ---------- Routing ----------
   routing:

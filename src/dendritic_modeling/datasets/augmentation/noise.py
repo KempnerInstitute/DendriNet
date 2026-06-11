@@ -13,6 +13,7 @@ def add_gaussian_noise(
     x: torch.Tensor,
     std: float = 0.1,
     n_samples: int = 1,
+    generator: torch.Generator | None = None,
 ) -> torch.Tensor:
     """
     Add Gaussian noise to input tensor.
@@ -29,7 +30,7 @@ def add_gaussian_noise(
         Perturbed tensor of shape [n_samples, batch, features]
     """
     # Generate noise samples
-    noise = torch.randn(n_samples, *x.shape, device=x.device) * std
+    noise = torch.randn(n_samples, *x.shape, device=x.device, generator=generator) * std
     # Add noise to expanded input
     noisy_x = x[None, ...] + noise
     # Clamp values to [0,1] to maintain valid input range
@@ -40,6 +41,7 @@ def add_uniform_noise(
     x: torch.Tensor,
     spread: float = 0.1,
     n_samples: int = 1,
+    generator: torch.Generator | None = None,
 ) -> torch.Tensor:
     """
     Add uniform noise to input tensor.
@@ -55,7 +57,11 @@ def add_uniform_noise(
         Perturbed tensor of shape [n_samples, batch, features]
     """
     # Generate uniform noise in [-spread, spread]
-    noise = (torch.rand(n_samples, *x.shape, device=x.device) - 0.5) * 2 * spread
+    noise = (
+        (torch.rand(n_samples, *x.shape, device=x.device, generator=generator) - 0.5)
+        * 2
+        * spread
+    )
     # Add noise to expanded input
     noisy_x = x[None, ...] + noise
     # Clamp values to [0,1] to maintain valid input range

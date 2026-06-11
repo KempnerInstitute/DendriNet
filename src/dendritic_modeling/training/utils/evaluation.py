@@ -31,7 +31,7 @@ from dendritic_modeling.analysis.utils.runtime import (
     make_analysis_loader,
     should_materialize_dataset,
 )
-from dendritic_modeling.models import Classifier, Regressor
+from dendritic_modeling.models import Classifier, RecurrentClassifier, Regressor
 from dendritic_modeling.utils.general import save_dict
 from dendritic_modeling.utils.math.auc import roc_auc_score
 
@@ -366,7 +366,7 @@ class _CachedOutputModel:
         # returns raw outputs.  Replicate that from cached forward outputs
         # so metrics that call .predict() (e.g. pred_label_mi) see correct
         # class indices rather than raw logits.
-        if isinstance(real, Classifier):
+        if isinstance(real, (Classifier, RecurrentClassifier)):
             return cached.argmax(dim=-1)
         return cached
 
@@ -938,9 +938,15 @@ def _compute_pred_label_mi(
     reduce_dim: int = 0,
     seq_lengths: torch.Tensor | None = None,
 ) -> torch.Tensor:
-    yhat = classifier.predict(inputs)
-    y_true = labels.long().cpu().numpy()
-    y_pred = yhat.long().cpu().numpy()
+    logits, normalized_labels = _prepare_classification_logits_and_labels(
+        classifier,
+        inputs,
+        labels,
+        seq_lengths=seq_lengths,
+    )
+    yhat = logits.argmax(dim=-1)
+    y_true = normalized_labels.long().detach().cpu().numpy()
+    y_pred = yhat.long().detach().cpu().numpy()
     mi = _pred_label_mi_bits(y_true, y_pred)
     return torch.tensor(mi, dtype=torch.float32, device=labels.device)
 

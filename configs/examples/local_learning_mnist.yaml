@@ -38,7 +38,7 @@ model:
       inhibitory_network_type: "dendritic"
     connectivity:
       ee_synapses_per_branch_per_layer: [40]
-      ei_synapses_per_branch_per_layer: [0]
+      ei_synapses_per_branch_per_layer: [10]
       ie_synapses_per_branch_per_layer: [10]
       ii_synapses_per_branch_per_layer: [0]
     morphology:
@@ -50,6 +50,7 @@ model:
     reactivation:
       enabled: true
       type: "param_tanh"
+      init_policy: "occupancy_quantile"
       init_m: 1.5
       init_b: 0.5
   decoder:

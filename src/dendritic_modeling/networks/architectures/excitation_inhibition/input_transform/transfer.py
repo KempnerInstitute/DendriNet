@@ -22,6 +22,12 @@ class TransferLayer(nn.Module):
         self.independent_pathways = independent_pathways = transfer_params.get(
             "independent_pathways", False
         )
+        if input_dim is None or int(input_dim) <= 0:
+            raise ValueError(f"input_dim must be a positive integer, got {input_dim}")
+        input_dim = int(input_dim)
+        self.input_dim = input_dim
+        if input_mode not in {0, 1}:
+            raise ValueError(f"Invalid input_mode: {input_mode}")
 
         # Add output activation option
         self.output_activation = transfer_params.get("output_activation", None)
@@ -66,6 +72,9 @@ class TransferLayer(nn.Module):
                 input_dim=input_dim,
                 excitatory_dim=excitatory_input_dim,
                 inhibitory_dim=inhibitory_input_dim,
+                split_seed=transfer_params.get(
+                    "split_seed", transfer_params.get("seed", None)
+                ),
             )
         else:
             # When independent_pathways is False, both use full input_dim
@@ -90,6 +99,11 @@ class TransferLayer(nn.Module):
             raise ValueError(f"Invalid input_mode: {input_mode}")
 
     def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+        if x.shape[-1] != self.input_dim:
+            raise ValueError(
+                f"TransferLayer expected last input dimension {self.input_dim}, "
+                f"got {x.shape[-1]}"
+            )
         x1, x2 = self.pathway_split(x)
 
         # Apply activation function if specified

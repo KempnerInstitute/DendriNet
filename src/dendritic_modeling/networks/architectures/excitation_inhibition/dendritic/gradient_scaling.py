@@ -6,8 +6,27 @@ various gradient-scaling strategies for BlockLinear or other modules.
 """
 
 import functools
+import logging
 
 import torch
+
+logger = logging.getLogger(__name__)
+_WARNED_HOOK_FAILURES: set[tuple[str, str, str]] = set()
+
+
+def _warn_hook_fallback(context: str, exc: Exception) -> None:
+    """Warn once when a gradient-scaling hook falls back to unscaled gradients."""
+    key = (context, type(exc).__name__, str(exc))
+    if key in _WARNED_HOOK_FAILURES:
+        return
+    _WARNED_HOOK_FAILURES.add(key)
+    logger.warning(
+        "Gradient-scaling hook %s failed; returning unscaled gradients. "
+        "Fix this warning if the run depends on gradient_scaling. Error: %s",
+        context,
+        exc,
+        exc_info=True,
+    )
 
 
 def safe_hook(hook_fn):
@@ -48,8 +67,7 @@ def safe_hook(hook_fn):
             result = hook_fn(module, grad_input, grad_output)
             return result
         except Exception as e:
-            # If anything goes wrong, return the original grad_input as a fallback
-            print(f"Warning: Hook error: {e}", flush=True)
+            _warn_hook_fallback(getattr(hook_fn, "__name__", "unknown"), e)
             return grad_input
 
     return safe_hook_fn
@@ -322,12 +340,14 @@ class GradientScaler:
             if self.print_hooks:
                 print("\n\nblocklinear input hook call", flush=True)
             if self.blocklinear_strategy == "conductance_dynamic":
+                if getattr(module, "_use_forward_dynamic_grad_scaling", False):
+                    return grad_input
                 try:
                     return scale_layer_input_gradients_elementwise(
                         module, grad_input, grad_output
                     )
-                except Exception:
-                    # If there's any error in computing the scale, return the original gradients
+                except Exception as exc:
+                    _warn_hook_fallback("blocklinear_input_conductance_dynamic", exc)
                     return grad_input
 
             elif self.blocklinear_strategy == "distal_upweight_by_idx":
@@ -336,8 +356,8 @@ class GradientScaler:
                     return scale_layer_gradients_scalar(
                         module, grad_input, grad_output, scale_val
                     )
-                except Exception:
-                    # If there's any error in applying the scale, return the original gradients
+                except Exception as exc:
+                    _warn_hook_fallback("blocklinear_input_distal_upweight", exc)
                     return grad_input
 
             else:
@@ -347,6 +367,10 @@ class GradientScaler:
             if self.print_hooks:
                 print("\n\nblocklinear param hook call", flush=True)
             if self.blocklinear_strategy == "conductance_dynamic":
+                if getattr(
+                    block_linear_layer, "_use_forward_dynamic_grad_scaling", False
+                ):
+                    return grad
                 try:
                     return scale_layer_param_gradients_elementwise(
                         grad,
@@ -355,8 +379,8 @@ class GradientScaler:
                         self.disable_hooks_with_amp,
                         self.amp_enabled,
                     )
-                except Exception:
-                    # If there's any error in applying the scale, return the original gradients
+                except Exception as exc:
+                    _warn_hook_fallback("blocklinear_param_conductance_dynamic", exc)
                     return grad
 
             else:
@@ -398,12 +422,14 @@ class GradientScaler:
             if self.print_hooks:
                 print("\n\ntopk input hook call", flush=True)
             if self.topk_strategy == "conductance_dynamic":
+                if getattr(module, "_use_forward_dynamic_grad_scaling", False):
+                    return grad_input
                 try:
                     return scale_layer_input_gradients_elementwise(
                         module, grad_input, grad_output
                     )
-                except Exception:
-                    # If there's any error in computing the scale, return the original gradients
+                except Exception as exc:
+                    _warn_hook_fallback("topk_input_conductance_dynamic", exc)
                     return grad_input
 
             elif self.topk_strategy == "distal_upweight_by_idx":
@@ -412,8 +438,8 @@ class GradientScaler:
                     return scale_layer_gradients_scalar(
                         module, grad_input, grad_output, scale_val
                     )
-                except Exception:
-                    # If there's any error in applying the scale, return the original gradients
+                except Exception as exc:
+                    _warn_hook_fallback("topk_input_distal_upweight", exc)
                     return grad_input
 
             else:
@@ -423,6 +449,8 @@ class GradientScaler:
             if self.print_hooks:
                 print("\n\ntopk param hook call", flush=True)
             if self.topk_strategy == "conductance_dynamic":
+                if getattr(topk_layer, "_use_forward_dynamic_grad_scaling", False):
+                    return grad
                 try:
                     return scale_layer_param_gradients_elementwise(
                         grad,
@@ -431,14 +459,17 @@ class GradientScaler:
                         self.disable_hooks_with_amp,
                         self.amp_enabled,
                     )
-                except Exception:
-                    # If there's any error in applying the scale, return the original gradients
+                except Exception as exc:
+                    _warn_hook_fallback("topk_param_conductance_dynamic", exc)
                     return grad
 
             else:
                 return grad
 
         if self.topk_strategy != "none":
+            if self.topk_strategy == "conductance_dynamic":
+                topk_layer._use_forward_dynamic_grad_scaling = True
+
             # First remove any existing hooks to prevent conflicts
             if hasattr(topk_layer, "_backward_hooks"):
                 topk_layer._backward_hooks.clear()

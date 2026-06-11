@@ -40,13 +40,16 @@ model:
       inhibitory_branch_factors: [1]
     connectivity:
       ee_synapses_per_branch_per_layer: [40]
+      ei_synapses_per_branch_per_layer: [10]
       ie_synapses_per_branch_per_layer: [10]
+      ii_synapses_per_branch_per_layer: [0]
     morphology:
       use_shunting: true
       weight_transform: "softplus"
     reactivation:
       enabled: true
       type: "param_tanh"
+      init_policy: "occupancy_quantile"
   decoder:
     type: "MLP"
     params:

@@ -63,12 +63,27 @@ class ExcitationInhibitionLayer(nn.Module):
         init_method="xavier_normal",
         weight_threshold=1e-6,
         adaptive_initialization=True,
+        adaptive_initialization_policy="legacy_scale",
+        adaptive_target_conductance=5.0,
+        structured_connectivity=None,
+        structured_layer_idx: int = 0,
         **kwargs,
     ):
         super().__init__()
         if synapse_mode not in ["ei", "mlp"]:
             raise ValueError(f"synapse_mode must be 'ei' or 'mlp', got: {synapse_mode}")
         self.synapse_mode = synapse_mode
+        structured_enabled = bool(
+            isinstance(structured_connectivity, dict)
+            and structured_connectivity.get("enabled", False)
+        ) or bool(
+            hasattr(structured_connectivity, "enabled")
+            and structured_connectivity.enabled
+        )
+        if self.synapse_mode == "mlp" and structured_enabled:
+            raise ValueError(
+                "Structured connectivity is only supported for synapse_mode='ei'."
+            )
 
         # Only build inhibitory cells if n_inhibitory_cells is not None and build_inhibitory_cells is True
         if build_inhibitory_cells and n_inhibitory_cells is not None:
@@ -116,6 +131,12 @@ class ExcitationInhibitionLayer(nn.Module):
                         init_method=init_method,
                         weight_threshold=weight_threshold,
                         adaptive_initialization=adaptive_initialization,
+                        adaptive_initialization_policy=adaptive_initialization_policy,
+                        adaptive_target_conductance=adaptive_target_conductance,
+                        structured_connectivity=structured_connectivity,
+                        structured_layer_idx=structured_layer_idx,
+                        structured_excitatory_pathway="ei",
+                        structured_inhibitory_pathway="ii",
                         **kwargs,
                     )
                 else:
@@ -164,6 +185,8 @@ class ExcitationInhibitionLayer(nn.Module):
                         init_method=init_method,
                         weight_threshold=weight_threshold,
                         adaptive_initialization=adaptive_initialization,
+                        adaptive_initialization_policy=adaptive_initialization_policy,
+                        adaptive_target_conductance=adaptive_target_conductance,
                         **kwargs,
                     )
             elif inhibitory_network_type == "mlp":
@@ -205,6 +228,10 @@ class ExcitationInhibitionLayer(nn.Module):
                 excitatory_synapses_per_branch=ee_synapses_per_branch,
                 inhibitory_input_dim=excitatory_inhibitory_input_dim,
                 inhibitory_synapses_per_branch=ie_synapses_per_branch,
+                structured_connectivity=structured_connectivity,
+                structured_layer_idx=structured_layer_idx,
+                structured_excitatory_pathway="ee",
+                structured_inhibitory_pathway="ie",
                 reactivate=reactivate,
                 reactivation_init_m=reactivation_init_m,
                 reactivation_init_b=reactivation_init_b,
@@ -236,6 +263,8 @@ class ExcitationInhibitionLayer(nn.Module):
                 init_method=init_method,
                 weight_threshold=weight_threshold,
                 adaptive_initialization=adaptive_initialization,
+                adaptive_initialization_policy=adaptive_initialization_policy,
+                adaptive_target_conductance=adaptive_target_conductance,
                 **kwargs,
             )
         else:
@@ -283,6 +312,8 @@ class ExcitationInhibitionLayer(nn.Module):
                 init_method=init_method,
                 weight_threshold=weight_threshold,
                 adaptive_initialization=adaptive_initialization,
+                adaptive_initialization_policy=adaptive_initialization_policy,
+                adaptive_target_conductance=adaptive_target_conductance,
                 **kwargs,
             )
 

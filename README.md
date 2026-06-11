@@ -8,7 +8,8 @@
 
 A framework for biologically-inspired dendritic excitation-inhibition networks:
 feedforward and recurrent architectures with shunting inhibition, sparse
-connectivity, and hierarchical dendritic trees.
+connectivity, hierarchical dendritic trees, named E/I populations, typed
+synapses, spiking soma dynamics, and soma-to-dendrite feedback.
 
 <p align="center">
   <img src="docs/_static/dendritic_diagram.png" alt="Dendritic model diagram" width="600">
@@ -75,7 +76,9 @@ they restore the original device and train/eval mode before returning.
 The maintained user docs live under [docs/README.md](docs/README.md).
 Start with:
 
+- [docs/examples.rst](docs/examples.rst)
 - [docs/network_architectures.rst](docs/network_architectures.rst)
+- [docs/configuration_guide.rst](docs/configuration_guide.rst)
 - [docs/training_strategies.rst](docs/training_strategies.rst)
 - [docs/datasets.rst](docs/datasets.rst)
 - [docs/analysis.rst](docs/analysis.rst)
@@ -88,13 +91,18 @@ Start with:
 Feedforward dendritic cores:
 
 - `einet` / `dendritic_shunting` — shunting (divisive) inhibition
-- `dendritic_additive` — additive inhibition
-- `flat_shunting` / `flat_additive` — single-compartment variants
+- `dendritic_additive` — raw additive inhibition, `V = E - I`
+- `dendritic_normalized_additive` — additive inhibition with explicit voltage normalization
+- `flat_shunting` / `flat_additive` / `flat_normalized_additive` — single-compartment variants
 
 Recurrent dendritic cores:
 
+- `population_network` — canonical feedforward/recurrent notation with named
+  populations, explicit directed connections, per-population morphologies,
+  synapse types, spiking soma, and feedback
 - `unified_ei` — hierarchical recurrent E-I with learnable time constants
-- aliases: `ei_unified`, `ei_net`, `unified_einet`
+- `ei_unified` — equivalent canonical factory name
+- `rnn_dendritic_*` / `rnn_flat_*` — recurrent shunting, raw additive, and normalized-additive aliases
 
 Pretrained-replacement cores (vision):
 

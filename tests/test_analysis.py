@@ -263,6 +263,54 @@ class TestAblationAnalyzer(unittest.TestCase):
         for key, value in self.model.state_dict().items():
             torch.testing.assert_close(value, state_dict[key])
 
+    def test_identity_weight_transform_uses_zero_lesion_value(self):
+        """Identity/relu transforms should lesion by zeroing raw weights."""
+        module_name, module = next(
+            (name, mod)
+            for name, mod in self.model.named_modules()
+            if hasattr(mod, "branch_excitation") and mod.branch_excitation is not None
+        )
+        state_dict = {
+            key: value.detach().clone()
+            for key, value in self.model.state_dict().items()
+        }
+        self.model.core_network.weight_transform = "identity"
+        self.analyzer.lesion_value = self.analyzer._resolve_lesion_value(self.model)
+
+        self.analyzer.accuracy = True
+        self.analyzer.auc = False
+        self.analyzer.categorical_ll = False
+        self.analyzer.mse = False
+        self.analyzer.cosine_similarity = False
+        self.analyzer.compute_pred_label_mi = False
+
+        def _check_zero_lesion(*args, **kwargs):
+            assert torch.all(module.branch_excitation.pre_w == 0.0)
+            return [0.75]
+
+        with patch(
+            "dendritic_modeling.analysis.core.ablation.evaluate_accuracy",
+            side_effect=_check_zero_lesion,
+        ):
+            results = self.analyzer.ablate_layer_and_evaluate(
+                test_dataset=self.test_data,
+                model=self.model,
+                module=module,
+                module_name=module_name,
+                ablation_type="excitation",
+                ablation_method="lesion",
+                baseline_dict={"accuracy": 1.0},
+                results_dict={"excitation": {}},
+                state_dict=state_dict,
+                eval_kwargs={},
+                device="cpu",
+            )
+
+        self.assertEqual(self.analyzer.lesion_value, 0.0)
+        self.assertEqual(results["excitation"][module_name]["accuracy_drop"], 0.25)
+        for key, value in self.model.state_dict().items():
+            torch.testing.assert_close(value, state_dict[key])
+
 
 class TestInformationAnalyzer(unittest.TestCase):
     """Test the Information Analyzer class."""
@@ -475,6 +523,21 @@ def test_ablation_analyzer():
     analyzer = AblationAnalyzer(params)
     assert analyzer.layer_ablation
     assert analyzer.compartment_ablation
+
+
+def test_ablation_analyzer_ignores_removed_flat_aliases():
+    from dendritic_modeling.config.analysis import AblationAnalysisParams
+
+    params = AblationAnalysisParams()
+    params.layer_ablation = True
+    params.ablate_excitation = True
+    params.accuracy = True
+
+    analyzer = AblationAnalyzer(params)
+
+    assert not analyzer.layer_ablation
+    assert not analyzer.ablate_excitation
+    assert not analyzer.accuracy
 
 
 @pytest.mark.skip(

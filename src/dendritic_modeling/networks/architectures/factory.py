@@ -1,9 +1,28 @@
-from dataclasses import asdict, is_dataclass
+import logging
+from collections.abc import Callable
+from dataclasses import asdict, replace
 from typing import Any, Optional, Union
 
 import torch.nn as nn
 from omegaconf import DictConfig
 
+from dendritic_modeling.config.conversion import (
+    has_enabled_synapse_types,
+    layer_value,
+    normalize_sparsity_type,
+    to_plain_dict,
+)
+from dendritic_modeling.config.legacy import (
+    canonicalize_unified_ei_config,
+    normalize_transfer_config,
+)
+from dendritic_modeling.config.model_aliases import (
+    get_core_morphology_alias_overrides,
+    get_structured_recurrent_alias_overrides,
+    get_unified_ei_alias_overrides,
+    warn_alias_conflicts,
+)
+from dendritic_modeling.networks.activations import resolve_dendritic_activation
 from dendritic_modeling.networks.architectures.classical.autoencoder import (
     CNNAutoencoder,
     CNNVariationalAutoencoder,
@@ -30,16 +49,27 @@ from dendritic_modeling.networks.architectures.classical.pathway_router import (
 from dendritic_modeling.networks.architectures.excitation_inhibition import (
     ConfigurableEINetwork,
 )
+from dendritic_modeling.networks.architectures.registry import (
+    build_registered_architecture,
+    get_registered_architecture_names,
+    reserve_architecture_names,
+)
+
+logger = logging.getLogger(__name__)
 
 # All EINet type strings handled via ConfigurableEINetwork (+ dendritic_mlp special-cased)
 _EINET_TYPES: set[str] = {
     "einet",
     "dendritic_shunting",
     "dendritic_additive",
+    "dendritic_normalized_additive",
     "dendritic_mlp",
+    "dendritic_signed",
     "flat_shunting",
     "flat_additive",
+    "flat_normalized_additive",
     "flat_mlp",
+    "flat_signed",
 }
 
 _UNIFIED_EI_TYPES: set[str] = {
@@ -52,49 +82,14 @@ _UNIFIED_EI_TYPES: set[str] = {
     # `flat_additive`). An `rnn_` prefix disambiguates them from the
     # non-recurrent BP types. The factory below canonicalizes each alias
     # to the appropriate `use_shunting` / `use_additive_normalization`
-    # pair on every excitatory population, leaving the `ei_unified` path
+    # pair on every configured population, leaving the `ei_unified` path
     # unchanged for backward compatibility.
     "rnn_dendritic_shunting",
     "rnn_dendritic_additive",
+    "rnn_dendritic_normalized_additive",
     "rnn_flat_shunting",
     "rnn_flat_additive",
-}
-
-# Type-alias implied overrides on each excitatory population.
-# The alias is resolved at build time; `ei_unified` is a no-op (explicit
-# config wins). The BP `canonicalize_model_core_flags` uses the same idea.
-#
-# For `*_additive` aliases: we force additive voltage normalization and a
-# fixed reactivation gate. The normalization makes additive voltages roughly
-# zero-mean/unit-variance; with that scale, m=1.0 keeps the gate responsive
-# without the saturation risk of the old analytical init. Existing
-# `ei_unified` configs with explicit fields continue to dispatch unchanged,
-# so users opt into this recurrent additive path by selecting the alias.
-_RECURRENT_ADDITIVE_REACTIVATION_INIT_M = 1.0
-
-_UNIFIED_EI_ALIAS_OVERRIDES: dict[str, dict[str, object]] = {
-    "rnn_dendritic_shunting": {
-        "use_shunting": True,
-    },
-    "rnn_dendritic_additive": {
-        "use_shunting": False,
-        "use_additive_normalization": True,
-        "reactivation_init_m": _RECURRENT_ADDITIVE_REACTIVATION_INIT_M,
-        "reactivation_init_b": 0.0,
-        "reactivation_init_policy": "fixed",
-    },
-    "rnn_flat_shunting": {
-        "use_shunting": True,
-        "branch_factors": [1],
-    },
-    "rnn_flat_additive": {
-        "use_shunting": False,
-        "use_additive_normalization": True,
-        "reactivation_init_m": _RECURRENT_ADDITIVE_REACTIVATION_INIT_M,
-        "reactivation_init_b": 0.0,
-        "reactivation_init_policy": "fixed",
-        "branch_factors": [1],
-    },
+    "rnn_flat_normalized_additive",
 }
 
 # Spatial dendritic cores: flatten encoder spatial output → EINet → project.
@@ -120,49 +115,91 @@ _BASELINE_RNN_TYPES: dict[str, str] = {
     "rnn": "vanilla",
 }
 
+_POPULATION_NETWORK_TYPES: set[str] = {
+    "population_network",
+}
+
+_BUILTIN_ARCHITECTURE_TYPES: frozenset[str] = frozenset(
+    set(_EINET_TYPES)
+    | set(_UNIFIED_EI_TYPES)
+    | set(_BASELINE_RNN_TYPES)
+    | set(_POPULATION_NETWORK_TYPES)
+    | set(_SPATIAL_DENDRITIC_TYPES)
+    | set(_SPATIAL_DENDRITIC_CONV_TYPES)
+    | {
+        "active_param_mlp",
+        "alexnet",
+        "cnn",
+        "cnn_down",
+        "cnn_downsample",
+        "cnn_up",
+        "cnn_upsample",
+        "cnnautoencoder",
+        "cnnvariationalautoencoder",
+        "cnndownsample",
+        "cnnupsample",
+        "effectivematchedparammlp",
+        "identity",
+        "mlp",
+        "mlpautoencoder",
+        "mlpvariationalautoencoder",
+        "none",
+        "pathway_router",
+        "point_mlp",
+        "router",
+        "ss_mlp",
+        "ss_mlp_flat",
+        "total_param_mlp",
+    }
+)
+
+reserve_architecture_names(_BUILTIN_ARCHITECTURE_TYPES)
+
+
+def get_available_architectures() -> list[str]:
+    """Return built-in and extension architecture names."""
+    return sorted(
+        set(_BUILTIN_ARCHITECTURE_TYPES) | set(get_registered_architecture_names())
+    )
+
 
 def _to_plain_mapping(obj: Any) -> dict[str, Any]:
     """Best-effort conversion of config-like objects into a plain mapping."""
-    if obj is None:
-        return {}
-    if isinstance(obj, dict):
-        return dict(obj)
-    if isinstance(obj, DictConfig):
-        from omegaconf import OmegaConf
+    return to_plain_dict(obj)
 
-        converted = OmegaConf.to_container(obj, resolve=True)
-        return converted if isinstance(converted, dict) else {}
-    if is_dataclass(obj):
-        converted = asdict(obj)
-        return converted if isinstance(converted, dict) else {}
-    # Fallback for custom config objects exposing attrs.
-    try:
-        return dict(obj)
-    except Exception:
-        return {}
+
+def _apply_population_alias_overrides(
+    population: dict[str, Any],
+    alias_overrides: dict[str, object],
+    *,
+    core_type: str,
+    context: str,
+) -> dict[str, Any]:
+    """Apply recurrent type-alias semantics to one PopulationConfig payload."""
+    if not alias_overrides:
+        return population
+    updated = dict(population)
+    warn_alias_conflicts(core_type, updated, alias_overrides, context=context)
+    for key, value in alias_overrides.items():
+        updated[key] = value
+    return updated
 
 
 def _layer_value(
     value: Any, layer_idx: int, default: Any = 0, *, allow_empty_list: bool = False
 ) -> Any:
     """Read scalar/list per-layer values with repeat-last semantics."""
-    if isinstance(value, list):
-        if not value:
-            return [] if allow_empty_list else default
-        if layer_idx < len(value):
-            return value[layer_idx]
-        return value[-1]
-    if value is None:
-        return default
-    return value
+    return layer_value(
+        value,
+        layer_idx,
+        default,
+        allow_empty_list=allow_empty_list,
+    )
 
 
 def _normalize_sparsity_type(sparsity_type: Any) -> str:
     """Normalize public sparsity aliases to the internal TopK strategy names."""
-    normalized = "standard" if sparsity_type is None else str(sparsity_type).lower()
-    if normalized == "topk":
-        return "standard"
-    return normalized
+    return normalize_sparsity_type(sparsity_type)
 
 
 def _build_recurrent_einet_from_structured_config(
@@ -186,13 +223,42 @@ def _build_recurrent_einet_from_structured_config(
     recurrent_cfg = _to_plain_mapping(raw_params.get("recurrent_ei", {}))
     architecture = _to_plain_mapping(raw_params.get("architecture", {}))
     connectivity = _to_plain_mapping(raw_params.get("connectivity", {}))
-    transfer = _to_plain_mapping(raw_params.get("transfer", {}))
+    structured_alias_present = "structured_connectivity" in connectivity
+    structured_alias = connectivity.pop("structured_connectivity", {})
+    if structured_alias_present:
+        logger.warning(
+            "model.core.connectivity.structured_connectivity is deprecated; "
+            "use model.core.connectivity.structured instead."
+        )
+    structured_connectivity = connectivity.pop("structured", structured_alias)
+    transfer = normalize_transfer_config(raw_params.get("transfer", {}))
     morphology = _to_plain_mapping(raw_params.get("morphology", {}))
     sparsity = _to_plain_mapping(raw_params.get("sparsity", {}))
     reactivation = _to_plain_mapping(raw_params.get("reactivation", {}))
     blocklinear = _to_plain_mapping(raw_params.get("blocklinear", {}))
     implementation = _to_plain_mapping(raw_params.get("implementation", {}))
+    synapse_types = _to_plain_mapping(raw_params.get("synapse_types", {}))
+    dynamics = _to_plain_mapping(
+        raw_params.get("dynamics", raw_params.get("spiking", {}))
+    )
+    dendritic_spikes = _to_plain_mapping(
+        raw_params.get("dendritic_spikes", dynamics.get("dendritic_spikes", {}))
+    )
+    soma_feedback = _to_plain_mapping(
+        raw_params.get(
+            "soma_feedback",
+            recurrent_cfg.get("soma_feedback", dynamics.get("soma_feedback", {})),
+        )
+    )
     deepst = _to_plain_mapping(sparsity.get("deepst", {}))
+    if "annealed_topk" in sparsity and "dense_to_sparse" not in sparsity:
+        logger.warning(
+            "model.core.sparsity.annealed_topk is deprecated; use "
+            "model.core.sparsity.dense_to_sparse instead."
+        )
+    dense_to_sparse = _to_plain_mapping(
+        sparsity.get("dense_to_sparse", sparsity.get("annealed_topk", {}))
+    )
 
     # --- Resolve recurrent synapse counts (new location first, old fallback) ---
     def _rec_syn(new_key, *old_keys, fallback=0):
@@ -233,16 +299,42 @@ def _build_recurrent_einet_from_structured_config(
         return val is not None and val > 0
 
     has_rec_synapses = any(_any_positive(v) for v in [rec_ee, rec_ie, rec_ei, rec_ii])
+    has_soma_feedback = bool(
+        soma_feedback.get("enabled", dynamics.get("soma_feedback_enabled", False))
+    )
+    has_spiking_dynamics = (
+        str(dynamics.get("mode", dynamics.get("dynamics_mode", "rate"))).lower()
+        == "spike"
+    )
+    has_dendritic_spikes = bool(
+        dendritic_spikes.get(
+            "enabled",
+            dynamics.get("dendritic_spikes_enabled", False),
+        )
+    )
+    has_synapse_types = has_enabled_synapse_types(synapse_types)
+    has_stateful_features = (
+        has_soma_feedback
+        or has_spiking_dynamics
+        or has_dendritic_spikes
+        or has_synapse_types
+    )
     # Backward compat: old configs use recurrent_ei.enabled: true to activate
     # recurrence.  New configs rely solely on connectivity.rec_* > 0.
     explicit_enabled = recurrent_cfg.get("enabled", None)
-    if not has_rec_synapses and not explicit_enabled:
+    if not has_rec_synapses and not explicit_enabled and not has_stateful_features:
         return None
 
-    if type in {"dendritic_mlp", "flat_shunting", "flat_additive"}:
+    if type in {
+        "dendritic_mlp",
+        "flat_shunting",
+        "flat_additive",
+        "flat_normalized_additive",
+    }:
         raise ValueError(
             f"Recurrent mode is not supported for architecture type '{type}'. "
-            "Use 'EINet', 'dendritic_shunting', or 'dendritic_additive'."
+            "Use 'EINet', 'dendritic_shunting', 'dendritic_additive', or "
+            "'dendritic_normalized_additive'."
         )
 
     excitatory_sizes = list(architecture.get("excitatory_layer_sizes", []))
@@ -253,6 +345,34 @@ def _build_recurrent_einet_from_structured_config(
 
     inhibitory_sizes = list(architecture.get("inhibitory_layer_sizes", []))
     input_mode = int(transfer.get("input_mode", 0))
+    has_inhibitory_population = any(int(size or 0) > 0 for size in inhibitory_sizes)
+    has_direct_ie_synapses = any(
+        int(
+            _layer_value(
+                connectivity.get("ie_synapses_per_branch_per_layer", []), i, default=0
+            )
+        )
+        > 0
+        for i in range(len(excitatory_sizes))
+    )
+    allow_direct_inhibitory_stream = bool(
+        transfer.get("allow_direct_inhibitory_stream", False)
+    )
+    if (
+        input_mode == 1
+        and not has_inhibitory_population
+        and has_direct_ie_synapses
+        and not allow_direct_inhibitory_stream
+    ):
+        raise ValueError(
+            "input_mode=1 with empty inhibitory_layer_sizes and nonzero "
+            "ie_synapses_per_branch_per_layer would use the transferred "
+            "inhibitory stream directly instead of building inhibitory "
+            "neurons. Set architecture.inhibitory_layer_sizes to positive "
+            "values for an inhibitory population, or set "
+            "transfer.allow_direct_inhibitory_stream=true to opt in to the "
+            "direct stream explicitly."
+        )
 
     # use_transfer: keep legacy EINet behavior by default (TransferLayer always on),
     # with backward-compatible explicit override via recurrent_ei.use_transfer.
@@ -262,11 +382,63 @@ def _build_recurrent_einet_from_structured_config(
         use_transfer = True
 
     # Preserve legacy EINet type aliases for shunting/additive behavior.
+    core_morphology_overrides = get_core_morphology_alias_overrides(type)
+    warn_alias_conflicts(
+        type,
+        morphology,
+        core_morphology_overrides,
+        context="model.core.morphology",
+    )
+    structured_alias_overrides = get_structured_recurrent_alias_overrides(type)
+
     use_shunting = bool(morphology.get("use_shunting", True))
-    if type == "dendritic_shunting":
-        use_shunting = True
-    elif type == "dendritic_additive":
-        use_shunting = False
+    if "use_shunting" in core_morphology_overrides:
+        use_shunting = bool(core_morphology_overrides["use_shunting"])
+
+    use_additive_normalization = bool(
+        morphology.get("use_additive_normalization", False)
+    )
+    if "use_additive_normalization" in core_morphology_overrides:
+        use_additive_normalization = bool(
+            core_morphology_overrides["use_additive_normalization"]
+        )
+    if "use_additive_normalization" in structured_alias_overrides:
+        use_additive_normalization = bool(
+            structured_alias_overrides["use_additive_normalization"]
+        )
+
+    reactivation_init_m = float(reactivation.get("init_m", 1.5))
+    reactivation_init_b = float(reactivation.get("init_b", 0.5))
+    reactivation_init_policy = str(reactivation.get("init_policy", "analytical"))
+    reactivate, reactivation_type = resolve_dendritic_activation(
+        reactivation.get("dendritic_activation"),
+        bool(reactivation.get("enabled", True)),
+        reactivation.get("type", "param_tanh"),
+    )
+    if structured_alias_overrides:
+        warn_alias_conflicts(
+            type,
+            reactivation,
+            {
+                "init_m": structured_alias_overrides.get("reactivation_init_m"),
+                "init_b": structured_alias_overrides.get("reactivation_init_b"),
+                "init_policy": structured_alias_overrides.get(
+                    "reactivation_init_policy"
+                ),
+            },
+            context="model.core.reactivation",
+        )
+        reactivation_init_m = float(
+            structured_alias_overrides.get("reactivation_init_m", reactivation_init_m)
+        )
+        reactivation_init_b = float(
+            structured_alias_overrides.get("reactivation_init_b", reactivation_init_b)
+        )
+        reactivation_init_policy = str(
+            structured_alias_overrides.get(
+                "reactivation_init_policy", reactivation_init_policy
+            )
+        )
 
     # Per-layer recurrence: infer from synapse counts, backward compat with explicit flag
     explicit_recurrent_layers = recurrent_cfg.get(
@@ -290,7 +462,11 @@ def _build_recurrent_einet_from_structured_config(
     layers: list[EILayerConfig] = []
     for layer_idx, n_exc in enumerate(excitatory_sizes):
         n_inh = int(_layer_value(inhibitory_sizes, layer_idx, default=0))
-        build_inhibitory_population = n_inh > 0 and input_mode != 1
+        # A positive inhibitory layer size requests an explicit inhibitory
+        # population, but the population is only built when it has at least one
+        # configured incoming synaptic source. This preserves legacy direct
+        # inhibitory-stream configs with ei/ii/rec_ei/rec_ii all zero.
+        requested_inhibitory_population = n_inh > 0
 
         # Per-layer recurrence
         if explicit_recurrent_layers is not None:
@@ -343,17 +519,34 @@ def _build_recurrent_einet_from_structured_config(
             topk_temperature=float(sparsity.get("temperature", 0.0)),
             topk_ultrafast=bool(sparsity.get("ultrafast", False)),
             topk_strategy=str(sparsity.get("gradient_scaling", "none")),
+            dense_to_sparse_initial_density=float(
+                dense_to_sparse.get("initial_density", 1.0)
+            ),
+            dense_to_sparse_initial_k=dense_to_sparse.get("initial_k"),
+            dense_to_sparse_start_step=int(dense_to_sparse.get("start_step", 0)),
+            dense_to_sparse_end_step=int(dense_to_sparse.get("end_step", 1000)),
+            dense_to_sparse_update_interval=int(
+                dense_to_sparse.get("update_interval", 1)
+            ),
+            dense_to_sparse_schedule=str(dense_to_sparse.get("schedule", "cubic")),
+            dense_to_sparse_freeze_on_end=bool(
+                dense_to_sparse.get("freeze_on_end", False)
+            ),
+            dense_to_sparse_advance_on_forward=bool(
+                dense_to_sparse.get("advance_on_forward", True)
+            ),
+            dense_to_sparse_prune_metric=str(
+                dense_to_sparse.get("prune_metric", "weight")
+            ),
             weight_transform=str(morphology.get("weight_transform", "softplus")),
             use_shunting=use_shunting,
-            use_additive_normalization=bool(
-                morphology.get("use_additive_normalization", False)
-            ),
+            use_additive_normalization=use_additive_normalization,
             allow_self_recurrence=bool(morphology.get("allow_self_recurrence", True)),
-            reactivate=bool(reactivation.get("enabled", True)),
-            reactivation_type=str(reactivation.get("type", "param_tanh")),
-            reactivation_init_m=float(reactivation.get("init_m", 1.5)),
-            reactivation_init_b=float(reactivation.get("init_b", 0.5)),
-            reactivation_init_policy=str(reactivation.get("init_policy", "analytical")),
+            reactivate=reactivate,
+            reactivation_type=reactivation_type,
+            reactivation_init_m=reactivation_init_m,
+            reactivation_init_b=reactivation_init_b,
+            reactivation_init_policy=reactivation_init_policy,
             reactivation_occupancy_quantile_low=reactivation.get(
                 "occupancy_quantile_low"
             ),
@@ -409,73 +602,212 @@ def _build_recurrent_einet_from_structured_config(
             adaptive_initialization=bool(
                 implementation.get("adaptive_initialization", False)
             ),
+            adaptive_initialization_policy=str(
+                implementation.get(
+                    "adaptive_initialization_policy",
+                    "preserve_shunting_center",
+                )
+            ),
+            adaptive_target_conductance=float(
+                implementation.get("adaptive_target_conductance", 5.0)
+            ),
+            structured_connectivity=_to_plain_mapping(structured_connectivity),
+            structured_layer_idx=layer_idx,
+            ff_excitatory_pathway="ee",
+            ff_inhibitory_pathway="ie",
+            rec_excitatory_pathway="rec_ee",
+            rec_inhibitory_pathway="rec_ie",
+            synapse_types=synapse_types,
+            dynamics_mode=str(
+                dynamics.get("mode", dynamics.get("dynamics_mode", "rate"))
+            ),
+            spike_threshold=float(
+                dynamics.get("threshold", dynamics.get("spike_threshold", 1.0))
+            ),
+            spike_reset=float(dynamics.get("reset", dynamics.get("spike_reset", 0.0))),
+            spike_tau=float(dynamics.get("tau", dynamics.get("spike_tau", 20.0))),
+            spike_refractory_steps=int(
+                dynamics.get(
+                    "refractory_steps", dynamics.get("spike_refractory_steps", 0)
+                )
+            ),
+            spike_surrogate_beta=float(
+                dynamics.get(
+                    "surrogate_beta", dynamics.get("spike_surrogate_beta", 10.0)
+                )
+            ),
+            spike_readout=str(
+                dynamics.get("readout", dynamics.get("spike_readout", "spikes"))
+            ),
+            spike_readout_tau=float(
+                dynamics.get("readout_tau", dynamics.get("spike_readout_tau", 20.0))
+            ),
+            dendritic_spikes_enabled=bool(
+                dendritic_spikes.get(
+                    "enabled",
+                    dynamics.get("dendritic_spikes_enabled", False),
+                )
+            ),
+            dendritic_spike_mode=str(
+                dendritic_spikes.get(
+                    "mode",
+                    dynamics.get("dendritic_spike_mode", "plateau"),
+                )
+            ),
+            dendritic_spike_levels=dendritic_spikes.get(
+                "levels",
+                dynamics.get("dendritic_spike_levels", "non_soma"),
+            ),
+            dendritic_spike_threshold=float(
+                dendritic_spikes.get(
+                    "threshold",
+                    dynamics.get("dendritic_spike_threshold", 0.7),
+                )
+            ),
+            dendritic_spike_plateau_amplitude=float(
+                dendritic_spikes.get(
+                    "plateau_amplitude",
+                    dynamics.get("dendritic_spike_plateau_amplitude", 1.0),
+                )
+            ),
+            dendritic_spike_plateau_tau=float(
+                dendritic_spikes.get(
+                    "plateau_tau",
+                    dynamics.get("dendritic_spike_plateau_tau", 20.0),
+                )
+            ),
+            dendritic_spike_refractory_steps=int(
+                dendritic_spikes.get(
+                    "refractory_steps",
+                    dynamics.get("dendritic_spike_refractory_steps", 0),
+                )
+            ),
+            dendritic_spike_surrogate_beta=float(
+                dendritic_spikes.get(
+                    "surrogate_beta",
+                    dynamics.get("dendritic_spike_surrogate_beta", 10.0),
+                )
+            ),
+            dendritic_spike_propagation=str(
+                dendritic_spikes.get(
+                    "propagation",
+                    dynamics.get("dendritic_spike_propagation", "additive"),
+                )
+            ),
+            soma_feedback_enabled=bool(
+                soma_feedback.get(
+                    "enabled",
+                    dynamics.get("soma_feedback_enabled", False),
+                )
+            ),
+            soma_feedback_mode=str(
+                soma_feedback.get(
+                    "mode",
+                    dynamics.get("soma_feedback_mode", "additive"),
+                )
+            ),
+            soma_feedback_source=str(
+                soma_feedback.get(
+                    "source",
+                    dynamics.get("soma_feedback_source", "output"),
+                )
+            ),
+            soma_feedback_levels=soma_feedback.get(
+                "levels",
+                dynamics.get("soma_feedback_levels", "non_soma"),
+            ),
+            soma_feedback_strength=float(
+                soma_feedback.get(
+                    "strength",
+                    dynamics.get("soma_feedback_strength", 0.1),
+                )
+            ),
+            soma_feedback_learnable_strength=bool(
+                soma_feedback.get(
+                    "learnable_strength",
+                    dynamics.get("soma_feedback_learnable_strength", False),
+                )
+            ),
+            soma_feedback_per_level=bool(
+                soma_feedback.get(
+                    "per_level",
+                    dynamics.get("soma_feedback_per_level", True),
+                )
+            ),
+            soma_feedback_init_std=float(
+                soma_feedback.get(
+                    "init_std",
+                    dynamics.get("soma_feedback_init_std", 0.0),
+                )
+            ),
+            soma_feedback_reversal=float(
+                soma_feedback.get(
+                    "reversal",
+                    dynamics.get("soma_feedback_reversal", 1.0),
+                )
+            ),
+        )
+
+        inh_ff_excitatory_synapses = int(
+            _layer_value(
+                connectivity.get("ei_synapses_per_branch_per_layer", []),
+                layer_idx,
+                default=0,
+            )
+        )
+        inh_ff_inhibitory_synapses = int(
+            _layer_value(
+                connectivity.get("ii_synapses_per_branch_per_layer", []),
+                layer_idx,
+                default=0,
+            )
+        )
+        inh_rec_excitatory_synapses = int(_layer_value(rec_ei, layer_idx, default=0))
+        inh_rec_inhibitory_synapses = int(_layer_value(rec_ii, layer_idx, default=0))
+        build_inhibitory_population = requested_inhibitory_population and any(
+            value > 0
+            for value in (
+                inh_ff_excitatory_synapses,
+                inh_ff_inhibitory_synapses,
+                inh_rec_excitatory_synapses,
+                inh_rec_inhibitory_synapses,
+            )
         )
 
         inh_cfg = None
         if build_inhibitory_population:
-            inh_cfg = PopulationConfig(
+            inh_cfg = replace(
+                exc_cfg,
                 n_neurons=n_inh,
                 branch_factors=list(
                     architecture.get("inhibitory_branch_factors", [1]) or [1]
                 ),
-                ff_excitatory_synapses=int(
-                    _layer_value(
-                        connectivity.get("ei_synapses_per_branch_per_layer", []),
-                        layer_idx,
-                        default=0,
-                    )
-                ),
-                ff_inhibitory_synapses=int(
-                    _layer_value(
-                        connectivity.get("ii_synapses_per_branch_per_layer", []),
-                        layer_idx,
-                        default=0,
-                    )
-                ),
-                rec_excitatory_synapses=int(_layer_value(rec_ei, layer_idx, default=0)),
-                rec_inhibitory_synapses=int(_layer_value(rec_ii, layer_idx, default=0)),
-                topk_init_method=exc_cfg.topk_init_method,
-                topk_noise_level=exc_cfg.topk_noise_level,
-                topk_type=exc_cfg.topk_type,
-                topk_weight_norm_order=exc_cfg.topk_weight_norm_order,
-                topk_gamma=exc_cfg.topk_gamma,
-                topk_temperature=exc_cfg.topk_temperature,
-                topk_ultrafast=exc_cfg.topk_ultrafast,
-                topk_strategy=exc_cfg.topk_strategy,
-                weight_transform=exc_cfg.weight_transform,
-                use_shunting=exc_cfg.use_shunting,
-                use_additive_normalization=exc_cfg.use_additive_normalization,
-                allow_self_recurrence=exc_cfg.allow_self_recurrence,
-                reactivate=exc_cfg.reactivate,
-                reactivation_type=exc_cfg.reactivation_type,
-                reactivation_init_m=exc_cfg.reactivation_init_m,
-                reactivation_init_b=exc_cfg.reactivation_init_b,
-                reactivation_init_policy=exc_cfg.reactivation_init_policy,
-                reactivation_sigma_aware_k=exc_cfg.reactivation_sigma_aware_k,
-                reactivation_strategy=exc_cfg.reactivation_strategy,
-                blocklinear_strategy=exc_cfg.blocklinear_strategy,
-                level_taus=exc_cfg.level_taus,
-                tau_base=exc_cfg.tau_base,
-                tau_ratio=exc_cfg.tau_ratio,
-                learnable_tau=exc_cfg.learnable_tau,
-                epsilon=exc_cfg.epsilon,
-                somatic_synapses=exc_cfg.somatic_synapses,
-                dbl_init_method=exc_cfg.dbl_init_method,
-                efficient_blocklinear=exc_cfg.efficient_blocklinear,
-                print_hooks=exc_cfg.print_hooks,
-                excitatory_target_density=exc_cfg.excitatory_target_density,
-                inhibitory_target_density=exc_cfg.inhibitory_target_density,
-                use_noise=exc_cfg.use_noise,
-                sigma=exc_cfg.sigma,
-                rewiring_mode=exc_cfg.rewiring_mode,
-                rewire_frequency=exc_cfg.rewire_frequency,
-                synapses_per_branch=exc_cfg.synapses_per_branch,
-                freeze_excitatory_connectivity=exc_cfg.freeze_excitatory_connectivity,
-                freeze_inhibitory_connectivity=exc_cfg.freeze_inhibitory_connectivity,
-                init_method=exc_cfg.init_method,
-                weight_threshold=exc_cfg.weight_threshold,
-                adaptive_initialization=exc_cfg.adaptive_initialization,
+                ff_excitatory_synapses=inh_ff_excitatory_synapses,
+                ff_inhibitory_synapses=inh_ff_inhibitory_synapses,
+                rec_excitatory_synapses=inh_rec_excitatory_synapses,
+                rec_inhibitory_synapses=inh_rec_inhibitory_synapses,
+                structured_layer_idx=layer_idx,
+                ff_excitatory_pathway="ei",
+                ff_inhibitory_pathway="ii",
+                rec_excitatory_pathway="rec_ei",
+                rec_inhibitory_pathway="rec_ii",
             )
+
+        rec_enabled = (
+            rec_enabled
+            or has_spiking_dynamics
+            or exc_cfg.dendritic_spikes_enabled
+            or has_synapse_types
+            or exc_cfg.soma_feedback_enabled
+            or (
+                inh_cfg is not None
+                and (
+                    inh_cfg.dendritic_spikes_enabled
+                    or has_synapse_types
+                    or inh_cfg.soma_feedback_enabled
+                )
+            )
+        )
 
         direct_ff_inh = False
         if input_mode == 1:
@@ -497,6 +829,7 @@ def _build_recurrent_einet_from_structured_config(
     transfer_params = dict(transfer)
     transfer_params.update(_to_plain_mapping(recurrent_cfg.get("transfer", {})))
     transfer_params.update(_to_plain_mapping(recurrent_cfg.get("transfer_params", {})))
+    transfer_params = normalize_transfer_config(transfer_params)
 
     # input_projection_dims: new location first, old fallback
     raw_ipd = architecture.get(
@@ -522,6 +855,462 @@ def _build_recurrent_einet_from_structured_config(
     return EINetwork(cfg)
 
 
+ArchitectureBuilder = Callable[
+    [str, Union[dict[str, Any], DictConfig], Optional[int], Optional[int]],
+    nn.Module,
+]
+
+
+def _build_unified_ei_architecture(
+    type: str,
+    parameters: Union[dict[str, Any], DictConfig],
+    input_dim: Optional[int],
+    suffix_input_dim: Optional[int],
+) -> nn.Module:
+    """Build the unified recurrent E/I architecture family."""
+    del suffix_input_dim
+    from dendritic_modeling.networks.architectures.recurrent import (
+        EILayerConfig,
+        EINetwork,
+        EINetworkConfig,
+        PopulationConfig,
+    )
+
+    if input_dim is None:
+        raise ValueError(
+            f"input_dim required when creating unified E-I architecture (type='{type}')"
+        )
+
+    raw_params = _to_plain_mapping(parameters)
+    unified_cfg = raw_params.get("unified_ei", raw_params.get("ei_unified", {}))
+    if not unified_cfg and "layers" in raw_params:
+        # Allow passing EINetworkConfig-shaped dict directly.
+        unified_cfg = raw_params
+
+    if not isinstance(unified_cfg, dict):
+        raise ValueError(
+            "Unified E-I config must be a mapping, got "
+            f"{unified_cfg.__class__.__name__}"
+        )
+
+    unified_cfg = canonicalize_unified_ei_config(unified_cfg)
+    unified_cfg["input_dim"] = input_dim
+
+    alias_overrides = get_unified_ei_alias_overrides(type)
+    layers_cfg = []
+    for layer_idx, layer in enumerate(unified_cfg.get("layers", [])):
+        if isinstance(layer, EILayerConfig):
+            if not alias_overrides:
+                layers_cfg.append(layer)
+                continue
+            layer = asdict(layer)
+        if not isinstance(layer, dict):
+            raise ValueError(
+                "Each unified E-I layer config must be a dict or EILayerConfig"
+            )
+        layer = dict(layer)
+        exc = layer.get("excitatory")
+        inh = layer.get("inhibitory")
+        if exc is not None and not isinstance(exc, dict):
+            exc_plain = _to_plain_mapping(exc)
+            if exc_plain:
+                exc = exc_plain
+        if inh is not None and not isinstance(inh, dict):
+            inh_plain = _to_plain_mapping(inh)
+            if inh_plain:
+                inh = inh_plain
+        if isinstance(exc, dict):
+            exc = _apply_population_alias_overrides(
+                exc,
+                alias_overrides,
+                core_type=type,
+                context=f"model.core.unified_ei.layers[{layer_idx}].excitatory",
+            )
+            layer["excitatory"] = PopulationConfig(**exc)
+        if isinstance(inh, dict):
+            inh = _apply_population_alias_overrides(
+                inh,
+                alias_overrides,
+                core_type=type,
+                context=f"model.core.unified_ei.layers[{layer_idx}].inhibitory",
+            )
+            layer["inhibitory"] = PopulationConfig(**inh)
+        layers_cfg.append(EILayerConfig(**layer))
+
+    if not layers_cfg:
+        raise ValueError(
+            "Unified E-I architecture requires at least one layer in unified_ei.layers"
+        )
+
+    unified_cfg["layers"] = layers_cfg
+    return EINetwork(EINetworkConfig(**unified_cfg))
+
+
+def _build_baseline_rnn_architecture(
+    type: str,
+    parameters: Union[dict[str, Any], DictConfig],
+    input_dim: Optional[int],
+    suffix_input_dim: Optional[int],
+) -> nn.Module:
+    """Build baseline GRU/LSTM/vanilla RNN cores."""
+    del suffix_input_dim
+    from dendritic_modeling.networks.architectures.recurrent import (
+        BaselineRNN,
+        BaselineRNNConfig,
+    )
+
+    if input_dim is None:
+        raise ValueError(
+            f"input_dim required when creating baseline RNN (type='{type}')"
+        )
+
+    raw_params = _to_plain_mapping(parameters)
+    baseline_cfg = raw_params.get("baseline_rnn", raw_params)
+    if not isinstance(baseline_cfg, dict):
+        baseline_cfg = {}
+    baseline_cfg = dict(baseline_cfg)
+    baseline_cfg["cell_type"] = _BASELINE_RNN_TYPES[type]
+    baseline_cfg["input_dim"] = input_dim
+    return BaselineRNN(BaselineRNNConfig(**baseline_cfg))
+
+
+def _build_population_network_architecture(
+    type: str,
+    parameters: Union[dict[str, Any], DictConfig],
+    input_dim: Optional[int],
+    suffix_input_dim: Optional[int],
+) -> nn.Module:
+    """Build canonical population-network layers."""
+    del suffix_input_dim
+    from dendritic_modeling.networks.architectures.recurrent import (
+        PopulationLayerConfig,
+        PopulationNetwork,
+        PopulationNetworkConfig,
+    )
+
+    if input_dim is None:
+        raise ValueError(
+            f"input_dim required when creating population-network architecture (type='{type}')"
+        )
+
+    raw_params = _to_plain_mapping(parameters)
+    mp_cfg = raw_params.get("population_network") or raw_params
+    if not isinstance(mp_cfg, dict):
+        mp_cfg = {}
+    mp_cfg = dict(mp_cfg)
+    if "transfer_params" in mp_cfg:
+        mp_cfg["transfer_params"] = normalize_transfer_config(mp_cfg["transfer_params"])
+    mp_cfg["input_dim"] = input_dim
+    mp_cfg["layers"] = [
+        (
+            layer
+            if isinstance(layer, PopulationLayerConfig)
+            else PopulationLayerConfig(**layer)
+        )
+        for layer in mp_cfg.get("layers", [])
+    ]
+    return PopulationNetwork(PopulationNetworkConfig(**mp_cfg))
+
+
+def _build_spatial_dendritic_architecture(
+    type: str,
+    parameters: Union[dict[str, Any], DictConfig],
+    input_dim: Optional[int],
+    suffix_input_dim: Optional[int],
+) -> nn.Module:
+    """Build flattened spatial dendritic tensor-map cores."""
+    from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.spatial_dendritic import (
+        HierarchicalDendriticTensorMap,
+    )
+
+    if input_dim is None:
+        raise ValueError(
+            f"input_dim required when creating spatial dendritic core (type='{type}')"
+        )
+
+    return HierarchicalDendriticTensorMap(
+        config=parameters,
+        input_dim=input_dim,
+        suffix_input_dim=suffix_input_dim,
+    )
+
+
+def _build_spatial_dendritic_conv_architecture(
+    type: str,
+    parameters: Union[dict[str, Any], DictConfig],
+    input_dim: Optional[int],
+    suffix_input_dim: Optional[int],
+) -> nn.Module:
+    """Build shared-patch spatial dendritic convolution cores."""
+    del suffix_input_dim
+    from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.spatial_dendritic import (
+        HierarchicalDendriticConv,
+    )
+
+    raw_params = _to_plain_mapping(parameters)
+    spatial_cfg = _to_plain_mapping(raw_params.get("spatial", {}))
+    kernel_size = spatial_cfg.get("kernel_size", 3)
+    stride = spatial_cfg.get("stride", 1)
+    padding = spatial_cfg.get("padding", 0)
+
+    if input_dim is None:
+        raise ValueError(
+            f"input_dim required when creating spatial dendritic conv (type='{type}')"
+        )
+
+    # input_dim here is the number of input channels (C_in). For spatial
+    # cores, input_dim = prefix_output_spec.channels.
+    return HierarchicalDendriticConv(
+        config=parameters,
+        in_channels=input_dim,
+        kernel_size=kernel_size,
+        stride=stride,
+        padding=padding,
+    )
+
+
+def _build_einet_architecture(
+    type: str,
+    parameters: Union[dict[str, Any], DictConfig],
+    input_dim: Optional[int],
+    suffix_input_dim: Optional[int],
+) -> nn.Module:
+    """Build structured feedforward/recurrent E/I architectures."""
+    del suffix_input_dim
+    raw_params = _to_plain_mapping(parameters)
+    if not ("architecture" in raw_params and "connectivity" in raw_params):
+        raise ValueError(
+            "EINet now requires structured config with 'architecture', "
+            "'connectivity', etc. sections. Flat parameters are no longer supported."
+        )
+    if input_dim is None:
+        raise ValueError("input_dim required when passing structured config to EINet")
+
+    recurrent_einet = _build_recurrent_einet_from_structured_config(
+        type=type, raw_params=raw_params, input_dim=input_dim
+    )
+    if recurrent_einet is not None:
+        return recurrent_einet
+
+    synapse_mode: Optional[str] = None
+    use_shunting: Optional[bool] = None
+    weight_transform: Optional[str] = None
+    flatten_dendrites = False
+    core_morphology_overrides = get_core_morphology_alias_overrides(type)
+
+    if "use_shunting" in core_morphology_overrides:
+        use_shunting = bool(core_morphology_overrides["use_shunting"])
+
+    if "flat" in type:
+        flatten_dendrites = True
+
+    if "signed" in type:
+        weight_transform = "identity"
+        use_shunting = False
+
+    if "mlp" in type:
+        synapse_mode = "mlp"
+        weight_transform = "identity"
+        use_shunting = False
+
+    params_for_build = _to_plain_mapping(parameters)
+    params_for_build.setdefault("type", type)
+
+    return ConfigurableEINetwork(
+        config=params_for_build,
+        input_dim=input_dim,
+        synapse_mode=synapse_mode,
+        use_shunting=use_shunting,
+        weight_transform=weight_transform,
+        flatten_dendrites=flatten_dendrites,
+    )
+
+
+def _build_point_mlp_architecture(
+    type: str,
+    parameters: Union[dict[str, Any], DictConfig],
+    input_dim: Optional[int],
+    suffix_input_dim: Optional[int],
+) -> nn.Module:
+    """Build the point-neuron MLP baseline from structured E/I config."""
+    del type, suffix_input_dim
+    raw_params = _to_plain_mapping(parameters)
+    if not ("architecture" in raw_params and "connectivity" in raw_params):
+        raise ValueError(
+            "point_mlp requires structured architecture/connectivity config"
+        )
+    if input_dim is None:
+        raise ValueError(
+            "input_dim required when passing structured config to point_mlp"
+        )
+
+    from dendritic_modeling.scripts.script_utils.config_utils import (
+        prepare_ei_network_params,
+    )
+
+    params = prepare_ei_network_params(raw_params, input_dim)
+    return PointMatchedParamMLP(**params)
+
+
+def _ensure_flat_parameters(
+    type: str,
+    parameters: Union[dict[str, Any], DictConfig],
+) -> dict[str, Any]:
+    if isinstance(parameters, DictConfig):
+        raise ValueError(
+            f"Architecture {type} expects flat parameters, not structured config"
+        )
+    return parameters
+
+
+def _build_flat_mlp_architecture(
+    type: str,
+    parameters: Union[dict[str, Any], DictConfig],
+    input_dim: Optional[int],
+    suffix_input_dim: Optional[int],
+) -> nn.Module:
+    """Build flat MLP, or point-MLP when passed structured config."""
+    del suffix_input_dim
+    raw_params = _to_plain_mapping(parameters)
+    if "architecture" in raw_params and "connectivity" in raw_params:
+        return _build_point_mlp_architecture(type, parameters, input_dim, None)
+    return MLP(**_ensure_flat_parameters(type, parameters))
+
+
+def _build_flat_architecture(
+    cls: type[nn.Module],
+) -> ArchitectureBuilder:
+    def _builder(
+        type: str,
+        parameters: Union[dict[str, Any], DictConfig],
+        input_dim: Optional[int],
+        suffix_input_dim: Optional[int],
+    ) -> nn.Module:
+        del input_dim, suffix_input_dim
+        return cls(**_ensure_flat_parameters(type, parameters))
+
+    return _builder
+
+
+def _build_total_param_mlp(
+    type: str,
+    parameters: Union[dict[str, Any], DictConfig],
+    input_dim: Optional[int],
+    suffix_input_dim: Optional[int],
+) -> nn.Module:
+    del type, suffix_input_dim
+    return MatchedTotalParamMLP(parameters, input_dim)
+
+
+def _build_active_param_mlp(
+    type: str,
+    parameters: Union[dict[str, Any], DictConfig],
+    input_dim: Optional[int],
+    suffix_input_dim: Optional[int],
+) -> nn.Module:
+    del type, suffix_input_dim
+    return MatchedActiveParamMLP(parameters, input_dim)
+
+
+def _build_sparse_structured_mlp(
+    type: str,
+    parameters: Union[dict[str, Any], DictConfig],
+    input_dim: Optional[int],
+    suffix_input_dim: Optional[int],
+) -> nn.Module:
+    del type, suffix_input_dim
+    return SparseStructuredMLP(parameters, input_dim)
+
+
+def _build_sparse_structured_flat_mlp(
+    type: str,
+    parameters: Union[dict[str, Any], DictConfig],
+    input_dim: Optional[int],
+    suffix_input_dim: Optional[int],
+) -> nn.Module:
+    del type, suffix_input_dim
+    return SparseStructuredMLP(parameters, input_dim, flatten_dendrites=True)
+
+
+def _build_pathway_router(
+    type: str,
+    parameters: Union[dict[str, Any], DictConfig],
+    input_dim: Optional[int],
+    suffix_input_dim: Optional[int],
+) -> nn.Module:
+    del input_dim, suffix_input_dim
+    return PathwayRouter(**_ensure_flat_parameters(type, parameters))
+
+
+def _build_identity(
+    type: str,
+    parameters: Union[dict[str, Any], DictConfig],
+    input_dim: Optional[int],
+    suffix_input_dim: Optional[int],
+) -> nn.Module:
+    del input_dim, suffix_input_dim
+    return Identity(**_ensure_flat_parameters(type, parameters))
+
+
+def _build_builtin_architecture_registry() -> dict[str, ArchitectureBuilder]:
+    builders: dict[str, ArchitectureBuilder] = {}
+    builders.update(dict.fromkeys(_UNIFIED_EI_TYPES, _build_unified_ei_architecture))
+    builders.update(
+        dict.fromkeys(_BASELINE_RNN_TYPES, _build_baseline_rnn_architecture)
+    )
+    builders.update(
+        dict.fromkeys(_POPULATION_NETWORK_TYPES, _build_population_network_architecture)
+    )
+    builders.update(
+        dict.fromkeys(_SPATIAL_DENDRITIC_TYPES, _build_spatial_dendritic_architecture)
+    )
+    builders.update(
+        dict.fromkeys(
+            _SPATIAL_DENDRITIC_CONV_TYPES, _build_spatial_dendritic_conv_architecture
+        )
+    )
+    builders.update(dict.fromkeys(_EINET_TYPES, _build_einet_architecture))
+    builders.update(
+        {
+            "point_mlp": _build_point_mlp_architecture,
+            "mlp": _build_flat_mlp_architecture,
+            "total_param_mlp": _build_total_param_mlp,
+            "active_param_mlp": _build_active_param_mlp,
+            "ss_mlp": _build_sparse_structured_mlp,
+            "ss_mlp_flat": _build_sparse_structured_flat_mlp,
+            "alexnet": _build_flat_architecture(AlexNet),
+            "cnn": _build_flat_architecture(CNNDownsample),
+            "cnn_down": _build_flat_architecture(CNNDownsample),
+            "cnndownsample": _build_flat_architecture(CNNDownsample),
+            "cnn_downsample": _build_flat_architecture(CNNDownsample),
+            "cnn_up": _build_flat_architecture(CNNUpsample),
+            "cnnupsample": _build_flat_architecture(CNNUpsample),
+            "cnn_upsample": _build_flat_architecture(CNNUpsample),
+            "effectivematchedparammlp": _build_flat_architecture(
+                EffectiveMatchedParamMLP
+            ),
+            "mlpautoencoder": _build_flat_architecture(MLPAutoencoder),
+            "cnnautoencoder": _build_flat_architecture(CNNAutoencoder),
+            "mlpvariationalautoencoder": _build_flat_architecture(
+                MLPVariationalAutoencoder
+            ),
+            "cnnvariationalautoencoder": _build_flat_architecture(
+                CNNVariationalAutoencoder
+            ),
+            "pathway_router": _build_pathway_router,
+            "router": _build_pathway_router,
+            "identity": _build_identity,
+            "none": _build_identity,
+        }
+    )
+    return builders
+
+
+_BUILTIN_ARCHITECTURE_BUILDERS: dict[str, ArchitectureBuilder] = (
+    _build_builtin_architecture_registry()
+)
+
+
 def get_architecture(
     type: str,
     parameters: Union[dict[str, Any], DictConfig],
@@ -544,330 +1333,22 @@ def get_architecture(
         Initialized network module
     """
     type = (type or "").lower()
-
-    # ------------------------------------------------------------------
-    # Unified E-I architecture (opt-in, isolated from legacy code paths)
-    # ------------------------------------------------------------------
-    if type in _UNIFIED_EI_TYPES:
-        from dendritic_modeling.networks.architectures.recurrent import (
-            EILayerConfig,
-            EINetwork,
-            EINetworkConfig,
-            PopulationConfig,
+    if type in {"ei_net", "unified_einet"}:
+        logger.warning(
+            "Architecture type %r is deprecated; use 'unified_ei' instead.",
+            type,
         )
+    builder = _BUILTIN_ARCHITECTURE_BUILDERS.get(type)
+    if builder is not None:
+        return builder(type, parameters, input_dim, suffix_input_dim)
 
-        if input_dim is None:
-            raise ValueError(
-                f"input_dim required when creating unified E-I architecture (type='{type}')"
-            )
+    registered = build_registered_architecture(
+        type,
+        parameters,
+        input_dim=input_dim,
+        suffix_input_dim=suffix_input_dim,
+    )
+    if registered is not None:
+        return registered
 
-        raw_params = _to_plain_mapping(parameters)
-        unified_cfg = raw_params.get("unified_ei", raw_params.get("ei_unified", {}))
-        if not unified_cfg and "layers" in raw_params:
-            # Allow passing EINetworkConfig-shaped dict directly.
-            unified_cfg = raw_params
-
-        if not isinstance(unified_cfg, dict):
-            raise ValueError(
-                "Unified E-I config must be a mapping, got "
-                f"{unified_cfg.__class__.__name__}"
-            )
-
-        unified_cfg = dict(unified_cfg)
-        unified_cfg["input_dim"] = input_dim
-
-        # Resolve recurrent-type aliases to explicit population flags. When
-        # `type` is `ei_unified` / `unified_ei` / `ei_net`, this is a no-op;
-        # otherwise it sets use_shunting / use_additive_normalization / flat
-        # branch_factors to match the alias. Explicit values in the YAML
-        # are preserved unless they conflict with the alias, in which case
-        # the alias wins (matching the BP `canonicalize_model_core_flags`
-        # contract and producing a self-consistent config).
-        alias_overrides = _UNIFIED_EI_ALIAS_OVERRIDES.get(type, {})
-
-        layers_cfg = []
-        for layer in unified_cfg.get("layers", []):
-            if isinstance(layer, EILayerConfig):
-                layers_cfg.append(layer)
-                continue
-            if not isinstance(layer, dict):
-                raise ValueError(
-                    "Each unified E-I layer config must be a dict or EILayerConfig"
-                )
-            layer = dict(layer)
-            exc = layer.get("excitatory")
-            inh = layer.get("inhibitory")
-            if isinstance(exc, dict):
-                if alias_overrides:
-                    exc = dict(exc)
-                    for k, v in alias_overrides.items():
-                        # `branch_factors` override only applies when the
-                        # config did not specify its own tree (otherwise we
-                        # would silently erase a user-provided hierarchy).
-                        if k == "branch_factors" and exc.get("branch_factors"):
-                            continue
-                        exc[k] = v
-                # Warn about the additive-init-bug trap: `use_shunting=False`
-                # combined with the analytical init policy hits the buggy
-                # `E_Vinf = E_g_exc - E_g_inh + 0.5` branch on non-leaf
-                # layers and places the gate center above the useful
-                # voltage range. Users should switch to the
-                # `rnn_dendritic_additive` alias (which sets a safe
-                # fixed-init) or explicitly set `reactivation_init_policy`
-                # to "fixed" with a sensible `reactivation_init_b`.
-                if not bool(exc.get("use_shunting", True)):
-                    policy = str(
-                        exc.get("reactivation_init_policy", "analytical")
-                    ).lower()
-                    if policy in {
-                        "analytical",
-                        "auto",
-                        "quantile",
-                        "occupancy_quantile",
-                    }:
-                        import warnings
-
-                        warnings.warn(
-                            "Additive-integration ablation with "
-                            f"reactivation_init_policy='{policy}' triggers a known "
-                            "non-leaf gate-center bug (E[V_inf] ~ 1.02). Prefer "
-                            "core.type='rnn_dendritic_additive' (or 'fixed' policy "
-                            "with b=0.0) for a correctly-initialised additive path.",
-                            RuntimeWarning,
-                            stacklevel=2,
-                        )
-                layer["excitatory"] = PopulationConfig(**exc)
-            if isinstance(inh, dict):
-                layer["inhibitory"] = PopulationConfig(**inh)
-            layers_cfg.append(EILayerConfig(**layer))
-
-        if not layers_cfg:
-            raise ValueError(
-                "Unified E-I architecture requires at least one layer in unified_ei.layers"
-            )
-
-        unified_cfg["layers"] = layers_cfg
-        return EINetwork(EINetworkConfig(**unified_cfg))
-
-    # ------------------------------------------------------------------
-    # Baseline RNN models (GRU, LSTM, Vanilla RNN)
-    # ------------------------------------------------------------------
-    if type in _BASELINE_RNN_TYPES:
-        from dendritic_modeling.networks.architectures.recurrent import (
-            BaselineRNN,
-            BaselineRNNConfig,
-        )
-
-        if input_dim is None:
-            raise ValueError(
-                f"input_dim required when creating baseline RNN (type='{type}')"
-            )
-
-        raw_params = _to_plain_mapping(parameters)
-        baseline_cfg = raw_params.get("baseline_rnn", raw_params)
-        if not isinstance(baseline_cfg, dict):
-            baseline_cfg = {}
-        baseline_cfg = dict(baseline_cfg)
-        baseline_cfg["cell_type"] = _BASELINE_RNN_TYPES[type]
-        baseline_cfg["input_dim"] = input_dim
-        return BaselineRNN(BaselineRNNConfig(**baseline_cfg))
-
-    # ------------------------------------------------------------------
-    # Legacy recurrent type aliases (removed -- use unified E-I instead)
-    # ------------------------------------------------------------------
-    if type in ("dendritic_rnn", "dendrnn"):
-        raise ValueError(
-            f"Architecture type '{type}' has been removed. "
-            f"Use 'ei_unified' (or 'unified_ei', 'ei_net') with the new "
-            f"EINetworkConfig format instead."
-        )
-
-    # ------------------------------------------------------------------
-    # Spatial dendritic cores (flatten → EINet → project)
-    # ------------------------------------------------------------------
-    if type in _SPATIAL_DENDRITIC_TYPES:
-        from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.spatial_dendritic import (
-            HierarchicalDendriticTensorMap,
-        )
-
-        if input_dim is None:
-            raise ValueError(
-                f"input_dim required when creating spatial dendritic core (type='{type}')"
-            )
-
-        return HierarchicalDendriticTensorMap(
-            config=parameters,
-            input_dim=input_dim,
-            suffix_input_dim=suffix_input_dim,
-        )
-
-    # ------------------------------------------------------------------
-    # Spatial dendritic conv (unfold → shared DendriNet → spatial output)
-    # ------------------------------------------------------------------
-    if type in _SPATIAL_DENDRITIC_CONV_TYPES:
-        from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic.spatial_dendritic import (
-            HierarchicalDendriticConv,
-        )
-
-        raw_params = _to_plain_mapping(parameters)
-        spatial_cfg = _to_plain_mapping(raw_params.get("spatial", {}))
-        kernel_size = spatial_cfg.get("kernel_size", 3)
-        stride = spatial_cfg.get("stride", 1)
-        padding = spatial_cfg.get("padding", 0)
-
-        if input_dim is None:
-            raise ValueError(
-                f"input_dim required when creating spatial dendritic conv (type='{type}')"
-            )
-
-        # input_dim here is the number of input channels (C_in).
-        # For spatial cores, input_dim = prefix_output_spec.channels.
-        return HierarchicalDendriticConv(
-            config=parameters,
-            in_channels=input_dim,
-            kernel_size=kernel_size,
-            stride=stride,
-            padding=padding,
-        )
-
-    # ------------------------------------------------------------------
-    # EINet variants (require structured config)
-    # ------------------------------------------------------------------
-    if type in _EINET_TYPES:
-        if not (
-            isinstance(parameters, DictConfig)
-            or (
-                isinstance(parameters, dict)
-                and "architecture" in parameters
-                and "connectivity" in parameters
-            )
-        ):
-            raise ValueError(
-                "EINet now requires structured config with 'architecture', 'connectivity', etc. "
-                "sections. Flat parameters are no longer supported."
-            )
-        if input_dim is None:
-            raise ValueError(
-                "input_dim required when passing structured config to EINet"
-            )
-
-        raw_params = _to_plain_mapping(parameters)
-        recurrent_einet = _build_recurrent_einet_from_structured_config(
-            type=type, raw_params=raw_params, input_dim=input_dim
-        )
-        if recurrent_einet is not None:
-            return recurrent_einet
-
-        # Derive settings from type name using string matching
-        synapse_mode: Optional[str] = None
-        use_shunting: Optional[bool] = None
-        weight_transform: Optional[str] = None
-        flatten_dendrites: bool = False
-
-        if "shunting" in type:
-            use_shunting = True
-        elif "additive" in type:
-            use_shunting = False
-
-        if "flat" in type:
-            flatten_dendrites = True
-
-        if "mlp" in type:
-            synapse_mode = "mlp"
-            weight_transform = "identity"
-            use_shunting = False
-
-        params_for_build = _to_plain_mapping(parameters)
-        params_for_build.setdefault("type", type)
-
-        return ConfigurableEINetwork(
-            config=params_for_build,
-            input_dim=input_dim,
-            synapse_mode=synapse_mode,
-            use_shunting=use_shunting,
-            weight_transform=weight_transform,
-            flatten_dendrites=flatten_dendrites,
-        )
-
-    # ------------------------------------------------------------------
-    # Point-neuron MLP baseline (parameter-matched, structured config)
-    # ------------------------------------------------------------------
-    if type in ["point_mlp", "mlp"] and (
-        isinstance(parameters, DictConfig)
-        or (
-            isinstance(parameters, dict)
-            and "architecture" in parameters
-            and "connectivity" in parameters
-        )
-    ):
-        if input_dim is None:
-            raise ValueError("input_dim required when passing structured config to mlp")
-
-        from dendritic_modeling.scripts.script_utils.config_utils import (
-            prepare_ei_network_params,
-        )
-
-        params = prepare_ei_network_params(parameters, input_dim)
-        return PointMatchedParamMLP(**params)
-
-    # ------------------------------------------------------------------
-    # MR-style structured-config MLP baselines
-    # ------------------------------------------------------------------
-    if type in ["matchedtotalparammlp", "total_param_mlp"]:
-        if type == "matchedtotalparammlp":
-            warnings.warn(
-                "Architecture type 'matchedtotalparammlp' is deprecated; use "
-                "'total_param_mlp' instead.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-        return MatchedTotalParamMLP(parameters, input_dim)
-
-    if type in ["matchedactiveparammlp", "active_param_mlp"]:
-        if type == "matchedactiveparammlp":
-            warnings.warn(
-                "Architecture type 'matchedactiveparammlp' is deprecated; use "
-                "'active_param_mlp' instead.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-        return MatchedActiveParamMLP(parameters, input_dim)
-
-    if type == "ss_mlp":
-        return SparseStructuredMLP(parameters, input_dim)
-
-    if type == "ss_mlp_flat":
-        return SparseStructuredMLP(parameters, input_dim, flatten_dendrites=True)
-
-    # ------------------------------------------------------------------
-    # All other architectures expect flat parameters
-    # ------------------------------------------------------------------
-    if isinstance(parameters, DictConfig):
-        raise ValueError(
-            f"Architecture {type} expects flat parameters, not structured config"
-        )
-
-    if type == "alexnet":
-        return AlexNet(**parameters)
-    elif type in ["cnn", "cnn_down", "cnndownsample", "cnn_downsample"]:
-        return CNNDownsample(**parameters)
-    elif type in ["cnn_up", "cnnupsample", "cnn_upsample"]:
-        return CNNUpsample(**parameters)
-    elif type == "mlp":
-        return MLP(**parameters)
-    elif type == "effectivematchedparammlp":
-        return EffectiveMatchedParamMLP(**parameters)
-    elif type == "mlpautoencoder":
-        return MLPAutoencoder(**parameters)
-    elif type == "cnnautoencoder":
-        return CNNAutoencoder(**parameters)
-    elif type == "mlpvariationalautoencoder":
-        return MLPVariationalAutoencoder(**parameters)
-    elif type == "cnnvariationalautoencoder":
-        return CNNVariationalAutoencoder(**parameters)
-    elif type in ["pathway_router", "router"]:
-        return PathwayRouter(**parameters)
-    elif type in ["identity", "none", None]:
-        return Identity(**parameters)
-    else:
-        raise ValueError(f"Invalid architecture type: {type}")
+    raise ValueError(f"Invalid architecture type: {type}")

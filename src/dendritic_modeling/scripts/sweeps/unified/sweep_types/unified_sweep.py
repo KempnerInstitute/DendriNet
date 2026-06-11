@@ -20,7 +20,7 @@ from copy import deepcopy
 from pathlib import Path
 
 import numpy as np
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import DictConfig, ListConfig, OmegaConf
 
 # Setup module path (so `import dendritic_modeling` works when run as a script)
 # File is: <repo>/src/dendritic_modeling/scripts/sweeps/unified/sweep_types/unified_sweep.py
@@ -96,6 +96,48 @@ class UnifiedSweepGenerator(BaseSweepGenerator):
 
     def __init__(self):
         super().__init__("unified")
+
+    @staticmethod
+    def _dot_path_index(part: str, full_key: str) -> int:
+        if not str(part).isdigit():
+            raise ValueError(
+                f"Sweep path {full_key!r} enters a list but {part!r} is not "
+                "a non-negative integer index."
+            )
+        return int(part)
+
+    @classmethod
+    def _set_by_dot_path(cls, config: DictConfig, key: str, value) -> None:
+        """Set a dot-path value, supporting numeric indices inside list nodes."""
+        parts = str(key).split(".")
+        if not parts or any(part == "" for part in parts):
+            raise ValueError(f"Invalid empty component in sweep parameter {key!r}")
+
+        target = config
+        for idx, part in enumerate(parts[:-1]):
+            next_part = parts[idx + 1]
+            if isinstance(target, (list, ListConfig)):
+                list_idx = cls._dot_path_index(part, key)
+                if list_idx >= len(target):
+                    raise IndexError(
+                        f"Sweep path {key!r} index {list_idx} is out of range "
+                        f"for list component {parts[:idx]!r}"
+                    )
+                target = target[list_idx]
+                continue
+
+            if part not in target or target[part] is None:
+                target[part] = [] if next_part.isdigit() else {}
+            target = target[part]
+
+        last = parts[-1]
+        if isinstance(target, (list, ListConfig)):
+            list_idx = cls._dot_path_index(last, key)
+            if list_idx >= len(target):
+                raise IndexError(f"Sweep path {key!r} index {list_idx} is out of range")
+            target[list_idx] = value
+        else:
+            target[last] = value
 
     def _warn_if_param_group_lr_axis_is_effectively_noop(
         self, sweep_params: DictConfig, base_train_config: DictConfig
@@ -486,16 +528,36 @@ class UnifiedSweepGenerator(BaseSweepGenerator):
             # Add as a single parameter that will be unpacked later
             param_values["_branch_config"] = branch_configs
 
-        # Handle EI filtering if EI parameters are present
-        # Support both old and new parameter paths
+        # Handle EI filtering if EI parameters are present. Support legacy
+        # E/I paths plus the canonical population-network defaults path.
         ee_param_old = "model.core_network.parameters.ee_synapses_per_branch_per_layer"
         ie_param_old = "model.core_network.parameters.ie_synapses_per_branch_per_layer"
         ee_param_new = "model.core.connectivity.ee_synapses_per_branch_per_layer"
         ie_param_new = "model.core.connectivity.ie_synapses_per_branch_per_layer"
+        ee_param_population = next(
+            (
+                key
+                for key in param_values
+                if key.endswith(".population_defaults.ff_excitatory_synapses")
+            ),
+            None,
+        )
+        ie_param_population = next(
+            (
+                key
+                for key in param_values
+                if key.endswith(".population_defaults.ff_inhibitory_synapses")
+            ),
+            None,
+        )
 
         # Determine which parameter format is being used
-        ee_param = ee_param_new if ee_param_new in param_values else ee_param_old
-        ie_param = ie_param_new if ie_param_new in param_values else ie_param_old
+        if ee_param_population is not None and ie_param_population is not None:
+            ee_param = ee_param_population
+            ie_param = ie_param_population
+        else:
+            ee_param = ee_param_new if ee_param_new in param_values else ee_param_old
+            ie_param = ie_param_new if ie_param_new in param_values else ie_param_old
 
         # Apply EI filtering if EI parameters present AND filtering mode specified
         if (
@@ -524,7 +586,8 @@ class UnifiedSweepGenerator(BaseSweepGenerator):
             del param_values[ie_param]
             # Add as a special paired parameter
             param_values["_ei_config"] = [
-                {"ee": combo[0], "ie": combo[1]} for combo in filtered_combos
+                {"ee": combo[0], "ie": combo[1], "ee_key": ee_param, "ie_key": ie_param}
+                for combo in filtered_combos
             ]
 
         # Generate cartesian product of all sweep params
@@ -556,25 +619,40 @@ class UnifiedSweepGenerator(BaseSweepGenerator):
                         if "model" not in new_config:
                             new_config["model"] = {}
 
-                        # Support both old and new config structures
-                        if base_config.get("base_config"):
-                            # New structure - branch factors are in model.core.architecture
+                        branches = val.get("dendrite_branches_per_layer")
+                        depth = val.get("dendrite_tree_depth")
+                        # Allow either a scalar (uniform branches) or an
+                        # explicit per-level list.
+                        if isinstance(branches, (int, np.integer)):
+                            if depth is None:
+                                branches_list = [int(branches)]
+                            else:
+                                branches_list = [int(branches)] * int(depth)
+                        else:
+                            branches_list = branches
+
+                        core_cfg = new_config.model.get("core", {})
+                        if (
+                            isinstance(core_cfg, (dict, DictConfig))
+                            and core_cfg.get("type") == "population_network"
+                        ):
+                            layers = core_cfg.get("population_network", {}).get(
+                                "layers", []
+                            )
+                            for layer in layers:
+                                for population in layer.get("populations", []):
+                                    polarity = str(
+                                        population.get("polarity", "excitatory")
+                                    ).lower()
+                                    if polarity == "excitatory":
+                                        population["branch_factors"] = branches_list
+                        elif base_config.get("base_config"):
+                            # Structured E/I config - branch factors live in
+                            # model.core.architecture.
                             if "core" not in new_config.model:
                                 new_config.model["core"] = {}
                             if "architecture" not in new_config.model.core:
                                 new_config.model.core["architecture"] = {}
-                            # Map to the new structure's branch factors
-                            branches = val.get("dendrite_branches_per_layer")
-                            depth = val.get("dendrite_tree_depth")
-                            # Allow either a scalar (uniform branches) or an explicit per-layer list
-                            if isinstance(branches, (int, np.integer)):
-                                if depth is None:
-                                    branches_list = [int(branches)]
-                                else:
-                                    branches_list = [int(branches)] * int(depth)
-                            else:
-                                branches_list = branches
-
                             new_config.model.core.architecture.excitatory_branch_factors = (
                                 branches_list
                             )
@@ -593,12 +671,20 @@ class UnifiedSweepGenerator(BaseSweepGenerator):
                     elif key == "_ei_config":
                         # Special handling for EI configurations
                         # val is a dict with ee and ie values
-                        # Support both old and new config structures
                         if "model" not in new_config:
                             new_config["model"] = {}
 
-                        # Use new structure (model.core.connectivity) if base_config exists
-                        if base_config.get("base_config"):
+                        ee_key = val.get("ee_key")
+                        ie_key = val.get("ie_key")
+                        if ee_key and ie_key:
+                            if "population_network" in ee_key:
+                                self._set_by_dot_path(new_config, ee_key, val["ee"])
+                                self._set_by_dot_path(new_config, ie_key, val["ie"])
+                            else:
+                                self._set_by_dot_path(new_config, ee_key, [val["ee"]])
+                                self._set_by_dot_path(new_config, ie_key, [val["ie"]])
+                        elif base_config.get("base_config"):
+                            # Structured E/I config fallback.
                             if "core" not in new_config.model:
                                 new_config.model["core"] = {}
                             if "connectivity" not in new_config.model.core:
@@ -622,14 +708,8 @@ class UnifiedSweepGenerator(BaseSweepGenerator):
                                 val["ie"]
                             ]
                     else:
-                        # Set nested params (e.g., model.core_network.parameters.foo = val)
-                        keys = key.split(".")
-                        target = new_config
-                        for k in keys[:-1]:
-                            if k not in target:
-                                target[k] = {}
-                            target = target[k]
-                        target[keys[-1]] = val
+                        # Set nested params (e.g., model.core.layers.0.foo = val).
+                        self._set_by_dot_path(new_config, key, val)
 
             # Handle multiple seeds if specified
             if seeds_per_condition > 1:

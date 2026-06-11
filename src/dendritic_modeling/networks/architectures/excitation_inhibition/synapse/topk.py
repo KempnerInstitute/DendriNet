@@ -12,9 +12,13 @@ from typing import Optional
 import torch
 import torch.nn as nn
 
+from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.structured_mask import (
+    validate_connection_mask,
+)
 from dendritic_modeling.networks.utils.weight_transforms import (
     WeightTransformType,
     apply_weight_transform,
+    inverse_softplus,
 )
 
 TOPK_INIT_METHODS = {
@@ -27,6 +31,24 @@ TOPK_INIT_METHODS = {
     "uniform": nn.init.uniform_,
     "eye": nn.init.eye_,
 }
+
+
+def apply_recurrent_weight_cache(module: nn.Module, enabled: bool) -> None:
+    """Toggle per-forward recurrent TopK caching on every TopK layer in a tree.
+
+    Call with ``enabled=True`` immediately before a recurrent unroll's timestep
+    loop and ``enabled=False`` (in a ``finally``) immediately after, so the
+    deterministic TopK selection is computed once and reused across timesteps,
+    then released. During autograd this caches the mask only; during no-grad
+    inference it caches the full pruned weight. Layers that cannot safely cache
+    (stochastic / variance / annealed, or any layer with ``noise_level>0`` or
+    dynamic grad scaling) ignore the request internally, so this is always safe
+    to call on a whole network.
+    """
+    for sub in module.modules():
+        setter = getattr(sub, "set_recurrent_weight_cache", None)
+        if callable(setter):
+            setter(enabled)
 
 
 class TopKLinear(nn.Module):
@@ -55,7 +77,17 @@ class TopKLinear(nn.Module):
     -----
     - All weights are constrained to be positive.
     - The pruning is done dynamically during the forward pass.
+    - The masked matrix is still materialized densely. For very sparse large
+      layers, use the indexed sparse layers instead of expecting this module
+      to reduce matrix-multiply memory/compute.
     """
+
+    # Whether this class's TopK selection is deterministic within a single
+    # forward and therefore safe to reuse across timesteps of a recurrent
+    # unroll (see ``set_recurrent_weight_cache``). Subclasses whose mask can
+    # change within/between forward calls (stochastic, variance-tracking,
+    # annealed dense->sparse) override this to ``False``.
+    _supports_recurrent_weight_cache: bool = True
 
     def __init__(
         self,
@@ -70,6 +102,7 @@ class TopKLinear(nn.Module):
         weight_norm_order: Optional[int] = None,
         gamma: float = 1.0,
         forbidden_input_index_per_output: Optional[torch.Tensor] = None,
+        connection_mask: Optional[torch.Tensor] = None,
     ):
         super().__init__()
 
@@ -82,8 +115,12 @@ class TopKLinear(nn.Module):
         self.weight_norm_order = weight_norm_order
         self.gamma = gamma
 
+        # zeros (not empty): pre_w is overwritten by initialize() in production
+        # (branch_layer calls it), but a read before initialize() must be
+        # well-defined — torch.empty leaves uninitialized memory that is
+        # occasionally NaN/inf, making any pre-initialize read undefined.
         self.pre_w = nn.Parameter(
-            torch.empty((out_features, in_features)), requires_grad=True
+            torch.zeros((out_features, in_features)), requires_grad=True
         )
 
         if not isinstance(K, int):
@@ -101,8 +138,17 @@ class TopKLinear(nn.Module):
         self.param_space = param_space
         self.input_scale_vec = None  # may be used for gradient scaling
         self.param_scale_vec = None  # may be used for gradient scaling
+        self._use_forward_dynamic_grad_scaling = False
+        self._last_forward_param_tensor: Optional[torch.Tensor] = None
         self.cache_mask = False
         self._last_forward_weight_mask: Optional[torch.Tensor] = None
+        # Per-forward TopK reuse for recurrent unrolls (off by default).
+        # During autograd we cache only the non-differentiable mask, preserving
+        # the original per-timestep weight-transform graph exactly. Under
+        # no_grad we can also cache the full pruned weight.
+        self._recurrent_weight_cache_enabled = False
+        self._recurrent_cached_weight_mask: Optional[torch.Tensor] = None
+        self._recurrent_cached_pruned_weight: Optional[torch.Tensor] = None
 
         if forbidden_input_index_per_output is None:
             forbidden = torch.empty(0, dtype=torch.long)
@@ -123,6 +169,21 @@ class TopKLinear(nn.Module):
                 )
         self.register_buffer(
             "_forbidden_input_index_per_output", forbidden, persistent=False
+        )
+        allowed = validate_connection_mask(
+            connection_mask,
+            out_features,
+            in_features,
+        )
+        if allowed is None:
+            allowed = torch.empty(0, dtype=torch.bool)
+            persist_allowed = False
+        else:
+            persist_allowed = True
+        self.register_buffer(
+            "connection_mask",
+            allowed,
+            persistent=persist_allowed,
         )
 
     def initialize(self):
@@ -147,7 +208,7 @@ class TopKLinear(nn.Module):
             elif self.weight_transform == "softplus":
                 w = nn.functional.softplus(self.pre_w.data)
                 decayed_w = w * (1 - weight_decay)
-                p_prime = torch.log(torch.exp(decayed_w) - 1 + 1e-8)
+                p_prime = inverse_softplus(decayed_w)
                 p_prime_masked = torch.where(weight_mask > 0, p_prime, self.pre_w.data)
                 self.pre_w.data = p_prime_masked
             elif self.weight_transform in ["identity", "relu"]:
@@ -156,14 +217,15 @@ class TopKLinear(nn.Module):
                 self.pre_w.data *= decay
 
             if weight_boosting:
-                inv_weight_mask = (-1 * weight_mask) + 1
+                allowed_mask = self._connection_mask_like(weight_mask)
+                inv_weight_mask = ((-1 * weight_mask) + 1) * allowed_mask
                 if self.weight_transform == "exp":
                     boost = log(1 + weight_decay) * inv_weight_mask
                     self.pre_w.data += boost
                 elif self.weight_transform == "softplus":
                     w = nn.functional.softplus(self.pre_w.data)
                     boosted_w = w * (1 + weight_decay)
-                    p_prime = torch.log(torch.exp(boosted_w) - 1 + 1e-8)
+                    p_prime = inverse_softplus(boosted_w)
                     p_prime_masked = torch.where(
                         inv_weight_mask > 0, p_prime, self.pre_w.data
                     )
@@ -175,33 +237,92 @@ class TopKLinear(nn.Module):
     def _has_forbidden_inputs(self) -> bool:
         return self._forbidden_input_index_per_output.numel() > 0
 
+    def _has_connection_mask(self) -> bool:
+        return self.connection_mask.numel() > 0
+
+    def _connection_mask_like(self, reference: torch.Tensor) -> torch.Tensor:
+        if not self._has_connection_mask():
+            return torch.ones_like(reference)
+        return self.connection_mask.to(device=reference.device, dtype=reference.dtype)
+
     def _apply_forbidden_scores(
         self, scores: torch.Tensor, fill_value: float = float("-inf")
     ) -> torch.Tensor:
-        if not self._has_forbidden_inputs():
+        if not self._has_forbidden_inputs() and not self._has_connection_mask():
             return scores
         adjusted = scores.clone()
+        if self._has_connection_mask():
+            allowed = self.connection_mask.to(device=adjusted.device)
+            adjusted = adjusted.masked_fill(~allowed, fill_value)
         row_idx = torch.arange(
             adjusted.shape[0], device=adjusted.device, dtype=torch.long
         )
-        col_idx = self._forbidden_input_index_per_output.to(adjusted.device)
-        valid = col_idx >= 0
-        if bool(valid.any()):
-            adjusted[row_idx[valid], col_idx[valid]] = fill_value
+        if self._has_forbidden_inputs():
+            col_idx = self._forbidden_input_index_per_output.to(adjusted.device)
+            valid = col_idx >= 0
+            if bool(valid.any()):
+                adjusted[row_idx[valid], col_idx[valid]] = fill_value
         return adjusted
 
     def _apply_forbidden_mask(self, mask: torch.Tensor) -> torch.Tensor:
-        if not self._has_forbidden_inputs():
+        if not self._has_forbidden_inputs() and not self._has_connection_mask():
             return mask
         adjusted = mask.clone()
+        if self._has_connection_mask():
+            allowed = self.connection_mask.to(device=adjusted.device)
+            adjusted = adjusted * allowed.to(dtype=adjusted.dtype)
         row_idx = torch.arange(
             adjusted.shape[0], device=adjusted.device, dtype=torch.long
         )
-        col_idx = self._forbidden_input_index_per_output.to(adjusted.device)
-        valid = col_idx >= 0
-        if bool(valid.any()):
-            adjusted[row_idx[valid], col_idx[valid]] = 0
+        if self._has_forbidden_inputs():
+            col_idx = self._forbidden_input_index_per_output.to(adjusted.device)
+            valid = col_idx >= 0
+            if bool(valid.any()):
+                adjusted[row_idx[valid], col_idx[valid]] = 0
         return adjusted
+
+    def _apply_weight_norm(self, pruned_weight: torch.Tensor) -> torch.Tensor:
+        if self.weight_norm_order is None:
+            return pruned_weight
+
+        w_norm = torch.norm(pruned_weight, p=self.weight_norm_order, dim=-1)
+        safe_norm = w_norm.clamp_min(torch.finfo(pruned_weight.dtype).eps)
+        normalized = (pruned_weight / safe_norm[:, None]) * self.gamma
+        return torch.where(w_norm[:, None] > 0, normalized, pruned_weight)
+
+    def _pruned_weight_from_mask(self, mask: torch.Tensor) -> torch.Tensor:
+        return self._apply_weight_norm(mask * self.weight())
+
+    def set_recurrent_weight_cache(self, enabled: bool) -> None:
+        """Enable/disable a per-forward pruned-weight cache for recurrent unrolls.
+
+        When enabled, deterministic TopK selection is computed once per unroll
+        and reused on the remaining timesteps, then cleared. During training /
+        autograd we cache only the non-differentiable mask and recompute the
+        transformed weights each timestep, which preserves the original gradient
+        graph exactly. During no-grad inference we cache the full pruned weight.
+
+        The cache is automatically bypassed (and never populated) when it would
+        change numerics: ``noise_level > 0`` (stochastic mask), dynamic forward
+        gradient scaling is active, or for subclasses that set
+        ``_supports_recurrent_weight_cache = False``. Always call with
+        ``enabled=False`` after the unroll to release the cached tensor.
+        """
+        self._recurrent_weight_cache_enabled = (
+            bool(enabled) and self._supports_recurrent_weight_cache
+        )
+        # Always drop any cached tensor on a state change so a stale weight can
+        # never leak into a later forward.
+        self._recurrent_cached_weight_mask = None
+        self._recurrent_cached_pruned_weight = None
+
+    def _recurrent_weight_cache_active(self) -> bool:
+        return (
+            self._recurrent_weight_cache_enabled
+            and self._supports_recurrent_weight_cache
+            and self.noise_level == 0
+            and not self._use_forward_dynamic_grad_scaling
+        )
 
     def forward(self, x):
         """Forward pass through the TopK linear layer."""
@@ -213,17 +334,39 @@ class TopKLinear(nn.Module):
         if x.dim() == 1:
             x = x.unsqueeze(0)
 
-        mask = self.weight_mask()
-        if self.cache_mask:
-            self._last_forward_weight_mask = mask.detach()
+        use_cache = self._recurrent_weight_cache_active()
+        if use_cache and not torch.is_grad_enabled():
+            pruned_weight = self._recurrent_cached_pruned_weight
+            if pruned_weight is None:
+                mask = self.weight_mask()
+                if self.cache_mask:
+                    self._last_forward_weight_mask = mask.detach()
+                pruned_weight = self._pruned_weight_from_mask(mask)
+                self._recurrent_cached_pruned_weight = pruned_weight
+        else:
+            mask = self._recurrent_cached_weight_mask if use_cache else None
+            if mask is None:
+                mask = self.weight_mask()
+                if use_cache:
+                    self._recurrent_cached_weight_mask = mask
+            if self.cache_mask:
+                self._last_forward_weight_mask = mask.detach()
+            pruned_weight = self._pruned_weight_from_mask(mask)
 
-        pruned_weight = mask * self.weight()
-
-        if self.weight_norm_order is not None:
-            w_norm = torch.norm(pruned_weight, p=self.weight_norm_order, dim=-1)
-            pruned_weight = (pruned_weight / w_norm[:, None]) * self.gamma
+        self._last_forward_param_tensor = (
+            pruned_weight if self._use_forward_dynamic_grad_scaling else None
+        )
 
         return torch.matmul(x, pruned_weight.t())
+
+    def register_forward_param_gradient_scale(self, param_scale: torch.Tensor) -> None:
+        """Scale parameter gradients for the most recent forward call only."""
+        self._use_forward_dynamic_grad_scaling = True
+        target = self._last_forward_param_tensor
+        if target is None or not target.requires_grad:
+            return
+        scale = param_scale.detach().to(device=target.device, dtype=target.dtype)
+        target.register_hook(lambda grad, scale=scale: grad * scale)
 
     def weight(self):
         """Return the transformed synaptic weights."""
@@ -267,13 +410,7 @@ class TopKLinear(nn.Module):
 
     def pruned_weight(self):
         """Return the pruned synaptic weights after applying the mask."""
-        pruned_weight = self.weight_mask() * self.weight()
-
-        if self.weight_norm_order is not None:
-            w_norm = torch.norm(pruned_weight, p=self.weight_norm_order, dim=-1)
-            pruned_weight = (pruned_weight / w_norm[:, None]) * self.gamma
-
-        return pruned_weight
+        return self._pruned_weight_from_mask(self.weight_mask())
 
     def log_pruned_weight(self):
         """Return the log of the pruned weights."""

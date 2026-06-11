@@ -21,8 +21,31 @@ from dendritic_modeling.networks.architectures.recurrent.ei_state import (
     DendriNetState,
     EIState,
 )
+from dendritic_modeling.networks.architectures.recurrent.population_network import (
+    PopulationDefinitionConfig,
+    PopulationLayer,
+    PopulationLayerConfig,
+    PopulationLayerState,
+    PopulationNetwork,
+    PopulationNetworkConfig,
+    PopulationProjectionConfig,
+)
+from dendritic_modeling.networks.architectures.recurrent.protocol import (
+    RecurrentCore,
+    SteppableRecurrentCore,
+)
+from dendritic_modeling.networks.architectures.recurrent.spiking_soma import (
+    LIFSoma,
+    SurrogateSpike,
+)
 from dendritic_modeling.networks.architectures.recurrent.stateful_dendrinet import (
     StatefulDendriNet,
+)
+from dendritic_modeling.networks.architectures.recurrent.synapse_types import (
+    SynapseTypeConfig,
+    SynapseTypeGroup,
+    SynapseTypeSet,
+    build_synapse_type_set,
 )
 
 __all__ = [
@@ -34,6 +57,21 @@ __all__ = [
     "EINetwork",
     "EINetworkConfig",
     "EIState",
+    "LIFSoma",
     "PopulationConfig",
+    "PopulationDefinitionConfig",
+    "PopulationLayer",
+    "PopulationLayerConfig",
+    "PopulationLayerState",
+    "PopulationNetwork",
+    "PopulationNetworkConfig",
+    "PopulationProjectionConfig",
+    "RecurrentCore",
     "StatefulDendriNet",
+    "SteppableRecurrentCore",
+    "SurrogateSpike",
+    "SynapseTypeConfig",
+    "SynapseTypeGroup",
+    "SynapseTypeSet",
+    "build_synapse_type_set",
 ]

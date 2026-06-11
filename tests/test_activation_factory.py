@@ -104,6 +104,11 @@ def test_create_unknown_raises():
         ActivationFactory.create("leaky_relu")
 
 
+def test_create_none_value_raises_clear_error():
+    with pytest.raises(ValueError, match="got None"):
+        ActivationFactory.create(None)
+
+
 def test_create_case_insensitive():
     for name in ("ReLU", "RELU", "relu", "Relu"):
         act = ActivationFactory.create(name)
@@ -189,6 +194,21 @@ def test_linear_sigmoid_forward_shape():
     x = torch.randn(4, 5)
     out = act(x)
     assert out.shape == (4, 5)
+
+
+@pytest.mark.parametrize(
+    "activation_cls", [ParametricLinearSigmoid, ParametricLinearTanh]
+)
+def test_linear_blend_activations_remain_finite_for_extreme_negative_inputs(
+    activation_cls,
+):
+    act = activation_cls(output_dim=3)
+    x = torch.full((2, 3), -1000.0, requires_grad=True)
+    out = act(x)
+    assert torch.isfinite(out).all()
+    out.sum().backward()
+    assert x.grad is not None
+    assert torch.isfinite(x.grad).all()
 
 
 def test_linear_sigmoid_initialize():

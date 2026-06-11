@@ -207,6 +207,23 @@ class TestConfigExtractor(unittest.TestCase):
         self.assertEqual(params["network_type"], "flat_mlp")
         self.assertEqual(params["use_shunting"], False)
 
+    def test_extract_model_params_normalized_additive_alias(self):
+        """Normalized additive aliases should extract as non-shunting networks."""
+        config = OmegaConf.create(
+            {
+                "model": {
+                    "core": {
+                        "type": "normadd",
+                        "morphology": {"use_shunting": True},
+                    }
+                }
+            }
+        )
+
+        params = self.extractor._extract_model_params(config)
+        self.assertEqual(params["network_type"], "dendritic_normalized_additive")
+        self.assertEqual(params["use_shunting"], False)
+
 
 if __name__ == "__main__":
     unittest.main()

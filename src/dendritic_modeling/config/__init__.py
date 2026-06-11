@@ -43,6 +43,8 @@ from dendritic_modeling.config.analysis import (
     RoutingAnalysisConfig,
     SingleLayerContributionAnalysisConfig,
     SingleLayerContributionAnalysisParams,
+    SpikeTrainAnalysisConfig,
+    SpikeTrainAnalysisParams,
     SynapseTurnoverAnalysisConfig,
     SynapticActivationAnalysisConfig,
     SynapticActivationAnalysisParams,
@@ -62,6 +64,13 @@ from dendritic_modeling.config.config import (
     WandbConfig,
     load_config,
 )
+from dendritic_modeling.config.conversion import (
+    deep_merge_dicts,
+    has_enabled_synapse_types,
+    layer_value,
+    normalize_sparsity_type,
+    to_plain_dict,
+)
 from dendritic_modeling.config.model import (
     ArchitectureConfig,
     BlockLinearConfig,
@@ -77,8 +86,15 @@ from dendritic_modeling.config.model import (
     ReactivationConfig,
     SparsityConfig,
     SpatialConfig,
+    StructuredConnectivityConfig,
     TransferFunctionConfig,
+    TransformerReplacementConfig,
 )
+from dendritic_modeling.config.model_aliases import (
+    canonicalize_model_core_flags,
+    canonicalize_rnn_core_flags,
+)
+from dendritic_modeling.config.recurrence import is_recurrent_core_config
 from dendritic_modeling.config.recurrent import BranchConfig, RecurrentConfig
 from dendritic_modeling.config.regularization import (
     PruningConfig,
@@ -100,7 +116,12 @@ from dendritic_modeling.config.training import (
     RecurrentStrategyConfig,
     TrainingConfig,
     TrainingStrategiesConfig,
+    TransformerReplacementTrainingConfig,
     VoltageStabilizationStrategyConfig,
+)
+from dendritic_modeling.config.validation import (
+    ConfigValidationError,
+    validate_loaded_config,
 )
 
 __all__ = [
@@ -122,6 +143,7 @@ __all__ = [
     "CompartmentStatisticsAnalysisConfig",
     "CompartmentStatisticsAnalysisParams",
     "Config",
+    "ConfigValidationError",
     "ConnectivityConfig",
     "CoreConfig",
     "CorrelationAnalysisConfig",
@@ -182,15 +204,29 @@ __all__ = [
     "SingleLayerContributionAnalysisParams",
     "SparsityConfig",
     "SpatialConfig",
+    "SpikeTrainAnalysisConfig",
+    "SpikeTrainAnalysisParams",
+    "StructuredConnectivityConfig",
     "SynapseTurnoverAnalysisConfig",
     "SynapticActivationAnalysisConfig",
     "SynapticActivationAnalysisParams",
     "TrainingConfig",
     "TrainingStrategiesConfig",
     "TransferFunctionConfig",
+    "TransformerReplacementConfig",
+    "TransformerReplacementTrainingConfig",
     "VoltageStabilizationStrategyConfig",
     "WandbConfig",
     "WeightAnalysisConfig",
     "WeightAnalysisParams",
+    "canonicalize_model_core_flags",
+    "canonicalize_rnn_core_flags",
+    "deep_merge_dicts",
+    "has_enabled_synapse_types",
+    "is_recurrent_core_config",
+    "layer_value",
     "load_config",
+    "normalize_sparsity_type",
+    "to_plain_dict",
+    "validate_loaded_config",
 ]

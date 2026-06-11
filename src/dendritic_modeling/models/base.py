@@ -124,13 +124,13 @@ class BaseModel(nn.Module):
 
             global_lr = getattr(param_groups_config, "lr", 0.001)
 
-            for params_list, lr_key, default_lr in [
-                (topk_params, "topk_lr", 0.001),
-                (blocklinear_params, "blocklinear_lr", 0.001),
-                (reactivation_params, "reactivation_lr", 0.001),
-                (mlp_inh_net_params, "lr", 0.001),
-                (decoder_params, "decoder_lr", 0.001),
-                (encoder_params, "encoder_lr", global_lr),
+            for group_name, params_list, lr_key, default_lr in [
+                ("topk", topk_params, "topk_lr", 0.001),
+                ("blocklinear", blocklinear_params, "blocklinear_lr", 0.001),
+                ("reactivation", reactivation_params, "reactivation_lr", 0.001),
+                ("mlp_inh_net", mlp_inh_net_params, "lr", 0.001),
+                ("decoder", decoder_params, "decoder_lr", 0.001),
+                ("encoder", encoder_params, "encoder_lr", global_lr),
             ]:
                 if params_list:
                     materialized = list(chain(*params_list))
@@ -138,7 +138,9 @@ class BaseModel(nn.Module):
                     lr = getattr(param_groups_config, lr_key, None)
                     if lr is None:
                         lr = default_lr
-                    param_groups.append({"params": materialized, "lr": lr})
+                    param_groups.append(
+                        {"name": group_name, "params": materialized, "lr": lr}
+                    )
 
             # Catch-all: any params not in the above groups
             uncategorized = [
@@ -149,6 +151,7 @@ class BaseModel(nn.Module):
             if uncategorized:
                 param_groups.append(
                     {
+                        "name": "catch_all",
                         "params": uncategorized,
                         "lr": getattr(param_groups_config, "lr", 0.001),
                     }
@@ -158,6 +161,7 @@ class BaseModel(nn.Module):
         else:
             return [
                 {
+                    "name": "all",
                     "params": self.parameters(),
                     "lr": getattr(param_groups_config, "lr", 0.001),
                 }

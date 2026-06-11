@@ -10,11 +10,15 @@ class TransferFunctionConfig(BaseConfig):
     """Transfer function parameters."""
 
     input_mode: int = 1
+    input_transform: Optional[str] = None
     independent_pathways: bool = False
     excitatory_dim: Optional[int] = None
     inhibitory_dim: Optional[int] = None
     output_activation: Optional[str] = None
     inhibitory_mode: str = "first"  # "none", "first", "all"
+    allow_direct_inhibitory_stream: bool = False
+    input_mode1_build_inhibitory_population: bool = False
+    require_explicit_direct_inhibitory_stream: bool = False
 
 
 @dataclass
@@ -35,6 +39,20 @@ class ArchitectureConfig(BaseConfig):
 
 
 @dataclass
+class StructuredConnectivityConfig(BaseConfig):
+    """Optional hard topology constraints for synaptic pathways."""
+
+    enabled: bool = False
+    seed: Optional[int] = None
+    method: str = "bernoulli"
+    probability: Optional[float] = None
+    indegree: Optional[int] = None
+    distance_kernel: str = "none"
+    distance_sigma: float = 1.0
+    pathways: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
 class ConnectivityConfig(BaseConfig):
     """Synaptic connectivity configuration."""
 
@@ -48,6 +66,9 @@ class ConnectivityConfig(BaseConfig):
     rec_ie_synapses_per_branch: list[int] = field(default_factory=lambda: [0])
     rec_ei_synapses_per_branch: list[int] = field(default_factory=lambda: [0])
     rec_ii_synapses_per_branch: list[int] = field(default_factory=lambda: [0])
+    structured: StructuredConnectivityConfig = field(
+        default_factory=StructuredConnectivityConfig
+    )
 
 
 @dataclass
@@ -77,6 +98,7 @@ class SparsityConfig(BaseConfig):
     weight_norm_order: Optional[int] = None
     gamma: float = 1.0
     temperature: float = 0.0
+    ultrafast: bool = False
     gradient_scaling: str = "none"
 
     deepst: dict = field(
@@ -94,6 +116,27 @@ class SparsityConfig(BaseConfig):
             "weight_threshold": 1e-6,
         }
     )
+    indexed: dict = field(
+        default_factory=lambda: {
+            "candidate_size": None,
+            "selection": "standard",
+            "seed": None,
+            "output_chunk_size": 2048,
+        }
+    )
+    dense_to_sparse: dict = field(
+        default_factory=lambda: {
+            "initial_density": 1.0,
+            "initial_k": None,
+            "start_step": 0,
+            "end_step": 1000,
+            "update_interval": 1,
+            "schedule": "cubic",
+            "freeze_on_end": False,
+            "advance_on_forward": True,
+            "prune_metric": "weight",
+        }
+    )
 
 
 @dataclass
@@ -102,15 +145,16 @@ class ReactivationConfig(BaseConfig):
 
     enabled: bool = True
     type: str = "param_tanh"
+    # Alias for paper-facing configs. If provided, this maps to ``type``.
+    dendritic_activation: Optional[str] = None
     # init_policy selects how the parametric gate ``(m, b)`` is initialized.
     #
     # Primary policies:
     # - "analytical": initialize from the selected DBL init rule.
     # - "fixed": use init_m and init_b exactly as provided.
     # - "empirical": robust median/MAD calibration from sampled voltages.
-    # - "quantile": q10/q90 -> 0.1/0.9 occupancy calibration.
     # - "occupancy_quantile": generalized q_low/q_high -> r_low/r_high rule.
-    # Common aliases are accepted for compatibility.
+    # Legacy alias: "quantile" is accepted and normalized to "occupancy_quantile".
     init_policy: str = "analytical"
     init_m: float = 1.5
     init_b: float = 0.5
@@ -139,10 +183,19 @@ class BlockLinearConfig(BaseConfig):
 class ImplementationConfig(BaseConfig):
     """Implementation optimization settings."""
 
+    # Default False (develop-compatible, opt-in). When True, the adaptive
+    # network-scale factor log((K_exc+K_inh)*sqrt(branches)/5) is subtracted from
+    # excitatory pre-weights, which collapses leaf-layer shunting conductances
+    # (~25x smaller weights, gate center ~0.19 vs ~0.49) and degrades shunting
+    # learning. Configs that omit this field must keep the develop-scale init.
     adaptive_initialization: bool = False
+    # Explicit adaptive opt-ins should preserve the shunting operating point by
+    # default. "legacy_scale" is kept for reproducing the old raw-weight shrink.
+    adaptive_initialization_policy: str = "preserve_shunting_center"
+    adaptive_target_conductance: float = 5.0
     print_hooks: bool = False
     store_routing: bool = False
-    compile_forward: bool = True
+    compile_forward: bool = False
 
 
 @dataclass
@@ -209,6 +262,15 @@ class CoreConfig(BaseConfig):
     implementation: ImplementationConfig = field(default_factory=ImplementationConfig)
     # Spatial convolution params for hierarchical_dendritic_conv cores.
     spatial: SpatialConfig = field(default_factory=SpatialConfig)
+    # Optional receptor/conductance-style synapse-type payload. Kept plain so
+    # architecture modules can evolve without coupling the config package.
+    synapse_types: dict[str, Any] = field(default_factory=dict)
+    # Optional recurrent population dynamics payload, e.g. LIF soma settings.
+    dynamics: dict[str, Any] = field(default_factory=dict)
+    # Optional dendritic spike/plateau payload for recurrent cores.
+    dendritic_spikes: dict[str, Any] = field(default_factory=dict)
+    # Optional delayed soma-to-dendrite feedback payload for recurrent cores.
+    soma_feedback: dict[str, Any] = field(default_factory=dict)
     # DEPRECATED: Legacy recurrent config. Use unified EI config classes instead.
     recurrent: RecurrentConfig = field(default_factory=RecurrentConfig)
     # Optional config payload for the new unified E-I architecture.
@@ -219,6 +281,9 @@ class CoreConfig(BaseConfig):
     recurrent_ei: dict[str, Any] = field(default_factory=dict)
     # Optional config payload for baseline recurrent cores (gru/lstm/vanilla_rnn).
     baseline_rnn: dict[str, Any] = field(default_factory=dict)
+    # Canonical population/layer/connection schema for feedforward or recurrent
+    # named-population dendritic networks.
+    population_network: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -308,6 +373,26 @@ class PretrainedReplacementConfig(BaseConfig):
 
 
 @dataclass
+class TransformerReplacementConfig(BaseConfig):
+    """Config for replacing transformer decoder-block modules with DendriNet.
+
+    This is the transformer analogue of ``pretrained_replacement``.  The target
+    model/layers live here; the dendritic replacement itself is described by
+    the shared ``model.core`` section.
+    """
+
+    enabled: bool = False
+    model_name: str = ""
+    layers: list[int] = field(default_factory=list)
+    target_module: str = "mlp"
+    layers_attr: Optional[str] = None
+    input_transform: str = "signed_split"
+    preserve_device_dtype: bool = True
+    model_kwargs: dict[str, Any] = field(default_factory=dict)
+    replacement_kwargs: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
 class ModelConfig(BaseConfig):
     """Complete model configuration."""
 
@@ -320,4 +405,7 @@ class ModelConfig(BaseConfig):
     # New unified pretrained replacement config
     pretrained_replacement: PretrainedReplacementConfig = field(
         default_factory=PretrainedReplacementConfig
+    )
+    transformer_replacement: TransformerReplacementConfig = field(
+        default_factory=TransformerReplacementConfig
     )

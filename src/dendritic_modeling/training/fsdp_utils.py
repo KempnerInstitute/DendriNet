@@ -29,6 +29,30 @@ from dendritic_modeling.networks.architectures.excitation_inhibition import (
 logger = logging.getLogger(__name__)
 
 
+_FSDP_DTYPE_ALIASES = {
+    "fp16": torch.float16,
+    "float16": torch.float16,
+    "half": torch.float16,
+    "bf16": torch.bfloat16,
+    "bfloat16": torch.bfloat16,
+    "fp32": torch.float32,
+    "float32": torch.float32,
+}
+
+
+def _resolve_fsdp_dtype(value: Any, *, field_name: str) -> torch.dtype:
+    """Resolve a config dtype alias while preserving old fp16 defaults."""
+    if isinstance(value, torch.dtype):
+        return value
+    key = str(value).strip().lower()
+    if key not in _FSDP_DTYPE_ALIASES:
+        raise ValueError(
+            f"Unknown FSDP {field_name}={value!r}. "
+            f"Expected one of {sorted(_FSDP_DTYPE_ALIASES)}."
+        )
+    return _FSDP_DTYPE_ALIASES[key]
+
+
 def create_fsdp_wrap_policy(min_num_params: int = 1e6):
     """
     Create an auto-wrap policy for FullyShardedDataParallel that intelligently wraps dendritic layers.
@@ -92,6 +116,12 @@ def get_fsdp_config(
         limit_all_gathers = fsdp_config_dict.get("limit_all_gathers", True)
         forward_prefetch = fsdp_config_dict.get("forward_prefetch", True)
         gradient_checkpointing = fsdp_config_dict.get("gradient_checkpointing", False)
+        # `or` (not dict.get default) so explicit None granular fields — the
+        # FSDPConfig defaults — fall back to the single mixed_precision_dtype knob.
+        mp_dtype_knob = fsdp_config_dict.get("mixed_precision_dtype") or "fp16"
+        mp_param_dtype = fsdp_config_dict.get("param_dtype") or mp_dtype_knob
+        mp_reduce_dtype = fsdp_config_dict.get("reduce_dtype") or mp_param_dtype
+        mp_buffer_dtype = fsdp_config_dict.get("buffer_dtype") or mp_param_dtype
     else:
         # Use defaults
         min_num_params = None
@@ -101,6 +131,9 @@ def get_fsdp_config(
         limit_all_gathers = True
         forward_prefetch = True
         gradient_checkpointing = False
+        mp_param_dtype = "fp16"
+        mp_reduce_dtype = "fp16"
+        mp_buffer_dtype = "fp16"
 
     # Sharding strategies
     strategy_map = {
@@ -119,9 +152,13 @@ def get_fsdp_config(
     mp_config = None
     if mixed_precision:
         mp_config = MixedPrecision(
-            param_dtype=torch.float16,
-            reduce_dtype=torch.float16,
-            buffer_dtype=torch.float16,
+            param_dtype=_resolve_fsdp_dtype(mp_param_dtype, field_name="param_dtype"),
+            reduce_dtype=_resolve_fsdp_dtype(
+                mp_reduce_dtype, field_name="reduce_dtype"
+            ),
+            buffer_dtype=_resolve_fsdp_dtype(
+                mp_buffer_dtype, field_name="buffer_dtype"
+            ),
         )
 
     # CPU offload configuration
@@ -262,7 +299,7 @@ def _apply_gradient_checkpointing(model: torch.nn.Module):
             def checkpointed_forward(
                 self, *args, orig_forward=original_forward, **kwargs
             ):
-                return checkpoint(orig_forward, *args, **kwargs)
+                return checkpoint(orig_forward, *args, use_reentrant=False, **kwargs)
 
             # Bind the method to the instance
             import types
@@ -276,7 +313,7 @@ def _apply_gradient_checkpointing(model: torch.nn.Module):
             def checkpointed_forward(
                 self, *args, orig_forward=original_forward, **kwargs
             ):
-                return checkpoint(orig_forward, *args, **kwargs)
+                return checkpoint(orig_forward, *args, use_reentrant=False, **kwargs)
 
             import types
 
@@ -308,13 +345,24 @@ def save_fsdp_checkpoint(
         model, StateDictType.FULL_STATE_DICT, save_policy
     ):
         state_dict = model.state_dict()
+        try:
+            optimizer_state_dict = FullyShardedDataParallel.optim_state_dict(
+                model, optimizer
+            )
+        except Exception as exc:
+            logger.warning(
+                "Falling back to local optimizer.state_dict() while saving FSDP "
+                "checkpoint because FSDP optimizer-state gather failed: %s",
+                exc,
+            )
+            optimizer_state_dict = optimizer.state_dict()
 
         # Only save on rank 0
         if rank == 0:
             checkpoint = {
                 "epoch": epoch,
                 "model_state_dict": state_dict,
-                "optimizer_state_dict": optimizer.state_dict(),
+                "optimizer_state_dict": optimizer_state_dict,
             }
             torch.save(checkpoint, save_path)
             logger.info(f"Saved FullyShardedDataParallel checkpoint to {save_path}")
@@ -343,7 +391,18 @@ def load_fsdp_checkpoint(
     with FullyShardedDataParallel.state_dict_type(model, StateDictType.FULL_STATE_DICT):
         model.load_state_dict(checkpoint["model_state_dict"])
 
-    optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+    try:
+        optimizer_state_dict = FullyShardedDataParallel.optim_state_dict_to_load(
+            model, optimizer, checkpoint["optimizer_state_dict"]
+        )
+    except Exception as exc:
+        logger.warning(
+            "Falling back to direct optimizer.load_state_dict() for FSDP "
+            "checkpoint because optimizer-state remapping failed: %s",
+            exc,
+        )
+        optimizer_state_dict = checkpoint["optimizer_state_dict"]
+    optimizer.load_state_dict(optimizer_state_dict)
 
     return checkpoint["epoch"]
 

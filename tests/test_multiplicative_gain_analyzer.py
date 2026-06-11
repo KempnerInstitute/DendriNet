@@ -215,6 +215,10 @@ def test_analyze_collects_metrics_and_respects_model_type(tmp_path, monkeypatch)
     assert result["accuracy"] == [0.7, 0.7, 0.7]
     assert result["auc"] == [0.8, 0.8, 0.8]
     assert result["categorical_loglikelihood"] == [-1.2, -1.2, -1.2]
+    assert result["raw_scores"]["accuracy"] == result["accuracy"]
+    assert result["ID"]["accuracy"] == 0.7
+    assert result["OOD_lower"]["accuracy"] == pytest.approx(0.7)
+    assert result["OOD_upper"]["accuracy"] == pytest.approx(0.7)
     assert "mse" not in result
     assert "cosine_similarity" not in result
     assert result["gain_factors"] == pytest.approx([0.5, 1.0, 2.0])

@@ -142,8 +142,13 @@ def extract_network_category(data: pd.DataFrame) -> pd.DataFrame:
     ------------------------
     dendritic_shunting   - EINet with shunting inhibition
     dendritic_additive   - EINet with subtractive inhibition
+    dendritic_normalized_additive - EINet subtractive inhibition with explicit
+                                    additive voltage normalization
     flat_shunting        - EINet shunting, flattened dendritic tree
     flat_additive        - EINet additive, flattened dendritic tree
+    flat_normalized_additive - EINet normalized additive, flattened tree
+    dendritic_signed     - EINet with signed E/I synapses
+    flat_signed          - EINet with signed E/I synapses, flattened
     dendritic_mlp        - EINet with synapse_mode="mlp", signed weights
     point_mlp            - Shallow parameter-matched point-neuron MLP
     ss_mlp               - Sparse structured MLP (structural match)
@@ -178,11 +183,15 @@ def extract_network_category(data: pd.DataFrame) -> pd.DataFrame:
         {
             "dendriti_additive": "dendritic_additive",
             "dendritic_shuntng": "dendritic_shunting",
+            "dendritic_signed": "dendritic_signed",
+            "flat_signed": "flat_signed",
             "mlp": "point_mlp",
             "einet_sh": "dendritic_shunting",
             "einet_ns": "dendritic_additive",
             "einet_sh_flat": "flat_shunting",
             "einet_ns_flat": "flat_additive",
+            "normadd": "dendritic_normalized_additive",
+            "normalized_additive": "dendritic_normalized_additive",
             "matchedtotalparammlp": "total_param_mlp",
             "matchedactiveparammlp": "active_param_mlp",
         }
@@ -192,8 +201,12 @@ def extract_network_category(data: pd.DataFrame) -> pd.DataFrame:
     for name in [
         "dendritic_shunting",
         "dendritic_additive",
+        "dendritic_normalized_additive",
         "flat_shunting",
         "flat_additive",
+        "flat_normalized_additive",
+        "dendritic_signed",
+        "flat_signed",
         "dendritic_mlp",
         "flat_mlp",
         "point_mlp",
