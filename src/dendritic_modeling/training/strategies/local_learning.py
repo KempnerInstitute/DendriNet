@@ -15,6 +15,11 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as functional
 
+from dendritic_modeling.config.local_learning import (
+    build_local_rule_config,
+    coerce_legacy_local_rule_config,
+    section_to_dict,
+)
 from dendritic_modeling.models import BaseModel
 from dendritic_modeling.networks import (
     DendriticBranchLayer,
@@ -39,11 +44,6 @@ from dendritic_modeling.training.strategies.local_learning_broadcast import (
     resolve_recent_role_profile,
     resolve_router_output_roles,
     role_mass_from_weight_matrix,
-)
-from dendritic_modeling.training.strategies.local_learning_config import (
-    build_local_rule_config,
-    coerce_legacy_local_rule_config,
-    section_to_dict,
 )
 from dendritic_modeling.training.strategies.local_learning_homeostasis import (
     compute_gate_homeostasis_aux_grads,

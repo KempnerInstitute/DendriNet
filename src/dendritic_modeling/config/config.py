@@ -29,6 +29,9 @@ from dendritic_modeling.config.analysis import (
 from dendritic_modeling.config.base import BaseConfig
 from dendritic_modeling.config.conversion import to_plain_dict
 from dendritic_modeling.config.legacy import normalize_transfer_config
+from dendritic_modeling.config.local_learning import (
+    build_local_rule_config as _build_local_rule_config,
+)
 from dendritic_modeling.config.model import (
     ArchitectureConfig,
     BlockLinearConfig,
@@ -60,26 +63,17 @@ from dendritic_modeling.config.recurrent import RecurrentConfig
 from dendritic_modeling.config.training import (
     CommonTrainerConfig,
     EncoderTrainingConfig,
-    FiveFactorConfig,
-    FourFactorConfig,
     FreezeBranchesStrategyConfig,
     FreezeBranchKLStrategyConfig,
     FreezeLayersStrategyConfig,
     HomeostaticControlStrategyConfig,
-    HSICConfig,
-    InhibitoryHomeostasisConfig,
-    LocalGateHomeostasisConfig,
     LocalRuleConfig,
-    LocalVoltageHomeostasisConfig,
     MainTrainingConfig,
-    MorphologyAwareConfig,
     MultiStageStrategyConfig,
     OptimizerConfig,
     ParamGroupsConfig,
     RecurrentStrategyConfig,
     StandardStrategyConfig,
-    STDPConfig,
-    ThreeFactorConfig,
     TrainingConfig,
     TrainingStrategiesConfig,
     TransformerReplacementTrainingConfig,
@@ -878,79 +872,6 @@ def _map_analysis_config(
         mapped["spike_train_analysis"] = SpikeTrainAnalysisConfig(**spike)
 
     return mapped
-
-
-def _build_local_rule_config(lsc_data: dict) -> LocalRuleConfig:
-    """Build LocalRuleConfig from dict data with nested configs."""
-    lsc_kwargs = dict(lsc_data)
-    alias_mode = lsc_kwargs.pop("inhibitory_cell_update_mode", None)
-    if alias_mode is not None:
-        existing_mode = lsc_kwargs.get("explicit_inhibitory_update_mode")
-        if (
-            existing_mode is not None
-            and LocalRuleConfig._normalize_explicit_inhibitory_update_mode(
-                existing_mode
-            )
-            != LocalRuleConfig._normalize_explicit_inhibitory_update_mode(alias_mode)
-        ):
-            raise ValueError(
-                "Conflicting inhibitory-cell update aliases in LocalRuleConfig"
-            )
-        lsc_kwargs["explicit_inhibitory_update_mode"] = alias_mode
-
-    # Handle nested three_factor config
-    if "three_factor" in lsc_kwargs and isinstance(lsc_kwargs["three_factor"], dict):
-        lsc_kwargs["three_factor"] = ThreeFactorConfig(**lsc_kwargs["three_factor"])
-
-    # Handle nested four_factor config
-    if "four_factor" in lsc_kwargs and isinstance(lsc_kwargs["four_factor"], dict):
-        lsc_kwargs["four_factor"] = FourFactorConfig(**lsc_kwargs["four_factor"])
-
-    # Handle nested five_factor config
-    if "five_factor" in lsc_kwargs and isinstance(lsc_kwargs["five_factor"], dict):
-        lsc_kwargs["five_factor"] = FiveFactorConfig(**lsc_kwargs["five_factor"])
-
-    # Handle nested morphology_aware config
-    if "morphology_aware" in lsc_kwargs and isinstance(
-        lsc_kwargs["morphology_aware"], dict
-    ):
-        lsc_kwargs["morphology_aware"] = MorphologyAwareConfig(
-            **lsc_kwargs["morphology_aware"]
-        )
-
-    # Handle nested hsic config
-    if "hsic" in lsc_kwargs and isinstance(lsc_kwargs["hsic"], dict):
-        lsc_kwargs["hsic"] = HSICConfig(**lsc_kwargs["hsic"])
-
-    # Handle nested STDP config
-    if "stdp" in lsc_kwargs and isinstance(lsc_kwargs["stdp"], dict):
-        lsc_kwargs["stdp"] = STDPConfig(**lsc_kwargs["stdp"])
-
-    # Handle nested inhibitory homeostasis config
-    if "inhibitory_homeostasis" in lsc_kwargs and isinstance(
-        lsc_kwargs["inhibitory_homeostasis"], dict
-    ):
-        lsc_kwargs["inhibitory_homeostasis"] = InhibitoryHomeostasisConfig(
-            **lsc_kwargs["inhibitory_homeostasis"]
-        )
-
-    # Handle nested voltage homeostasis config
-    if "voltage_homeostasis" in lsc_kwargs and isinstance(
-        lsc_kwargs["voltage_homeostasis"], dict
-    ):
-        lsc_kwargs["voltage_homeostasis"] = LocalVoltageHomeostasisConfig(
-            **lsc_kwargs["voltage_homeostasis"]
-        )
-
-    # Handle nested gate homeostasis config
-    if "gate_homeostasis" in lsc_kwargs and isinstance(
-        lsc_kwargs["gate_homeostasis"], dict
-    ):
-        lsc_kwargs["gate_homeostasis"] = LocalGateHomeostasisConfig(
-            **lsc_kwargs["gate_homeostasis"]
-        )
-
-    return LocalRuleConfig(**lsc_kwargs)
 
 
 def _map_training_config(training_data: dict) -> dict:
