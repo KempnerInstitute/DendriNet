@@ -467,6 +467,17 @@ def main(config_path: str, args=None):
         if getattr(args, "seed", None) is not None:
             config.experiment.seed = args.seed
             logger.info(f"Override seed: {args.seed}")
+        # Opt-in profiling: translate CLI flags into the env vars read by
+        # dendritic_modeling.training.utils.profiling. Off by default.
+        if getattr(args, "profile_dir", None):
+            os.environ["DENDRINET_PROFILE_DIR"] = args.profile_dir
+        if getattr(args, "profile", False) or getattr(args, "profile_dir", None):
+            os.environ["DENDRINET_PROFILE"] = "1"
+            if is_main:
+                logger.info(
+                    "Profiling ENABLED (torch.profiler); training will stop "
+                    "early after the capture."
+                )
 
     # Extract config sections
     experiment_config = config.experiment
@@ -905,6 +916,21 @@ def _parse_cli_args():
         type=int,
         default=None,
         help="Override experiment seed (for running multiple seeds per config).",
+    )
+    parser.add_argument(
+        "--profile",
+        action="store_true",
+        help=(
+            "Enable opt-in torch.profiler over a few warmup+active training "
+            "steps, then stop early. Equivalent to DENDRINET_PROFILE=1. Off by "
+            "default; does not change training numerics."
+        ),
+    )
+    parser.add_argument(
+        "--profile_dir",
+        default=None,
+        help="Directory for profiler traces (default ./profiler_logs). "
+        "Implies --profile.",
     )
 
     return parser.parse_args()

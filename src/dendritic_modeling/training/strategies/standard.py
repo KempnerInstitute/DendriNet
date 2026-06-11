@@ -35,6 +35,12 @@ from dendritic_modeling.training.regularization import (
     PruningManager,
     RegularizationManager,
 )
+from dendritic_modeling.training.utils.profiling import (
+    finish_profiler,
+    make_profiler,
+    record_section,
+    total_profiled_steps,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -558,6 +564,16 @@ class Trainer:
             if self._check_early_stopping():
                 break
 
+            # Profiling run (DENDRINET_PROFILE): trace captured, stop early so
+            # the job stays short instead of running the full schedule.
+            if getattr(self, "_profiling_stop", False):
+                if self._is_main_process:
+                    logger.info(
+                        "[profiler] capture complete; stopping training early "
+                        "(profiling run)."
+                    )
+                break
+
         return train_losses, valid_losses, train_losses_base, train_losses_reg
 
     def _run_epoch(
@@ -688,12 +704,14 @@ class Trainer:
         # Check once if regularization is enabled to avoid repeated checks
         has_regularization = self.regularization_manager.has_regularization()
 
-        for batch in train_loader:
-            x_batch, y_batch = batch[0].to(self.device), batch[1].to(self.device)
+        prof = make_profiler() if not getattr(self, "_profiling_done", False) else None
+        for step, batch in enumerate(train_loader):
+            with record_section("data_h2d"):
+                x_batch, y_batch = batch[0].to(self.device), batch[1].to(self.device)
 
             if self.enable_amp:
                 # Mixed precision forward pass
-                with autocast():
+                with autocast(), record_section("forward"):
                     base_loss = self.loss_function(model, x_batch, y_batch)
 
                     # Add all regularization losses only if regularization is enabled
@@ -713,7 +731,8 @@ class Trainer:
                         reg_loss_item = 0.0
 
                 self.optimizer.zero_grad()
-                self.scaler.scale(total_loss).backward()
+                with record_section("backward"):
+                    self.scaler.scale(total_loss).backward()
 
                 # Optional expensive operations (configurable for performance)
                 if self.enable_nan_checking:
@@ -732,11 +751,15 @@ class Trainer:
                     else:
                         clip_grad_value_(model.parameters(), self.grad_clip_value)
 
-                self.scaler.step(self.optimizer)
-                self.scaler.update()
+                with record_section("optimizer"):
+                    self.scaler.step(self.optimizer)
+                    self.scaler.update()
             else:
                 # Standard precision training
-                base_loss: torch.Tensor = self.loss_function(model, x_batch, y_batch)
+                with record_section("forward"):
+                    base_loss: torch.Tensor = self.loss_function(
+                        model, x_batch, y_batch
+                    )
 
                 # Add all regularization losses only if regularization is enabled
                 if has_regularization:
@@ -753,7 +776,8 @@ class Trainer:
                     reg_loss_item = 0.0
 
                 self.optimizer.zero_grad()
-                total_loss.backward()
+                with record_section("backward"):
+                    total_loss.backward()
 
                 # Optional expensive operations (configurable for performance)
                 if self.enable_nan_checking:
@@ -767,12 +791,23 @@ class Trainer:
                 else:
                     # Use simple, fast gradient clipping (default)
                     clip_grad_value_(model.parameters(), self.grad_clip_value)
-                self.optimizer.step()
+                with record_section("optimizer"):
+                    self.optimizer.step()
 
             train_loss_total += total_loss.item()
             train_loss_base += base_loss.item()
             train_loss_reg += reg_loss_item
             n_batches += 1
+
+            if prof is not None:
+                prof.step()
+                if step + 1 >= total_profiled_steps():
+                    break
+
+        if prof is not None:
+            finish_profiler(prof)
+            self._profiling_done = True
+            self._profiling_stop = True
 
         if self._is_distributed:
             stats = torch.tensor(
