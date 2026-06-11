@@ -2,6 +2,7 @@ name: CI Pipeline
 
 permissions:
   contents: write
+  issues: write
   pull-requests: write
 
 on:
@@ -171,6 +172,7 @@ jobs:
 
     - name: Comment coverage on PR
       if: github.event_name == 'pull_request' && matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
+      continue-on-error: true
       uses: orgoro/coverage@v3
       with:
         coverageFile: coverage.xml
