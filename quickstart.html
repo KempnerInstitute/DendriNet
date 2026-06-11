@@ -150,12 +150,18 @@ python<span class="w"> </span>src/dendritic_modeling/scripts/sweeps/result_analy
 </section>
 <section id="example-model-runs">
 <h2>Example model runs<a class="headerlink" href="#example-model-runs" title="Link to this heading"></a></h2>
-<p>The repository includes four primary runnable example configs. See
-<a class="reference internal" href="examples.html"><span class="doc">Runnable Config Examples</span></a> for the same list with short notes.</p>
+<p>The repository includes legacy-compatible vision examples, population-network
+mirrors, and recurrent examples for the extended population, synapse-type,
+connectivity, and spiking features. See <a class="reference internal" href="examples.html"><span class="doc">Runnable Config Examples</span></a> for the full list.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># MNIST, original single-layer feedforward example</span>
 <span class="nv">PYTHONPATH</span><span class="o">=</span>src:<span class="nv">$PYTHONPATH</span><span class="w"> </span>python<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>src/dendritic_modeling/scripts/training/train_experiments.py<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>configs/examples/standard_mnist.yaml
+
+<span class="c1"># Same single-layer E/I computation in the canonical population-network schema</span>
+<span class="nv">PYTHONPATH</span><span class="o">=</span>src:<span class="nv">$PYTHONPATH</span><span class="w"> </span>python<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>src/dendritic_modeling/scripts/training/train_experiments.py<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>configs/examples/standard_mnist_population_network.yaml
 
 <span class="c1"># CIFAR-10, one 128E/32I layer, [3, 3, 3] morphology, 40E/10I synapses</span>
 <span class="nv">PYTHONPATH</span><span class="o">=</span>src:<span class="nv">$PYTHONPATH</span><span class="w"> </span>python<span class="w"> </span><span class="se">\</span>
@@ -171,6 +177,16 @@ python<span class="w"> </span>src/dendritic_modeling/scripts/sweeps/result_analy
 <span class="nv">PYTHONPATH</span><span class="o">=</span>src:<span class="nv">$PYTHONPATH</span><span class="w"> </span>python<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>src/dendritic_modeling/scripts/training/train_experiments.py<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>configs/examples/alexnet_fc7_dendritic_500.yaml
+
+<span class="c1"># Named Pyr/PV/SST recurrent population network</span>
+<span class="nv">PYTHONPATH</span><span class="o">=</span>src:<span class="nv">$PYTHONPATH</span><span class="w"> </span>python<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>src/dendritic_modeling/scripts/training/train_experiments.py<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>configs/examples/population_network_recurrent_pyr_pv_sst.yaml
+
+<span class="c1"># Spiking soma with rate-decoded spike readout and spike-train analysis</span>
+<span class="nv">PYTHONPATH</span><span class="o">=</span>src:<span class="nv">$PYTHONPATH</span><span class="w"> </span>python<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>src/dendritic_modeling/scripts/training/train_experiments.py<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>configs/examples/population_network_spiking.yaml
 </pre></div>
 </div>
 </section>
@@ -201,13 +217,36 @@ python<span class="w"> </span>src/dendritic_modeling/scripts/sweeps/result_analy
 <span class="w">  </span><span class="nt">encoder</span><span class="p">:</span>
 <span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Identity</span>
 <span class="w">  </span><span class="nt">core</span><span class="p">:</span>
-<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dendritic_shunting</span>
-<span class="w">    </span><span class="nt">architecture</span><span class="p">:</span>
-<span class="w">      </span><span class="nt">excitatory_layer_sizes</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">64</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">32</span><span class="p p-Indicator">]</span>
-<span class="w">      </span><span class="nt">inhibitory_layer_sizes</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">16</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">8</span><span class="p p-Indicator">]</span>
-<span class="w">    </span><span class="nt">connectivity</span><span class="p">:</span>
-<span class="w">      </span><span class="nt">ee_synapses_per_branch_per_layer</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">20</span><span class="p p-Indicator">]</span>
-<span class="w">      </span><span class="nt">ie_synapses_per_branch_per_layer</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">5</span><span class="p p-Indicator">]</span>
+<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">population_network</span>
+<span class="w">    </span><span class="nt">population_network</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">layers</span><span class="p">:</span>
+<span class="w">        </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">layer0</span>
+<span class="w">          </span><span class="nt">readout_population</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">e</span>
+<span class="w">          </span><span class="nt">population_defaults</span><span class="p">:</span>
+<span class="w">            </span><span class="nt">ff_excitatory_synapses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">20</span>
+<span class="w">            </span><span class="nt">ff_inhibitory_synapses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span>
+<span class="w">            </span><span class="nt">rec_excitatory_synapses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0</span>
+<span class="w">            </span><span class="nt">rec_inhibitory_synapses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0</span>
+<span class="w">            </span><span class="nt">somatic_synapses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">            </span><span class="nt">reactivate</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">            </span><span class="nt">reactivation_init_policy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">occupancy_quantile</span>
+<span class="w">            </span><span class="nt">weight_transform</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">softplus</span>
+<span class="w">          </span><span class="nt">populations</span><span class="p">:</span>
+<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">i</span>
+<span class="w">              </span><span class="nt">polarity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">inhibitory</span>
+<span class="w">              </span><span class="nt">n_neurons</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">16</span>
+<span class="w">              </span><span class="nt">branch_factors</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">1</span><span class="p p-Indicator">]</span>
+<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">e</span>
+<span class="w">              </span><span class="nt">polarity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">excitatory</span>
+<span class="w">              </span><span class="nt">n_neurons</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">64</span>
+<span class="w">              </span><span class="nt">branch_factors</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">3</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">3</span><span class="p p-Indicator">]</span>
+<span class="w">          </span><span class="nt">connections</span><span class="p">:</span>
+<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">source</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">input</span>
+<span class="w">              </span><span class="nt">target</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">i</span>
+<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">source</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">input</span>
+<span class="w">              </span><span class="nt">target</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">e</span>
+<span class="w">            </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">source</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">i</span>
+<span class="w">              </span><span class="nt">target</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">e</span>
 <span class="w">  </span><span class="nt">decoder</span><span class="p">:</span>
 <span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Identity</span>
 

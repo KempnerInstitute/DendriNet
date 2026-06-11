@@ -16,6 +16,7 @@
       <script src="_static/documentation_options.js?v=01f34227"></script>
       <script src="_static/doctools.js?v=fd6eb6e6"></script>
       <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
+      <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
     <script src="_static/js/theme.js"></script>
     <link rel="index" title="Index" href="genindex.html" />
     <link rel="search" title="Search" href="search.html" />
@@ -53,12 +54,15 @@
 <li class="toctree-l1"><a class="reference internal" href="network_architectures.html">Network Architectures</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Training Strategies</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="#available-strategies">Available Strategies</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#transformer-replacement-distillation">Transformer Replacement Distillation</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#standard-training">Standard Training</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#feedback-alignment">Feedback Alignment</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#local-credit-assignment">Local Credit Assignment</a><ul>
 <li class="toctree-l3"><a class="reference internal" href="#rule-variants">Rule Variants</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#stdp-rule">STDP Rule</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#error-broadcast">Error Broadcast</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#hsic-auxiliary-loss">HSIC Auxiliary Loss</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#compatibility-with-new-components">Compatibility with New Components</a></li>
 <li class="toctree-l3"><a class="reference internal" href="#morphology-aware-extensions">Morphology-Aware Extensions</a></li>
 </ul>
 </li>
@@ -117,28 +121,44 @@ the core network and decoder. The main trainer strategy is set via
 <nav class="contents local" id="on-this-page">
 <p class="topic-title">On this page</p>
 <ul class="simple">
-<li><p><a class="reference internal" href="#available-strategies" id="id1">Available Strategies</a></p></li>
-<li><p><a class="reference internal" href="#standard-training" id="id2">Standard Training</a></p></li>
-<li><p><a class="reference internal" href="#feedback-alignment" id="id3">Feedback Alignment</a></p></li>
-<li><p><a class="reference internal" href="#local-credit-assignment" id="id4">Local Credit Assignment</a></p>
+<li><p><a class="reference internal" href="#available-strategies" id="id2">Available Strategies</a></p></li>
+<li><p><a class="reference internal" href="#transformer-replacement-distillation" id="id3">Transformer Replacement Distillation</a></p></li>
+<li><p><a class="reference internal" href="#standard-training" id="id4">Standard Training</a></p></li>
+<li><p><a class="reference internal" href="#feedback-alignment" id="id5">Feedback Alignment</a></p></li>
+<li><p><a class="reference internal" href="#local-credit-assignment" id="id6">Local Credit Assignment</a></p>
 <ul>
-<li><p><a class="reference internal" href="#rule-variants" id="id5">Rule Variants</a></p></li>
-<li><p><a class="reference internal" href="#error-broadcast" id="id6">Error Broadcast</a></p></li>
-<li><p><a class="reference internal" href="#hsic-auxiliary-loss" id="id7">HSIC Auxiliary Loss</a></p></li>
-<li><p><a class="reference internal" href="#morphology-aware-extensions" id="id8">Morphology-Aware Extensions</a></p></li>
+<li><p><a class="reference internal" href="#rule-variants" id="id7">Rule Variants</a></p></li>
+<li><p><a class="reference internal" href="#stdp-rule" id="id8">STDP Rule</a></p></li>
+<li><p><a class="reference internal" href="#error-broadcast" id="id9">Error Broadcast</a></p></li>
+<li><p><a class="reference internal" href="#hsic-auxiliary-loss" id="id10">HSIC Auxiliary Loss</a></p></li>
+<li><p><a class="reference internal" href="#compatibility-with-new-components" id="id11">Compatibility with New Components</a></p></li>
+<li><p><a class="reference internal" href="#morphology-aware-extensions" id="id12">Morphology-Aware Extensions</a></p></li>
 </ul>
 </li>
-<li><p><a class="reference internal" href="#recurrent-training" id="id9">Recurrent Training</a></p></li>
-<li><p><a class="reference internal" href="#multi-stage-training" id="id10">Multi-Stage Training</a></p></li>
-<li><p><a class="reference internal" href="#fsdp-distributed-training" id="id11">FSDP Distributed Training</a></p></li>
-<li><p><a class="reference internal" href="#parameter-groups" id="id12">Parameter Groups</a></p></li>
-<li><p><a class="reference internal" href="#optimizer" id="id13">Optimizer</a></p></li>
-<li><p><a class="reference internal" href="#loss-functions" id="id14">Loss Functions</a></p></li>
-<li><p><a class="reference internal" href="#regularization-and-pruning" id="id15">Regularization and Pruning</a></p></li>
+<li><p><a class="reference internal" href="#recurrent-training" id="id13">Recurrent Training</a></p></li>
+<li><p><a class="reference internal" href="#multi-stage-training" id="id14">Multi-Stage Training</a></p></li>
+<li><p><a class="reference internal" href="#fsdp-distributed-training" id="id15">FSDP Distributed Training</a></p></li>
+<li><p><a class="reference internal" href="#parameter-groups" id="id16">Parameter Groups</a></p></li>
+<li><p><a class="reference internal" href="#optimizer" id="id17">Optimizer</a></p></li>
+<li><p><a class="reference internal" href="#loss-functions" id="id18">Loss Functions</a></p></li>
+<li><p><a class="reference internal" href="#regularization-and-pruning" id="id19">Regularization and Pruning</a></p></li>
 </ul>
 </nav>
 <section id="available-strategies">
-<h2><a class="toc-backref" href="#id1" role="doc-backlink">Available Strategies</a><a class="headerlink" href="#available-strategies" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id2" role="doc-backlink">Available Strategies</a><a class="headerlink" href="#available-strategies" title="Link to this heading"></a></h2>
+<figure class="align-default" id="id1">
+<a class="reference internal image-reference" href="_images/learning-rules.svg"><img alt="Credit-assignment comparison — backprop (exact gradient), feedback alignment/DFA (fixed random feedback), and local credit assignment (Hebbian/STDP + error broadcast)" src="_images/learning-rules.svg" style="width: 100%;" />
+</a>
+<figcaption>
+<p><span class="caption-text">How the weight update reaches each layer across the available strategies:
+<strong>backprop</strong> (<code class="docutils literal notranslate"><span class="pre">standard</span></code>) flows the exact gradient back through every layer;
+<strong>feedback alignment</strong> (<code class="docutils literal notranslate"><span class="pre">fa</span></code>/<code class="docutils literal notranslate"><span class="pre">dfa</span></code>, plus shunting-aware <code class="docutils literal notranslate"><span class="pre">shunting_fa</span></code>/
+<code class="docutils literal notranslate"><span class="pre">shunting_dfa</span></code>) uses fixed random feedback weights with no weight transport;
+<strong>local credit assignment</strong> (<code class="docutils literal notranslate"><span class="pre">local_ca</span></code>) updates each layer from local
+pre/post activity (Hebbian/STDP) plus an error-broadcast/HSIC signal, with no
+global backward pass.</span><a class="headerlink" href="#id1" title="Link to this image"></a></p>
+</figcaption>
+</figure>
 <table class="docutils align-default">
 <colgroup>
 <col style="width: 20.0%" />
@@ -166,7 +186,7 @@ the core network and decoder. The main trainer strategy is set via
 <td><p>DFA with conductance-based modulation</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">local_ca</span></code></p></td>
-<td><p>Local credit assignment (3/4/5-factor Hebbian rules)</p></td>
+<td><p>Local credit assignment (3/4/5-factor Hebbian rules and trace STDP)</p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">freeze_layers</span></code></p></td>
 <td><p>Progressive layer unfreezing</p></td>
@@ -194,8 +214,60 @@ the core network and decoder. The main trainer strategy is set via
 <p>Distributed launch mode is configured separately via <code class="docutils literal notranslate"><span class="pre">distributed.mode</span></code>:
 <code class="docutils literal notranslate"><span class="pre">none</span></code>, <code class="docutils literal notranslate"><span class="pre">ddp</span></code>, or <code class="docutils literal notranslate"><span class="pre">fsdp</span></code>.</p>
 </section>
+<section id="transformer-replacement-distillation">
+<h2><a class="toc-backref" href="#id3" role="doc-backlink">Transformer Replacement Distillation</a><a class="headerlink" href="#transformer-replacement-distillation" title="Link to this heading"></a></h2>
+<p>Transformer MLP/FFN replacement is trained with the dedicated
+<code class="docutils literal notranslate"><span class="pre">training.transformer_replacement</span></code> block rather than the image-classification
+<code class="docutils literal notranslate"><span class="pre">training.main.strategy</span></code> loop.  The target model and layers are defined in
+<code class="docutils literal notranslate"><span class="pre">model.transformer_replacement</span></code>; the dendritic FFN architecture is defined in
+<code class="docutils literal notranslate"><span class="pre">model.core</span></code>; and this block defines how teacher data are produced.</p>
+<p>The implemented mode is <code class="docutils literal notranslate"><span class="pre">layerwise_distillation</span></code>:</p>
+<div class="math notranslate nohighlight">
+\[h_{\ell} \mapsto \mathrm{MLP}_{\ell}(h_{\ell})
+\quad\text{is approximated by}\quad
+h_{\ell} \mapsto D_{\theta,\ell}(h_{\ell}).\]</div>
+<p>Only the dendritic replacement is trained by default
+(<code class="docutils literal notranslate"><span class="pre">train_target:</span> <span class="pre">replacement_only</span></code>).  This keeps the experiment interpretable:
+each loss value measures how well the dendritic module matches the original
+MLP block before any full-model language-model fine-tuning.</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">training</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">main</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">optimizer</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">adamw</span>
+<span class="w">      </span><span class="nt">lr</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3.0e-4</span>
+<span class="w">      </span><span class="nt">weight_decay</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.01</span>
+
+<span class="w">  </span><span class="nt">transformer_replacement</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">    </span><span class="nt">mode</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">layerwise_distillation</span>
+<span class="w">    </span><span class="nt">teacher_source</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">hf_text</span><span class="w">          </span><span class="c1"># synthetic_mlp | hidden_cache | hf_text</span>
+<span class="w">    </span><span class="nt">train_target</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">replacement_only</span>
+<span class="w">    </span><span class="nt">layers</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">0</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">1</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">2</span><span class="p p-Indicator">]</span>
+<span class="w">    </span><span class="nt">device</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">cuda</span>
+<span class="w">    </span><span class="nt">dtype</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">bfloat16</span>
+<span class="w">    </span><span class="nt">sequence_length</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">128</span>
+<span class="w">    </span><span class="nt">batch_size</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<span class="w">    </span><span class="nt">max_steps</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1000</span>
+<span class="w">    </span><span class="nt">eval_every</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">100</span>
+<span class="w">    </span><span class="nt">loss</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mse</span>
+<span class="w">    </span><span class="nt">text</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">text_path</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">/path/to/text_corpus.txt</span>
+<span class="w">      </span><span class="nt">tokenizer_name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">deepseek-ai/DeepSeek-V3</span>
+</pre></div>
+</div>
+<p>Run it with:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">PYTHONPATH</span><span class="o">=</span>src:<span class="nv">$PYTHONPATH</span><span class="w"> </span>python<span class="w"> </span>-m<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>dendritic_modeling.scripts.training.train_transformer_replacement<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>configs/examples/transformer_replacement_synthetic_distillation.yaml
+</pre></div>
+</div>
+<p>For DeepSeek-scale runs, the recommended workflow is to start with
+<code class="docutils literal notranslate"><span class="pre">synthetic_mlp</span></code> for a learning smoke test, then use <code class="docutils literal notranslate"><span class="pre">hidden_cache</span></code> if you
+can precompute teacher activations, and only then use <code class="docutils literal notranslate"><span class="pre">hf_text</span></code> for direct
+teacher-hook training.</p>
+</section>
 <section id="standard-training">
-<h2><a class="toc-backref" href="#id2" role="doc-backlink">Standard Training</a><a class="headerlink" href="#standard-training" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id4" role="doc-backlink">Standard Training</a><a class="headerlink" href="#standard-training" title="Link to this heading"></a></h2>
 <p>Basic backpropagation. Supports gradient clipping, early stopping, mixed
 precision, NaN detection, and adaptive clipping.</p>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">training</span><span class="p">:</span>
@@ -219,7 +291,7 @@ default: 2.0), <code class="docutils literal notranslate"><span class="pre">earl
 <code class="docutils literal notranslate"><span class="pre">enable_adaptive_clipping</span></code> (bool, default: False).</p>
 </section>
 <section id="feedback-alignment">
-<h2><a class="toc-backref" href="#id3" role="doc-backlink">Feedback Alignment</a><a class="headerlink" href="#feedback-alignment" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id5" role="doc-backlink">Feedback Alignment</a><a class="headerlink" href="#feedback-alignment" title="Link to this heading"></a></h2>
 <p>Implements FA (Lillicrap et al., 2016) and DFA (Nokland, 2016). Uses fixed
 random feedback matrices instead of weight transposes for error propagation.</p>
 <ul class="simple">
@@ -237,12 +309,12 @@ conductance and driving force, <code class="docutils literal notranslate"><span 
 </div>
 </section>
 <section id="local-credit-assignment">
-<h2><a class="toc-backref" href="#id4" role="doc-backlink">Local Credit Assignment</a><a class="headerlink" href="#local-credit-assignment" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id6" role="doc-backlink">Local Credit Assignment</a><a class="headerlink" href="#local-credit-assignment" title="Link to this heading"></a></h2>
 <p>Biologically-plausible local learning using Hebbian-style updates with
 locally available signals (pre/post-synaptic activity) and a broadcast soma
 error. The current config path is <code class="docutils literal notranslate"><span class="pre">training.main.learning_strategy_config</span></code>.</p>
 <section id="rule-variants">
-<h3><a class="toc-backref" href="#id5" role="doc-backlink">Rule Variants</a><a class="headerlink" href="#rule-variants" title="Link to this heading"></a></h3>
+<h3><a class="toc-backref" href="#id7" role="doc-backlink">Rule Variants</a><a class="headerlink" href="#rule-variants" title="Link to this heading"></a></h3>
 <dl class="simple">
 <dt><code class="docutils literal notranslate"><span class="pre">rule_variant:</span> <span class="pre">&quot;3f&quot;</span></code> – three-factor rule</dt><dd><p><code class="docutils literal notranslate"><span class="pre">pre</span> <span class="pre">*</span> <span class="pre">post</span> <span class="pre">*</span> <span class="pre">error</span></code>. The post-synaptic factor depends on the dynamics
 mode: in conductance mode it uses driving force <code class="docutils literal notranslate"><span class="pre">(E_rev</span> <span class="pre">-</span> <span class="pre">V)</span></code> scaled by
@@ -257,10 +329,56 @@ between branch-level and soma-level activity. Estimated via EMA
 information content. Modes: <code class="docutils literal notranslate"><span class="pre">&quot;conditional&quot;</span></code> (conditional variance proxy)
 or <code class="docutils literal notranslate"><span class="pre">&quot;variance&quot;</span></code> (raw variance).</p>
 </dd>
+<dt><code class="docutils literal notranslate"><span class="pre">rule_variant:</span> <span class="pre">&quot;stdp&quot;</span></code> – trace-based STDP rule</dt><dd><p>Uses local pre/post activity traces at TopK synapses. This is a separate
+local rule: no task-error term is required unless <code class="docutils literal notranslate"><span class="pre">stdp.use_error_modulation</span></code>
+is enabled. It can also be added as an auxiliary rule to <code class="docutils literal notranslate"><span class="pre">3f</span></code>/<code class="docutils literal notranslate"><span class="pre">4f</span></code>/<code class="docutils literal notranslate"><span class="pre">5f</span></code>
+by setting <code class="docutils literal notranslate"><span class="pre">stdp.enabled:</span> <span class="pre">true</span></code>.</p>
+</dd>
+</dl>
+</section>
+<section id="stdp-rule">
+<h3><a class="toc-backref" href="#id8" role="doc-backlink">STDP Rule</a><a class="headerlink" href="#stdp-rule" title="Link to this heading"></a></h3>
+<p>The STDP implementation keeps one pre-synaptic and one post-synaptic trace per
+recorded TopK synapse module. At each local update it applies:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>Delta w_ij = A_plus * post_i(t) * pre_trace_j(t-1)
+           - A_minus * post_trace_i(t-1) * pre_j(t)
+</pre></div>
+</div>
+<p>Positive <code class="docutils literal notranslate"><span class="pre">Delta</span> <span class="pre">w</span></code> is converted to a negative optimizer gradient so standard
+PyTorch optimizers potentiate the underlying raw synapse parameter.</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">training</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">main</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">strategy</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">local_ca</span>
+<span class="w">    </span><span class="nt">learning_strategy_config</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">rule_variant</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">stdp</span>
+<span class="w">      </span><span class="nt">stdp</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">apply_to</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">exc</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">rec_exc</span><span class="p p-Indicator">]</span>
+<span class="w">        </span><span class="nt">activity_mode</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">relu</span>
+<span class="w">        </span><span class="nt">tau_pre</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">20.0</span>
+<span class="w">        </span><span class="nt">tau_post</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">20.0</span>
+<span class="w">        </span><span class="nt">a_plus</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1.0</span>
+<span class="w">        </span><span class="nt">a_minus</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.5</span>
+<span class="w">        </span><span class="nt">learning_rate_scale</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1.0</span>
+</pre></div>
+</div>
+<p>Key STDP options:</p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">apply_to</span></code></dt><dd><p>Synaptic pathways to update. Supported values are <code class="docutils literal notranslate"><span class="pre">exc</span></code>, <code class="docutils literal notranslate"><span class="pre">inh</span></code>,
+<code class="docutils literal notranslate"><span class="pre">rec_exc</span></code>, <code class="docutils literal notranslate"><span class="pre">rec_inh</span></code>, or <code class="docutils literal notranslate"><span class="pre">all</span></code>. The default is <code class="docutils literal notranslate"><span class="pre">[exc,</span> <span class="pre">rec_exc]</span></code>.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">activity_mode</span></code></dt><dd><p>How local tensors are converted to activities: <code class="docutils literal notranslate"><span class="pre">relu</span></code> (default),
+<code class="docutils literal notranslate"><span class="pre">identity</span></code>, <code class="docutils literal notranslate"><span class="pre">binary</span></code>, or <code class="docutils literal notranslate"><span class="pre">abs</span></code>.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">use_error_modulation</span></code></dt><dd><p>If true, scales the trace update by the broadcast soma error. This gives a
+reward/error-modulated STDP variant while keeping the base rule local.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">inhibitory_update_sign</span></code></dt><dd><p>Sign multiplier for <code class="docutils literal notranslate"><span class="pre">inh</span></code> and <code class="docutils literal notranslate"><span class="pre">rec_inh</span></code> pathways. The default <code class="docutils literal notranslate"><span class="pre">-1</span></code>
+makes inhibitory STDP anti-Hebbian; set <code class="docutils literal notranslate"><span class="pre">1</span></code> for Hebbian inhibitory updates.</p>
+</dd>
 </dl>
 </section>
 <section id="error-broadcast">
-<h3><a class="toc-backref" href="#id6" role="doc-backlink">Error Broadcast</a><a class="headerlink" href="#error-broadcast" title="Link to this heading"></a></h3>
+<h3><a class="toc-backref" href="#id9" role="doc-backlink">Error Broadcast</a><a class="headerlink" href="#error-broadcast" title="Link to this heading"></a></h3>
 <dl class="simple">
 <dt><code class="docutils literal notranslate"><span class="pre">error_broadcast_mode</span></code></dt><dd><p><code class="docutils literal notranslate"><span class="pre">&quot;scalar&quot;</span></code> – single scalar error for the whole network.
 <code class="docutils literal notranslate"><span class="pre">&quot;per_soma&quot;</span></code> – per-neuron error at the soma level.
@@ -274,7 +392,7 @@ or <code class="docutils literal notranslate"><span class="pre">&quot;variance&q
 </dl>
 </section>
 <section id="hsic-auxiliary-loss">
-<h3><a class="toc-backref" href="#id7" role="doc-backlink">HSIC Auxiliary Loss</a><a class="headerlink" href="#hsic-auxiliary-loss" title="Link to this heading"></a></h3>
+<h3><a class="toc-backref" href="#id10" role="doc-backlink">HSIC Auxiliary Loss</a><a class="headerlink" href="#hsic-auxiliary-loss" title="Link to this heading"></a></h3>
 <p>Optional Hilbert-Schmidt Independence Criterion loss to encourage decorrelated
 representations. Enabled via <code class="docutils literal notranslate"><span class="pre">hsic.enabled:</span> <span class="pre">true</span></code>. Kernel options:
 <code class="docutils literal notranslate"><span class="pre">&quot;linear&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;rbf&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;polynomial&quot;</span></code>.</p>
@@ -298,8 +416,57 @@ representations. Enabled via <code class="docutils literal notranslate"><span cl
 </pre></div>
 </div>
 </section>
+<section id="compatibility-with-new-components">
+<h3><a class="toc-backref" href="#id11" role="doc-backlink">Compatibility with New Components</a><a class="headerlink" href="#compatibility-with-new-components" title="Link to this heading"></a></h3>
+<p>The local learning recorder now captures all TopK pathways on a
+<code class="docutils literal notranslate"><span class="pre">DendriticBranchLayer</span></code>:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>external E input  -&gt; branch_excitation      -&gt; exc
+external I input  -&gt; branch_inhibition      -&gt; inh
+recurrent E input -&gt; branch_recurrent       -&gt; rec_exc
+recurrent I input -&gt; branch_rec_inhibition  -&gt; rec_inh
+</pre></div>
+</div>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 24.0%" />
+<col style="width: 76.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Component</p></th>
+<th class="head"><p>Local-learning behavior</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Population network</p></td>
+<td><p>Branch-local rules operate on each population’s dendritic branch layers.
+Named populations are compatible as long as they use the shared
+<code class="docutils literal notranslate"><span class="pre">DendriticBranchLayer</span></code> / <code class="docutils literal notranslate"><span class="pre">TopKLinear</span></code> modules.</p></td>
+</tr>
+<tr class="row-odd"><td><p>General synapse types</p></td>
+<td><p>Local rules update the shared TopK synaptic weights. Receptor fractions,
+reversal potentials, time constants, and short-term plasticity parameters
+remain configured model dynamics, not learned by LocalCA/STDP.</p></td>
+</tr>
+<tr class="row-even"><td><p>Structured connectivity</p></td>
+<td><p>Connection masks are always respected. <code class="docutils literal notranslate"><span class="pre">update_inactive_weights</span></code> can
+allow non-active TopK weights to move, but forbidden masked connections
+stay frozen.</p></td>
+</tr>
+<tr class="row-odd"><td><p>Recurrent pathways</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">3f</span></code>/<code class="docutils literal notranslate"><span class="pre">4f</span></code>/<code class="docutils literal notranslate"><span class="pre">5f</span></code> and STDP now update <code class="docutils literal notranslate"><span class="pre">rec_exc</span></code> and <code class="docutils literal notranslate"><span class="pre">rec_inh</span></code>
+pathways when those modules are present and enabled by config.</p></td>
+</tr>
+<tr class="row-even"><td><p>Spiking soma</p></td>
+<td><p>STDP can use spike-like or rate-like pre/post tensors depending on the
+model readout and <code class="docutils literal notranslate"><span class="pre">activity_mode</span></code>. Exact event timing is approximated
+by the trainer’s update steps; for finer time-bin STDP, use sequence
+batches with recurrent outputs exposed at each step.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
 <section id="morphology-aware-extensions">
-<h3><a class="toc-backref" href="#id8" role="doc-backlink">Morphology-Aware Extensions</a><a class="headerlink" href="#morphology-aware-extensions" title="Link to this heading"></a></h3>
+<h3><a class="toc-backref" href="#id12" role="doc-backlink">Morphology-Aware Extensions</a><a class="headerlink" href="#morphology-aware-extensions" title="Link to this heading"></a></h3>
 <p>Extensions that use dendritic tree topology explicitly:</p>
 <dl class="simple">
 <dt><code class="docutils literal notranslate"><span class="pre">use_path_propagation</span></code></dt><dd><p>Approximate path-integrated attenuation along dendritic branches.</p>
@@ -313,7 +480,7 @@ representations. Enabled via <code class="docutils literal notranslate"><span cl
 </section>
 </section>
 <section id="recurrent-training">
-<h2><a class="toc-backref" href="#id9" role="doc-backlink">Recurrent Training</a><a class="headerlink" href="#recurrent-training" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id13" role="doc-backlink">Recurrent Training</a><a class="headerlink" href="#recurrent-training" title="Link to this heading"></a></h2>
 <p>For sequence data (<code class="docutils literal notranslate"><span class="pre">[B,</span> <span class="pre">T,</span> <span class="pre">D]</span></code> inputs). Handles temporal loss computation
 for both <code class="docutils literal notranslate"><span class="pre">output_mode:</span> <span class="pre">last</span></code> and <code class="docutils literal notranslate"><span class="pre">output_mode:</span> <span class="pre">all</span></code>.</p>
 <p><code class="docutils literal notranslate"><span class="pre">grad_clip</span></code> (float, default: 1.0), <code class="docutils literal notranslate"><span class="pre">lr_schedule</span></code> (<code class="docutils literal notranslate"><span class="pre">&quot;none&quot;</span></code> or
@@ -329,7 +496,7 @@ for both <code class="docutils literal notranslate"><span class="pre">output_mod
 </div>
 </section>
 <section id="multi-stage-training">
-<h2><a class="toc-backref" href="#id10" role="doc-backlink">Multi-Stage Training</a><a class="headerlink" href="#multi-stage-training" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id14" role="doc-backlink">Multi-Stage Training</a><a class="headerlink" href="#multi-stage-training" title="Link to this heading"></a></h2>
 <p>Chains multiple strategies in sequence. Each stage can have its own strategy,
 epoch count, optimizer state, and config overrides.</p>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">training</span><span class="p">:</span>
@@ -352,7 +519,7 @@ epoch count, optimizer state, and config overrides.</p>
 </div>
 </section>
 <section id="fsdp-distributed-training">
-<h2><a class="toc-backref" href="#id11" role="doc-backlink">FSDP Distributed Training</a><a class="headerlink" href="#fsdp-distributed-training" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id15" role="doc-backlink">FSDP Distributed Training</a><a class="headerlink" href="#fsdp-distributed-training" title="Link to this heading"></a></h2>
 <p>For large models across multiple GPUs or nodes. See
 <a class="reference internal" href="fsdp_troubleshooting.html"><span class="doc">Distributed Training Guide</span></a> for setup and runtime issues.</p>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">distributed</span><span class="p">:</span>
@@ -366,7 +533,7 @@ epoch count, optimizer state, and config overrides.</p>
 </div>
 </section>
 <section id="parameter-groups">
-<h2><a class="toc-backref" href="#id12" role="doc-backlink">Parameter Groups</a><a class="headerlink" href="#parameter-groups" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id16" role="doc-backlink">Parameter Groups</a><a class="headerlink" href="#parameter-groups" title="Link to this heading"></a></h2>
 <p>Per-component learning rates, set via <code class="docutils literal notranslate"><span class="pre">training.main.common.param_groups</span></code>:</p>
 <table class="docutils align-default">
 <colgroup>
@@ -409,13 +576,13 @@ epoch count, optimizer state, and config overrides.</p>
 </table>
 </section>
 <section id="optimizer">
-<h2><a class="toc-backref" href="#id13" role="doc-backlink">Optimizer</a><a class="headerlink" href="#optimizer" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id17" role="doc-backlink">Optimizer</a><a class="headerlink" href="#optimizer" title="Link to this heading"></a></h2>
 <p>Set via <code class="docutils literal notranslate"><span class="pre">training.main.optimizer</span></code>: <code class="docutils literal notranslate"><span class="pre">&quot;adam&quot;</span></code> (default), <code class="docutils literal notranslate"><span class="pre">&quot;adamw&quot;</span></code>,
 <code class="docutils literal notranslate"><span class="pre">&quot;sgd&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;rmsprop&quot;</span></code>. Standard parameters: <code class="docutils literal notranslate"><span class="pre">lr</span></code>, <code class="docutils literal notranslate"><span class="pre">weight_decay</span></code>,
 <code class="docutils literal notranslate"><span class="pre">momentum</span></code> (SGD), <code class="docutils literal notranslate"><span class="pre">betas</span></code> (Adam).</p>
 </section>
 <section id="loss-functions">
-<h2><a class="toc-backref" href="#id14" role="doc-backlink">Loss Functions</a><a class="headerlink" href="#loss-functions" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id18" role="doc-backlink">Loss Functions</a><a class="headerlink" href="#loss-functions" title="Link to this heading"></a></h2>
 <table class="docutils align-default">
 <colgroup>
 <col style="width: 30.0%" />
@@ -465,7 +632,7 @@ epoch count, optimizer state, and config overrides.</p>
 </table>
 </section>
 <section id="regularization-and-pruning">
-<h2><a class="toc-backref" href="#id15" role="doc-backlink">Regularization and Pruning</a><a class="headerlink" href="#regularization-and-pruning" title="Link to this heading"></a></h2>
+<h2><a class="toc-backref" href="#id19" role="doc-backlink">Regularization and Pruning</a><a class="headerlink" href="#regularization-and-pruning" title="Link to this heading"></a></h2>
 <p>Regularization (<code class="docutils literal notranslate"><span class="pre">training.main.regularization</span></code>):</p>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">l1_weight</span></code>, <code class="docutils literal notranslate"><span class="pre">l2_weight</span></code>: L1/L2 penalty weights</p></li>

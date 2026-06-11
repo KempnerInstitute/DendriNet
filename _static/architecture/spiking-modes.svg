@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1240" height="540" viewBox="0 0 1240 540">
+  <defs>
+    <style>
+      .title { font: 700 28px "DejaVu Sans", Arial, sans-serif; fill: #12324d; }
+      .subtitle { font: 500 17px "DejaVu Sans", Arial, sans-serif; fill: #45637a; }
+      .card { fill: #f8fbfd; stroke: #8eafc3; stroke-width: 2; }
+      .name { font: 700 19px "DejaVu Sans", Arial, sans-serif; fill: #143350; }
+      .kv { font: 400 14px "DejaVu Sans", Arial, sans-serif; fill: #2d4b62; }
+      .small { font: 400 12px "DejaVu Sans", Arial, sans-serif; fill: #546c7e; }
+      .axis { stroke: #9bb1c0; stroke-width: 1.4; }
+      .sig { stroke: #2f6fb0; stroke-width: 2.6; fill: none; }
+      .thr { stroke: #b0433a; stroke-width: 1.6; stroke-dasharray: 6 5; fill: none; }
+      .spk { stroke: #14506e; stroke-width: 2.4; fill: none; }
+      .plateau { stroke: #7a5aa6; stroke-width: 2.8; fill: none; }
+    </style>
+  </defs>
+  <text class="title" x="40" y="42">Dynamics modes — rate soma vs somatic spikes vs dendritic plateau spikes</text>
+  <text class="subtitle" x="40" y="70">core PopulationConfig.dynamics_mode = "rate" | "spike" (somatic LIF), and dendritic_spikes.enabled (plateau at branches). Soma vs dendritic spikes differ in locus + dynamics.</text>
+
+  <!-- RATE -->
+  <rect class="card" x="40" y="100" width="370" height="380" rx="16"/>
+  <text class="name" x="62" y="134">Rate soma  (dynamics_mode: rate)</text>
+  <path class="axis" d="M70,330 L390,330 M70,330 L70,170"/>
+  <path class="sig" d="M70,322 C150,322 170,210 240,205 C300,201 340,250 390,238"/>
+  <text class="kv" x="62" y="368">Output = graded rate / membrane trace</text>
+  <text class="kv" x="62" y="392">(no threshold, fully differentiable)</text>
+  <text class="small" x="62" y="420">Default mode; gate (m,b) shapes the</text>
+  <text class="small" x="62" y="438">reactivation of the continuous voltage.</text>
+  <text class="small" x="62" y="462">readout: continuous activation</text>
+
+  <!-- SOMATIC SPIKE -->
+  <rect class="card" x="435" y="100" width="370" height="380" rx="16"/>
+  <text class="name" x="457" y="134">Somatic spikes  (dynamics_mode: spike)</text>
+  <path class="axis" d="M465,330 L785,330 M465,330 L465,170"/>
+  <path class="thr" d="M465,210 L785,210"/>
+  <text class="small" x="788" y="214">V_threshold</text>
+  <!-- integrate to threshold, reset (sawtooth) -->
+  <path class="spk" d="M465,322 L520,212 L520,318 L575,210 L575,318 L640,210 L640,318 L705,212 L705,318 L760,214"/>
+  <!-- spike ticks -->
+  <path class="plateau" d="M520,210 L520,180 M575,210 L575,180 M640,210 L640,180 M705,210 L705,180" stroke="#14506e"/>
+  <text class="kv" x="457" y="368">LIF: membrane integrates -> threshold</text>
+  <text class="kv" x="457" y="392">-> emits spike -> reset; refractory.</text>
+  <text class="small" x="457" y="420">params: spike_threshold, spike_reset,</text>
+  <text class="small" x="457" y="438">spike_tau, refractory_steps; surrogate</text>
+  <text class="small" x="457" y="456">gradient (beta). readout: spikes or rate-trace</text>
+
+  <!-- DENDRITIC PLATEAU -->
+  <rect class="card" x="830" y="100" width="370" height="380" rx="16"/>
+  <text class="name" x="852" y="134">Dendritic plateau  (dendritic_spikes)</text>
+  <path class="axis" d="M860,330 L1180,330 M860,330 L860,170"/>
+  <path class="thr" d="M860,250 L1180,250"/>
+  <text class="small" x="1090" y="246">dendritic_spike_threshold</text>
+  <!-- branch voltage crosses threshold -> sustained plateau -> decay -->
+  <path class="plateau" d="M860,322 C915,322 930,250 955,210 L1075,210 C1110,210 1130,300 1180,322"/>
+  <text class="kv" x="852" y="368">Branch voltage crosses dendritic</text>
+  <text class="kv" x="852" y="392">threshold -> sustained plateau (NMDA-like),</text>
+  <text class="kv" x="852" y="412">amplitude + tau, then decays; propagates to soma.</text>
+  <text class="small" x="852" y="440">params: dendritic_spike_threshold,</text>
+  <text class="small" x="852" y="458">plateau_amplitude, plateau_tau, levels,</text>
+  <text class="small" x="852" y="476">propagation. Locus = dendrite (vs soma).</text>
+</svg>

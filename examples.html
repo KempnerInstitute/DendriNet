@@ -47,10 +47,31 @@
 <li class="toctree-l1"><a class="reference internal" href="installation.html">Installation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="quickstart.html">Quick Start</a></li>
 <li class="toctree-l1 current"><a class="current reference internal" href="#">Runnable Config Examples</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#recommended-example-ladder">Recommended Example Ladder</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#feature-map">Feature Map</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#mnist-single-layer">MNIST Single Layer</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#population-network-feedforward">Population Network Feedforward</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#population-network-heterogeneous-cell-types">Population Network Heterogeneous Cell Types</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#population-network-recurrent">Population Network Recurrent</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#population-network-with-independent-transfer">Population Network with Independent Transfer</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#population-network-two-layer-e-i">Population Network Two-Layer E/I</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#old-format-population-mirrors">Old-Format Population Mirrors</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#cifar-10-single-layer">CIFAR-10 Single Layer</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#cifar-10-dense-to-sparse-topk">CIFAR-10 Dense-to-Sparse TopK</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#normalized-additive-population-network">Normalized Additive Population Network</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#cifar-10-two-layers">CIFAR-10 Two Layers</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#alexnet-500e-replacement">AlexNet 500E Replacement</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#recurrent-population-networks">Recurrent Population Networks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#taus-and-delayed-edges">Taus and Delayed Edges</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#multilayer-recurrent-population-network">Multilayer Recurrent Population Network</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#synapse-types">Synapse Types</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#structured-connectivity">Structured Connectivity</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#spiking-soma">Spiking Soma</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#soma-feedback">Soma Feedback</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#deepseek-v3-mlp-replacement-template">DeepSeek-V3 MLP Replacement Template</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#transformer-replacement-distillation-smoke-test">Transformer Replacement Distillation Smoke Test</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#transformer-replacement-benchmarks">Transformer Replacement Benchmarks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#component-coverage">Component Coverage</a></li>
 </ul>
 </li>
 </ul>
@@ -98,13 +119,301 @@
              
   <section id="runnable-config-examples">
 <h1>Runnable Config Examples<a class="headerlink" href="#runnable-config-examples" title="Link to this heading"></a></h1>
-<p>These four YAML files are the main copy-paste starting points for local runs.</p>
+<p>These YAML files are copy-paste starting points for local runs. The first four
+are the primary vision examples; the recurrent examples exercise the newer
+population, synapse-type, structured-connectivity, and spiking components.</p>
+<section id="recommended-example-ladder">
+<h2>Recommended Example Ladder<a class="headerlink" href="#recommended-example-ladder" title="Link to this heading"></a></h2>
+<p>The examples are organized so a user can move from the original E/I model to
+the fully compositional population-network notation without changing more
+than one idea at a time.</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 18.0%" />
+<col style="width: 35.0%" />
+<col style="width: 47.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Step</p></th>
+<th class="head"><p>Config</p></th>
+<th class="head"><p>What it teaches</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><ol class="arabic simple">
+<li><p>Original feedforward E/I</p></li>
+</ol>
+</td>
+<td><p><code class="docutils literal notranslate"><span class="pre">configs/examples/standard_mnist.yaml</span></code></p></td>
+<td><p>Legacy-compatible shunting MNIST with the current recommended
+<code class="docutils literal notranslate"><span class="pre">occupancy_quantile</span></code> gate initialization.</p></td>
+</tr>
+<tr class="row-odd"><td><ol class="arabic simple" start="2">
+<li><p>Same model, canonical notation</p></li>
+</ol>
+</td>
+<td><p><code class="docutils literal notranslate"><span class="pre">configs/examples/standard_mnist_population_network.yaml</span></code></p></td>
+<td><p>The same E/I computation written as named populations and explicit
+directed connections.</p></td>
+</tr>
+<tr class="row-even"><td><ol class="arabic simple" start="3">
+<li><p>Multiple populations in one feedforward layer</p></li>
+</ol>
+</td>
+<td><p><code class="docutils literal notranslate"><span class="pre">configs/examples/population_network_heterogeneous_feedforward.yaml</span></code></p></td>
+<td><p>PV/SST-like inhibitory populations and multiple excitatory morphologies
+in one layer.</p></td>
+</tr>
+<tr class="row-odd"><td><ol class="arabic simple" start="4">
+<li><p>Explicit multilayer routing</p></li>
+</ol>
+</td>
+<td><p><code class="docutils literal notranslate"><span class="pre">configs/examples/population_network_two_layer.yaml</span></code></p></td>
+<td><p>Cross-layer sources such as <code class="docutils literal notranslate"><span class="pre">layer0.e0</span></code> and local same-step
+inhibition in each layer.</p></td>
+</tr>
+<tr class="row-even"><td><ol class="arabic simple" start="5">
+<li><p>Recurrent microcircuit</p></li>
+</ol>
+</td>
+<td><p><code class="docutils literal notranslate"><span class="pre">configs/examples/population_network_recurrent_pyr_pv_sst.yaml</span></code></p></td>
+<td><p>Delayed recurrent edges, connection probabilities, and recurrent
+training.</p></td>
+</tr>
+<tr class="row-odd"><td><ol class="arabic simple" start="6">
+<li><p>Biophysics extensions</p></li>
+</ol>
+</td>
+<td><p><code class="docutils literal notranslate"><span class="pre">population_network_synapse_types_ampa_nmda_gaba.yaml</span></code>,
+<code class="docutils literal notranslate"><span class="pre">population_network_spiking.yaml</span></code>, <code class="docutils literal notranslate"><span class="pre">population_network_soma_feedback.yaml</span></code></p></td>
+<td><p>Typed conductance traces, LIF soma output, and previous-timestep
+soma-to-dendrite feedback.</p></td>
+</tr>
+<tr class="row-even"><td><ol class="arabic simple" start="7">
+<li><p>Developmental sparsity</p></li>
+</ol>
+</td>
+<td><p><code class="docutils literal notranslate"><span class="pre">configs/examples/standard_cifar10_dense_to_sparse_population_network.yaml</span></code></p></td>
+<td><p>Dense-to-sparse TopK warmup and pruning in the population schema.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="feature-map">
+<h2>Feature Map<a class="headerlink" href="#feature-map" title="Link to this heading"></a></h2>
+<p>Use this table when choosing the smallest example that exercises a newer
+implementation path:</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 22.0%" />
+<col style="width: 31.0%" />
+<col style="width: 31.0%" />
+<col style="width: 16.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Feature</p></th>
+<th class="head"><p>Main config keys</p></th>
+<th class="head"><p>Example config</p></th>
+<th class="head"><p>Runner</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Canonical recurrent population network</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">model.core.type:</span> <span class="pre">population_network</span></code>,
+<code class="docutils literal notranslate"><span class="pre">population_network.layers[].populations</span></code>,
+<code class="docutils literal notranslate"><span class="pre">population_network.layers[].connections</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">configs/examples/population_network_recurrent_pyr_pv_sst.yaml</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">train_experiments.py</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>Canonical feedforward population network</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">model.core.type:</span> <span class="pre">population_network</span></code>,
+<code class="docutils literal notranslate"><span class="pre">population_network.layers[].populations</span></code>,
+<code class="docutils literal notranslate"><span class="pre">population_network.layers[].connections</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">configs/examples/population_network_feedforward.yaml</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">train_experiments.py</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>Heterogeneous feedforward populations</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">population_network.layers[].populations[].population</span></code> with
+per-population morphology and dynamics overrides</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">configs/examples/population_network_heterogeneous_feedforward.yaml</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">train_experiments.py</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>Independent E/I transfer streams</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">population_network.use_transfer:</span> <span class="pre">true</span></code>,
+<code class="docutils literal notranslate"><span class="pre">transfer_params.independent_pathways:</span> <span class="pre">true</span></code>,
+<code class="docutils literal notranslate"><span class="pre">connections[].source:</span> <span class="pre">input_e</span></code>/<code class="docutils literal notranslate"><span class="pre">input_i</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">configs/examples/population_network_independent_transfer.yaml</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">train_experiments.py</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>Two-layer population network</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">population_network.layers</span></code> with two E/I population layers,
+per-layer <code class="docutils literal notranslate"><span class="pre">connections</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">configs/examples/population_network_two_layer.yaml</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">train_experiments.py</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>Legacy feedforward configs in population format</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">model.core.type:</span> <span class="pre">population_network</span></code> plus
+<code class="docutils literal notranslate"><span class="pre">use_transfer:</span> <span class="pre">true</span></code> and old E/I sizes/synapse counts</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">configs/examples/standard_cifar10_population_network.yaml</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">train_experiments.py</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>Dense-to-sparse in population format</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">topk_type:</span> <span class="pre">dense_to_sparse</span></code> and
+<code class="docutils literal notranslate"><span class="pre">dense_to_sparse_*</span></code> population fields</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">configs/examples/standard_cifar10_dense_to_sparse_population_network.yaml</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">train_experiments.py</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>Normalized additive in population format</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">use_shunting:</span> <span class="pre">false</span></code> plus
+<code class="docutils literal notranslate"><span class="pre">use_additive_normalization:</span> <span class="pre">true</span></code> in <code class="docutils literal notranslate"><span class="pre">population_defaults</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">configs/examples/standard_mnist_normalized_additive_population_network.yaml</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">train_experiments.py</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>AMPA/NMDA/GABA-style synapse types</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">population_network.layers[].population_defaults.synapse_types</span></code> with
+<code class="docutils literal notranslate"><span class="pre">excitatory</span></code>/<code class="docutils literal notranslate"><span class="pre">inhibitory</span></code> receptor lists</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">configs/examples/population_network_synapse_types_ampa_nmda_gaba.yaml</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">train_experiments.py</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>Taus and delayed recurrent edges</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">layers[].dt</span></code>, <code class="docutils literal notranslate"><span class="pre">population_defaults.tau_base</span></code>,
+<code class="docutils literal notranslate"><span class="pre">population_defaults.tau_ratio</span></code>, <code class="docutils literal notranslate"><span class="pre">connections[].timing:</span> <span class="pre">delayed</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">configs/examples/population_network_taus_and_delays.yaml</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">train_experiments.py</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>Multilayer recurrent population network</p></td>
+<td><p>Cross-layer sources such as <code class="docutils literal notranslate"><span class="pre">layer0.e0</span></code> plus local and delayed edges</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">configs/examples/population_network_multilayer_recurrent.yaml</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">train_experiments.py</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>Structured TopK/DeepST masks</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">model.core.connectivity.structured.enabled</span></code>,
+<code class="docutils literal notranslate"><span class="pre">pathways.ee</span></code>/<code class="docutils literal notranslate"><span class="pre">ie</span></code>/<code class="docutils literal notranslate"><span class="pre">rec_ee</span></code>/<code class="docutils literal notranslate"><span class="pre">rec_ie</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">configs/examples/recurrent_structured_connectivity.yaml</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">train_experiments.py</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>Spiking soma</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">population_network.layers[].population_defaults.dynamics_mode:</span> <span class="pre">spike</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">configs/examples/population_network_spiking.yaml</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">train_experiments.py</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>Spiking multilayer recurrent network</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">dynamics_mode:</span> <span class="pre">spike</span></code> on recurrent population-network layers</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">configs/examples/population_network_spiking_multilayer_recurrent.yaml</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">train_experiments.py</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>Soma-to-dendrite feedback</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">population_network.layers[].population_defaults.soma_feedback_enabled</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">configs/examples/population_network_soma_feedback.yaml</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">train_experiments.py</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>Dendritic transformer FFN</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">model.transformer_replacement</span></code>,
+<code class="docutils literal notranslate"><span class="pre">model.core.type:</span> <span class="pre">dendritic_ffn</span></code>,
+<code class="docutils literal notranslate"><span class="pre">replacement_kwargs.kind:</span> <span class="pre">dendritic_ffn</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">configs/examples/transformer_replacement_synthetic_distillation.yaml</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">train_transformer_replacement</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>Transformer EI stack replacement</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">replacement_kwargs.kind:</span> <span class="pre">ei_stack</span></code> plus EI stack sizing fields such
+as <code class="docutils literal notranslate"><span class="pre">excitatory_cells</span></code> and <code class="docutils literal notranslate"><span class="pre">inhibitory_cells</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">jobs/transformer_replacement_benchmarks/configs/generated/olmo2_1b_ei_stack_all_mlp/olmo2_1b_ei_stack_e200_i50.yaml</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">train_transformer_replacement</span></code></p></td>
+</tr>
+</tbody>
+</table>
+<p>All scripts under <code class="docutils literal notranslate"><span class="pre">src/dendritic_modeling/scripts</span></code> are package-owned entry
+points and should be tracked. Local scratch scripts in the repository root
+<code class="docutils literal notranslate"><span class="pre">scripts/</span></code> directory are intentionally ignored.</p>
+</section>
 <section id="mnist-single-layer">
 <h2>MNIST Single Layer<a class="headerlink" href="#mnist-single-layer" title="Link to this heading"></a></h2>
 <p>Original single-layer MNIST feedforward example:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">PYTHONPATH</span><span class="o">=</span>src:<span class="nv">$PYTHONPATH</span><span class="w"> </span>python<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>src/dendritic_modeling/scripts/training/train_experiments.py<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>configs/examples/standard_mnist.yaml
+</pre></div>
+</div>
+</section>
+<section id="population-network-feedforward">
+<h2>Population Network Feedforward<a class="headerlink" href="#population-network-feedforward" title="Link to this heading"></a></h2>
+<p>The same feedforward E/I computation can be expressed with named populations:
+<code class="docutils literal notranslate"><span class="pre">input</span> <span class="pre">-&gt;</span> <span class="pre">i</span></code>, <code class="docutils literal notranslate"><span class="pre">input</span> <span class="pre">-&gt;</span> <span class="pre">e</span></code>, and same-step <code class="docutils literal notranslate"><span class="pre">i</span> <span class="pre">-&gt;</span> <span class="pre">e</span></code> inhibition. This is
+the smallest example of the canonical layer schema; adding PV/SST/VIP or distinct
+morphologies is done by adding population blocks and directional edges.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">PYTHONPATH</span><span class="o">=</span>src:<span class="nv">$PYTHONPATH</span><span class="w"> </span>python<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>src/dendritic_modeling/scripts/training/train_experiments.py<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>configs/examples/population_network_feedforward.yaml
+</pre></div>
+</div>
+</section>
+<section id="population-network-heterogeneous-cell-types">
+<h2>Population Network Heterogeneous Cell Types<a class="headerlink" href="#population-network-heterogeneous-cell-types" title="Link to this heading"></a></h2>
+<p>Multiple E and I populations can live in the same feedforward layer. The
+example below combines PV-like and SST-like inhibitory populations with deep
+and flat excitatory populations, each with its own morphology and
+<code class="docutils literal notranslate"><span class="pre">PopulationConfig</span></code> overrides:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">PYTHONPATH</span><span class="o">=</span>src:<span class="nv">$PYTHONPATH</span><span class="w"> </span>python<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>src/dendritic_modeling/scripts/training/train_experiments.py<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>configs/examples/population_network_heterogeneous_feedforward.yaml
+</pre></div>
+</div>
+</section>
+<section id="population-network-recurrent">
+<h2>Population Network Recurrent<a class="headerlink" href="#population-network-recurrent" title="Link to this heading"></a></h2>
+<p>The same schema becomes recurrent by adding <code class="docutils literal notranslate"><span class="pre">timing:</span> <span class="pre">delayed</span></code> connections on
+a recurrent layer. Same-step input edges drive the current timestep; delayed
+population edges read previous-timestep outputs.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">PYTHONPATH</span><span class="o">=</span>src:<span class="nv">$PYTHONPATH</span><span class="w"> </span>python<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>src/dendritic_modeling/scripts/training/train_experiments.py<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>configs/examples/population_network_recurrent_pyr_pv_sst.yaml
+</pre></div>
+</div>
+</section>
+<section id="population-network-with-independent-transfer">
+<h2>Population Network with Independent Transfer<a class="headerlink" href="#population-network-with-independent-transfer" title="Link to this heading"></a></h2>
+<p>To reproduce the legacy independent-pathway <code class="docutils literal notranslate"><span class="pre">TransferLayer</span></code> split, use
+<code class="docutils literal notranslate"><span class="pre">input_e</span></code> and <code class="docutils literal notranslate"><span class="pre">input_i</span></code> as explicit first-layer sources:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">PYTHONPATH</span><span class="o">=</span>src:<span class="nv">$PYTHONPATH</span><span class="w"> </span>python<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>src/dendritic_modeling/scripts/training/train_experiments.py<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>configs/examples/population_network_independent_transfer.yaml
+</pre></div>
+</div>
+</section>
+<section id="population-network-two-layer-e-i">
+<h2>Population Network Two-Layer E/I<a class="headerlink" href="#population-network-two-layer-e-i" title="Link to this heading"></a></h2>
+<p>The old two-layer E/I shape, <code class="docutils literal notranslate"><span class="pre">128E/32I</span> <span class="pre">-&gt;</span> <span class="pre">64E/16I</span></code>, can be written as two
+population-network layers. Layer 0 uses <code class="docutils literal notranslate"><span class="pre">input</span> <span class="pre">-&gt;</span> <span class="pre">i0</span></code> and <code class="docutils literal notranslate"><span class="pre">input</span> <span class="pre">-&gt;</span> <span class="pre">e0</span></code>.
+Layer 1 then addresses the earlier populations explicitly, for example
+<code class="docutils literal notranslate"><span class="pre">layer0.e0</span> <span class="pre">-&gt;</span> <span class="pre">i1</span></code>, <code class="docutils literal notranslate"><span class="pre">layer0.e0</span> <span class="pre">-&gt;</span> <span class="pre">e1</span></code>, and <code class="docutils literal notranslate"><span class="pre">layer0.i0</span> <span class="pre">-&gt;</span> <span class="pre">e1</span></code>, before
+local same-step <code class="docutils literal notranslate"><span class="pre">i1</span> <span class="pre">-&gt;</span> <span class="pre">e1</span></code> inhibition:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">PYTHONPATH</span><span class="o">=</span>src:<span class="nv">$PYTHONPATH</span><span class="w"> </span>python<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>src/dendritic_modeling/scripts/training/train_experiments.py<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>configs/examples/population_network_two_layer.yaml
+</pre></div>
+</div>
+</section>
+<section id="old-format-population-mirrors">
+<h2>Old-Format Population Mirrors<a class="headerlink" href="#old-format-population-mirrors" title="Link to this heading"></a></h2>
+<p>The following examples mirror the older <code class="docutils literal notranslate"><span class="pre">model.core.type:</span> <span class="pre">einet</span></code> configs
+with the newer named-population schema. They are useful for migration and
+regression checks because the old morphology, transfer mode, inhibitory-input
+convention, synapse counts, decoder, and training settings are kept aligned:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">PYTHONPATH</span><span class="o">=</span>src:<span class="nv">$PYTHONPATH</span><span class="w"> </span>python<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>src/dendritic_modeling/scripts/training/train_experiments.py<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>configs/examples/standard_mnist_population_network.yaml
+
+<span class="nv">PYTHONPATH</span><span class="o">=</span>src:<span class="nv">$PYTHONPATH</span><span class="w"> </span>python<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>src/dendritic_modeling/scripts/training/train_experiments.py<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>configs/examples/standard_cifar10_population_network.yaml
+
+<span class="nv">PYTHONPATH</span><span class="o">=</span>src:<span class="nv">$PYTHONPATH</span><span class="w"> </span>python<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>src/dendritic_modeling/scripts/training/train_experiments.py<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>configs/examples/cifar10_128_333_40e10i_population_network.yaml
+
+<span class="nv">PYTHONPATH</span><span class="o">=</span>src:<span class="nv">$PYTHONPATH</span><span class="w"> </span>python<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>src/dendritic_modeling/scripts/training/train_experiments.py<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>configs/examples/cifar10_two_layer_population_network.yaml
 </pre></div>
 </div>
 </section>
@@ -115,6 +424,34 @@
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">PYTHONPATH</span><span class="o">=</span>src:<span class="nv">$PYTHONPATH</span><span class="w"> </span>python<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>src/dendritic_modeling/scripts/training/train_experiments.py<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>configs/examples/cifar10_128_333_40e10i.yaml
+</pre></div>
+</div>
+</section>
+<section id="cifar-10-dense-to-sparse-topk">
+<h2>CIFAR-10 Dense-to-Sparse TopK<a class="headerlink" href="#cifar-10-dense-to-sparse-topk" title="Link to this heading"></a></h2>
+<p>CIFAR-10 with the standard single-layer DendriNet, but
+<code class="docutils literal notranslate"><span class="pre">model.core.sparsity.type:</span> <span class="pre">dense_to_sparse</span></code> so allowed synapses receive
+gradient early and are annealed down to the configured TopK budget:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">PYTHONPATH</span><span class="o">=</span>src:<span class="nv">$PYTHONPATH</span><span class="w"> </span>python<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>src/dendritic_modeling/scripts/training/train_experiments.py<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>configs/examples/standard_cifar10_dense_to_sparse.yaml
+</pre></div>
+</div>
+<p>The same dense-to-sparse selector can be used from the population schema:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">PYTHONPATH</span><span class="o">=</span>src:<span class="nv">$PYTHONPATH</span><span class="w"> </span>python<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>src/dendritic_modeling/scripts/training/train_experiments.py<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>configs/examples/standard_cifar10_dense_to_sparse_population_network.yaml
+</pre></div>
+</div>
+</section>
+<section id="normalized-additive-population-network">
+<h2>Normalized Additive Population Network<a class="headerlink" href="#normalized-additive-population-network" title="Link to this heading"></a></h2>
+<p>The normalized additive MNIST recipe can also be written directly as a
+population network. This is the population-format additive counterpart to the
+standard shunting mirrors:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">PYTHONPATH</span><span class="o">=</span>src:<span class="nv">$PYTHONPATH</span><span class="w"> </span>python<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>src/dendritic_modeling/scripts/training/train_experiments.py<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>configs/examples/standard_mnist_normalized_additive_population_network.yaml
 </pre></div>
 </div>
 </section>
@@ -131,13 +468,268 @@
 <h2>AlexNet 500E Replacement<a class="headerlink" href="#alexnet-500e-replacement" title="Link to this heading"></a></h2>
 <p>AlexNet <code class="docutils literal notranslate"><span class="pre">fc7</span></code> replacement with a 500E-only dendritic tensor-map core. For
 real training, set <code class="docutils literal notranslate"><span class="pre">data.base_dir</span></code> or <code class="docutils literal notranslate"><span class="pre">IMAGENET_LOCAL_DIR</span></code> to a local
-ImageNet root; without ImageNet, the loader falls back to small fake data for
-smoke testing only.</p>
+ImageNet root. The example uses pretrained ImageNet preprocessing and disables
+fake-data fallback; for loader smoke tests without the real dataset, set
+<code class="docutils literal notranslate"><span class="pre">data.dataset_params.imagenet.allow_fake_data:</span> <span class="pre">true</span></code> explicitly.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">PYTHONPATH</span><span class="o">=</span>src:<span class="nv">$PYTHONPATH</span><span class="w"> </span>python<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>src/dendritic_modeling/scripts/training/train_experiments.py<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>configs/examples/alexnet_fc7_dendritic_500.yaml
 </pre></div>
 </div>
+</section>
+<section id="recurrent-population-networks">
+<h2>Recurrent Population Networks<a class="headerlink" href="#recurrent-population-networks" title="Link to this heading"></a></h2>
+<p>Use <code class="docutils literal notranslate"><span class="pre">population_network_recurrent_pyr_pv_sst.yaml</span></code> for named recurrent
+E/I cell populations. It uses the same <code class="docutils literal notranslate"><span class="pre">population_network.layers[]</span></code> and
+<code class="docutils literal notranslate"><span class="pre">connections</span></code> notation as feedforward population examples:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">PYTHONPATH</span><span class="o">=</span>src:<span class="nv">$PYTHONPATH</span><span class="w"> </span>python<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>src/dendritic_modeling/scripts/training/train_experiments.py<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>configs/examples/population_network_recurrent_pyr_pv_sst.yaml
+</pre></div>
+</div>
+</section>
+<section id="taus-and-delayed-edges">
+<h2>Taus and Delayed Edges<a class="headerlink" href="#taus-and-delayed-edges" title="Link to this heading"></a></h2>
+<p>Temporal constants are explicit. <code class="docutils literal notranslate"><span class="pre">layers[].dt</span></code> is the update step,
+<code class="docutils literal notranslate"><span class="pre">tau_base</span></code>/<code class="docutils literal notranslate"><span class="pre">tau_ratio</span></code> or <code class="docutils literal notranslate"><span class="pre">level_taus</span></code> define dendritic trace decays, and
+<code class="docutils literal notranslate"><span class="pre">timing:</span> <span class="pre">delayed</span></code> connections read the previous timestep. Receptor-style
+<code class="docutils literal notranslate"><span class="pre">synapse_types</span></code> add their own <code class="docutils literal notranslate"><span class="pre">tau_rise</span></code>/<code class="docutils literal notranslate"><span class="pre">tau_decay</span></code> traces:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">PYTHONPATH</span><span class="o">=</span>src:<span class="nv">$PYTHONPATH</span><span class="w"> </span>python<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>src/dendritic_modeling/scripts/training/train_experiments.py<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>configs/examples/population_network_taus_and_delays.yaml
+</pre></div>
+</div>
+</section>
+<section id="multilayer-recurrent-population-network">
+<h2>Multilayer Recurrent Population Network<a class="headerlink" href="#multilayer-recurrent-population-network" title="Link to this heading"></a></h2>
+<p>Multiple recurrent population layers can be stacked. Later layers can consume
+any earlier population by qualified source name, for example <code class="docutils literal notranslate"><span class="pre">layer0.e0</span></code> or
+<code class="docutils literal notranslate"><span class="pre">layer0.pv0</span></code>. Local same-step edges remain directional, while recurrent
+feedback uses <code class="docutils literal notranslate"><span class="pre">timing:</span> <span class="pre">delayed</span></code>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">PYTHONPATH</span><span class="o">=</span>src:<span class="nv">$PYTHONPATH</span><span class="w"> </span>python<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>src/dendritic_modeling/scripts/training/train_experiments.py<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>configs/examples/population_network_multilayer_recurrent.yaml
+</pre></div>
+</div>
+</section>
+<section id="synapse-types">
+<h2>Synapse Types<a class="headerlink" href="#synapse-types" title="Link to this heading"></a></h2>
+<p>Population network with AMPA/NMDA and GABA-A/GABA-B conductance traces,
+including rise/decay kinetics, NMDA magnesium block, and an aggregate
+short-term plasticity example:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">PYTHONPATH</span><span class="o">=</span>src:<span class="nv">$PYTHONPATH</span><span class="w"> </span>python<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>src/dendritic_modeling/scripts/training/train_experiments.py<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>configs/examples/population_network_synapse_types_ampa_nmda_gaba.yaml
+</pre></div>
+</div>
+</section>
+<section id="structured-connectivity">
+<h2>Structured Connectivity<a class="headerlink" href="#structured-connectivity" title="Link to this heading"></a></h2>
+<p>Recurrent EINet with fixed-indegree and Bernoulli topology masks on selected
+feedforward and recurrent pathways:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">PYTHONPATH</span><span class="o">=</span>src:<span class="nv">$PYTHONPATH</span><span class="w"> </span>python<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>src/dendritic_modeling/scripts/training/train_experiments.py<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>configs/examples/recurrent_structured_connectivity.yaml
+</pre></div>
+</div>
+</section>
+<section id="spiking-soma">
+<h2>Spiking Soma<a class="headerlink" href="#spiking-soma" title="Link to this heading"></a></h2>
+<p>Population network with opt-in LIF soma dynamics, a rate-decoded spike trace, and
+<code class="docutils literal notranslate"><span class="pre">analysis.spike_train</span></code> summaries for raster, firing-rate, Fano, and ISI
+diagnostics:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">PYTHONPATH</span><span class="o">=</span>src:<span class="nv">$PYTHONPATH</span><span class="w"> </span>python<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>src/dendritic_modeling/scripts/training/train_experiments.py<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>configs/examples/population_network_spiking.yaml
+</pre></div>
+</div>
+<p>The same population-network wiring also works with spiking soma dynamics in a
+multilayer recurrent network:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">PYTHONPATH</span><span class="o">=</span>src:<span class="nv">$PYTHONPATH</span><span class="w"> </span>python<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>src/dendritic_modeling/scripts/training/train_experiments.py<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>configs/examples/population_network_spiking_multilayer_recurrent.yaml
+</pre></div>
+</div>
+</section>
+<section id="soma-feedback">
+<h2>Soma Feedback<a class="headerlink" href="#soma-feedback" title="Link to this heading"></a></h2>
+<p>Population network with delayed soma-to-dendrite feedback:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">PYTHONPATH</span><span class="o">=</span>src:<span class="nv">$PYTHONPATH</span><span class="w"> </span>python<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>src/dendritic_modeling/scripts/training/train_experiments.py<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>configs/examples/population_network_soma_feedback.yaml
+</pre></div>
+</div>
+</section>
+<section id="deepseek-v3-mlp-replacement-template">
+<h2>DeepSeek-V3 MLP Replacement Template<a class="headerlink" href="#deepseek-v3-mlp-replacement-template" title="Link to this heading"></a></h2>
+<p>Transformer replacement uses the same target-plus-core structure as the
+AlexNet examples, but is applied to a Hugging Face model object rather than the
+vision training script. The template below replaces decoder-block MLPs
+<code class="docutils literal notranslate"><span class="pre">0,</span> <span class="pre">1,</span> <span class="pre">2</span></code> with a token-wise dendritic FFN using <code class="docutils literal notranslate"><span class="pre">indexed_dynamic</span></code> sparse
+candidate pools:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>configs/examples/deepseek_v3_mlp_dendritic_replacement.yaml
+</pre></div>
+</div>
+</section>
+<section id="transformer-replacement-distillation-smoke-test">
+<h2>Transformer Replacement Distillation Smoke Test<a class="headerlink" href="#transformer-replacement-distillation-smoke-test" title="Link to this heading"></a></h2>
+<p>This example trains a small dendritic transformer-MLP replacement against a
+synthetic teacher MLP.  It is the fastest check that the replacement and the
+new <code class="docutils literal notranslate"><span class="pre">training.transformer_replacement</span></code> block are wired correctly before
+loading a large Hugging Face model:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>configs/examples/transformer_replacement_synthetic_distillation.yaml
+</pre></div>
+</div>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">PYTHONPATH</span><span class="o">=</span>src:<span class="nv">$PYTHONPATH</span><span class="w"> </span>python<span class="w"> </span>-m<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>dendritic_modeling.scripts.training.train_transformer_replacement<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>configs/examples/transformer_replacement_synthetic_distillation.yaml
+</pre></div>
+</div>
+</section>
+<section id="transformer-replacement-benchmarks">
+<h2>Transformer Replacement Benchmarks<a class="headerlink" href="#transformer-replacement-benchmarks" title="Link to this heading"></a></h2>
+<p>Benchmark configs live under
+<code class="docutils literal notranslate"><span class="pre">jobs/transformer_replacement_benchmarks/configs/</span></code>.  Each job first trains the
+dendritic replacement and then benchmarks the original teacher block against
+the trained replacement on held-out hidden states:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>jobs/transformer_replacement_benchmarks/configs/synthetic_linear_projection.yaml
+jobs/transformer_replacement_benchmarks/configs/synthetic_gelu_mlp.yaml
+jobs/transformer_replacement_benchmarks/configs/synthetic_gated_silu_mlp.yaml
+</pre></div>
+</div>
+<p>Slurm launch scripts are in
+<code class="docutils literal notranslate"><span class="pre">jobs/transformer_replacement_benchmarks/</span></code>.  The aggregate output is written
+to <code class="docutils literal notranslate"><span class="pre">results/transformer_replacement_benchmarks/summary.md</span></code> and
+<code class="docutils literal notranslate"><span class="pre">summary.csv</span></code>.</p>
+</section>
+<section id="component-coverage">
+<h2>Component Coverage<a class="headerlink" href="#component-coverage" title="Link to this heading"></a></h2>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 38.0%" />
+<col style="width: 12.0%" />
+<col style="width: 12.0%" />
+<col style="width: 12.0%" />
+<col style="width: 12.0%" />
+<col style="width: 14.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Config</p></th>
+<th class="head"><p>Populations</p></th>
+<th class="head"><p>Synapse types</p></th>
+<th class="head"><p>Structured masks</p></th>
+<th class="head"><p>Spikes</p></th>
+<th class="head"><p>Soma feedback</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">population_network_feedforward.yaml</span></code></p></td>
+<td><p>yes</p></td>
+<td><p>no</p></td>
+<td><p>directional same-step</p></td>
+<td><p>no</p></td>
+<td><p>no</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">population_network_heterogeneous_feedforward.yaml</span></code></p></td>
+<td><p>yes</p></td>
+<td><p>no</p></td>
+<td><p>heterogeneous same-step DAG</p></td>
+<td><p>no</p></td>
+<td><p>no</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">population_network_recurrent_pyr_pv_sst.yaml</span></code></p></td>
+<td><p>yes</p></td>
+<td><p>no</p></td>
+<td><p>same-step + delayed recurrent</p></td>
+<td><p>no</p></td>
+<td><p>no</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">population_network_independent_transfer.yaml</span></code></p></td>
+<td><p>yes</p></td>
+<td><p>no</p></td>
+<td><p>transfer split + directional same-step</p></td>
+<td><p>no</p></td>
+<td><p>no</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">population_network_two_layer.yaml</span></code></p></td>
+<td><p>yes</p></td>
+<td><p>no</p></td>
+<td><p>two-layer directional same-step</p></td>
+<td><p>no</p></td>
+<td><p>no</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">standard_cifar10_population_network.yaml</span></code></p></td>
+<td><p>yes</p></td>
+<td><p>no</p></td>
+<td><p>old E/I mirror</p></td>
+<td><p>no</p></td>
+<td><p>no</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">standard_cifar10_dense_to_sparse_population_network.yaml</span></code></p></td>
+<td><p>yes</p></td>
+<td><p>no</p></td>
+<td><p>old E/I mirror + dense-to-sparse</p></td>
+<td><p>no</p></td>
+<td><p>no</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">standard_mnist_normalized_additive_population_network.yaml</span></code></p></td>
+<td><p>yes</p></td>
+<td><p>no</p></td>
+<td><p>old E/I mirror + normalized additive</p></td>
+<td><p>no</p></td>
+<td><p>no</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">population_network_synapse_types_ampa_nmda_gaba.yaml</span></code></p></td>
+<td><p>yes</p></td>
+<td><p>yes</p></td>
+<td><p>same-step + delayed recurrent</p></td>
+<td><p>no</p></td>
+<td><p>no</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">population_network_taus_and_delays.yaml</span></code></p></td>
+<td><p>yes</p></td>
+<td><p>yes</p></td>
+<td><p>delayed recurrent + tau controls</p></td>
+<td><p>no</p></td>
+<td><p>no</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">population_network_multilayer_recurrent.yaml</span></code></p></td>
+<td><p>yes</p></td>
+<td><p>no</p></td>
+<td><p>multilayer same-step + delayed</p></td>
+<td><p>no</p></td>
+<td><p>no</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">recurrent_structured_connectivity.yaml</span></code></p></td>
+<td><p>legacy E/I</p></td>
+<td><p>no</p></td>
+<td><p>yes</p></td>
+<td><p>no</p></td>
+<td><p>no</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">population_network_spiking.yaml</span></code></p></td>
+<td><p>yes</p></td>
+<td><p>no</p></td>
+<td><p>same-step + delayed recurrent</p></td>
+<td><p>yes</p></td>
+<td><p>no</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">population_network_spiking_multilayer_recurrent.yaml</span></code></p></td>
+<td><p>yes</p></td>
+<td><p>no</p></td>
+<td><p>multilayer same-step + delayed</p></td>
+<td><p>yes</p></td>
+<td><p>no</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">population_network_soma_feedback.yaml</span></code></p></td>
+<td><p>yes</p></td>
+<td><p>no</p></td>
+<td><p>same-step + delayed recurrent</p></td>
+<td><p>no</p></td>
+<td><p>yes</p></td>
+</tr>
+</tbody>
+</table>
 </section>
 </section>
 

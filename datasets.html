@@ -58,6 +58,7 @@
 <li class="toctree-l2"><a class="reference internal" href="#sequence-datasets">Sequence Datasets</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#poisson-generator">Poisson Generator</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#data-processing">Data Processing</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#imagenet-pretrained-backbones">ImageNet / Pretrained Backbones</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="analysis.html">Analysis</a></li>
@@ -110,6 +111,7 @@ under <code class="docutils literal notranslate"><span class="pre">data.dataset_
 <li><p><a class="reference internal" href="#sequence-datasets" id="id3">Sequence Datasets</a></p></li>
 <li><p><a class="reference internal" href="#poisson-generator" id="id4">Poisson Generator</a></p></li>
 <li><p><a class="reference internal" href="#data-processing" id="id5">Data Processing</a></p></li>
+<li><p><a class="reference internal" href="#imagenet-pretrained-backbones" id="id6">ImageNet / Pretrained Backbones</a></p></li>
 </ul>
 </nav>
 <section id="standard-datasets">
@@ -121,9 +123,17 @@ under <code class="docutils literal notranslate"><span class="pre">data.dataset_
 </dd>
 <dt><code class="docutils literal notranslate"><span class="pre">cifar10</span></code></dt><dd><p>CIFAR-10. 32x32 color, 10 classes.</p>
 </dd>
-<dt><code class="docutils literal notranslate"><span class="pre">imagenet</span></code></dt><dd><p>ImageNet classification with torchvision-compatible preprocessing.
-Parameters: <code class="docutils literal notranslate"><span class="pre">train_samples_per_class</span></code>, <code class="docutils literal notranslate"><span class="pre">val_samples_per_class</span></code> for
-reduced local/debug subsets.</p>
+<dt><code class="docutils literal notranslate"><span class="pre">imagenet</span></code></dt><dd><p>ImageNet classification. By default, preprocessing uses the historical
+<code class="docutils literal notranslate"><span class="pre">legacy_resize</span></code> preset for backward-compatible configs. Pretrained
+backbone runs should set <code class="docutils literal notranslate"><span class="pre">transform_preset:</span> <span class="pre">&quot;pretrained&quot;</span></code> for
+RandomResizedCrop/flip training transforms and Resize/CenterCrop eval
+transforms. Missing ImageNet roots raise an error unless
+<code class="docutils literal notranslate"><span class="pre">allow_fake_data:</span> <span class="pre">true</span></code> is set explicitly for smoke tests. Flattening is
+rejected unless <code class="docutils literal notranslate"><span class="pre">allow_flatten_materialize:</span> <span class="pre">true</span></code> is set because full
+ImageNet tensors can materialize tens of GB. Parameters:
+<code class="docutils literal notranslate"><span class="pre">transform_preset</span></code>, <code class="docutils literal notranslate"><span class="pre">allow_fake_data</span></code>,
+<code class="docutils literal notranslate"><span class="pre">allow_flatten_materialize</span></code>, <code class="docutils literal notranslate"><span class="pre">train_samples_per_class</span></code>,
+<code class="docutils literal notranslate"><span class="pre">val_samples_per_class</span></code>.</p>
 </dd>
 <dt><code class="docutils literal notranslate"><span class="pre">mnist_modulo10</span></code></dt><dd><p>Two random MNIST images concatenated; label = <code class="docutils literal notranslate"><span class="pre">(label_a</span> <span class="pre">+</span> <span class="pre">label_b)</span> <span class="pre">%</span> <span class="pre">10</span></code>.
 Parameter: <code class="docutils literal notranslate"><span class="pre">shuffle_iterations</span></code> (default: 2).</p>
@@ -290,6 +300,31 @@ delegates to a base dataset such as <code class="docutils literal notranslate"><
 <span class="w">    </span><span class="nt">flatten</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
 <span class="w">    </span><span class="nt">normalize</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
 <span class="w">    </span><span class="nt">label_noise_rate</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.0</span>
+</pre></div>
+</div>
+</section>
+<section id="imagenet-pretrained-backbones">
+<h2><a class="toc-backref" href="#id6" role="doc-backlink">ImageNet / Pretrained Backbones</a><a class="headerlink" href="#imagenet-pretrained-backbones" title="Link to this heading"></a></h2>
+<p>Use the pretrained preset whenever ImageNet enters a torchvision pretrained
+backbone such as AlexNet:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">data</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">dataset_name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">imagenet</span>
+<span class="w">  </span><span class="nt">base_dir</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;/path/to/imagenet&quot;</span>
+<span class="w">  </span><span class="nt">processing</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">flatten</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+<span class="w">    </span><span class="nt">normalize</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<span class="w">  </span><span class="nt">dataset_params</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">imagenet</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">transform_preset</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;pretrained&quot;</span>
+<span class="w">      </span><span class="nt">allow_fake_data</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+<span class="w">      </span><span class="nt">allow_flatten_materialize</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+</pre></div>
+</div>
+<p>For loader smoke tests without the real dataset, opt in explicitly:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">data</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">dataset_params</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">imagenet</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">allow_fake_data</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
 </pre></div>
 </div>
 </section>

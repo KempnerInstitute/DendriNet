@@ -62,6 +62,7 @@
 <li class="toctree-l2"><a class="reference internal" href="#key-runtime-objects">Key Runtime Objects</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#artifacts-and-outputs">Artifacts and Outputs</a></li>
 <li class="toctree-l2"><a class="reference internal" href="#how-to-extend-safely">How To Extend Safely</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#current-safe-extension-apis">Current Safe Extension APIs</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="configuration_guide.html">Configuration Guide</a></li>
@@ -170,13 +171,16 @@ the E/I layer stack used by the factory.</p>
 </a>
 <p>The important engineering points are:</p>
 <ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">config_utils.canonicalize_model_core_flags</span></code> and
+<li><p><code class="docutils literal notranslate"><span class="pre">config.model_aliases.canonicalize_model_core_flags</span></code> and
 <code class="docutils literal notranslate"><span class="pre">canonicalize_rnn_core_flags</span></code> normalize alias-driven settings before model
-construction.</p></li>
+construction. The older <code class="docutils literal notranslate"><span class="pre">scripts.script_utils.config_utils</span></code> names remain
+compatibility wrappers.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">setup_utils.initialize_model</span></code> is the standard entry point for creating a
 model from the resolved config.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">networks.architectures.factory.get_architecture</span></code> is the central dispatch
-point from config type strings to actual modules.</p></li>
+point from config type strings to actual modules. New project-local
+architectures can register extension builders with
+<code class="docutils literal notranslate"><span class="pre">networks.architectures.register_architecture</span></code> without editing the factory.</p></li>
 <li><p>post-build gate diagnostics write <code class="docutils literal notranslate"><span class="pre">init_gate_stats.json</span></code> when learnable
 reactivation gates are present.</p></li>
 </ul>
@@ -210,14 +214,26 @@ landmarks to keep in mind:</p>
 : experiment entry point for standard training</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">src/dendritic_modeling/scripts/script_utils/setup_utils.py</span></code>
 : environment setup and model initialization</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">src/dendritic_modeling/config/model_aliases.py</span></code>
+: config alias canonicalization and type-implied model defaults</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">src/dendritic_modeling/scripts/script_utils/config_utils.py</span></code>
-: config alias canonicalization and compatibility helpers</p></li>
+: script compatibility wrappers and config-to-runtime flattening helpers</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">src/dendritic_modeling/networks/architectures/factory.py</span></code>
 : model factory and architecture dispatch</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">src/dendritic_modeling/networks/architectures/registry.py</span></code>
+: extension registry for project-local architecture builders</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">src/dendritic_modeling/networks/architectures/excitation_inhibition</span></code>
 : feedforward E/I implementation</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">src/dendritic_modeling/networks/architectures/recurrent</span></code>
 : recurrent unified-EI implementation</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">src/dendritic_modeling/training/optimizers/factory.py</span></code>
+: registry-backed optimizer construction</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">src/dendritic_modeling/training/loss/functions.py</span></code>
+: registry-backed loss-function construction</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">src/dendritic_modeling/datasets/registry.py</span></code>
+: extension registry for project-local dataset loaders</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">src/dendritic_modeling/analysis/registry.py</span></code>
+: analyzer metadata registry for discovery and future manager refactors</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">src/dendritic_modeling/analysis/managers/analysis_manager.py</span></code>
 : lifecycle coordinator for analyzers</p></li>
 </ul>
@@ -243,16 +259,64 @@ are usually:</p>
 </section>
 <section id="how-to-extend-safely">
 <h2>How To Extend Safely<a class="headerlink" href="#how-to-extend-safely" title="Link to this heading"></a></h2>
-<p>For new model or analysis work, the safest extension pattern is:</p>
+<p>For new model, data, optimizer, loss, or analysis work, the safest extension
+pattern is:</p>
 <ol class="arabic simple">
 <li><p>add or extend a config field in <code class="docutils literal notranslate"><span class="pre">src/dendritic_modeling/config</span></code></p></li>
-<li><p>normalize any alias behavior in <code class="docutils literal notranslate"><span class="pre">config_utils.py</span></code></p></li>
-<li><p>wire the behavior into the relevant factory or training entry point</p></li>
+<li><p>normalize any alias behavior in <code class="docutils literal notranslate"><span class="pre">config/model_aliases.py</span></code> or the relevant
+config helper</p></li>
+<li><p>register the new component when a registry exists:
+<code class="docutils literal notranslate"><span class="pre">register_architecture</span></code>, <code class="docutils literal notranslate"><span class="pre">register_optimizer</span></code>, <code class="docutils literal notranslate"><span class="pre">register_loss_function</span></code>,
+or <code class="docutils literal notranslate"><span class="pre">register_dataset</span></code></p></li>
 <li><p>add at least one focused test near the changed subsystem</p></li>
 <li><p>document the new control point in the relevant doc page</p></li>
 </ol>
 <p>That sequence keeps feedforward and recurrent behavior aligned and reduces the
 chance of config-only drift.</p>
+</section>
+<section id="current-safe-extension-apis">
+<h2>Current Safe Extension APIs<a class="headerlink" href="#current-safe-extension-apis" title="Link to this heading"></a></h2>
+<p>These extension points are intentionally compatibility layers: built-in
+behavior remains on the old path, and registered names add new capabilities
+without shadowing existing config strings.</p>
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 25.0%" />
+<col style="width: 35.0%" />
+<col style="width: 40.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Component family</p></th>
+<th class="head"><p>API</p></th>
+<th class="head"><p>Builder contract</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Architecture</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">register_architecture(name,</span> <span class="pre">builder)</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">builder(parameters,</span> <span class="pre">input_dim=None,</span> <span class="pre">suffix_input_dim=None)</span> <span class="pre">-&gt;</span> <span class="pre">nn.Module</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>Optimizer</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">register_optimizer(name,</span> <span class="pre">builder)</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">builder(model_parameters,</span> <span class="pre">optimizer_config)</span> <span class="pre">-&gt;</span> <span class="pre">torch.optim.Optimizer</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>Loss function</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">register_loss_function(name,</span> <span class="pre">builder)</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">builder()</span> <span class="pre">-&gt;</span> <span class="pre">LossFunction</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>Dataset</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">register_dataset(name,</span> <span class="pre">builder)</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">builder(task_cfg)</span> <span class="pre">-&gt;</span> <span class="pre">(train_ds,</span> <span class="pre">valid_ds,</span> <span class="pre">test_ds)</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>Analyzer metadata</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">register_analyzer(name,</span> <span class="pre">...)</span></code></p></td>
+<td><p>Records config field, class path, save directory, and manager attribute</p></td>
+</tr>
+</tbody>
+</table>
+<p>The analyzer registry is metadata-only for now. <code class="docutils literal notranslate"><span class="pre">AnalysisManager</span></code> still owns
+execution order and analyzer-specific call signatures, so analysis output is not
+changed by the registry.</p>
 </section>
 </section>
 

@@ -118,14 +118,16 @@ python<span class="w"> </span>src/dendritic_modeling/scripts/sweeps/result_analy
 <h2>Configuration<a class="headerlink" href="#configuration" title="Link to this heading"></a></h2>
 <p>Basic sweep configuration:</p>
 <div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">sweep_config</span><span class="p">:</span>
-<span class="w">  </span><span class="nt">model.core.connectivity.ee_synapses_per_branch_per_layer</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[[</span><span class="nv">1</span><span class="p p-Indicator">],</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">2</span><span class="p p-Indicator">],</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">3</span><span class="p p-Indicator">]]</span>
-<span class="w">  </span><span class="nt">model.core.connectivity.ie_synapses_per_branch_per_layer</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[[</span><span class="nv">1</span><span class="p p-Indicator">],</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">2</span><span class="p p-Indicator">],</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">3</span><span class="p p-Indicator">]]</span>
-<span class="w">  </span><span class="nt">model.core.morphology.use_shunting</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">true</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">false</span><span class="p p-Indicator">]</span>
+<span class="w">  </span><span class="nt">model.core.population_network.layers.0.population_defaults.ff_excitatory_synapses</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">20</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">30</span><span class="p p-Indicator">]</span>
+<span class="w">  </span><span class="nt">model.core.population_network.layers.0.population_defaults.ff_inhibitory_synapses</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">10</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">15</span><span class="p p-Indicator">]</span>
+<span class="w">  </span><span class="nt">model.core.population_network.layers.0.populations.0.branch_factors</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">3</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">3</span><span class="p p-Indicator">]</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">4</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">4</span><span class="p p-Indicator">]</span>
 <span class="w">  </span><span class="nt">training.main.common.param_groups.lr</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">0.001</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">0.01</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">0.1</span><span class="p p-Indicator">]</span>
 
 <span class="nt">filter_config</span><span class="p">:</span>
 <span class="w">  </span><span class="nt">mode</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;ei-sum&quot;</span>
-<span class="w">  </span><span class="nt">value</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">4</span>
+<span class="w">  </span><span class="nt">value</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">40</span>
 
 <span class="nt">experiment_settings</span><span class="p">:</span>
 <span class="w">  </span><span class="nt">seeds_per_condition</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3</span>
@@ -144,7 +146,7 @@ python<span class="w"> </span>src/dendritic_modeling/scripts/sweeps/result_analy
 <p>Current analyzers cover:</p>
 <ul class="simple">
 <li><p>EI balance studies (excitatory/inhibitory ratios)</p></li>
-<li><p>Branch and morphology sweeps</p></li>
+<li><p>Population-network branch and morphology sweeps</p></li>
 <li><p>Local-learning sweeps</p></li>
 <li><p>Stochastic-dataset sweeps</p></li>
 <li><p>General parameter sweeps</p></li>
@@ -152,7 +154,14 @@ python<span class="w"> </span>src/dendritic_modeling/scripts/sweeps/result_analy
 </section>
 <section id="analysis-output">
 <h2>Analysis Output<a class="headerlink" href="#analysis-output" title="Link to this heading"></a></h2>
-<p>The analyzer writes processed CSVs and plot directories under the sweep output tree.</p>
+<p>The analyzer writes processed CSVs and plot directories under the sweep output
+tree. For general sweeps it records swept parameters from <code class="docutils literal notranslate"><span class="pre">_sweep_metadata</span></code>
+and creates parameter-effect plots, heatmaps for pairs of swept parameters, and
+correlation plots when performance columns such as <code class="docutils literal notranslate"><span class="pre">valid_acc</span></code> or <code class="docutils literal notranslate"><span class="pre">test_acc</span></code>
+are present. Model-level analyses requested in <code class="docutils literal notranslate"><span class="pre">base_config.analysis</span></code> still
+run inside each training job, so population-network sweeps can also collect
+routing, spike-train, synaptic-activation, and other configured analysis
+artifacts per condition.</p>
 <p>Typical layout:</p>
 <div class="highlight-text notranslate"><div class="highlight"><pre><span></span>&lt;sweep_dir&gt;/
 |-- configs/
@@ -167,6 +176,32 @@ python<span class="w"> </span>src/dendritic_modeling/scripts/sweeps/result_analy
 <p>Use <code class="docutils literal notranslate"><span class="pre">configs/sweep_config.yaml</span></code> as the maintained generic sweep template.
 Project-specific sweep packs should live outside the main config tree
 (for example under <code class="docutils literal notranslate"><span class="pre">drafts/*/configs/sweeps/</span></code> or local ignored folders).</p>
+<p>Population-network sweep paths use normal dot notation plus numeric list
+indices. For example:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">sweep_config</span><span class="p">:</span>
+<span class="w">  </span><span class="c1"># First layer population defaults</span>
+<span class="w">  </span><span class="nt">model.core.population_network.layers.0.population_defaults.tau_base</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">20.0</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">50.0</span><span class="p p-Indicator">]</span>
+
+<span class="w">  </span><span class="c1"># First population in the first layer</span>
+<span class="w">  </span><span class="nt">model.core.population_network.layers.0.populations.0.n_neurons</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">64</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">128</span><span class="p p-Indicator">]</span>
+
+<span class="w">  </span><span class="c1"># Fourth connection in the first layer</span>
+<span class="w">  </span><span class="nt">model.core.population_network.layers.0.connections.3.probability</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">0.3</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">0.6</span><span class="p p-Indicator">]</span>
+</pre></div>
+</div>
+<p>Use <code class="docutils literal notranslate"><span class="pre">filter_config.mode:</span> <span class="pre">&quot;ei-sum&quot;</span></code> / <code class="docutils literal notranslate"><span class="pre">&quot;ei-ratio&quot;</span></code> / <code class="docutils literal notranslate"><span class="pre">&quot;e-const&quot;</span></code> /
+<code class="docutils literal notranslate"><span class="pre">&quot;i-const&quot;</span></code> with the population-network E/I synapse paths:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">sweep_config</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">model.core.population_network.layers.0.population_defaults.ff_excitatory_synapses</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">20</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">30</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">40</span><span class="p p-Indicator">]</span>
+<span class="w">  </span><span class="nt">model.core.population_network.layers.0.population_defaults.ff_inhibitory_synapses</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">10</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">20</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">30</span><span class="p p-Indicator">]</span>
+<span class="nt">filter_config</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">mode</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;ei-sum&quot;</span>
+<span class="w">  </span><span class="nt">value</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">50</span>
+</pre></div>
+</div>
+<p>Branch sweeps update excitatory <code class="docutils literal notranslate"><span class="pre">branch_factors</span></code> in population-network
+layers. For heterogeneous layers, use explicit dot-path sweeps when you want to
+change only one named population.</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>src/dendritic_modeling/scripts/sweeps/sweep_manager.py<span class="w"> </span>--help
 python<span class="w"> </span>src/dendritic_modeling/scripts/sweeps/result_analyzer.py<span class="w"> </span>--help
 </pre></div>
