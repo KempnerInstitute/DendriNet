@@ -422,6 +422,77 @@ class TestConfigLoading(unittest.TestCase):
         self.assertEqual(structured.seed, 123)
         self.assertEqual(structured.pathways["ee"]["method"], "fixed_indegree")
 
+    def test_load_config_with_structured_connectivity_alias_warns(self):
+        load_config.cache_clear()
+        structured_config = {
+            **self.sample_config,
+            "model": {
+                **self.sample_config["model"],
+                "core": {
+                    **self.sample_config["model"]["core"],
+                    "connectivity": {
+                        **self.sample_config["model"]["core"]["connectivity"],
+                        "structured_connectivity": {
+                            "enabled": True,
+                            "seed": 123,
+                            "pathways": {
+                                "ee": {
+                                    "method": "fixed_indegree",
+                                    "indegree": 4,
+                                }
+                            },
+                        },
+                    },
+                },
+            },
+        }
+        structured_file = os.path.join(self.temp_dir, "structured_alias_config.yaml")
+        with open(structured_file, "w") as f:
+            yaml.safe_dump(structured_config, f)
+
+        with self.assertLogs(
+            "dendritic_modeling.config.config", level="WARNING"
+        ) as logs:
+            config = load_config(structured_file)
+
+        self.assertIn("structured_connectivity is deprecated", "\n".join(logs.output))
+        structured = config.model.core.connectivity.structured
+        self.assertTrue(structured.enabled)
+        self.assertEqual(structured.seed, 123)
+
+    def test_load_config_with_annealed_topk_block_alias_warns(self):
+        load_config.cache_clear()
+        sparse_config = {
+            **self.sample_config,
+            "model": {
+                **self.sample_config["model"],
+                "core": {
+                    **self.sample_config["model"]["core"],
+                    "sparsity": {
+                        "type": "dense_to_sparse",
+                        "annealed_topk": {
+                            "initial_density": 0.75,
+                            "end_step": 5,
+                        },
+                    },
+                },
+            },
+        }
+        sparse_file = os.path.join(self.temp_dir, "annealed_topk_alias_config.yaml")
+        with open(sparse_file, "w") as f:
+            yaml.safe_dump(sparse_config, f)
+
+        with self.assertLogs(
+            "dendritic_modeling.config.config", level="WARNING"
+        ) as logs:
+            config = load_config(sparse_file)
+
+        self.assertIn("sparsity.annealed_topk is deprecated", "\n".join(logs.output))
+        self.assertEqual(config.model.core.sparsity.dense_to_sparse["end_step"], 5)
+        self.assertEqual(
+            config.model.core.sparsity.dense_to_sparse["initial_density"], 0.75
+        )
+
     def test_load_config_preserves_synapse_types(self):
         load_config.cache_clear()
         synapse_config = {

@@ -1,3 +1,4 @@
+import logging
 from collections.abc import Callable
 from dataclasses import asdict, replace
 from typing import Any, Optional, Union
@@ -53,6 +54,8 @@ from dendritic_modeling.networks.architectures.registry import (
     get_registered_architecture_names,
     reserve_architecture_names,
 )
+
+logger = logging.getLogger(__name__)
 
 # All EINet type strings handled via ConfigurableEINetwork (+ dendritic_mlp special-cased)
 _EINET_TYPES: set[str] = {
@@ -220,10 +223,14 @@ def _build_recurrent_einet_from_structured_config(
     recurrent_cfg = _to_plain_mapping(raw_params.get("recurrent_ei", {}))
     architecture = _to_plain_mapping(raw_params.get("architecture", {}))
     connectivity = _to_plain_mapping(raw_params.get("connectivity", {}))
-    structured_connectivity = connectivity.pop(
-        "structured",
-        connectivity.pop("structured_connectivity", {}),
-    )
+    structured_alias_present = "structured_connectivity" in connectivity
+    structured_alias = connectivity.pop("structured_connectivity", {})
+    if structured_alias_present:
+        logger.warning(
+            "model.core.connectivity.structured_connectivity is deprecated; "
+            "use model.core.connectivity.structured instead."
+        )
+    structured_connectivity = connectivity.pop("structured", structured_alias)
     transfer = normalize_transfer_config(raw_params.get("transfer", {}))
     morphology = _to_plain_mapping(raw_params.get("morphology", {}))
     sparsity = _to_plain_mapping(raw_params.get("sparsity", {}))
@@ -244,6 +251,11 @@ def _build_recurrent_einet_from_structured_config(
         )
     )
     deepst = _to_plain_mapping(sparsity.get("deepst", {}))
+    if "annealed_topk" in sparsity and "dense_to_sparse" not in sparsity:
+        logger.warning(
+            "model.core.sparsity.annealed_topk is deprecated; use "
+            "model.core.sparsity.dense_to_sparse instead."
+        )
     dense_to_sparse = _to_plain_mapping(
         sparsity.get("dense_to_sparse", sparsity.get("annealed_topk", {}))
     )
@@ -1321,6 +1333,11 @@ def get_architecture(
         Initialized network module
     """
     type = (type or "").lower()
+    if type in {"ei_net", "unified_einet"}:
+        logger.warning(
+            "Architecture type %r is deprecated; use 'unified_ei' instead.",
+            type,
+        )
     builder = _BUILTIN_ARCHITECTURE_BUILDERS.get(type)
     if builder is not None:
         return builder(type, parameters, input_dim, suffix_input_dim)

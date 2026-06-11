@@ -306,13 +306,31 @@ def _build_core_config(core_data: Any) -> CoreConfig:
     """Build a typed CoreConfig from possibly nested dict/OmegaConf payload."""
     core_dict = _to_plain_dict(core_data)
     core_type = str(core_dict.get("type", "einet"))
+    lower_core_type = core_type.lower()
+    if lower_core_type in {"ei_net", "unified_einet"}:
+        logger.warning(
+            "model.core.type=%r is deprecated; use 'unified_ei' instead.",
+            core_type,
+        )
     unified_ei = core_dict.get("unified_ei", core_dict.get("ei_unified", {}))
     connectivity_dict = _to_plain_dict(core_dict.get("connectivity", {}))
-    structured_connectivity = connectivity_dict.pop(
-        "structured",
-        connectivity_dict.pop("structured_connectivity", {}),
-    )
+    structured_alias_present = "structured_connectivity" in connectivity_dict
+    structured_alias = connectivity_dict.pop("structured_connectivity", {})
+    if structured_alias_present:
+        logger.warning(
+            "model.core.connectivity.structured_connectivity is deprecated; "
+            "use model.core.connectivity.structured instead."
+        )
+    structured_connectivity = connectivity_dict.pop("structured", structured_alias)
     morphology_dict = _to_plain_dict(core_dict.get("morphology", {}))
+    sparsity_dict = _to_plain_dict(core_dict.get("sparsity", {}))
+    annealed_topk_alias = sparsity_dict.pop("annealed_topk", None)
+    if annealed_topk_alias is not None:
+        logger.warning(
+            "model.core.sparsity.annealed_topk is deprecated; use "
+            "model.core.sparsity.dense_to_sparse instead."
+        )
+        sparsity_dict.setdefault("dense_to_sparse", annealed_topk_alias)
     reactivation_dict = _to_plain_dict(core_dict.get("reactivation", {}))
     additive_aliases = {
         "dendritic_additive",
@@ -320,7 +338,6 @@ def _build_core_config(core_data: Any) -> CoreConfig:
         "dendritic_normalized_additive",
         "flat_normalized_additive",
     }
-    lower_core_type = core_type.lower()
     is_explicit_additive_einet = (
         lower_core_type in {"einet", "ei_net", "unified_einet"}
         and morphology_dict.get("use_shunting") is False
@@ -349,7 +366,7 @@ def _build_core_config(core_data: Any) -> CoreConfig:
             **normalize_transfer_config(core_dict.get("transfer", {}))
         ),
         morphology=MorphologyConfig(**morphology_dict),
-        sparsity=SparsityConfig(**_to_plain_dict(core_dict.get("sparsity", {}))),
+        sparsity=SparsityConfig(**sparsity_dict),
         reactivation=ReactivationConfig(**reactivation_dict),
         blocklinear=BlockLinearConfig(
             **_to_plain_dict(core_dict.get("blocklinear", {}))
@@ -410,6 +427,21 @@ def _build_transformer_replacement_config(
 ) -> TransformerReplacementConfig:
     """Build a typed TransformerReplacementConfig from dict/OmegaConf."""
     tr_dict = _to_plain_dict(tr_data)
+    if "backbone" in tr_dict and "model_name" not in tr_dict:
+        logger.warning(
+            "model.transformer_replacement.backbone is deprecated; use "
+            "model.transformer_replacement.model_name instead."
+        )
+    if "layer_indices" in tr_dict and "layers" not in tr_dict:
+        logger.warning(
+            "model.transformer_replacement.layer_indices is deprecated; use "
+            "model.transformer_replacement.layers instead."
+        )
+    if "mlp_attr" in tr_dict and "target_module" not in tr_dict:
+        logger.warning(
+            "model.transformer_replacement.mlp_attr is deprecated; use "
+            "model.transformer_replacement.target_module instead."
+        )
     return TransformerReplacementConfig(
         enabled=bool(tr_dict.get("enabled", False)),
         model_name=str(tr_dict.get("model_name", tr_dict.get("backbone", ""))),
@@ -654,6 +686,11 @@ def _load_config_cached(path: Optional[str] = None) -> Config:
             mapped_training.get("encoder", {})
         )
         main_config = _build_main_training_config(mapped_training.get("main", {}))
+        if "transformer_distillation" in mapped_training:
+            logger.warning(
+                "training.transformer_distillation is deprecated; use "
+                "training.transformer_replacement instead."
+            )
         transformer_training = _build_transformer_replacement_training_config(
             mapped_training.get(
                 "transformer_replacement",

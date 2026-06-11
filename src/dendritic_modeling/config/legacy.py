@@ -6,9 +6,12 @@ spellings are normalized here so compatibility stays explicit and contained.
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 from dendritic_modeling.config.conversion import to_plain_dict
+
+logger = logging.getLogger(__name__)
 
 
 def normalize_transfer_config(transfer: Any) -> dict[str, Any]:
@@ -162,6 +165,10 @@ def canonicalize_unified_ei_config(unified_cfg: Any) -> dict[str, Any]:
         "input_projection_dims" not in canonical
         and "input_projection_layers" in canonical
     ):
+        logger.warning(
+            "unified_ei.input_projection_layers is deprecated; use "
+            "unified_ei.input_projection_dims instead."
+        )
         canonical["input_projection_dims"] = list(canonical["input_projection_layers"])
 
     if "transfer_params" in canonical:
@@ -173,6 +180,10 @@ def canonicalize_unified_ei_config(unified_cfg: Any) -> dict[str, Any]:
     for layer in canonical.get("layers", []) or []:
         layer_payload = to_plain_dict(layer)
         if layer_payload and _is_legacy_unified_ei_layer(layer_payload):
+            logger.warning(
+                "Legacy unified_ei.layers[] shorthand is deprecated; use explicit "
+                "unified_ei.layers[].excitatory / inhibitory population blocks."
+            )
             canonical_layers.append(
                 _canonicalize_legacy_unified_ei_layer(layer_payload, canonical)
             )

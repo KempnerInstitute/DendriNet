@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from typing import Any
@@ -20,6 +21,8 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.dendritic i
 from dendritic_modeling.networks.architectures.excitation_inhibition.ei_layer import (
     ExcitationInhibitionLayer,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def _first_parameter(module: nn.Module) -> nn.Parameter | None:
@@ -603,6 +606,11 @@ def build_dendritic_ffn_kwargs_from_core_config(
     morphology = _to_plain_mapping(core.get("morphology", {}))
     sparsity = _to_plain_mapping(core.get("sparsity", {}))
     indexed = _to_plain_mapping(sparsity.get("indexed", {}))
+    if "annealed_topk" in sparsity and "dense_to_sparse" not in sparsity:
+        logger.warning(
+            "model.core.sparsity.annealed_topk is deprecated; use "
+            "model.core.sparsity.dense_to_sparse instead."
+        )
     dense_to_sparse = _to_plain_mapping(
         sparsity.get("dense_to_sparse", sparsity.get("annealed_topk", {}))
     )
@@ -718,6 +726,11 @@ def build_ei_stack_kwargs_from_core_config(
     morphology = _to_plain_mapping(core.get("morphology", {}))
     sparsity = _to_plain_mapping(core.get("sparsity", {}))
     indexed = _to_plain_mapping(sparsity.get("indexed", {}))
+    if "annealed_topk" in sparsity and "dense_to_sparse" not in sparsity:
+        logger.warning(
+            "model.core.sparsity.annealed_topk is deprecated; use "
+            "model.core.sparsity.dense_to_sparse instead."
+        )
     dense_to_sparse = _to_plain_mapping(
         sparsity.get("dense_to_sparse", sparsity.get("annealed_topk", {}))
     )
@@ -947,6 +960,16 @@ def apply_transformer_replacement_config(
     if not bool(tr.get("enabled", True)):
         return []
 
+    if "layer_indices" in tr and "layers" not in tr:
+        logger.warning(
+            "transformer_replacement.layer_indices is deprecated; use "
+            "transformer_replacement.layers instead."
+        )
+    if "mlp_attr" in tr and "target_module" not in tr:
+        logger.warning(
+            "transformer_replacement.mlp_attr is deprecated; use "
+            "transformer_replacement.target_module instead."
+        )
     layer_indices = tr.get("layers", tr.get("layer_indices", []))
     if not layer_indices:
         raise ValueError(
@@ -996,6 +1019,11 @@ def load_transformer_with_dendritic_replacements(
 ) -> tuple[nn.Module, list[ReplacementRecord]]:
     """Load a Hugging Face causal LM and apply dendritic MLP replacements."""
     tr = _to_plain_mapping(transformer_replacement)
+    if "backbone" in tr and "model_name" not in tr:
+        logger.warning(
+            "transformer_replacement.backbone is deprecated; use "
+            "transformer_replacement.model_name instead."
+        )
     model_name = tr.get("model_name", tr.get("backbone", ""))
     if not model_name:
         raise ValueError("transformer_replacement.model_name is required")

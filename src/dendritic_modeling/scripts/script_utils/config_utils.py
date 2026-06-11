@@ -163,10 +163,14 @@ def prepare_ei_network_params(
         blocklinear_dict = config.get("blocklinear", {})
 
     connectivity_dict = dict(connectivity_dict)
-    structured_connectivity = connectivity_dict.pop(
-        "structured",
-        connectivity_dict.pop("structured_connectivity", {}),
-    )
+    structured_alias_present = "structured_connectivity" in connectivity_dict
+    structured_alias = connectivity_dict.pop("structured_connectivity", {})
+    if structured_alias_present:
+        logger.warning(
+            "model.core.connectivity.structured_connectivity is deprecated; "
+            "use model.core.connectivity.structured instead."
+        )
+    structured_connectivity = connectivity_dict.pop("structured", structured_alias)
 
     # Build base parameters
     params = {
@@ -190,6 +194,11 @@ def prepare_ei_network_params(
             for indexed_key, indexed_value in value.items():
                 params[f"indexed_{indexed_key}"] = indexed_value
         elif key in {"dense_to_sparse", "annealed_topk"}:
+            if key == "annealed_topk":
+                logger.warning(
+                    "model.core.sparsity.annealed_topk is deprecated; use "
+                    "model.core.sparsity.dense_to_sparse instead."
+                )
             for dts_key, dts_value in value.items():
                 params[f"dense_to_sparse_{dts_key}"] = dts_value
         elif key == "gradient_scaling":
