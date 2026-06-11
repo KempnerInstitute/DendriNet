@@ -50,6 +50,13 @@ from dendritic_modeling.training.strategies.local_learning_homeostasis import (
     compute_inhibitory_homeostasis_factor,
     compute_voltage_homeostasis_error,
 )
+from dendritic_modeling.training.strategies.local_learning_hsic import (
+    clamp_phi,
+    compute_additive_pseudo_signals,
+    compute_dendritic_normalization,
+    compute_hsic_gradient,
+    compute_kernel_matrix,
+)
 from dendritic_modeling.training.strategies.local_learning_state import _LayerStats
 from dendritic_modeling.training.strategies.local_learning_stdp import (
     stdp_activity,
@@ -2376,143 +2383,14 @@ class LocalCreditAssignment(Trainer):
 
     # ----------------------- Helper: HSIC kernel functions ------------------
     def _compute_kernel_matrix(self, X: torch.Tensor, Y: torch.Tensor) -> torch.Tensor:
-        """Compute kernel matrix K(X, Y) based on configured kernel type.
-
-        Args:
-            X: Input tensor [B, d1]
-            Y: Input tensor [B, d2]
-
-        Returns:
-            Kernel matrix [B, B]
-        """
-        kernel_type = self.local_cfg.hsic.kernel.lower()
-
-        if kernel_type == "linear":
-            # Linear kernel: K(x, y) = x^T y
-            return X @ Y.t()
-        elif kernel_type == "rbf" or kernel_type == "gaussian":
-            # RBF kernel: K(x, y) = exp(-||x - y||^2 / (2 * sigma^2))
-            gamma = (
-                1.0 / (2.0 * self.local_cfg.hsic.sigma**2)
-                if self.local_cfg.hsic.sigma > 0
-                else 1.0
-            )
-            # Compute pairwise distances efficiently
-            X_norm = (X**2).sum(dim=1, keepdim=True)  # [B, 1]
-            Y_norm = (Y**2).sum(dim=1, keepdim=True)  # [B, 1]
-            dist_sq = X_norm + Y_norm.t() - 2.0 * (X @ Y.t())  # [B, B]
-            return torch.exp(-gamma * dist_sq)
-        elif kernel_type == "polynomial" or kernel_type == "poly":
-            # Polynomial kernel: K(x, y) = (coef0 + x^T y)^degree
-            dot_product = X @ Y.t()
-            return (
-                self.local_cfg.hsic.coef0 + dot_product
-            ) ** self.local_cfg.hsic.degree
-        else:
-            # Fallback to linear
-            return X @ Y.t()
+        """Compute kernel matrix K(X, Y) based on configured kernel type."""
+        return compute_kernel_matrix(self.local_cfg, X, Y)
 
     def _compute_hsic_gradient(
         self, z: torch.Tensor, y: torch.Tensor, weight: float, grad_type: str
     ) -> torch.Tensor:
-        """Compute HSIC gradient with respect to z using specified kernel.
-
-        Args:
-            z: Layer activations [B, d_z]
-            y: Target/reference [B, d_y]
-            weight: Gradient scaling weight
-            grad_type: "self" for self-dependence, "target" for target dependence
-
-        Returns:
-            Gradient w.r.t. z [B, d_z]
-        """
-        batch_size = z.size(0)
-        kernel_type = self.local_cfg.hsic.kernel.lower()
-
-        if kernel_type == "linear":
-            # Linear kernel gradients (original implementation)
-            if grad_type == "self":
-                # NOTE: `hsic.weight` is a global scale intended to gate the entire HSIC auxiliary.
-                # Keep behavior consistent across self/target terms.
-                return (
-                    (2.0 / float(batch_size)) * z * self.local_cfg.hsic.weight * weight
-                )
-            else:  # target
-                cov_zy = (z.t() @ y) / float(batch_size)
-                grad_z = -2.0 * (cov_zy @ y.t()).t() / float(batch_size)
-                return grad_z * self.local_cfg.hsic.weight * weight
-
-        elif kernel_type in ["rbf", "gaussian"]:
-            # RBF kernel gradients
-            gamma = (
-                1.0 / (2.0 * self.local_cfg.hsic.sigma**2)
-                if self.local_cfg.hsic.sigma > 0
-                else 1.0
-            )
-            if grad_type == "self":
-                # Self-dependence: encourage diversity (negative correlation)
-                K_zz = self._compute_kernel_matrix(z, z)  # [B, B]
-                z_expanded = z.unsqueeze(1)  # [B, 1, d]
-                z_diff = z_expanded - z.unsqueeze(0)  # [B, B, d]
-                K_expanded = K_zz.unsqueeze(-1)  # [B, B, 1]
-                grad_z = -2.0 * gamma * (K_expanded * z_diff).sum(dim=1)  # [B, d]
-                return grad_z * self.local_cfg.hsic.weight * weight / float(batch_size)
-            else:  # target
-                # Use Z-Z kernel and Y-Y kernel; weight Z pairwise diffs by centered Y kernel
-                K_zz = self._compute_kernel_matrix(z, z)  # [B, B]
-                L_yy = self._compute_kernel_matrix(y, y)  # [B, B]
-                # Center L_yy
-                Lc = (
-                    L_yy
-                    - L_yy.mean(dim=0, keepdim=True)
-                    - L_yy.mean(dim=1, keepdim=True)
-                    + L_yy.mean()
-                )
-                z_expanded = z.unsqueeze(1)  # [B, 1, d_z]
-                z_diff = z_expanded - z.unsqueeze(0)  # [B, B, d_z]
-                weight_mat = (K_zz * Lc).unsqueeze(-1)  # [B, B, 1]
-                grad_z = 2.0 * gamma * (weight_mat * z_diff).sum(dim=1)  # [B, d_z]
-                return grad_z * self.local_cfg.hsic.weight * weight / float(batch_size)
-
-        elif kernel_type in ["polynomial", "poly"]:
-            # Polynomial kernel gradients
-            degree = self.local_cfg.hsic.degree
-            coef0 = self.local_cfg.hsic.coef0
-            if grad_type == "self":
-                # Self-dependence gradient
-                dot_zz = z @ z.t()  # [B, B]
-                poly_base = coef0 + dot_zz  # [B, B]
-                poly_grad_coef = degree * (poly_base ** (degree - 1))  # [B, B]
-                grad_z = (poly_grad_coef @ z) * 2.0  # [B, d] (factor 2 for symmetry)
-                return grad_z * self.local_cfg.hsic.weight * weight / float(batch_size)
-            else:  # target
-                # Use Z-Z polynomial kernel and Y-Y polynomial kernel; weight by centered Y kernel
-                dot_zz = z @ z.t()  # [B, B]
-                K_base = coef0 + dot_zz
-                K_coef = degree * (K_base ** (degree - 1))  # [B, B]
-                dot_yy = y @ y.t()  # [B, B]
-                L_base = coef0 + dot_yy
-                L_yy = L_base**degree  # kernel values (only for centering/weighting)
-                Lc = (
-                    L_yy
-                    - L_yy.mean(dim=0, keepdim=True)
-                    - L_yy.mean(dim=1, keepdim=True)
-                    + L_yy.mean()
-                )
-                weight_mat = K_coef * Lc  # [B, B]
-                grad_z = (weight_mat @ z) * 2.0  # symmetry factor
-                return grad_z * self.local_cfg.hsic.weight * weight / float(batch_size)
-
-        else:
-            # Fallback to linear
-            if grad_type == "self":
-                return (
-                    (2.0 / float(batch_size)) * z * self.local_cfg.hsic.weight * weight
-                )
-            else:
-                cov_zy = (z.t() @ y) / float(batch_size)
-                grad_z = -2.0 * (cov_zy @ y.t()).t() / float(batch_size)
-                return grad_z * self.local_cfg.hsic.weight * weight
+        """Compute HSIC gradient with respect to z using specified kernel."""
+        return compute_hsic_gradient(self.local_cfg, z, y, weight, grad_type)
 
     # ----------------------- Helper: additive gain modes --------------------
 
@@ -2537,25 +2415,8 @@ class LocalCreditAssignment(Trainer):
     def _compute_additive_pseudo_signals(
         self, rec: dict[str, Any], v_n: torch.Tensor
     ) -> tuple[torch.Tensor, torch.Tensor]:
-        """Compute pseudo-R_tot and pseudo-driving-force for additive networks.
-
-        pseudo_R: analogous to 1/g_tot; normalizes by total activation magnitude
-        pseudo_drive: analogous to (E_rev - V); uses voltage deviation from mean
-        """
-        # Compute pseudo input resistance from absolute activations
-        total_activation = torch.ones_like(v_n)
-        exc_out = rec.get("exc_out")
-        if exc_out is not None:
-            total_activation = total_activation + exc_out.abs()
-        inh_out = rec.get("inh_out")
-        if inh_out is not None:
-            total_activation = total_activation + inh_out.abs()
-        pseudo_R = 1.0 / (total_activation + 1e-8)  # [B, out]
-
-        # Compute pseudo driving force from voltage deviation
-        v_mean = v_n.mean(dim=0, keepdim=True)  # [1, out]
-        pseudo_drive = v_mean - v_n + 1.0  # Shift to ensure non-zero baseline
-        return pseudo_R, pseudo_drive
+        """Compute pseudo-R_tot and pseudo-driving-force for additive networks."""
+        return compute_additive_pseudo_signals(rec, v_n)
 
     def _get_additive_running_inv_std(
         self, layer_idx: int, v_n: torch.Tensor
@@ -2871,12 +2732,7 @@ class LocalCreditAssignment(Trainer):
 
     def _clamp_phi(self, phi: float) -> float:
         """Clamp the 5F confidence factor using configured stability bounds."""
-        phi_cfg = getattr(self.local_cfg, "five_factor", None)
-        phi_min = float(getattr(phi_cfg, "phi_clamp_min", 0.25))
-        phi_max = float(getattr(phi_cfg, "phi_clamp_max", 4.0))
-        if phi_min > phi_max:
-            phi_min, phi_max = phi_max, phi_min
-        return max(phi_min, min(phi_max, phi))
+        return clamp_phi(self.local_cfg, phi)
 
     # -------------------- Morphology-Aware Helper Methods --------------------
     def _compute_path_propagation_factor(
@@ -2949,32 +2805,8 @@ class LocalCreditAssignment(Trainer):
     def _compute_dendritic_normalization(
         self, rec: dict[str, Any], grad_g_den: torch.Tensor
     ) -> torch.Tensor:
-        """Apply dendritic normalization to branch conductance updates.
-
-        Normalizes by total branch conductance: Δg_j ← Δg_j / (∑_k g_k + ε)
-
-        Args:
-            rec: Layer record
-            grad_g_den: Gradient w.r.t. dendritic conductances [out, block]
-
-        Returns:
-            Normalized gradient
-        """
-        blk_layer = rec.get("blk_module")
-        if blk_layer is None or not hasattr(blk_layer, "sum_conductances"):
-            return grad_g_den
-
-        # Total conductance per output neuron
-        g_den_total = blk_layer.sum_conductances().detach()  # [out]
-        norm_factor = 1.0 / (g_den_total.unsqueeze(-1) + 1e-8)  # [out, 1]
-
-        # Broadcast to gradient shape
-        if grad_g_den.dim() == 2:
-            norm_factor = norm_factor  # Already [out, 1]
-        elif grad_g_den.dim() == 3:
-            norm_factor = norm_factor.unsqueeze(0)  # [1, out, 1] for [B, out, block]
-
-        return grad_g_den * norm_factor
+        """Apply dendritic normalization to branch conductance updates."""
+        return compute_dendritic_normalization(rec, grad_g_den)
 
     def _get_branch_type_scale(self, rec: dict[str, Any]) -> torch.Tensor | float:
         """Get scaling factors for apical vs basal branches.
