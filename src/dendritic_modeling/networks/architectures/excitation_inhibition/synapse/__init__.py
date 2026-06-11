@@ -31,6 +31,7 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.str
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.topk import (
     TOPK_INIT_METHODS,
     TopKLinear,
+    apply_recurrent_weight_cache,
 )
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.variance import (
     VarianceTopKLinear,
@@ -45,6 +46,7 @@ __all__ = [
     "StochasticTopKLinear",
     "TopKLinear",
     "VarianceTopKLinear",
+    "apply_recurrent_weight_cache",
     "distance_kernel_probabilities",
     "normalize_pathway_name",
     "sample_configured_mask",

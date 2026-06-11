@@ -24,6 +24,9 @@ class StochasticTopKLinear(TopKLinear):
     - Sample a Bernoulli, so smaller weights still have a small chance to stay on.
     """
 
+    # Mask is resampled every forward; never reuse it across recurrent timesteps.
+    _supports_recurrent_weight_cache = False
+
     def __init__(
         self,
         in_features,

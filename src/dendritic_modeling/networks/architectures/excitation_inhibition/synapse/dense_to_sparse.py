@@ -32,6 +32,10 @@ class DenseToSparseLinear(TopKLinear):
     trainers without requiring trainer-specific hooks.
     """
 
+    # The annealing schedule can change the active-K (and thus the mask) on each
+    # forward, so the pruned weight must not be reused across recurrent timesteps.
+    _supports_recurrent_weight_cache = False
+
     def __init__(
         self,
         in_features,

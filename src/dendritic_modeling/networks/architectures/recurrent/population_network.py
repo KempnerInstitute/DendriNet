@@ -15,6 +15,9 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.input_trans
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.structured_mask import (
     sample_probability_mask,
 )
+from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.topk import (
+    apply_recurrent_weight_cache,
+)
 from dendritic_modeling.networks.architectures.recurrent.ei_config import (
     PopulationConfig,
 )
@@ -1284,48 +1287,54 @@ class PopulationNetwork(BaseNetwork):
 
         outputs = []
         self._routing_info = []
-        for t in range(seq_len):
-            default_inputs = self._project_external_inputs(x[:, t, :])
-            previous_layer_outputs = {
-                layer.config.name: hidden[layer_idx].outputs
-                for layer_idx, layer in enumerate(self.layers)
-            }
-            current_layer_outputs: dict[str, dict[str, torch.Tensor]] = {}
-            timestep_hidden = []
-            readout = None
-            timestep_info = {}
-            for layer_idx, layer in enumerate(self.layers):
-                external_inputs = self._same_step_external_inputs_for_layer(
-                    layer_idx,
-                    default_inputs,
-                    current_layer_outputs,
-                )
-                delayed_external_inputs = self._delayed_external_inputs_for_layer(
-                    layer_idx,
-                    previous_layer_outputs,
-                )
-                h, new_layer_state = layer(
-                    external_inputs,
-                    hidden[layer_idx],
-                    delayed_external_inputs=delayed_external_inputs,
-                )
-                if new_layer_state is None:
-                    new_layer_state = PopulationLayerState(
-                        population_states=hidden[layer_idx].population_states,
-                        outputs=layer._last_outputs,
+        # Reuse deterministic TopK selection across timesteps of this unroll
+        # instead of recomputing topk selection per step.
+        # Always release it, including on shape/config errors.
+        apply_recurrent_weight_cache(self, True)
+        try:
+            for t in range(seq_len):
+                default_inputs = self._project_external_inputs(x[:, t, :])
+                previous_layer_outputs = {
+                    layer.config.name: hidden[layer_idx].outputs
+                    for layer_idx, layer in enumerate(self.layers)
+                }
+                current_layer_outputs: dict[str, dict[str, torch.Tensor]] = {}
+                timestep_hidden = []
+                readout = None
+                timestep_info = {}
+                for layer_idx, layer in enumerate(self.layers):
+                    external_inputs = self._same_step_external_inputs_for_layer(
+                        layer_idx,
+                        default_inputs,
+                        current_layer_outputs,
                     )
-                timestep_hidden.append(new_layer_state)
-                current_layer_outputs[layer.config.name] = new_layer_state.outputs
-                if layer.config.name == self.readout_layer:
-                    readout = h
+                    delayed_external_inputs = self._delayed_external_inputs_for_layer(
+                        layer_idx,
+                        previous_layer_outputs,
+                    )
+                    h, new_layer_state = layer(
+                        external_inputs,
+                        hidden[layer_idx],
+                        delayed_external_inputs=delayed_external_inputs,
+                    )
+                    if new_layer_state is None:
+                        new_layer_state = PopulationLayerState(
+                            population_states=hidden[layer_idx].population_states,
+                            outputs=layer._last_outputs,
+                        )
+                    timestep_hidden.append(new_layer_state)
+                    current_layer_outputs[layer.config.name] = new_layer_state.outputs
+                    if layer.config.name == self.readout_layer:
+                        readout = h
+                    if self._store_routing:
+                        timestep_info[layer.config.name] = layer._last_routing_info
+                    default_inputs = self._single_stream_external_inputs(h)
+                hidden = timestep_hidden
+                outputs.append(h if readout is None else readout)
                 if self._store_routing:
-                    timestep_info[layer.config.name] = layer._last_routing_info
-                default_inputs = self._single_stream_external_inputs(h)
-            hidden = timestep_hidden
-            outputs.append(h if readout is None else readout)
-            if self._store_routing:
-                self._routing_info.append(timestep_info)
-
+                    self._routing_info.append(timestep_info)
+        finally:
+            apply_recurrent_weight_cache(self, False)
         stacked = torch.stack(outputs, dim=1)
         return self._reduce_outputs(stacked, seq_lengths=seq_lengths), hidden
 
