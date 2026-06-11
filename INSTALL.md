@@ -32,6 +32,28 @@ pip install -e .[train]
 pip install -e .[all]
 ```
 
+## Cluster Setup (CUDA 12.9)
+
+On a CUDA 12.9 cluster (e.g. the Kempner cluster), the conda `environment.yml`
+pins an incompatible `pytorch-cuda=12.1`. Use the helper script instead, which
+installs a CUDA-12.8 PyTorch wheel (bundled CUDA runtime; runs natively on a
+CUDA 12.9 driver) and then `pip install -e .`:
+
+```bash
+bash setup/setup_cuda129.sh
+conda activate dendritic_env
+```
+
+Configurable via env vars — e.g. install into scratch space, or add extras:
+
+```bash
+ENV_PREFIX=/scratch/$USER/envs/dendritic_env bash setup/setup_cuda129.sh
+EXTRAS="[dev]" bash setup/setup_cuda129.sh
+```
+
+See the comments at the top of `setup/setup_cuda129.sh` for all options and the
+cu128-vs-cu129 compatibility rationale.
+
 ## Optional Dependency
 
 `ffmpeg` is only needed for ablation video export.
