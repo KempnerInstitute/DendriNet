@@ -4,6 +4,13 @@ from __future__ import annotations
 
 import warnings
 
+# Canonical default reactivation-init policy for additive cores that omit an
+# explicit ``reactivation.init_policy``. Additive voltage is fragile under the
+# analytical/fixed gate (depth- and normalization-dependent), so the data-driven
+# occupancy_quantile calibration is the safe default. Route additive-default
+# assignments through this constant rather than hardcoding the string.
+DEFAULT_ADDITIVE_REACTIVATION_INIT_POLICY = "occupancy_quantile"
+
 REACTIVATION_INIT_POLICY_ALIASES = {
     "analytical": "analytical",
     "auto": "analytical",
@@ -49,6 +56,7 @@ def is_data_driven_reactivation_policy(policy: str | None) -> bool:
 
 
 __all__ = [
+    "DEFAULT_ADDITIVE_REACTIVATION_INIT_POLICY",
     "REACTIVATION_INIT_POLICY_ALIASES",
     "is_data_driven_reactivation_policy",
     "normalize_reactivation_init_policy",
