@@ -106,7 +106,7 @@ model:
                 ff_inhibitory_synapses: 0
             - name: "e1"
               polarity: "excitatory"
-              n_neurons: 64
+              n_neurons: 256
               branch_factors: [3, 3, 3]
           connections:
             - source: "layer0.e0"
