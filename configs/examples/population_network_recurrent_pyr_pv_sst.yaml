@@ -111,7 +111,7 @@ training:
   main:
     strategy: "recurrent"
     common:
-      epochs: 5
+      epochs: 2
       batch_size: 64
       shuffle: true
       grad_clip_value: 1.0

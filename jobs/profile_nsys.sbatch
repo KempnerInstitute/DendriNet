@@ -23,7 +23,7 @@
 #SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=32G
-#SBATCH --time=00:20:00
+#SBATCH --time=04:00:00
 #SBATCH --requeue
 #SBATCH --open-mode=append
 #SBATCH --output=profilings/NSights/nsys_job_%j.log
@@ -77,4 +77,4 @@ nsys profile --trace=cuda,nvtx,osrt,cudnn,cublas \
       "${CONFIG}" --profile --profile_backend nsys
 
 echo "[job] DONE attempt-end=$(date)"
-ls -l profilings/NSights/mnist_timeline.nsys-rep
+ls -l "profilings/NSights/${RUN_NAME}.nsys-rep"

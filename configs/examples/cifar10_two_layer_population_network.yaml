@@ -130,7 +130,7 @@ training:
   main:
     strategy: "standard"
     common:
-      epochs: 200
+      epochs: 20
       batch_size: 512
       shuffle: true
       grad_clip_value: 5.0
