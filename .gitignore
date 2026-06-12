@@ -235,6 +235,14 @@ figures/
 outputs_smoke/
 outputs_sweep_smoke/
 tmp/
+
+# Profiler report artifacts — large binaries, keep locally but never commit.
+# (.gitkeep files under profilings/ stay tracked; only the reports are ignored.)
+*.nsys-rep
+*.ncu-rep
+*.qdstrm
+*.sqlite
+profilings/**/*.log
 .claude/*.lock
 /analysis/
 !src/dendritic_modeling/analysis/
