@@ -242,7 +242,10 @@ tmp/
 *.ncu-rep
 *.qdstrm
 *.sqlite
+*.pt.trace.json
+chrome_trace.json
 profilings/**/*.log
+profilings/**/*.json
 .claude/*.lock
 /analysis/
 !src/dendritic_modeling/analysis/
