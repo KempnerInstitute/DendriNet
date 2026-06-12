@@ -19,6 +19,7 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.den
 )
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.indexed import (
     IndexedDynamicTopKLinear,
+    IndexedRewireLinear,
     IndexedSparseLinear,
 )
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.stochastic import (
@@ -41,6 +42,7 @@ SPARSE_LAYER_REGISTRY: dict[str, type[nn.Module]] = {
     "annealed_topk": DenseToSparseLinear,
     "indexed": IndexedSparseLinear,
     "indexed_dynamic": IndexedDynamicTopKLinear,
+    "indexed_rewire": IndexedRewireLinear,
 }
 
 

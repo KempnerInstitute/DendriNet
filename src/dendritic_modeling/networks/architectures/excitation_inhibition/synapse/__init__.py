@@ -14,6 +14,7 @@ from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.den
 )
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.indexed import (
     IndexedDynamicTopKLinear,
+    IndexedRewireLinear,
     IndexedSparseLinear,
 )
 from dendritic_modeling.networks.architectures.excitation_inhibition.synapse.stochastic import (
@@ -42,6 +43,7 @@ __all__ = [
     "DeepstLinear",
     "DenseToSparseLinear",
     "IndexedDynamicTopKLinear",
+    "IndexedRewireLinear",
     "IndexedSparseLinear",
     "StochasticTopKLinear",
     "TopKLinear",

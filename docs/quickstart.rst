@@ -78,6 +78,11 @@ for the full list.
      src/dendritic_modeling/scripts/training/train_experiments.py \
      configs/examples/population_network_two_layer.yaml
 
+   # Memory-efficient indexed rewiring on MNIST
+   PYTHONPATH=src:$PYTHONPATH python \
+     src/dendritic_modeling/scripts/training/train_experiments.py \
+     configs/examples/population_network_indexed_rewire_mnist.yaml
+
    # AlexNet fc7 replacement with a 500E-only dendritic tensor-map core
    PYTHONPATH=src:$PYTHONPATH python \
      src/dendritic_modeling/scripts/training/train_experiments.py \

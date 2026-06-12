@@ -31,34 +31,43 @@ Recommended Ladder
      - ``configs/examples/population_network_independent_transfer.yaml``
      - Legacy-style split input streams addressed as ``input_e`` and
        ``input_i`` while still using named populations.
-   * - 3. CIFAR-10 training recipe
+   * - 3. Legacy input-mode equivalence
+     - ``configs/examples/population_network_input_mode0_one_layer.yaml`` and
+       ``configs/examples/population_network_input_mode1_one_layer.yaml``
+     - Original ``input_mode=0`` inhibitory-cell construction versus
+       ``input_mode=1`` direct inhibitory streams in the new schema.
+   * - 4. CIFAR-10 training recipe
      - ``configs/examples/population_network_cifar10.yaml``
      - 128E/32I, ``[3, 3, 3]`` morphology, ``40E/10I`` synapses,
        ``occupancy_quantile`` gates, weight decay, and weight boosting.
-   * - 4. Dense-to-sparse pruning
+   * - 5. Dense-to-sparse pruning
      - ``configs/examples/population_network_dense_to_sparse_cifar10.yaml``
      - Starts from dense allowed synapses and anneals to the TopK budget.
-   * - 5. Normalized additive control
+   * - 6. Indexed rewiring
+     - ``configs/examples/population_network_indexed_rewire_mnist.yaml``
+     - Memory-efficient sparse storage plus adaptive-quantile replacement of
+       weak same-dendrite synapses.
+   * - 7. Normalized additive control
      - ``configs/examples/population_network_normalized_additive_mnist.yaml``
      - Explicit normalized-additive model; raw additive uses
        ``use_additive_normalization: false``.
-   * - 6. Heterogeneous cell types
+   * - 8. Heterogeneous cell types
      - ``configs/examples/population_network_heterogeneous_feedforward.yaml``
      - Multiple E and I populations in one layer with per-population
        morphology and parameter overrides.
-   * - 7. Two-layer routing
+   * - 9. Two-layer routing
      - ``configs/examples/population_network_two_layer.yaml``
      - Cross-layer sources such as ``layer0.e0`` plus local same-step
        inhibition in each layer.
-   * - 8. Recurrent microcircuit
+   * - 10. Recurrent microcircuit
      - ``configs/examples/population_network_recurrent_pyr_pv_sst.yaml``
      - Pyr/PV/SST populations, probabilistic edges, and delayed recurrent
        timing.
-   * - 9. Synapse types
+   * - 11. Synapse types
      - ``configs/examples/population_network_synapse_types_ampa_nmda_gaba.yaml``
      - AMPA/NMDA/GABA mixtures, receptor time constants, NMDA Mg block, and
        short-term plasticity fields.
-   * - 10. Spiking and feedback
+   * - 12. Spiking and feedback
      - ``configs/examples/population_network_spiking.yaml`` and
        ``configs/examples/population_network_soma_feedback.yaml``
      - LIF soma dynamics, spike readout traces, and delayed soma-to-dendrite
@@ -113,6 +122,20 @@ pruning from dense allowed synapses down to the final TopK budget:
      src/dendritic_modeling/scripts/training/train_experiments.py \
      configs/examples/population_network_dense_to_sparse_cifar10.yaml
 
+Use ``population_network_indexed_rewire_mnist.yaml`` for memory-efficient
+indexed synapses with adaptive-quantile same-dendrite turnover. It stores only
+``out_features x K`` synaptic weights and periodically replaces the weakest
+configured quantile with newly sampled allowed inputs:
+
+.. code-block:: yaml
+
+   population_defaults:
+     topk_type: indexed_rewire
+     indexed_seed: 42
+     indexed_rewire_frequency: 100
+     indexed_rewire_quantile: 0.05
+     indexed_rewire_until_step: null
+
 Heterogeneous and Multilayer Networks
 -------------------------------------
 
@@ -123,6 +146,29 @@ settings through its nested ``population:`` block.
 
 ``population_network_two_layer.yaml`` shows how later layers consume earlier
 population outputs by qualified names such as ``layer0.e0`` and ``layer0.i0``.
+
+Legacy Input-Mode Equivalents
+-----------------------------
+
+These examples show the original E/I feedforward conventions written in the
+new population-network notation:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 45 55
+
+   * - Config
+     - Meaning
+   * - ``population_network_input_mode0_one_layer.yaml``
+     - One-layer ``input_mode=0``: explicit inhibitory cells
+       ``input_e -> i0 -> e0``.
+   * - ``population_network_input_mode1_one_layer.yaml``
+     - One-layer ``input_mode=1``: no explicit I cells; ``input_i`` drives the
+       E population's inhibitory dendritic pathway.
+   * - ``population_network_input_mode0_two_layer.yaml``
+     - Two-layer version with an inhibitory population in each layer.
+   * - ``population_network_input_mode1_two_layer.yaml``
+     - Two-layer version with direct inhibitory pathways into each E layer.
 
 Recurrent, Taus, Spiking, and Feedback
 --------------------------------------
@@ -177,6 +223,32 @@ The small synthetic transformer replacement smoke test remains in
 
 Large Hugging Face replacement configs are operational benchmark configs and
 live under ``jobs/transformer_replacement_benchmarks/configs/``.
+
+Vision Backbone Replacement
+---------------------------
+
+Vision replacement configs live under ``configs/vision/`` because they are
+larger operational examples rather than small public smoke tests. They use
+``model.pretrained_replacement`` to split a torchvision backbone into a frozen
+or trainable prefix, a dendritic replacement core, and a suffix.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 42 58
+
+   * - Config
+     - What it demonstrates
+   * - ``configs/vision/alexnet_fc7_dendritic_500.yaml``
+     - AlexNet ``fc7`` replacement with a 500-unit dendritic tensor-map core.
+   * - ``configs/vision/alexnet_k1_einet_single.yaml``
+     - K=1 classifier-layer replacement for single-GPU runs.
+   * - ``configs/vision/alexnet_k1_einet_ddp.yaml``
+     - Same K=1 replacement configured for DDP.
+   * - ``configs/vision/pretrained_alexnet_fc.yaml``
+     - Fully connected pretrained replacement with
+       ``hierarchical_dendritic_tensor_map``.
+   * - ``configs/vision/pretrained_alexnet_conv.yaml``
+     - Feature-map replacement with ``hierarchical_dendritic_conv``.
 
 Other Public Config Areas
 -------------------------

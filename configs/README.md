@@ -19,6 +19,7 @@ reference configs and reusable examples, not one-off personal runs.
 | Goal | Config |
 | --- | --- |
 | Feedforward E/I MNIST | `examples/population_network_feedforward.yaml` |
+| Legacy input-mode equivalents | `examples/population_network_input_mode0_one_layer.yaml`, `examples/population_network_input_mode1_one_layer.yaml`, `examples/population_network_input_mode0_two_layer.yaml`, `examples/population_network_input_mode1_two_layer.yaml` |
 | CIFAR-10 E/I training recipe | `examples/population_network_cifar10.yaml` |
 | Heterogeneous E/I populations in one layer | `examples/population_network_heterogeneous_feedforward.yaml` |
 | Explicit two-layer population routing | `examples/population_network_two_layer.yaml` |
@@ -27,6 +28,7 @@ reference configs and reusable examples, not one-off personal runs.
 | Spiking soma | `examples/population_network_spiking.yaml` |
 | Soma-to-dendrite feedback | `examples/population_network_soma_feedback.yaml` |
 | Dense-to-sparse developmental pruning | `examples/population_network_dense_to_sparse_cifar10.yaml` |
+| Indexed adaptive rewiring | `examples/population_network_indexed_rewire_mnist.yaml` |
 
 New architecture examples should prefer:
 
@@ -36,6 +38,8 @@ New architecture examples should prefer:
 - `reactivation_init_policy: occupancy_quantile`
 - `weight_transform: softplus`
 - `topk_type: dense_to_sparse` when the experiment is about learned pruning
+- `topk_type: indexed_rewire` when the experiment needs memory-efficient
+  same-dendrite turnover of weak synapses without a dense score matrix
 - `weight_decay_rate: 0.01` and `weight_boosting: true` for examples meant to
   reproduce the maintained E/I training recipe
 

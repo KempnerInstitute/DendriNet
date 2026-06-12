@@ -224,7 +224,7 @@ model:
     sparsity:
       init_method: "xavier_normal"      # str: "xavier_normal" | "kaiming_normal" | "uniform"
       noise_level: 0.0                  # float: Additive noise on init
-      type: "standard"                  # str: "standard" | "stochastic" | "variance" | "deepst" | "indexed" | "indexed_dynamic" | "dense_to_sparse" (legacy "topk" -> "standard")
+      type: "standard"                  # str: "standard" | "stochastic" | "variance" | "deepst" | "indexed" | "indexed_dynamic" | "indexed_rewire" | "dense_to_sparse" (legacy "topk" -> "standard")
       weight_norm_order: null           # int | null: Weight norm order (null = off)
       gamma: 1.0                        # float: TopK gamma
       temperature: 0.0                  # float: TopK temperature (0 = hard)
@@ -241,6 +241,14 @@ model:
         freeze_inhibitory_connectivity: false  # bool: Freeze I connectivity
         init_method: "xavier_normal"    # str: Init method for DeepST
         weight_threshold: 0.000001      # float: Minimum weight threshold
+      indexed:
+        candidate_size: null            # int | null: Candidate pool size for indexed_dynamic
+        selection: "standard"           # str: "standard" | "stochastic"
+        seed: null                      # int | null: Reproducible sampled sparse indices
+        output_chunk_size: 2048         # int: Chunked sparse gather output rows
+        rewire_frequency: 100           # int: indexed_rewire update period in optimizer steps
+        rewire_quantile: 0.05           # float: Weakest active same-row fraction to replace
+        rewire_until_step: null         # int | null: Stop rewiring after this step
 
     # ---- Reactivation ----
     reactivation:

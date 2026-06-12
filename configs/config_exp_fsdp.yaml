@@ -337,6 +337,14 @@ model:
       gradient_scaling: none
       temperature: 0.0
       type: standard
+      indexed:
+        candidate_size: null
+        selection: standard
+        seed: null
+        output_chunk_size: 2048
+        rewire_frequency: 100
+        rewire_quantile: 0.05
+        rewire_until_step: null
     transfer:
       excitatory_dim: null
       independent_pathways: false

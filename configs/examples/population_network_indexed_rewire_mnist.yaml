@@ -1,0 +1,125 @@
+# ============================================================================
+# Population Network with memory-efficient indexed rewiring
+# ============================================================================
+# Stores only K sparse synapses per dendritic branch, then periodically replaces
+# the weakest adaptive-quantile slots with newly sampled allowed inputs.
+#
+# Run:
+#   PYTHONPATH=src:$PYTHONPATH python \
+#     src/dendritic_modeling/scripts/training/train_experiments.py \
+#     configs/examples/population_network_indexed_rewire_mnist.yaml
+# ============================================================================
+
+experiment:
+  seed: 42
+  train_valid_split: 0.8
+  enable_hooks: false
+  checkpointing:
+    enabled: false
+
+data:
+  dataset_name: "mnist"
+  processing:
+    flatten: true
+    normalize: true
+
+model:
+  task: "classification"
+  encoder:
+    type: "identity"
+  core:
+    type: "population_network"
+    population_network:
+      input_dim: 784
+      layers:
+        - name: "layer0"
+          readout_population: "e"
+          population_defaults:
+            ff_excitatory_synapses: 30
+            ff_inhibitory_synapses: 15
+            rec_excitatory_synapses: 0
+            rec_inhibitory_synapses: 0
+            topk_type: "indexed_rewire"
+            topk_init_method: "xavier_normal"
+            indexed_seed: 42
+            indexed_rewire_frequency: 100
+            indexed_rewire_quantile: 0.05
+            indexed_rewire_until_step: null
+            somatic_synapses: true
+            reactivate: true
+            reactivation_type: "param_tanh"
+            reactivation_init_policy: "occupancy_quantile"
+            dbl_init_method: "analytical_expectation"
+            weight_transform: "softplus"
+          populations:
+            - name: "i"
+              polarity: "inhibitory"
+              n_neurons: 32
+              branch_factors: [1]
+              population:
+                ff_inhibitory_synapses: 0
+            - name: "e"
+              polarity: "excitatory"
+              n_neurons: 128
+              branch_factors: [4, 4]
+          connections:
+            - source: "input"
+              target: "i"
+            - source: "input"
+              target: "e"
+            - source: "i"
+              target: "e"
+  decoder:
+    type: "MLP"
+    params:
+      hidden_dims: [32]
+      activation: "relu"
+      output_dim: 10
+
+training:
+  encoder:
+    strategy: "standard"
+    common:
+      epochs: 0
+  main:
+    strategy: "standard"
+    common:
+      epochs: 50
+      batch_size: 256
+      shuffle: true
+      grad_clip_value: 5.0
+      loss_function: "ce"
+      early_stopping: true
+      patience: 20
+      load_best_state_dict: true
+      weight_decay_rate: 0.01
+      weight_boosting: true
+      param_groups:
+        lr: 0.001
+        split_params: true
+        topk_lr: 0.001
+        blocklinear_lr: 0.0001
+        reactivation_lr: 0.0001
+        decoder_lr: 0.001
+    optimizer:
+      name: "adam"
+    strategies:
+      standard: {}
+
+analysis:
+  performance:
+    enabled: true
+    training: false
+    params:
+      accuracy: true
+      categorical_loglikelihood: true
+
+wandb:
+  use_wandb: false
+
+outputs:
+  run_name: "population_network_indexed_rewire_mnist"
+  results_dir: "outputs"
+
+distributed:
+  mode: none

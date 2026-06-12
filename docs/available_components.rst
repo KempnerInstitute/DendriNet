@@ -178,6 +178,10 @@ Set via ``model.core.sparsity.type``. Canonical values are:
    * - ``indexed_dynamic``
      - Candidate-pool sparse TopK; stores ``out_features x C`` candidate
        weights and dynamically selects ``K`` active candidates per forward pass
+   * - ``indexed_rewire``
+     - Fixed-budget indexed sparse synapses with adaptive-quantile turnover;
+       stores only ``out_features x K`` weights and periodically replaces weak
+       same-row synapses with newly sampled allowed inputs
 
 ``topk`` is retained as a backward-compatible alias for ``standard``.
 ``annealed_topk`` is retained as a readable alias for ``dense_to_sparse``.
@@ -237,11 +241,18 @@ Recurrent Extensions
      - ``soma_feedback_enabled`` or ``model.core.soma_feedback.enabled``
      - Optional previous-timestep soma output/voltage/readout projected back
        into dendritic levels as additive, shunting, or gated feedback.
+   * - Vision backbone replacement
+     - ``model.pretrained_replacement`` plus
+       ``hierarchical_dendritic_tensor_map`` or ``hierarchical_dendritic_conv``
+     - Torchvision backbone splitter for replacing AlexNet/VGG classifier or
+       feature-map blocks with dendritic cores while preserving prefix/suffix
+       tensor contracts.
    * - Transformer FFN replacement
      - ``model.transformer_replacement`` plus ``model.core.type: dendritic_ffn``
      - Hugging Face model patcher for replacing decoder-block MLP/FFN modules
        with token-wise ``DendriticFFNReplacement`` modules; use
-       ``sparsity.type: indexed_dynamic`` for low-parameter dynamic TopK.
+       ``sparsity.type: indexed_dynamic`` or ``indexed_rewire`` for
+       low-parameter sparse synapses.
    * - Transformer replacement distillation
      - ``training.transformer_replacement``
      - Layerwise block-output distillation for dendritic FFN replacements using
