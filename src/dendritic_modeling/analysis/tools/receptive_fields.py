@@ -1,6 +1,7 @@
 import math
 import os
 import re
+import json
 import tqdm
 from functools import partial
 from typing import Optional, Any
@@ -9,6 +10,8 @@ from copy import deepcopy
 import logging
 import matplotlib.pyplot as plt
 from matplotlib.colors import TwoSlopeNorm, LinearSegmentedColormap
+from matplotlib.ticker import FuncFormatter
+from matplotlib.patches import Patch
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import pandas as pd
 import seaborn as sns
@@ -606,6 +609,89 @@ class ReceptiveFieldAnalyzer(AbstractAnalyzer):
 
         return pref_unpref_data
     
+    def _initialize_agg_structure(self, data: dict) -> dict:
+        """
+        Recursively initialize an aggregate dictionary structure with empty lists at leaf nodes.
+
+        Args:
+            data: The dictionary structure to replicate
+
+        Returns:
+            Dictionary with same structure but empty lists at leaf nodes
+        """
+        agg_structure = {}
+        for key, value in data.items():
+            if isinstance(value, dict):
+                agg_structure[key] = self._initialize_agg_structure(value)
+            else:
+                # Leaf node - initialize as empty list
+                agg_structure[key] = []
+        return agg_structure
+
+    def _populate_agg_dict(self, agg_dict: dict, epoch_data: dict):
+        """
+        Recursively populate aggregate dictionary by appending leaf values from epoch_data.
+
+        Args:
+            agg_dict: The aggregate dictionary to populate (modified in place)
+            epoch_data: The epoch data dictionary to extract values from
+        """
+        for key, value in epoch_data.items():
+            if isinstance(value, dict):
+                if key in agg_dict:
+                    self._populate_agg_dict(agg_dict[key], value)
+            else:
+                # Leaf node - append value to list
+                if key in agg_dict:
+                    agg_dict[key].append(value)
+
+    def load_epochs_data(self, save_path: str):
+        training_path = os.path.join(save_path, "epochs")
+
+        if not os.path.exists(training_path):
+            return None, None
+
+        agg_dict_initialized = False
+        agg_dict = {}
+
+        # Collect all epoch files and sort by epoch number
+        epoch_files = []
+        for filename in os.listdir(training_path):
+            # Check if file matches the "epoch#" naming convention
+            if filename.startswith("epoch") and filename.endswith(".json"):
+                # Extract the number part (everything between "epoch" and ".json")
+                epoch_number_str = filename[
+                    5:-5
+                ]  # Remove "epoch" prefix and ".json" suffix
+                try:
+                    epoch_number = int(epoch_number_str)
+                    epoch_files.append((epoch_number, filename))
+                except ValueError:
+                    # Skip files that don't have numeric epoch numbers
+                    continue
+
+        # Sort by epoch number to process in order
+        epoch_files.sort(key=lambda x: x[0])
+
+        # Iterate through epoch files in sorted order
+        epoch_numbers = []
+        for epoch_number, filename in epoch_files:
+            epoch_numbers.append(epoch_number)
+            # Load the JSON file
+            file_path = os.path.join(training_path, filename)
+            with open(file_path) as f:
+                epoch_data = json.load(f)
+
+            if not agg_dict_initialized:
+                # Initialize aggregate dictionary with same structure, empty lists at leaves
+                agg_dict = self._initialize_agg_structure(epoch_data)
+                agg_dict_initialized = True
+
+            # Populate aggregate dictionary by appending values from this epoch
+            self._populate_agg_dict(agg_dict, epoch_data)
+
+        return agg_dict, epoch_numbers
+    
     def analyze(
         self,
         model: BaseModel,
@@ -720,7 +806,7 @@ class ReceptiveFieldAnalyzer(AbstractAnalyzer):
                 )
                 
                 _pbar = tqdm.tqdm(
-                    total=22 if inh_rfs_dict else 18, 
+                    total=19 if inh_rfs_dict else 18, 
                     desc="Generating plots...", 
                     unit=" plots"
                 )
@@ -731,12 +817,6 @@ class ReceptiveFieldAnalyzer(AbstractAnalyzer):
                     inputs=x,
                     labels=labels,
                     shape=self.exc_rf_shape
-                )
-                _pbar.update(1)
-                _plot_agg_tuning_final(
-                    save_path=save_path,
-                    fig_format=self.fig_save_format,
-                    agg_tuning_dict=agg_tuning_dict
                 )
                 _pbar.update(1)
                 _plot_class_examples(
@@ -755,6 +835,22 @@ class ReceptiveFieldAnalyzer(AbstractAnalyzer):
                     fig_format=self.fig_save_format
                 )
                 _pbar.update(1)
+
+                _plot_agg_tuning_final(
+                    save_path=save_path,
+                    fig_format=self.fig_save_format,
+                    agg_tuning_dict=agg_tuning_dict
+                )
+                _pbar.update(1)
+                epochs_data, epoch_numbers = self.load_epochs_data(save_path)
+                if epochs_data:
+                    _plot_agg_tuning_vs_training(
+                        epochs_data=epochs_data,
+                        epoch_numbers=epoch_numbers,
+                        save_path=save_path,
+                        fig_format=self.fig_save_format
+                    )
+                    _pbar.update(1)
 
                 activation_plots_path = os.path.join(save_path, "activation_plots")
                 _plot_exc_vs_inh_by_compartment(
@@ -813,17 +909,18 @@ class ReceptiveFieldAnalyzer(AbstractAnalyzer):
                     total_mean_vector=False,
                     mean_vector_type="exc"
                 )
-                # _pbar.update(1)
-                # _plot_receptive_fields(
-                #     save_path=syn_act_rfs_path,
-                #     title="exc_cell_exc_syn_total_act_rfs",
-                #     rfs_dict=exc_rfs_dict, 
-                #     synapse_type="exc",
-                #     mean_vector_dict=mean_vector_dict,
-                #     total_mean_vector=True,
-                #     mean_vector_type="exc"
-                # )
-                # _pbar.update(1)
+                _pbar.update(1)
+                _plot_receptive_fields(
+                    save_path=syn_act_rfs_path,
+                    fig_format=self.fig_save_format,
+                    title="exc_cell_exc_syn_total_act_rfs",
+                    rfs_dict=exc_rfs_dict, 
+                    synapse_type="exc",
+                    mean_vector_dict=mean_vector_dict,
+                    total_mean_vector=True,
+                    mean_vector_type="exc"
+                )
+                _pbar.update(1)
                 
                 agg_syn_act_rfs_path = os.path.join(save_path, "agg_synapse_activation_rfs")
                 
@@ -979,6 +1076,17 @@ class ReceptiveFieldAnalyzer(AbstractAnalyzer):
                     )
                     _pbar.update(1)
                     _plot_receptive_fields(
+                        save_path=syn_act_rfs_path,
+                        fig_format=self.fig_save_format,
+                        title="exc_cell_inh_syn_total_act_rfs",
+                        rfs_dict=exc_rfs_dict, 
+                        synapse_type="inh",
+                        mean_vector_dict=mean_vector_dict,
+                        total_mean_vector=True,
+                        mean_vector_type="inh"
+                    )
+                    _pbar.update(1)
+                    _plot_receptive_fields(
                         save_path=agg_syn_act_rfs_path,
                         fig_format=self.fig_save_format,
                         title="agg_exc_cell_inh_syn_pref_act_rfs",
@@ -986,6 +1094,18 @@ class ReceptiveFieldAnalyzer(AbstractAnalyzer):
                         synapse_type="inh",
                         mean_vector_dict=mean_vector_dict,
                         total_mean_vector=False,
+                        mean_vector_type="inh",
+                        flatten_axes=True
+                    )
+                    _pbar.update(1)
+                    _plot_receptive_fields(
+                        save_path=agg_syn_act_rfs_path,
+                        fig_format=self.fig_save_format,
+                        title="agg_exc_cell_inh_syn_total_act_rfs",
+                        rfs_dict=exc_agg_rfs_dict, 
+                        synapse_type="inh",
+                        mean_vector_dict=mean_vector_dict,
+                        total_mean_vector=True,
                         mean_vector_type="inh",
                         flatten_axes=True
                     )
@@ -1023,73 +1143,153 @@ def _plot_agg_tuning_final(
     """Grouped bars of cosine similarity between agg RF weights and RPB (sign-split)."""
     exc_data = agg_tuning_dict.get("exc") or {}
     inh_data = agg_tuning_dict.get("inh") or {}
-    
+
     if not exc_data and not inh_data:
         return
-    
+
     def _soma_idx(key: str) -> int:
         return int(key.replace("soma", "").strip())
-    
+
     soma_keys = sorted(exc_data.keys(), key=_soma_idx)
     if not soma_keys:
         soma_keys = sorted(inh_data.keys(), key=_soma_idx)
     if not soma_keys:
         return
-    
+
     n = len(soma_keys)
     x = np.arange(n, dtype=float)
-    width = 0.35
+    n_bars = 4
+    width = 0.18
+    offsets = (np.arange(n_bars) - (n_bars - 1) / 2) * width
     rpb_str = r"$\rho_{PB}$"
-    
-    fig, axes = plt.subplots(2, 1, figsize=(max(7.0, 1.1 * n), 8), sharex=True)
-    title_suffix = "Feature Tuning to Input Point-Biserial Correlation"
-    row_specs = (
-        ("exc", "Excitatory " + title_suffix),
-        ("inh", "Inhibitory " + title_suffix),
-    )
-    
-    for ax, (syn_key, row_title) in zip(axes, row_specs):
-        syn_dict = agg_tuning_dict.get(syn_key) or {}
-        pos_vals: list[float] = []
-        neg_vals: list[float] = []
-        
-        for sk in soma_keys:
-            cell = syn_dict.get(sk, {})
-            pos_vals.append(float(cell.get("pos", float("nan"))))
-            neg_vals.append(float(cell.get("neg", float("nan"))))
-        
-        ax.bar(
-            x - width / 2,
-            pos_vals,
-            width,
-            label=f"pos {rpb_str}",
-            color="#2E7FD9",
-            edgecolor="white",
-            linewidth=0.6,
-        )
-        ax.bar(
-            x + width / 2,
-            neg_vals,
-            width,
-            label=f"neg {rpb_str}",
-            color="#D93E3E",
-            edgecolor="white",
-            linewidth=0.6,
-        )
-        ax.set_ylabel("Cosine Similarity")
-        ax.set_title(row_title)
-        ax.axhline(0.0, color="0.6", linewidth=0.8, linestyle="-", zorder=0)
-        ax.legend(loc="best", framealpha=0.92)
-        ax.set_ylim(0.0, 1.0)
 
-    axes[-1].set_xlabel("Soma")
-    axes[-1].set_xticks(x)
-    axes[-1].set_xticklabels([str(_soma_idx(sk)) for sk in soma_keys])
+    exc_pos_vals: list[float] = []
+    inh_pos_vals: list[float] = []
+    exc_neg_vals: list[float] = []
+    inh_neg_vals: list[float] = []
+
+    for sk in soma_keys:
+        exc_cell = exc_data.get(sk, {})
+        inh_cell = inh_data.get(sk, {})
+        exc_pos_vals.append(float(exc_cell.get("pos", float("nan"))))
+        inh_pos_vals.append(float(inh_cell.get("pos", float("nan"))))
+        exc_neg_vals.append(float(exc_cell.get("neg", float("nan"))))
+        inh_neg_vals.append(float(inh_cell.get("neg", float("nan"))))
+
+    fig, ax = plt.subplots(1, 1, figsize=(max(7.0, 1.4 * n), 5))
+
+    # Hatch lines use edgecolor; linewidth=0 hides the bar border.
+    hatch_line_color = (1.0, 1.0, 1.0, 0.72)
+
+    bar_specs = (
+        (exc_pos_vals, offsets[0], "#2E7FD9", None, f"exc pos {rpb_str}"),
+        (exc_neg_vals, offsets[1], "#D93E3E", None, f"exc neg {rpb_str}"),
+        (inh_pos_vals, offsets[2], "#2E7FD9", "///", f"inh pos {rpb_str}"),
+        (inh_neg_vals, offsets[3], "#D93E3E", "///", f"inh neg {rpb_str}"),
+    )
+    with plt.rc_context({"hatch.linewidth": 3.0}):
+        for vals, offset, color, hatch, label in bar_specs:
+            if hatch:
+                ax.bar(
+                    x + offset,
+                    vals,
+                    width,
+                    label=label,
+                    facecolor=color,
+                    edgecolor=hatch_line_color,
+                    hatch=hatch,
+                    linewidth=0.0,
+                )
+            else:
+                ax.bar(
+                    x + offset,
+                    vals,
+                    width,
+                    label=label,
+                    color=color,
+                    edgecolor="none",
+                    linewidth=0.0,
+                )
+
+    def _legend_patch(facecolor: str, hatch: Optional[str], label: str) -> Patch:
+        if hatch:
+            return Patch(
+                facecolor=facecolor,
+                edgecolor=hatch_line_color,
+                hatch=hatch,
+                linewidth=0.0,
+                label=label,
+            )
+        return Patch(facecolor=facecolor, edgecolor="none", label=label)
+
+    ax.set_ylabel("Cosine Similarity")
+    ax.set_xlabel("Soma")
+    ax.set_xticks(x)
+    ax.set_xticklabels([str(_soma_idx(sk)) for sk in soma_keys])
+    ax.axhline(0.0, color="0.6", linewidth=0.8, linestyle="-", zorder=0)
+    legend_handles = [
+        _legend_patch("#2E7FD9", None, f"exc pos {rpb_str}"),
+        _legend_patch("#D93E3E", None, f"exc neg {rpb_str}"),
+        _legend_patch("#2E7FD9", "///", f"inh pos {rpb_str}"),
+        _legend_patch("#D93E3E", "///", f"inh neg {rpb_str}"),
+    ]
+    with plt.rc_context({"hatch.linewidth": 3.0}):
+        ax.legend(handles=legend_handles, loc="best", framealpha=0.92)
+    ax.set_ylim(0.0, 1.0)
+
+    fig.suptitle(
+        "Excitatory and Inhibitory Feature Tuning to Input Point-Biserial Correlation",
+        y=1.02,
+    )
+    fig.tight_layout()
+    os.makedirs(save_path, exist_ok=True)
+    fig.savefig(
+        os.path.join(save_path, f"feature_tuning_final.{fig_format}"),
+        dpi=200,
+        bbox_inches="tight",
+    )
+    plt.close(fig)
+
+
+def _plot_agg_tuning_vs_training(
+    epochs_data: dict[str, dict[str, dict[str, list[float]]]],
+    epoch_numbers: list[int],
+    save_path: str,
+    fig_format: str,
+):
+    """Plot grouped bars of cosine similarity between agg RF weights and RPB (sign-split) vs training epochs."""
+    n_soma = len(epochs_data["exc"].keys())
+
+    fig, axes = plt.subplots(1, n_soma, figsize=(6 * n_soma, 6))
+    
+    rpb_str = r"$\rho_{PB}$"
+
+    for i in range(n_soma):
+        soma_key = f"soma {i}"
+        ax = axes[i]
+
+        for syn_type, sign in [
+            ("exc", "pos"), ("exc", "neg"), ("inh", "pos"), ("inh", "neg")
+        ]:
+            vals = epochs_data[syn_type][soma_key][sign]
+            ax.plot(
+                epoch_numbers, 
+                vals,
+                linestyle = "-" if syn_type == "exc" else "--",
+                color = "#2E7FD9" if sign == "pos" else "#D93E3E",
+                label=f"{syn_type} {sign} {rpb_str}"
+            )
+        
+        ax.set_ylim(0.0, 1.0)
+        ax.set_title(soma_key.title())
+        ax.set_xlabel("Epoch")
+        ax.set_ylabel("Cosine Similarity")
+        ax.legend()
     
     fig.tight_layout()
     os.makedirs(save_path, exist_ok=True)
     fig.savefig(
-        os.path.join(save_path, f"agg_feature_tuning.{fig_format}"),
+        os.path.join(save_path, f"feature_tuning_vs_training_by_soma.{fig_format}"),
         dpi=200,
         bbox_inches="tight",
     )
@@ -1479,7 +1679,7 @@ def _plot_vout_activation_boxplots(
     fig_format: str,
     cell_type: str
 ) -> None:
-    """Per-branch boxplots of compartment output ``vout`` vs. input class label."""
+    """Per-branch violin plots of compartment output ``vout`` vs. input class label."""
     if not data_dict:
         return
 
@@ -1523,13 +1723,15 @@ def _plot_vout_activation_boxplots(
 
         if rows:
             df = pd.DataFrame(rows)
-            sns.boxplot(
+            sns.violinplot(
                 data=df,
                 x="Class",
                 y="vout",
                 ax=ax,
                 order=class_order,
                 color="0.88",
+                cut=0,
+                linewidth=0.8,
             )
         ax.set_xlabel("Class")
         ax.set_ylabel(r"$V_{\mathrm{out}}$")
@@ -1543,15 +1745,16 @@ def _plot_vout_activation_boxplots(
     for j in range(n_total_branches, len(axes_flat)):
         axes_flat[j].set_visible(False)
 
+    cell_label = "excitatory" if cell_type == "exc" else "inhibitory"
     fig.suptitle(
-        r"$V_{\mathrm{out}}$ by input class (excitatory cell compartments)",
+        rf"$V_{{\mathrm{{out}}}}$ by input class ({cell_label} cell compartments)",
         y=1.02,
     )
     fig.tight_layout()
     fig.subplots_adjust(top=0.94)
     os.makedirs(save_path, exist_ok=True)
     fig.savefig(
-        os.path.join(save_path, f"{cell_type}_vout_activation_by_class_boxplots.{fig_format}"),
+        os.path.join(save_path, f"{cell_type}_vout_activation_by_class_violins.{fig_format}"),
         dpi=200,
         bbox_inches="tight"
     )
