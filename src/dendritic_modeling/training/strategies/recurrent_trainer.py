@@ -25,6 +25,14 @@ from dendritic_modeling.training.distributed_samplers import (
     PaddedDistributedEvalSampler,
 )
 from dendritic_modeling.training.strategies.standard import Trainer
+from dendritic_modeling.training.utils.profiling import (
+    finalize_profiling_run,
+    finish_profiler,
+    make_profiler,
+    profiling_enabled,
+    record_section,
+    total_profiled_steps,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -171,41 +179,68 @@ class RecurrentTrainer(Trainer):
         total_loss = 0.0
         n_batches = 0
 
-        for batch in train_loader:
-            if len(batch) == 3:
-                x_batch, y_batch, seq_lengths = batch
-                seq_lengths = seq_lengths.to(self.device)
-            else:
-                x_batch, y_batch = batch
-                seq_lengths = None
-            x_batch = x_batch.to(self.device)
-            y_batch = y_batch.to(self.device)
+        profile_active = profiling_enabled() and not getattr(
+            self, "_profiling_done", False
+        )
+        prof = make_profiler() if profile_active else None
+        for step, batch in enumerate(train_loader):
+            with record_section("data_h2d"):
+                if len(batch) == 3:
+                    x_batch, y_batch, seq_lengths = batch
+                    seq_lengths = seq_lengths.to(self.device)
+                else:
+                    x_batch, y_batch = batch
+                    seq_lengths = None
+                x_batch = x_batch.to(self.device)
+                y_batch = y_batch.to(self.device)
 
             self.optimizer.zero_grad()
 
             if self.recurrent_amp:
                 amp_opt = self.optimizer
-                with autocast():
+                with autocast(), record_section("forward"):
                     loss = self._compute_sequence_loss(
                         model, x_batch, y_batch, seq_lengths
                     )
-                self.recurrent_scaler.scale(loss).backward()
+                with record_section("backward"):
+                    self.recurrent_scaler.scale(loss).backward()
                 if self.grad_clip > 0:
                     self.recurrent_scaler.unscale_(amp_opt)
                     torch.nn.utils.clip_grad_norm_(model.parameters(), self.grad_clip)
                 # Step through the configured optimizer object directly so AMP
                 # skip semantics apply to wrapper logic (e.g., custom decay/rewiring).
-                self.recurrent_scaler.step(amp_opt)
-                self.recurrent_scaler.update()
+                with record_section("optimizer"):
+                    self.recurrent_scaler.step(amp_opt)
+                    self.recurrent_scaler.update()
             else:
-                loss = self._compute_sequence_loss(model, x_batch, y_batch, seq_lengths)
-                loss.backward()
+                with record_section("forward"):
+                    loss = self._compute_sequence_loss(
+                        model, x_batch, y_batch, seq_lengths
+                    )
+                with record_section("backward"):
+                    loss.backward()
                 if self.grad_clip > 0:
                     torch.nn.utils.clip_grad_norm_(model.parameters(), self.grad_clip)
-                self.optimizer.step()
+                with record_section("optimizer"):
+                    self.optimizer.step()
 
             total_loss += loss.item()
             n_batches += 1
+
+            if profile_active:
+                if prof is not None:
+                    prof.step()
+                if step + 1 >= total_profiled_steps():
+                    break
+
+        if profile_active:
+            if prof is not None:
+                finish_profiler(prof)
+            self._profiling_done = True
+            self._profiling_stop = True
+            # Profiling run: capture done — exit before LR step / post-training
+            # work, same as the standard trainer.
+            finalize_profiling_run()
 
         # Step LR scheduler once per epoch
         if self.scheduler is not None:

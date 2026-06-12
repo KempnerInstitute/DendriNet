@@ -51,10 +51,16 @@ fi
 
 python -c "import torch; print('[job] torch', torch.__version__, 'cuda', torch.version.cuda, 'avail', torch.cuda.is_available())"
 
+# CONFIG: which YAML to profile (override via --export=...,CONFIG=...).
+# Output report is named after the config so multiple configs don't collide.
+CONFIG="${CONFIG:-configs/examples/standard_mnist.yaml}"
+RUN_NAME="$(basename "${CONFIG}" .yaml)"
+echo "[job] profiling config: ${CONFIG} -> profilings/NSights/${RUN_NAME}.nsys-rep"
+
 nsys profile --trace=cuda,nvtx,osrt,cudnn,cublas \
-  --output=profilings/NSights/mnist_timeline --force-overwrite=true \
+  --output="profilings/NSights/${RUN_NAME}" --force-overwrite=true \
   python src/dendritic_modeling/scripts/training/train_experiments.py \
-      configs/examples/standard_mnist.yaml --profile --profile_backend nsys
+      "${CONFIG}" --profile --profile_backend nsys
 
 echo "[job] DONE attempt-end=$(date)"
 ls -l profilings/NSights/mnist_timeline.nsys-rep
