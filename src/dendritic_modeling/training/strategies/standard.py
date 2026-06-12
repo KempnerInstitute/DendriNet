@@ -36,6 +36,7 @@ from dendritic_modeling.training.regularization import (
     RegularizationManager,
 )
 from dendritic_modeling.training.utils.profiling import (
+    finalize_profiling_run,
     finish_profiler,
     make_profiler,
     profiling_enabled,
@@ -814,6 +815,9 @@ class Trainer:
                 finish_profiler(prof)
             self._profiling_done = True
             self._profiling_stop = True
+            # Profiling run: capture is done — exit now instead of running the
+            # post-training validation/analysis (keeps nsys traces small).
+            finalize_profiling_run()
 
         if self._is_distributed:
             stats = torch.tensor(

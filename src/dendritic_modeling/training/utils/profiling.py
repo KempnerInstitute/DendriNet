@@ -29,6 +29,7 @@ Outputs (under ``DENDRINET_PROFILE_DIR``):
 import contextlib
 import logging
 import os
+import sys
 
 import torch
 
@@ -197,3 +198,36 @@ def finish_profiler(prof) -> None:
         logger.info("[profiler] top ops by %s:\n%s", sort_key, table)
     except Exception as exc:  # pragma: no cover - best effort
         logger.warning("[profiler] could not build summary table: %s", exc)
+
+
+def finalize_profiling_run() -> None:
+    """End the process cleanly right after a profiling capture.
+
+    A profiling run only needs the few captured steps. Continuing into the
+    normal post-training validation/analysis would waste time and — under
+    Nsight Systems, which records the whole process — bloat the trace. We
+    synchronize so every captured GPU kernel is flushed (so nsys sees it),
+    tear down any distributed group so peers do not hang, then exit 0.
+
+    Only ever called on a profiling run (gated upstream by profiling_enabled()),
+    so non-profiling training is unaffected.
+    """
+    try:
+        if torch.cuda.is_available():
+            torch.cuda.synchronize()
+    except Exception:  # pragma: no cover - best effort
+        pass
+    try:
+        import torch.distributed as dist
+
+        if dist.is_available() and dist.is_initialized():
+            dist.destroy_process_group()
+    except Exception:  # pragma: no cover - best effort
+        pass
+    logger.info(
+        "[profiler] capture complete — exiting profiling run "
+        "(skipping post-training validation/analysis)."
+    )
+    sys.stdout.flush()
+    sys.stderr.flush()
+    sys.exit(0)
