@@ -38,6 +38,7 @@ from dendritic_modeling.training.regularization import (
 from dendritic_modeling.training.utils.profiling import (
     finish_profiler,
     make_profiler,
+    profiling_enabled,
     record_section,
     total_profiled_steps,
 )
@@ -704,7 +705,10 @@ class Trainer:
         # Check once if regularization is enabled to avoid repeated checks
         has_regularization = self.regularization_manager.has_regularization()
 
-        prof = make_profiler() if not getattr(self, "_profiling_done", False) else None
+        profile_active = profiling_enabled() and not getattr(
+            self, "_profiling_done", False
+        )
+        prof = make_profiler() if profile_active else None
         for step, batch in enumerate(train_loader):
             with record_section("data_h2d"):
                 x_batch, y_batch = batch[0].to(self.device), batch[1].to(self.device)
@@ -799,13 +803,15 @@ class Trainer:
             train_loss_reg += reg_loss_item
             n_batches += 1
 
-            if prof is not None:
-                prof.step()
+            if profile_active:
+                if prof is not None:
+                    prof.step()
                 if step + 1 >= total_profiled_steps():
                     break
 
-        if prof is not None:
-            finish_profiler(prof)
+        if profile_active:
+            if prof is not None:
+                finish_profiler(prof)
             self._profiling_done = True
             self._profiling_stop = True
 

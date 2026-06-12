@@ -42,6 +42,17 @@ def profiling_enabled() -> bool:
     return os.environ.get("DENDRINET_PROFILE", "").strip().lower() in _TRUTHY
 
 
+def profile_backend() -> str:
+    """Profiling backend: 'torch' (default, Rung 1) or 'nsys'/'nvtx' (Rung 2).
+
+    Both backends emit NVTX ranges (via record_section) and stop after a few
+    steps. Only the 'torch' backend additionally starts torch.profiler. Under
+    Nsight Systems we use 'nsys' so torch.profiler's CUPTI use does not conflict
+    with nsys's own CUPTI capture.
+    """
+    return os.environ.get("DENDRINET_PROFILE_BACKEND", "torch").strip().lower()
+
+
 def _env_int(name: str, default: int) -> int:
     try:
         return max(0, int(os.environ.get(name, default)))
@@ -114,6 +125,16 @@ def make_profiler():
     when done.
     """
     if not profiling_enabled():
+        return None
+    if profile_backend() != "torch":
+        # nsys/nvtx mode: NVTX ranges + early-stop stay active (driven by the
+        # caller), but do NOT start torch.profiler — its CUPTI use conflicts
+        # with Nsight Systems' own capture.
+        logger.info(
+            "[profiler] backend=%s -> torch.profiler disabled; NVTX ranges + "
+            "early-stop remain active for Nsight Systems.",
+            profile_backend(),
+        )
         return None
 
     wait, warmup, active = _schedule_steps()

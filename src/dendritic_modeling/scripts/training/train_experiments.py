@@ -471,7 +471,13 @@ def main(config_path: str, args=None):
         # dendritic_modeling.training.utils.profiling. Off by default.
         if getattr(args, "profile_dir", None):
             os.environ["DENDRINET_PROFILE_DIR"] = args.profile_dir
-        if getattr(args, "profile", False) or getattr(args, "profile_dir", None):
+        if getattr(args, "profile_backend", None):
+            os.environ["DENDRINET_PROFILE_BACKEND"] = args.profile_backend
+        if (
+            getattr(args, "profile", False)
+            or getattr(args, "profile_dir", None)
+            or getattr(args, "profile_backend", None)
+        ):
             os.environ["DENDRINET_PROFILE"] = "1"
             if is_main:
                 logger.info(
@@ -931,6 +937,14 @@ def _parse_cli_args():
         default=None,
         help="Directory for profiler traces (default ./profiler_logs). "
         "Implies --profile.",
+    )
+    parser.add_argument(
+        "--profile_backend",
+        choices=["torch", "nsys"],
+        default=None,
+        help="Profiling backend. 'torch' (default) runs torch.profiler "
+        "(Rung 1). 'nsys' emits only NVTX ranges + early-stop for Nsight "
+        "Systems (Rung 2), avoiding a CUPTI conflict. Implies --profile.",
     )
 
     return parser.parse_args()
