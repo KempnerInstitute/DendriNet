@@ -1,5 +1,5 @@
 # ============================================================================
-# Multi-stage training: backprop warm-up then local learning on CIFAR-10
+# Population Network Multi-stage Training on CIFAR-10
 # ============================================================================
 # Stage 1: Standard backprop for 100 epochs (fast convergence)
 # Stage 2: Local credit assignment for 100 epochs (biologically plausible)
@@ -7,7 +7,7 @@
 # Run:
 #   PYTHONPATH=src:$PYTHONPATH python \
 #     src/dendritic_modeling/scripts/training/train_experiments.py \
-#     configs/examples/multi_stage_training.yaml
+#     configs/examples/population_network_multistage_cifar10.yaml
 # ============================================================================
 
 experiment:
@@ -30,26 +30,43 @@ model:
   encoder:
     type: "identity"
   core:
-    type: "einet"
-    transfer:
-      output_activation: "relu"
-    architecture:
-      excitatory_layer_sizes: [256]
-      inhibitory_layer_sizes: [64]
-      excitatory_branch_factors: [3, 3]
-      inhibitory_branch_factors: [1]
-    connectivity:
-      ee_synapses_per_branch_per_layer: [40]
-      ei_synapses_per_branch_per_layer: [10]
-      ie_synapses_per_branch_per_layer: [10]
-      ii_synapses_per_branch_per_layer: [0]
-    morphology:
-      use_shunting: true
-      weight_transform: "softplus"
-    reactivation:
-      enabled: true
-      type: "param_tanh"
-      init_policy: "occupancy_quantile"
+    type: "population_network"
+    population_network:
+      layers:
+        - name: "layer0"
+          readout_population: "e"
+          population_defaults:
+            ff_excitatory_synapses: 40
+            ff_inhibitory_synapses: 10
+            rec_excitatory_synapses: 0
+            rec_inhibitory_synapses: 0
+            somatic_synapses: true
+            use_shunting: true
+            reactivate: true
+            reactivation_type: "param_tanh"
+            reactivation_init_policy: "occupancy_quantile"
+            dbl_init_method: "analytical_expectation"
+            weight_transform: "softplus"
+            topk_type: "standard"
+            topk_init_method: "xavier_normal"
+          populations:
+            - name: "i"
+              polarity: "inhibitory"
+              n_neurons: 64
+              branch_factors: [1]
+              population:
+                ff_inhibitory_synapses: 0
+            - name: "e"
+              polarity: "excitatory"
+              n_neurons: 256
+              branch_factors: [3, 3]
+          connections:
+            - source: "input"
+              target: "i"
+            - source: "input"
+              target: "e"
+            - source: "i"
+              target: "e"
   decoder:
     type: "MLP"
     params:
@@ -165,7 +182,7 @@ wandb:
   use_wandb: false
 
 outputs:
-  run_name: "multi_stage_cifar10"
+  run_name: "population_network_multistage_cifar10"
   results_dir: "outputs"
 
 distributed:

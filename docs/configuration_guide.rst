@@ -422,7 +422,7 @@ works for AlexNet, VGG, and coarse splits of ResNet (e.g. at ``avgpool`` or
 ``fc``).  Replacing layers *inside* residual blocks requires an FX-graph
 backend (planned).
 
-The runnable examples page includes ``configs/examples/alexnet_fc7_dendritic_500.yaml``,
+The runnable examples page includes ``configs/vision/alexnet_fc7_dendritic_500.yaml``,
 which replaces AlexNet ``fc7`` with a 500E-only dendritic tensor-map core. See
 :doc:`examples` for all four primary example configs.
 
@@ -430,8 +430,8 @@ Additional pretrained replacement configs:
 
 - ``configs/vision/alexnet_k1_einet_single.yaml`` — replace fc7 only (K=1), single-GPU / non-DDP
 - ``configs/vision/alexnet_k1_einet_ddp.yaml`` — same K=1 replacement configured for DDP launch
-- ``configs/examples/pretrained_alexnet_fc.yaml`` — tensor-map pretrained replacement around AlexNet FC layers
-- ``configs/examples/pretrained_alexnet_conv.yaml`` — spatial pretrained replacement example for AlexNet conv/feature maps
+- ``configs/vision/pretrained_alexnet_fc.yaml`` — tensor-map pretrained replacement around AlexNet FC layers
+- ``configs/vision/pretrained_alexnet_conv.yaml`` — spatial pretrained replacement example for AlexNet conv/feature maps
 - ``scripts/test_pretrained_training.sh`` — generates a temporary 1-epoch AlexNet smoke config
 
 Transformer MLP / FFN Replacement
@@ -528,7 +528,7 @@ Run the distillation trainer with:
 
    PYTHONPATH=src:$PYTHONPATH python -m \
      dendritic_modeling.scripts.training.train_transformer_replacement \
-     configs/examples/deepseek_v3_mlp_dendritic_replacement.yaml
+     jobs/transformer_replacement_benchmarks/configs/templates/deepseek_v3_mlp_dendritic_replacement.yaml
 
 For a quick local learning check that does not load a Hugging Face model, use
 ``configs/examples/transformer_replacement_synthetic_distillation.yaml``.
@@ -601,7 +601,7 @@ Recommended experimental order:
 4. Repeat for layers ``[0, 1]`` and then ``[0, 1, 2]``.
 
 Template config:
-``configs/examples/deepseek_v3_mlp_dendritic_replacement.yaml``.
+``jobs/transformer_replacement_benchmarks/configs/templates/deepseek_v3_mlp_dendritic_replacement.yaml``.
 
 Recurrent Networks
 ------------------

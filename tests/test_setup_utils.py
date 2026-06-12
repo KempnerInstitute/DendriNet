@@ -285,16 +285,17 @@ def test_initialize_model_accepts_typed_point_mlp_config() -> None:
 
 
 def test_standard_mnist_uses_develop_scale_shunting_init_by_default() -> None:
-    cfg = load_config("configs/examples/standard_mnist.yaml")
+    cfg = load_config("configs/examples/population_network_feedforward.yaml")
 
     torch.manual_seed(0)
     model, _ = initialize_model(cfg.model)
 
     first_branch = next(
         module
-        for module in model.core_network.modules()
+        for name, module in model.named_modules()
         if isinstance(module, DendriticBranchLayer)
         and getattr(module, "branch_excitation", None) is not None
+        and "populations.e.branch_layers.0" in name
     )
     assert first_branch.adaptive_initialization is False
     assert first_branch.branch_excitation.weight().mean().item() == pytest.approx(

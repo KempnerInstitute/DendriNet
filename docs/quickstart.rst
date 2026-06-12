@@ -57,36 +57,31 @@ Run a parameter sweep
 Example model runs
 ------------------
 
-The repository includes legacy-compatible vision examples, population-network
-mirrors, and recurrent examples for the extended population, synapse-type,
-connectivity, and spiking features. See :doc:`examples` for the full list.
+The repository includes a curated set of population-network examples plus
+specialized vision and transformer replacement configs. See :doc:`examples`
+for the full list.
 
 .. code-block:: bash
 
-   # MNIST, original single-layer feedforward example
+   # MNIST, single-layer E/I population network
    PYTHONPATH=src:$PYTHONPATH python \
      src/dendritic_modeling/scripts/training/train_experiments.py \
-     configs/examples/standard_mnist.yaml
-
-   # Same single-layer E/I computation in the canonical population-network schema
-   PYTHONPATH=src:$PYTHONPATH python \
-     src/dendritic_modeling/scripts/training/train_experiments.py \
-     configs/examples/standard_mnist_population_network.yaml
+     configs/examples/population_network_feedforward.yaml
 
    # CIFAR-10, one 128E/32I layer, [3, 3, 3] morphology, 40E/10I synapses
    PYTHONPATH=src:$PYTHONPATH python \
      src/dendritic_modeling/scripts/training/train_experiments.py \
-     configs/examples/cifar10_128_333_40e10i.yaml
+     configs/examples/population_network_cifar10.yaml
 
-   # CIFAR-10, two dendritic EI layers
+   # Two-layer population network with explicit cross-layer routing
    PYTHONPATH=src:$PYTHONPATH python \
      src/dendritic_modeling/scripts/training/train_experiments.py \
-     configs/examples/cifar10_two_layer.yaml
+     configs/examples/population_network_two_layer.yaml
 
    # AlexNet fc7 replacement with a 500E-only dendritic tensor-map core
    PYTHONPATH=src:$PYTHONPATH python \
      src/dendritic_modeling/scripts/training/train_experiments.py \
-     configs/examples/alexnet_fc7_dendritic_500.yaml
+     configs/vision/alexnet_fc7_dendritic_500.yaml
 
    # Named Pyr/PV/SST recurrent population network
    PYTHONPATH=src:$PYTHONPATH python \

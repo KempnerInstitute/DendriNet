@@ -19,7 +19,6 @@ EXTENDED_EXAMPLES = [
     "configs/examples/population_network_taus_and_delays.yaml",
     "configs/examples/population_network_multilayer_recurrent.yaml",
     "configs/examples/population_network_spiking_multilayer_recurrent.yaml",
-    "configs/examples/recurrent_structured_connectivity.yaml",
 ]
 
 POPULATION_NETWORK_EXAMPLES = [
@@ -27,17 +26,11 @@ POPULATION_NETWORK_EXAMPLES = [
     "configs/examples/population_network_heterogeneous_feedforward.yaml",
     "configs/examples/population_network_independent_transfer.yaml",
     "configs/examples/population_network_two_layer.yaml",
-    "configs/examples/standard_mnist_population_network.yaml",
-    "configs/examples/standard_cifar10_population_network.yaml",
-    "configs/examples/cifar10_128_333_40e10i_population_network.yaml",
-    "configs/examples/cifar10_two_layer_population_network.yaml",
-    "configs/examples/standard_cifar10_dense_to_sparse_population_network.yaml",
-    "configs/examples/standard_mnist_normalized_additive_population_network.yaml",
-]
-
-REPAIRED_RECURRENT_GRADIENT_EXAMPLES = [
-    "configs/examples/recurrent_context_decision.yaml",
-    "configs/examples/recurrent_dms.yaml",
+    "configs/examples/population_network_cifar10.yaml",
+    "configs/examples/population_network_dense_to_sparse_cifar10.yaml",
+    "configs/examples/population_network_normalized_additive_mnist.yaml",
+    "configs/examples/population_network_local_learning_mnist.yaml",
+    "configs/examples/population_network_multistage_cifar10.yaml",
 ]
 
 
@@ -93,8 +86,14 @@ def test_population_network_examples_make_reactivation_policy_explicit(config_pa
     assert missing == []
 
 
-@pytest.mark.parametrize("config_path", REPAIRED_RECURRENT_GRADIENT_EXAMPLES)
-def test_repaired_recurrent_examples_connect_input_projection_and_i_cells(config_path):
+@pytest.mark.parametrize(
+    "config_path",
+    [
+        "configs/examples/population_network_recurrent_pyr_pv_sst.yaml",
+        "configs/examples/population_network_multilayer_recurrent.yaml",
+    ],
+)
+def test_recurrent_population_examples_drive_inhibitory_gradients(config_path):
     load_config.cache_clear()
     torch.manual_seed(0)
     cfg = load_config(config_path)
@@ -112,9 +111,10 @@ def test_repaired_recurrent_examples_connect_input_projection_and_i_cells(config
         name: param.grad
         for name, param in model.named_parameters()
         if param.requires_grad
-        and ("core_network.input_projection" in name or ".i_population." in name)
+        and ("core_network" in name)
+        and (".i_population." in name or ".populations.i" in name or ".pv" in name)
     }
-    assert watched, "No input-projection or inhibitory parameters found"
+    assert watched, "No inhibitory population parameters found"
     dead = [
         name
         for name, grad in watched.items()

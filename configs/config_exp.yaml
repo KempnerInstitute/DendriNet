@@ -149,6 +149,9 @@ model:
 
   # ---------- Core network ----------
   core:
+    # Canonical named-population model:
+    #   "population_network"
+    #
     # Legacy EI (feedforward / recurrent-capable via core.recurrent_ei or connectivity.rec_*):
     #   "einet" | "dendritic_shunting" | "dendritic_additive" | "dendritic_normalized_additive" | "flat_shunting" | "flat_additive" | "flat_normalized_additive" | "dendritic_mlp" | "flat_mlp"
     # Unified EI (recommended): "unified_ei" | "ei_unified"
@@ -164,13 +167,13 @@ model:
     #       -> local spatial dendritic operator for convolutional suffixes
     # Transformer-replacement FFN: "dendritic_ffn" (dendritic MLP replacing a transformer MLP block)
     # Classical: "alexnet" | "cnn" | "cnn_down" | "cnn_up" | "identity" | "none"
-    type: "einet"
+    type: "population_network"
 
     # ---- Architecture ----
     architecture:
-      excitatory_layer_sizes: [20]      # list[int]: Neurons per excitatory layer
-      inhibitory_layer_sizes: []        # list[int]: Neurons per inhibitory layer
-      excitatory_branch_factors: [3, 3, 3, 3]  # list[int]: Branches per excitatory neuron per layer
+      excitatory_layer_sizes: [128]     # list[int]: Legacy EI neurons per excitatory layer
+      inhibitory_layer_sizes: [32]      # list[int]: Legacy EI neurons per inhibitory layer
+      excitatory_branch_factors: [3, 3, 3]  # list[int]: Legacy EI branches per excitatory neuron
       inhibitory_branch_factors: [1]    # list[int]: Branches per inhibitory neuron per layer
       input_projection_dims: []         # list[int]: Per-layer input projection dims (empty = none)
       inhibitory_network_type: "dendritic"  # str: "dendritic" | "mlp"
@@ -181,7 +184,7 @@ model:
     # ---- Connectivity ----
     connectivity:
       ee_synapses_per_branch_per_layer: [40]  # list[int]: E->E synapses per branch per layer
-      ei_synapses_per_branch_per_layer: [0]   # list[int]: E->I synapses per branch per layer
+      ei_synapses_per_branch_per_layer: [10]  # list[int]: E->I synapses per branch per layer
       ie_synapses_per_branch_per_layer: [10]  # list[int]: I->E synapses per branch per layer
       ii_synapses_per_branch_per_layer: [0]   # list[int]: I->I synapses per branch per layer
       rec_ee_synapses_per_branch: [0]   # list[int]: Recurrent E->E synapses per branch per layer
@@ -200,7 +203,7 @@ model:
 
     # ---- Transfer function ----
     transfer:
-      input_mode: 1                     # int: Input routing mode (1, 2, 3, ...)
+      input_mode: 0                     # int: Input routing mode (0, 1, 2, 3, ...)
       allow_direct_inhibitory_stream: true  # bool: Explicitly use transferred inhibitory stream without I cells
       independent_pathways: false       # bool: Independent pathway processing
       excitatory_dim: null              # int | null: Override excitatory dim
@@ -324,9 +327,44 @@ model:
       transfer_params: {}               # dict: input_mode, independent_pathways, output_activation, etc.
       output_mode: "last"               # str: "last" | "mean" | "all" for recurrent sequence output
       input_projection_dims: []         # list[int]: Optional input projection MLP dims
-      connection_seed: null             # int | null: Default seed for probabilistic masks
       store_routing: false              # bool: Store routing metadata for compatible analyses
-      layers: []                        # list[dict]: {name, recurrent, readout_population, population_defaults, populations, connections}
+      layers:                           # list[dict]: {name, recurrent, readout_population, population_defaults, populations, connections}
+        - name: "layer0"
+          readout_population: "e"
+          population_defaults:
+            ff_excitatory_synapses: 40
+            ff_inhibitory_synapses: 10
+            rec_excitatory_synapses: 0
+            rec_inhibitory_synapses: 0
+            somatic_synapses: true
+            use_shunting: true
+            reactivate: true
+            reactivation_type: "param_tanh"
+            reactivation_init_policy: "occupancy_quantile"
+            reactivation_init_m: 1.5
+            reactivation_init_b: 0.5
+            dbl_init_method: "analytical_expectation"
+            weight_transform: "softplus"
+            topk_type: "standard"
+            topk_init_method: "xavier_normal"
+          populations:
+            - name: "i"
+              polarity: "inhibitory"
+              n_neurons: 32
+              branch_factors: [1]
+              population:
+                ff_inhibitory_synapses: 0
+            - name: "e"
+              polarity: "excitatory"
+              n_neurons: 128
+              branch_factors: [3, 3, 3]
+          connections:
+            - source: "input"
+              target: "i"
+            - source: "input"
+              target: "e"
+            - source: "i"
+              target: "e"
 
     # Old core.recurrent/BranchConfig payloads are deprecated and intentionally
     # omitted from this template. Use unified_ei, recurrent_ei, or baseline_rnn.

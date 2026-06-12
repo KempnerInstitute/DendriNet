@@ -1,17 +1,13 @@
 # ============================================================================
-# Normalized additive MNIST DendriNet using the population-network schema
+# Population Network CIFAR-10 128E/32I DendriNet
 # ============================================================================
-# Population-format normalized additive MNIST example. It keeps legacy
-# input_mode=1 transfer semantics while making additive inhibition explicit at
-# the population level:
-#   use_shunting: false
-#   use_additive_normalization: true
-#   reactivation_init_policy: occupancy_quantile
+# Canonical CIFAR-10 feedforward example with explicit input -> I,
+# input -> E, and I -> E population edges.
 #
 # Run:
 #   PYTHONPATH=src:$PYTHONPATH python \
 #     src/dendritic_modeling/scripts/training/train_experiments.py \
-#     configs/examples/standard_mnist_normalized_additive_population_network.yaml
+#     configs/examples/population_network_cifar10.yaml
 # ============================================================================
 
 experiment:
@@ -22,7 +18,7 @@ experiment:
     enabled: false
 
 data:
-  dataset_name: "mnist"
+  dataset_name: "cifar10"
   processing:
     flatten: true
     normalize: true
@@ -36,27 +32,22 @@ model:
     population_network:
       use_transfer: true
       transfer_params:
-        input_mode: 1
+        input_mode: 0
         independent_pathways: false
         output_activation: "relu"
       layers:
         - name: "layer0"
           readout_population: "e"
           population_defaults:
-            ff_excitatory_synapses: 30
-            ff_inhibitory_synapses: 15
+            ff_excitatory_synapses: 40
+            ff_inhibitory_synapses: 10
             rec_excitatory_synapses: 0
             rec_inhibitory_synapses: 0
             somatic_synapses: false
-            use_shunting: false
-            use_additive_normalization: true
+            use_shunting: true
             reactivate: true
             reactivation_type: "param_tanh"
             reactivation_init_policy: "occupancy_quantile"
-            reactivation_occupancy_quantile_low: 0.1
-            reactivation_occupancy_quantile_high: 0.9
-            reactivation_occupancy_target_low: 0.1
-            reactivation_occupancy_target_high: 0.9
             reactivation_init_m: 1.5
             reactivation_init_b: 0.5
             dbl_init_method: "analytical_expectation"
@@ -67,19 +58,27 @@ model:
             reactivation_strategy: "none"
             efficient_blocklinear: false
           populations:
+            - name: "i"
+              polarity: "inhibitory"
+              n_neurons: 32
+              branch_factors: [1]
+              population:
+                ff_inhibitory_synapses: 0
             - name: "e"
               polarity: "excitatory"
               n_neurons: 128
-              branch_factors: [4, 4]
+              branch_factors: [3, 3, 3]
           connections:
-            - source: "input_e"
+            - source: "input"
+              target: "i"
+            - source: "input"
               target: "e"
-            - source: "input_i"
+            - source: "i"
               target: "e"
   decoder:
     type: "MLP"
     params:
-      hidden_dims: [32]
+      hidden_dims: [64]
       activation: "relu"
       output_dim: 10
 
@@ -91,15 +90,14 @@ training:
   main:
     strategy: "standard"
     common:
-      epochs: 50
-      batch_size: 256
+      epochs: 200
+      batch_size: 512
       shuffle: true
       grad_clip_value: 5.0
       loss_function: "ce"
       early_stopping: true
-      patience: 20
+      patience: 50
       load_best_state_dict: true
-      recalibrate_reactivation_every: 0
       weight_decay_rate: 0.01
       weight_boosting: true
       param_groups:
@@ -120,13 +118,14 @@ analysis:
     training: false
     params:
       accuracy: true
+      auc: true
       categorical_loglikelihood: true
 
 wandb:
   use_wandb: false
 
 outputs:
-  run_name: "standard_mnist_normalized_additive_population_network"
+  run_name: "population_network_cifar10"
   results_dir: "outputs"
 
 distributed:

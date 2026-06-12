@@ -284,19 +284,16 @@ Delayed qualified sources are allowed on recurrent target layers and use the
 source population's previous-timestep output, so they do not create an
 instantaneous algebraic loop.
 
-For migration from the older feedforward ``einet`` examples, see
-``configs/examples/standard_mnist_population_network.yaml``,
-``configs/examples/standard_mnist_normalized_additive_population_network.yaml``,
-``configs/examples/standard_cifar10_population_network.yaml``,
-``configs/examples/cifar10_128_333_40e10i_population_network.yaml``, and
-``configs/examples/cifar10_two_layer_population_network.yaml``. These keep
-the old sizes, synapse counts, transfer settings, and readout heads aligned
-while moving the computation into explicit named-population routing. For
-legacy ``input_mode=1`` configs, this means a single E population with direct
-``input_i`` inhibition rather than explicit I cells. The separate
-``configs/examples/population_network_two_layer.yaml`` file intentionally
-demonstrates additional cross-layer population routing beyond the old
-two-layer feedforward path.
+For feedforward examples, see
+``configs/examples/population_network_feedforward.yaml``,
+``configs/examples/population_network_cifar10.yaml``,
+``configs/examples/population_network_dense_to_sparse_cifar10.yaml``,
+``configs/examples/population_network_normalized_additive_mnist.yaml``, and
+``configs/examples/population_network_two_layer.yaml``. These examples use the
+same named-population schema instead of maintaining parallel legacy
+``einet`` YAMLs. When transfer-stream behavior is needed, use
+``configs/examples/population_network_independent_transfer.yaml`` and address
+the split streams explicitly as ``input_e`` and ``input_i``.
 
 When ``input_projection_dims`` is used together with ``use_transfer: true``,
 the projection is applied to the compatibility/excitatory stream
@@ -310,9 +307,7 @@ Canonical examples are
 ``configs/examples/population_network_recurrent_pyr_pv_sst.yaml``,
 ``configs/examples/population_network_synapse_types_ampa_nmda_gaba.yaml``,
 ``configs/examples/population_network_spiking.yaml``, and
-``configs/examples/population_network_soma_feedback.yaml``. The
-``standard_*_population_network.yaml`` files are parity examples that mirror
-older ``einet`` configurations using the canonical population-network schema.
+``configs/examples/population_network_soma_feedback.yaml``.
 
 Transformer MLP/FFN replacement follows the same shared ``model.core.type``
 aliases when a shunting/additive alias is present. If ``model.core.type`` is a

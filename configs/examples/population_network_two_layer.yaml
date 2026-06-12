@@ -1,9 +1,8 @@
 # ============================================================================
 # Population Network DendriNet: two-layer 128E/32I -> 64E/16I
 # ============================================================================
-# Mirrors the old two-layer feedforward E/I CIFAR-style config using the
-# population_network schema. Each computational layer has named inhibitory
-# and excitatory populations plus explicit same-step directed connectivity:
+# Each computational layer has named inhibitory and excitatory populations
+# plus explicit same-step directed connectivity:
 # input -> I, input -> E, and I -> E.
 #
 # Later layers can address earlier population outputs explicitly with

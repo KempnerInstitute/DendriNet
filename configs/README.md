@@ -18,15 +18,15 @@ reference configs and reusable examples, not one-off personal runs.
 
 | Goal | Config |
 | --- | --- |
-| Original feedforward E/I MNIST | `examples/standard_mnist.yaml` |
-| Same E/I model in canonical notation | `examples/standard_mnist_population_network.yaml` |
+| Feedforward E/I MNIST | `examples/population_network_feedforward.yaml` |
+| CIFAR-10 E/I training recipe | `examples/population_network_cifar10.yaml` |
 | Heterogeneous E/I populations in one layer | `examples/population_network_heterogeneous_feedforward.yaml` |
 | Explicit two-layer population routing | `examples/population_network_two_layer.yaml` |
 | Recurrent Pyr/PV/SST microcircuit | `examples/population_network_recurrent_pyr_pv_sst.yaml` |
 | AMPA/NMDA/GABA kinetics | `examples/population_network_synapse_types_ampa_nmda_gaba.yaml` |
 | Spiking soma | `examples/population_network_spiking.yaml` |
 | Soma-to-dendrite feedback | `examples/population_network_soma_feedback.yaml` |
-| Dense-to-sparse developmental pruning | `examples/standard_cifar10_dense_to_sparse_population_network.yaml` |
+| Dense-to-sparse developmental pruning | `examples/population_network_dense_to_sparse_cifar10.yaml` |
 
 New architecture examples should prefer:
 
