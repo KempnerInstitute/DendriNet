@@ -108,8 +108,8 @@ model:
     type: "einet"
 
     architecture:
-      excitatory_layer_sizes: [4096]               # match fc8 input dim
-      inhibitory_layer_sizes: [820]                # ~20% of excitatory
+      excitatory_layer_sizes: [1024]               # match fc8 input dim
+      inhibitory_layer_sizes: [205]                # ~20% of excitatory
       excitatory_branch_factors: [2, 2]
       inhibitory_branch_factors: [2, 2]
       inhibitory_network_type: "dendritic"
@@ -196,7 +196,7 @@ training:
   main:
     strategy: "standard"
     common:
-      epochs: 50
+      epochs: 5
       batch_size: 256                               # larger batch for throughput (fits in 80GB with AMP)
       shuffle: true
       grad_clip_value: 5.0
