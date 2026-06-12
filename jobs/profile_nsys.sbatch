@@ -55,7 +55,14 @@ python -c "import torch; print('[job] torch', torch.__version__, 'cuda', torch.v
 # Output report is named after the config so multiple configs don't collide.
 CONFIG="${CONFIG:-configs/examples/standard_mnist.yaml}"
 RUN_NAME="$(basename "${CONFIG}" .yaml)"
+
+# Capture ~20 training STEPS (not epochs) so the repeating per-step pattern is
+# clearly visible in the timeline. The run still early-exits after these steps.
+# Override the count with --export=...,PROFILE_ACTIVE=N.
+export DENDRINET_PROFILE_ACTIVE="${PROFILE_ACTIVE:-20}"
+
 echo "[job] profiling config: ${CONFIG} -> profilings/NSights/${RUN_NAME}.nsys-rep"
+echo "[job] capturing ~$((DENDRINET_PROFILE_ACTIVE + 3)) steps (PROFILE_ACTIVE=${DENDRINET_PROFILE_ACTIVE})"
 
 nsys profile --trace=cuda,nvtx,osrt,cudnn,cublas \
   --output="profilings/NSights/${RUN_NAME}" --force-overwrite=true \
