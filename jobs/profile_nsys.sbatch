@@ -56,13 +56,20 @@ python -c "import torch; print('[job] torch', torch.__version__, 'cuda', torch.v
 CONFIG="${CONFIG:-configs/examples/standard_mnist.yaml}"
 RUN_NAME="$(basename "${CONFIG}" .yaml)"
 
-# Capture ~20 training STEPS (not epochs) so the repeating per-step pattern is
-# clearly visible in the timeline. The run still early-exits after these steps.
-# Override the count with --export=...,PROFILE_ACTIVE=N.
+# STEP MODE (default): capture ~20 training STEPS so the repeating per-step
+# pattern is clearly visible. Override with --export=...,PROFILE_ACTIVE=N.
 export DENDRINET_PROFILE_ACTIVE="${PROFILE_ACTIVE:-20}"
 
+# EPOCH MODE: set PROFILE_EPOCHS=N to instead profile N full epochs (shows the
+# train->validation boundaries; larger trace). 0 = step mode.
+export DENDRINET_PROFILE_EPOCHS="${PROFILE_EPOCHS:-0}"
+
 echo "[job] profiling config: ${CONFIG} -> profilings/NSights/${RUN_NAME}.nsys-rep"
-echo "[job] capturing ~$((DENDRINET_PROFILE_ACTIVE + 3)) steps (PROFILE_ACTIVE=${DENDRINET_PROFILE_ACTIVE})"
+if [ "${DENDRINET_PROFILE_EPOCHS}" -gt 0 ]; then
+  echo "[job] EPOCH mode: capturing ${DENDRINET_PROFILE_EPOCHS} full epoch(s)"
+else
+  echo "[job] STEP mode: capturing ~$((DENDRINET_PROFILE_ACTIVE + 3)) steps"
+fi
 
 nsys profile --trace=cuda,nvtx,osrt,cudnn,cublas \
   --output="profilings/NSights/${RUN_NAME}" --force-overwrite=true \

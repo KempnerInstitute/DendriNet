@@ -39,6 +39,7 @@ from dendritic_modeling.training.utils.profiling import (
     finalize_profiling_run,
     finish_profiler,
     make_profiler,
+    profile_epochs,
     profiling_enabled,
     record_section,
     total_profiled_steps,
@@ -709,7 +710,8 @@ class Trainer:
         profile_active = profiling_enabled() and not getattr(
             self, "_profiling_done", False
         )
-        prof = make_profiler() if profile_active else None
+        epoch_mode = profile_active and profile_epochs() > 0
+        prof = make_profiler() if (profile_active and not epoch_mode) else None
         for step, batch in enumerate(train_loader):
             with record_section("data_h2d"):
                 x_batch, y_batch = batch[0].to(self.device), batch[1].to(self.device)
@@ -807,17 +809,24 @@ class Trainer:
             if profile_active:
                 if prof is not None:
                     prof.step()
-                if step + 1 >= total_profiled_steps():
+                if not epoch_mode and step + 1 >= total_profiled_steps():
                     break
 
         if profile_active:
-            if prof is not None:
-                finish_profiler(prof)
-            self._profiling_done = True
-            self._profiling_stop = True
-            # Profiling run: capture is done — exit now instead of running the
-            # post-training validation/analysis (keeps nsys traces small).
-            finalize_profiling_run()
+            # Step mode: done after the captured steps. Epoch mode: done after
+            # the requested number of full epochs.
+            done = True
+            if epoch_mode:
+                self._profiled_epochs = getattr(self, "_profiled_epochs", 0) + 1
+                done = self._profiled_epochs >= profile_epochs()
+            if done:
+                if prof is not None:
+                    finish_profiler(prof)
+                self._profiling_done = True
+                self._profiling_stop = True
+                # Capture complete — exit before post-training validation/
+                # analysis (keeps the trace bounded).
+                finalize_profiling_run()
 
         if self._is_distributed:
             stats = torch.tensor(

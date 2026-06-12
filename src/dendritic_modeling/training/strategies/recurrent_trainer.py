@@ -29,6 +29,7 @@ from dendritic_modeling.training.utils.profiling import (
     finalize_profiling_run,
     finish_profiler,
     make_profiler,
+    profile_epochs,
     profiling_enabled,
     record_section,
     total_profiled_steps,
@@ -182,7 +183,8 @@ class RecurrentTrainer(Trainer):
         profile_active = profiling_enabled() and not getattr(
             self, "_profiling_done", False
         )
-        prof = make_profiler() if profile_active else None
+        epoch_mode = profile_active and profile_epochs() > 0
+        prof = make_profiler() if (profile_active and not epoch_mode) else None
         for step, batch in enumerate(train_loader):
             with record_section("data_h2d"):
                 if len(batch) == 3:
@@ -230,17 +232,21 @@ class RecurrentTrainer(Trainer):
             if profile_active:
                 if prof is not None:
                     prof.step()
-                if step + 1 >= total_profiled_steps():
+                if not epoch_mode and step + 1 >= total_profiled_steps():
                     break
 
         if profile_active:
-            if prof is not None:
-                finish_profiler(prof)
-            self._profiling_done = True
-            self._profiling_stop = True
-            # Profiling run: capture done — exit before LR step / post-training
-            # work, same as the standard trainer.
-            finalize_profiling_run()
+            done = True
+            if epoch_mode:
+                self._profiled_epochs = getattr(self, "_profiled_epochs", 0) + 1
+                done = self._profiled_epochs >= profile_epochs()
+            if done:
+                if prof is not None:
+                    finish_profiler(prof)
+                self._profiling_done = True
+                self._profiling_stop = True
+                # Capture done — exit before LR step / post-training work.
+                finalize_profiling_run()
 
         # Step LR scheduler once per epoch
         if self.scheduler is not None:

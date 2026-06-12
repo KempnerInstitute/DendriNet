@@ -78,6 +78,14 @@ def total_profiled_steps() -> int:
     return wait + warmup + active + 1
 
 
+def profile_epochs() -> int:
+    """If >0, profile this many full epochs (NVTX labels on, no per-step
+    early-exit) instead of a fixed step count, then exit before post-training
+    analysis. Intended for the nsys backend. 0 (default) = step mode.
+    """
+    return _env_int("DENDRINET_PROFILE_EPOCHS", 0)
+
+
 def _profile_dir() -> str:
     d = os.environ.get("DENDRINET_PROFILE_DIR", "./profiler_logs")
     os.makedirs(d, exist_ok=True)
