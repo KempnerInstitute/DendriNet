@@ -122,6 +122,9 @@ class SparsityConfig(BaseConfig):
             "selection": "standard",
             "seed": None,
             "output_chunk_size": 2048,
+            "rewire_frequency": 100,
+            "rewire_quantile": 0.05,
+            "rewire_until_step": None,
         }
     )
     dense_to_sparse: dict = field(

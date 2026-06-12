@@ -95,6 +95,9 @@ class DendriticBranchLayer(nn.Module):
         dense_to_sparse_freeze_on_end=False,
         dense_to_sparse_advance_on_forward=True,
         dense_to_sparse_prune_metric="weight",
+        indexed_rewire_frequency=100,
+        indexed_rewire_quantile=0.05,
+        indexed_rewire_until_step=None,
         use_shunting=True,
         reactivate=False,
         reactivation_type="param_tanh",
@@ -178,6 +181,15 @@ class DendriticBranchLayer(nn.Module):
         self.indexed_output_chunk_size = kwargs.pop("indexed_output_chunk_size", 2048)
         self.indexed_candidate_size = kwargs.pop("indexed_candidate_size", None)
         self.indexed_selection = kwargs.pop("indexed_selection", "standard")
+        self.indexed_rewire_frequency = int(
+            kwargs.pop("indexed_rewire_frequency", indexed_rewire_frequency)
+        )
+        self.indexed_rewire_quantile = float(
+            kwargs.pop("indexed_rewire_quantile", indexed_rewire_quantile)
+        )
+        self.indexed_rewire_until_step = kwargs.pop(
+            "indexed_rewire_until_step", indexed_rewire_until_step
+        )
         self.input_excitatory = excitatory_input_dim is not None
         self.print_hooks = print_hooks
 
@@ -387,6 +399,8 @@ class DendriticBranchLayer(nn.Module):
             "topk",
             "indexed-dynamic",
             "indexed_dynamic_topk",
+            "indexed-rewire",
+            "indexed_rewire_topk",
             "dense-to-sparse",
             "dense_to_sparse_topk",
             "annealed-topk",
@@ -395,6 +409,8 @@ class DendriticBranchLayer(nn.Module):
                 layer_type = "standard"
             elif layer_type in {"indexed-dynamic", "indexed_dynamic_topk"}:
                 layer_type = "indexed_dynamic"
+            elif layer_type in {"indexed-rewire", "indexed_rewire_topk"}:
+                layer_type = "indexed_rewire"
             else:
                 layer_type = "dense_to_sparse"
         from dendritic_modeling.utils.sparse_ops import get_sparse_layer
@@ -501,7 +517,7 @@ class DendriticBranchLayer(nn.Module):
                 forbidden_input_index_per_output=forbidden_input_index_per_output,
                 connection_mask=connection_mask,
             )
-        elif layer_type == "indexed":
+        elif layer_type in {"indexed", "indexed_rewire"}:
             seed = None
             if self.indexed_seed is not None:
                 synapse_offset = {"exc": 0, "inh": 1}.get(synapse_type, 2)
@@ -510,6 +526,13 @@ class DendriticBranchLayer(nn.Module):
                     + (1009 * int(self.layer_idx))
                     + synapse_offset
                 )
+            extra_kwargs = {}
+            if layer_type == "indexed_rewire":
+                extra_kwargs = {
+                    "rewire_frequency": self.indexed_rewire_frequency,
+                    "rewire_quantile": self.indexed_rewire_quantile,
+                    "rewire_until_step": self.indexed_rewire_until_step,
+                }
             return get_sparse_layer(
                 layer_type,
                 in_features,
@@ -524,6 +547,7 @@ class DendriticBranchLayer(nn.Module):
                 forbidden_input_index_per_output=forbidden_input_index_per_output,
                 seed=seed,
                 output_chunk_size=self.indexed_output_chunk_size,
+                **extra_kwargs,
             )
         elif layer_type == "indexed_dynamic":
             seed = None
@@ -605,25 +629,25 @@ class DendriticBranchLayer(nn.Module):
         """
         Apply rewiring to all synaptic connections.
         """
-        if hasattr(self, "step_counter"):
-            self.step_counter += 1
-            rewire_condition = self.step_counter % self.rewire_frequency == 0
+
+        def _apply_synapse_rewiring(layer):
+            if layer is None:
+                return
             if rewire_condition and hasattr(
-                self.branch_excitation, "apply_noise_and_enforce_constraints"
+                layer, "apply_noise_and_enforce_constraints"
             ):
-                self.branch_excitation.apply_noise_and_enforce_constraints()
-            if rewire_condition and hasattr(
-                self.branch_inhibition, "apply_noise_and_enforce_constraints"
-            ):
-                self.branch_inhibition.apply_noise_and_enforce_constraints()
-            if rewire_condition and hasattr(
-                self.branch_recurrent, "apply_noise_and_enforce_constraints"
-            ):
-                self.branch_recurrent.apply_noise_and_enforce_constraints()
-            if rewire_condition and hasattr(
-                self.branch_rec_inhibition, "apply_noise_and_enforce_constraints"
-            ):
-                self.branch_rec_inhibition.apply_noise_and_enforce_constraints()
+                layer.apply_noise_and_enforce_constraints()
+            elif hasattr(layer, "apply_rewiring"):
+                layer.apply_rewiring()
+
+        if not hasattr(self, "step_counter"):
+            self.step_counter = 0
+        self.step_counter += 1
+        rewire_condition = self.step_counter % self.rewire_frequency == 0
+        _apply_synapse_rewiring(self.branch_excitation)
+        _apply_synapse_rewiring(self.branch_inhibition)
+        _apply_synapse_rewiring(self.branch_recurrent)
+        _apply_synapse_rewiring(self.branch_rec_inhibition)
 
     def forward(
         self,

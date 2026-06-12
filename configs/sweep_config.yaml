@@ -90,7 +90,7 @@ experiment_settings:
 #   Scalars:    training.main.common.param_groups.lr: [0.001, 0.01, 0.1]
 #   Strings:    model.core.type: ["dendritic_shunting", "dendritic_additive"]
 #   Booleans:   model.core.morphology.somatic_synapses: [true, false]
-#   Lists:      model.core.population_network.layers.0.populations.0.branch_factors: [[3, 3], [4, 4]]
+#   Lists:      model.core.population_network.layers.0.populations.1.branch_factors: [[3, 3], [4, 4]]
 #   Nested:     model.core.population_network.layers.0.population_defaults.ff_excitatory_synapses: [20, 30, 40]
 #
 # EXAMPLES:
@@ -99,8 +99,8 @@ experiment_settings:
 #   # training.main.common.batch_size: [128, 256, 512]
 #
 #   # Sweep population size and morphology (2 x 2 = 4 conditions):
-#   # model.core.population_network.layers.0.populations.0.n_neurons: [64, 128]
-#   # model.core.population_network.layers.0.populations.0.branch_factors: [[3, 3], [4, 4]]
+#   # model.core.population_network.layers.0.populations.1.n_neurons: [64, 128]
+#   # model.core.population_network.layers.0.populations.1.branch_factors: [[3, 3], [4, 4]]
 #
 #   # Sweep E/I synapse counts in population-network defaults:
 #   # model.core.population_network.layers.0.population_defaults.ff_excitatory_synapses: [20, 30, 40]
@@ -109,7 +109,7 @@ experiment_settings:
 sweep_config:
   # Population-network synapse counts and morphology. Numeric path components
   # index YAML lists, so layers.0 is the first population-network layer and
-  # populations.0 is its first named population.
+  # populations.1 is the excitatory/readout population in the base example.
   model.core.population_network.layers.0.population_defaults.ff_excitatory_synapses:
     - 20
     - 30
@@ -118,7 +118,7 @@ sweep_config:
     - 10
     - 15
 
-  model.core.population_network.layers.0.populations.0.branch_factors:
+  model.core.population_network.layers.0.populations.1.branch_factors:
     - [3, 3]
     - [4, 4]
 
@@ -270,11 +270,8 @@ base_config:
     core:
       type: "population_network"
       population_network:
-        use_transfer: true
-        transfer_params:
-          input_mode: 1
-          independent_pathways: false
-          output_activation: "relu"
+        use_transfer: false
+        transfer_params: {}
         layers:
           - name: "layer0"
             readout_population: "e"
@@ -283,7 +280,7 @@ base_config:
               ff_inhibitory_synapses: 15
               rec_excitatory_synapses: 0
               rec_inhibitory_synapses: 0
-              somatic_synapses: false
+              somatic_synapses: true
               use_shunting: true
               use_additive_normalization: false
               reactivate: true
@@ -299,14 +296,22 @@ base_config:
               reactivation_strategy: "none"
               efficient_blocklinear: false
             populations:
+              - name: "i"
+                polarity: "inhibitory"
+                n_neurons: 32
+                branch_factors: [1]
+                population:
+                  ff_inhibitory_synapses: 0
               - name: "e"
                 polarity: "excitatory"
                 n_neurons: 128
                 branch_factors: [4, 4]
             connections:
-              - source: "input_e"
+              - source: "input"
+                target: "i"
+              - source: "input"
                 target: "e"
-              - source: "input_i"
+              - source: "i"
                 target: "e"
 
     decoder:
@@ -491,8 +496,8 @@ base_config:
 # Example 3: Population size and morphology comparison
 # --------------------------------------------------------------------------
 # sweep_config:
-#   model.core.population_network.layers.0.populations.0.n_neurons: [64, 128]
-#   model.core.population_network.layers.0.populations.0.branch_factors:
+#   model.core.population_network.layers.0.populations.1.n_neurons: [64, 128]
+#   model.core.population_network.layers.0.populations.1.branch_factors:
 #     - [3, 3]
 #     - [4, 4]
 # filter_config:

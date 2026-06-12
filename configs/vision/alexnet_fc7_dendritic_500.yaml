@@ -14,7 +14,7 @@
 # Run:
 #   PYTHONPATH=src:$PYTHONPATH python \
 #     src/dendritic_modeling/scripts/training/train_experiments.py \
-#     configs/examples/alexnet_fc7_dendritic_500.yaml
+#     configs/vision/alexnet_fc7_dendritic_500.yaml
 # ============================================================================
 
 experiment:

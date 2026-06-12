@@ -171,6 +171,7 @@ def estimate_dendritic_ffn_params(
     somatic_synapses: bool = True,
 ) -> dict[str, int]:
     """Estimate stored and active parameters for a dendritic FFN replacement."""
+    topk_type = _normalize_topk_type(topk_type)
     input_dim = int(hidden_size) * (2 if input_transform == "signed_split" else 1)
     layer_sizes = [int(dendritic_units)]
     for branch_factor in branch_factors:
@@ -181,7 +182,7 @@ def estimate_dendritic_ffn_params(
     branch_units = sum(dendritic_layer_sizes)
 
     active_synapses = branch_units * int(synapses_per_branch)
-    if topk_type == "indexed":
+    if topk_type in {"indexed", "indexed_rewire"}:
         stored_synapses = active_synapses
     elif topk_type == "indexed_dynamic":
         if candidate_size is None:
@@ -248,6 +249,9 @@ class DendriticFFNReplacement(nn.Module):
         indexed_candidate_size: int | None = None,
         indexed_selection: str = "standard",
         indexed_output_chunk_size: int = 2048,
+        indexed_rewire_frequency: int = 100,
+        indexed_rewire_quantile: float = 0.05,
+        indexed_rewire_until_step: int | None = None,
         use_shunting: bool = True,
         use_additive_normalization: bool = False,
         reactivate: bool = True,
@@ -274,6 +278,9 @@ class DendriticFFNReplacement(nn.Module):
         self.synapses_per_branch = int(synapses_per_branch)
         self.indexed_candidate_size = indexed_candidate_size
         self.indexed_selection = indexed_selection
+        self.indexed_rewire_frequency = int(indexed_rewire_frequency)
+        self.indexed_rewire_quantile = float(indexed_rewire_quantile)
+        self.indexed_rewire_until_step = indexed_rewire_until_step
         self.input_transform = input_transform
         self.output_scale = float(output_scale)
         self.topk_type = topk_type
@@ -316,6 +323,9 @@ class DendriticFFNReplacement(nn.Module):
             indexed_candidate_size=indexed_candidate_size,
             indexed_selection=indexed_selection,
             indexed_output_chunk_size=indexed_output_chunk_size,
+            indexed_rewire_frequency=indexed_rewire_frequency,
+            indexed_rewire_quantile=indexed_rewire_quantile,
+            indexed_rewire_until_step=indexed_rewire_until_step,
         )
         self.output_projection = nn.Linear(
             self.dendritic_units, self.hidden_size, bias=output_bias
@@ -682,6 +692,9 @@ def build_dendritic_ffn_kwargs_from_core_config(
         "indexed_candidate_size": indexed.get("candidate_size"),
         "indexed_selection": indexed.get("selection", "standard"),
         "indexed_output_chunk_size": int(indexed.get("output_chunk_size", 2048)),
+        "indexed_rewire_frequency": int(indexed.get("rewire_frequency", 100)),
+        "indexed_rewire_quantile": float(indexed.get("rewire_quantile", 0.05)),
+        "indexed_rewire_until_step": indexed.get("rewire_until_step"),
         "use_shunting": bool(
             morphology_overrides.get(
                 "use_shunting", morphology.get("use_shunting", True)
@@ -825,6 +838,9 @@ def build_ei_stack_kwargs_from_core_config(
         "indexed_candidate_size": indexed.get("candidate_size"),
         "indexed_selection": indexed.get("selection", "standard"),
         "indexed_output_chunk_size": int(indexed.get("output_chunk_size", 2048)),
+        "indexed_rewire_frequency": int(indexed.get("rewire_frequency", 100)),
+        "indexed_rewire_quantile": float(indexed.get("rewire_quantile", 0.05)),
+        "indexed_rewire_until_step": indexed.get("rewire_until_step"),
         "reactivate": bool(reactivation.get("enabled", True)),
         "reactivation_type": reactivation.get("type", "param_tanh"),
         "output_bias": bool(tr.get("output_bias", False)),

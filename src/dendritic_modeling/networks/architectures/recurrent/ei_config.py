@@ -32,6 +32,13 @@ class PopulationConfig(BaseConfig):
     topk_temperature: float = 0.0
     topk_ultrafast: bool = False
     topk_strategy: str = "none"
+    indexed_seed: Optional[int] = None
+    indexed_candidate_size: Optional[int] = None
+    indexed_selection: str = "standard"
+    indexed_output_chunk_size: int = 2048
+    indexed_rewire_frequency: int = 100
+    indexed_rewire_quantile: float = 0.05
+    indexed_rewire_until_step: Optional[int] = None
     dense_to_sparse_initial_density: float = 1.0
     dense_to_sparse_initial_k: Optional[int] = None
     dense_to_sparse_start_step: int = 0
