@@ -1,0 +1,187 @@
+# ============================================================================
+# Population Network with AMPA / NMDA / GABA-A / GABA-B Synapse Types
+# ============================================================================
+# Receptor-style conductance mixtures written with the canonical
+# population_network schema. Same-step input edges drive each population;
+# delayed edges define recurrent microcircuit feedback.
+#
+# Run:
+#   PYTHONPATH=src:$PYTHONPATH python \
+#     src/dendritic_modeling/scripts/training/train_experiments.py \
+#     configs/examples/population_network_synapse_types_ampa_nmda_gaba.yaml
+# ============================================================================
+
+experiment:
+  seed: 43
+  train_valid_split: 0.8
+  enable_hooks: true
+  checkpointing:
+    enabled: false
+
+data:
+  dataset_name: "context_dependent_decision"
+  processing:
+    flatten: false
+    normalize: false
+  dataset_params:
+    context_dependent_decision:
+      n_samples: 512
+      signal_dim: 4
+      context_duration: 6
+      integration_duration: 12
+      delay_duration: 2
+      coherence_levels: [0.2, 0.4, 0.8]
+      noise_std: 0.1
+
+model:
+  task: "classification"
+  encoder:
+    type: "identity"
+    params:
+      input_dim: 10
+  core:
+    type: "population_network"
+    population_network:
+      output_mode: "last"
+      layers:
+        - name: "microcircuit"
+          recurrent: true
+          readout_population: "pyr"
+          dt: 1.0
+          connection_seed: 43
+          population_defaults:
+            ff_excitatory_synapses: 3
+            ff_inhibitory_synapses: 0
+            rec_excitatory_synapses: 2
+            rec_inhibitory_synapses: 1
+            somatic_synapses: true
+            reactivate: true
+            reactivation_type: "param_tanh"
+            reactivation_init_policy: "occupancy_quantile"
+            dbl_init_method: "analytical_expectation"
+            weight_transform: "softplus"
+            use_shunting: true
+            synapse_types:
+              enabled: true
+              excitatory:
+                - name: "AMPA"
+                  fraction: 0.8
+                  tau_rise: 0.5
+                  tau_decay: 2.0
+                  reversal_potential: 1.0
+                - name: "NMDA"
+                  fraction: 0.2
+                  tau_rise: 3.0
+                  tau_decay: 70.0
+                  reversal_potential: 1.0
+                  magnesium_block: true
+                  mg_concentration: 1.0
+                  mg_scale: 3.57
+                  mg_slope: 16.13
+                  voltage_scale_mv: 100.0
+              inhibitory:
+                - name: "GABA_A"
+                  fraction: 0.9
+                  tau_rise: 1.0
+                  tau_decay: 7.0
+                  reversal_potential: 0.0
+                - name: "GABA_B"
+                  fraction: 0.1
+                  tau_rise: 20.0
+                  tau_decay: 150.0
+                  reversal_potential: -0.25
+                  stp:
+                    enabled: true
+                    u0: 0.25
+                    depression: 0.2
+          populations:
+            - name: "pyr"
+              polarity: "excitatory"
+              n_neurons: 32
+              branch_factors: [2, 2]
+            - name: "pv"
+              polarity: "inhibitory"
+              n_neurons: 8
+              branch_factors: [1]
+            - name: "sst"
+              polarity: "inhibitory"
+              n_neurons: 8
+              branch_factors: [1]
+          connections:
+            - source: "input"
+              target: "pyr"
+            - source: "input"
+              target: "pv"
+            - source: "input"
+              target: "sst"
+            - source: "pyr"
+              target: "pyr"
+              timing: "delayed"
+              probability: 0.75
+            - source: "pv"
+              target: "pyr"
+              timing: "delayed"
+              probability: 0.7
+            - source: "sst"
+              target: "pyr"
+              timing: "delayed"
+              probability: 0.35
+  decoder:
+    type: "MLP"
+    params:
+      hidden_dims: [32]
+      activation: "relu"
+      output_dim: 2
+
+training:
+  encoder:
+    strategy: "standard"
+    common:
+      epochs: 0
+  main:
+    strategy: "recurrent"
+    common:
+      epochs: 5
+      batch_size: 64
+      shuffle: true
+      grad_clip_value: 1.0
+      loss_function: "ce"
+      early_stopping: false
+      use_amp: false
+      weight_decay_rate: 0.01
+      weight_boosting: true
+      param_groups:
+        lr: 0.001
+        split_params: true
+        decoder_lr: 0.005
+    optimizer:
+      name: "adam"
+    strategies:
+      standard: {}
+      recurrent: {}
+
+analysis:
+  performance:
+    enabled: true
+    training: false
+    params:
+      accuracy: true
+  routing:
+    enabled: true
+    training: false
+  dendritic_timetraces:
+    enabled: true
+    training: false
+    params:
+      n_timesteps: 40
+      save_figures: true
+
+wandb:
+  use_wandb: false
+
+outputs:
+  run_name: "population_network_synapse_types_ampa_nmda_gaba"
+  results_dir: "outputs"
+
+distributed:
+  mode: none

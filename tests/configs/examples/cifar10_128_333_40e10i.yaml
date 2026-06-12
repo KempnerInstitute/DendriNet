@@ -1,0 +1,117 @@
+# ============================================================================
+# CIFAR-10 DendriNet: 128E/32I, 3x3x3 morphology, 40E/10I synapses
+# ============================================================================
+# Standard single-GPU feedforward run. The dendritic core has one excitatory
+# layer with 128 neurons and one inhibitory layer with 32 neurons. Each
+# excitatory neuron uses a three-level morphology with branch factors [3, 3, 3].
+# Each excitatory branch receives 40 excitatory and 10 inhibitory synapses.
+#
+# Run:
+#   PYTHONPATH=src:$PYTHONPATH python \
+#     src/dendritic_modeling/scripts/training/train_experiments.py \
+#     configs/examples/cifar10_128_333_40e10i.yaml
+# ============================================================================
+
+experiment:
+  seed: 42
+  train_valid_split: 0.8
+  enable_hooks: false
+  checkpointing:
+    enabled: false
+
+data:
+  dataset_name: "cifar10"
+  processing:
+    flatten: true
+    normalize: true
+
+model:
+  task: "classification"
+  encoder:
+    type: "identity"
+  core:
+    type: "einet"
+    architecture:
+      excitatory_layer_sizes: [128]
+      inhibitory_layer_sizes: [32]
+      excitatory_branch_factors: [3, 3, 3]
+      inhibitory_branch_factors: [1]
+      inhibitory_network_type: "dendritic"
+    connectivity:
+      ee_synapses_per_branch_per_layer: [40]
+      ei_synapses_per_branch_per_layer: [10]
+      ie_synapses_per_branch_per_layer: [10]
+      ii_synapses_per_branch_per_layer: [0]
+    transfer:
+      input_mode: 0
+      inhibitory_mode: "first"
+      output_activation: "relu"
+    morphology:
+      use_shunting: true
+      weight_transform: "softplus"
+      dbl_init_method: "analytical_expectation"
+    sparsity:
+      init_method: "xavier_normal"
+      type: "standard"
+    reactivation:
+      enabled: true
+      type: "param_tanh"
+      init_policy: "occupancy_quantile"
+      init_m: 1.5
+      init_b: 0.5
+    blocklinear:
+      gradient_scaling: "none"
+      efficient: false
+  decoder:
+    type: "MLP"
+    params:
+      hidden_dims: [64]
+      activation: "relu"
+      output_dim: 10
+
+training:
+  encoder:
+    strategy: "standard"
+    common:
+      epochs: 0
+  main:
+    strategy: "standard"
+    common:
+      epochs: 200
+      batch_size: 512
+      shuffle: true
+      grad_clip_value: 5.0
+      loss_function: "ce"
+      early_stopping: true
+      patience: 50
+      load_best_state_dict: true
+      param_groups:
+        lr: 0.001
+        split_params: true
+        topk_lr: 0.001
+        blocklinear_lr: 0.0001
+        reactivation_lr: 0.0001
+        decoder_lr: 0.001
+    optimizer:
+      name: "adam"
+    strategies:
+      standard: {}
+
+analysis:
+  performance:
+    enabled: true
+    training: false
+    params:
+      accuracy: true
+      auc: true
+      categorical_loglikelihood: true
+
+wandb:
+  use_wandb: false
+
+outputs:
+  run_name: "cifar10_128_333_40e10i"
+  results_dir: "outputs"
+
+distributed:
+  mode: none

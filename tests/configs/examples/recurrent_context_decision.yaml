@@ -1,0 +1,211 @@
+# ============================================================================
+# Recurrent DendriNet on Context-Dependent Decision Task (Mante-style)
+# ============================================================================
+# A 3-layer hierarchical recurrent E-I network on a context-dependent
+# integration task inspired by Mante et al. (2013).  Two noisy stimulus
+# streams are presented simultaneously; a context cue tells the network
+# which stream is decision-relevant.  Tests multi-timescale integration,
+# gating, and context-dependent routing.
+#
+# Architecture highlights:
+#   - 3 dendritic layers with increasing time constants (10, 50, 200 ms)
+#   - Shunting inhibition at every level
+#   - Learnable time constants (log-space nn.Parameter)
+#   - Checkpointing every 50 epochs for long runs
+#
+# Run:
+#   PYTHONPATH=src:$PYTHONPATH python \
+#     src/dendritic_modeling/scripts/training/train_experiments.py \
+#     configs/examples/recurrent_context_decision.yaml
+# ============================================================================
+
+experiment:
+  seed: 42
+  train_valid_split: 0.8
+  enable_hooks: true                    # needed for recurrent analysis hooks
+  checkpointing:
+    enabled: true                       # save checkpoints for long training
+    save_every_n_epochs: 50
+    checkpoint_dir: "outputs/checkpoints/"
+
+data:
+  dataset_name: "context_dependent_decision"   # Mante-style context integration task
+  processing:
+    flatten: false                      # keep sequence structure (T x D)
+    normalize: false
+  dataset_params:
+    context_dependent_decision:
+      n_samples: 20000                  # total samples (train + val + test)
+      signal_dim: 16                    # dimensionality of each stimulus stream
+      context_duration: 10              # context cue presentation (time steps)
+      integration_duration: 30          # stimulus integration window (time steps)
+      coherence_levels: [0.1, 0.2, 0.4, 0.8]   # noise coherence levels
+      noise_std: 0.1                    # additive noise on stimulus streams
+      variable_delay: false             # fixed delay between context and integration
+
+model:
+  task: "classification"
+  encoder:
+    type: "identity"
+    params:
+      input_dim: 34                    # 2 context channels + 2 stimulus streams x 16 dims
+  core:
+    type: "unified_ei"                  # recurrent dendritic E-I network
+    unified_ei:
+      output_mode: "last"               # classify from final time step
+      input_projection_dims: [64]       # project task input before recurrent core
+
+      layers:
+        # --- Layer 1: fast integration (proximal) ---
+        - recurrent: true
+          dt: 1.0                       # simulation time step
+          excitatory:
+            n_neurons: 128
+            branch_factors: [1]         # single sparse compartment, matching legacy topk examples
+            ff_excitatory_synapses: 12
+            ff_inhibitory_synapses: 6
+            rec_excitatory_synapses: 8
+            rec_inhibitory_synapses: 6
+            use_shunting: true
+            reactivate: true
+            reactivation_type: "param_tanh"
+            weight_transform: "softplus"
+            tau_base: 10.0
+            tau_ratio: 1.0
+            learnable_tau: true
+            somatic_synapses: true
+          inhibitory:
+            n_neurons: 32
+            branch_factors: [1]
+            ff_excitatory_synapses: 12
+            ff_inhibitory_synapses: 0
+            rec_excitatory_synapses: 8
+            rec_inhibitory_synapses: 0
+            use_shunting: true
+            reactivate: true
+            reactivation_type: "param_tanh"
+            weight_transform: "softplus"
+            tau_base: 10.0
+            tau_ratio: 1.0
+            learnable_tau: true
+            somatic_synapses: true
+
+        # --- Layer 2: medium integration ---
+        - recurrent: true
+          dt: 1.0
+          excitatory:
+            n_neurons: 128
+            branch_factors: [1]
+            ff_excitatory_synapses: 8
+            ff_inhibitory_synapses: 6
+            rec_excitatory_synapses: 10
+            rec_inhibitory_synapses: 6
+            use_shunting: true
+            reactivate: true
+            reactivation_type: "param_tanh"
+            weight_transform: "softplus"
+            tau_base: 50.0
+            tau_ratio: 1.0
+            learnable_tau: true
+            somatic_synapses: true
+          inhibitory:
+            n_neurons: 32
+            branch_factors: [1]
+            ff_excitatory_synapses: 8
+            ff_inhibitory_synapses: 0
+            rec_excitatory_synapses: 10
+            rec_inhibitory_synapses: 0
+            use_shunting: true
+            reactivate: true
+            reactivation_type: "param_tanh"
+            weight_transform: "softplus"
+            tau_base: 10.0
+            tau_ratio: 1.0
+            learnable_tau: true
+            somatic_synapses: true
+
+        # --- Layer 3: slow integration (distal) ---
+        - recurrent: true
+          dt: 1.0
+          excitatory:
+            n_neurons: 128
+            branch_factors: [1]
+            ff_excitatory_synapses: 2   # sparse upstream drive; recurrent state dominates
+            ff_inhibitory_synapses: 6
+            rec_excitatory_synapses: 12
+            rec_inhibitory_synapses: 6
+            use_shunting: true
+            reactivate: true
+            reactivation_type: "param_tanh"
+            weight_transform: "softplus"
+            tau_base: 200.0
+            tau_ratio: 1.0
+            learnable_tau: true
+            somatic_synapses: true
+          inhibitory:
+            n_neurons: 32
+            branch_factors: [1]
+            ff_excitatory_synapses: 2
+            ff_inhibitory_synapses: 0
+            rec_excitatory_synapses: 12
+            rec_inhibitory_synapses: 0
+            use_shunting: true
+            reactivate: true
+            reactivation_type: "param_tanh"
+            weight_transform: "softplus"
+            tau_base: 10.0
+            tau_ratio: 1.0
+            learnable_tau: true
+            somatic_synapses: true
+
+  decoder:
+    type: "MLP"
+    params:
+      hidden_dims: [64, 32]             # two hidden layers for complex readout
+      activation: "relu"
+      output_dim: 2                     # binary decision (match context stream)
+
+training:
+  encoder:
+    strategy: "standard"
+    common:
+      epochs: 0                         # no encoder training
+  main:
+    strategy: "recurrent"               # recurrent trainer (handles sequences, variable lengths)
+    common:
+      epochs: 500                       # long training for context gating
+      batch_size: 128
+      shuffle: true
+      grad_clip_value: 1.0              # tight clipping for RNN stability
+      loss_function: "ce"               # cross-entropy
+      early_stopping: true
+      patience: 80                      # generous patience for slow convergence
+      load_best_state_dict: true
+      use_amp: false                    # AMP can be unstable with recurrent nets
+      weight_decay_rate: 0.0001         # light weight decay for regularisation
+      param_groups:
+        lr: 0.0005                      # conservative base LR
+        split_params: true
+        decoder_lr: 0.005               # decoder learns 10x faster
+    optimizer:
+      name: "adam"
+    strategies:
+      standard: {}
+
+analysis:
+  performance:
+    enabled: true
+    training: false
+    params:
+      accuracy: true
+      categorical_loglikelihood: true
+
+wandb:
+  use_wandb: false
+
+outputs:
+  run_name: "recurrent_context_decision"
+  results_dir: "outputs"
+
+distributed:
+  mode: none

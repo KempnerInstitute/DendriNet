@@ -1,0 +1,172 @@
+# ============================================================================
+# Multi-stage training: backprop warm-up then local learning on CIFAR-10
+# ============================================================================
+# Stage 1: Standard backprop for 100 epochs (fast convergence)
+# Stage 2: Local credit assignment for 100 epochs (biologically plausible)
+#
+# Run:
+#   PYTHONPATH=src:$PYTHONPATH python \
+#     src/dendritic_modeling/scripts/training/train_experiments.py \
+#     configs/examples/multi_stage_training.yaml
+# ============================================================================
+
+experiment:
+  seed: 42
+  train_valid_split: 0.8
+  enable_hooks: true
+  checkpointing:
+    enabled: true
+    save_every_n_epochs: 50
+    checkpoint_dir: "outputs/checkpoints/"
+
+data:
+  dataset_name: "cifar10"
+  processing:
+    flatten: true
+    normalize: true
+
+model:
+  task: "classification"
+  encoder:
+    type: "identity"
+  core:
+    type: "einet"
+    transfer:
+      output_activation: "relu"
+    architecture:
+      excitatory_layer_sizes: [256]
+      inhibitory_layer_sizes: [64]
+      excitatory_branch_factors: [3, 3]
+      inhibitory_branch_factors: [1]
+    connectivity:
+      ee_synapses_per_branch_per_layer: [40]
+      ei_synapses_per_branch_per_layer: [10]
+      ie_synapses_per_branch_per_layer: [10]
+      ii_synapses_per_branch_per_layer: [0]
+    morphology:
+      use_shunting: true
+      weight_transform: "softplus"
+    reactivation:
+      enabled: true
+      type: "param_tanh"
+      init_policy: "occupancy_quantile"
+  decoder:
+    type: "MLP"
+    params:
+      hidden_dims: [64]
+      output_dim: 10
+
+training:
+  encoder:
+    strategy: "standard"
+    common:
+      epochs: 0
+  main:
+    strategy: "multi_stage"
+    common:
+      epochs: 200                       # fallback if stage doesn't specify
+      batch_size: 512
+      loss_function: "ce"
+      grad_clip_value: 5.0
+      param_groups:
+        lr: 0.001
+        split_params: true
+    optimizer:
+      name: "adam"
+    strategies:
+      multi_stage:
+        analyze_between_stages: true
+        use_best_from_each_stage: true
+        continue_on_failure: false
+        stages:
+          - learning_strategy: "standard"
+            stage_name: "backprop_warmup"
+            epochs: 100
+            batch_size: 512
+            save_checkpoint: true
+            param_groups:
+              lr: 0.001
+              split_params: true
+              topk_lr: 0.001
+              blocklinear_lr: 0.0001
+              reactivation_lr: 0.0001
+              decoder_lr: 0.001
+            trainer_config:
+              loss_function: "ce"
+              early_stopping: true
+              patience: 50
+          - learning_strategy: "local_ca"
+            stage_name: "vhomeo_warmup"
+            epochs: 40
+            batch_size: 512
+            reset_optimizer: true
+            save_checkpoint: true
+            param_groups:
+              lr: 0.0002
+              split_params: true
+              topk_lr: 0.0002
+              blocklinear_lr: 0.00002
+              reactivation_lr: 0.00002
+              decoder_lr: 0.001
+            trainer_config:
+              loss_function: "ce"
+              early_stopping: false
+            local_rule_config:
+              rule_variant: "5f_vh"
+              error_broadcast_mode: "per_soma"
+              voltage_homeostasis:
+                enabled: true
+                weight: 0.05
+                target_voltage: 0.5
+          - learning_strategy: "local_ca"
+            stage_name: "local_finetuning"
+            epochs: 60
+            batch_size: 512
+            reset_optimizer: true
+            save_checkpoint: true
+            param_groups:
+              lr: 0.0001
+              split_params: true
+              topk_lr: 0.0001
+              blocklinear_lr: 0.00001
+              reactivation_lr: 0.00001
+              decoder_lr: 0.001
+            trainer_config:
+              loss_function: "ce"
+              early_stopping: false
+            local_rule_config:
+              rule_variant: "5f_vh"
+              error_broadcast_mode: "per_soma"
+              voltage_homeostasis:
+                enabled: true
+                weight: 0.01
+                target_voltage: 0.5
+
+analysis:
+  performance:
+    enabled: true
+    params:
+      accuracy: true
+      auc: true
+  information:
+    enabled: true
+    params:
+      selection:
+        components: ["basic"]
+  ablation:
+    enabled: true
+    params:
+      selection:
+        levels: ["layer"]
+        targets: ["excitation", "inhibition"]
+        metrics: ["accuracy"]
+
+wandb:
+  use_wandb: false
+
+outputs:
+  run_name: "multi_stage_cifar10"
+  results_dir: "outputs"
+
+distributed:
+  mode: none

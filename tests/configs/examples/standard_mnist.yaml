@@ -1,0 +1,113 @@
+# ============================================================================
+# Standard DendriNet on MNIST (shunting inhibition, backprop)
+# ============================================================================
+# Minimal feedforward experiment: a single dendritic EI layer on flattened
+# 28x28 MNIST digits.  Good first config for sanity-checking the pipeline.
+#
+# Run:
+#   PYTHONPATH=src:$PYTHONPATH python \
+#     src/dendritic_modeling/scripts/training/train_experiments.py \
+#     configs/examples/standard_mnist.yaml
+# ============================================================================
+
+experiment:
+  seed: 42
+  train_valid_split: 0.8               # fraction of training set used for training (rest = validation)
+  enable_hooks: false                   # gradient hooks for analysis (off for speed)
+  checkpointing:
+    enabled: false
+
+data:
+  dataset_name: "mnist"                 # 60k train + 10k test, 28x28 grayscale
+  processing:
+    flatten: true                       # flatten 28x28 -> 784
+    normalize: true                     # zero-mean, unit-variance per channel
+
+model:
+  task: "classification"                # classification | regression
+  encoder:
+    type: "identity"                    # no encoder; raw pixels go to core
+  core:
+    type: "einet"                       # dendritic shunting EI network
+    architecture:
+      excitatory_layer_sizes: [128]     # number of excitatory neurons per EI layer
+      inhibitory_layer_sizes: [32]      # number of inhibitory neurons per EI layer
+      excitatory_branch_factors: [4, 4] # dendritic tree: 4 branches x 4 sub-branches = depth 2
+      inhibitory_branch_factors: [1]    # inhibitory neurons: single compartment
+      inhibitory_network_type: "dendritic"
+    connectivity:
+      ee_synapses_per_branch_per_layer: [30]   # excitatory -> excitatory synapses per branch
+      ei_synapses_per_branch_per_layer: [15]   # excitatory -> inhibitory drive for explicit I cells
+      ie_synapses_per_branch_per_layer: [15]   # inhibitory -> excitatory synapses per branch
+      ii_synapses_per_branch_per_layer: [0]    # inhibitory -> inhibitory (0 = no I->I)
+    transfer:
+      input_mode: 1                     # 1 = input goes to all branches equally
+      output_activation: "relu"         # clamp normalized pixels before shunting
+    morphology:
+      use_shunting: true                # shunting (divisive) inhibition
+      weight_transform: "softplus"      # ensure positive weights: softplus(w)
+      dbl_init_method: "analytical_expectation"  # init scheme for dendritic branch layers
+    sparsity:
+      init_method: "xavier_normal"      # weight initialisation
+      type: "standard"                  # standard TopK sparsity
+    reactivation:
+      enabled: true                     # parametric activation after shunting
+      type: "param_tanh"                # (tanh(m*(V-b))+1)/2
+      init_policy: "occupancy_quantile"
+      init_m: 1.5                       # initial slope
+      init_b: 0.5                       # initial bias
+    blocklinear:
+      gradient_scaling: "none"          # none | fan_in | fan_out
+      efficient: false                  # memory-efficient BlockLinear (slower)
+  decoder:
+    type: "MLP"                         # MLP readout head
+    params:
+      hidden_dims: [32]                 # one hidden layer
+      activation: "relu"
+      output_dim: 10                    # 10 MNIST digits
+
+training:
+  encoder:
+    strategy: "standard"
+    common:
+      epochs: 0                         # no encoder training (identity)
+  main:
+    strategy: "standard"                # standard backprop
+    common:
+      epochs: 50                        # number of training epochs
+      batch_size: 256
+      shuffle: true
+      grad_clip_value: 5.0              # max gradient norm
+      loss_function: "ce"               # cross-entropy
+      early_stopping: true
+      patience: 20                      # stop if no improvement for 20 epochs
+      load_best_state_dict: true        # reload best checkpoint after training
+      param_groups:
+        lr: 0.001                       # default learning rate
+        split_params: true              # separate LR per parameter group
+        topk_lr: 0.001                  # TopK sparse weight LR
+        blocklinear_lr: 0.0001          # BlockLinear (inter-branch) LR
+        reactivation_lr: 0.0001         # reactivation param LR
+        decoder_lr: 0.001               # decoder MLP LR
+    optimizer:
+      name: "adam"
+    strategies:
+      standard: {}
+
+analysis:
+  performance:
+    enabled: true
+    training: false                     # only evaluate after training
+    params:
+      accuracy: true
+      categorical_loglikelihood: true
+
+wandb:
+  use_wandb: false
+
+outputs:
+  run_name: "standard_mnist"
+  results_dir: "outputs"
+
+distributed:
+  mode: none

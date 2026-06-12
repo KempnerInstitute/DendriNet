@@ -1,0 +1,144 @@
+# ============================================================================
+# Local Credit Assignment (4-factor rule) on MNIST
+# ============================================================================
+# Trains a DendriNet with biologically plausible local learning rules instead
+# of end-to-end backpropagation through the core. The decoder is still trained
+# with backprop.
+#
+# Run:
+#   PYTHONPATH=src:$PYTHONPATH python \
+#     src/dendritic_modeling/scripts/training/train_experiments.py \
+#     configs/examples/local_learning_mnist.yaml
+# ============================================================================
+
+experiment:
+  seed: 42
+  train_valid_split: 0.8
+  enable_hooks: true
+  checkpointing:
+    enabled: false
+
+data:
+  dataset_name: "mnist"
+  processing:
+    flatten: true
+    normalize: false
+
+model:
+  task: "classification"
+  encoder:
+    type: "identity"
+  core:
+    type: "einet"
+    architecture:
+      excitatory_layer_sizes: [128]
+      inhibitory_layer_sizes: [32]
+      excitatory_branch_factors: [3, 3]
+      inhibitory_branch_factors: [1]
+      inhibitory_network_type: "dendritic"
+    connectivity:
+      ee_synapses_per_branch_per_layer: [40]
+      ei_synapses_per_branch_per_layer: [10]
+      ie_synapses_per_branch_per_layer: [10]
+      ii_synapses_per_branch_per_layer: [0]
+    morphology:
+      use_shunting: true
+      weight_transform: "softplus"
+    sparsity:
+      init_method: "xavier_normal"
+      type: "standard"
+    reactivation:
+      enabled: true
+      type: "param_tanh"
+      init_policy: "occupancy_quantile"
+      init_m: 1.5
+      init_b: 0.5
+  decoder:
+    type: "MLP"
+    params:
+      hidden_dims: [32]
+      activation: "relu"
+      output_dim: 10
+
+training:
+  encoder:
+    strategy: "standard"
+    common:
+      epochs: 0
+  main:
+    strategy: "local_ca"
+    common:
+      epochs: 200
+      batch_size: 512
+      shuffle: true
+      grad_clip_value: 5.0
+      loss_function: "ce"
+      early_stopping: true
+      patience: 100
+      load_best_state_dict: true
+      param_groups:
+        lr: 0.001
+        split_params: true
+        topk_lr: 0.001
+        blocklinear_lr: 0.0001
+        reactivation_lr: 0.0001
+        decoder_lr: 0.001
+    optimizer:
+      name: "adam"
+    # Canonical local rule config for training.main.strategy = "local_ca".
+    # You can also use the readable shorthand "3f_vh" / "4f_vh" / "5f_vh"
+    # to enable the strictly local voltage-homeostasis modifier.
+    learning_strategy_config:
+      rule_variant: "4f_vh"
+      error_mode: "auto"
+      error_broadcast_mode: "per_soma"
+      broadcast_bandwidth: "full"       # "full" | "sign_only" | "quantized" | "sparse_topk"
+      # LocalCA-only policy for explicit inhibitory DendriNet populations:
+      # "local_ca" updates them with the same rule used for E-cell dendrites;
+      # "freeze" leaves them fixed while E-cell I-to-E synapses still learn.
+      explicit_inhibitory_update_mode: "local_ca"
+      three_factor:
+        dynamics_mode: "auto"
+        use_conductance_scaling: true
+        use_driving_force: true
+      four_factor:
+        rho_mode: "dot"
+        rho_estimator: "ema"
+        ema_alpha: 0.05
+      voltage_homeostasis:
+        enabled: true
+        weight: 0.02
+        target_voltage: 0.5
+      hsic:
+        enabled: true
+        weight: 0.01
+        kernel: "rbf"
+      decoder_update_mode: "backprop"
+
+analysis:
+  performance:
+    enabled: true
+    params:
+      accuracy: true
+  information:
+    enabled: true
+    params:
+      selection:
+        components: ["basic"]
+      estimator:
+        method: "kraskov"
+  synapse_turnover:
+    enabled: true
+    training: true
+    params:
+      snapshot_interval: 10
+
+wandb:
+  use_wandb: false
+
+outputs:
+  run_name: "local_learning_mnist"
+  results_dir: "outputs"
+
+distributed:
+  mode: none

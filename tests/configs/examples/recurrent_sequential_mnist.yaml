@@ -1,0 +1,151 @@
+# ============================================================================
+# Recurrent DendriNet on Sequential MNIST (sMNIST)
+# ============================================================================
+# Trains a recurrent dendritic E-I network on sequential MNIST: each 28x28
+# image is presented as a sequence of 784 one-pixel steps.  The network must
+# classify the digit after seeing the full sequence.
+#
+# Run:
+#   PYTHONPATH=src:$PYTHONPATH python \
+#     src/dendritic_modeling/scripts/training/train_experiments.py \
+#     configs/examples/recurrent_sequential_mnist.yaml
+# ============================================================================
+
+experiment:
+  seed: 42
+  train_valid_split: 0.8
+  enable_hooks: true                    # needed for recurrent analysis hooks
+  checkpointing:
+    enabled: false
+
+data:
+  dataset_name: "sequential_mnist"      # 28x28 flattened to length-784 sequence, 1-dim per step
+  processing:
+    flatten: false                      # keep sequence structure (T x D)
+    normalize: false                    # sequential datasets handle their own normalisation
+
+model:
+  task: "classification"
+  encoder:
+    type: "identity"
+    params:
+      input_dim: 1                       # pixel-wise sequential MNIST input
+  core:
+    type: "unified_ei"                  # recurrent dendritic E-I network
+    unified_ei:
+      output_mode: "last"               # "last" = classify from final time step only
+      input_projection_dims: [16]       # project 1-dim pixel input before core
+      layers:                           # hierarchical dendritic layers (proximal -> distal)
+        - recurrent: true
+          dt: 1.0
+          excitatory:
+            n_neurons: 64
+            branch_factors: [1]
+            ff_excitatory_synapses: 8
+            ff_inhibitory_synapses: 4
+            rec_excitatory_synapses: 6
+            rec_inhibitory_synapses: 4
+            use_shunting: true
+            reactivate: true
+            reactivation_type: "param_tanh"
+            weight_transform: "softplus"
+            tau_base: 10.0
+            tau_ratio: 1.0
+            learnable_tau: true
+            somatic_synapses: true
+          inhibitory:
+            n_neurons: 16
+            branch_factors: [1]
+            ff_excitatory_synapses: 8
+            ff_inhibitory_synapses: 0
+            rec_excitatory_synapses: 6
+            rec_inhibitory_synapses: 0
+            use_shunting: true
+            reactivate: true
+            reactivation_type: "param_tanh"
+            weight_transform: "softplus"
+            tau_base: 10.0
+            tau_ratio: 1.0
+            learnable_tau: true
+            somatic_synapses: true
+        - recurrent: true
+          dt: 1.0
+          excitatory:
+            n_neurons: 64
+            branch_factors: [1]
+            ff_excitatory_synapses: 4
+            ff_inhibitory_synapses: 4
+            rec_excitatory_synapses: 8
+            rec_inhibitory_synapses: 4
+            use_shunting: true
+            reactivate: true
+            reactivation_type: "param_tanh"
+            weight_transform: "softplus"
+            tau_base: 50.0
+            tau_ratio: 1.0
+            learnable_tau: true
+            somatic_synapses: true
+          inhibitory:
+            n_neurons: 16
+            branch_factors: [1]
+            ff_excitatory_synapses: 4
+            ff_inhibitory_synapses: 0
+            rec_excitatory_synapses: 8
+            rec_inhibitory_synapses: 0
+            use_shunting: true
+            reactivate: true
+            reactivation_type: "param_tanh"
+            weight_transform: "softplus"
+            tau_base: 10.0
+            tau_ratio: 1.0
+            learnable_tau: true
+            somatic_synapses: true
+  decoder:
+    type: "MLP"
+    params:
+      hidden_dims: [32]
+      activation: "relu"
+      output_dim: 10                    # 10 digits
+
+training:
+  encoder:
+    strategy: "standard"
+    common:
+      epochs: 0
+  main:
+    strategy: "recurrent"               # recurrent trainer (handles sequences, TBPTT)
+    common:
+      epochs: 100
+      batch_size: 64                    # smaller batch for long sequences (784 steps)
+      shuffle: true
+      grad_clip_value: 1.0              # tighter clip for RNN stability
+      loss_function: "ce"
+      early_stopping: true
+      patience: 30
+      load_best_state_dict: true
+      use_amp: false                    # AMP can be unstable with recurrent nets
+      param_groups:
+        lr: 0.001
+        split_params: true
+        decoder_lr: 0.01                # decoder can learn faster
+    optimizer:
+      name: "adam"
+    strategies:
+      standard: {}
+
+analysis:
+  performance:
+    enabled: true
+    training: false
+    params:
+      accuracy: true
+
+wandb:
+  use_wandb: false
+
+outputs:
+  run_name: "recurrent_smnist"
+  results_dir: "outputs"
+
+distributed:
+  mode: none

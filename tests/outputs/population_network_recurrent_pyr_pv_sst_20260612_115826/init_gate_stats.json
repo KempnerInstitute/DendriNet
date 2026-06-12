@@ -1,0 +1,139 @@
+{
+  "reactivation_modules": {
+    "core_network.layers.0.populations.pyr.branch_layers.0.reactivation": {
+      "class": "ParametricTanh",
+      "m": {
+        "n": 128,
+        "n_unique": 1,
+        "min": 1.5,
+        "max": 1.5,
+        "mean": 1.5,
+        "std": 0.0
+      },
+      "b": {
+        "n": 128,
+        "n_unique": 1,
+        "min": 0.49823006987571716,
+        "max": 0.49823006987571716,
+        "mean": 0.49823006987571716,
+        "std": 0.0
+      }
+    },
+    "core_network.layers.0.populations.pyr.branch_layers.1.reactivation": {
+      "class": "ParametricTanh",
+      "m": {
+        "n": 64,
+        "n_unique": 1,
+        "min": 1.5,
+        "max": 1.5,
+        "mean": 1.5,
+        "std": 0.0
+      },
+      "b": {
+        "n": 64,
+        "n_unique": 1,
+        "min": 0.49900001287460327,
+        "max": 0.49900001287460327,
+        "mean": 0.49900001287460327,
+        "std": 0.0
+      }
+    },
+    "core_network.layers.0.populations.pyr.branch_layers.2.reactivation": {
+      "class": "ParametricTanh",
+      "m": {
+        "n": 32,
+        "n_unique": 1,
+        "min": 1.5,
+        "max": 1.5,
+        "mean": 1.5,
+        "std": 0.0
+      },
+      "b": {
+        "n": 32,
+        "n_unique": 1,
+        "min": 0.49900001287460327,
+        "max": 0.49900001287460327,
+        "mean": 0.49900001287460327,
+        "std": 0.0
+      }
+    },
+    "core_network.layers.0.populations.pv.branch_layers.0.reactivation": {
+      "class": "ParametricTanh",
+      "m": {
+        "n": 8,
+        "n_unique": 1,
+        "min": 1.5,
+        "max": 1.5,
+        "mean": 1.5,
+        "std": 0.0
+      },
+      "b": {
+        "n": 8,
+        "n_unique": 1,
+        "min": 0.49823006987571716,
+        "max": 0.49823006987571716,
+        "mean": 0.49823006987571716,
+        "std": 0.0
+      }
+    },
+    "core_network.layers.0.populations.pv.branch_layers.1.reactivation": {
+      "class": "ParametricTanh",
+      "m": {
+        "n": 8,
+        "n_unique": 1,
+        "min": 1.5,
+        "max": 1.5,
+        "mean": 1.5,
+        "std": 0.0
+      },
+      "b": {
+        "n": 8,
+        "n_unique": 1,
+        "min": 0.49900001287460327,
+        "max": 0.49900001287460327,
+        "mean": 0.49900001287460327,
+        "std": 0.0
+      }
+    },
+    "core_network.layers.0.populations.sst.branch_layers.0.reactivation": {
+      "class": "ParametricTanh",
+      "m": {
+        "n": 8,
+        "n_unique": 1,
+        "min": 1.5,
+        "max": 1.5,
+        "mean": 1.5,
+        "std": 0.0
+      },
+      "b": {
+        "n": 8,
+        "n_unique": 1,
+        "min": 0.49823006987571716,
+        "max": 0.49823006987571716,
+        "mean": 0.49823006987571716,
+        "std": 0.0
+      }
+    },
+    "core_network.layers.0.populations.sst.branch_layers.1.reactivation": {
+      "class": "ParametricTanh",
+      "m": {
+        "n": 8,
+        "n_unique": 1,
+        "min": 1.5,
+        "max": 1.5,
+        "mean": 1.5,
+        "std": 0.0
+      },
+      "b": {
+        "n": 8,
+        "n_unique": 1,
+        "min": 0.49900001287460327,
+        "max": 0.49900001287460327,
+        "mean": 0.49900001287460327,
+        "std": 0.0
+      }
+    }
+  },
+  "warnings": [],
+  "n_reactivation_modules": 7
+}

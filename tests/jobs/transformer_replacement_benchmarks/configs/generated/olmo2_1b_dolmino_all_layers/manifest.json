@@ -1,0 +1,26 @@
+{
+  "variant": "1b",
+  "model_name": "allenai/OLMo-2-0425-1B",
+  "num_layers": 16,
+  "config_dir": "jobs/transformer_replacement_benchmarks/configs/generated/olmo2_1b_dolmino_all_layers",
+  "results_root": "results/transformer_replacement_benchmarks/olmo2_1b_dolmino_all_layers",
+  "layer_configs": [
+    "jobs/transformer_replacement_benchmarks/configs/generated/olmo2_1b_dolmino_all_layers/olmo2_1b_dolmino_layer00.yaml",
+    "jobs/transformer_replacement_benchmarks/configs/generated/olmo2_1b_dolmino_all_layers/olmo2_1b_dolmino_layer01.yaml",
+    "jobs/transformer_replacement_benchmarks/configs/generated/olmo2_1b_dolmino_all_layers/olmo2_1b_dolmino_layer02.yaml",
+    "jobs/transformer_replacement_benchmarks/configs/generated/olmo2_1b_dolmino_all_layers/olmo2_1b_dolmino_layer03.yaml",
+    "jobs/transformer_replacement_benchmarks/configs/generated/olmo2_1b_dolmino_all_layers/olmo2_1b_dolmino_layer04.yaml",
+    "jobs/transformer_replacement_benchmarks/configs/generated/olmo2_1b_dolmino_all_layers/olmo2_1b_dolmino_layer05.yaml",
+    "jobs/transformer_replacement_benchmarks/configs/generated/olmo2_1b_dolmino_all_layers/olmo2_1b_dolmino_layer06.yaml",
+    "jobs/transformer_replacement_benchmarks/configs/generated/olmo2_1b_dolmino_all_layers/olmo2_1b_dolmino_layer07.yaml",
+    "jobs/transformer_replacement_benchmarks/configs/generated/olmo2_1b_dolmino_all_layers/olmo2_1b_dolmino_layer08.yaml",
+    "jobs/transformer_replacement_benchmarks/configs/generated/olmo2_1b_dolmino_all_layers/olmo2_1b_dolmino_layer09.yaml",
+    "jobs/transformer_replacement_benchmarks/configs/generated/olmo2_1b_dolmino_all_layers/olmo2_1b_dolmino_layer10.yaml",
+    "jobs/transformer_replacement_benchmarks/configs/generated/olmo2_1b_dolmino_all_layers/olmo2_1b_dolmino_layer11.yaml",
+    "jobs/transformer_replacement_benchmarks/configs/generated/olmo2_1b_dolmino_all_layers/olmo2_1b_dolmino_layer12.yaml",
+    "jobs/transformer_replacement_benchmarks/configs/generated/olmo2_1b_dolmino_all_layers/olmo2_1b_dolmino_layer13.yaml",
+    "jobs/transformer_replacement_benchmarks/configs/generated/olmo2_1b_dolmino_all_layers/olmo2_1b_dolmino_layer14.yaml",
+    "jobs/transformer_replacement_benchmarks/configs/generated/olmo2_1b_dolmino_all_layers/olmo2_1b_dolmino_layer15.yaml"
+  ],
+  "all_layers_config": "jobs/transformer_replacement_benchmarks/configs/generated/olmo2_1b_dolmino_all_layers/olmo2_1b_dolmino_all_layers.yaml"
+}
