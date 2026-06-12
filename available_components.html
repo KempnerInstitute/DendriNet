@@ -359,6 +359,11 @@ weights plus integer presynaptic indices</p></td>
 <td><p>Candidate-pool sparse TopK; stores <code class="docutils literal notranslate"><span class="pre">out_features</span> <span class="pre">x</span> <span class="pre">C</span></code> candidate
 weights and dynamically selects <code class="docutils literal notranslate"><span class="pre">K</span></code> active candidates per forward pass</p></td>
 </tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">indexed_rewire</span></code></p></td>
+<td><p>Fixed-budget indexed sparse synapses with adaptive-quantile turnover;
+stores only <code class="docutils literal notranslate"><span class="pre">out_features</span> <span class="pre">x</span> <span class="pre">K</span></code> weights and periodically replaces weak
+same-row synapses with newly sampled allowed inputs</p></td>
+</tr>
 </tbody>
 </table>
 <p><code class="docutils literal notranslate"><span class="pre">topk</span></code> is retained as a backward-compatible alias for <code class="docutils literal notranslate"><span class="pre">standard</span></code>.
@@ -428,24 +433,32 @@ all non-soma dendritic levels; propagation can be <code class="docutils literal 
 <td><p>Optional previous-timestep soma output/voltage/readout projected back
 into dendritic levels as additive, shunting, or gated feedback.</p></td>
 </tr>
-<tr class="row-odd"><td><p>Transformer FFN replacement</p></td>
+<tr class="row-odd"><td><p>Vision backbone replacement</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">model.pretrained_replacement</span></code> plus
+<code class="docutils literal notranslate"><span class="pre">hierarchical_dendritic_tensor_map</span></code> or <code class="docutils literal notranslate"><span class="pre">hierarchical_dendritic_conv</span></code></p></td>
+<td><p>Torchvision backbone splitter for replacing AlexNet/VGG classifier or
+feature-map blocks with dendritic cores while preserving prefix/suffix
+tensor contracts.</p></td>
+</tr>
+<tr class="row-even"><td><p>Transformer FFN replacement</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">model.transformer_replacement</span></code> plus <code class="docutils literal notranslate"><span class="pre">model.core.type:</span> <span class="pre">dendritic_ffn</span></code></p></td>
 <td><p>Hugging Face model patcher for replacing decoder-block MLP/FFN modules
 with token-wise <code class="docutils literal notranslate"><span class="pre">DendriticFFNReplacement</span></code> modules; use
-<code class="docutils literal notranslate"><span class="pre">sparsity.type:</span> <span class="pre">indexed_dynamic</span></code> for low-parameter dynamic TopK.</p></td>
+<code class="docutils literal notranslate"><span class="pre">sparsity.type:</span> <span class="pre">indexed_dynamic</span></code> or <code class="docutils literal notranslate"><span class="pre">indexed_rewire</span></code> for
+low-parameter sparse synapses.</p></td>
 </tr>
-<tr class="row-even"><td><p>Transformer replacement distillation</p></td>
+<tr class="row-odd"><td><p>Transformer replacement distillation</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">training.transformer_replacement</span></code></p></td>
 <td><p>Layerwise block-output distillation for dendritic FFN replacements using
 <code class="docutils literal notranslate"><span class="pre">synthetic_mlp</span></code>, <code class="docutils literal notranslate"><span class="pre">hidden_cache</span></code>, or <code class="docutils literal notranslate"><span class="pre">hf_text</span></code> teacher sources.</p></td>
 </tr>
-<tr class="row-odd"><td><p>Recurrent analysis introspection</p></td>
+<tr class="row-even"><td><p>Recurrent analysis introspection</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">analysis.utils.recurrent_introspection</span></code> and
 <code class="docutils literal notranslate"><span class="pre">analysis.spike_train</span></code></p></td>
 <td><p>Shared helper for legacy E/I and named-population analysis tools, plus
 LIF raster/rate/ISI/Fano summaries.</p></td>
 </tr>
-<tr class="row-even"><td><p>Recurrent protocols</p></td>
+<tr class="row-odd"><td><p>Recurrent protocols</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">networks.RecurrentCore</span></code>, <code class="docutils literal notranslate"><span class="pre">networks.SteppableRecurrentCore</span></code></p></td>
 <td><p>Small structural interfaces for trainer-facing sequence cores and
 one-step recurrent dendritic populations.</p></td>

@@ -31,15 +31,15 @@ Start here:
    * - Goal
      - Recommended page
      - First config to open
-   * - Run the original E/I MNIST model
+   * - Run a canonical E/I MNIST model
      - :doc:`quickstart`
-     - ``configs/examples/standard_mnist.yaml``
+     - ``configs/examples/population_network_feedforward.yaml``
    * - Write new feedforward or recurrent population models
      - :doc:`network_architectures`
      - ``configs/examples/population_network_feedforward.yaml``
-   * - Compare old E/I configs to the canonical population schema
+   * - Learn the curated config examples
      - :doc:`examples`
-     - ``configs/examples/standard_mnist_population_network.yaml``
+     - ``configs/examples/population_network_feedforward.yaml``
    * - Add heterogeneous morphologies, synapse types, spiking soma, or feedback
      - :doc:`available_components`
      - ``configs/examples/population_network_heterogeneous_feedforward.yaml``

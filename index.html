@@ -124,17 +124,17 @@ files.</p>
 </tr>
 </thead>
 <tbody>
-<tr class="row-even"><td><p>Run the original E/I MNIST model</p></td>
+<tr class="row-even"><td><p>Run a canonical E/I MNIST model</p></td>
 <td><p><a class="reference internal" href="quickstart.html"><span class="doc">Quick Start</span></a></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">configs/examples/standard_mnist.yaml</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">configs/examples/population_network_feedforward.yaml</span></code></p></td>
 </tr>
 <tr class="row-odd"><td><p>Write new feedforward or recurrent population models</p></td>
 <td><p><a class="reference internal" href="network_architectures.html"><span class="doc">Network Architectures</span></a></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">configs/examples/population_network_feedforward.yaml</span></code></p></td>
 </tr>
-<tr class="row-even"><td><p>Compare old E/I configs to the canonical population schema</p></td>
+<tr class="row-even"><td><p>Learn the curated config examples</p></td>
 <td><p><a class="reference internal" href="examples.html"><span class="doc">Runnable Config Examples</span></a></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">configs/examples/standard_mnist_population_network.yaml</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">configs/examples/population_network_feedforward.yaml</span></code></p></td>
 </tr>
 <tr class="row-odd"><td><p>Add heterogeneous morphologies, synapse types, spiking soma, or feedback</p></td>
 <td><p><a class="reference internal" href="available_components.html"><span class="doc">Available Components</span></a></p></td>
@@ -171,31 +171,16 @@ in-progress runs can still be reproduced.</p>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="examples.html">Runnable Config Examples</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="examples.html#recommended-example-ladder">Recommended Example Ladder</a></li>
-<li class="toctree-l2"><a class="reference internal" href="examples.html#feature-map">Feature Map</a></li>
-<li class="toctree-l2"><a class="reference internal" href="examples.html#mnist-single-layer">MNIST Single Layer</a></li>
-<li class="toctree-l2"><a class="reference internal" href="examples.html#population-network-feedforward">Population Network Feedforward</a></li>
-<li class="toctree-l2"><a class="reference internal" href="examples.html#population-network-heterogeneous-cell-types">Population Network Heterogeneous Cell Types</a></li>
-<li class="toctree-l2"><a class="reference internal" href="examples.html#population-network-recurrent">Population Network Recurrent</a></li>
-<li class="toctree-l2"><a class="reference internal" href="examples.html#population-network-with-independent-transfer">Population Network with Independent Transfer</a></li>
-<li class="toctree-l2"><a class="reference internal" href="examples.html#population-network-two-layer-e-i">Population Network Two-Layer E/I</a></li>
-<li class="toctree-l2"><a class="reference internal" href="examples.html#old-format-population-mirrors">Old-Format Population Mirrors</a></li>
-<li class="toctree-l2"><a class="reference internal" href="examples.html#cifar-10-single-layer">CIFAR-10 Single Layer</a></li>
-<li class="toctree-l2"><a class="reference internal" href="examples.html#cifar-10-dense-to-sparse-topk">CIFAR-10 Dense-to-Sparse TopK</a></li>
-<li class="toctree-l2"><a class="reference internal" href="examples.html#normalized-additive-population-network">Normalized Additive Population Network</a></li>
-<li class="toctree-l2"><a class="reference internal" href="examples.html#cifar-10-two-layers">CIFAR-10 Two Layers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="examples.html#alexnet-500e-replacement">AlexNet 500E Replacement</a></li>
-<li class="toctree-l2"><a class="reference internal" href="examples.html#recurrent-population-networks">Recurrent Population Networks</a></li>
-<li class="toctree-l2"><a class="reference internal" href="examples.html#taus-and-delayed-edges">Taus and Delayed Edges</a></li>
-<li class="toctree-l2"><a class="reference internal" href="examples.html#multilayer-recurrent-population-network">Multilayer Recurrent Population Network</a></li>
-<li class="toctree-l2"><a class="reference internal" href="examples.html#synapse-types">Synapse Types</a></li>
-<li class="toctree-l2"><a class="reference internal" href="examples.html#structured-connectivity">Structured Connectivity</a></li>
-<li class="toctree-l2"><a class="reference internal" href="examples.html#spiking-soma">Spiking Soma</a></li>
-<li class="toctree-l2"><a class="reference internal" href="examples.html#soma-feedback">Soma Feedback</a></li>
-<li class="toctree-l2"><a class="reference internal" href="examples.html#deepseek-v3-mlp-replacement-template">DeepSeek-V3 MLP Replacement Template</a></li>
-<li class="toctree-l2"><a class="reference internal" href="examples.html#transformer-replacement-distillation-smoke-test">Transformer Replacement Distillation Smoke Test</a></li>
-<li class="toctree-l2"><a class="reference internal" href="examples.html#transformer-replacement-benchmarks">Transformer Replacement Benchmarks</a></li>
-<li class="toctree-l2"><a class="reference internal" href="examples.html#component-coverage">Component Coverage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="examples.html#recommended-ladder">Recommended Ladder</a></li>
+<li class="toctree-l2"><a class="reference internal" href="examples.html#feedforward-population-network">Feedforward Population Network</a></li>
+<li class="toctree-l2"><a class="reference internal" href="examples.html#cifar-10-and-developmental-sparsity">CIFAR-10 and Developmental Sparsity</a></li>
+<li class="toctree-l2"><a class="reference internal" href="examples.html#heterogeneous-and-multilayer-networks">Heterogeneous and Multilayer Networks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="examples.html#legacy-input-mode-equivalents">Legacy Input-Mode Equivalents</a></li>
+<li class="toctree-l2"><a class="reference internal" href="examples.html#recurrent-taus-spiking-and-feedback">Recurrent, Taus, Spiking, and Feedback</a></li>
+<li class="toctree-l2"><a class="reference internal" href="examples.html#local-learning-and-multi-stage-training">Local Learning and Multi-stage Training</a></li>
+<li class="toctree-l2"><a class="reference internal" href="examples.html#transformer-replacement">Transformer Replacement</a></li>
+<li class="toctree-l2"><a class="reference internal" href="examples.html#vision-backbone-replacement">Vision Backbone Replacement</a></li>
+<li class="toctree-l2"><a class="reference internal" href="examples.html#other-public-config-areas">Other Public Config Areas</a></li>
 </ul>
 </li>
 </ul>
@@ -212,6 +197,7 @@ in-progress runs can still be reproduced.</p>
 <li class="toctree-l2"><a class="reference internal" href="network_architectures.html#dendriticbranchlayer">DendriticBranchLayer</a></li>
 <li class="toctree-l2"><a class="reference internal" href="network_architectures.html#topklinear">TopKLinear</a></li>
 <li class="toctree-l2"><a class="reference internal" href="network_architectures.html#blocklinear">BlockLinear</a></li>
+<li class="toctree-l2"><a class="reference internal" href="network_architectures.html#vision-backbone-replacement">Vision Backbone Replacement</a></li>
 <li class="toctree-l2"><a class="reference internal" href="network_architectures.html#transformer-ffn-replacement">Transformer FFN Replacement</a></li>
 <li class="toctree-l2"><a class="reference internal" href="network_architectures.html#activation-functions">Activation Functions</a></li>
 <li class="toctree-l2"><a class="reference internal" href="network_architectures.html#recurrent-e-i-network">Recurrent E-I Network</a></li>

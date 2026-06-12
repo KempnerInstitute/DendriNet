@@ -543,15 +543,15 @@ utility:</p>
 works for AlexNet, VGG, and coarse splits of ResNet (e.g. at <code class="docutils literal notranslate"><span class="pre">avgpool</span></code> or
 <code class="docutils literal notranslate"><span class="pre">fc</span></code>).  Replacing layers <em>inside</em> residual blocks requires an FX-graph
 backend (planned).</p>
-<p>The runnable examples page includes <code class="docutils literal notranslate"><span class="pre">configs/examples/alexnet_fc7_dendritic_500.yaml</span></code>,
+<p>The runnable examples page includes <code class="docutils literal notranslate"><span class="pre">configs/vision/alexnet_fc7_dendritic_500.yaml</span></code>,
 which replaces AlexNet <code class="docutils literal notranslate"><span class="pre">fc7</span></code> with a 500E-only dendritic tensor-map core. See
 <a class="reference internal" href="examples.html"><span class="doc">Runnable Config Examples</span></a> for all four primary example configs.</p>
 <p>Additional pretrained replacement configs:</p>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">configs/vision/alexnet_k1_einet_single.yaml</span></code> — replace fc7 only (K=1), single-GPU / non-DDP</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">configs/vision/alexnet_k1_einet_ddp.yaml</span></code> — same K=1 replacement configured for DDP launch</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">configs/examples/pretrained_alexnet_fc.yaml</span></code> — tensor-map pretrained replacement around AlexNet FC layers</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">configs/examples/pretrained_alexnet_conv.yaml</span></code> — spatial pretrained replacement example for AlexNet conv/feature maps</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">configs/vision/pretrained_alexnet_fc.yaml</span></code> — tensor-map pretrained replacement around AlexNet FC layers</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">configs/vision/pretrained_alexnet_conv.yaml</span></code> — spatial pretrained replacement example for AlexNet conv/feature maps</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">scripts/test_pretrained_training.sh</span></code> — generates a temporary 1-epoch AlexNet smoke config</p></li>
 </ul>
 </section>
@@ -638,7 +638,7 @@ original MLP, and train the dendritic module to match that MLP output.</p>
 <p>Run the distillation trainer with:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">PYTHONPATH</span><span class="o">=</span>src:<span class="nv">$PYTHONPATH</span><span class="w"> </span>python<span class="w"> </span>-m<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>dendritic_modeling.scripts.training.train_transformer_replacement<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>configs/examples/deepseek_v3_mlp_dendritic_replacement.yaml
+<span class="w">  </span>jobs/transformer_replacement_benchmarks/configs/templates/deepseek_v3_mlp_dendritic_replacement.yaml
 </pre></div>
 </div>
 <p>For a quick local learning check that does not load a Hugging Face model, use
@@ -678,7 +678,9 @@ DendriNet TopK family. <code class="docutils literal notranslate"><span class="p
 anneals to the configured synapse count; <code class="docutils literal notranslate"><span class="pre">annealed_topk</span></code> is an alias.
 <code class="docutils literal notranslate"><span class="pre">indexed</span></code> stores only exactly active fixed synapses. <code class="docutils literal notranslate"><span class="pre">indexed_dynamic</span></code>
 stores a larger candidate pool and dynamically selects the active <code class="docutils literal notranslate"><span class="pre">K</span></code> from
-that pool, which is the recommended DeepSeek-scale compromise.</p>
+that pool. <code class="docutils literal notranslate"><span class="pre">indexed_rewire</span></code> stores only <code class="docutils literal notranslate"><span class="pre">K</span></code> active synapses and
+periodically replaces the weakest adaptive-quantile slots with new random
+allowed inputs.</p>
 </dd>
 <dt><code class="docutils literal notranslate"><span class="pre">sparsity.dense_to_sparse</span></code></dt><dd><p>Developmental pruning schedule for <code class="docutils literal notranslate"><span class="pre">topk_type:</span> <span class="pre">dense_to_sparse</span></code>. Common
 fields are <code class="docutils literal notranslate"><span class="pre">initial_density</span></code> or <code class="docutils literal notranslate"><span class="pre">initial_k</span></code>, <code class="docutils literal notranslate"><span class="pre">start_step</span></code>,
@@ -689,6 +691,32 @@ fields are <code class="docutils literal notranslate"><span class="pre">initial_
 parameters scale as <code class="docutils literal notranslate"><span class="pre">out_features</span> <span class="pre">*</span> <span class="pre">C</span></code> instead of
 <code class="docutils literal notranslate"><span class="pre">out_features</span> <span class="pre">*</span> <span class="pre">input_features</span></code>.</p>
 </dd>
+<dt><code class="docutils literal notranslate"><span class="pre">sparsity.indexed.rewire_frequency</span></code></dt><dd><p>Number of optimizer steps between <code class="docutils literal notranslate"><span class="pre">indexed_rewire</span></code> updates.  Use larger
+values for real training; every-step rewiring is useful for fast tests but
+can be too exploratory on fixed supervised tasks.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">sparsity.indexed.rewire_quantile</span></code></dt><dd><p>Fraction of active same-row synapses replaced at each update.  The
+threshold is adaptive: the layer replaces the weakest quantile of current
+active transformed weights, so no absolute weight cutoff has to be tuned
+across layers.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">sparsity.indexed.rewire_until_step</span></code></dt><dd><p>Optional cutoff step after which indexed rewiring stops and the sampled
+sparse morphology is frozen.</p>
+</dd>
+</dl>
+<p>Minimal <code class="docutils literal notranslate"><span class="pre">indexed_rewire</span></code> block:</p>
+<div class="highlight-yaml notranslate"><div class="highlight"><pre><span></span><span class="nt">model</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">core</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">sparsity</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">indexed_rewire</span>
+<span class="w">      </span><span class="nt">indexed</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">seed</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">42</span>
+<span class="w">        </span><span class="nt">rewire_frequency</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">100</span>
+<span class="w">        </span><span class="nt">rewire_quantile</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0.05</span>
+<span class="w">        </span><span class="nt">rewire_until_step</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">null</span>
+</pre></div>
+</div>
+<dl class="simple">
 <dt><code class="docutils literal notranslate"><span class="pre">input_transform</span></code></dt><dd><p>Use <code class="docutils literal notranslate"><span class="pre">signed_split</span></code> for transformer hidden states.  It maps <code class="docutils literal notranslate"><span class="pre">x</span></code> to
 <code class="docutils literal notranslate"><span class="pre">[ReLU(x),</span> <span class="pre">ReLU(-x)]</span></code>, allowing positive dendritic conductances to encode
 signed residual-stream features.</p>
@@ -703,7 +731,7 @@ original MLP output for that layer.</p></li>
 <li><p>Repeat for layers <code class="docutils literal notranslate"><span class="pre">[0,</span> <span class="pre">1]</span></code> and then <code class="docutils literal notranslate"><span class="pre">[0,</span> <span class="pre">1,</span> <span class="pre">2]</span></code>.</p></li>
 </ol>
 <p>Template config:
-<code class="docutils literal notranslate"><span class="pre">configs/examples/deepseek_v3_mlp_dendritic_replacement.yaml</span></code>.</p>
+<code class="docutils literal notranslate"><span class="pre">jobs/transformer_replacement_benchmarks/configs/templates/deepseek_v3_mlp_dendritic_replacement.yaml</span></code>.</p>
 </section>
 <section id="recurrent-networks">
 <h2>Recurrent Networks<a class="headerlink" href="#recurrent-networks" title="Link to this heading"></a></h2>

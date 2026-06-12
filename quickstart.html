@@ -150,33 +150,33 @@ python<span class="w"> </span>src/dendritic_modeling/scripts/sweeps/result_analy
 </section>
 <section id="example-model-runs">
 <h2>Example model runs<a class="headerlink" href="#example-model-runs" title="Link to this heading"></a></h2>
-<p>The repository includes legacy-compatible vision examples, population-network
-mirrors, and recurrent examples for the extended population, synapse-type,
-connectivity, and spiking features. See <a class="reference internal" href="examples.html"><span class="doc">Runnable Config Examples</span></a> for the full list.</p>
-<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># MNIST, original single-layer feedforward example</span>
+<p>The repository includes a curated set of population-network examples plus
+specialized vision and transformer replacement configs. See <a class="reference internal" href="examples.html"><span class="doc">Runnable Config Examples</span></a>
+for the full list.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># MNIST, single-layer E/I population network</span>
 <span class="nv">PYTHONPATH</span><span class="o">=</span>src:<span class="nv">$PYTHONPATH</span><span class="w"> </span>python<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>src/dendritic_modeling/scripts/training/train_experiments.py<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>configs/examples/standard_mnist.yaml
-
-<span class="c1"># Same single-layer E/I computation in the canonical population-network schema</span>
-<span class="nv">PYTHONPATH</span><span class="o">=</span>src:<span class="nv">$PYTHONPATH</span><span class="w"> </span>python<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>src/dendritic_modeling/scripts/training/train_experiments.py<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>configs/examples/standard_mnist_population_network.yaml
+<span class="w">  </span>configs/examples/population_network_feedforward.yaml
 
 <span class="c1"># CIFAR-10, one 128E/32I layer, [3, 3, 3] morphology, 40E/10I synapses</span>
 <span class="nv">PYTHONPATH</span><span class="o">=</span>src:<span class="nv">$PYTHONPATH</span><span class="w"> </span>python<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>src/dendritic_modeling/scripts/training/train_experiments.py<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>configs/examples/cifar10_128_333_40e10i.yaml
+<span class="w">  </span>configs/examples/population_network_cifar10.yaml
 
-<span class="c1"># CIFAR-10, two dendritic EI layers</span>
+<span class="c1"># Two-layer population network with explicit cross-layer routing</span>
 <span class="nv">PYTHONPATH</span><span class="o">=</span>src:<span class="nv">$PYTHONPATH</span><span class="w"> </span>python<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>src/dendritic_modeling/scripts/training/train_experiments.py<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>configs/examples/cifar10_two_layer.yaml
+<span class="w">  </span>configs/examples/population_network_two_layer.yaml
+
+<span class="c1"># Memory-efficient indexed rewiring on MNIST</span>
+<span class="nv">PYTHONPATH</span><span class="o">=</span>src:<span class="nv">$PYTHONPATH</span><span class="w"> </span>python<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>src/dendritic_modeling/scripts/training/train_experiments.py<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>configs/examples/population_network_indexed_rewire_mnist.yaml
 
 <span class="c1"># AlexNet fc7 replacement with a 500E-only dendritic tensor-map core</span>
 <span class="nv">PYTHONPATH</span><span class="o">=</span>src:<span class="nv">$PYTHONPATH</span><span class="w"> </span>python<span class="w"> </span><span class="se">\</span>
 <span class="w">  </span>src/dendritic_modeling/scripts/training/train_experiments.py<span class="w"> </span><span class="se">\</span>
-<span class="w">  </span>configs/examples/alexnet_fc7_dendritic_500.yaml
+<span class="w">  </span>configs/vision/alexnet_fc7_dendritic_500.yaml
 
 <span class="c1"># Named Pyr/PV/SST recurrent population network</span>
 <span class="nv">PYTHONPATH</span><span class="o">=</span>src:<span class="nv">$PYTHONPATH</span><span class="w"> </span>python<span class="w"> </span><span class="se">\</span>
