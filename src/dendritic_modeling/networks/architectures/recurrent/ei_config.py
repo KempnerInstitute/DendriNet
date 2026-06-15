@@ -150,8 +150,6 @@ class PopulationConfig(BaseConfig):
     def __post_init__(self):
         if self.n_neurons <= 0:
             raise ValueError(f"n_neurons must be > 0, got {self.n_neurons}")
-        if not self.branch_factors:
-            raise ValueError("branch_factors must be non-empty")
         if any(b < 1 for b in self.branch_factors):
             raise ValueError(
                 f"branch_factors must all be >= 1, got {self.branch_factors}"

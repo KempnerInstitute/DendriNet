@@ -1982,7 +1982,9 @@ class InformationAnalyzer(AbstractAnalyzer):
                 if has_synapses or has_branch_input:
                     self.data_dict[_name] = {}
                     module._name = _name
-                    handle = module.register_forward_hook(self.forward_hook)
+                    handle = module.register_forward_hook(
+                        self.forward_hook, with_kwargs=True
+                    )
                     handles.append(handle)
 
         return handles
@@ -1990,11 +1992,24 @@ class InformationAnalyzer(AbstractAnalyzer):
     def forward_hook(
         self,
         module: DendriticBranchLayer,
-        input: tuple[torch.Tensor, torch.Tensor, torch.Tensor],
-        output: torch.Tensor,
+        *hook_args,
     ):
         """Forward hook to collect branch data."""
-        excitatory_input, inhibitory_input, branch_input = input
+        if len(hook_args) == 3:
+            input_args, input_kwargs, output = hook_args
+        else:
+            input_args, output = hook_args
+            input_kwargs = {}
+
+        excitatory_input = input_kwargs.get(
+            "x", input_args[0] if len(input_args) > 0 else None
+        )
+        inhibitory_input = input_kwargs.get(
+            "inhibitory_input", input_args[1] if len(input_args) > 1 else None
+        )
+        branch_input = input_kwargs.get(
+            "branch_input", input_args[2] if len(input_args) > 2 else None
+        )
 
         # A layer can legitimately have only E synapses or only I synapses.
         # "No synapses" means BOTH synapse modules are absent (e.g. soma when
@@ -2856,6 +2871,7 @@ class InformationAnalyzer(AbstractAnalyzer):
         original_device = get_model_device(model)
         was_training = getattr(model, "training", False)
         moved = False
+        handles = []
         try:
             # Check if model has ExcitationInhibitionNetwork
             if not has_einet_core(model):
@@ -2891,6 +2907,7 @@ class InformationAnalyzer(AbstractAnalyzer):
             with torch.no_grad():
                 _ = model(inputs)
             self.remove_forward_hooks(handles)
+            handles = []
             C = labels.detach().cpu().numpy()
 
             self.logger.debug(
@@ -4000,6 +4017,8 @@ class InformationAnalyzer(AbstractAnalyzer):
             self.logger.error(f"Error in information analysis: {e}")
             traceback.print_exc()
         finally:
+            if handles:
+                self.remove_forward_hooks(handles)
             if moved:
                 model.to(original_device)
                 if was_training:

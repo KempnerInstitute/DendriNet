@@ -97,6 +97,84 @@ class TestEffectiveMatchedParamMLP(unittest.TestCase):
         net = get_architecture("effectivematchedparammlp", self.params)
         self.assertIsInstance(net, EffectiveMatchedParamMLP)
 
+    def test_point_mlp_matches_population_network_reference(self):
+        """point_mlp can use the canonical population_network schema as reference."""
+        params = {
+            "population_network": {
+                "layers": [
+                    {
+                        "name": "layer0",
+                        "readout_population": "e0",
+                        "population_defaults": {
+                            "ff_excitatory_synapses": 3,
+                            "ff_inhibitory_synapses": 0,
+                            "rec_excitatory_synapses": 0,
+                            "rec_inhibitory_synapses": 0,
+                            "somatic_synapses": False,
+                            "use_shunting": True,
+                            "reactivate": True,
+                            "reactivation_type": "param_tanh",
+                            "reactivation_init_policy": "occupancy_quantile",
+                            "dbl_init_method": "analytical_expectation",
+                            "weight_transform": "softplus",
+                        },
+                        "populations": [
+                            {
+                                "name": "e0",
+                                "polarity": "excitatory",
+                                "n_neurons": 5,
+                                "branch_factors": [2],
+                            }
+                        ],
+                        "connections": [{"source": "input", "target": "e0"}],
+                    }
+                ]
+            }
+        }
+        net = get_architecture("point_mlp", params, input_dim=10)
+        out = net(torch.randn(4, 10))
+        self.assertEqual(out.shape, (4, 5))
+        self.assertTrue(torch.isfinite(out).all())
+
+    def test_total_param_mlp_matches_population_network_reference(self):
+        """total_param_mlp can also use the population_network reference path."""
+        params = {
+            "population_network": {
+                "layers": [
+                    {
+                        "name": "layer0",
+                        "readout_population": "e0",
+                        "population_defaults": {
+                            "ff_excitatory_synapses": 3,
+                            "ff_inhibitory_synapses": 0,
+                            "rec_excitatory_synapses": 0,
+                            "rec_inhibitory_synapses": 0,
+                            "somatic_synapses": False,
+                            "use_shunting": True,
+                            "reactivate": True,
+                            "reactivation_type": "param_tanh",
+                            "reactivation_init_policy": "occupancy_quantile",
+                            "dbl_init_method": "analytical_expectation",
+                            "weight_transform": "softplus",
+                        },
+                        "populations": [
+                            {
+                                "name": "e0",
+                                "polarity": "excitatory",
+                                "n_neurons": 5,
+                                "branch_factors": [2],
+                            }
+                        ],
+                        "connections": [{"source": "input", "target": "e0"}],
+                    }
+                ]
+            }
+        }
+        net = get_architecture("total_param_mlp", params, input_dim=10)
+        out = net(torch.randn(4, 10))
+        self.assertEqual(out.shape, (4, 5))
+        self.assertTrue(torch.isfinite(out).all())
+
     def test_comparison_with_einet_total_params(self):
         """Test that EffectiveMatchedParamMLP uses fewer params than dense EINet total."""
         transfer_params = {

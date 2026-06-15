@@ -541,6 +541,8 @@ def calibrate_reactivation_from_data(
 
         def _make_hook(layer_name: str):
             def hook(_mod, inputs):
+                if not inputs or not torch.is_tensor(inputs[0]):
+                    return
                 v = inputs[0].detach().float().cpu()
                 if layer_name not in samples:
                     samples[layer_name] = []

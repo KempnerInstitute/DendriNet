@@ -12,6 +12,8 @@ Also includes real neural data datasets (e.g. StringerV1Dataset) that return
 import logging
 import math
 import os
+import re
+from pathlib import Path
 from typing import Optional
 
 import numpy as np
@@ -21,6 +23,70 @@ from torch.utils.data import Dataset, random_split
 from dendritic_modeling.datasets.registry import build_registered_dataset
 
 logger = logging.getLogger(__name__)
+
+_STRINGER_SESSION_RE = re.compile(
+    r"(?P<expt>.+)_(?P<mouse>[^_]+)_(?P<date>\d{4}_\d{2}_\d{2})_(?P<block>\d+)\.npy$"
+)
+
+
+def _resolve_stringer_session_file(data_dir: str, session_id: str) -> tuple[str, int]:
+    """Resolve a local Stringer session id to response filename and running index."""
+    data_dir_path = Path(data_dir)
+    session_key = str(session_id)
+    if not session_key.strip():
+        raise ValueError("stringer_v1 session_id must be non-empty")
+
+    direct_name = session_key if session_key.endswith(".npy") else f"{session_key}.npy"
+    direct_path = data_dir_path / direct_name
+    if direct_path.exists():
+        candidates = [direct_path]
+    else:
+        candidates = [
+            path
+            for path in sorted(data_dir_path.glob(f"*{session_key}*.npy"))
+            if path.name not in {"all_running.npy", "all_depths.npy", "database.npy"}
+        ]
+
+    if not candidates:
+        raise FileNotFoundError(
+            f"No local Stringer response file matched session_id={session_id!r} "
+            f"in {data_dir_path}"
+        )
+    if len(candidates) > 1:
+        names = ", ".join(path.name for path in candidates[:8])
+        raise ValueError(
+            f"Stringer session_id={session_id!r} matched multiple files: {names}"
+        )
+
+    grating_file = candidates[0].name
+    match = _STRINGER_SESSION_RE.match(grating_file)
+    if match is None:
+        raise ValueError(
+            f"Could not infer Stringer session metadata from filename {grating_file!r}; "
+            "use the standard gratings_drifting_<mouse>_<date>_<block>.npy naming."
+        )
+
+    database_path = data_dir_path / "database.npy"
+    if not database_path.exists():
+        raise FileNotFoundError(
+            f"Stringer session_id resolution requires {database_path}"
+        )
+    database = [
+        dict(entry) for entry in np.load(database_path, allow_pickle=True).tolist()
+    ]
+    groups = match.groupdict()
+    for idx, entry in enumerate(database):
+        if (
+            str(entry.get("expt")) == groups["expt"]
+            and str(entry.get("mouse_name")) == groups["mouse"]
+            and str(entry.get("date")) == groups["date"]
+            and str(entry.get("block")) == groups["block"]
+        ):
+            return grating_file, int(idx)
+
+    raise ValueError(
+        f"Could not find metadata entry for Stringer session file {grating_file!r}"
+    )
 
 
 class SequentialMNISTDataset(Dataset):
@@ -1572,8 +1638,8 @@ class StringerV1Dataset(Dataset):
     brainwide activity", Science 364, 2019. CC0 license on Figshare.
 
     Args:
-        data_dir: Directory containing gratings_drifting_GT3_2019_04_05_1.npy
-                  and all_running.npy.
+        data_dir: Directory containing a Stringer drifting-gratings response
+                  file and all_running.npy.
         n_neurons: Number of neurons to select by response variance.
         n_classes: Number of orientation bins (orientations span [0, 2*pi)).
         split: "train", "test", or "all".
@@ -1581,6 +1647,8 @@ class StringerV1Dataset(Dataset):
         normalize: Z-score normalize each neuron's responses.
         seed: Random seed for reproducible train/test split.
         session_idx: Index into all_running.npy for this session (default 20 = GT3).
+        grating_file: Response filename inside data_dir. Defaults to the GT3
+            session used by the original single-session examples.
         running_state: Keep all trials, or only the low/high running subset.
         running_quantile: Quantile used to define low/high states. `0.5` gives
             a median split, `1/3` gives lower/upper tertiles.
@@ -1592,6 +1660,11 @@ class StringerV1Dataset(Dataset):
         gain_seed: Seed for the deterministic gain augmentation.
         poisson_sampling: If True, apply Poisson shot noise after multiplicative gain.
         poisson_rate_scale: Scale factor before Poisson sampling.
+        running_residualize: If True, regress running speed out of responses
+            within each orientation class after neuron selection. This removes
+            the running-linked gain component while preserving class means.
+        running_residualize_clip: Clip residualized responses at zero so shunting
+            models still receive nonnegative rate-like inputs.
     """
 
     _GRATING_FILE = "gratings_drifting_GT3_2019_04_05_1.npy"
@@ -1618,7 +1691,10 @@ class StringerV1Dataset(Dataset):
         gain_seed: Optional[int] = None,
         poisson_sampling: bool = False,
         poisson_rate_scale: float = 1.0,
+        running_residualize: bool = False,
+        running_residualize_clip: bool = True,
         normalization_stats: Optional[tuple[np.ndarray, np.ndarray]] = None,
+        grating_file: Optional[str] = None,
     ):
         super().__init__()
         if split not in ("train", "test", "all"):
@@ -1639,7 +1715,13 @@ class StringerV1Dataset(Dataset):
             )
 
         # --- Load raw data ---
-        grating_path = os.path.join(data_dir, self._GRATING_FILE)
+        grating_file = self._GRATING_FILE if grating_file is None else str(grating_file)
+        if os.path.basename(grating_file) != grating_file:
+            raise ValueError(
+                "Stringer grating_file must be a filename inside data_dir, "
+                f"got {grating_file!r}"
+            )
+        grating_path = os.path.join(data_dir, grating_file)
         running_path = os.path.join(data_dir, self._RUNNING_FILE)
 
         if not os.path.exists(grating_path):
@@ -1688,10 +1770,11 @@ class StringerV1Dataset(Dataset):
             or group_gain_min != 1.0
             or group_gain_max != 1.0
             or poisson_sampling
+            or running_residualize
         ):
             raise ValueError(
-                "Stringer gain augmentation requires normalize=False so the inputs "
-                "remain nonnegative and rate-like."
+                "Stringer gain augmentation/residualization requires normalize=False "
+                "so the inputs remain nonnegative and rate-like."
             )
 
         # --- Running-state filter ---
@@ -1753,6 +1836,15 @@ class StringerV1Dataset(Dataset):
         selected_labels = labels[idx]
         selected_running = running_speed[idx]
 
+        if running_residualize:
+            selected_responses = self._residualize_running_gain(
+                selected_responses,
+                selected_running,
+                selected_labels,
+                n_classes=n_classes,
+                clip_nonnegative=running_residualize_clip,
+            )
+
         gain_groups = self._build_gain_groups(
             raw_responses=raw_responses,
             full_labels=full_labels,
@@ -1777,6 +1869,8 @@ class StringerV1Dataset(Dataset):
 
         self.responses = torch.tensor(selected_responses, dtype=torch.float32)
         self.labels = torch.tensor(selected_labels, dtype=torch.long)
+        self.grating_file = grating_file
+        self.running_residualized = bool(running_residualize)
         self._running_speed = selected_running.astype(np.float32)
         self._running_mask = torch.tensor(
             self._running_speed > np.median(running_speed_full),
@@ -1785,8 +1879,8 @@ class StringerV1Dataset(Dataset):
         self._split_indices = selected_global_idx
 
         logger.info(
-            f"StringerV1Dataset({split}, state={running_state}): {len(self)} trials, "
-            f"{n_select} neurons, {n_classes} classes"
+            f"StringerV1Dataset({split}, state={running_state}, file={grating_file}): "
+            f"{len(self)} trials, {n_select} neurons, {n_classes} classes"
         )
 
     @staticmethod
@@ -1877,6 +1971,39 @@ class StringerV1Dataset(Dataset):
             augmented = rng.poisson(rate).astype(np.float32) / float(poisson_rate_scale)
 
         return augmented.astype(np.float32)
+
+    @staticmethod
+    def _residualize_running_gain(
+        responses: np.ndarray,
+        running: np.ndarray,
+        labels: np.ndarray,
+        *,
+        n_classes: int,
+        clip_nonnegative: bool,
+    ) -> np.ndarray:
+        """Remove per-class linear running dependence while preserving means."""
+        out = responses.astype(np.float64, copy=True)
+        running = np.asarray(running, dtype=np.float64).reshape(-1)
+        labels = np.asarray(labels).reshape(-1)
+        if out.shape[0] != running.shape[0] or out.shape[0] != labels.shape[0]:
+            raise ValueError("responses, running, and labels must have matching trials")
+
+        for class_idx in range(n_classes):
+            mask = labels == class_idx
+            if int(mask.sum()) < 5:
+                continue
+            r = running[mask]
+            x = out[mask]
+            r_centered = r - r.mean()
+            denom = float(np.dot(r_centered, r_centered)) + 1e-8
+            x_mean = x.mean(axis=0, keepdims=True)
+            x_centered = x - x_mean
+            beta = (r_centered[:, None] * x_centered).sum(axis=0, keepdims=True) / denom
+            out[mask] = x_mean + x_centered - r_centered[:, None] * beta
+
+        if clip_nonnegative:
+            out = np.clip(out, a_min=0.0, a_max=None)
+        return out.astype(np.float32)
 
     def __len__(self):
         return len(self.labels)
@@ -3049,7 +3176,14 @@ def get_sequence_datasets(
         n_classes = kwargs.get("n_classes", 8)
         normalize = kwargs.get("normalize", True)
         seed = kwargs.get("label_noise_seed", 42)
-        session_idx = kwargs.get("session_idx", 20)
+        session_id = kwargs.get("session_id", None)
+        if session_id is not None:
+            grating_file, session_idx = _resolve_stringer_session_file(
+                data_dir, str(session_id)
+            )
+        else:
+            session_idx = kwargs.get("session_idx", 20)
+            grating_file = kwargs.get("grating_file", StringerV1Dataset._GRATING_FILE)
         running_quantile = kwargs.get("running_quantile", 0.5)
         running_state = kwargs.get("running_state", "all")
         train_running_state = kwargs.get("train_running_state", running_state)
@@ -3058,6 +3192,8 @@ def get_sequence_datasets(
         gain_grouping = kwargs.get("gain_grouping", "preferred_class")
         poisson_sampling = kwargs.get("poisson_sampling", False)
         poisson_rate_scale = kwargs.get("poisson_rate_scale", 1.0)
+        running_residualize = kwargs.get("running_residualize", False)
+        running_residualize_clip = kwargs.get("running_residualize_clip", True)
         gain_seed = kwargs.get("gain_seed", seed)
 
         def _state_kwargs(prefix: str, state: str) -> dict:
@@ -3087,6 +3223,12 @@ def get_sequence_datasets(
                 "poisson_rate_scale": kwargs.get(
                     f"{prefix}poisson_rate_scale", poisson_rate_scale
                 ),
+                "running_residualize": kwargs.get(
+                    f"{prefix}running_residualize", running_residualize
+                ),
+                "running_residualize_clip": kwargs.get(
+                    f"{prefix}running_residualize_clip", running_residualize_clip
+                ),
             }
 
         common = {
@@ -3096,6 +3238,7 @@ def get_sequence_datasets(
             "normalize": normalize,
             "seed": seed,
             "session_idx": session_idx,
+            "grating_file": grating_file,
         }
 
         use_state_specific_split = (

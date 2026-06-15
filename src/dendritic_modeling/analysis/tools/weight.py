@@ -15,12 +15,47 @@ import torch
 
 from dendritic_modeling.analysis.core.base import AbstractAnalyzer
 from dendritic_modeling.analysis.utils.einet_core import has_einet_core
+from dendritic_modeling.analysis.utils.recurrent_introspection import (
+    iter_recurrent_populations,
+)
 from dendritic_modeling.config import WeightAnalysisParams
 from dendritic_modeling.models import BaseModel
-from dendritic_modeling.networks import DendriNet, DendriticBranchLayer
+from dendritic_modeling.networks import DendriticBranchLayer
 from dendritic_modeling.utils import save_dict
 
 logger = logging.getLogger(__name__)
+
+
+def _iter_dendritic_populations(model: BaseModel):
+    """Yield unique population modules that expose dendritic branch layers."""
+    core = getattr(model, "core_network", model)
+    seen: set[int] = set()
+
+    for record in iter_recurrent_populations(core):
+        population = record.population
+        if not hasattr(population, "branch_layers"):
+            continue
+        ident = id(population)
+        if ident in seen:
+            continue
+        seen.add(ident)
+        yield population
+
+    for layer in getattr(core, "layers", []) or []:
+        for attr in (
+            "excitatory_cells",
+            "inhibitory_cells",
+            "e_population",
+            "i_population",
+        ):
+            population = getattr(layer, attr, None)
+            if not hasattr(population, "branch_layers"):
+                continue
+            ident = id(population)
+            if ident in seen:
+                continue
+            seen.add(ident)
+            yield population
 
 
 class WeightAnalyzer(AbstractAnalyzer):
@@ -116,14 +151,10 @@ class WeightAnalyzer(AbstractAnalyzer):
                 # Dynamically determine expected layers from network structure
                 # Get the actual number of dendritic layers from the first EI layer
                 expected_max_idx = 0
-                for ei_layer in model.core_network.layers:
-                    ex_dn = getattr(ei_layer, "excitatory_cells", None)
-                    if ex_dn is not None and hasattr(ex_dn, "branch_layers"):
-                        # The highest layer_idx in the network should be n_branch_layers
-                        expected_max_idx = max(
-                            expected_max_idx, len(ex_dn.branch_layers)
-                        )
-                        break
+                for population in _iter_dendritic_populations(model):
+                    expected_max_idx = max(
+                        expected_max_idx, len(population.branch_layers)
+                    )
 
                 # Remove any layers beyond the expected range
                 for key in list(layer_stats.keys()):
@@ -275,38 +306,16 @@ class WeightAnalyzer(AbstractAnalyzer):
         # Accumulate branch statistics per dendritic depth across EI layers
         depth_to_branch_list: dict[int, list[dict[str, Any]]] = {}
 
-        for _ei_idx, ei_layer in enumerate(model.core_network.layers):
-            # Each EI layer may have excitatory and inhibitory DendriNets
-            ex_dn = getattr(ei_layer, "excitatory_cells", None)
-            in_dn = getattr(ei_layer, "inhibitory_cells", None)
-
-            # Iterate over dendritic branch layers within the excitatory DendriNet
-            if ex_dn is not None:
-                for depth_idx, branch_layer in enumerate(ex_dn.branch_layers):
-                    layer_idx_attr = getattr(branch_layer, "layer_idx", depth_idx)
-                    stats_dict = self._compute_branch_weight_statistics(
-                        branch_layer, module_name=f"branch_layers.{layer_idx_attr}"
-                    )
-                    if stats_dict and "branches" in stats_dict:
-                        if layer_idx_attr not in depth_to_branch_list:
-                            depth_to_branch_list[layer_idx_attr] = []
-                        depth_to_branch_list[layer_idx_attr].extend(
-                            stats_dict["branches"]
-                        )
-
-            # Include inhibitory DendriNet branch layers as well (for fuller coverage)
-            if isinstance(in_dn, DendriNet):
-                for depth_idx, branch_layer in enumerate(in_dn.branch_layers):
-                    layer_idx_attr = getattr(branch_layer, "layer_idx", depth_idx)
-                    stats_dict = self._compute_branch_weight_statistics(
-                        branch_layer, module_name=f"branch_layers.{layer_idx_attr}"
-                    )
-                    if stats_dict and "branches" in stats_dict:
-                        if layer_idx_attr not in depth_to_branch_list:
-                            depth_to_branch_list[layer_idx_attr] = []
-                        depth_to_branch_list[layer_idx_attr].extend(
-                            stats_dict["branches"]
-                        )
+        for population in _iter_dendritic_populations(model):
+            for depth_idx, branch_layer in enumerate(population.branch_layers):
+                layer_idx_attr = getattr(branch_layer, "layer_idx", depth_idx)
+                stats_dict = self._compute_branch_weight_statistics(
+                    branch_layer, module_name=f"branch_layers.{layer_idx_attr}"
+                )
+                if stats_dict and "branches" in stats_dict:
+                    if layer_idx_attr not in depth_to_branch_list:
+                        depth_to_branch_list[layer_idx_attr] = []
+                    depth_to_branch_list[layer_idx_attr].extend(stats_dict["branches"])
 
         # Now aggregate per-depth branch statistics to layer-level metrics
         layer_results: dict[str, Any] = {}
@@ -437,14 +446,8 @@ class WeightAnalyzer(AbstractAnalyzer):
         """
         depth_to_branch_list: dict[int, list[dict[str, Any]]] = {}
 
-        for ei_layer in model.core_network.layers:
-            if (
-                not hasattr(ei_layer, "excitatory_cells")
-                or ei_layer.excitatory_cells is None
-            ):
-                continue
-            ex_dn = ei_layer.excitatory_cells
-            for depth_idx, branch_layer in enumerate(ex_dn.branch_layers):
+        for population in _iter_dendritic_populations(model):
+            for depth_idx, branch_layer in enumerate(population.branch_layers):
                 layer_idx_attr = getattr(branch_layer, "layer_idx", depth_idx)
                 stats_dict = self._compute_branch_weight_statistics(
                     branch_layer, module_name=f"branch_layers.{layer_idx_attr}"
@@ -511,76 +514,55 @@ class WeightAnalyzer(AbstractAnalyzer):
         depth_to_strength: dict[int, float] = {}
         depth_to_weights: dict[int, list[torch.Tensor]] = {}
 
-        for ei_layer in model.core_network.layers:
-            ex_dn = getattr(ei_layer, "excitatory_cells", None)
-            in_dn = getattr(ei_layer, "inhibitory_cells", None)
+        for population in _iter_dendritic_populations(model):
+            for branch_layer in population.branch_layers:
+                layer_idx_attr = getattr(branch_layer, "layer_idx", None)
+                if layer_idx_attr is None:
+                    continue
 
-            # Helper to process a DendriNet's branch layers
-            def process_dn(dn):
-                if not isinstance(dn, DendriNet):
-                    return
-                for branch_layer in dn.branch_layers:
-                    layer_idx_attr = getattr(branch_layer, "layer_idx", None)
-                    if layer_idx_attr is None:
-                        continue
+                if layer_idx_attr not in depth_to_strength:
+                    depth_to_strength[layer_idx_attr] = 0.0
+                if layer_idx_attr not in depth_to_weights:
+                    depth_to_weights[layer_idx_attr] = []
 
-                    # Initialize accumulators
-                    if layer_idx_attr not in depth_to_strength:
-                        depth_to_strength[layer_idx_attr] = 0.0
-                    if layer_idx_attr not in depth_to_weights:
-                        depth_to_weights[layer_idx_attr] = []
+                if self.compute_dendritic_strength:
+                    if (
+                        self.analyze_excitatory
+                        and branch_layer.branch_excitation is not None
+                    ):
+                        exc_weights = branch_layer.branch_excitation.pruned_weight()
+                        active_exc = exc_weights[exc_weights > self.weight_threshold]
+                        depth_to_strength[layer_idx_attr] += active_exc.sum().item()
 
-                    # Compute strength
-                    if self.compute_dendritic_strength:
-                        if (
-                            self.analyze_excitatory
-                            and branch_layer.branch_excitation is not None
-                        ):
-                            exc_weights = branch_layer.branch_excitation.pruned_weight()
-                            active_exc = exc_weights[
-                                exc_weights > self.weight_threshold
-                            ]
-                            depth_to_strength[layer_idx_attr] += active_exc.sum().item()
+                    if (
+                        self.analyze_inhibitory
+                        and branch_layer.branch_inhibition is not None
+                    ):
+                        inh_weights = branch_layer.branch_inhibition.pruned_weight()
+                        active_inh = inh_weights[inh_weights > self.weight_threshold]
+                        depth_to_strength[layer_idx_attr] += active_inh.sum().item()
 
-                        if (
-                            self.analyze_inhibitory
-                            and branch_layer.branch_inhibition is not None
-                        ):
-                            inh_weights = branch_layer.branch_inhibition.pruned_weight()
-                            active_inh = inh_weights[
-                                inh_weights > self.weight_threshold
-                            ]
-                            depth_to_strength[layer_idx_attr] += active_inh.sum().item()
-
-                    # Collect for min/max
-                    if self.compute_min_max:
-                        if (
-                            self.analyze_excitatory
-                            and branch_layer.branch_excitation is not None
-                        ):
-                            exc_weights = (
-                                branch_layer.branch_excitation.pruned_weight().flatten()
-                            )
-                            active_exc = exc_weights[
-                                exc_weights > self.weight_threshold
-                            ]
-                            if active_exc.numel() > 0:
-                                depth_to_weights[layer_idx_attr].append(active_exc)
-                        if (
-                            self.analyze_inhibitory
-                            and branch_layer.branch_inhibition is not None
-                        ):
-                            inh_weights = (
-                                branch_layer.branch_inhibition.pruned_weight().flatten()
-                            )
-                            active_inh = inh_weights[
-                                inh_weights > self.weight_threshold
-                            ]
-                            if active_inh.numel() > 0:
-                                depth_to_weights[layer_idx_attr].append(active_inh)
-
-            process_dn(ex_dn)
-            process_dn(in_dn)
+                if self.compute_min_max:
+                    if (
+                        self.analyze_excitatory
+                        and branch_layer.branch_excitation is not None
+                    ):
+                        exc_weights = (
+                            branch_layer.branch_excitation.pruned_weight().flatten()
+                        )
+                        active_exc = exc_weights[exc_weights > self.weight_threshold]
+                        if active_exc.numel() > 0:
+                            depth_to_weights[layer_idx_attr].append(active_exc)
+                    if (
+                        self.analyze_inhibitory
+                        and branch_layer.branch_inhibition is not None
+                    ):
+                        inh_weights = (
+                            branch_layer.branch_inhibition.pruned_weight().flatten()
+                        )
+                        active_inh = inh_weights[inh_weights > self.weight_threshold]
+                        if active_inh.numel() > 0:
+                            depth_to_weights[layer_idx_attr].append(active_inh)
 
         # Build enhanced_stats from accumulators
         for layer_idx_attr in sorted(
