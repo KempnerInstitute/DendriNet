@@ -74,9 +74,6 @@ class MultiplicativeGainPlotter(BasePlotter):
     def _generate_gain_plots(self, data: pd.DataFrame, plots_dir: Path) -> list[Path]:
         plot_paths = []
 
-        gain_cols: list[str] = [col for col in data.columns if "mult_gain_" in col]
-        metrics, gain_factors = self._extract_metrics_and_gain_factors(gain_cols)
-
         sweep_types = self.detect_sweep_types(data)
 
         if "ei" in sweep_types:
@@ -87,8 +84,7 @@ class MultiplicativeGainPlotter(BasePlotter):
                         sweep_var="ei_ratio",
                         var_name="E/I Ratio",
                         plots_dir=plots_dir,
-                        metrics=metrics,
-                        gain_factors=gain_factors,
+                        logscale=True,
                     )
                 )
             except Exception as e:
@@ -103,8 +99,7 @@ class MultiplicativeGainPlotter(BasePlotter):
                         sweep_var="stimulus_duration",
                         var_name="Stimulus Duration",
                         plots_dir=plots_dir,
-                        metrics=metrics,
-                        gain_factors=gain_factors,
+                        logscale=True,
                     )
                 )
             except Exception as e:
@@ -117,10 +112,9 @@ class MultiplicativeGainPlotter(BasePlotter):
                     self._create_gain_plots_1d_sweep(
                         data=data,
                         sweep_var="max_gain_factor",
-                        var_name="Max Gain Factor",
+                        var_name="Maximum Gain",
                         plots_dir=plots_dir,
-                        metrics=metrics,
-                        gain_factors=gain_factors,
+                        logscale=True,
                     )
                 )
             except Exception as e:
@@ -135,8 +129,7 @@ class MultiplicativeGainPlotter(BasePlotter):
                         sweep_var="fixed_gain_factor",
                         var_name="Fixed Gain Factor",
                         plots_dir=plots_dir,
-                        metrics=metrics,
-                        gain_factors=gain_factors,
+                        logscale=True,
                     )
                 )
             except Exception as e:
@@ -151,8 +144,7 @@ class MultiplicativeGainPlotter(BasePlotter):
                         sweep_var="nparams",
                         var_name="Number of Parameters",
                         plots_dir=plots_dir,
-                        metrics=metrics,
-                        gain_factors=gain_factors,
+                        logscale=True,
                     )
                 )
             except Exception as e:
@@ -167,8 +159,6 @@ class MultiplicativeGainPlotter(BasePlotter):
                         "stimulus_duration",
                         "max_gain_factor",
                         plots_dir,
-                        metrics,
-                        gain_factors,
                     )
                 )
             except Exception as e:
@@ -183,8 +173,6 @@ class MultiplicativeGainPlotter(BasePlotter):
                         "stimulus_duration",
                         "max_gain_tau_ratio",
                         plots_dir,
-                        metrics,
-                        gain_factors,
                     )
                 )
             except Exception as e:
@@ -195,7 +183,7 @@ class MultiplicativeGainPlotter(BasePlotter):
             try:
                 plot_paths.extend(
                     self._create_gain_plots_network_type_comparison(
-                        data, plots_dir, metrics, gain_factors
+                        data, plots_dir
                     )
                 )
             except Exception as e:
@@ -204,29 +192,26 @@ class MultiplicativeGainPlotter(BasePlotter):
 
         logger.info(f"Created {len(plot_paths)} multiplicative gain analysis plots")
         return plot_paths
-
+    
     def _extract_metrics_and_gain_factors(
-        self, gain_cols: list[str]
+        self, 
+        gain_cols: list[str],
     ) -> tuple[list[str], list[float]]:
         metrics: list[str] = []
         gain_factors: list[float] = []
 
         for col in gain_cols:
-            if "_mean" not in col or "_gf" not in col:
-                continue
-
-            parts = col.replace("mult_gain_", "").replace("_mean", "").split("_gf")
-            metric = parts[0]
-            try:
+            if "_mean" in col and "_gf" in col:
+                parts = col.replace("mult_gain_", "").replace("_mean", "").split("_gf")
+                
+                metric = parts[0]
                 gain_factor = float(parts[-1])
-            except ValueError:
-                continue
-
-            if metric not in metrics:
-                metrics.append(metric)
-            if gain_factor not in gain_factors:
-                gain_factors.append(gain_factor)
-
+                
+                if metric not in metrics:
+                    metrics.append(metric)
+                if gain_factor not in gain_factors:
+                    gain_factors.append(gain_factor)
+        
         gain_factors.sort()
         return metrics, gain_factors
 
@@ -244,23 +229,26 @@ class MultiplicativeGainPlotter(BasePlotter):
         sweep_var: str,
         var_name: str,
         plots_dir: Path,
-        metrics: list[str],
-        gain_factors: list[float],
+        logscale: bool,
     ) -> list[Path]:
         """Create multiplicative gain vs sweep_var plots"""
         plot_paths = []
 
+        gain_cols: list[str] = [col for col in data.columns if "mult_gain_" in col]
+
+        metrics, gain_factors = self._extract_metrics_and_gain_factors(gain_cols)
+        score_types = self._detect_generalization_score_types(gain_cols)
+
         plot_paths.extend(
-            self._plot_gain_performance_1d_sweep(
+            self._plot_gain_1d_sweep_raw_scores_heatmap(
                 data=data,
                 sweep_var=sweep_var,
                 var_name=var_name,
                 plots_dir=plots_dir,
                 metrics=metrics,
-                gain_factors=gain_factors,
+                gain_factors=gain_factors
             )
         )
-        gain_cols: list[str] = [col for col in data.columns if "mult_gain_" in col]
         plot_paths.extend(
             self._plot_gain_generalization_scores_1d_sweep(
                 data=data,
@@ -268,8 +256,8 @@ class MultiplicativeGainPlotter(BasePlotter):
                 var_name=var_name,
                 plots_dir=plots_dir,
                 metrics=metrics,
-                score_types=self._detect_generalization_score_types(gain_cols),
-                logscale=True,
+                score_types=score_types,
+                logscale=logscale,
             )
         )
 
@@ -334,9 +322,21 @@ class MultiplicativeGainPlotter(BasePlotter):
             )
             plot_paths.append(self.save_figure(fig, plot_path))
 
+        plot_paths.extend(
+            self._plot_gain_1d_sweep_generalization_scores(
+                data=data,
+                sweep_var=sweep_var,
+                var_name=var_name,
+                plots_dir=plots_dir,
+                metrics=metrics,
+                score_types=score_types,
+                logscale=logscale,
+            )
+        )
+
         return plot_paths
 
-    def _plot_gain_performance_1d_sweep(
+    def _plot_gain_1d_sweep_raw_scores_heatmap(
         self,
         data: pd.DataFrame,
         sweep_var: str,
@@ -347,6 +347,9 @@ class MultiplicativeGainPlotter(BasePlotter):
     ) -> list[Path]:
         """Create multiplicative gain performance vs sweep_var plots"""
         plot_paths = []
+
+        if not gain_factors:
+            return plot_paths
 
         # Get unique values of sweep_var and sort them
         sweep_values = sorted(data[sweep_var].unique())
@@ -482,6 +485,59 @@ class MultiplicativeGainPlotter(BasePlotter):
             plot_paths.append(self.save_figure(fig, plot_path))
 
         return plot_paths
+    
+    def _plot_gain_1d_sweep_generalization_scores(
+        self,
+        data: pd.DataFrame,
+        sweep_var: str,
+        var_name: str,
+        plots_dir: Path,
+        metrics: list[str],
+        score_types: list[str],
+        logscale: bool,
+    ) -> list[Path]:
+        """Create multiplicative gain generalization scores vs sweep_var plots"""
+        plot_paths = []
+
+        if not score_types:
+            return plot_paths
+
+        n_score_types = len(score_types)
+        for metric in metrics:
+            try:
+                fig, axes = plt.subplots(nrows=1, ncols=n_score_types, figsize=(8 * n_score_types, 8))
+
+                for i, score_type in enumerate(score_types):
+                    ax: plt.Axes = axes[i]
+                    self.plot_by_category(
+                        ax=ax,
+                        data=data,
+                        x_col=sweep_var,
+                        y_col=f"mult_gain_{metric}_{score_type}",
+                        category_col="network_category",
+                        show_error=True,
+                    )
+                    self.setup_axes_style(
+                        ax=ax,
+                        xlabel=var_name,
+                        ylabel=f"{METRIC_MAPPING[metric]} Expectation",
+                        title=f"{SCORE_MAPPING[score_type]}",
+                        use_log_x=logscale,
+                        grid=True,
+                    )
+                    ax.legend(fontsize=10)
+                
+                fig.tight_layout()
+                plot_path = plots_dir / f"gain_{metric}_vs_{sweep_var}_generalization_scores.png"
+                plot_paths.append(self.save_figure(fig, plot_path))
+                
+            except Exception as e:
+                logger.error(f"Error generating {metric} generalization scores plot: {e}")
+                traceback.print_exc()
+                return plot_paths
+        
+        logger.info(f"Created {len(plot_paths)} multiplicative gain generalization scores plots")
+        return plot_paths
 
     def _create_gain_plots_2d_sweep(
         self,
@@ -489,8 +545,6 @@ class MultiplicativeGainPlotter(BasePlotter):
         sweep_var1: str,
         sweep_var2: str,
         plots_dir: Path,
-        metrics: list[str],
-        gain_factors: list[float],
     ) -> list[Path]:
         """Create multiplicative gain vs 2D sweep plots"""
         plot_paths = []
@@ -501,12 +555,13 @@ class MultiplicativeGainPlotter(BasePlotter):
         self,
         data: pd.DataFrame,
         plots_dir: Path,
-        metrics: list[str],
-        gain_factors: list[float],
     ) -> list[Path]:
         """Create multiplicative gain shunting vs non-shunting comparison plots"""
         plot_paths = []
 
+        gain_cols: list[str] = [col for col in data.columns if "mult_gain_" in col]
+        
+        metrics, gain_factors = self._extract_metrics_and_gain_factors(gain_cols)
         for metric in metrics:
             plot_paths.extend(
                 self._plot_gain_performance_network_type_comparison(

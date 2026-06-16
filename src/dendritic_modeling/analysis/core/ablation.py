@@ -10,6 +10,7 @@ import os
 import re
 from copy import deepcopy
 from typing import Callable, Optional
+import itertools
 
 import matplotlib.animation as animation
 import matplotlib.pyplot as plt
@@ -114,7 +115,6 @@ class AblationAnalyzer(AbstractAnalyzer):
         self.ablate_upstream = bool(
             {"upstream", "vb", "branch_input"}.intersection(targets)
         )
-
         self.accuracy = "accuracy" in metrics
         self.auc = "auc" in metrics
         self.categorical_ll = bool(
@@ -132,7 +132,6 @@ class AblationAnalyzer(AbstractAnalyzer):
         self.compute_pred_label_mi = bool(
             {"pred_label_mi_bits", "pred_label_mi", "pred_mi"}.intersection(metrics)
         )
-        self.lesion_value = -1000.0
 
     @staticmethod
     def _normalize_ablation_target(target: str) -> str:
@@ -230,7 +229,7 @@ class AblationAnalyzer(AbstractAnalyzer):
         model: BaseModel,
         module: DendriticBranchLayer,
         module_name: str,
-        ablation_type: str,
+        target_type: str,
         ablation_method: str,
         baseline_dict: dict,
         results_dict: dict,
@@ -238,29 +237,8 @@ class AblationAnalyzer(AbstractAnalyzer):
         eval_kwargs: Optional[dict] = None,
         device: Optional[str] = None,
     ):
-        """Ablate a single layer and evaluate its impact.
-
-        Args:
-            ablation_type: The ablation target, e.g. ``"excitation"``,
-                ``"inhibition"``, ``"all_synapses"``, ``"upstream"``.
-                Legacy composite keys like ``"lesion_excitation"`` are also
-                accepted and the method prefix is stripped automatically.
-            ablation_method: ``"lesion"`` | ``"shuffle"`` | ``"mean_clamp"``.
-            results_dict: Dict to write into at ``results_dict[ablation_type][module_name]``.
-        """
-        results_dict[ablation_type][module_name] = {}
-        results_dict[ablation_type][module_name]["depth"] = module.layer_idx
-        results_dict[ablation_type][module_name]["ablation_method"] = ablation_method
-        if eval_kwargs is None:
-            eval_kwargs = {}
-        if device is None:
-            device = str(get_model_device(model))
-
-        # Allow ablation_type keys to be namespaced, e.g. "lesion_excitation".
-        target_type = ablation_type
-        prefix = f"{ablation_method}_"
-        if isinstance(ablation_type, str) and ablation_type.startswith(prefix):
-            target_type = ablation_type[len(prefix) :]
+        """Ablate a single layer and evaluate its impact."""
+        res = {"depth": module.layer_idx}
         target_type_norm = self._normalize_ablation_target(target_type)
 
         # Check if this is a soma layer without somatic synapses (using config)
@@ -277,7 +255,7 @@ class AblationAnalyzer(AbstractAnalyzer):
         if is_soma_without_synapses:
             # For soma without synapses, ablation has no effect (zero drop)
             def _set_zero_metric(metric_key: str):
-                results_dict[ablation_type][module_name][f"{metric_key}_drop"] = 0.0
+                res[f"{metric_key} drop"] = 0.0
 
             if self.accuracy:
                 _set_zero_metric("accuracy")
@@ -340,7 +318,7 @@ class AblationAnalyzer(AbstractAnalyzer):
                         if local_hook is not None:
                             local_hook.remove()
 
-                    results_dict[ablation_type][module_name][f"{metric_key}_drop"] = (
+                    res[f"{metric_key} drop"] = (
                         baseline_dict[metric_key] - metric_score
                     )
 
@@ -370,6 +348,8 @@ class AblationAnalyzer(AbstractAnalyzer):
             finally:
                 model.load_state_dict(state_dict)
 
+        results_dict[ablation_method][target_type][module_name] = res
+
         return results_dict
 
     def ablate_compartment_and_evaluate(
@@ -378,7 +358,7 @@ class AblationAnalyzer(AbstractAnalyzer):
         model: BaseModel,
         module: DendriticBranchLayer,
         module_name: str,
-        ablation_type: str,
+        target_type: str,
         ablation_method: str,
         baseline_dict: dict,
         results_dict: dict,
@@ -387,19 +367,8 @@ class AblationAnalyzer(AbstractAnalyzer):
         device: Optional[str] = None,
     ):
         """Ablate a single compartment and evaluate its impact."""
-        if eval_kwargs is None:
-            eval_kwargs = {}
-        if device is None:
-            device = str(get_model_device(model))
-        results_dict[ablation_type][module_name] = {}
-        results_dict[ablation_type][module_name]["depth"] = module.layer_idx
-        results_dict[ablation_type][module_name]["ablation_method"] = ablation_method
-
-        # Allow ablation_type keys to be namespaced, e.g. "lesion_excitation".
-        target_type = ablation_type
-        prefix = f"{ablation_method}_"
-        if isinstance(ablation_type, str) and ablation_type.startswith(prefix):
-            target_type = ablation_type[len(prefix) :]
+        res = {"depth": module.layer_idx}
+        
         target_type_norm = self._normalize_ablation_target(target_type)
 
         if module.branch_excitation is not None:
@@ -478,19 +447,17 @@ class AblationAnalyzer(AbstractAnalyzer):
                 model.load_state_dict(state_dict)
 
         if self.accuracy:
-            results_dict[ablation_type][module_name]["accuracy_drop"] = accuracy_list
+            res["accuracy drop"] = accuracy_list
         if self.auc:
-            results_dict[ablation_type][module_name]["auc_drop"] = auc_list
+            res["auc drop"] = auc_list
         if self.categorical_ll:
-            results_dict[ablation_type][module_name][
-                "categorical_loglikelihood_drop"
-            ] = loglikelihood_list
+            res["categorical_loglikelihood drop"] = loglikelihood_list
         if self.mse:
-            results_dict[ablation_type][module_name]["mse_drop"] = mse_list
+            res["mse drop"] = mse_list
         if self.cosine_similarity:
-            results_dict[ablation_type][module_name][
-                "cosine_similarity_drop"
-            ] = cosine_similarity_list
+            res["cosine_similarity drop"] = cosine_similarity_list
+
+        results_dict[ablation_method][target_type][module_name] = res
 
         return results_dict
 
@@ -505,29 +472,36 @@ class AblationAnalyzer(AbstractAnalyzer):
         try:
             # Plot layer ablation results if available
             if results.get("layer"):
-                plot_layer_ablation(
-                    layer_results=results["layer"],
-                    baselines=results["baseline"],
-                    save_path=save_path,
-                    filename=filename,
-                    somatic_synapses=somatic_synapses,
-                )
+                for method, method_results in results["layer"].items():
+                    method_path = os.path.join(save_path, method)
+                    os.makedirs(method_path, exist_ok=True)
+                    plot_layer_ablation(
+                        layer_results=method_results,
+                        baselines=results["baseline"],
+                        save_path=method_path,
+                        filename=filename,
+                        somatic_synapses=somatic_synapses,
+                    )
 
                 if os.path.exists(os.path.join(save_path, "epochs")):
                     print("Creating video for ablation vs training", flush=True)
+                    methods = list(results["layer"].keys())
+                    target_types = list(method_results.keys())
                     create_video_layer_ablation_vs_training(
                         save_path=save_path,
-                        metric="accuracy",
+                        methods=methods,
+                        target_types=target_types,
                         video_format="mp4",
                     )
 
             # Plot compartment ablation results if available
             if results.get("compartment"):
-                plot_ablation_results(
-                    results["compartment"],
-                    save_path=save_path,
-                    filename=f"{filename}_compartment",
-                )
+                for method, method_results in results["compartment"].items():
+                    plot_ablation_results(
+                        results=method_results,
+                        save_path=os.path.join(save_path, method),
+                        filename=filename,
+                    )
         except ImportError as e:
             print(f"Warning: Ablation plotting functions not found: {e}")
         except Exception as e:
@@ -546,6 +520,10 @@ class AblationAnalyzer(AbstractAnalyzer):
         """Perform ablation analysis and return results."""
         if not has_einet_core(model):
             return
+        
+        self.lesion_value = -1000.0
+        if model.core_network.weight_transform in ["identity", "relu"]:
+            self.lesion_value = 0.0
 
         self.lesion_value = self._resolve_lesion_value(model)
 
@@ -651,6 +629,122 @@ class AblationAnalyzer(AbstractAnalyzer):
                     if self.ablate_upstream:
                         compartment_results[method]["upstream"] = {}
 
+            for method in self.ablation_methods:
+                if self.ablate_all_synapses:
+                    if self.layer_ablation:
+                        layer_results = self.ablate_layer_and_evaluate(
+                            test_dataset=test_dataset,
+                            model=model,
+                            module=module,
+                            module_name=_name,
+                            target_type="all_synapses",
+                            ablation_method=method,
+                            baseline_dict=baselines,
+                            results_dict=layer_results,
+                            state_dict=state_dict,
+                        )
+                    if self.compartment_ablation and method == "lesion":
+                        compartment_results = self.ablate_compartment_and_evaluate(
+                            test_dataset=test_dataset,
+                            model=model,
+                            module=module,
+                            module_name=_name,
+                            target_type="all_synapses",
+                            ablation_method=method,
+                            baseline_dict=baselines,
+                            results_dict=compartment_results,
+                            state_dict=state_dict,
+                        )
+
+                if self.ablate_excitation:
+                    if self.layer_ablation:
+                        layer_results = self.ablate_layer_and_evaluate(
+                            test_dataset=test_dataset,
+                            model=model,
+                            module=module,
+                            module_name=_name,
+                            target_type="excitation",
+                            ablation_method=method,
+                            baseline_dict=baselines,
+                            results_dict=layer_results,
+                            state_dict=state_dict,
+                        )
+                    if self.compartment_ablation and method == "lesion":
+                        compartment_results = self.ablate_compartment_and_evaluate(
+                            test_dataset=test_dataset,
+                            model=model,
+                            module=module,
+                            module_name=_name,
+                            target_type="excitation",
+                            ablation_method=method,
+                            baseline_dict=baselines,
+                            results_dict=compartment_results,
+                            state_dict=state_dict,
+                        )
+
+                if self.ablate_inhibition:
+                    if self.layer_ablation:
+                        layer_results = self.ablate_layer_and_evaluate(
+                            test_dataset=test_dataset,
+                            model=model,
+                            module=module,
+                            module_name=_name,
+                            target_type="inhibition",
+                            ablation_method=method,
+                            baseline_dict=baselines,
+                            results_dict=layer_results,
+                            state_dict=state_dict,
+                        )
+                    if self.compartment_ablation and method == "lesion":
+                        compartment_results = self.ablate_compartment_and_evaluate(
+                            test_dataset=test_dataset,
+                            model=model,
+                            module=module,
+                            module_name=_name,
+                            target_type="inhibition",
+                            ablation_method=method,
+                            baseline_dict=baselines,
+                            results_dict=compartment_results,
+                            state_dict=state_dict,
+                        )
+
+                if self.ablate_upstream and hasattr(module, "branches_to_output"):
+                    if self.layer_ablation:
+                        layer_results = self.ablate_layer_and_evaluate(
+                            test_dataset=test_dataset,
+                            model=model,
+                            module=module,
+                            module_name=_name,
+                            target_type="upstream",
+                            ablation_method=method,
+                            baseline_dict=baselines,
+                            results_dict=layer_results,
+                            state_dict=state_dict,
+                        )
+                    if self.compartment_ablation and method == "lesion":
+                        compartment_results = self.ablate_compartment_and_evaluate(
+                            test_dataset=test_dataset,
+                            model=model,
+                            module=module,
+                            module_name=_name,
+                            target_type="upstream",
+                            ablation_method=method,
+                            baseline_dict=baselines,
+                            results_dict=compartment_results,
+                            state_dict=state_dict,
+                        )
+
+        # ------------------------------------------------------------------
+        # Ensure upstream (branch input / branches_to_output) is evaluated at the
+        # soma even when somatic_synapses=False.
+        #
+        # When somatic synapses are disabled, the soma DendriticBranchLayer exists
+        # (layer_idx==0) but has no E/I synapse modules, so it is excluded by the
+        # main loop filter above. Upstream, however, is still meaningful at soma
+        # (it is the only remaining input pathway there), so we compute it here.
+        # ------------------------------------------------------------------
+        somatic_synapses_enabled = getattr(model.core_network, "somatic_synapses", True)
+        if self.ablate_upstream and not somatic_synapses_enabled:
             for _name, module in model.named_modules():
                 if not (
                     isinstance(module, DendriticBranchLayer)
@@ -784,9 +878,7 @@ class AblationAnalyzer(AbstractAnalyzer):
                                 device=analysis_device,
                             )
 
-            somatic_synapses_enabled = getattr(
-                model.core_network, "somatic_synapses", True
-            )
+
             if self.ablate_upstream and not somatic_synapses_enabled:
                 for _name, module in model.named_modules():
                     if not isinstance(module, DendriticBranchLayer):
@@ -888,9 +980,9 @@ class AblationAnalyzer(AbstractAnalyzer):
 
 def create_video_layer_ablation_vs_training(
     save_path: str,
-    metric: str,
+    methods: list[str],
+    target_types: list[str],
     video_format: str = "mp4",
-    method: Optional[str] = None,
 ):
     """
     Create a video showing layer ablation results evolving over training epochs.
@@ -938,8 +1030,7 @@ def create_video_layer_ablation_vs_training(
         raise ValueError("No valid epoch data loaded")
 
     num_epochs = len(epoch_data_list)
-    fps = int(num_epochs / 30.0)
-    fps = min(max(fps, 2), 10)
+    fps = 10
 
     # Determine available metrics and ablation types from first epoch
     first_epoch_data = epoch_data_list[0][1]
@@ -972,236 +1063,175 @@ def create_video_layer_ablation_vs_training(
             return any(has_metric_nested(item, metric) for item in dictionary)
         return False
 
-    # Validate that the requested metric exists
-    if metric not in metric_mapping:
-        raise ValueError(
-            f"Invalid metric '{metric}'. Must be one of: {list(metric_mapping.keys())}"
-        )
-
-    if not has_metric_nested(layer_results, metric):
-        available_metrics = []
-        for m in metric_mapping.keys():
-            if has_metric_nested(layer_results, m):
-                available_metrics.append(m)
-        raise ValueError(
-            f"Metric '{metric}' not found in ablation data. "
-            f"Available metrics: {available_metrics}"
-        )
-
-    # Determine ablation types (supports method-prefixed keys like "lesion_excitation")
-    base_targets = ["excitation", "inhibition", "all_synapses", "upstream"]
-
-    available_methods = set()
-    for k in layer_results.keys():
-        k_norm = str(k).replace(" ", "_")
-        for base in base_targets:
-            if k_norm.endswith(f"_{base}"):
-                available_methods.add(k_norm[: -(len(base) + 1)])
-
-    selected_method = method
-    if selected_method is None:
-        selected_method = "lesion" if "lesion" in available_methods else None
-    if selected_method is None and available_methods:
-        selected_method = sorted(available_methods)[0]
-
-    synapse_ablation_types = []
-    if selected_method is not None:
-        for base in base_targets:
-            key = f"{selected_method}_{base}"
-            if key in layer_results:
-                synapse_ablation_types.append(key)
-    else:
-        # Legacy (non-prefixed) keys
-        for legacy_key in (
-            "excitation",
-            "inhibition",
-            "all synapses",
-            "all_synapses",
-            "upstream",
-        ):
-            if legacy_key in layer_results:
-                synapse_ablation_types.append(legacy_key)
-
-    if not synapse_ablation_types:
-        raise ValueError("No ablation types found in data")
+    metrics = []
+    for m in metric_mapping.keys():
+        if has_metric_nested(layer_results, m):
+            metrics.append(m)
+    if not metrics:
+        raise ValueError("No metrics found in ablation data")
 
     # Create a video for the specified metric
     # Create figure and axis
-    fig, ax = plt.subplots(figsize=(10, 8))
+    for method, metric in itertools.product(methods, metrics):
+        fig, ax = plt.subplots(figsize=(10, 8))
 
-    # Determine depth range from first epoch (assume consistent across epochs)
-    first_layer_results = epoch_data_list[0][1]["layer"]
-    first_type_dict = first_layer_results[synapse_ablation_types[0]]
-    depths = sorted({layer_dict["depth"] for layer_dict in first_type_dict.values()})
+        # Determine depth range from first epoch (assume consistent across epochs)
+        first_layer_results = epoch_data_list[0][1]["layer"]
+        first_type_dict: dict = first_layer_results[method][target_types[0]]
+        depths = sorted({layer_dict["depth"] for layer_dict in first_type_dict.values()})
 
-    # Create depth labels
-    depth_labels = []
-    for depth in depths:
-        if depth == min(depths):
-            depth_labels.append("Soma")
-        else:
-            distal_layer = depth - min(depths)
-            depth_labels.append(f"Distal {distal_layer}")
+        # Create depth labels
+        depth_labels = []
+        for depth in depths:
+            if depth == min(depths):
+                depth_labels.append("Soma")
+            else:
+                distal_layer = depth - min(depths)
+                depth_labels.append(f"Distal {distal_layer}")
 
-    # Calculate global min and max values across all epochs for consistent y-axis
-    all_values = []
-    for _epoch_number, epoch_data in epoch_data_list:
-        layer_results = epoch_data["layer"]
-        for ablation_type in synapse_ablation_types:
-            type_dict = layer_results.get(ablation_type, {})
-            for layer_dict in type_dict.values():
-                metric_key = f"{metric}_drop"
-                decrease_value = layer_dict.get(metric_key, 0.0)
-                # Handle list values (from compartment ablation)
-                if isinstance(decrease_value, list):
-                    if decrease_value:
-                        all_values.extend([float(v) for v in decrease_value])
-                else:
+        # Calculate global min and max values across all epochs for consistent y-axis
+        all_values = []
+        for _epoch_number, epoch_data in epoch_data_list:
+            for target in target_types:
+                res_dict: dict = epoch_data["layer"][method][target]
+                for layer_dict in res_dict.values():
+                    decrease_value = layer_dict.get(f"{metric} drop", 0.0)
                     all_values.append(float(decrease_value))
 
-    if not all_values:
-        y_min, y_max = 0.0, 1.0
-    else:
-        y_min = min(all_values)
-        y_max = max(all_values)
-        # Add small padding (5% of range)
-        y_range = y_max - y_min
-        if y_range == 0:
-            y_min -= 0.1
-            y_max += 0.1
+
+        if not all_values:
+            y_min, y_max = 0.0, 1.0
         else:
-            padding = y_range * 0.05
-            # y_min = max(0.0, y_min - padding)  # Don't go below 0 for drop values
-            y_min = y_min - padding
-            y_max = y_max + padding
+            y_min = min(all_values)
+            y_max = max(all_values)
+            # Add small padding (5% of range)
+            y_range = y_max - y_min
+            if y_range == 0:
+                y_min -= 0.1
+                y_max += 0.1
+            else:
+                padding = y_range * 0.05
+                # y_min = max(0.0, y_min - padding)  # Don't go below 0 for drop values
+                y_min = y_min - padding
+                y_max = y_max + padding
 
-    # Create evenly spaced y-ticks rounded to 1 decimal place
-    num_ticks = 6  # Number of ticks desired
-    y_ticks = np.linspace(y_min, y_max, num_ticks)
-    y_ticks = np.round(y_ticks, 1)  # Round to 1 decimal place
-    y_ticks = np.unique(y_ticks)  # Remove duplicates
+        # Create evenly spaced y-ticks rounded to 1 decimal place
+        num_ticks = 6  # Number of ticks desired
+        y_ticks = np.linspace(y_min, y_max, num_ticks)
+        y_ticks = np.round(y_ticks, 1)  # Round to 1 decimal place
+        y_ticks = np.unique(y_ticks)  # Remove duplicates
 
-    # Set up plot elements that won't change
-    ax.set_xticks(depths)
-    ax.set_xticklabels(depth_labels, rotation=45)
-    ax.set_xlabel("Branch Depth (Soma to Distal)")
-    ax.set_ylabel(f"{metric_mapping[metric]} Drop Decrease")
-    # ax.legend()
-    ax.grid(True, axis="y", alpha=0.3)
-
-    # Store bar containers for updating
-    n_ablation_types = len(synapse_ablation_types)
-    width = 0.25
-
-    def animate(frame):
-        """Animation function that updates the plot for each epoch"""
-        # Clear previous bars but keep axes setup
-        ax.clear()
-
-        # Reload axes setup
+        # Set up plot elements that won't change
         ax.set_xticks(depths)
         ax.set_xticklabels(depth_labels, rotation=45)
         ax.set_xlabel("Branch Depth (Soma to Distal)")
         ax.set_ylabel(f"{metric_mapping[metric]} Drop Decrease")
-        ax.set_ylim(y_min, y_max)
-        ax.set_yticks(y_ticks)
+        # ax.legend()
         ax.grid(True, axis="y", alpha=0.3)
 
-        # Get data for this frame
-        epoch_number, epoch_data = epoch_data_list[frame]
-        layer_results = epoch_data["layer"]
-        baselines = epoch_data.get("baseline", {})
+        # Store bar containers for updating
+        n_target_types = len(target_types)
+        width = 0.25
 
-        # Prepare data for plotting (matching plot_layer_ablation logic exactly)
-        results = {}
-        for ablation_type in synapse_ablation_types:
-            data_dict = {"depth": [], "decrease": []}
-            type_dict = layer_results.get(ablation_type, {})
-            for layer_dict in type_dict.values():
-                data_dict["depth"].append(layer_dict["depth"])
-                metric_key = f"{metric}_drop"
-                decrease_value = layer_dict.get(metric_key, 0.0)
-                # Handle list values (from compartment ablation)
-                if isinstance(decrease_value, list):
-                    decrease_value = np.mean(decrease_value) if decrease_value else 0.0
-                data_dict["decrease"].append(float(decrease_value))
-            results[ablation_type] = data_dict
+        def animate(frame):
+            """Animation function that updates the plot for each epoch"""
+            # Clear previous bars but keep axes setup
+            ax.clear()
 
-        # Use consistent depths (from first epoch) for x-axis positioning
-        # Match values to depths in correct order
-        for ablation_type in synapse_ablation_types:
-            if ablation_type in results:
-                # Create mapping from depth to decrease value
-                depth_to_decrease = dict(
-                    zip(
-                        results[ablation_type]["depth"],
-                        results[ablation_type]["decrease"],
+            # Reload axes setup
+            ax.set_xticks(depths)
+            ax.set_xticklabels(depth_labels, rotation=45)
+            ax.set_xlabel("Branch Depth (Soma → Distal)")
+            ax.set_ylabel(f"{metric_mapping[metric]} Drop Decrease")
+            ax.set_ylim(y_min, y_max)
+            ax.set_yticks(y_ticks)
+            ax.grid(True, axis="y", alpha=0.3)
+
+            # Get data for this frame
+            epoch_number, epoch_data = epoch_data_list[frame]
+            layer_results = epoch_data["layer"]
+            baselines = epoch_data.get("baseline", {})
+
+            # Prepare data for plotting (matching plot_layer_ablation logic exactly)
+            results = {}
+            for target in target_types:
+                data_dict = {"depth": [], "decrease": []}
+                res_dict: dict = layer_results.get(method, {}).get(target, {})
+                for layer_dict in res_dict.values():
+                    data_dict["depth"].append(layer_dict["depth"])
+                    metric_key = f"{metric} drop"
+                    decrease_value = layer_dict.get(metric_key, 0.0)
+                    data_dict["decrease"].append(float(decrease_value))
+                results[target] = data_dict
+
+            # Use consistent depths (from first epoch) for x-axis positioning
+            # Match values to depths in correct order
+            for target in target_types:
+                if target in results:
+                    # Create mapping from depth to decrease value
+                    depth_to_decrease = dict(
+                        zip(
+                            results[target]["depth"],
+                            results[target]["decrease"],
+                        )
                     )
-                )
-                # Map decreases to consistent depth order
-                ordered_decreases = [depth_to_decrease.get(d, 0.0) for d in depths]
-                results[ablation_type]["decrease"] = ordered_decreases
+                    # Map decreases to consistent depth order
+                    ordered_decreases = [depth_to_decrease.get(d, 0.0) for d in depths]
+                    results[target]["decrease"] = ordered_decreases
 
-        # Plot bars for each ablation type (matching plot_layer_ablation exactly)
-        for i, ablation_type in enumerate(synapse_ablation_types):
-            if ablation_type in results:
-                x = np.array(depths) + width * (i - (n_ablation_types - 1) / 2)
-                ax.bar(
-                    x,
-                    results[ablation_type]["decrease"],
-                    width=width,
-                    label=ablation_type.replace("_", " ").title(),
-                )
+            # Plot bars for each ablation type (matching plot_layer_ablation exactly)
+            for i, target in enumerate(target_types):
+                if target in results:
+                    x = np.array(depths) + width * (i - (n_target_types - 1) / 2)
+                    ax.bar(
+                        x,
+                        results[target]["decrease"],
+                        width=width,
+                        label=target.replace("_", " ").title(),
+                    )
 
-        # Update title with epoch number and baseline
-        baseline_value = baselines.get(metric, 0.0)
-        title = f"{metric_mapping[metric]} Drop Decrease vs. Branch Depth"
-        if selected_method is not None:
-            title += f"\nMethod: {selected_method}"
-        title += f"\nEpoch {epoch_number} (Baseline: {baseline_value:.3f})"
-        ax.set_title(title)
-        ax.legend()
+            # Update title with epoch number and baseline
+            baseline_value = baselines.get(metric, 0.0)
+            title = f"{metric_mapping[metric]} Drop Decrease vs. Branch Depth"
+            title += f"\nMethod: {method}"
+            title += f"\nEpoch {epoch_number} (Baseline: {baseline_value:.3f})"
+            ax.set_title(title)
+            ax.legend()
 
-        return []
+            return []
 
-    # Create animation
-    ani = animation.FuncAnimation(
-        fig,
-        animate,
-        frames=len(epoch_data_list),
-        interval=1000 / fps,  # Convert fps to interval in milliseconds
-        repeat=True,
-        blit=True,
-    )
+        # Create animation
+        ani = animation.FuncAnimation(
+            fig,
+            animate,
+            frames=len(epoch_data_list),
+            interval=1000 / fps,  # Convert fps to interval in milliseconds
+            repeat=True,
+            blit=True,
+        )
 
-    # Save video
-    method_tag = selected_method if selected_method is not None else "legacy"
-    video_filename = f"layer_ablation_{method_tag}_{metric}_evolution"
-    print(f"Creating {num_epochs}-frame video at {fps:.2f} fps (20 seconds total)")
-    if video_format == "mp4":
-        if animation.writers.is_available("ffmpeg"):
+        # Save video
+        video_filename = f"layer_ablation_{method}_{metric}_evolution"
+        method_path = os.path.join(save_path, method)
+        os.makedirs(method_path, exist_ok=True)
+        print(f"Creating {num_epochs}-frame video at {fps:.2f} fps (20 seconds total)")
+        if video_format == "mp4":
             try:
                 writer = animation.FFMpegWriter(fps=fps, bitrate=1800)
-                video_path = os.path.join(save_path, f"{video_filename}.mp4")
+                video_path = os.path.join(method_path, f"{video_filename}.mp4")
                 ani.save(video_path, writer=writer)
                 print(f"Video saved to {video_path}")
             except Exception as e:
                 print(f"Error saving MP4 video: {e}")
                 print("Falling back to GIF format...")
                 writer = animation.PillowWriter(fps=fps)
-                video_path = os.path.join(save_path, f"{video_filename}.gif")
+                video_path = os.path.join(method_path, f"{video_filename}.gif")
                 ani.save(video_path, writer=writer)
                 print(f"GIF saved to {video_path}")
         else:
-            print("ffmpeg writer not available; saving GIF format...")
             writer = animation.PillowWriter(fps=fps)
-            video_path = os.path.join(save_path, f"{video_filename}.gif")
+            video_path = os.path.join(method_path, f"{video_filename}.gif")
             ani.save(video_path, writer=writer)
             print(f"GIF saved to {video_path}")
-    else:
-        writer = animation.PillowWriter(fps=fps)
-        video_path = os.path.join(save_path, f"{video_filename}.gif")
-        ani.save(video_path, writer=writer)
-        print(f"GIF saved to {video_path}")
 
-    plt.close(fig)
+        plt.close(fig)

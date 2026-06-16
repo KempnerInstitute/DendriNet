@@ -262,10 +262,18 @@ class DataCollector:
 
         # Layer statistics
         if "layer_statistics" in data and isinstance(data["layer_statistics"], dict):
-            for layer_name, layer_data in data["layer_statistics"].items():
+            layer_names: list[str] = [
+                name for name in data["layer_statistics"].keys() 
+                if "inhibitory_cells" not in name
+            ]
+            depths: list[int] = list(range(len(layer_names)))
+            depths.reverse()
+            for i, layer_name in enumerate(layer_names):
+                layer_data: dict[str, float] = data["layer_statistics"][layer_name]
                 if isinstance(layer_data, dict):
                     # Extract depth from layer name
-                    depth = self._extract_depth(layer_name)
+                    # depth = self._extract_depth(layer_name)
+                    depth = depths[i]
                     for mi_key, mi_value in layer_data.items():
                         if isinstance(mi_value, (int, float)):
                             base_key = (
@@ -349,12 +357,18 @@ class DataCollector:
         result: dict[str, float] = {}
 
         if "layer" in data and isinstance(data["layer"], dict):
-            layer_data = data["layer"]
-            # Detect and convert legacy 2-level schema if needed
-            layer_data = self._ensure_3level(layer_data)
-            result.update(flatten_ablation_results(layer_data))
-            result.update(flatten_ablation_module_results(layer_data))
-
+            for method, method_data in data["layer"].items():
+                for target, target_data in method_data.items():
+                    for layer_data in target_data.values():
+                        depth = layer_data.get("depth", 0)
+                        for metric, val in layer_data.items():
+                            if metric != "depth":
+                                col_name = "ablation_"
+                                col_name += method.replace("_", " ") + "_"
+                                col_name += target.replace("_", " ") + "_"
+                                col_name += metric.replace("_", " ") + "_"
+                                col_name += f"depth{depth}"
+                                result[col_name] = val
         return result
 
     @staticmethod
@@ -470,32 +484,28 @@ class DataCollector:
 
         result = {}
 
-        gain_factors = data.get("gain_factors", [])
-        raw_scores = data.get("raw_scores")
-        if not isinstance(raw_scores, dict):
-            raw_scores = {
-                key: value
-                for key, value in data.items()
-                if key != "gain_factors" and isinstance(value, list)
-            }
+        gain_factors: list[float] = data["gain_factors"]
+        
+        raw_scores: dict[str, list[float]] = data["raw_scores"]
+        
+        id_scores: dict[str, float] = data["ID"]
+        ood_lower_scores: dict[str, float] = data["OOD_lower"]
+        ood_upper_scores: dict[str, float] = data["OOD_upper"]
 
-        for metric, scores in raw_scores.items():
+        metrics = list(raw_scores.keys())
+        for metric in metrics:
+            # collect raw scores
             for i, gain_factor in enumerate(gain_factors):
-                if i < len(scores):
-                    result[f"mult_gain_{metric}_gf{gain_factor}"] = scores[i]
+                result[f"mult_gain_{metric}_gf{gain_factor}"] = raw_scores[metric][i]
+            
+            # collect id scores
+            result[f"mult_gain_{metric}_id"] = id_scores[metric]
 
-        score_blocks = {
-            "ID": "id",
-            "OOD_lower": "ood_lower",
-            "OOD_upper": "ood_upper",
-        }
-        for block_name, suffix in score_blocks.items():
-            scores = data.get(block_name, {})
-            if not isinstance(scores, dict):
-                continue
-            for metric, value in scores.items():
-                if isinstance(value, (int, float)):
-                    result[f"mult_gain_{metric}_{suffix}"] = value
+            # collect ood lower scores
+            result[f"mult_gain_{metric}_ood_lower"] = ood_lower_scores[metric]
+
+            # collect ood upper scores
+            result[f"mult_gain_{metric}_ood_upper"] = ood_upper_scores[metric]
 
         return result
 

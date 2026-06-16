@@ -143,6 +143,7 @@ class MultiplicativeGainAnalyzer(AbstractAnalyzer):
             self.mse = False
             self.cosine_similarity = False
 
+
         if self.logspace:
             log_gain_max = log(self.gain_max)
 
@@ -159,7 +160,7 @@ class MultiplicativeGainAnalyzer(AbstractAnalyzer):
             gain_factors = torch.linspace(self.gain_min, self.gain_max, self.n_steps)
 
         gain_factor_values = gain_factors.tolist()
-        data_dict = {"gain_factors": gain_factor_values}
+        data_dict: dict[str, list[float]] = {}
         metric_funcs: list[tuple[str, Callable]] = []
 
         if self.accuracy:
@@ -279,14 +280,15 @@ class MultiplicativeGainAnalyzer(AbstractAnalyzer):
                     (gain_factors > train_g_max) & (gain_factors <= self.gain_max)
                 )
 
+        ret_dict = {}
         if metric_funcs:
-            data_dict["raw_scores"] = {
-                metric_key: list(data_dict[metric_key])
-                for metric_key, _ in metric_funcs
+            ret_dict = {
+                "ID": id_dict,
+                "OOD_lower": ood_lower_dict,
+                "OOD_upper": ood_upper_dict,
+                "gain_factors": gain_factor_values,
+                "raw_scores": data_dict,
             }
-            data_dict["ID"] = id_dict
-            data_dict["OOD_lower"] = ood_lower_dict
-            data_dict["OOD_upper"] = ood_upper_dict
 
         if save_path is not None:
             if training:
@@ -294,6 +296,7 @@ class MultiplicativeGainAnalyzer(AbstractAnalyzer):
             else:
                 for metric, _metric_func in metric_funcs:
                     plot_performance_vs_gain_final(
+                        gain_factors=gain_factor_values,
                         data_dict=data_dict,
                         metric=metric,
                         logspace=self.logspace,
@@ -310,10 +313,10 @@ class MultiplicativeGainAnalyzer(AbstractAnalyzer):
                             logspace=self.logspace,
                             save_path=save_path,
                         )
-
-            save_dict(data_dict, save_path, f"{filename}.json")
-
-        return data_dict
+                
+            save_dict(ret_dict, save_path, f"{filename}.json")
+        else:
+            return ret_dict
 
     def _initialize_agg_structure(self, data: dict) -> dict:
         """
@@ -403,7 +406,11 @@ class MultiplicativeGainAnalyzer(AbstractAnalyzer):
 
 
 def plot_performance_vs_gain_final(
-    data_dict: dict, metric: str, logspace: bool, save_path: str
+    gain_factors: list[float],
+    data_dict: dict,
+    metric: str,
+    logspace: bool,
+    save_path: str
 ):
     """
     Plot performance metric vs gain factor.
@@ -414,7 +421,6 @@ def plot_performance_vs_gain_final(
         logspace: Whether to plot the gain factors on a log scale
         save_path: Optional path to save the figure
     """
-    gain_factors = data_dict["gain_factors"]
     metric_values = data_dict[metric]
 
     plt.figure(figsize=(10, 6))
@@ -454,8 +460,8 @@ def plot_performance_vs_gain_training(
         save_path: Path to save the video
     """
     gain_factors = epochs_data["gain_factors"]
-    metric_values_list = epochs_data[metric]
-
+    metric_values_list = epochs_data["raw_scores"][metric]
+    
     # Calculate global y-axis limits across all epochs
     all_metric_values = [
         val for epoch_values in metric_values_list for val in epoch_values

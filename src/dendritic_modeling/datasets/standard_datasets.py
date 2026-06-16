@@ -15,6 +15,7 @@ from contextlib import contextmanager
 from typing import Any, Optional, Union
 
 import numpy as np
+from math import log
 import torch
 from torch.utils.data import Dataset, Subset, TensorDataset
 from torchvision import datasets, transforms
@@ -937,6 +938,9 @@ class PoissonGeneratorDataset(Dataset):
         self.multiplicative_gain = multiplicative_gain
         self.fixed_gain_factor = fixed_gain_factor
         self.max_gain_factor = max_gain_factor
+        self.log_max_gain_factor = None
+        if isinstance(max_gain_factor, float):
+            self.log_max_gain_factor = log(max_gain_factor)
         self.uniform_gain = uniform_gain
         self.poisson_sampling = poisson_sampling
         self.stimulus_duration = stimulus_duration
@@ -1008,9 +1012,14 @@ class PoissonGeneratorDataset(Dataset):
                 gain_factor = self.fixed_gain_factor
 
             elif self.uniform_gain:
-                gain_factor = self._sample_uniform_gain(
-                    input, self.max_gain_factor, batched=batched
+                # gain_factor = (
+                #     torch.rand(input.shape[0]) * (self.max_gain_factor - 1)
+                # ) + 1
+                gain_factor = torch.exp(
+                    torch.rand(input.shape[0]) * self.log_max_gain_factor
                 )
+                while gain_factor.ndim < input.ndim:
+                    gain_factor = gain_factor[..., None]
 
             else:
                 # gain_factor = torch.exp(
@@ -1020,11 +1029,14 @@ class PoissonGeneratorDataset(Dataset):
                 # gain_factor = torch.exp(
                 #     torch.rand(input.shape[0]) * math.log(self.max_gain_factor)
                 # )
-                gain_factor = (torch.rand_like(input) * (self.max_gain_factor - 1)) + 1
+                # gain_factor = (torch.rand_like(input) * (self.max_gain_factor - 1)) + 1
                 # gain_factor = torch.exp(
                 #     ((torch.rand_like(input) * 2) - 1
                 #     ) * math.log(self.max_gain_factor)
                 # )
+                gain_factor = torch.exp(
+                    torch.rand_like(input) * self.log_max_gain_factor
+                )
 
             input = gain_factor * input
 

@@ -28,7 +28,9 @@ from dendritic_modeling.config import CompartmentSNRAnalysisParams
 from dendritic_modeling.config.analysis import EvaluationRuntimeConfig
 from dendritic_modeling.models import BaseModel, Classifier
 from dendritic_modeling.networks import (
+    DendriNet,
     DendriticBranchLayer,
+    ExcitationInhibitionLayer,
     ExcitationInhibitionNetwork,
     ParametricActivation,
     TopKLinear,
@@ -73,7 +75,25 @@ class CompartmentSNRAnalyzer(AbstractAnalyzer):
         self.raw_dict = {}
         handles = []
 
-        exc_dendrinet = model.core_network.layers[-1].excitatory_cells
+        core_network: ExcitationInhibitionNetwork = model.core_network
+
+        if self.input_analysis:
+            handle = core_network.register_forward_hook(
+                lambda module, input, output: self.input_forward_hook(
+                    module, input, output
+                )
+            )
+            handles.append(handle)
+
+            if isinstance(core_network.layers[-1].inhibitory_cells, DendriNet):
+                handle = core_network.layers[-1].inhibitory_cells.register_forward_hook(
+                    lambda module, input, output: self.input_forward_hook(
+                        module, input, output
+                    )
+                )
+                handles.append(handle)
+
+        exc_dendrinet = core_network.layers[-1].excitatory_cells
 
         for key, module in exc_dendrinet.named_modules():
             if isinstance(module, DendriticBranchLayer):
@@ -136,34 +156,23 @@ class CompartmentSNRAnalyzer(AbstractAnalyzer):
         for handle in handles:
             handle.remove()
 
-    def _capture_input_once(self, name: str, tensor: torch.Tensor | None) -> None:
-        if tensor is None or hasattr(self, name):
-            return
-        if not torch.is_tensor(tensor):
-            return
-        setattr(self, name, tensor.detach().cpu())
-
-    def branch_input_hook(
+    def input_forward_hook(
         self,
-        module: DendriticBranchLayer,
+        module: Union[ExcitationInhibitionNetwork, DendriNet],
         input: tuple[torch.Tensor, ...],
-        key: str,
-    ) -> None:
-        """Capture the actual tensors entering a branch layer.
-
-        This is intentionally attached to ``DendriticBranchLayer`` rather than
-        to the whole E/I network.  It therefore records direct inhibitory
-        streams from ``input_mode=1`` as inhibitory inputs, while explicit
-        inhibitory-cell outputs are captured only when they are actually passed
-        into the analyzed excitatory dendrites.
-        """
-        if not input:
-            return
-        self._capture_input_once("excitatory_inputs", input[0])
-        if len(input) > 1:
-            self._capture_input_once("inhibitory_inputs", input[1])
-        if len(input) > 2:
-            self._capture_input_once("upstream_inputs", input[2])
+        output: torch.Tensor
+    ):
+        """Forward hook to collect input data."""
+        if (
+            isinstance(module, ExcitationInhibitionNetwork)
+            and not hasattr(self, "excitatory_inputs")
+        ):
+            self.excitatory_inputs = input[0].detach().cpu()
+        elif (
+            isinstance(module, DendriNet)
+            and not hasattr(self, "inhibitory_inputs")
+        ):
+            self.inhibitory_inputs = output.detach().cpu()
 
     def forward_hook(
         self,
@@ -173,12 +182,6 @@ class CompartmentSNRAnalyzer(AbstractAnalyzer):
         key: str,
         activation_type: str,
     ):
-        if self.input_analysis:
-            if activation_type == "exc" and not hasattr(self, "excitatory_inputs"):
-                self._capture_input_once("excitatory_inputs", input[0])
-            elif activation_type == "inh" and not hasattr(self, "inhibitory_inputs"):
-                self._capture_input_once("inhibitory_inputs", input[0])
-
         for branch_idx in range(output.shape[-1]):
             if activation_type == "vinf":
                 branch_activation = input[0][..., branch_idx].detach().cpu()
@@ -207,15 +210,6 @@ class CompartmentSNRAnalyzer(AbstractAnalyzer):
                 stats_dict=results,
             )
             delattr(self, "inhibitory_inputs")
-
-        if hasattr(self, "upstream_inputs"):
-            results = self._compute_discriminability_multivariate(
-                data_tensor=self.upstream_inputs,
-                labels=labels,
-                prefix="upstream_inputs",
-                stats_dict=results,
-            )
-            delattr(self, "upstream_inputs")
 
         return results
 

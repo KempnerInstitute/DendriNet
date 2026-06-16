@@ -998,24 +998,10 @@ class SingleLayerContributionAnalysisConfig(BaseConfig):
 class ReceptiveFieldAnalysisParams(BaseConfig):
     """Parameters for receptive field visualization.
 
-    - n_rows / n_cols: grid size for plotting receptive fields.
-    - rf_shape: optional shared (H, W) shape for both E and I receptive fields.
-    - exc_rf_shape / inh_rf_shape: optional per-stream (H, W) receptive field shapes.
-    - compute_activation_tuning: also summarize class tuning from branch activations
-      when a dataset is supplied by the analysis manager.
+    - rf_shape: optional (H, W) receptive field shape if known.
     """
-
-    n_rows: int = 2
-    n_cols: int = 2
     rf_shape: Optional[tuple[int, int]] = None
-    exc_rf_shape: Optional[tuple[int, int]] = None
-    inh_rf_shape: Optional[tuple[int, int]] = None
     fig_save_format: str = "png"
-    compute_activation_tuning: bool = False
-    save_raw_data: bool = True
-    load_raw_data: bool = False
-    raw_filename: Optional[str] = None
-    epsilon: float = 1e-8
 
 
 @dataclass

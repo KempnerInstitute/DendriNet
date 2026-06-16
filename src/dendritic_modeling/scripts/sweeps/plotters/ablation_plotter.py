@@ -47,20 +47,20 @@ class AblationPlotter(BasePlotter):
         """Return present network categories in canonical visual order."""
         canonical_order = [
             "dendritic_shunting",
-            "flat_shunting",
+            # "flat_shunting",
             "dendritic_additive",
             "dendritic_normalized_additive",
-            "flat_additive",
-            "flat_normalized_additive",
+            # "flat_additive",
+            # "flat_normalized_additive",
             "dendritic_signed",
-            "flat_signed",
+            # "flat_signed",
             "dendritic_mlp",
-            "flat_mlp",
-            "point_mlp",
-            "ss_mlp",
-            "ss_mlp_flat",
-            "total_param_mlp",
-            "active_param_mlp",
+            # "flat_mlp",
+            # "point_mlp",
+            # "ss_mlp",
+            # "ss_mlp_flat",
+            # "total_param_mlp",
+            # "active_param_mlp",
         ]
         if "network_category" not in data.columns:
             return []
@@ -158,7 +158,7 @@ class AblationPlotter(BasePlotter):
                         self._create_ablation_plots_1d_sweep(
                             valid_data=valid_data,
                             sweep_var="max_gain_factor",
-                            var_name="Max Gain Factor",
+                            var_name="Maximum Gain",
                             logscale=True,
                             output_dir=plots_dir,
                             method=method,
@@ -407,10 +407,13 @@ class AblationPlotter(BasePlotter):
             squeeze=False,
         )
         fig.suptitle(
-            f"{method.replace('_', ' ').title()} {target.replace('_', ' ').title()} Ablation: "
-            f"{metric.replace('_', ' ').title()} vs {var_name} by Depth",
+            f"{method.replace('_', ' ').title()} {target.replace('_', ' ').title()} "
+            f"Ablation: {metric.replace('_', ' ').title()} vs {var_name} by Depth",
             fontsize=16,
         )
+
+        cmap = plt.get_cmap("tab10")
+        depth_colors = {d: cmap(d / 9.0) for d in depths}
 
         for idx, category in enumerate(categories):
             ax = axes[idx // ncols, idx % ncols]
@@ -455,6 +458,7 @@ class AblationPlotter(BasePlotter):
                             y_vals,
                             marker="o",
                             label=f"Depth {depth}",
+                            color=depth_colors[depth],
                             alpha=0.8,
                             linewidth=2,
                         )
@@ -561,8 +565,8 @@ class AblationPlotter(BasePlotter):
             squeeze=False,
         )
         fig.suptitle(
-            f"{method.replace('_', ' ').title()} {target.replace('_', ' ').title()} Ablation: "
-            f"{metric.replace('_', ' ').title()} Heatmap ({colx} vs {coly})",
+            f"{method.replace('_', ' ').title()} {target.replace('_', ' ').title()} "
+            f"Ablation: {metric.replace('_', ' ').title()} Heatmap ({colx} vs {coly})",
             fontsize=16,
         )
 
