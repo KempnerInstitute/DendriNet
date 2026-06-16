@@ -72,7 +72,7 @@ training:
   # Enable this block with the dedicated distillation runner:
   #
   #   python -m dendritic_modeling.scripts.training.train_transformer_replacement \
-  #     configs/examples/deepseek_v3_mlp_dendritic_replacement.yaml
+  #     jobs/transformer_replacement_benchmarks/configs/templates/deepseek_v3_mlp_dendritic_replacement.yaml
   #
   # For DeepSeek-V3 scale, use teacher_source: hf_text with a real text file
   # and a hardware setup that can load/run the teacher model. For first local

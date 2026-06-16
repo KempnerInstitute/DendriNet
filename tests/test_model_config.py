@@ -221,3 +221,6 @@ def test_sparsity_indexed_dict():
     assert indexed["candidate_size"] is None
     assert indexed["selection"] == "standard"
     assert indexed["output_chunk_size"] == 2048
+    assert indexed["rewire_frequency"] == 100
+    assert indexed["rewire_quantile"] == 0.05
+    assert indexed["rewire_until_step"] is None

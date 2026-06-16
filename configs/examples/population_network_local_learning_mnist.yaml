@@ -1,5 +1,5 @@
 # ============================================================================
-# Local Credit Assignment (4-factor rule) on MNIST
+# Population Network Local Credit Assignment on MNIST
 # ============================================================================
 # Trains a DendriNet with biologically plausible local learning rules instead
 # of end-to-end backpropagation through the core. The decoder is still trained
@@ -8,7 +8,7 @@
 # Run:
 #   PYTHONPATH=src:$PYTHONPATH python \
 #     src/dendritic_modeling/scripts/training/train_experiments.py \
-#     configs/examples/local_learning_mnist.yaml
+#     configs/examples/population_network_local_learning_mnist.yaml
 # ============================================================================
 
 experiment:
@@ -29,30 +29,45 @@ model:
   encoder:
     type: "identity"
   core:
-    type: "einet"
-    architecture:
-      excitatory_layer_sizes: [128]
-      inhibitory_layer_sizes: [32]
-      excitatory_branch_factors: [3, 3]
-      inhibitory_branch_factors: [1]
-      inhibitory_network_type: "dendritic"
-    connectivity:
-      ee_synapses_per_branch_per_layer: [40]
-      ei_synapses_per_branch_per_layer: [10]
-      ie_synapses_per_branch_per_layer: [10]
-      ii_synapses_per_branch_per_layer: [0]
-    morphology:
-      use_shunting: true
-      weight_transform: "softplus"
-    sparsity:
-      init_method: "xavier_normal"
-      type: "standard"
-    reactivation:
-      enabled: true
-      type: "param_tanh"
-      init_policy: "occupancy_quantile"
-      init_m: 1.5
-      init_b: 0.5
+    type: "population_network"
+    population_network:
+      layers:
+        - name: "layer0"
+          readout_population: "e"
+          population_defaults:
+            ff_excitatory_synapses: 40
+            ff_inhibitory_synapses: 10
+            rec_excitatory_synapses: 0
+            rec_inhibitory_synapses: 0
+            somatic_synapses: true
+            use_shunting: true
+            reactivate: true
+            reactivation_type: "param_tanh"
+            reactivation_init_policy: "occupancy_quantile"
+            reactivation_init_m: 1.5
+            reactivation_init_b: 0.5
+            dbl_init_method: "analytical_expectation"
+            weight_transform: "softplus"
+            topk_type: "standard"
+            topk_init_method: "xavier_normal"
+          populations:
+            - name: "i"
+              polarity: "inhibitory"
+              n_neurons: 32
+              branch_factors: [1]
+              population:
+                ff_inhibitory_synapses: 0
+            - name: "e"
+              polarity: "excitatory"
+              n_neurons: 128
+              branch_factors: [3, 3]
+          connections:
+            - source: "input"
+              target: "i"
+            - source: "input"
+              target: "e"
+            - source: "i"
+              target: "e"
   decoder:
     type: "MLP"
     params:
@@ -137,7 +152,7 @@ wandb:
   use_wandb: false
 
 outputs:
-  run_name: "local_learning_mnist"
+  run_name: "population_network_local_learning_mnist"
   results_dir: "outputs"
 
 distributed:

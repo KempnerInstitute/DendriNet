@@ -351,7 +351,7 @@ class TestUnifiedSweepGenerator:
     def test_generate_configs_with_population_network_list_paths(self, generator):
         """Population-network sweeps can address layers by numeric dot-path index."""
         base_config = OmegaConf.load(
-            "configs/examples/standard_mnist_population_network.yaml"
+            "configs/examples/population_network_feedforward.yaml"
         )
         sweep_config = OmegaConf.create(
             {
@@ -398,7 +398,7 @@ class TestUnifiedSweepGenerator:
     def test_generate_configs_with_population_network_ei_filter(self, generator):
         """EI filtering works with population-network population_defaults paths."""
         base_config = OmegaConf.load(
-            "configs/examples/standard_mnist_population_network.yaml"
+            "configs/examples/population_network_feedforward.yaml"
         )
         sweep_config = OmegaConf.create(
             {
@@ -439,7 +439,7 @@ class TestUnifiedSweepGenerator:
     def test_generate_configs_with_population_network_branch_sweep(self, generator):
         """Branch sweeps update population-network branch_factors."""
         base_config = OmegaConf.load(
-            "configs/examples/standard_mnist_population_network.yaml"
+            "configs/examples/population_network_feedforward.yaml"
         )
         sweep_config = OmegaConf.create(
             {
@@ -463,7 +463,7 @@ class TestUnifiedSweepGenerator:
         branch_configs = {
             tuple(
                 cfg.model.core.population_network.layers[0]
-                .populations[0]
+                .populations[1]
                 .branch_factors
             )
             for cfg in configs
